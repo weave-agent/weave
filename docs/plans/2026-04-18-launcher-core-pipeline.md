@@ -103,12 +103,12 @@ weave/
 - [x] run tests — must pass before next task
 
 ### Task 7: Builder (`weave/launcher/builder.go`)
-- [ ] implement hash computation: SHA256 of Go version + sorted extension .go file contents
-- [ ] implement go.mod generation with replace directives for sdk and each extension
-- [ ] implement main.go generation with blank imports for each extension + sdk.Wire call
-- [ ] implement Build(dir, extensions []ExtensionInfo) (binaryPath string, err error) — write files, run go build
-- [ ] write tests for hash determinism, generated file content, build with trivial extension
-- [ ] run tests — must pass before next task
+- [x] implement hash computation: SHA256 of Go version + sorted extension .go file contents
+- [x] implement go.mod generation with replace directives for sdk and each extension
+- [x] implement main.go generation with blank imports for each extension + sdk.Wire call
+- [x] implement Build(dir, extensions []ExtensionInfo) (binaryPath string, err error) — write files, run go build
+- [x] write tests for hash determinism, generated file content, build with trivial extension
+- [x] run tests — must pass before next task
 
 ### Task 8: Cache (`weave/launcher/cache.go`)
 - [ ] define cache root: `~/.weave/bin/`
