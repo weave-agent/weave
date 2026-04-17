@@ -88,11 +88,11 @@ weave/
 - [x] run tests — must pass before next task
 
 ### Task 5: Wire composition root (`weave/sdk/wire.go`)
-- [ ] implement Wire(config Config, bus *bus.Bus) error — resolve and subscribe all extensions listed in config
-- [ ] iterate config extensions list, instantiate each via registry, call Subscribe(bus)
-- [ ] return descriptive error on missing extension
-- [ ] write tests with mock extensions verifying Subscribe is called for each
-- [ ] run tests — must pass before next task
+- [x] implement Wire(config Config, bus Bus) error — resolve and subscribe all extensions listed in config
+- [x] iterate config extensions list, instantiate each via registry, call Subscribe(bus)
+- [x] return descriptive error on missing extension
+- [x] write tests with mock extensions verifying Subscribe is called for each
+- [x] run tests — must pass before next task
 
 ### Task 6: Extension discovery (`weave/launcher/discovery.go`)
 - [ ] define ExtensionInfo struct (Name, Dir string, GoFiles []string)
