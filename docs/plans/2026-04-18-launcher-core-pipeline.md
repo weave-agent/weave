@@ -55,11 +55,11 @@ weave/
 ## Implementation Steps
 
 ### Task 1: SDK core types and interfaces (`weave/sdk/`)
-- [ ] create `sdk/event.go` — Event struct (Topic string, Payload any, Timestamp time.Time) and NewEvent(topic, payload) constructor
-- [ ] create `sdk/config.go` — Config interface with typed accessors (GetString, GetInt, GetBool, GetStringSlice, Sub)
-- [ ] create `sdk/extension.go` — Extension interface (Name() string, Subscribe(bus)) + ExtensionFunc convenience type
-- [ ] write tests: interface satisfaction checks, NewEvent constructor, Event fields
-- [ ] run tests — must pass before next task
+- [x] create `sdk/event.go` — Event struct (Topic string, Payload any, Timestamp time.Time) and NewEvent(topic, payload) constructor
+- [x] create `sdk/config.go` — Config interface with typed accessors (GetString, GetInt, GetBool, GetStringSlice, Sub)
+- [x] create `sdk/extension.go` — Extension interface (Name() string, Subscribe(bus)) + ExtensionFunc convenience type
+- [x] write tests: interface satisfaction checks, NewEvent constructor, Event fields
+- [x] run tests — must pass before next task
 
 ### Task 2: Registry (`weave/sdk/registry.go`)
 - [ ] create global extensions map (name → factory func) with sync.RWMutex
