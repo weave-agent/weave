@@ -36,8 +36,10 @@ func ListExtensions() []string {
 	return names
 }
 
-func resetRegistry() {
+func ResetRegistry() {
 	registryMu.Lock()
 	defer registryMu.Unlock()
 	registry = make(map[string]func() Extension)
 }
+
+func resetRegistry() { ResetRegistry() }

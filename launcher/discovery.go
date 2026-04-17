@@ -22,7 +22,11 @@ func Discover(projectDir string, names []string) ([]ExtensionInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("discover: get home dir: %w", err)
 	}
+	return DiscoverCustomHome(projectDir, homeDir, names)
+}
 
+// DiscoverCustomHome is like Discover but accepts an explicit home directory.
+func DiscoverCustomHome(projectDir, homeDir string, names []string) ([]ExtensionInfo, error) {
 	var exts []ExtensionInfo
 	for _, name := range names {
 		info, err := findExtension(projectDir, homeDir, name)

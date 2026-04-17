@@ -133,11 +133,11 @@ weave/
 - [x] run tests — must pass before next task
 
 ### Task 11: Integration verification
-- [ ] create a minimal noop extension (registers itself, subscribes to events)
-- [ ] verify full pipeline: config → discovery → build → cache hit on second run → exec
-- [ ] verify exec'd binary runs Wire and subscribes extensions
-- [ ] run full test suite — all must pass
-- [ ] verify test coverage ≥ 80%
+- [x] create a minimal noop extension (registers itself, subscribes to events)
+- [x] verify full pipeline: config → discovery → build → cache hit on second run → exec
+- [x] verify exec'd binary runs Wire and subscribes extensions
+- [x] run full test suite — all must pass
+- [x] verify test coverage ≥ 80%
 
 ## Technical Details
 
