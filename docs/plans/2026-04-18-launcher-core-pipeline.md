@@ -95,12 +95,12 @@ weave/
 - [x] run tests — must pass before next task
 
 ### Task 6: Extension discovery (`weave/launcher/discovery.go`)
-- [ ] define ExtensionInfo struct (Name, Dir string, GoFiles []string)
-- [ ] implement search: `.weave/extensions/{name}/` (project-local) then `~/.weave/extensions/{name}/` (global)
-- [ ] collect all .go files in extension directory
-- [ ] return clear error for missing extensions
-- [ ] write tests using temp dirs for local/global discovery, missing extension
-- [ ] run tests — must pass before next task
+- [x] define ExtensionInfo struct (Name, Dir string, GoFiles []string)
+- [x] implement search: `.weave/extensions/{name}/` (project-local) then `~/.weave/extensions/{name}/` (global)
+- [x] collect all .go files in extension directory
+- [x] return clear error for missing extensions
+- [x] write tests using temp dirs for local/global discovery, missing extension
+- [x] run tests — must pass before next task
 
 ### Task 7: Builder (`weave/launcher/builder.go`)
 - [ ] implement hash computation: SHA256 of Go version + sorted extension .go file contents
