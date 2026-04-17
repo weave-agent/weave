@@ -118,12 +118,12 @@ weave/
 - [x] run tests — must pass before next task
 
 ### Task 9: Launcher orchestration (`weave/launcher/launcher.go`)
-- [ ] implement Launcher struct with Builder and Cache dependencies
-- [ ] implement Run(ctx, configPath string, args []string) error
-- [ ] pipeline: discover extensions → compute hash → cache lookup → build if miss → syscall.Exec
-- [ ] handle build failures with clear error output
-- [ ] write tests for full pipeline with mocked build step
-- [ ] run tests — must pass before next task
+- [x] implement Launcher struct with Builder and Cache dependencies
+- [x] implement Run(ctx, configPath string, args []string) error
+- [x] pipeline: discover extensions → compute hash → cache lookup → build if miss → syscall.Exec
+- [x] handle build failures with clear error output
+- [x] write tests for full pipeline with mocked build step
+- [x] run tests — must pass before next task
 
 ### Task 10: CLI entry point (`cmd/weave/main.go`)
 - [ ] implement main() with `run` as default subcommand
