@@ -62,12 +62,12 @@ weave/
 - [x] run tests — must pass before next task
 
 ### Task 2: Registry (`weave/sdk/registry.go`)
-- [ ] create global extensions map (name → factory func) with sync.RWMutex
-- [ ] implement RegisterExtension(name string, factory func() Extension)
-- [ ] implement GetExtension(name string) (Extension, error) — instantiate from factory
-- [ ] implement ListExtensions() []string — return registered names
-- [ ] write tests for register → retrieve, duplicate registration, missing extension
-- [ ] run tests — must pass before next task
+- [x] create global extensions map (name → factory func) with sync.RWMutex
+- [x] implement RegisterExtension(name string, factory func() Extension)
+- [x] implement GetExtension(name string) (Extension, error) — instantiate from factory
+- [x] implement ListExtensions() []string — return registered names
+- [x] write tests for register → retrieve, duplicate registration, missing extension
+- [x] run tests — must pass before next task
 
 ### Task 3: Event bus (`weave/bus/`)
 - [ ] create `bus/bus.go` — Bus struct with topic subscriptions map and all-subscriptions channel
