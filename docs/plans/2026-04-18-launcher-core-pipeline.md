@@ -126,11 +126,11 @@ weave/
 - [x] run tests — must pass before next task
 
 ### Task 10: CLI entry point (`cmd/weave/main.go`)
-- [ ] implement main() with `run` as default subcommand
-- [ ] parse flags: -c config, -e extension override, -p prompt
-- [ ] wire config discovery → Launcher.Run
-- [ ] write tests for flag parsing and subcommand routing
-- [ ] run tests — must pass before next task
+- [x] implement main() with `run` as default subcommand
+- [x] parse flags: -c config, -e extension override, -p prompt
+- [x] wire config discovery → Launcher.Run
+- [x] write tests for flag parsing and subcommand routing
+- [x] run tests — must pass before next task
 
 ### Task 11: Integration verification
 - [ ] create a minimal noop extension (registers itself, subscribes to events)
