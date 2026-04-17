@@ -111,11 +111,11 @@ weave/
 - [x] run tests — must pass before next task
 
 ### Task 8: Cache (`weave/launcher/cache.go`)
-- [ ] define cache root: `~/.weave/bin/`
-- [ ] implement Lookup(hash string) (binaryPath string, found bool) — check `~/.weave/bin/{hash}/weave`
-- [ ] implement Store(hash string, binaryPath string) error — copy binary to cache dir
-- [ ] write tests using temp dirs for hit/miss/store scenarios
-- [ ] run tests — must pass before next task
+- [x] define cache root: `~/.weave/bin/`
+- [x] implement Lookup(hash string) (binaryPath string, found bool) — check `~/.weave/bin/{hash}/weave`
+- [x] implement Store(hash string, binaryPath string) error — copy binary to cache dir
+- [x] write tests using temp dirs for hit/miss/store scenarios
+- [x] run tests — must pass before next task
 
 ### Task 9: Launcher orchestration (`weave/launcher/launcher.go`)
 - [ ] implement Launcher struct with Builder and Cache dependencies
