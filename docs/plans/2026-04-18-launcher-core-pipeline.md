@@ -80,12 +80,12 @@ weave/
 - [x] run tests — must pass before next task
 
 ### Task 4: Config loading and discovery (`weave/cfg/`)
-- [ ] define ConfigFile struct matching `.weave.yaml` schema (Extensions []string, Slots map[string]string)
-- [ ] implement config discovery — walk up from cwd looking for `.weave.yaml` then `.weave/config.yaml`
-- [ ] implement YAML parsing into ConfigFile
-- [ ] implement the sdk.Config interface backed by parsed data
-- [ ] write tests for discovery, parsing, accessors, missing config
-- [ ] run tests — must pass before next task
+- [x] define ConfigFile struct matching `.weave.yaml` schema (Extensions []string, Slots map[string]string)
+- [x] implement config discovery — walk up from cwd looking for `.weave.yaml` then `.weave/config.yaml`
+- [x] implement YAML parsing into ConfigFile
+- [x] implement the sdk.Config interface backed by parsed data
+- [x] write tests for discovery, parsing, accessors, missing config
+- [x] run tests — must pass before next task
 
 ### Task 5: Wire composition root (`weave/sdk/wire.go`)
 - [ ] implement Wire(config Config, bus *bus.Bus) error — resolve and subscribe all extensions listed in config
