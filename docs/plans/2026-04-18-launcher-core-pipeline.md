@@ -70,14 +70,14 @@ weave/
 - [x] run tests — must pass before next task
 
 ### Task 3: Event bus (`weave/bus/`)
-- [ ] create `bus/bus.go` — Bus struct with topic subscriptions map and all-subscriptions channel
-- [ ] implement New() constructor with buffered channels (64 per topic, 256 for all)
-- [ ] implement Subscribe(topics ...string) returning <-chan Event
-- [ ] implement SubscribeAll() returning <-chan Event
-- [ ] implement Publish(Event) — non-blocking send, drop if buffer full
-- [ ] implement Close() — close all channels
-- [ ] write tests for pub/sub, multiple subscribers, buffer overflow, close behavior
-- [ ] run tests — must pass before next task
+- [x] create `bus/bus.go` — Bus struct with topic subscriptions map and all-subscriptions channel
+- [x] implement New() constructor with buffered channels (64 per topic, 256 for all)
+- [x] implement Subscribe(topics ...string) returning <-chan Event
+- [x] implement SubscribeAll() returning <-chan Event
+- [x] implement Publish(Event) — non-blocking send, drop if buffer full
+- [x] implement Close() — close all channels
+- [x] write tests for pub/sub, multiple subscribers, buffer overflow, close behavior
+- [x] run tests — must pass before next task
 
 ### Task 4: Config loading and discovery (`weave/cfg/`)
 - [ ] define ConfigFile struct matching `.weave.yaml` schema (Extensions []string, Slots map[string]string)
