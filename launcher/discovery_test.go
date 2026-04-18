@@ -9,11 +9,11 @@ import (
 func createGoFile(t *testing.T, dir, name, content string) {
 	t.Helper()
 
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		t.Fatalf("mkdir %s: %v", dir, err)
 	}
 
-	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
 		t.Fatalf("write %s: %v", filepath.Join(dir, name), err)
 	}
 }
@@ -123,7 +123,7 @@ func TestDiscover_EmptyExtensionDir(t *testing.T) {
 	homeDir := t.TempDir()
 
 	extDir := filepath.Join(projectDir, ".weave", "extensions", "empty")
-	if err := os.MkdirAll(extDir, 0o755); err != nil {
+	if err := os.MkdirAll(extDir, 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
 

@@ -25,12 +25,12 @@ func TestLookup_Hit(t *testing.T) {
 	hash := "abc123"
 
 	dir := filepath.Join(root, hash)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
 	binPath := filepath.Join(dir, "weave")
-	if err := os.WriteFile(binPath, []byte("binary"), 0o755); err != nil {
+	if err := os.WriteFile(binPath, []byte("binary"), 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -51,7 +51,7 @@ func TestLookup_DirInsteadOfFile(t *testing.T) {
 	hash := "abc123"
 
 	dir := filepath.Join(root, hash, "weave")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -107,13 +107,19 @@ func TestStore_OverwriteExisting(t *testing.T) {
 	srcDir := t.TempDir()
 
 	src1 := filepath.Join(srcDir, "v1")
-	os.WriteFile(src1, []byte("v1"), 0o755)
+	if err := os.WriteFile(src1, []byte("v1"), 0o750); err != nil {
+		t.Fatal(err)
+	}
 
 	c := NewCache(root)
-	c.Store("hash1", src1)
+	if err := c.Store("hash1", src1); err != nil {
+		t.Fatal(err)
+	}
 
 	src2 := filepath.Join(srcDir, "v2")
-	os.WriteFile(src2, []byte("v2"), 0o755)
+	if err := os.WriteFile(src2, []byte("v2"), 0o750); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := c.Store("hash1", src2); err != nil {
 		t.Fatalf("Store overwrite failed: %v", err)

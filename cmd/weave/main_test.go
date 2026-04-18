@@ -31,7 +31,8 @@ func TestRunMissingConfig(t *testing.T) {
 	if err := os.Chdir(dir); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Chdir(origWd)
+
+	defer func() { _ = os.Chdir(origWd) }()
 
 	exitCode := run()
 	if exitCode != 1 {
@@ -43,7 +44,7 @@ func TestRunExtensionOverride(t *testing.T) {
 	dir := t.TempDir()
 
 	cfgFile := dir + "/.weave.yaml"
-	if err := os.WriteFile(cfgFile, []byte("extensions: [noop]\n"), 0o644); err != nil {
+	if err := os.WriteFile(cfgFile, []byte("extensions: [noop]\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -52,7 +53,8 @@ func TestRunExtensionOverride(t *testing.T) {
 	if err := os.Chdir(dir); err != nil {
 		t.Fatal(err)
 	}
-	defer os.Chdir(origWd)
+
+	defer func() { _ = os.Chdir(origWd) }()
 
 	exitCode := run("-e", "ext1,ext2")
 	if exitCode != 1 {

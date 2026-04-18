@@ -47,7 +47,7 @@ func (c *Cache) Lookup(hash string) (string, bool) {
 // Store copies the binary at src into the cache under the given hash.
 func (c *Cache) Store(hash, src string) error {
 	dir := filepath.Join(c.Root, hash)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return fmt.Errorf("cache: mkdir %s: %w", dir, err)
 	}
 
@@ -59,7 +59,7 @@ func (c *Cache) Store(hash, src string) error {
 
 	dst := filepath.Join(dir, "weave")
 
-	dstFile, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o755)
+	dstFile, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o750)
 	if err != nil {
 		return fmt.Errorf("cache: create dest: %w", err)
 	}

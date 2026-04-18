@@ -64,7 +64,7 @@ func (l *Launcher) Run(ctx context.Context, projectDir string, extensionNames, a
 
 func (l *Launcher) buildAndCache(hash string, exts []ExtensionInfo) (string, error) {
 	buildDir := l.buildDir(hash)
-	if err := os.MkdirAll(buildDir, 0o755); err != nil {
+	if err := os.MkdirAll(buildDir, 0o750); err != nil {
 		return "", fmt.Errorf("mkdir build dir: %w", err)
 	}
 
@@ -95,7 +95,7 @@ func (l *Launcher) buildDir(hash string) string {
 
 func (l *Launcher) exec(_ context.Context, binPath string, args []string) error {
 	argv := append([]string{binPath}, args...)
-	return syscall.Exec(binPath, argv, os.Environ())
+	return fmt.Errorf("exec binary: %w", syscall.Exec(binPath, argv, os.Environ()))
 }
 
 // RunCommand runs the binary as a subprocess (non-replacing, for testing).
@@ -106,5 +106,5 @@ func RunCommand(ctx context.Context, binPath string, args []string) error {
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
 
-	return cmd.Run()
+	return fmt.Errorf("run command: %w", cmd.Run())
 }

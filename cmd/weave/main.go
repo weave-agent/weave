@@ -50,12 +50,12 @@ func run(args ...string) (exitCode int) {
 func findModuleRoot() (string, error) {
 	exe, err := os.Executable()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("find module root: get executable: %w", err)
 	}
 
 	dir := filepath.Dir(exe)
 	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+		if _, statErr := os.Stat(filepath.Join(dir, "go.mod")); statErr == nil {
 			return dir, nil
 		}
 

@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -76,9 +77,13 @@ func TestRun_CacheHit(t *testing.T) {
 
 	// Create a fake cached binary that exits successfully
 	fakeBin := filepath.Join(cacheDir, hash, "weave")
-	os.MkdirAll(filepath.Join(cacheDir, hash), 0o755)
+	if err := os.MkdirAll(filepath.Join(cacheDir, hash), 0o750); err != nil {
+		t.Fatal(err)
+	}
 	// Write a simple script that just exits 0
-	os.WriteFile(fakeBin, []byte("#!/bin/sh\nexit 0\n"), 0o755)
+	if err := os.WriteFile(fakeBin, []byte("#!/bin/sh\nexit 0\n"), 0o750); err != nil {
+		t.Fatal(err)
+	}
 
 	binPath, found := c.Lookup(hash)
 	if !found {
@@ -100,9 +105,11 @@ func TestRun_FullPipelineWithMockBuild(t *testing.T) {
 
 	l := &Launcher{
 		Cache: NewCache(cacheDir),
-		Build: func(dir, moduleRoot string, exts []ExtensionInfo) (string, error) {
+		Build: func(dir, _ string, _ []ExtensionInfo) (string, error) {
 			binPath := filepath.Join(dir, "weave")
-			os.WriteFile(binPath, []byte("fake-binary"), 0o755)
+			if err := os.WriteFile(binPath, []byte("fake-binary"), 0o750); err != nil {
+				return "", fmt.Errorf("write fake binary: %w", err)
+			}
 
 			return binPath, nil
 		},
@@ -170,10 +177,14 @@ func TestRun_SecondRunUsesCache(t *testing.T) {
 	buildCount := 0
 	l := &Launcher{
 		Cache: NewCache(cacheDir),
-		Build: func(dir, moduleRoot string, exts []ExtensionInfo) (string, error) {
+		Build: func(dir, _ string, _ []ExtensionInfo) (string, error) {
 			buildCount++
+
 			binPath := filepath.Join(dir, "weave")
-			os.WriteFile(binPath, []byte("fake-binary"), 0o755)
+
+			if err := os.WriteFile(binPath, []byte("fake-binary"), 0o750); err != nil {
+				return "", fmt.Errorf("write fake binary: %w", err)
+			}
 
 			return binPath, nil
 		},
@@ -209,7 +220,7 @@ func TestBuildDir_CustomTmpDir(t *testing.T) {
 	l := &Launcher{BuildTmpDir: "/custom/tmp"}
 	dir := l.buildDir("abc123")
 
-	expected := filepath.Join("/custom/tmp", "abc123")
+	expected := "/custom/tmp/abc123"
 	if dir != expected {
 		t.Errorf("buildDir = %q, want %q", dir, expected)
 	}

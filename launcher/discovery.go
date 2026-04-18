@@ -69,7 +69,7 @@ func findExtension(projectDir, homeDir, name string) (*ExtensionInfo, error) {
 func collectGoFiles(dir string) ([]string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("collect go files in %s: %w", dir, err)
 	}
 
 	var files []string

@@ -127,7 +127,7 @@ func TestLoad_MissingFile(t *testing.T) {
 func writeFile(t *testing.T, dir, name, content string) {
 	t.Helper()
 
-	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
 		t.Fatalf("write %s: %v", name, err)
 	}
 }
@@ -135,7 +135,7 @@ func writeFile(t *testing.T, dir, name, content string) {
 func mkdir(t *testing.T, path string) {
 	t.Helper()
 
-	if err := os.MkdirAll(path, 0o755); err != nil {
+	if err := os.MkdirAll(path, 0o750); err != nil {
 		t.Fatalf("mkdir %s: %v", path, err)
 	}
 }

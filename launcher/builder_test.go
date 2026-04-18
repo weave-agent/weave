@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,7 +12,7 @@ func TestComputeHash_Deterministic(t *testing.T) {
 	dir := t.TempDir()
 
 	f1 := filepath.Join(dir, "ext.go")
-	if err := os.WriteFile(f1, []byte("package noop"), 0o644); err != nil {
+	if err := os.WriteFile(f1, []byte("package noop"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -39,8 +40,13 @@ func TestComputeHash_SortedByName(t *testing.T) {
 	f1 := filepath.Join(dir, "a.go")
 	f2 := filepath.Join(dir, "b.go")
 
-	os.WriteFile(f1, []byte("package a"), 0o644)
-	os.WriteFile(f2, []byte("package b"), 0o644)
+	if err := os.WriteFile(f1, []byte("package a"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(f2, []byte("package b"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 
 	exts1 := []ExtensionInfo{
 		{Name: "alpha", Dir: dir, GoFiles: []string{f1}},
@@ -64,8 +70,13 @@ func TestComputeHash_DifferentContent(t *testing.T) {
 	f1 := filepath.Join(dir, "a.go")
 	f2 := filepath.Join(dir, "b.go")
 
-	os.WriteFile(f1, []byte("package a"), 0o644)
-	os.WriteFile(f2, []byte("package different"), 0o644)
+	if err := os.WriteFile(f1, []byte("package a"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(f2, []byte("package different"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 
 	h1, _ := ComputeHash([]ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f1}}})
 
@@ -186,7 +197,7 @@ func init() {
 	})
 }
 `
-	if err := os.WriteFile(filepath.Join(extDir, "noop.go"), []byte(extCode), 0o644); err != nil {
+	if writeErr := os.WriteFile(filepath.Join(extDir, "noop.go"), []byte(extCode), 0o600); writeErr != nil {
 		t.Fatal(err)
 	}
 
@@ -207,7 +218,7 @@ func init() {
 func findModuleRoot() (string, error) {
 	dir, err := os.Getwd()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("find module root: %w", err)
 	}
 
 	for {

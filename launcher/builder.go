@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -17,7 +18,7 @@ import (
 func ComputeHash(exts []ExtensionInfo) (string, error) {
 	h := sha256.New()
 
-	fmt.Fprintf(h, "go%s\n", runtime.Version())
+	h.Write([]byte("go" + runtime.Version() + "\n"))
 
 	sorted := make([]ExtensionInfo, len(exts))
 	copy(sorted, exts)
@@ -59,7 +60,11 @@ func GenerateGoMod(dir, moduleRoot string, exts []ExtensionInfo) error {
 		b.WriteString("replace weave/ext/" + ext.Name + " => " + ext.Dir + "\n")
 	}
 
-	return os.WriteFile(filepath.Join(dir, "go.mod"), []byte(b.String()), 0o644)
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(b.String()), 0o600); err != nil {
+		return fmt.Errorf("generate go.mod: %w", err)
+	}
+
+	return nil
 }
 
 // GenerateMainGo creates a main.go with blank imports for each extension.
@@ -76,7 +81,11 @@ func GenerateMainGo(dir string, exts []ExtensionInfo) error {
 	b.WriteString(")\n\n")
 	b.WriteString("func main() {}\n")
 
-	return os.WriteFile(filepath.Join(dir, "main.go"), []byte(b.String()), 0o644)
+	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte(b.String()), 0o600); err != nil {
+		return fmt.Errorf("generate main.go: %w", err)
+	}
+
+	return nil
 }
 
 // Build generates go.mod and main.go in dir, runs go build, and returns the binary path.
@@ -98,7 +107,7 @@ func Build(dir, moduleRoot string, exts []ExtensionInfo) (string, error) {
 	}
 
 	binaryPath := filepath.Join(dir, "weave")
-	cmd := exec.Command("go", "build", "-o", binaryPath, ".")
+	cmd := exec.CommandContext(context.Background(), "go", "build", "-o", binaryPath, ".")
 
 	cmd.Dir = dir
 	if output, err := cmd.CombinedOutput(); err != nil {
@@ -117,5 +126,9 @@ func ensureExtGoMod(ext ExtensionInfo, moduleRoot string) error {
 
 	content := "module weave/ext/" + ext.Name + "\n\ngo 1.26.2\n\nrequire weave v0.0.0\n\nreplace weave => " + moduleRoot + "\n"
 
-	return os.WriteFile(goModPath, []byte(content), 0o644)
+	if err := os.WriteFile(goModPath, []byte(content), 0o600); err != nil {
+		return fmt.Errorf("ensure extension go.mod: %w", err)
+	}
+
+	return nil
 }
