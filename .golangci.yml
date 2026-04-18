@@ -138,6 +138,23 @@ linters:
           - usestdlibvars
         path: _test\.go$
       - linters:
+          - gosec
+        text: "G204:"
+      - linters:
+          - gosec
+        text: "G302:"
+      - linters:
+          - gosec
+        text: "G304:"
+      - linters:
+          - gosec
+        path: _test\.go$
+        text: "G301:"
+      - linters:
+          - gosec
+        path: _test\.go$
+        text: "G306:"
+      - linters:
           - errcheck
         text: "Error return value of .*.Close.*is not checked"
     paths:
