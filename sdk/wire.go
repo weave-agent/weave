@@ -10,6 +10,7 @@ func Wire(extNames []string, bus Bus) error {
 		if err != nil {
 			return fmt.Errorf("wire: %w", err)
 		}
+
 		ext.Subscribe(bus)
 	}
 

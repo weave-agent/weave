@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,6 +17,7 @@ type File struct {
 
 func FindConfigPath(startDir string) (string, error) {
 	dir := startDir
+
 	for {
 		for _, name := range []string{".weave.yaml", ".weave/config.yaml"} {
 			candidate := filepath.Join(dir, name)
@@ -23,10 +25,12 @@ func FindConfigPath(startDir string) (string, error) {
 				return candidate, nil
 			}
 		}
+
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", fmt.Errorf("no .weave.yaml or .weave/config.yaml found")
+			return "", errors.New("no .weave.yaml or .weave/config.yaml found")
 		}
+
 		dir = parent
 	}
 }
@@ -36,13 +40,17 @@ func Load(args []string) (string, *File, []string, error) {
 	if err != nil {
 		return "", nil, nil, fmt.Errorf("get working dir: %w", err)
 	}
+
 	path, err := FindConfigPath(cwd)
 	if err != nil {
 		return "", nil, nil, err
 	}
 
-	var f File
-	var rest []string
+	var (
+		f    File
+		rest []string
+	)
+
 	if err := gonfig.Load(&f,
 		gonfig.WithFile(path),
 		gonfig.WithEnvPrefix("WEAVE"),
@@ -51,9 +59,11 @@ func Load(args []string) (string, *File, []string, error) {
 	); err != nil {
 		return "", nil, nil, fmt.Errorf("load config: %w", err)
 	}
+
 	if f.Slots == nil {
 		f.Slots = make(map[string]string)
 	}
+
 	return path, &f, rest, nil
 }
 
@@ -63,8 +73,11 @@ func LoadFromDir(dir string, args []string) (string, *File, []string, error) {
 		return "", nil, nil, err
 	}
 
-	var f File
-	var rest []string
+	var (
+		f    File
+		rest []string
+	)
+
 	if err := gonfig.Load(&f,
 		gonfig.WithFile(path),
 		gonfig.WithEnvPrefix("WEAVE"),
@@ -73,8 +86,10 @@ func LoadFromDir(dir string, args []string) (string, *File, []string, error) {
 	); err != nil {
 		return "", nil, nil, fmt.Errorf("load config: %w", err)
 	}
+
 	if f.Slots == nil {
 		f.Slots = make(map[string]string)
 	}
+
 	return path, &f, rest, nil
 }

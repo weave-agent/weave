@@ -21,6 +21,7 @@ func TestPubSub(t *testing.T) {
 		if got.Topic != "test.topic" {
 			t.Errorf("expected topic %q, got %q", "test.topic", got.Topic)
 		}
+
 		if got.Payload != "hello" {
 			t.Errorf("expected payload %q, got %q", "hello", got.Payload)
 		}
@@ -55,7 +56,7 @@ func TestSubscribeMultipleTopics(t *testing.T) {
 	b.Publish(sdk.NewEvent("a", nil))
 	b.Publish(sdk.NewEvent("b", nil))
 
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		select {
 		case <-ch:
 		case <-time.After(time.Second):
@@ -100,11 +101,12 @@ func TestBufferOverflow(t *testing.T) {
 	defer b.Close()
 
 	ch := b.Subscribe("flood")
-	for i := 0; i < topicBufSize+20; i++ {
+	for i := range topicBufSize + 20 {
 		b.Publish(sdk.NewEvent("flood", i))
 	}
 
 	count := 0
+
 	for {
 		select {
 		case <-ch:
@@ -113,10 +115,12 @@ func TestBufferOverflow(t *testing.T) {
 			goto done
 		}
 	}
+
 done:
 	if count > topicBufSize {
 		t.Errorf("received %d events, expected at most %d (buffer overflow)", count, topicBufSize)
 	}
+
 	if count == 0 {
 		t.Error("expected some events to be buffered")
 	}
@@ -166,16 +170,16 @@ func TestConcurrentPublish(t *testing.T) {
 
 	var wg sync.WaitGroup
 	for i := range 100 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			b.Publish(sdk.NewEvent("concurrent", i))
-		}()
+		})
 	}
+
 	wg.Wait()
 
 	// Drain what we can — non-blocking sends mean some may be dropped at buffer limit.
 	drained := 0
+
 	for {
 		select {
 		case <-ch:
@@ -184,6 +188,7 @@ func TestConcurrentPublish(t *testing.T) {
 			if drained == 0 {
 				t.Fatal("expected at least some events from concurrent publishes")
 			}
+
 			return
 		}
 	}

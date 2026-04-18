@@ -9,12 +9,14 @@ func TestRegisterAndRetrieve(t *testing.T) {
 	resetRegistry()
 
 	ext := NewExtensionFunc("test", func(bus Bus) {})
+
 	RegisterExtension("test", func() Extension { return ext })
 
 	got, err := GetExtension("test")
 	if err != nil {
 		t.Fatalf("GetExtension: %v", err)
 	}
+
 	if got.Name() != "test" {
 		t.Errorf("Name() = %q, want %q", got.Name(), "test")
 	}
@@ -57,6 +59,7 @@ func TestListExtensions(t *testing.T) {
 	if len(names) != len(want) {
 		t.Fatalf("ListExtensions() = %v, want %v", names, want)
 	}
+
 	for i, n := range names {
 		if n != want[i] {
 			t.Errorf("names[%d] = %q, want %q", i, n, want[i])

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -28,6 +29,7 @@ func run(args ...string) (exitCode int) {
 	}
 
 	cache := launcher.NewCache(cacheDir)
+
 	moduleRoot, err := findModuleRoot()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", err)
@@ -50,20 +52,25 @@ func findModuleRoot() (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	dir := filepath.Dir(exe)
 	for {
 		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
 			return dir, nil
 		}
+
 		parent := filepath.Dir(dir)
 		if parent == dir {
 			break
 		}
+
 		dir = parent
 	}
+
 	cwd, err := os.Getwd()
 	if err != nil {
-		return "", fmt.Errorf("cannot find module root")
+		return "", errors.New("cannot find module root")
 	}
+
 	return cwd, nil
 }

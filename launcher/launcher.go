@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,7 +11,7 @@ import (
 )
 
 // BuildFunc builds a binary from extension infos and returns its path.
-type BuildFunc func(dir string, moduleRoot string, exts []ExtensionInfo) (string, error)
+type BuildFunc func(dir, moduleRoot string, exts []ExtensionInfo) (string, error)
 
 // Launcher orchestrates the full pipeline: discover -> hash -> cache -> build -> exec.
 type Launcher struct {
@@ -35,9 +36,9 @@ func NewLauncher(cache *Cache, moduleRoot string) *Launcher {
 //  3. Check cache for existing binary
 //  4. Build if cache miss
 //  5. Exec the binary
-func (l *Launcher) Run(ctx context.Context, projectDir string, extensionNames []string, args []string) error {
+func (l *Launcher) Run(ctx context.Context, projectDir string, extensionNames, args []string) error {
 	if len(extensionNames) == 0 {
-		return fmt.Errorf("launcher: no extensions configured")
+		return errors.New("launcher: no extensions configured")
 	}
 
 	exts, err := Discover(projectDir, extensionNames)
@@ -80,6 +81,7 @@ func (l *Launcher) buildAndCache(hash string, exts []ExtensionInfo) (string, err
 	if cached != "" {
 		return cached, nil
 	}
+
 	return binPath, nil
 }
 
@@ -87,6 +89,7 @@ func (l *Launcher) buildDir(hash string) string {
 	if l.BuildTmpDir != "" {
 		return filepath.Join(l.BuildTmpDir, hash)
 	}
+
 	return filepath.Join(os.TempDir(), "weave-build-"+hash)
 }
 
@@ -102,5 +105,6 @@ func RunCommand(ctx context.Context, binPath string, args []string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
+
 	return cmd.Run()
 }

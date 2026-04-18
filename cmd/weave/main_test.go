@@ -27,6 +27,7 @@ func TestRunFlagParsing(t *testing.T) {
 func TestRunMissingConfig(t *testing.T) {
 	dir := t.TempDir()
 	origWd, _ := os.Getwd()
+
 	if err := os.Chdir(dir); err != nil {
 		t.Fatal(err)
 	}
@@ -40,12 +41,14 @@ func TestRunMissingConfig(t *testing.T) {
 
 func TestRunExtensionOverride(t *testing.T) {
 	dir := t.TempDir()
+
 	cfgFile := dir + "/.weave.yaml"
 	if err := os.WriteFile(cfgFile, []byte("extensions: [noop]\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
 	origWd, _ := os.Getwd()
+
 	if err := os.Chdir(dir); err != nil {
 		t.Fatal(err)
 	}

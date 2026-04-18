@@ -14,9 +14,11 @@ func TestNewEvent(t *testing.T) {
 	if evt.Topic != "test.topic" {
 		t.Errorf("Topic = %q, want %q", evt.Topic, "test.topic")
 	}
+
 	if evt.Payload != "hello" {
 		t.Errorf("Payload = %v, want %v", evt.Payload, "hello")
 	}
+
 	if evt.Timestamp.Before(before) || evt.Timestamp.After(after) {
 		t.Errorf("Timestamp %v not between %v and %v", evt.Timestamp, before, after)
 	}
@@ -48,7 +50,7 @@ type mockBus struct {
 	published []Event
 }
 
-func (m *mockBus) Publish(e Event)                     { m.published = append(m.published, e) }
+func (m *mockBus) Publish(e Event)                         { m.published = append(m.published, e) }
 func (m *mockBus) Subscribe(topics ...string) <-chan Event { return nil }
 func (m *mockBus) SubscribeAll() <-chan Event              { return nil }
 
@@ -56,6 +58,7 @@ var _ Bus = (*mockBus)(nil)
 
 func TestExtensionFunc(t *testing.T) {
 	var subscribed bool
+
 	ext := NewExtensionFunc("test-ext", func(b Bus) {
 		subscribed = true
 	})
@@ -84,6 +87,7 @@ func TestExtensionFuncSatisfiesInterface(t *testing.T) {
 	if len(bus.published) != 1 {
 		t.Fatalf("published events = %d, want 1", len(bus.published))
 	}
+
 	if bus.published[0].Topic != "fired" {
 		t.Errorf("topic = %q, want %q", bus.published[0].Topic, "fired")
 	}
@@ -94,6 +98,7 @@ func TestExtensionFuncMultipleSubscriptions(t *testing.T) {
 
 	ext := NewExtensionFunc("multi", func(b Bus) {
 		calls = append(calls, "called")
+
 		b.Publish(NewEvent("e1", 1))
 		b.Publish(NewEvent("e2", 2))
 	})
@@ -104,11 +109,13 @@ func TestExtensionFuncMultipleSubscriptions(t *testing.T) {
 	if len(calls) != 1 {
 		t.Errorf("callback calls = %d, want 1", len(calls))
 	}
+
 	if len(bus.published) != 2 {
 		t.Errorf("published = %d, want 2", len(bus.published))
 	}
 
 	topics := []string{bus.published[0].Topic, bus.published[1].Topic}
+
 	want := []string{"e1", "e2"}
 	for i, w := range want {
 		if topics[i] != w {

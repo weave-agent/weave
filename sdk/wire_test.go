@@ -7,6 +7,7 @@ import (
 
 func TestWire_NoExtensions(t *testing.T) {
 	resetRegistry()
+
 	bus := &mockBus{}
 
 	err := Wire(nil, bus)
@@ -17,6 +18,7 @@ func TestWire_NoExtensions(t *testing.T) {
 
 func TestWire_EmptyExtensions(t *testing.T) {
 	resetRegistry()
+
 	bus := &mockBus{}
 
 	err := Wire([]string{}, bus)
@@ -47,6 +49,7 @@ func TestWire_SubscribesAllExtensions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
+
 	if got := subscribed.Load(); got != 2 {
 		t.Fatalf("expected 2 subscriptions, got %d", got)
 	}
@@ -61,6 +64,7 @@ func TestWire_MissingExtension(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing extension")
 	}
+
 	if got, want := err.Error(), "wire: extension \"nonexistent\" not registered"; got != want {
 		t.Fatalf("error = %q, want %q", got, want)
 	}
@@ -70,6 +74,7 @@ func TestWire_ReceiveBusInSubscribe(t *testing.T) {
 	resetRegistry()
 
 	var receivedBus Bus
+
 	RegisterExtension("ext-c", func() Extension {
 		return NewExtensionFunc("ext-c", func(bus Bus) {
 			receivedBus = bus
@@ -82,6 +87,7 @@ func TestWire_ReceiveBusInSubscribe(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
+
 	if receivedBus == nil {
 		t.Fatal("expected bus to be passed to Subscribe")
 	}

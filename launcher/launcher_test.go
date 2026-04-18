@@ -68,6 +68,7 @@ func TestRun_CacheHit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	hash, err := ComputeHash(exts)
 	if err != nil {
 		t.Fatal(err)
@@ -83,6 +84,7 @@ func TestRun_CacheHit(t *testing.T) {
 	if !found {
 		t.Fatal("expected cache hit")
 	}
+
 	if binPath != fakeBin {
 		t.Errorf("expected %s, got %s", fakeBin, binPath)
 	}
@@ -101,6 +103,7 @@ func TestRun_FullPipelineWithMockBuild(t *testing.T) {
 		Build: func(dir, moduleRoot string, exts []ExtensionInfo) (string, error) {
 			binPath := filepath.Join(dir, "weave")
 			os.WriteFile(binPath, []byte("fake-binary"), 0o755)
+
 			return binPath, nil
 		},
 		ModuleRoot:  "/fake",
@@ -130,6 +133,7 @@ func TestRun_FullPipelineWithMockBuild(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildAndCache: %v", err)
 	}
+
 	if binPath == "" {
 		t.Fatal("expected non-empty binPath")
 	}
@@ -139,6 +143,7 @@ func TestRun_FullPipelineWithMockBuild(t *testing.T) {
 	if !found {
 		t.Fatal("expected cache hit after buildAndCache")
 	}
+
 	if cached != binPath {
 		t.Errorf("cached path %q != built path %q", cached, binPath)
 	}
@@ -148,6 +153,7 @@ func TestRun_FullPipelineWithMockBuild(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if string(got) != "fake-binary" {
 		t.Errorf("cached content = %q, want %q", got, "fake-binary")
 	}
@@ -168,6 +174,7 @@ func TestRun_SecondRunUsesCache(t *testing.T) {
 			buildCount++
 			binPath := filepath.Join(dir, "weave")
 			os.WriteFile(binPath, []byte("fake-binary"), 0o755)
+
 			return binPath, nil
 		},
 		ModuleRoot:  "/fake",
@@ -182,6 +189,7 @@ func TestRun_SecondRunUsesCache(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if buildCount != 1 {
 		t.Errorf("expected 1 build, got %d", buildCount)
 	}
@@ -191,6 +199,7 @@ func TestRun_SecondRunUsesCache(t *testing.T) {
 	if !found {
 		t.Fatal("expected cache hit on second run")
 	}
+
 	if buildCount != 1 {
 		t.Errorf("expected 1 build after cache hit, got %d", buildCount)
 	}
@@ -199,6 +208,7 @@ func TestRun_SecondRunUsesCache(t *testing.T) {
 func TestBuildDir_CustomTmpDir(t *testing.T) {
 	l := &Launcher{BuildTmpDir: "/custom/tmp"}
 	dir := l.buildDir("abc123")
+
 	expected := filepath.Join("/custom/tmp", "abc123")
 	if dir != expected {
 		t.Errorf("buildDir = %q, want %q", dir, expected)
@@ -208,6 +218,7 @@ func TestBuildDir_CustomTmpDir(t *testing.T) {
 func TestBuildDir_DefaultTmpDir(t *testing.T) {
 	l := &Launcher{}
 	dir := l.buildDir("abc123")
+
 	expected := filepath.Join(os.TempDir(), "weave-build-abc123")
 	if dir != expected {
 		t.Errorf("buildDir = %q, want %q", dir, expected)

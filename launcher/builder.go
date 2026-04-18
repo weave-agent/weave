@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
@@ -30,24 +31,27 @@ func ComputeHash(exts []ExtensionInfo) (string, error) {
 			if err != nil {
 				return "", fmt.Errorf("hash: read %s: %w", f, err)
 			}
+
 			h.Write(data)
 		}
 	}
 
-	return fmt.Sprintf("%x", h.Sum(nil)), nil
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 // GenerateGoMod creates a go.mod file for the built binary.
 // moduleRoot is the path to the weave module root (containing go.mod).
-func GenerateGoMod(dir string, moduleRoot string, exts []ExtensionInfo) error {
+func GenerateGoMod(dir, moduleRoot string, exts []ExtensionInfo) error {
 	var b strings.Builder
 	b.WriteString("module weave-built\n\n")
 	b.WriteString("go 1.26.2\n\n")
 	b.WriteString("require (\n")
 	b.WriteString("\tweave v0.0.0\n")
+
 	for _, ext := range exts {
 		b.WriteString("\tweave/ext/" + ext.Name + " v0.0.0\n")
 	}
+
 	b.WriteString(")\n\n")
 	b.WriteString("replace weave => " + moduleRoot + "\n")
 
@@ -64,9 +68,11 @@ func GenerateMainGo(dir string, exts []ExtensionInfo) error {
 	b.WriteString("package main\n\n")
 	b.WriteString("import (\n")
 	b.WriteString("\t_ \"weave/sdk\"\n")
+
 	for _, ext := range exts {
 		b.WriteString("\t_ \"weave/ext/" + ext.Name + "\"\n")
 	}
+
 	b.WriteString(")\n\n")
 	b.WriteString("func main() {}\n")
 
@@ -75,7 +81,7 @@ func GenerateMainGo(dir string, exts []ExtensionInfo) error {
 
 // Build generates go.mod and main.go in dir, runs go build, and returns the binary path.
 // moduleRoot is the absolute path to the weave module root (containing go.mod).
-func Build(dir string, moduleRoot string, exts []ExtensionInfo) (string, error) {
+func Build(dir, moduleRoot string, exts []ExtensionInfo) (string, error) {
 	if err := GenerateGoMod(dir, moduleRoot, exts); err != nil {
 		return "", fmt.Errorf("build: generate go.mod: %w", err)
 	}
@@ -93,6 +99,7 @@ func Build(dir string, moduleRoot string, exts []ExtensionInfo) (string, error) 
 
 	binaryPath := filepath.Join(dir, "weave")
 	cmd := exec.Command("go", "build", "-o", binaryPath, ".")
+
 	cmd.Dir = dir
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("build: go build: %w\n%s", err, output)
@@ -109,5 +116,6 @@ func ensureExtGoMod(ext ExtensionInfo, moduleRoot string) error {
 	}
 
 	content := "module weave/ext/" + ext.Name + "\n\ngo 1.26.2\n\nrequire weave v0.0.0\n\nreplace weave => " + moduleRoot + "\n"
+
 	return os.WriteFile(goModPath, []byte(content), 0o644)
 }

@@ -23,6 +23,7 @@ func DefaultCacheDir() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("cache: get home dir: %w", err)
 	}
+
 	return filepath.Join(home, ".weave", "bin"), nil
 }
 
@@ -30,18 +31,21 @@ func DefaultCacheDir() (string, error) {
 // Returns the binary path and true if found, or ("", false) otherwise.
 func (c *Cache) Lookup(hash string) (string, bool) {
 	binPath := filepath.Join(c.Root, hash, "weave")
+
 	info, err := os.Stat(binPath)
 	if err != nil {
 		return "", false
 	}
+
 	if info.IsDir() {
 		return "", false
 	}
+
 	return binPath, true
 }
 
 // Store copies the binary at src into the cache under the given hash.
-func (c *Cache) Store(hash string, src string) error {
+func (c *Cache) Store(hash, src string) error {
 	dir := filepath.Join(c.Root, hash)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("cache: mkdir %s: %w", dir, err)
@@ -54,6 +58,7 @@ func (c *Cache) Store(hash string, src string) error {
 	defer srcFile.Close()
 
 	dst := filepath.Join(dir, "weave")
+
 	dstFile, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o755)
 	if err != nil {
 		return fmt.Errorf("cache: create dest: %w", err)

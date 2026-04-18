@@ -47,21 +47,27 @@ func init() {
 
 func findModuleRootHelper(t *testing.T) string {
 	t.Helper()
+
 	dir, err := os.Getwd()
 	if err != nil {
 		t.Skipf("getwd: %v", err)
 	}
+
 	for {
 		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
 			return dir
 		}
+
 		parent := filepath.Dir(dir)
 		if parent == dir {
 			break
 		}
+
 		dir = parent
 	}
+
 	t.Skip("cannot find module root")
+
 	return ""
 }
 
@@ -86,6 +92,7 @@ func TestIntegration_FullPipeline(t *testing.T) {
 
 	// Step 3: Cache miss
 	cacheDir := t.TempDir()
+
 	cache := NewCache(cacheDir)
 	if _, found := cache.Lookup(hash); found {
 		t.Fatal("expected cache miss before build")
@@ -93,6 +100,7 @@ func TestIntegration_FullPipeline(t *testing.T) {
 
 	// Step 4: Build
 	buildDir := t.TempDir()
+
 	binPath, err := Build(buildDir, moduleRoot, exts)
 	if err != nil {
 		t.Fatalf("Build: %v", err)
@@ -111,6 +119,7 @@ func TestIntegration_FullPipeline(t *testing.T) {
 
 	// Step 7: Run the built binary (init() fires, extension registers)
 	cmd := exec.Command(cachedPath)
+
 	cmd.Env = os.Environ()
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("built binary failed: %v\noutput: %s", err, output)
@@ -139,10 +148,12 @@ func TestIntegration_CacheHitOnSecondRun(t *testing.T) {
 
 	// First build + store
 	buildDir := t.TempDir()
+
 	binPath, err := Build(buildDir, moduleRoot, exts)
 	if err != nil {
 		t.Fatalf("first build: %v", err)
 	}
+
 	if err := cache.Store(hash, binPath); err != nil {
 		t.Fatalf("cache store: %v", err)
 	}
@@ -155,6 +166,7 @@ func TestIntegration_CacheHitOnSecondRun(t *testing.T) {
 
 	// Verify cached binary runs
 	cmd := exec.Command(cachedPath)
+
 	cmd.Env = os.Environ()
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("cached binary failed: %v\noutput: %s", err, output)
@@ -175,6 +187,7 @@ func TestIntegration_ExtensionInitAndWireInBuiltBinary(t *testing.T) {
 
 	// Build
 	buildDir := t.TempDir()
+
 	binPath, err := Build(buildDir, moduleRoot, exts)
 	if err != nil {
 		t.Fatalf("Build: %v", err)
@@ -186,6 +199,7 @@ func TestIntegration_ExtensionInitAndWireInBuiltBinary(t *testing.T) {
 	// The marker env var triggers a file write to prove Subscribe ran.
 	markerFile := filepath.Join(t.TempDir(), "marker.txt")
 	cmd := exec.Command(binPath)
+
 	cmd.Env = append(os.Environ(), "WEAVE_NOOP_MARKER="+markerFile)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("binary failed: %v\noutput: %s", err, output)
@@ -206,9 +220,11 @@ func TestIntegration_WireSubscribesExtensionsInProcess(t *testing.T) {
 	sdk.ResetRegistry()
 
 	var subscribeCalled bool
+
 	sdk.RegisterExtension("noop", func() sdk.Extension {
 		return sdk.NewExtensionFunc("noop", func(b sdk.Bus) {
 			subscribeCalled = true
+
 			b.Publish(sdk.NewEvent("noop.subscribed", "hello"))
 		})
 	})
@@ -230,6 +246,7 @@ func TestIntegration_WireSubscribesExtensionsInProcess(t *testing.T) {
 		if evt.Topic != "noop.subscribed" {
 			t.Errorf("topic = %q, want %q", evt.Topic, "noop.subscribed")
 		}
+
 		if evt.Payload != "hello" {
 			t.Errorf("payload = %v, want %q", evt.Payload, "hello")
 		}
@@ -252,6 +269,7 @@ func TestIntegration_DiscoverCustomHome(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DiscoverCustomHome: %v", err)
 	}
+
 	if exts[0].Dir != globalDir {
 		t.Errorf("dir = %q, want %q", exts[0].Dir, globalDir)
 	}
@@ -264,8 +282,8 @@ func TestIntegration_DiscoverCustomHome(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DiscoverCustomHome: %v", err)
 	}
+
 	if exts2[0].Dir != localDir {
 		t.Errorf("dir = %q, want %q", exts2[0].Dir, localDir)
 	}
 }
-
