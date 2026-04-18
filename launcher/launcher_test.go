@@ -192,11 +192,18 @@ func TestRun_SecondRunUsesCache(t *testing.T) {
 		BuildTmpDir: buildDir,
 	}
 
-	exts, _ := Discover(projectDir, []string{"noop"})
-	hash, _ := ComputeHash(exts)
+	exts, err := Discover(projectDir, []string{"noop"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	hash, err := ComputeHash(exts)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// First build
-	_, err := l.buildAndCache(hash, exts)
+	_, err = l.buildAndCache(hash, exts)
 	if err != nil {
 		t.Fatal(err)
 	}

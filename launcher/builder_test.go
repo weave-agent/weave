@@ -210,7 +210,7 @@ func init() {
 }
 `
 	if writeErr := os.WriteFile(filepath.Join(extDir, "noop.go"), []byte(extCode), 0o600); writeErr != nil {
-		t.Fatal(err)
+		t.Fatal(writeErr)
 	}
 
 	exts := []ExtensionInfo{

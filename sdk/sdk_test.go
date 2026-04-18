@@ -1,7 +1,6 @@
 package sdk
 
 import (
-	"strings"
 	"testing"
 	"time"
 )
@@ -122,6 +121,4 @@ func TestExtensionFuncMultipleSubscriptions(t *testing.T) {
 			t.Errorf("event[%d].Topic = %q, want %q", i, topics[i], w)
 		}
 	}
-
-	_ = strings.TrimSpace("") // avoid unused import
 }

@@ -72,7 +72,13 @@ func (b *Bus) Publish(e sdk.Event) {
 
 func (b *Bus) Close() {
 	b.closeMu.Lock()
+	if b.closed {
+		b.closeMu.Unlock()
+		return
+	}
+
 	b.closed = true
+
 	b.closeMu.Unlock()
 
 	b.mu.Lock()

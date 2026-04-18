@@ -47,5 +47,3 @@ func ResetRegistry() {
 
 	registry = make(map[string]func() Extension)
 }
-
-func resetRegistry() { ResetRegistry() }

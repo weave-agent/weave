@@ -131,8 +131,9 @@ func TestIntegration_FullPipeline(t *testing.T) {
 
 	// Give it time to wire extensions, then kill
 	time.Sleep(500 * time.Millisecond)
-	cmd.Process.Kill()
-	cmd.Wait()
+
+	_ = cmd.Process.Kill()
+	_ = cmd.Wait()
 }
 
 func TestIntegration_CacheHitOnSecondRun(t *testing.T) {
@@ -185,8 +186,9 @@ func TestIntegration_CacheHitOnSecondRun(t *testing.T) {
 	}
 
 	time.Sleep(500 * time.Millisecond)
-	cmd.Process.Kill()
-	cmd.Wait()
+
+	_ = cmd.Process.Kill()
+	_ = cmd.Wait()
 }
 
 func TestIntegration_ExtensionInitAndWireInBuiltBinary(t *testing.T) {
@@ -217,19 +219,25 @@ func TestIntegration_ExtensionInitAndWireInBuiltBinary(t *testing.T) {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, binPath)
+
 	cmd.Env = append(os.Environ(), "WEAVE_NOOP_MARKER="+markerFile)
 
-	if err := cmd.Start(); err != nil {
-		t.Fatalf("start binary: %v", err)
+	if startErr := cmd.Start(); startErr != nil {
+		t.Fatalf("start binary: %v", startErr)
 	}
 
 	// Give Wire + Subscribe time to run
 	time.Sleep(500 * time.Millisecond)
-	cmd.Process.Kill()
-	cmd.Wait()
+
+	_ = cmd.Process.Kill()
+	_ = cmd.Wait()
 
 	// Subscribe was called → marker file should exist
-	data, err := os.ReadFile(markerFile)
+	data, readErr := os.ReadFile(markerFile)
+	if readErr != nil {
+		t.Fatalf("marker file not found — Subscribe was not called: %v", readErr)
+	}
+
 	if err != nil {
 		t.Fatalf("marker file not found — Subscribe was not called: %v", err)
 	}

@@ -58,6 +58,6 @@ func TestRunExtensionOverride(t *testing.T) {
 
 	exitCode := run("-e", "ext1,ext2")
 	if exitCode != 1 {
-		t.Logf("run with -e flag returned %d (expected failure at discovery)", exitCode)
+		t.Errorf("run with -e flag returned %d, want 1 (expected failure at discovery)", exitCode)
 	}
 }

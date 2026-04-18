@@ -78,11 +78,8 @@ func (l *Launcher) buildAndCache(hash string, exts []ExtensionInfo) (string, err
 	}
 
 	cached, _ := l.Cache.Lookup(hash)
-	if cached != "" {
-		return cached, nil
-	}
 
-	return binPath, nil
+	return cached, nil
 }
 
 func (l *Launcher) buildDir(hash string) string {
@@ -106,5 +103,9 @@ func RunCommand(ctx context.Context, binPath string, args []string) error {
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
 
-	return fmt.Errorf("run command: %w", cmd.Run())
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("run command: %w", err)
+	}
+
+	return nil
 }

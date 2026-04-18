@@ -39,6 +39,10 @@ func run(args ...string) (exitCode int) {
 	l := launcher.NewLauncher(cache, moduleRoot)
 
 	projectDir := filepath.Dir(configFile)
+	if filepath.Base(projectDir) == ".weave" {
+		projectDir = filepath.Dir(projectDir)
+	}
+
 	if err := l.Run(context.Background(), projectDir, cf.Extensions, rest); err != nil {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", err)
 		return 1
@@ -67,10 +71,5 @@ func findModuleRoot() (string, error) {
 		dir = parent
 	}
 
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "", errors.New("cannot find module root")
-	}
-
-	return cwd, nil
+	return "", errors.New("cannot find module root: go.mod not found walking up from executable")
 }

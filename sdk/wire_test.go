@@ -6,7 +6,7 @@ import (
 )
 
 func TestWire_NoExtensions(t *testing.T) {
-	resetRegistry()
+	ResetRegistry()
 
 	bus := &mockBus{}
 
@@ -17,7 +17,7 @@ func TestWire_NoExtensions(t *testing.T) {
 }
 
 func TestWire_EmptyExtensions(t *testing.T) {
-	resetRegistry()
+	ResetRegistry()
 
 	bus := &mockBus{}
 
@@ -28,7 +28,7 @@ func TestWire_EmptyExtensions(t *testing.T) {
 }
 
 func TestWire_SubscribesAllExtensions(t *testing.T) {
-	resetRegistry()
+	ResetRegistry()
 
 	var subscribed atomic.Int32
 
@@ -56,7 +56,7 @@ func TestWire_SubscribesAllExtensions(t *testing.T) {
 }
 
 func TestWire_MissingExtension(t *testing.T) {
-	resetRegistry()
+	ResetRegistry()
 
 	bus := &mockBus{}
 
@@ -71,7 +71,7 @@ func TestWire_MissingExtension(t *testing.T) {
 }
 
 func TestWire_ReceiveBusInSubscribe(t *testing.T) {
-	resetRegistry()
+	ResetRegistry()
 
 	var receivedBus Bus
 
@@ -94,7 +94,7 @@ func TestWire_ReceiveBusInSubscribe(t *testing.T) {
 }
 
 func TestWire_PartialMissing(t *testing.T) {
-	resetRegistry()
+	ResetRegistry()
 
 	RegisterExtension("good", func() Extension {
 		return NewExtensionFunc("good", func(bus Bus) {})

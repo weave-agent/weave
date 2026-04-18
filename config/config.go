@@ -41,30 +41,7 @@ func Load(args []string) (string, *File, []string, error) {
 		return "", nil, nil, fmt.Errorf("get working dir: %w", err)
 	}
 
-	path, err := FindConfigPath(cwd)
-	if err != nil {
-		return "", nil, nil, err
-	}
-
-	var (
-		f    File
-		rest []string
-	)
-
-	if err := gonfig.Load(&f,
-		gonfig.WithFile(path),
-		gonfig.WithEnvPrefix("WEAVE"),
-		gonfig.WithFlags(args),
-		gonfig.WithRemainingArgs(&rest),
-	); err != nil {
-		return "", nil, nil, fmt.Errorf("load config: %w", err)
-	}
-
-	if f.Slots == nil {
-		f.Slots = make(map[string]string)
-	}
-
-	return path, &f, rest, nil
+	return LoadFromDir(cwd, args)
 }
 
 func LoadFromDir(dir string, args []string) (string, *File, []string, error) {

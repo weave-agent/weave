@@ -6,7 +6,7 @@ import (
 )
 
 func TestRegisterAndRetrieve(t *testing.T) {
-	resetRegistry()
+	ResetRegistry()
 
 	ext := NewExtensionFunc("test", func(bus Bus) {})
 
@@ -23,7 +23,7 @@ func TestRegisterAndRetrieve(t *testing.T) {
 }
 
 func TestDuplicateRegistration(t *testing.T) {
-	resetRegistry()
+	ResetRegistry()
 
 	first := NewExtensionFunc("dup", func(bus Bus) {})
 	second := NewExtensionFunc("dup-v2", func(bus Bus) {})
@@ -38,7 +38,7 @@ func TestDuplicateRegistration(t *testing.T) {
 }
 
 func TestMissingExtension(t *testing.T) {
-	resetRegistry()
+	ResetRegistry()
 
 	_, err := GetExtension("nonexistent")
 	if err == nil {
@@ -47,7 +47,7 @@ func TestMissingExtension(t *testing.T) {
 }
 
 func TestListExtensions(t *testing.T) {
-	resetRegistry()
+	ResetRegistry()
 
 	RegisterExtension("alpha", func() Extension { return NewExtensionFunc("alpha", nil) })
 	RegisterExtension("beta", func() Extension { return NewExtensionFunc("beta", nil) })
