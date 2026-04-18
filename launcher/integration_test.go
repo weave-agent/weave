@@ -238,10 +238,6 @@ func TestIntegration_ExtensionInitAndWireInBuiltBinary(t *testing.T) {
 		t.Fatalf("marker file not found — Subscribe was not called: %v", readErr)
 	}
 
-	if err != nil {
-		t.Fatalf("marker file not found — Subscribe was not called: %v", err)
-	}
-
 	if string(data) != "subscribed" {
 		t.Errorf("marker content = %q, want %q", string(data), "subscribed")
 	}

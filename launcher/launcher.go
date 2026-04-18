@@ -77,7 +77,10 @@ func (l *Launcher) buildAndCache(hash string, exts []ExtensionInfo) (string, err
 		return "", fmt.Errorf("cache store: %w", err)
 	}
 
-	cached, _ := l.Cache.Lookup(hash)
+	cached, found := l.Cache.Lookup(hash)
+	if !found {
+		return "", errors.New("cache: binary not found after store")
+	}
 
 	return cached, nil
 }

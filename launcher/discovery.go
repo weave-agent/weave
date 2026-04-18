@@ -4,9 +4,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 )
+
+var validExtName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 type ExtensionInfo struct {
 	Name    string
@@ -31,6 +34,10 @@ func DiscoverCustomHome(projectDir, homeDir string, names []string) ([]Extension
 	var exts []ExtensionInfo
 
 	for _, name := range names {
+		if !validExtName.MatchString(name) {
+			return nil, fmt.Errorf("discover: invalid extension name %q (must match [a-zA-Z0-9_-]+)", name)
+		}
+
 		info, err := findExtension(projectDir, homeDir, name)
 		if err != nil {
 			return nil, err
@@ -79,7 +86,7 @@ func collectGoFiles(dir string) ([]string, error) {
 			continue
 		}
 
-		if strings.HasSuffix(e.Name(), ".go") {
+		if strings.HasSuffix(e.Name(), ".go") && !strings.HasSuffix(e.Name(), "_test.go") {
 			files = append(files, filepath.Join(dir, e.Name()))
 		}
 	}

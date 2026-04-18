@@ -40,12 +40,26 @@ func ComputeHash(exts []ExtensionInfo) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
+// goVersion returns the Go version string for go.mod (e.g. "go 1.22.0").
+func goVersion() string {
+	// runtime.Version() returns e.g. "go1.22.0", "go1.22.0 X:loopvar", "go1.26.2-X:jsonv2"
+	v := strings.TrimPrefix(runtime.Version(), "go")
+	// Strip anything after a space or dash that isn't a digit/dot
+	if idx := strings.IndexFunc(v, func(r rune) bool {
+		return !strings.ContainsRune("0123456789.", r)
+	}); idx != -1 {
+		v = v[:idx]
+	}
+
+	return "go " + v
+}
+
 // GenerateGoMod creates a go.mod file for the built binary.
 // moduleRoot is the path to the weave module root (containing go.mod).
 func GenerateGoMod(dir, moduleRoot string, exts []ExtensionInfo) error {
 	var b strings.Builder
 	b.WriteString("module weave-built\n\n")
-	b.WriteString("go 1.26.2\n\n")
+	b.WriteString(goVersion() + "\n\n")
 	b.WriteString("require (\n")
 	b.WriteString("\tweave v0.0.0\n")
 
@@ -147,7 +161,7 @@ func ensureExtGoMod(ext ExtensionInfo, moduleRoot string) error {
 		return nil
 	}
 
-	content := "module weave/ext/" + ext.Name + "\n\ngo 1.26.2\n\nrequire weave v0.0.0\n\nreplace weave => " + moduleRoot + "\n"
+	content := "module weave/ext/" + ext.Name + "\n\n" + goVersion() + "\n\nrequire weave v0.0.0\n\nreplace weave => " + moduleRoot + "\n"
 
 	if err := os.WriteFile(goModPath, []byte(content), 0o600); err != nil {
 		return fmt.Errorf("ensure extension go.mod: %w", err)
