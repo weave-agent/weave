@@ -80,7 +80,7 @@ func TestLoad_Extensions(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, ".weave.yaml", "extensions: [noop, logging]\nslots: {runner: turn}\n")
 
-	cf, err := Load(filepath.Join(dir, ".weave.yaml"))
+	_, cf, _, err := LoadFromDir(dir, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestLoad_SlotsDefault(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, ".weave.yaml", "extensions: []\n")
 
-	cf, err := Load(filepath.Join(dir, ".weave.yaml"))
+	_, cf, _, err := LoadFromDir(dir, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestLoad_SlotsDefault(t *testing.T) {
 }
 
 func TestLoad_MissingFile(t *testing.T) {
-	_, err := Load("/nonexistent/.weave.yaml")
+	_, _, _, err := LoadFromDir("/nonexistent", nil)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
