@@ -216,13 +216,7 @@ func TestIntegration_WireSubscribesExtensionsInProcess(t *testing.T) {
 	b := bus.New()
 	allCh := b.SubscribeAll()
 
-	cfg := &testConfig{
-		slices: map[string][]string{
-			"extensions": {"noop"},
-		},
-	}
-
-	err := sdk.Wire(cfg, b)
+	err := sdk.Wire([]string{"noop"}, b)
 	if err != nil {
 		t.Fatalf("Wire: %v", err)
 	}
@@ -275,17 +269,3 @@ func TestIntegration_DiscoverCustomHome(t *testing.T) {
 	}
 }
 
-// testConfig implements sdk.Config for integration tests.
-type testConfig struct {
-	strings map[string]string
-	ints    map[string]int
-	bools   map[string]bool
-	slices  map[string][]string
-	subs    map[string]sdk.Config
-}
-
-func (c *testConfig) GetString(key string) string      { return c.strings[key] }
-func (c *testConfig) GetInt(key string) int             { return c.ints[key] }
-func (c *testConfig) GetBool(key string) bool           { return c.bools[key] }
-func (c *testConfig) GetStringSlice(key string) []string { return c.slices[key] }
-func (c *testConfig) Sub(key string) sdk.Config         { return c.subs[key] }

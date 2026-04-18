@@ -8,22 +8,18 @@ import (
 func TestWire_NoExtensions(t *testing.T) {
 	resetRegistry()
 	bus := &mockBus{}
-	cfg := &mockConfig{
-		slices: map[string][]string{},
-	}
 
-	err := Wire(cfg, bus)
+	err := Wire(nil, bus)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 }
 
-func TestWire_NilExtensions(t *testing.T) {
+func TestWire_EmptyExtensions(t *testing.T) {
 	resetRegistry()
 	bus := &mockBus{}
-	cfg := &mockConfig{}
 
-	err := Wire(cfg, bus)
+	err := Wire([]string{}, bus)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -46,13 +42,8 @@ func TestWire_SubscribesAllExtensions(t *testing.T) {
 	})
 
 	bus := &mockBus{}
-	cfg := &mockConfig{
-		slices: map[string][]string{
-			"extensions": {"ext-a", "ext-b"},
-		},
-	}
 
-	err := Wire(cfg, bus)
+	err := Wire([]string{"ext-a", "ext-b"}, bus)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -65,13 +56,8 @@ func TestWire_MissingExtension(t *testing.T) {
 	resetRegistry()
 
 	bus := &mockBus{}
-	cfg := &mockConfig{
-		slices: map[string][]string{
-			"extensions": {"nonexistent"},
-		},
-	}
 
-	err := Wire(cfg, bus)
+	err := Wire([]string{"nonexistent"}, bus)
 	if err == nil {
 		t.Fatal("expected error for missing extension")
 	}
@@ -91,13 +77,8 @@ func TestWire_ReceiveBusInSubscribe(t *testing.T) {
 	})
 
 	bus := &mockBus{}
-	cfg := &mockConfig{
-		slices: map[string][]string{
-			"extensions": {"ext-c"},
-		},
-	}
 
-	err := Wire(cfg, bus)
+	err := Wire([]string{"ext-c"}, bus)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -114,13 +95,8 @@ func TestWire_PartialMissing(t *testing.T) {
 	})
 
 	bus := &mockBus{}
-	cfg := &mockConfig{
-		slices: map[string][]string{
-			"extensions": {"good", "missing"},
-		},
-	}
 
-	err := Wire(cfg, bus)
+	err := Wire([]string{"good", "missing"}, bus)
 	if err == nil {
 		t.Fatal("expected error for missing extension")
 	}

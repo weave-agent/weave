@@ -30,40 +30,17 @@ func TestEventNilPayload(t *testing.T) {
 }
 
 type mockConfig struct {
-	strings map[string]string
-	ints    map[string]int
-	bools   map[string]bool
-	slices  map[string][]string
-	subs    map[string]Config
+	filePath string
 }
 
-func (m *mockConfig) GetString(key string) string    { return m.strings[key] }
-func (m *mockConfig) GetInt(key string) int           { return m.ints[key] }
-func (m *mockConfig) GetBool(key string) bool         { return m.bools[key] }
-func (m *mockConfig) GetStringSlice(key string) []string { return m.slices[key] }
-func (m *mockConfig) Sub(key string) Config            { return m.subs[key] }
+func (m *mockConfig) FilePath() string { return m.filePath }
 
 var _ Config = (*mockConfig)(nil)
 
 func TestConfigInterface(t *testing.T) {
-	cfg := &mockConfig{
-		strings: map[string]string{"name": "weave"},
-		ints:    map[string]int{"port": 8080},
-		bools:   map[string]bool{"debug": true},
-		slices:  map[string][]string{"exts": {"a", "b"}},
-	}
-
-	if v := cfg.GetString("name"); v != "weave" {
-		t.Errorf("GetString = %q, want %q", v, "weave")
-	}
-	if v := cfg.GetInt("port"); v != 8080 {
-		t.Errorf("GetInt = %d, want %d", v, 8080)
-	}
-	if v := cfg.GetBool("debug"); v != true {
-		t.Errorf("GetBool = %v, want true", v)
-	}
-	if v := cfg.GetStringSlice("exts"); len(v) != 2 || v[0] != "a" || v[1] != "b" {
-		t.Errorf("GetStringSlice = %v, want [a b]", v)
+	cfg := &mockConfig{filePath: "/path/to/.weave.yaml"}
+	if v := cfg.FilePath(); v != "/path/to/.weave.yaml" {
+		t.Errorf("FilePath = %q, want %q", v, "/path/to/.weave.yaml")
 	}
 }
 

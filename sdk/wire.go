@@ -4,13 +4,8 @@ import (
 	"fmt"
 )
 
-func Wire(config Config, bus Bus) error {
-	names := config.GetStringSlice("extensions")
-	if len(names) == 0 {
-		return nil
-	}
-
-	for _, name := range names {
+func Wire(extNames []string, bus Bus) error {
+	for _, name := range extNames {
 		ext, err := GetExtension(name)
 		if err != nil {
 			return fmt.Errorf("wire: %w", err)

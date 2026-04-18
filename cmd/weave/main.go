@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"weave/cfg"
+	"weave/config"
 	"weave/launcher"
 )
 
@@ -40,7 +40,7 @@ func run(args ...string) (exitCode int) {
 		return 1
 	}
 
-	cf, _, err := cfg.Load(configFile)
+	cf, err := config.Load(configFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", err)
 		return 1
@@ -88,7 +88,7 @@ func resolveConfig(path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("get working dir: %w", err)
 	}
-	found, err := cfg.FindConfigPath(cwd)
+	found, err := config.FindConfigPath(cwd)
 	if err != nil {
 		return "", err
 	}
