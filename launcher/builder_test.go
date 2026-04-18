@@ -161,8 +161,12 @@ func TestGenerateMainGo_Content(t *testing.T) {
 		t.Error("main.go missing package declaration")
 	}
 
-	if !strings.Contains(s, `_ "weave/sdk"`) {
+	if !strings.Contains(s, `"weave/sdk"`) {
 		t.Error("main.go missing sdk import")
+	}
+
+	if !strings.Contains(s, `"weave/bus"`) {
+		t.Error("main.go missing bus import")
 	}
 
 	if !strings.Contains(s, `_ "weave/ext/noop"`) {
@@ -173,8 +177,16 @@ func TestGenerateMainGo_Content(t *testing.T) {
 		t.Error("main.go missing log import")
 	}
 
-	if !strings.Contains(s, "func main()") {
-		t.Error("main.go missing main func")
+	if !strings.Contains(s, "bus.New()") {
+		t.Error("main.go missing bus.New()")
+	}
+
+	if !strings.Contains(s, `sdk.Wire([]string{"noop", "log"}`) {
+		t.Error("main.go missing sdk.Wire call with extension names")
+	}
+
+	if !strings.Contains(s, "signal.Notify") {
+		t.Error("main.go missing signal blocking")
 	}
 }
 

@@ -67,19 +67,42 @@ func GenerateGoMod(dir, moduleRoot string, exts []ExtensionInfo) error {
 	return nil
 }
 
-// GenerateMainGo creates a main.go with blank imports for each extension.
+// GenerateMainGo creates a main.go that creates a bus, wires all extensions, and blocks on signal.
 func GenerateMainGo(dir string, exts []ExtensionInfo) error {
 	var b strings.Builder
 	b.WriteString("package main\n\n")
 	b.WriteString("import (\n")
-	b.WriteString("\t_ \"weave/sdk\"\n")
+	b.WriteString("\t\"fmt\"\n")
+	b.WriteString("\t\"os\"\n")
+	b.WriteString("\t\"os/signal\"\n")
+	b.WriteString("\t\"syscall\"\n")
+	b.WriteString("\n")
+	b.WriteString("\t\"weave/bus\"\n")
+	b.WriteString("\t\"weave/sdk\"\n")
 
 	for _, ext := range exts {
+		b.WriteString("\n")
 		b.WriteString("\t_ \"weave/ext/" + ext.Name + "\"\n")
 	}
 
 	b.WriteString(")\n\n")
-	b.WriteString("func main() {}\n")
+	b.WriteString("func main() {\n")
+	b.WriteString("\tb := bus.New()\n")
+	b.WriteString("\tdefer b.Close()\n\n")
+
+	extNames := make([]string, len(exts))
+	for i, ext := range exts {
+		extNames[i] = `"` + ext.Name + `"`
+	}
+
+	b.WriteString("\tif err := sdk.Wire([]string{" + strings.Join(extNames, ", ") + "}, b); err != nil {\n")
+	b.WriteString("\t\tfmt.Fprintf(os.Stderr, \"weave: %v\\n\", err)\n")
+	b.WriteString("\t\tos.Exit(1)\n")
+	b.WriteString("\t}\n\n")
+	b.WriteString("\tsig := make(chan os.Signal, 1)\n")
+	b.WriteString("\tsignal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)\n")
+	b.WriteString("\t<-sig\n")
+	b.WriteString("}\n")
 
 	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte(b.String()), 0o600); err != nil {
 		return fmt.Errorf("generate main.go: %w", err)

@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -117,13 +118,21 @@ func TestIntegration_FullPipeline(t *testing.T) {
 		t.Fatal("expected cache hit after store")
 	}
 
-	// Step 7: Run the built binary (init() fires, extension registers)
-	cmd := exec.Command(cachedPath)
+	// Step 7: Run the built binary — it blocks on signal, so use a timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
 
+	cmd := exec.CommandContext(ctx, cachedPath)
 	cmd.Env = os.Environ()
-	if output, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("built binary failed: %v\noutput: %s", err, output)
+
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start built binary: %v", err)
 	}
+
+	// Give it time to wire extensions, then kill
+	time.Sleep(500 * time.Millisecond)
+	cmd.Process.Kill()
+	cmd.Wait()
 }
 
 func TestIntegration_CacheHitOnSecondRun(t *testing.T) {
@@ -164,13 +173,20 @@ func TestIntegration_CacheHitOnSecondRun(t *testing.T) {
 		t.Fatal("expected cache hit on second lookup")
 	}
 
-	// Verify cached binary runs
-	cmd := exec.Command(cachedPath)
+	// Verify cached binary runs (blocks on signal, so use timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
 
+	cmd := exec.CommandContext(ctx, cachedPath)
 	cmd.Env = os.Environ()
-	if output, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("cached binary failed: %v\noutput: %s", err, output)
+
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start cached binary: %v", err)
 	}
+
+	time.Sleep(500 * time.Millisecond)
+	cmd.Process.Kill()
+	cmd.Wait()
 }
 
 func TestIntegration_ExtensionInitAndWireInBuiltBinary(t *testing.T) {
@@ -193,26 +209,33 @@ func TestIntegration_ExtensionInitAndWireInBuiltBinary(t *testing.T) {
 		t.Fatalf("Build: %v", err)
 	}
 
-	// Run the binary with a marker env var
-	// The binary's main() is empty, but init() fires.
-	// The extension's init() registers it in the sdk registry.
-	// The marker env var triggers a file write to prove Subscribe ran.
+	// Run the binary with a marker env var.
+	// The generated main creates a bus and calls sdk.Wire, which triggers Subscribe.
 	markerFile := filepath.Join(t.TempDir(), "marker.txt")
-	cmd := exec.Command(binPath)
 
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, binPath)
 	cmd.Env = append(os.Environ(), "WEAVE_NOOP_MARKER="+markerFile)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("binary failed: %v\noutput: %s", err, output)
+
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start binary: %v", err)
 	}
 
-	// init() runs → RegisterExtension fires, but main() is empty so
-	// Wire is never called and Subscribe never fires.
-	// The marker should NOT exist (proving the init-only behavior).
-	if _, err := os.Stat(markerFile); err == nil {
-		// If the marker exists, it means Subscribe was called — that's actually
-		// a good sign if the binary had a real main(). With our empty main(), we
-		// expect the marker to NOT exist.
-		t.Log("marker file exists — Subscribe was called (unexpected with empty main)")
+	// Give Wire + Subscribe time to run
+	time.Sleep(500 * time.Millisecond)
+	cmd.Process.Kill()
+	cmd.Wait()
+
+	// Subscribe was called → marker file should exist
+	data, err := os.ReadFile(markerFile)
+	if err != nil {
+		t.Fatalf("marker file not found — Subscribe was not called: %v", err)
+	}
+
+	if string(data) != "subscribed" {
+		t.Errorf("marker content = %q, want %q", string(data), "subscribed")
 	}
 }
 
