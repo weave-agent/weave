@@ -97,11 +97,11 @@ Create a shared truncation package used by all tools for consistent output limit
 - [x] run `go test ./extensions/providers/anthropic/...` — must pass before next task
 
 ### Task 10: OpenAI-compat shared library
-- [ ] create `extensions/providers/openai-compat/openai_compat.go` with shared types and streaming logic for OpenAI-compatible APIs
-- [ ] parse SSE stream, emit `ProviderEventTextDelta` and `ProviderEventToolCall` events
-- [ ] handle chat completion request/response format conversion to/from `sdk.ProviderRequest`/`ProviderEvent`
-- [ ] write tests for SSE parsing, tool call extraction, error handling
-- [ ] run `go test ./extensions/providers/openai-compat/...` — must pass before next task
+- [x] create `extensions/providers/openai-compat/openai_compat.go` with shared types and streaming logic for OpenAI-compatible APIs
+- [x] parse SSE stream, emit `ProviderEventTextDelta` and `ProviderEventToolCall` events
+- [x] handle chat completion request/response format conversion to/from `sdk.ProviderRequest`/`ProviderEvent`
+- [x] write tests for SSE parsing, tool call extraction, error handling
+- [x] run `go test ./extensions/providers/openai-compat/...` — must pass before next task
 
 ### Task 11: OpenAI provider
 - [ ] create `extensions/providers/openai/go.mod` and `extensions/providers/openai/openai.go` with `init()` registering via `sdk.RegisterProvider("openai", ...)`
