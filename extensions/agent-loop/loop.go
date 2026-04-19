@@ -3,6 +3,7 @@ package agentloop
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 
@@ -24,13 +25,6 @@ const (
 	TopicEnd        = "agent.end"
 )
 
-// ToolCall represents a parsed tool call from the provider response.
-type ToolCall struct {
-	ID        string
-	Name      string
-	Arguments map[string]any
-}
-
 // Loop is the agent-loop extension that drives the LLM conversation cycle.
 type Loop struct {
 	cfg          sdk.Config
@@ -41,9 +35,14 @@ type Loop struct {
 	done   chan struct{}
 }
 
-func init() {
+func init() { //nolint:gochecknoinits // required for extension self-registration
 	sdk.RegisterExtension("loop", func(cfg sdk.Config) (sdk.Extension, error) {
-		return NewLoop(cfg, "anthropic")
+		provider := os.Getenv("WEAVE_PROVIDER")
+		if provider == "" {
+			provider = "anthropic"
+		}
+
+		return NewLoop(cfg, provider)
 	})
 }
 
@@ -99,6 +98,7 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 	defer close(l.done)
 
 	var endPayload any
+
 	defer func() { bus.Publish(sdk.NewEvent(TopicEnd, endPayload)) }()
 
 	provider, err := sdk.GetProvider(l.providerName, l.cfg)
@@ -116,6 +116,7 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 		if !ok {
 			return
 		}
+
 		messages = append(messages, sdk.NewUserMessage(evt.Payload))
 	case <-ctx.Done():
 		return
@@ -139,6 +140,7 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 			}
 
 			messages = append(messages, resp)
+
 			bus.Publish(sdk.NewEvent(TopicTurnEnd, nil))
 
 			if len(toolCalls) > 0 {
@@ -167,6 +169,7 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 			if !ok {
 				return
 			}
+
 			messages = append(messages, sdk.NewUserMessage(evt.Payload))
 		case <-ctx.Done():
 			return
@@ -178,12 +181,14 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 
 func drainSteering(steerCh <-chan sdk.Event, messages []sdk.Message) ([]sdk.Message, bool) {
 	hasSteering := false
+
 	for {
 		select {
 		case evt, ok := <-steerCh:
 			if !ok {
 				return messages, hasSteering
 			}
+
 			messages = append(messages, sdk.NewUserMessage(evt.Payload))
 			hasSteering = true
 		default:
@@ -192,7 +197,7 @@ func drainSteering(steerCh <-chan sdk.Event, messages []sdk.Message) ([]sdk.Mess
 	}
 }
 
-func streamTurn(ctx context.Context, bus sdk.Bus, provider sdk.Provider, messages []sdk.Message, tools []sdk.ToolDef) (sdk.Message, []ToolCall, error) {
+func streamTurn(ctx context.Context, bus sdk.Bus, provider sdk.Provider, messages []sdk.Message, tools []sdk.ToolDef) (sdk.Message, []sdk.ToolCall, error) {
 	req := sdk.ProviderRequest{
 		Messages: messages,
 		Tools:    tools,
@@ -206,17 +211,19 @@ func streamTurn(ctx context.Context, bus sdk.Bus, provider sdk.Provider, message
 	bus.Publish(sdk.NewEvent(TopicMsgStart, nil))
 
 	var content strings.Builder
-	var toolCalls []ToolCall
+
+	var toolCalls []sdk.ToolCall
 
 	for evt := range ch {
 		switch evt.Type {
 		case sdk.ProviderEventTextDelta:
 			bus.Publish(sdk.NewEvent(TopicMsgUpdate, evt.Content))
+
 			if s, ok := evt.Content.(string); ok {
 				content.WriteString(s)
 			}
 		case sdk.ProviderEventToolCall:
-			if tc, ok := evt.Content.(ToolCall); ok {
+			if tc, ok := evt.Content.(sdk.ToolCall); ok {
 				toolCalls = append(toolCalls, tc)
 			}
 		case sdk.ProviderEventError:
@@ -230,24 +237,32 @@ func streamTurn(ctx context.Context, bus sdk.Bus, provider sdk.Provider, message
 	return sdk.NewAssistantMessage(content.String()), toolCalls, nil
 }
 
-func executeTool(ctx context.Context, cfg sdk.Config, tc ToolCall) (sdk.ToolResult, error) {
+func executeTool(ctx context.Context, cfg sdk.Config, tc sdk.ToolCall) (sdk.ToolResult, error) {
 	tool, err := sdk.GetTool(tc.Name, cfg)
 	if err != nil {
 		return sdk.ToolResult{}, fmt.Errorf("tool %q not found: %w", tc.Name, err)
 	}
 
-	return tool.Execute(ctx, tc.Arguments)
+	result, err := tool.Execute(ctx, tc.Arguments)
+	if err != nil {
+		return sdk.ToolResult{}, fmt.Errorf("tool %q execute: %w", tc.Name, err)
+	}
+
+	return result, nil
 }
 
 func collectToolDefs(cfg sdk.Config) []sdk.ToolDef {
 	names := sdk.ListTools()
+
 	defs := make([]sdk.ToolDef, 0, len(names))
 	for _, name := range names {
 		tool, err := sdk.GetTool(name, cfg)
 		if err != nil {
 			continue
 		}
+
 		defs = append(defs, tool.Definition())
 	}
+
 	return defs
 }

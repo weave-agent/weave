@@ -47,6 +47,10 @@ func run(args ...string) (exitCode int) {
 	coreExts, optExts := cf.CoreExts()
 	allExts := mergeUnique(append(coreExts, optExts...))
 
+	if cf.Prompt != "" {
+		rest = append([]string{"--weave-prompt=" + cf.Prompt}, rest...)
+	}
+
 	if err := l.Run(context.Background(), projectDir, allExts, rest, configFile); err != nil {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", err)
 		return 1

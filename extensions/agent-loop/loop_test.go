@@ -24,7 +24,7 @@ type mockProvider struct {
 
 type providerResponse struct {
 	textDeltas []string
-	toolCalls  []ToolCall
+	toolCalls  []sdk.ToolCall
 	err        error
 }
 
@@ -33,6 +33,7 @@ func (m *mockProvider) Stream(ctx context.Context, req sdk.ProviderRequest) (<-c
 		m.callMu.Lock()
 		m.calls = append(m.calls, req)
 		m.callMu.Unlock()
+
 		return m.StreamFunc(ctx, req)
 	}
 
@@ -44,6 +45,7 @@ func (m *mockProvider) Stream(ctx context.Context, req sdk.ProviderRequest) (<-c
 	if idx >= len(m.responses) {
 		ch := make(chan sdk.ProviderEvent)
 		close(ch)
+
 		return ch, nil
 	}
 
@@ -56,6 +58,7 @@ func (m *mockProvider) Stream(ctx context.Context, req sdk.ProviderRequest) (<-c
 
 	go func() {
 		defer close(ch)
+
 		for _, delta := range resp.textDeltas {
 			select {
 			case ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: delta}:
@@ -63,6 +66,7 @@ func (m *mockProvider) Stream(ctx context.Context, req sdk.ProviderRequest) (<-c
 				return
 			}
 		}
+
 		for _, tc := range resp.toolCalls {
 			select {
 			case ch <- sdk.ProviderEvent{Type: sdk.ProviderEventToolCall, Content: tc}:
@@ -91,9 +95,11 @@ func (m *mockTool) Execute(ctx context.Context, args map[string]any) (sdk.ToolRe
 	m.callMu.Lock()
 	m.calls = append(m.calls, args)
 	m.callMu.Unlock()
+
 	if m.execute != nil {
 		return m.execute(ctx, args)
 	}
+
 	return sdk.ToolResult{Content: "mock result"}, nil
 }
 
@@ -114,13 +120,14 @@ func setupLoop(t *testing.T, providerName string) (*Loop, *bus.Bus, func()) {
 	}
 
 	b := bus.New()
+
 	return l, b, func() {
-		b.Close()
+		_ = b.Close()
 	}
 }
 
-func registerMockProvider(name string, mp *mockProvider) {
-	sdk.RegisterProvider(name, func(sdk.Config) (sdk.Provider, error) {
+func registerMockProvider(_ string, mp *mockProvider) {
+	sdk.RegisterProvider("anthropic", func(sdk.Config) (sdk.Provider, error) {
 		return mp, nil
 	})
 }
@@ -134,12 +141,14 @@ func registerMockTool(mt *mockTool) {
 func waitForTopic(events <-chan sdk.Event, topic string, timeout time.Duration) (sdk.Event, bool) {
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
+
 	for {
 		select {
 		case evt, ok := <-events:
 			if !ok {
 				return sdk.Event{}, false
 			}
+
 			if evt.Topic == topic {
 				return evt, true
 			}
@@ -151,13 +160,16 @@ func waitForTopic(events <-chan sdk.Event, topic string, timeout time.Duration) 
 
 func collectTopic(events <-chan sdk.Event, topic string, timeout time.Duration) []sdk.Event {
 	var result []sdk.Event
+
 	deadline := time.After(timeout)
+
 	for {
 		select {
 		case evt, ok := <-events:
 			if !ok {
 				return result
 			}
+
 			if evt.Topic == topic {
 				result = append(result, evt)
 			}
@@ -205,10 +217,11 @@ func TestLoop_SingleTurn_NoTools(t *testing.T) {
 
 	b.Publish(sdk.NewEvent(TopicPrompt, "test prompt"))
 
-	turnStart, ok := waitForTopic(allCh, TopicTurnStart, 2*time.Second)
-	if !ok {
+	turnStart, found := waitForTopic(allCh, TopicTurnStart, 2*time.Second)
+	if !found {
 		t.Fatal("timeout waiting for turn_start")
 	}
+
 	if count, ok := turnStart.Payload.(int); !ok || count != 1 {
 		t.Errorf("turn_start payload = %v, want 1", turnStart.Payload)
 	}
@@ -217,6 +230,7 @@ func TestLoop_SingleTurn_NoTools(t *testing.T) {
 	if !ok {
 		t.Fatal("timeout waiting for msg_end")
 	}
+
 	if msgEnd.Payload != "hello world" {
 		t.Errorf("msg_end payload = %q, want %q", msgEnd.Payload, "hello world")
 	}
@@ -235,6 +249,7 @@ func TestLoop_SingleTurn_NoTools(t *testing.T) {
 	if len(mp.calls) != 1 {
 		t.Fatalf("expected 1 provider call, got %d", len(mp.calls))
 	}
+
 	if len(mp.calls[0].Messages) != 1 {
 		t.Errorf("expected 1 message, got %d", len(mp.calls[0].Messages))
 	}
@@ -254,7 +269,7 @@ func TestLoop_ToolCallCycle(t *testing.T) {
 	mp := &mockProvider{
 		responses: []providerResponse{
 			{
-				toolCalls: []ToolCall{
+				toolCalls: []sdk.ToolCall{
 					{ID: "tc1", Name: "bash", Arguments: map[string]any{"command": "echo hi"}},
 				},
 			},
@@ -275,10 +290,12 @@ func TestLoop_ToolCallCycle(t *testing.T) {
 	if !ok {
 		t.Fatal("timeout waiting for tool_result")
 	}
+
 	payload, ok := toolResultEvt.Payload.(map[string]any)
 	if !ok {
 		t.Fatalf("tool_result payload type = %T", toolResultEvt.Payload)
 	}
+
 	if payload["tool"] != "bash" {
 		t.Errorf("tool_result tool = %v, want bash", payload["tool"])
 	}
@@ -287,6 +304,7 @@ func TestLoop_ToolCallCycle(t *testing.T) {
 	if !ok {
 		t.Fatal("timeout waiting for second msg_end")
 	}
+
 	if msgEnd.Payload != "done" {
 		t.Errorf("final msg_end = %q, want %q", msgEnd.Payload, "done")
 	}
@@ -343,6 +361,7 @@ func TestLoop_SteeringInjection(t *testing.T) {
 	if len(mp.calls) < 2 {
 		t.Fatalf("expected 2 provider calls, got %d", len(mp.calls))
 	}
+
 	secondCallMsgs := mp.calls[1].Messages
 	if len(secondCallMsgs) < 3 {
 		t.Errorf("second call messages = %d, want at least 3", len(secondCallMsgs))
@@ -421,6 +440,7 @@ func TestLoop_ErrorAbort(t *testing.T) {
 	if !ok {
 		t.Fatal("timeout waiting for end")
 	}
+
 	if endEvt.Payload == nil {
 		t.Error("expected non-nil error payload on end")
 	}
@@ -453,19 +473,23 @@ func TestLoop_ContextCancellation(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	// Provider that blocks forever until context is cancelled.
+	// Provider that blocks forever until context is canceled.
 	blockCh := make(chan sdk.ProviderEvent)
+
 	registerMockProvider("anthropic", &mockProvider{
 		responses: []providerResponse{},
 		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest) (<-chan sdk.ProviderEvent, error) {
 			ch := make(chan sdk.ProviderEvent)
+
 			go func() {
 				defer close(ch)
+
 				select {
 				case <-ctx.Done():
 				case blockCh <- sdk.ProviderEvent{}:
 				}
 			}()
+
 			return ch, nil
 		},
 	})
@@ -479,6 +503,7 @@ func TestLoop_ContextCancellation(t *testing.T) {
 	b.Publish(sdk.NewEvent(TopicPrompt, "test"))
 
 	done := make(chan error, 1)
+
 	go func() { done <- l.Close() }()
 
 	select {
@@ -535,7 +560,7 @@ func TestLoop_MissingToolError(t *testing.T) {
 	mp := &mockProvider{
 		responses: []providerResponse{
 			{
-				toolCalls: []ToolCall{
+				toolCalls: []sdk.ToolCall{
 					{ID: "tc1", Name: "nonexistent", Arguments: nil},
 				},
 			},
@@ -556,7 +581,9 @@ func TestLoop_MissingToolError(t *testing.T) {
 	if !ok {
 		t.Fatal("timeout waiting for tool_result")
 	}
+
 	payload := toolResultEvt.Payload.(map[string]any)
+
 	result := payload["result"].(sdk.ToolResult)
 	if !result.IsError {
 		t.Error("expected tool_result to have IsError=true")
@@ -566,6 +593,7 @@ func TestLoop_MissingToolError(t *testing.T) {
 	if !ok {
 		t.Fatal("timeout waiting for second msg_end")
 	}
+
 	if msgEnd.Payload != "recovered" {
 		t.Errorf("final response = %q, want %q", msgEnd.Payload, "recovered")
 	}
@@ -600,13 +628,14 @@ func TestLoop_MultipleToolCalls(t *testing.T) {
 
 	tool1 := &mockTool{name: "tool-a", def: sdk.ToolDef{Name: "tool-a"}}
 	tool2 := &mockTool{name: "tool-b", def: sdk.ToolDef{Name: "tool-b"}}
+
 	registerMockTool(tool1)
 	registerMockTool(tool2)
 
 	mp := &mockProvider{
 		responses: []providerResponse{
 			{
-				toolCalls: []ToolCall{
+				toolCalls: []sdk.ToolCall{
 					{ID: "tc1", Name: "tool-a", Arguments: map[string]any{"x": 1}},
 					{ID: "tc2", Name: "tool-b", Arguments: map[string]any{"y": 2}},
 				},
@@ -626,14 +655,18 @@ func TestLoop_MultipleToolCalls(t *testing.T) {
 
 	// Collect all events until end
 	var toolResults []sdk.Event
+
 	var finalMsgEnd *sdk.Event
+
 	endDeadline := time.After(5 * time.Second)
+
 	for {
 		select {
 		case evt, ok := <-allCh:
 			if !ok {
 				t.Fatal("event channel closed")
 			}
+
 			switch evt.Topic {
 			case TopicToolResult:
 				toolResults = append(toolResults, evt)
@@ -647,6 +680,7 @@ func TestLoop_MultipleToolCalls(t *testing.T) {
 			t.Fatal("timeout waiting for end")
 		}
 	}
+
 done:
 
 	if len(toolResults) != 2 {
@@ -657,6 +691,7 @@ done:
 		if finalMsgEnd == nil {
 			t.Fatal("no msg_end received")
 		}
+
 		t.Errorf("final = %q, want %q", finalMsgEnd.Payload, "both done")
 	}
 }

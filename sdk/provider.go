@@ -19,6 +19,13 @@ const (
 	ProviderEventError     = "error"
 )
 
+// ToolCall represents a parsed tool call from the provider response.
+type ToolCall struct {
+	ID        string
+	Name      string
+	Arguments map[string]any
+}
+
 type Provider interface {
 	Stream(ctx context.Context, req ProviderRequest) (<-chan ProviderEvent, error)
 }
