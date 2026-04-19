@@ -12,6 +12,12 @@ import (
 	"weave/launcher"
 )
 
+var (
+	errAgentLoopRequired = errors.New("core.agent_loop is required")
+	errProviderRequired  = errors.New("core.providers must include at least one provider")
+	errDuplicateProvider = errors.New("core.providers contains duplicates")
+)
+
 func main() {
 	os.Exit(run(os.Args[1:]...))
 }
@@ -20,6 +26,11 @@ func run(args ...string) (exitCode int) {
 	configFile, cf, rest, err := config.Load(args)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", err)
+		return 1
+	}
+
+	if ve := validateCoreConfig(cf); ve != nil {
+		fmt.Fprintf(os.Stderr, "weave: %v\n", ve)
 		return 1
 	}
 
@@ -71,6 +82,27 @@ func mergeUnique(exts []string) []string {
 	}
 
 	return result
+}
+
+func validateCoreConfig(cf *config.File) error {
+	if cf.Core.AgentLoop == "" {
+		return errAgentLoopRequired
+	}
+
+	if len(cf.Core.Providers) == 0 {
+		return errProviderRequired
+	}
+
+	seen := make(map[string]bool, len(cf.Core.Providers))
+	for _, p := range cf.Core.Providers {
+		if seen[p] {
+			return fmt.Errorf("%w: %q", errDuplicateProvider, p)
+		}
+
+		seen[p] = true
+	}
+
+	return nil
 }
 
 func findModuleRoot() (string, error) {

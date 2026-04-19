@@ -268,6 +268,10 @@ func TestGenerateMainGo_Content(t *testing.T) {
 		t.Error("main.go missing signal blocking")
 	}
 
+	if !strings.Contains(s, `b.Subscribe("agent.end")`) {
+		t.Error("main.go missing agent.end subscription")
+	}
+
 	if !strings.Contains(s, "wired.Close()") {
 		t.Error("main.go missing wired.Close() call")
 	}

@@ -4,6 +4,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"weave/config"
 )
 
 func TestMergeUnique(t *testing.T) {
@@ -146,5 +148,56 @@ func TestRunCoreDefaultsUsed(t *testing.T) {
 
 	if !strings.Contains(stderr, "loop") && !strings.Contains(stderr, "anthropic") {
 		t.Errorf("stderr = %q, want mention of 'loop' or 'anthropic' (core defaults)", stderr)
+	}
+}
+
+func TestValidateCoreConfig(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  *config.File
+		wantErr error
+	}{
+		{
+			"valid defaults",
+			&config.File{Core: config.CoreConfig{AgentLoop: "loop", Providers: []string{"anthropic"}}},
+			nil,
+		},
+		{
+			"empty agent_loop",
+			&config.File{Core: config.CoreConfig{AgentLoop: "", Providers: []string{"anthropic"}}},
+			errAgentLoopRequired,
+		},
+		{
+			"no providers",
+			&config.File{Core: config.CoreConfig{AgentLoop: "loop", Providers: nil}},
+			errProviderRequired,
+		},
+		{
+			"empty providers",
+			&config.File{Core: config.CoreConfig{AgentLoop: "loop", Providers: []string{}}},
+			errProviderRequired,
+		},
+		{
+			"duplicate providers",
+			&config.File{Core: config.CoreConfig{AgentLoop: "loop", Providers: []string{"anthropic", "anthropic"}}},
+			errDuplicateProvider,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateCoreConfig(tt.config)
+			if tt.wantErr == nil {
+				if err != nil {
+					t.Errorf("validateCoreConfig() = %v, want nil", err)
+				}
+			} else {
+				if err == nil {
+					t.Errorf("validateCoreConfig() = nil, want %v", tt.wantErr)
+				} else if !strings.Contains(err.Error(), tt.wantErr.Error()) {
+					t.Errorf("validateCoreConfig() = %v, want error containing %v", err, tt.wantErr)
+				}
+			}
+		})
 	}
 }
