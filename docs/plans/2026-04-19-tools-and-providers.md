@@ -126,8 +126,8 @@ Create a shared truncation package used by all tools for consistent output limit
 - [x] run `make lint` — all issues must be fixed
 
 ### Task 14: Update documentation
-- [ ] update CLAUDE.md if new patterns or conventions discovered
-- [ ] update docs/design.md if architectural decisions diverged
+- [x] update CLAUDE.md if new patterns or conventions discovered
+- [x] update docs/design.md if architectural decisions diverged
 
 ## Technical Details
 

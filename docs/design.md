@@ -1579,3 +1579,37 @@ User types prompt
 | `github.com/nniel-ape/gonfig` | Multi-source config loading | Yes |
 
 Single external dependency. Everything else is stdlib.
+
+---
+
+## Implementation Divergences
+
+This section records where the implementation diverged from the design above.
+
+### Tools: individual modules vs single package
+
+Design shows all tools in one `extensions/tools/` package registered via a single `init()`. Implementation uses individual Go modules under `extensions/tools/{bash,read,edit,write,grep,find,ls}/`, each with its own `go.mod` and self-registering via `sdk.RegisterTool` in `init()`. This lets the launcher include only the tools a project needs and keeps each tool independently testable.
+
+### Providers: streaming interface + three implementations
+
+Design shows a single `Provider.Chat()` request/response interface. Implementation uses `Provider.Stream(ctx, ProviderRequest) (<-chan ProviderEvent, error)` — a streaming-only API emitting `ProviderEventTextDelta` and `ProviderEventToolCall` events. Three providers exist:
+- **Anthropic** — uses the official `anthropic-sdk-go` SDK
+- **OpenAI** — delegates to shared `openai-compat` library with `https://api.openai.com/v1`
+- **Z.ai** — delegates to shared `openai-compat` library with Z.ai base URL
+
+### Tool interface
+
+Design: `Name()`, `Description()`, `Parameters()` (json.RawMessage), `Execute(ctx, json.RawMessage)`.
+Implementation: `Name()`, `Definition() ToolDef` (combines name+description+parameters), `Execute(ctx, map[string]any) (ToolResult, error)`. `ToolResult` has `Content string` and `IsError bool`.
+
+### Output truncation
+
+Design does not mention truncation. Implementation adds `internal/truncate/` with a shared `Truncate()` function (2000 lines / 50KB defaults) used by all tools. Never returns partial lines; includes metadata (truncated bool, line/byte counts).
+
+### Launcher: nested extension discovery
+
+Design shows flat discovery: `extensions/{name}/`. Implementation adds two-level lookup: first `extensions/{name}/`, then `extensions/*/{name}/`. This allows the built-in extensions to live under `extensions/tools/bash/` and `extensions/providers/anthropic/` while being referenced by short names (`bash`, `anthropic`) in config.
+
+### Config path: .agent → .weave
+
+Design uses `.agent.yaml` / `.agent/`. Implementation uses `.weave.yaml` / `.weave/` throughout (config discovery, extension directories, global dirs under `~/.weave/`).
