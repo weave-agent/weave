@@ -10,7 +10,7 @@ A coding agent framework written in Go — event-driven, extension-based, with d
 
 ```bash
 make lint          # Run golangci-lint
-make fmt           # Format code (gofumpt, goimports, go fix)
+make fmt           # Format code (gofumpt, goimports, go fix) ALWAYS use make fix before manual fixing
 make fix           # Auto-fix linter issues
 make gen           # Regenerate mocks (moq)
 make tools         # Install dev tools (moq, golangci-lint)
