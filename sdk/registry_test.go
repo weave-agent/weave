@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	"errors"
 	"sort"
 	"testing"
 )
@@ -10,9 +11,9 @@ func TestRegisterAndRetrieve(t *testing.T) {
 
 	ext := NewExtensionFunc("test", func(bus Bus) {})
 
-	RegisterExtension("test", func() Extension { return ext })
+	RegisterExtension("test", func(Config) (Extension, error) { return ext, nil })
 
-	got, err := GetExtension("test")
+	got, err := GetExtension("test", nil)
 	if err != nil {
 		t.Fatalf("GetExtension: %v", err)
 	}
@@ -28,10 +29,10 @@ func TestDuplicateRegistration(t *testing.T) {
 	first := NewExtensionFunc("dup", func(bus Bus) {})
 	second := NewExtensionFunc("dup-v2", func(bus Bus) {})
 
-	RegisterExtension("dup", func() Extension { return first })
-	RegisterExtension("dup", func() Extension { return second })
+	RegisterExtension("dup", func(Config) (Extension, error) { return first, nil })
+	RegisterExtension("dup", func(Config) (Extension, error) { return second, nil })
 
-	got, _ := GetExtension("dup")
+	got, _ := GetExtension("dup", nil)
 	if got.Name() != "dup-v2" {
 		t.Errorf("after duplicate register, Name() = %q, want %q", got.Name(), "dup-v2")
 	}
@@ -40,17 +41,34 @@ func TestDuplicateRegistration(t *testing.T) {
 func TestMissingExtension(t *testing.T) {
 	ResetRegistry()
 
-	_, err := GetExtension("nonexistent")
+	_, err := GetExtension("nonexistent", nil)
 	if err == nil {
 		t.Fatal("expected error for missing extension")
+	}
+}
+
+func TestGetExtension_FactoryError(t *testing.T) {
+	ResetRegistry()
+
+	RegisterExtension("fail", func(Config) (Extension, error) {
+		return nil, errors.New("boom")
+	})
+
+	_, err := GetExtension("fail", nil)
+	if err == nil {
+		t.Fatal("expected error from failing factory")
+	}
+
+	if err.Error() != "boom" {
+		t.Errorf("error = %q, want %q", err.Error(), "boom")
 	}
 }
 
 func TestListExtensions(t *testing.T) {
 	ResetRegistry()
 
-	RegisterExtension("alpha", func() Extension { return NewExtensionFunc("alpha", nil) })
-	RegisterExtension("beta", func() Extension { return NewExtensionFunc("beta", nil) })
+	RegisterExtension("alpha", func(Config) (Extension, error) { return NewExtensionFunc("alpha", nil), nil })
+	RegisterExtension("beta", func(Config) (Extension, error) { return NewExtensionFunc("beta", nil), nil })
 
 	names := ListExtensions()
 	sort.Strings(names)
@@ -62,7 +80,7 @@ func TestListExtensions(t *testing.T) {
 
 	for i, n := range names {
 		if n != want[i] {
-			t.Errorf("names[%d] = %q, want %q", i, n, want[i])
+			t.Errorf("names[%d] = %q, want %q", i, names[i], want[i])
 		}
 	}
 }

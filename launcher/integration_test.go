@@ -18,10 +18,10 @@ const noopCode = `package noop
 import "weave/sdk"
 
 func init() {
-	sdk.RegisterExtension("noop", func() sdk.Extension {
+	sdk.RegisterExtension("noop", func(cfg sdk.Config) (sdk.Extension, error) {
 		return sdk.NewExtensionFunc("noop", func(b sdk.Bus) {
 			b.Publish(sdk.NewEvent("noop.ready", "noop extension active"))
-		})
+		}), nil
 	})
 }
 `
@@ -35,13 +35,13 @@ import (
 )
 
 func init() {
-	sdk.RegisterExtension("noop", func() sdk.Extension {
+	sdk.RegisterExtension("noop", func(cfg sdk.Config) (sdk.Extension, error) {
 		return sdk.NewExtensionFunc("noop", func(b sdk.Bus) {
 			marker := os.Getenv("WEAVE_NOOP_MARKER")
 			if marker != "" {
 				os.WriteFile(marker, []byte("subscribed"), 0o644)
 			}
-		})
+		}), nil
 	})
 }
 `
@@ -248,18 +248,18 @@ func TestIntegration_WireSubscribesExtensionsInProcess(t *testing.T) {
 
 	var subscribeCalled bool
 
-	sdk.RegisterExtension("noop", func() sdk.Extension {
+	sdk.RegisterExtension("noop", func(cfg sdk.Config) (sdk.Extension, error) {
 		return sdk.NewExtensionFunc("noop", func(b sdk.Bus) {
 			subscribeCalled = true
 
 			b.Publish(sdk.NewEvent("noop.subscribed", "hello"))
-		})
+		}), nil
 	})
 
 	b := bus.New()
 	allCh := b.SubscribeAll()
 
-	err := sdk.Wire([]string{"noop"}, b)
+	wired, err := sdk.Wire([]string{"noop"}, b, nil)
 	if err != nil {
 		t.Fatalf("Wire: %v", err)
 	}
@@ -279,6 +279,10 @@ func TestIntegration_WireSubscribesExtensionsInProcess(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for event")
+	}
+
+	if err := wired.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
 	}
 
 	b.Close()

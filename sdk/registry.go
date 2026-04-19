@@ -7,17 +7,17 @@ import (
 
 var (
 	registryMu sync.RWMutex
-	registry   = make(map[string]func() Extension)
+	registry   = make(map[string]func(Config) (Extension, error))
 )
 
-func RegisterExtension(name string, factory func() Extension) {
+func RegisterExtension(name string, factory func(Config) (Extension, error)) {
 	registryMu.Lock()
 	defer registryMu.Unlock()
 
 	registry[name] = factory
 }
 
-func GetExtension(name string) (Extension, error) {
+func GetExtension(name string, cfg Config) (Extension, error) {
 	registryMu.RLock()
 	defer registryMu.RUnlock()
 
@@ -26,7 +26,7 @@ func GetExtension(name string) (Extension, error) {
 		return nil, fmt.Errorf("extension %q not registered", name)
 	}
 
-	return factory(), nil
+	return factory(cfg)
 }
 
 func ListExtensions() []string {
@@ -45,5 +45,5 @@ func ResetRegistry() {
 	registryMu.Lock()
 	defer registryMu.Unlock()
 
-	registry = make(map[string]func() Extension)
+	registry = make(map[string]func(Config) (Extension, error))
 }

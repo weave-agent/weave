@@ -177,13 +177,15 @@ func GenerateMainGo(dir string, exts []ExtensionInfo) error {
 		extNames[i] = `"` + ext.Name + `"`
 	}
 
-	b.WriteString("\tif err := sdk.Wire([]string{" + strings.Join(extNames, ", ") + "}, b); err != nil {\n")
+	b.WriteString("\twired, err := sdk.Wire([]string{" + strings.Join(extNames, ", ") + "}, b, nil)\n")
+	b.WriteString("\tif err != nil {\n")
 	b.WriteString("\t\tfmt.Fprintf(os.Stderr, \"weave: %v\\n\", err)\n")
 	b.WriteString("\t\tos.Exit(1)\n")
 	b.WriteString("\t}\n\n")
 	b.WriteString("\tsig := make(chan os.Signal, 1)\n")
 	b.WriteString("\tsignal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)\n")
 	b.WriteString("\t<-sig\n")
+	b.WriteString("\twired.Close()\n")
 	b.WriteString("}\n")
 
 	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte(b.String()), 0o600); err != nil {

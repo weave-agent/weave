@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	"errors"
 	"testing"
 	"time"
 )
@@ -120,5 +121,40 @@ func TestExtensionFuncMultipleSubscriptions(t *testing.T) {
 		if topics[i] != w {
 			t.Errorf("event[%d].Topic = %q, want %q", i, topics[i], w)
 		}
+	}
+}
+
+func TestExtensionFunc_CloseNil(t *testing.T) {
+	ext := NewExtensionFunc("no-close", func(Bus) {})
+
+	if err := ext.Close(); err != nil {
+		t.Errorf("Close() = %v, want nil", err)
+	}
+}
+
+func TestExtensionFuncWithClose(t *testing.T) {
+	var closed bool
+
+	ext := NewExtensionFuncWithClose("with-close", func(Bus) {}, func() error {
+		closed = true
+		return nil
+	})
+
+	if err := ext.Close(); err != nil {
+		t.Errorf("Close() = %v, want nil", err)
+	}
+
+	if !closed {
+		t.Error("closeFn was not called")
+	}
+}
+
+func TestExtensionFuncWithClose_Error(t *testing.T) {
+	ext := NewExtensionFuncWithClose("close-err", func(Bus) {}, func() error {
+		return errors.New("close failed")
+	})
+
+	if err := ext.Close(); err == nil {
+		t.Fatal("expected error from Close()")
 	}
 }

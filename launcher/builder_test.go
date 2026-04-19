@@ -220,8 +220,8 @@ func TestBuild_WithTrivialExtension(t *testing.T) {
 import "weave/sdk"
 
 func init() {
-	sdk.RegisterExtension("noop", func() sdk.Extension {
-		return sdk.NewExtensionFunc("noop", func(b sdk.Bus) {})
+	sdk.RegisterExtension("noop", func(cfg sdk.Config) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("noop", func(b sdk.Bus) {}), nil
 	})
 }
 `
