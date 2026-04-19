@@ -47,27 +47,7 @@ func WireWithCore(core CoreWireConfig, optExts []string, bus Bus, cfg Config) (*
 
 	merged := mergeCoreAndOptional(core, optExts)
 
-	cfg = configOrDefault(cfg)
-	exts := make([]Extension, 0, len(merged))
-
-	for _, name := range merged {
-		ext, err := GetExtension(name, cfg)
-		if err != nil {
-			for i := len(exts) - 1; i >= 0; i-- {
-				_ = exts[i].Close()
-			}
-
-			return nil, fmt.Errorf("wire: %w", err)
-		}
-
-		exts = append(exts, ext)
-	}
-
-	for _, ext := range exts {
-		ext.Subscribe(bus)
-	}
-
-	return &Wired{extensions: exts, bus: bus}, nil
+	return Wire(merged, bus, cfg)
 }
 
 func (w *Wired) Close() error {
@@ -93,6 +73,15 @@ func validateCore(core CoreWireConfig) error {
 
 	if len(core.Providers) == 0 {
 		return errors.New("at least one provider is required")
+	}
+
+	seen := make(map[string]bool, len(core.Providers))
+	for _, p := range core.Providers {
+		if seen[p] {
+			return fmt.Errorf("duplicate provider %q", p)
+		}
+
+		seen[p] = true
 	}
 
 	return nil

@@ -90,11 +90,13 @@ func (l *Loop) Close() error {
 
 func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followupCh <-chan sdk.Event) {
 	defer close(l.done)
-	defer bus.Publish(sdk.NewEvent(TopicEnd, nil))
+
+	var endPayload any
+	defer func() { bus.Publish(sdk.NewEvent(TopicEnd, endPayload)) }()
 
 	provider, err := sdk.GetProvider(l.providerName, l.cfg)
 	if err != nil {
-		bus.Publish(sdk.NewEvent(TopicEnd, fmt.Sprintf("provider error: %v", err)))
+		endPayload = fmt.Sprintf("provider error: %v", err)
 		return
 	}
 
@@ -125,7 +127,7 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 
 			resp, toolCalls, err := streamTurn(ctx, bus, provider, messages, toolDefs)
 			if err != nil {
-				bus.Publish(sdk.NewEvent(TopicEnd, fmt.Sprintf("stream error: %v", err)))
+				endPayload = fmt.Sprintf("stream error: %v", err)
 				return
 			}
 

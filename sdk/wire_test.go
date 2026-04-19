@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"errors"
+	"strings"
 	"sync/atomic"
 	"testing"
 )
@@ -375,6 +376,85 @@ func TestWireWithCore_ErrEmptyProviders(t *testing.T) {
 	_, err := WireWithCore(CoreWireConfig{AgentLoop: "loop", Providers: []string{}}, nil, bus, nil)
 	if err == nil {
 		t.Fatal("expected error for empty providers")
+	}
+}
+
+func TestWireWithCore_ErrDuplicateProviders(t *testing.T) {
+	ResetRegistry()
+
+	bus := &mockBus{}
+
+	_, err := WireWithCore(CoreWireConfig{AgentLoop: "loop", Providers: []string{"anthropic", "anthropic"}}, nil, bus, nil)
+	if err == nil {
+		t.Fatal("expected error for duplicate providers")
+	}
+
+	if !strings.Contains(err.Error(), "duplicate provider") {
+		t.Errorf("error = %q, want mention of 'duplicate provider'", err.Error())
+	}
+}
+
+func TestWireWithCore_FactoryErrorRollback(t *testing.T) {
+	ResetRegistry()
+
+	var closed atomic.Int32
+
+	RegisterExtension("loop", func(Config) (Extension, error) {
+		return NewExtensionFuncWithClose("loop", func(Bus) {}, func() error {
+			closed.Add(1)
+			return nil
+		}), nil
+	})
+	RegisterExtension("anthropic", func(Config) (Extension, error) {
+		return NewExtensionFuncWithClose("anthropic", func(Bus) {}, func() error {
+			closed.Add(1)
+			return nil
+		}), nil
+	})
+	RegisterExtension("bad", func(Config) (Extension, error) {
+		return nil, errors.New("init failed")
+	})
+
+	bus := &mockBus{}
+
+	_, err := WireWithCore(coreCfg("anthropic"), []string{"bad"}, bus, nil)
+	if err == nil {
+		t.Fatal("expected error from failing factory")
+	}
+
+	if got := closed.Load(); got != 2 {
+		t.Errorf("expected 2 Close calls on rollback, got %d", got)
+	}
+}
+
+func TestWired_CloseErrorAggregation(t *testing.T) {
+	ResetRegistry()
+
+	RegisterExtension("a", func(Config) (Extension, error) {
+		return NewExtensionFuncWithClose("a", func(Bus) {}, func() error {
+			return errors.New("a failed")
+		}), nil
+	})
+	RegisterExtension("b", func(Config) (Extension, error) {
+		return NewExtensionFuncWithClose("b", func(Bus) {}, func() error {
+			return errors.New("b failed")
+		}), nil
+	})
+
+	bus := &mockBus{}
+
+	wired, err := Wire([]string{"a", "b"}, bus, nil)
+	if err != nil {
+		t.Fatalf("Wire: %v", err)
+	}
+
+	err = wired.Close()
+	if err == nil {
+		t.Fatal("expected error from Close")
+	}
+
+	if !strings.Contains(err.Error(), "a failed") || !strings.Contains(err.Error(), "b failed") {
+		t.Errorf("error = %q, want both 'a failed' and 'b failed'", err.Error())
 	}
 }
 

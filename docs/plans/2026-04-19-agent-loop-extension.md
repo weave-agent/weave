@@ -1,5 +1,7 @@
 # Agent Loop Extension
 
+**Status: Complete** — all tasks done, ready to move to `docs/plans/completed/`.
+
 ## Overview
 Implement the first core extension — the agent loop — that drives the LLM conversation cycle. Ports the two-level while-loop logic from pi-coding-agent (Node.js) to Go. Introduces the `core` config model (singleton agent-loop, multiple providers), tool/provider registries, and the streaming agent cycle.
 

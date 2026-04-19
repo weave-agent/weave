@@ -17,6 +17,9 @@ type mockProvider struct {
 	responses []providerResponse
 	callMu    sync.Mutex
 	calls     []sdk.ProviderRequest
+
+	// StreamFunc overrides the default Stream behavior if set.
+	StreamFunc func(ctx context.Context, req sdk.ProviderRequest) (<-chan sdk.ProviderEvent, error)
 }
 
 type providerResponse struct {
@@ -26,6 +29,13 @@ type providerResponse struct {
 }
 
 func (m *mockProvider) Stream(ctx context.Context, req sdk.ProviderRequest) (<-chan sdk.ProviderEvent, error) {
+	if m.StreamFunc != nil {
+		m.callMu.Lock()
+		m.calls = append(m.calls, req)
+		m.callMu.Unlock()
+		return m.StreamFunc(ctx, req)
+	}
+
 	m.callMu.Lock()
 	idx := len(m.calls)
 	m.calls = append(m.calls, req)
@@ -430,8 +440,12 @@ func TestLoop_ProviderErrorOnStartup(t *testing.T) {
 	b.Publish(sdk.NewEvent(TopicPrompt, "test"))
 
 	endEvts := collectTopic(allCh, TopicEnd, 2*time.Second)
-	if len(endEvts) < 1 {
-		t.Fatal("expected at least one end event")
+	if len(endEvts) != 1 {
+		t.Fatalf("expected exactly 1 end event, got %d", len(endEvts))
+	}
+
+	if endEvts[0].Payload == nil {
+		t.Error("expected non-nil error payload in end event")
 	}
 }
 
@@ -439,12 +453,22 @@ func TestLoop_ContextCancellation(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	mp := &mockProvider{
-		responses: []providerResponse{
-			{textDeltas: []string{"ok"}},
+	// Provider that blocks forever until context is cancelled.
+	blockCh := make(chan sdk.ProviderEvent)
+	registerMockProvider("anthropic", &mockProvider{
+		responses: []providerResponse{},
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest) (<-chan sdk.ProviderEvent, error) {
+			ch := make(chan sdk.ProviderEvent)
+			go func() {
+				defer close(ch)
+				select {
+				case <-ctx.Done():
+				case blockCh <- sdk.ProviderEvent{}:
+				}
+			}()
+			return ch, nil
 		},
-	}
-	registerMockProvider("anthropic", mp)
+	})
 
 	l, b, cleanup := setupLoop(t, "anthropic")
 	defer cleanup()
@@ -453,11 +477,6 @@ func TestLoop_ContextCancellation(t *testing.T) {
 	l.Subscribe(b)
 
 	b.Publish(sdk.NewEvent(TopicPrompt, "test"))
-
-	_, ok := waitForTopic(allCh, TopicEnd, 2*time.Second)
-	if !ok {
-		t.Fatal("timeout waiting for end")
-	}
 
 	done := make(chan error, 1)
 	go func() { done <- l.Close() }()
@@ -468,7 +487,12 @@ func TestLoop_ContextCancellation(t *testing.T) {
 			t.Fatalf("Close: %v", err)
 		}
 	case <-time.After(2 * time.Second):
-		t.Fatal("Close hung")
+		t.Fatal("Close hung — context cancellation did not unblock the loop")
+	}
+
+	_, ok := waitForTopic(allCh, TopicEnd, time.Second)
+	if !ok {
+		t.Error("expected TopicEnd after cancellation")
 	}
 }
 

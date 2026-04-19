@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -98,10 +99,12 @@ func TestRunCoreDefaultsUsed(t *testing.T) {
 	dir := t.TempDir()
 
 	cfgFile := dir + "/.weave.yaml"
-	// Config with no extensions — core defaults (loop + anthropic) should be used.
-	// This will fail at discovery (no extensions exist), but the error should mention
-	// "loop" or "anthropic" — proving the core defaults were passed to the launcher.
 	if err := os.WriteFile(cfgFile, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a go.mod so findModuleRoot succeeds and the test gets to the launcher.
+	if err := os.WriteFile(dir+"/go.mod", []byte("module weave\n\ngo 1.24\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -113,8 +116,30 @@ func TestRunCoreDefaultsUsed(t *testing.T) {
 
 	defer func() { _ = os.Chdir(origWd) }()
 
+	// Capture stderr to verify the error mentions core default extension names.
+	old := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stderr = w
+
 	exitCode := run()
+
+	_ = w.Close()
+
+	os.Stderr = old
+
+	buf := make([]byte, 4096)
+
+	n, _ := r.Read(buf)
+
+	_ = r.Close()
+
+	stderr := string(buf[:n])
+
 	if exitCode != 1 {
-		t.Errorf("run() = %d, want 1 (expected failure at discovery with core defaults)", exitCode)
+		t.Errorf("run() = %d, want 1", exitCode)
+	}
+
+	if !strings.Contains(stderr, "loop") && !strings.Contains(stderr, "anthropic") {
+		t.Errorf("stderr = %q, want mention of 'loop' or 'anthropic' (core defaults)", stderr)
 	}
 }
