@@ -101,6 +101,7 @@ func (l *Launcher) coreDirs() []string {
 	return []string{
 		filepath.Join(l.ModuleRoot, "sdk"),
 		filepath.Join(l.ModuleRoot, "bus"),
+		filepath.Join(l.ModuleRoot, "config"),
 	}
 }
 
@@ -164,6 +165,5 @@ func lockBuildDir(hash string) (unlock func(), err error) {
 	return func() {
 		_ = syscall.Flock(fd, syscall.LOCK_UN)
 		_ = f.Close()
-		_ = os.Remove(lockPath)
 	}, nil
 }
