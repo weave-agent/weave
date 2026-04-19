@@ -68,11 +68,11 @@ Create a shared truncation package used by all tools for consistent output limit
 - [x] run `go test ./extensions/tools/write/...` — must pass before next task
 
 ### Task 6: grep tool
-- [ ] create `extensions/tools/grep/go.mod` and `extensions/tools/grep/grep.go` with `init()` registering via `sdk.RegisterTool("grep", ...)`
-- [ ] implement `Execute`: search files using `regexp.Regexp`, support case-insensitive and literal modes, return matches with context lines, apply truncation
-- [ ] tool definition: `{ pattern: string, path?: string, ignoreCase?: boolean, literal?: boolean, context?: number }` parameters
-- [ ] write tests (simple match, no match, case-insensitive, literal mode, context lines, invalid regex)
-- [ ] run `go test ./extensions/tools/grep/...` — must pass before next task
+- [x] create `extensions/tools/grep/go.mod` and `extensions/tools/grep/grep.go` with `init()` registering via `sdk.RegisterTool("grep", ...)`
+- [x] implement `Execute`: search files using `regexp.Regexp`, support case-insensitive and literal modes, return matches with context lines, apply truncation
+- [x] tool definition: `{ pattern: string, path?: string, ignoreCase?: boolean, literal?: boolean, context?: number }` parameters
+- [x] write tests (simple match, no match, case-insensitive, literal mode, context lines, invalid regex)
+- [x] run `go test ./extensions/tools/grep/...` — must pass before next task
 
 ### Task 7: find tool
 - [ ] create `extensions/tools/find/go.mod` and `extensions/tools/find/find.go` with `init()` registering via `sdk.RegisterTool("find", ...)`
