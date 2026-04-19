@@ -222,7 +222,11 @@ func parseSSE(ctx context.Context, reader io.Reader, ch chan<- sdk.ProviderEvent
 			for _, tc := range choice.Delta.ToolCalls {
 				accumulated, exists := toolCalls[tc.Index]
 				if !exists {
-					accumulated = &toolCallAccum{id: tc.ID, name: tc.Function.Name}
+					var name string
+			if tc.Function != nil {
+				name = tc.Function.Name
+			}
+			accumulated = &toolCallAccum{id: tc.ID, name: name}
 					if accumulated.id == "" {
 						accumulated.id = "call_" + strconv.Itoa(tc.Index)
 					}

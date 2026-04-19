@@ -188,9 +188,17 @@ func convertTools(tools []sdk.ToolDef) []anthropic.ToolUnionParam {
 	result := make([]anthropic.ToolUnionParam, len(tools))
 	for i, t := range tools {
 		var properties map[string]any
+		var required []string
 		if params, ok := t.Parameters.(map[string]any); ok {
 			if p, ok := params["properties"].(map[string]any); ok {
 				properties = p
+			}
+			if r, ok := params["required"].([]any); ok {
+				for _, v := range r {
+					if s, ok := v.(string); ok {
+						required = append(required, s)
+					}
+				}
 			}
 		}
 		result[i] = anthropic.ToolUnionParam{
@@ -199,6 +207,7 @@ func convertTools(tools []sdk.ToolDef) []anthropic.ToolUnionParam {
 				Description: anthropic.String(t.Description),
 				InputSchema: anthropic.ToolInputSchemaParam{
 					Properties: properties,
+					Required:   required,
 				},
 			},
 		}

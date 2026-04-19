@@ -137,6 +137,11 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 }
 
 func searchFile(path string, re *regexp.Regexp, contextLines int) []string {
+	fi, err := os.Stat(path)
+	if err != nil || fi.Size() > 10*1024*1024 {
+		return nil
+	}
+
 	f, err := os.Open(path)
 	if err != nil {
 		return nil
