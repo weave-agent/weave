@@ -54,11 +54,11 @@ Create a shared truncation package used by all tools for consistent output limit
 - [x] run `go test ./extensions/tools/read/...` — must pass before next task
 
 ### Task 4: edit tool
-- [ ] create `extensions/tools/edit/go.mod` and `extensions/tools/edit/edit.go` with `init()` registering via `sdk.RegisterTool("edit", ...)`
-- [ ] implement `Execute`: apply multiple `{ oldText, newText }` replacements to a file, return unified diff of changes
-- [ ] tool definition: `{ path: string, edits: [{ oldText: string, newText: string }] }` parameters
-- [ ] write tests (single edit, multiple edits, no match error, empty file, create new file)
-- [ ] run `go test ./extensions/tools/edit/...` — must pass before next task
+- [x] create `extensions/tools/edit/go.mod` and `extensions/tools/edit/edit.go` with `init()` registering via `sdk.RegisterTool("edit", ...)`
+- [x] implement `Execute`: apply multiple `{ oldText, newText }` replacements to a file, return unified diff of changes
+- [x] tool definition: `{ path: string, edits: [{ oldText: string, newText: string }] }` parameters
+- [x] write tests (single edit, multiple edits, no match error, empty file, create new file)
+- [x] run `go test ./extensions/tools/edit/...` — must pass before next task
 
 ### Task 5: write tool
 - [ ] create `extensions/tools/write/go.mod` and `extensions/tools/write/write.go` with `init()` registering via `sdk.RegisterTool("write", ...)`
