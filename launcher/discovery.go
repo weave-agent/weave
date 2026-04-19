@@ -34,7 +34,14 @@ func Discover(projectDir string, names []string) ([]ExtensionInfo, error) {
 func DiscoverCustomHome(projectDir, homeDir string, names []string) ([]ExtensionInfo, error) {
 	var exts []ExtensionInfo
 
+	seen := make(map[string]bool, len(names))
+
 	for _, name := range names {
+		if seen[name] {
+			return nil, fmt.Errorf("discover: duplicate extension name %q", name)
+		}
+
+		seen[name] = true
 		if !validExtName.MatchString(name) {
 			return nil, fmt.Errorf("discover: invalid extension name %q (must match [a-zA-Z0-9_-]+)", name)
 		}
@@ -79,7 +86,7 @@ func findExtension(projectDir, homeDir, name string) (*ExtensionInfo, error) {
 
 	goFiles, err := collectGoFiles(globalDir)
 	if err != nil {
-		return nil, fmt.Errorf("discover: extension %q not found in .weave/extensions/ (local or global)", name)
+		return nil, fmt.Errorf("discover: extension %q not found in .weave/extensions/ (local or global): %w", name, err)
 	}
 
 	if len(goFiles) > 0 {

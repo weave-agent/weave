@@ -83,15 +83,15 @@ func (c *Cache) Store(hash, src string) error {
 		return fmt.Errorf("cache: copy: %w", err)
 	}
 
-	if err := dstFile.Close(); err != nil {
-		return fmt.Errorf("cache: close tmp: %w", err)
+	if err := dstFile.Sync(); err != nil {
+		return fmt.Errorf("cache: sync: %w", err)
 	}
+
+	cleanup = false
 
 	if err := os.Rename(tmp, dst); err != nil {
 		return fmt.Errorf("cache: rename: %w", err)
 	}
-
-	cleanup = false
 
 	return nil
 }
