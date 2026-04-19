@@ -37,7 +37,7 @@ func NewLauncher(cache *Cache, moduleRoot string) *Launcher {
 //  3. Check cache for existing binary
 //  4. Build if cache miss
 //  5. Exec the binary
-func (l *Launcher) Run(ctx context.Context, projectDir string, extensionNames, args []string) error {
+func (l *Launcher) Run(ctx context.Context, projectDir string, extensionNames, args []string, configPath string) error {
 	if len(extensionNames) == 0 {
 		return errors.New("launcher: no extensions configured")
 	}
@@ -47,7 +47,7 @@ func (l *Launcher) Run(ctx context.Context, projectDir string, extensionNames, a
 		return fmt.Errorf("launcher: discover: %w", err)
 	}
 
-	hash, err := ComputeHash(exts, l.coreDirs()...)
+	hash, err := ComputeHash(exts, l.ModuleRoot, l.coreDirs()...)
 	if err != nil {
 		return fmt.Errorf("launcher: hash: %w", err)
 	}
@@ -60,7 +60,7 @@ func (l *Launcher) Run(ctx context.Context, projectDir string, extensionNames, a
 		}
 	}
 
-	return l.exec(ctx, binPath, args)
+	return l.exec(ctx, binPath, configPath, args)
 }
 
 func (l *Launcher) buildAndCache(hash string, exts []ExtensionInfo) (string, error) {
@@ -104,6 +104,7 @@ func (l *Launcher) coreDirs() []string {
 		filepath.Join(l.ModuleRoot, "sdk"),
 		filepath.Join(l.ModuleRoot, "bus"),
 		filepath.Join(l.ModuleRoot, "config"),
+		filepath.Join(l.ModuleRoot, "launcher"),
 	}
 }
 
@@ -115,8 +116,14 @@ func (l *Launcher) buildDir(hash string) string {
 	return filepath.Join(os.TempDir(), "weave-build-"+hash)
 }
 
-func (l *Launcher) exec(_ context.Context, binPath string, args []string) error {
-	argv := append([]string{binPath}, args...)
+func (l *Launcher) exec(_ context.Context, binPath, configPath string, args []string) error {
+	argv := []string{binPath}
+	if configPath != "" {
+		argv = append(argv, "--weave-config="+configPath)
+	}
+
+	argv = append(argv, args...)
+
 	return fmt.Errorf("exec binary: %w", syscall.Exec(binPath, argv, os.Environ()))
 }
 

@@ -44,7 +44,7 @@ func run(args ...string) (exitCode int) {
 		projectDir = filepath.Dir(projectDir)
 	}
 
-	if err := l.Run(context.Background(), projectDir, cf.Extensions, rest); err != nil {
+	if err := l.Run(context.Background(), projectDir, cf.Extensions, rest, configFile); err != nil {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", err)
 		return 1
 	}

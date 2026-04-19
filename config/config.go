@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/nniel-ape/gonfig"
 )
@@ -44,10 +45,38 @@ func Load(args []string) (string, *File, []string, error) {
 	return LoadFromDir(cwd, args)
 }
 
+// parseConfigFlag extracts -c/--config from args, returning the config path
+// and remaining args.
+func parseConfigFlag(args []string) (configPath string, rest []string) {
+	for i := range args {
+		if args[i] == "-c" || args[i] == "--config" {
+			if i+1 < len(args) {
+				return args[i+1], append(args[:i:i], args[i+2:]...)
+			}
+		} else if cfg, ok := strings.CutPrefix(args[i], "-c="); ok {
+			return cfg, append(args[:i:i], args[i+1:]...)
+		} else if cfg, ok := strings.CutPrefix(args[i], "--config="); ok {
+			return cfg, append(args[:i:i], args[i+1:]...)
+		}
+	}
+
+	return "", args
+}
+
 func LoadFromDir(dir string, args []string) (string, *File, []string, error) {
-	path, err := FindConfigPath(dir)
-	if err != nil {
-		return "", nil, nil, err
+	configPath, args := parseConfigFlag(args)
+
+	path := configPath
+
+	if path == "" {
+		var err error
+
+		path, err = FindConfigPath(dir)
+		if err != nil {
+			return "", nil, nil, err
+		}
+	} else if !filepath.IsAbs(path) {
+		path = filepath.Join(dir, path)
 	}
 
 	var (

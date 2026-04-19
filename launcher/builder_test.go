@@ -20,12 +20,12 @@ func TestComputeHash_Deterministic(t *testing.T) {
 		{Name: "alpha", Dir: dir, GoFiles: []string{f1}},
 	}
 
-	h1, err := ComputeHash(exts)
+	h1, err := ComputeHash(exts, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	h2, err := ComputeHash(exts)
+	h2, err := ComputeHash(exts, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,12 +57,12 @@ func TestComputeHash_SortedByName(t *testing.T) {
 		{Name: "alpha", Dir: dir, GoFiles: []string{f1}},
 	}
 
-	h1, err := ComputeHash(exts1)
+	h1, err := ComputeHash(exts1, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	h2, err := ComputeHash(exts2)
+	h2, err := ComputeHash(exts2, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,12 +85,12 @@ func TestComputeHash_DifferentContent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	h1, err := ComputeHash([]ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f1}}})
+	h1, err := ComputeHash([]ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f1}}}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	h2, err := ComputeHash([]ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f2}}})
+	h2, err := ComputeHash([]ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f2}}}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,12 +108,12 @@ func TestComputeHash_DifferentNames(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	h1, err := ComputeHash([]ExtensionInfo{{Name: "alpha", Dir: dir, GoFiles: []string{f}}})
+	h1, err := ComputeHash([]ExtensionInfo{{Name: "alpha", Dir: dir, GoFiles: []string{f}}}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	h2, err := ComputeHash([]ExtensionInfo{{Name: "beta", Dir: dir, GoFiles: []string{f}}})
+	h2, err := ComputeHash([]ExtensionInfo{{Name: "beta", Dir: dir, GoFiles: []string{f}}}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,9 +128,39 @@ func TestComputeHash_ReadError(t *testing.T) {
 		{Name: "x", Dir: "/nonexistent", GoFiles: []string{"/nonexistent/missing.go"}},
 	}
 
-	_, err := ComputeHash(exts)
+	_, err := ComputeHash(exts, "")
 	if err == nil {
 		t.Error("expected error for missing file")
+	}
+}
+
+func TestComputeHash_GoModChangesHash(t *testing.T) {
+	dir := t.TempDir()
+
+	f := filepath.Join(dir, "ext.go")
+	if err := os.WriteFile(f, []byte("package ext"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	exts := []ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f}}}
+
+	h1, err := ComputeHash(exts, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	goMod := filepath.Join(dir, "go.mod")
+	if writeErr := os.WriteFile(goMod, []byte("module weave/ext/x\ngo 1.22\n"), 0o600); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+
+	h2, err := ComputeHash(exts, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if h1 == h2 {
+		t.Error("adding go.mod should change the hash")
 	}
 }
 
@@ -206,6 +236,10 @@ func TestGenerateMainGo_Content(t *testing.T) {
 		t.Error("main.go missing bus import")
 	}
 
+	if !strings.Contains(s, `"strings"`) {
+		t.Error("main.go missing strings import")
+	}
+
 	if !strings.Contains(s, `_ "weave/ext/noop"`) {
 		t.Error("main.go missing noop import")
 	}
@@ -222,8 +256,28 @@ func TestGenerateMainGo_Content(t *testing.T) {
 		t.Error("main.go missing sdk.Wire call with extension names")
 	}
 
+	if !strings.Contains(s, "strings.CutPrefix") {
+		t.Error("main.go missing config path parsing")
+	}
+
+	if !strings.Contains(s, "sdk.FilePathConfig") {
+		t.Error("main.go missing sdk.FilePathConfig usage")
+	}
+
 	if !strings.Contains(s, "signal.Notify") {
 		t.Error("main.go missing signal blocking")
+	}
+
+	if !strings.Contains(s, "wired.Close()") {
+		t.Error("main.go missing wired.Close() call")
+	}
+
+	if !strings.Contains(s, "shutdown error") {
+		t.Error("main.go missing shutdown error reporting")
+	}
+
+	if !strings.Contains(s, "os.Args = append([]string{os.Args[0]}, filtered...)") {
+		t.Error("main.go missing os.Args cleanup after filtering --weave-config")
 	}
 }
 

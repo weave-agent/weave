@@ -15,7 +15,7 @@ func TestRun_NoExtensions(t *testing.T) {
 		ModuleRoot: "/fake",
 	}
 
-	err := l.Run(context.Background(), t.TempDir(), nil, nil)
+	err := l.Run(context.Background(), t.TempDir(), nil, nil, "")
 	if err == nil {
 		t.Fatal("expected error for empty extensions")
 	}
@@ -28,7 +28,7 @@ func TestRun_DiscoveryFails(t *testing.T) {
 		ModuleRoot: "/fake",
 	}
 
-	err := l.Run(context.Background(), t.TempDir(), []string{"nonexistent_ext"}, nil)
+	err := l.Run(context.Background(), t.TempDir(), []string{"nonexistent_ext"}, nil, "")
 	if err == nil {
 		t.Fatal("expected error for missing extension")
 	}
@@ -49,7 +49,7 @@ func TestRun_BuildFails(t *testing.T) {
 		BuildTmpDir: t.TempDir(),
 	}
 
-	err := l.Run(context.Background(), projectDir, []string{"noop"}, nil)
+	err := l.Run(context.Background(), projectDir, []string{"noop"}, nil, "")
 	if err == nil {
 		t.Fatal("expected error for build failure")
 	}
@@ -70,7 +70,7 @@ func TestRun_CacheHit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	hash, err := ComputeHash(exts)
+	hash, err := ComputeHash(exts, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func TestRun_FullPipelineWithMockBuild(t *testing.T) {
 		t.Fatalf("Discover: %v", err)
 	}
 
-	hash, err := ComputeHash(exts)
+	hash, err := ComputeHash(exts, "")
 	if err != nil {
 		t.Fatalf("ComputeHash: %v", err)
 	}
@@ -197,7 +197,7 @@ func TestRun_SecondRunUsesCache(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	hash, err := ComputeHash(exts)
+	hash, err := ComputeHash(exts, "")
 	if err != nil {
 		t.Fatal(err)
 	}

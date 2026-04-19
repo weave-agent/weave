@@ -93,9 +93,18 @@ func (c *Cache) Store(hash, src string) error {
 	cleanup = false
 
 	if err := os.Rename(tmp, dst); err != nil {
-		// Cross-device rename: fall back to copy+delete.
-		if copyErr := copyFile(tmp, dst); copyErr != nil {
-			return fmt.Errorf("cache: rename failed (%w) and cross-device copy failed: %w", err, copyErr)
+		// Rename failed: fall back to copy to a temp name, then atomic rename.
+		fallbackTmp := dst + ".tmp2." + strconv.Itoa(os.Getpid())
+		_ = os.Remove(fallbackTmp)
+
+		if copyErr := copyFile(tmp, fallbackTmp); copyErr != nil {
+			return fmt.Errorf("cache: rename failed (%w) and copy failed: %w", err, copyErr)
+		}
+
+		if renameErr := os.Rename(fallbackTmp, dst); renameErr != nil {
+			_ = os.Remove(fallbackTmp)
+
+			return fmt.Errorf("cache: rename failed (%w) and fallback rename failed: %w", err, renameErr)
 		}
 
 		_ = os.Remove(tmp)

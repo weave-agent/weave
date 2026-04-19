@@ -86,7 +86,7 @@ func TestIntegration_FullPipeline(t *testing.T) {
 	}
 
 	// Step 2: Compute hash
-	hash, err := ComputeHash(exts)
+	hash, err := ComputeHash(exts, "")
 	if err != nil {
 		t.Fatalf("ComputeHash: %v", err)
 	}
@@ -148,7 +148,7 @@ func TestIntegration_CacheHitOnSecondRun(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	hash, err := ComputeHash(exts)
+	hash, err := ComputeHash(exts, "")
 	if err != nil {
 		t.Fatal(err)
 	}
