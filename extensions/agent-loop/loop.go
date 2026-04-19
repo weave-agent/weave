@@ -57,6 +57,13 @@ func NewLoop(cfg sdk.Config, providerName string) (*Loop, error) {
 func (l *Loop) Name() string { return "loop" }
 
 func (l *Loop) Subscribe(bus sdk.Bus) {
+	l.mu.Lock()
+	if l.cancel != nil {
+		l.mu.Unlock()
+		panic("loop: Subscribe called twice without Close")
+	}
+	l.mu.Unlock()
+
 	promptCh := bus.Subscribe(TopicPrompt)
 	steerCh := bus.Subscribe(TopicSteer)
 	followupCh := bus.Subscribe(TopicFollowup)
@@ -213,6 +220,7 @@ func streamTurn(ctx context.Context, bus sdk.Bus, provider sdk.Provider, message
 				toolCalls = append(toolCalls, tc)
 			}
 		case sdk.ProviderEventError:
+			bus.Publish(sdk.NewEvent(TopicMsgEnd, content.String()))
 			return sdk.Message{}, nil, fmt.Errorf("provider error: %v", evt.Content)
 		}
 	}

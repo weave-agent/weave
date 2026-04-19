@@ -118,7 +118,12 @@ func TestRunCoreDefaultsUsed(t *testing.T) {
 
 	// Capture stderr to verify the error mentions core default extension names.
 	old := os.Stderr
-	r, w, _ := os.Pipe()
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	os.Stderr = w
 
 	exitCode := run()

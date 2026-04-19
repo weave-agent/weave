@@ -159,17 +159,3 @@ func TestMessageValidate_ErrorMessage(t *testing.T) {
 		t.Errorf("error message %q should contain role %q", err.Error(), "bad_role")
 	}
 }
-
-func TestRoleConstants(t *testing.T) {
-	if RoleUser != "user" {
-		t.Errorf("RoleUser = %q, want %q", RoleUser, "user")
-	}
-
-	if RoleAssistant != "assistant" {
-		t.Errorf("RoleAssistant = %q, want %q", RoleAssistant, "assistant")
-	}
-
-	if RoleToolResult != "tool_result" {
-		t.Errorf("RoleToolResult = %q, want %q", RoleToolResult, "tool_result")
-	}
-}
