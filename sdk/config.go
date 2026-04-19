@@ -1,5 +1,7 @@
 package sdk
 
+//go:generate moq -fmt goimports -stub -out config_mock_test.go . Config
+
 type Config interface {
 	FilePath() string
 }

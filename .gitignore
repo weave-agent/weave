@@ -9,6 +9,8 @@
 *.test
 *.out
 *.prof
+*_mock_test.go
+mock_test.go
 
 # Go workspace
 vendor/

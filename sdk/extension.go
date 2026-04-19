@@ -1,5 +1,7 @@
 package sdk
 
+//go:generate moq -fmt goimports -stub -out extension_mock_test.go . Bus Extension
+
 type Bus interface {
 	Publish(Event) bool
 	Subscribe(topics ...string) <-chan Event

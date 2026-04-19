@@ -1,5 +1,7 @@
 package sdk
 
+//go:generate moq -fmt goimports -stub -out tool_mock_test.go . Tool
+
 import "context"
 
 type ToolDef struct {

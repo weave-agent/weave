@@ -1,5 +1,7 @@
 package sdk
 
+//go:generate moq -fmt goimports -stub -out provider_mock_test.go . Provider
+
 import "context"
 
 type ProviderRequest struct {

@@ -1,5 +1,7 @@
 package agentloop
 
+//go:generate moq -fmt goimports -stub -skip-ensure -pkg agentloop -out mock_test.go ../../sdk Provider Tool
+
 import (
 	"context"
 	"fmt"

@@ -19,6 +19,7 @@ gen: ## Regenerate mocks, generated code
 	find . -name "*_mock.go" -delete
 	@echo "Regenerating code..."
 	go generate ./...
+	cd extensions/loop && go generate ./...
 
 ##@ Formatting
 fmt: ## Format code (gofumpt, goimports, go fix)
