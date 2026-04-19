@@ -82,11 +82,11 @@ Create a shared truncation package used by all tools for consistent output limit
 - [x] run `go test ./extensions/tools/find/...` — must pass before next task
 
 ### Task 8: ls tool
-- [ ] create `extensions/tools/ls/go.mod` and `extensions/tools/ls/ls.go` with `init()` registering via `sdk.RegisterTool("ls", ...)`
-- [ ] implement `Execute`: read directory entries with `os.ReadDir`, return names + type info, default to cwd
-- [ ] tool definition: `{ path?: string }` parameters
-- [ ] write tests (list cwd, list specific dir, nonexistent dir, empty dir, file path error)
-- [ ] run `go test ./extensions/tools/ls/...` — must pass before next task
+- [x] create `extensions/tools/ls/go.mod` and `extensions/tools/ls/ls.go` with `init()` registering via `sdk.RegisterTool("ls", ...)`
+- [x] implement `Execute`: read directory entries with `os.ReadDir`, return names + type info, default to cwd
+- [x] tool definition: `{ path?: string }` parameters
+- [x] write tests (list cwd, list specific dir, nonexistent dir, empty dir, file path error)
+- [x] run `go test ./extensions/tools/ls/...` — must pass before next task
 
 ### Task 9: Anthropic provider
 - [ ] create `extensions/providers/anthropic/go.mod` and `extensions/providers/anthropic/anthropic.go` with `init()` registering via `sdk.RegisterProvider("anthropic", ...)`
