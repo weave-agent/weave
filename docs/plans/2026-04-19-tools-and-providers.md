@@ -61,11 +61,11 @@ Create a shared truncation package used by all tools for consistent output limit
 - [x] run `go test ./extensions/tools/edit/...` — must pass before next task
 
 ### Task 5: write tool
-- [ ] create `extensions/tools/write/go.mod` and `extensions/tools/write/write.go` with `init()` registering via `sdk.RegisterTool("write", ...)`
-- [ ] implement `Execute`: write content to file, create parent directories with `os.MkdirAll`
-- [ ] tool definition: `{ path: string, content: string }` parameters
-- [ ] write tests (write new file, overwrite existing, nested directory creation, permission error)
-- [ ] run `go test ./extensions/tools/write/...` — must pass before next task
+- [x] create `extensions/tools/write/go.mod` and `extensions/tools/write/write.go` with `init()` registering via `sdk.RegisterTool("write", ...)`
+- [x] implement `Execute`: write content to file, create parent directories with `os.MkdirAll`
+- [x] tool definition: `{ path: string, content: string }` parameters
+- [x] write tests (write new file, overwrite existing, nested directory creation, permission error)
+- [x] run `go test ./extensions/tools/write/...` — must pass before next task
 
 ### Task 6: grep tool
 - [ ] create `extensions/tools/grep/go.mod` and `extensions/tools/grep/grep.go` with `init()` registering via `sdk.RegisterTool("grep", ...)`
