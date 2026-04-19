@@ -112,10 +112,10 @@ weave/
 - [x] run tests — must pass before next task
 
 ### Task 7: Update launcher to handle core config
-- [ ] update `cmd/weave/main.go` — extract core and optional extensions from config, pass merged list to Wire
-- [ ] update `launcher/launcher.go` — pass extension names from core + optional to discovery/build
-- [ ] write tests for the updated main flow
-- [ ] run full test suite — all tests must pass
+- [x] update `cmd/weave/main.go` — extract core and optional extensions from config, pass merged list to Wire
+- [x] update `launcher/launcher.go` — pass extension names from core + optional to discovery/build
+- [x] write tests for the updated main flow
+- [x] run full test suite — all tests must pass
 
 ### Task 8: Verify acceptance criteria
 - [ ] verify all requirements from Overview are implemented

@@ -44,12 +44,29 @@ func run(args ...string) (exitCode int) {
 		projectDir = filepath.Dir(projectDir)
 	}
 
-	if err := l.Run(context.Background(), projectDir, cf.Extensions, rest, configFile); err != nil {
+	coreExts, optExts := cf.CoreExts()
+	allExts := mergeUnique(append(coreExts, optExts...))
+
+	if err := l.Run(context.Background(), projectDir, allExts, rest, configFile); err != nil {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", err)
 		return 1
 	}
 
 	return 0
+}
+
+func mergeUnique(exts []string) []string {
+	seen := make(map[string]bool, len(exts))
+	result := make([]string, 0, len(exts))
+
+	for _, e := range exts {
+		if !seen[e] {
+			seen[e] = true
+			result = append(result, e)
+		}
+	}
+
+	return result
 }
 
 func findModuleRoot() (string, error) {
