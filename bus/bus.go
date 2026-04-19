@@ -57,12 +57,17 @@ func (b *Bus) Publish(e sdk.Event) {
 
 	b.mu.RLock()
 	subs := b.topicSubs[e.Topic]
-	channels := make([]chan sdk.Event, 0, len(subs)+len(b.allSubs))
-	channels = append(channels, subs...)
-	channels = append(channels, b.allSubs...)
+	allSubs := b.allSubs
 	b.mu.RUnlock()
 
-	for _, ch := range channels {
+	for _, ch := range subs {
+		select {
+		case ch <- e:
+		default:
+		}
+	}
+
+	for _, ch := range allSubs {
 		select {
 		case ch <- e:
 		default:

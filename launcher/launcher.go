@@ -107,6 +107,7 @@ func (l *Launcher) coreDirs() []string {
 	return []string{
 		filepath.Join(l.ModuleRoot, "sdk"),
 		filepath.Join(l.ModuleRoot, "bus"),
+		filepath.Join(l.ModuleRoot, "config"),
 		filepath.Join(l.ModuleRoot, "launcher"),
 	}
 }

@@ -193,3 +193,24 @@ func TestConcurrentPublish(t *testing.T) {
 		}
 	}
 }
+
+func TestConcurrentPublishAndClose(t *testing.T) {
+	for range 50 {
+		b := New()
+		_ = b.Subscribe("race")
+
+		var wg sync.WaitGroup
+
+		wg.Go(func() {
+			for range 200 {
+				b.Publish(sdk.NewEvent("race", nil))
+			}
+		})
+
+		wg.Go(func() {
+			b.Close()
+		})
+
+		wg.Wait()
+	}
+}
