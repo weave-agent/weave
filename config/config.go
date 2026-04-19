@@ -21,11 +21,13 @@ type File struct {
 	Core       CoreConfig `description:"Core agent configuration"`
 }
 
-// Core returns (coreExts, optionalExts) where coreExts contains the agent-loop
+// CoreExts returns (coreExts, optionalExts) where coreExts contains the agent-loop
 // and provider names, and optionalExts contains the user-specified extensions.
 func (f *File) CoreExts() ([]string, []string) {
-	core := []string{f.Core.AgentLoop}
+	core := make([]string, 0, 1+len(f.Core.Providers))
+	core = append(core, f.Core.AgentLoop)
 	core = append(core, f.Core.Providers...)
+
 	return core, f.Extensions
 }
 

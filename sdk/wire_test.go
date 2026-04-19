@@ -8,8 +8,8 @@ import (
 
 // --- helpers ---
 
-func coreCfg(loop string, providers ...string) CoreWireConfig {
-	return CoreWireConfig{AgentLoop: loop, Providers: providers}
+func coreCfg(providers ...string) CoreWireConfig {
+	return CoreWireConfig{AgentLoop: "loop", Providers: providers}
 }
 
 // --- Wire (legacy, no core) ---
@@ -257,7 +257,8 @@ func TestWireWithCore_MergesCoreAndOptional(t *testing.T) {
 	reg("file-tool")
 
 	bus := &mockBus{}
-	_, err := WireWithCore(coreCfg("loop", "anthropic"), []string{"bash-tool", "file-tool"}, bus, nil)
+
+	_, err := WireWithCore(coreCfg("anthropic"), []string{"bash-tool", "file-tool"}, bus, nil)
 	if err != nil {
 		t.Fatalf("WireWithCore: %v", err)
 	}
@@ -291,8 +292,9 @@ func TestWireWithCore_Deduplicates(t *testing.T) {
 	reg("bash-tool")
 
 	bus := &mockBus{}
+
 	_, err := WireWithCore(
-		coreCfg("loop", "anthropic"),
+		coreCfg("anthropic"),
 		[]string{"anthropic", "bash-tool", "loop"},
 		bus,
 		nil,
@@ -322,7 +324,8 @@ func TestWireWithCore_CoreOnly(t *testing.T) {
 	reg("anthropic")
 
 	bus := &mockBus{}
-	_, err := WireWithCore(coreCfg("loop", "anthropic"), nil, bus, nil)
+
+	_, err := WireWithCore(coreCfg("anthropic"), nil, bus, nil)
 	if err != nil {
 		t.Fatalf("WireWithCore: %v", err)
 	}
@@ -338,6 +341,7 @@ func TestWireWithCore_ErrMissingAgentLoop(t *testing.T) {
 	ResetRegistry()
 
 	bus := &mockBus{}
+
 	_, err := WireWithCore(CoreWireConfig{Providers: []string{"anthropic"}}, nil, bus, nil)
 	if err == nil {
 		t.Fatal("expected error for missing agent-loop")
@@ -352,6 +356,7 @@ func TestWireWithCore_ErrNoProvider(t *testing.T) {
 	ResetRegistry()
 
 	bus := &mockBus{}
+
 	_, err := WireWithCore(CoreWireConfig{AgentLoop: "loop"}, nil, bus, nil)
 	if err == nil {
 		t.Fatal("expected error for no provider")
@@ -366,6 +371,7 @@ func TestWireWithCore_ErrEmptyProviders(t *testing.T) {
 	ResetRegistry()
 
 	bus := &mockBus{}
+
 	_, err := WireWithCore(CoreWireConfig{AgentLoop: "loop", Providers: []string{}}, nil, bus, nil)
 	if err == nil {
 		t.Fatal("expected error for empty providers")
@@ -388,7 +394,7 @@ func TestWireWithCore_PassesConfigToFactories(t *testing.T) {
 	cfg := FilePathConfig("/test/.weave.yaml")
 	bus := &mockBus{}
 
-	_, err := WireWithCore(coreCfg("loop", "anthropic"), nil, bus, cfg)
+	_, err := WireWithCore(coreCfg("anthropic"), nil, bus, cfg)
 	if err != nil {
 		t.Fatalf("WireWithCore: %v", err)
 	}

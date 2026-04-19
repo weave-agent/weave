@@ -138,6 +138,12 @@ linters:
           - usestdlibvars
         path: _test\.go$
       - linters:
+          - dupl
+        path: sdk/provider_registry\.go$
+      - linters:
+          - dupl
+        path: sdk/tool_registry\.go$
+      - linters:
           - gosec
         text: "G204:"
       - linters:

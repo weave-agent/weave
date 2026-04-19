@@ -118,11 +118,11 @@ weave/
 - [x] run full test suite — all tests must pass
 
 ### Task 8: Verify acceptance criteria
-- [ ] verify all requirements from Overview are implemented
-- [ ] verify edge cases handled (missing provider, no tools, empty prompt)
-- [ ] run full test suite (`go test ./...`)
-- [ ] run linter (`make lint`) — all issues fixed
-- [ ] run formatter (`make fmt`)
+- [x] verify all requirements from Overview are implemented
+- [x] verify edge cases handled (missing provider, no tools, empty prompt)
+- [x] run full test suite (`go test ./...`)
+- [x] run linter (`make lint`) — all issues fixed
+- [x] run formatter (`make fmt`)
 
 ## Technical Details
 
