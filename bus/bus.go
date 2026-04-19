@@ -103,20 +103,14 @@ func (b *Bus) Publish(e sdk.Event) bool {
 
 func (b *Bus) Unsubscribe(ch <-chan sdk.Event) {
 	b.closeMu.RLock()
+	defer b.closeMu.RUnlock()
 
 	if b.closed {
-		b.closeMu.RUnlock()
 		return
 	}
-
-	b.closeMu.RUnlock()
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
-
-	if b.closed {
-		return
-	}
 
 	closed := false
 

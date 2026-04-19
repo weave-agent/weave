@@ -80,6 +80,8 @@ func (l *Launcher) buildAndCache(hash string, exts []ExtensionInfo) (string, err
 		return "", fmt.Errorf("mkdir build dir: %w", err)
 	}
 
+	defer func() { _ = os.RemoveAll(buildDir) }()
+
 	binPath, err := l.Build(buildDir, l.ModuleRoot, exts)
 	if err != nil {
 		return "", err

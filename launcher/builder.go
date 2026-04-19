@@ -32,12 +32,6 @@ func ComputeHash(exts []ExtensionInfo, coreDirs ...string) (string, error) {
 	for _, ext := range sorted {
 		h.Write([]byte("ext:" + ext.Name + "\n"))
 
-		goModPath := filepath.Join(ext.Dir, "go.mod")
-		if data, err := os.ReadFile(goModPath); err == nil {
-			h.Write([]byte("go.mod\n"))
-			h.Write(data)
-		}
-
 		for _, f := range ext.GoFiles {
 			rel, relErr := filepath.Rel(ext.Dir, f)
 			if relErr != nil {
