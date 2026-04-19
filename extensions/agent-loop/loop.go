@@ -135,7 +135,10 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 
 			resp, toolCalls, err := streamTurn(ctx, bus, provider, messages, toolDefs)
 			if err != nil {
+				bus.Publish(sdk.NewEvent(TopicTurnEnd, nil))
+
 				endPayload = fmt.Sprintf("stream error: %v", err)
+
 				return
 			}
 

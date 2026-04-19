@@ -128,11 +128,11 @@ func TestRunCoreDefaultsUsed(t *testing.T) {
 
 	os.Stderr = w
 
+	defer func() { os.Stderr = old }()
+
 	exitCode := run()
 
 	_ = w.Close()
-
-	os.Stderr = old
 
 	buf := make([]byte, 4096)
 
