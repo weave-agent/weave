@@ -86,13 +86,13 @@ weave/
 - [x] run tests — must pass before next task
 
 ### Task 5: Update Wire for core/extension merging
-- [ ] update `sdk/wire.go` — `Wire` signature changes to accept core config: add core extension names to the front of the list, validate exactly one agent-loop extension and at least one provider
-- [ ] Wire merges: core names first, then optional extensions, deduplicates
-- [ ] validation errors for: missing agent-loop, duplicate agent-loop, no provider
-- [ ] update `wire_test.go` for new Wire behavior
-- [ ] write tests for core default merging
-- [ ] write tests for validation errors
-- [ ] run tests — must pass before next task
+- [x] update `sdk/wire.go` — `Wire` signature changes to accept core config: add core extension names to the front of the list, validate exactly one agent-loop extension and at least one provider
+- [x] Wire merges: core names first, then optional extensions, deduplicates
+- [x] validation errors for: missing agent-loop, duplicate agent-loop, no provider
+- [x] update `wire_test.go` for new Wire behavior
+- [x] write tests for core default merging
+- [x] write tests for validation errors
+- [x] run tests — must pass before next task
 
 ### Task 6: Implement agent-loop extension
 - [ ] create `extensions/agent-loop/go.mod` — extension module with `require weave` and `replace` directive
