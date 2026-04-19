@@ -14,6 +14,10 @@ func RegisterExtension(name string, factory func(Config) (Extension, error)) {
 	registryMu.Lock()
 	defer registryMu.Unlock()
 
+	if _, dup := registry[name]; dup {
+		panic("sdk: RegisterExtension called twice for " + name)
+	}
+
 	registry[name] = factory
 }
 

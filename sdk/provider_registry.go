@@ -14,6 +14,10 @@ func RegisterProvider(name string, factory func(Config) (Provider, error)) {
 	providerMu.Lock()
 	defer providerMu.Unlock()
 
+	if _, dup := providerReg[name]; dup {
+		panic("sdk: RegisterProvider called twice for " + name)
+	}
+
 	providerReg[name] = factory
 }
 

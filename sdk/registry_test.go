@@ -26,16 +26,19 @@ func TestRegisterAndRetrieve(t *testing.T) {
 func TestDuplicateRegistration(t *testing.T) {
 	ResetRegistry()
 
-	first := NewExtensionFunc("dup", func(bus Bus) {})
-	second := NewExtensionFunc("dup-v2", func(bus Bus) {})
+	RegisterExtension("dup", func(Config) (Extension, error) {
+		return NewExtensionFunc("dup", func(bus Bus) {}), nil
+	})
 
-	RegisterExtension("dup", func(Config) (Extension, error) { return first, nil })
-	RegisterExtension("dup", func(Config) (Extension, error) { return second, nil })
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on duplicate registration")
+		}
+	}()
 
-	got, _ := GetExtension("dup", nil)
-	if got.Name() != "dup-v2" {
-		t.Errorf("after duplicate register, Name() = %q, want %q", got.Name(), "dup-v2")
-	}
+	RegisterExtension("dup", func(Config) (Extension, error) {
+		return NewExtensionFunc("dup-v2", func(bus Bus) {}), nil
+	})
 }
 
 func TestMissingExtension(t *testing.T) {

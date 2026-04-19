@@ -41,14 +41,16 @@ func TestDuplicateToolRegistration(t *testing.T) {
 	RegisterTool("dup", func(Config) (Tool, error) {
 		return &mockTool{name: "first"}, nil
 	})
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on duplicate tool registration")
+		}
+	}()
+
 	RegisterTool("dup", func(Config) (Tool, error) {
 		return &mockTool{name: "second"}, nil
 	})
-
-	got, _ := GetTool("dup", nil)
-	if got.Name() != "second" {
-		t.Errorf("after duplicate register, name = %q, want %q", got.Name(), "second")
-	}
 }
 
 func TestMissingTool(t *testing.T) {

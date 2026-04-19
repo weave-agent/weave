@@ -41,14 +41,16 @@ func TestDuplicateProviderRegistration(t *testing.T) {
 	RegisterProvider("dup", func(Config) (Provider, error) {
 		return &mockProvider{name: "first"}, nil
 	})
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic on duplicate provider registration")
+		}
+	}()
+
 	RegisterProvider("dup", func(Config) (Provider, error) {
 		return &mockProvider{name: "second"}, nil
 	})
-
-	got, _ := GetProvider("dup", nil)
-	if got.(*mockProvider).name != "second" {
-		t.Errorf("after duplicate register, name = %q, want %q", got.(*mockProvider).name, "second")
-	}
 }
 
 func TestMissingProvider(t *testing.T) {

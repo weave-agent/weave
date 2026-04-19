@@ -14,6 +14,10 @@ func RegisterTool(name string, factory func(Config) (Tool, error)) {
 	toolMu.Lock()
 	defer toolMu.Unlock()
 
+	if _, dup := toolReg[name]; dup {
+		panic("sdk: RegisterTool called twice for " + name)
+	}
+
 	toolReg[name] = factory
 }
 
