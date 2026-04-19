@@ -59,12 +59,12 @@ weave/
 ## Implementation Steps
 
 ### Task 1: Update config struct — replace Slots with Core
-- [ ] update `config/config.go`: replace `Slots map[string]string` with `Core` struct containing `AgentLoop string` (default "loop") and `Providers []string` (default ["anthropic"])
-- [ ] remove `Slots` initialization in `LoadFromDir`
-- [ ] add `Core() ([]string, []string)` method to File that returns (coreExts, optionalExts)
-- [ ] write tests for new config loading with core defaults
-- [ ] write tests for core override via yaml
-- [ ] run tests — must pass before next task
+- [x] update `config/config.go`: replace `Slots map[string]string` with `Core` struct containing `AgentLoop string` (default "loop") and `Providers []string` (default ["anthropic"])
+- [x] remove `Slots` initialization in `LoadFromDir`
+- [x] add `Core() ([]string, []string)` method to File that returns (coreExts, optionalExts)
+- [x] write tests for new config loading with core defaults
+- [x] write tests for core override via yaml
+- [x] run tests — must pass before next task
 
 ### Task 2: Add Provider interface and registry to sdk/
 - [ ] create `sdk/provider.go` — `Provider` interface with `Stream(ctx, ProviderRequest) (<-chan ProviderEvent, error)`, `ProviderRequest` struct (SystemPrompt, Messages, Tools), `ProviderEvent` struct (Type string, Content any)
@@ -158,7 +158,7 @@ runLoop():
 ### Config yaml
 ```yaml
 core:
-  agent-loop: loop
+  agent_loop: loop
   providers:
     - anthropic
 extensions:

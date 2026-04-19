@@ -10,10 +10,23 @@ import (
 	"github.com/nniel-ape/gonfig"
 )
 
+type CoreConfig struct {
+	AgentLoop string   `default:"loop" description:"Agent loop extension name"`
+	Providers []string `default:"anthropic" description:"Provider extension names"`
+}
+
 type File struct {
-	Extensions []string          `short:"e" description:"List of extensions to load"`
-	Prompt     string            `short:"p" description:"Prompt to pass to the agent"`
-	Slots      map[string]string `description:"Extension slot assignments"`
+	Extensions []string  `short:"e" description:"List of optional extensions to load"`
+	Prompt     string    `short:"p" description:"Prompt to pass to the agent"`
+	Core       CoreConfig `description:"Core agent configuration"`
+}
+
+// Core returns (coreExts, optionalExts) where coreExts contains the agent-loop
+// and provider names, and optionalExts contains the user-specified extensions.
+func (f *File) CoreExts() ([]string, []string) {
+	core := []string{f.Core.AgentLoop}
+	core = append(core, f.Core.Providers...)
+	return core, f.Extensions
 }
 
 func FindConfigPath(startDir string) (string, error) {
@@ -91,10 +104,6 @@ func LoadFromDir(dir string, args []string) (string, *File, []string, error) {
 		gonfig.WithRemainingArgs(&rest),
 	); err != nil {
 		return "", nil, nil, fmt.Errorf("load config: %w", err)
-	}
-
-	if f.Slots == nil {
-		f.Slots = make(map[string]string)
 	}
 
 	return path, &f, rest, nil
