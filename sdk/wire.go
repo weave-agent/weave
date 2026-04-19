@@ -24,6 +24,12 @@ func Wire(extNames []string, bus Bus, cfg Config) (*Wired, error) {
 	for _, name := range extNames {
 		ext, err := GetExtension(name, cfg)
 		if err != nil {
+			// Tools and providers are registered via blank import but resolved
+			// through their own registries at runtime, not wired as extensions.
+			if ToolRegistered(name) || ProviderRegistered(name) {
+				continue
+			}
+
 			for i := len(exts) - 1; i >= 0; i-- {
 				_ = exts[i].Close()
 			}

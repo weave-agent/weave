@@ -69,7 +69,10 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 	var isErr bool
 
 	if err != nil {
-		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
+		if ctx.Err() == context.DeadlineExceeded {
+			content = fmt.Sprintf("%s\nerror: command timed out", result.Content)
+			isErr = true
+		} else if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 			content = fmt.Sprintf("%s\n[exit code %d]", result.Content, exitErr.ExitCode())
 		} else {
 			content = fmt.Sprintf("%s\nerror: %s", result.Content, err)

@@ -36,6 +36,16 @@ func GetTool(name string, cfg Config) (Tool, error) {
 	return factory(configOrDefault(cfg))
 }
 
+func ToolRegistered(name string) bool {
+	toolMu.RLock()
+
+	ok := toolReg[name] != nil
+
+	toolMu.RUnlock()
+
+	return ok
+}
+
 func ListTools() []string {
 	toolMu.RLock()
 	defer toolMu.RUnlock()

@@ -69,15 +69,15 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 
 	offset := 1
 	if v, ok := args["offset"]; ok {
-		if f, ok := v.(float64); ok && f >= 1 {
-			offset = int(f)
+		if offsetVal, ok := v.(float64); ok && offsetVal >= 1 {
+			offset = int(offsetVal)
 		}
 	}
 
 	limit := 0
 	if v, ok := args["limit"]; ok {
-		if f, ok := v.(float64); ok && f > 0 {
-			limit = int(f)
+		if limitVal, ok := v.(float64); ok && limitVal > 0 {
+			limit = int(limitVal)
 		}
 	}
 
