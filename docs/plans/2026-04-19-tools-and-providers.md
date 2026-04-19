@@ -111,11 +111,11 @@ Create a shared truncation package used by all tools for consistent output limit
 - [x] run `go test ./extensions/providers/openai/...` — must pass before next task
 
 ### Task 12: Z.ai provider
-- [ ] create `extensions/providers/zai/go.mod` and `extensions/providers/zai/zai.go` with `init()` registering via `sdk.RegisterProvider("zai", ...)`
-- [ ] delegate to openai-compat shared library with Z.ai base URL
-- [ ] config: API key from `ZAI_API_KEY` env var, model from config
-- [ ] write tests with mocked HTTP server
-- [ ] run `go test ./extensions/providers/zai/...` — must pass before next task
+- [x] create `extensions/providers/zai/go.mod` and `extensions/providers/zai/zai.go` with `init()` registering via `sdk.RegisterProvider("zai", ...)`
+- [x] delegate to openai-compat shared library with Z.ai base URL
+- [x] config: API key from `ZAI_API_KEY` env var, model from config
+- [x] write tests with mocked HTTP server
+- [x] run `go test ./extensions/providers/zai/...` — must pass before next task
 
 ### Task 13: Integration verification
 - [ ] verify all tool extensions register correctly via `sdk.ListTools()`
