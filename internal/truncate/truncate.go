@@ -1,6 +1,9 @@
 package truncate
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 const (
 	DefaultMaxLines = 2000
@@ -14,53 +17,68 @@ type Result struct {
 	Bytes     int
 }
 
+// Format returns the content with a truncation notice appended if truncation occurred.
+func (r Result) Format() string {
+	if !r.Truncated {
+		return r.Content
+	}
+	return fmt.Sprintf("%s\n[output truncated: %d lines, %d bytes]", r.Content, r.Lines, r.Bytes)
+}
+
 func Truncate(input string, maxLines, maxBytes int) Result {
 	if input == "" {
 		return Result{}
 	}
 
 	lines := strings.Split(input, "\n")
-	lineCount := len(lines)
-	byteCount := len(input)
+	origLines := len(lines)
+	origBytes := len(input)
 
-	if lineCount <= maxLines && byteCount <= maxBytes {
+	if origLines <= maxLines && origBytes <= maxBytes {
 		return Result{
 			Content:   input,
 			Truncated: false,
-			Lines:     lineCount,
-			Bytes:     byteCount,
+			Lines:     origLines,
+			Bytes:     origBytes,
 		}
 	}
 
 	truncated := false
 
-	if lineCount > maxLines {
+	if len(lines) > maxLines {
 		lines = lines[:maxLines]
 		truncated = true
 	}
 
-	content := strings.Join(lines, "\n")
-
-	if len(content) > maxBytes {
-		for len(content) > maxBytes && len(lines) > 0 {
-			lines = lines[:len(lines)-1]
-			content = strings.Join(lines, "\n")
-			truncated = true
+	// Check byte limit using cumulative computation (avoids quadratic re-joining)
+	cumSize := 0
+	cutoff := len(lines)
+	for i, line := range lines {
+		if i > 0 {
+			cumSize++ // newline separator
 		}
-		if len(lines) == 0 {
-			return Result{
-				Content:   "",
-				Truncated: true,
-				Lines:     0,
-				Bytes:     0,
-			}
+		cumSize += len(line)
+		if cumSize > maxBytes {
+			cutoff = i
+			truncated = true
+			break
+		}
+	}
+	lines = lines[:cutoff]
+
+	if len(lines) == 0 {
+		return Result{
+			Content:   "",
+			Truncated: true,
+			Lines:     origLines,
+			Bytes:     origBytes,
 		}
 	}
 
 	return Result{
-		Content:   content,
+		Content:   strings.Join(lines, "\n"),
 		Truncated: truncated,
-		Lines:     len(lines),
-		Bytes:     len(content),
+		Lines:     origLines,
+		Bytes:     origBytes,
 	}
 }

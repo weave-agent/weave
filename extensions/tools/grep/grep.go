@@ -133,12 +133,7 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 	output := strings.Join(matches, "\n")
 	result := truncate.Truncate(output, truncate.DefaultMaxLines, truncate.DefaultMaxBytes)
 
-	content := result.Content
-	if result.Truncated {
-		content = fmt.Sprintf("%s\n[output truncated: %d lines, %d bytes]", content, result.Lines, result.Bytes)
-	}
-
-	return sdk.ToolResult{Content: content, IsError: false}, nil
+	return sdk.ToolResult{Content: result.Format(), IsError: false}, nil
 }
 
 func searchFile(path string, re *regexp.Regexp, contextLines int) []string {

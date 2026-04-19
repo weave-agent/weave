@@ -104,10 +104,5 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 	content := strings.Join(lines, "\n")
 	result := truncate.Truncate(content, truncate.DefaultMaxLines, truncate.DefaultMaxBytes)
 
-	output := result.Content
-	if result.Truncated {
-		output = fmt.Sprintf("%s\n[output truncated: %d lines, %d bytes]", output, result.Lines, result.Bytes)
-	}
-
-	return sdk.ToolResult{Content: output, IsError: false}, nil
+	return sdk.ToolResult{Content: result.Format(), IsError: false}, nil
 }

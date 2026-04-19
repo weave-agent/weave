@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strconv"
 
 	"weave/sdk"
@@ -159,10 +160,17 @@ func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sd
 	return ch, nil
 }
 
+// toolCallAccum accumulates partial tool call data across SSE chunks.
+type toolCallAccum struct {
+	id         string
+	name       string
+	argsBuffer string
+}
+
 // parseSSE reads an SSE stream and emits ProviderEvents.
 func parseSSE(reader io.Reader, ch chan<- sdk.ProviderEvent) {
 	scanner := bufio.NewScanner(reader)
-	toolCalls := make(map[int]*sdk.ToolCall)
+	toolCalls := make(map[int]*toolCallAccum)
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -200,45 +208,51 @@ func parseSSE(reader io.Reader, ch chan<- sdk.ProviderEvent) {
 			for _, tc := range choice.Delta.ToolCalls {
 				accumulated, exists := toolCalls[tc.Index]
 				if !exists {
-					accumulated = &sdk.ToolCall{
-						ID:   tc.ID,
-						Name: tc.Function.Name,
-					}
-					if accumulated.ID == "" {
-						accumulated.ID = "call_" + strconv.Itoa(tc.Index)
+					accumulated = &toolCallAccum{id: tc.ID, name: tc.Function.Name}
+					if accumulated.id == "" {
+						accumulated.id = "call_" + strconv.Itoa(tc.Index)
 					}
 					toolCalls[tc.Index] = accumulated
 				} else {
 					if tc.ID != "" {
-						accumulated.ID = tc.ID
+						accumulated.id = tc.ID
 					}
 					if tc.Function != nil && tc.Function.Name != "" {
-						accumulated.Name = tc.Function.Name
+						accumulated.name = tc.Function.Name
 					}
 				}
 
 				if tc.Function != nil {
-					accumulated.Arguments = mergeJSON(accumulated.Arguments, tc.Function.Arguments)
+					accumulated.argsBuffer += tc.Function.Arguments
 				}
 			}
 
 			if choice.FinishReason != nil && *choice.FinishReason == "tool_calls" {
-				for _, tc := range toolCalls {
+				keys := make([]int, 0, len(toolCalls))
+				for k := range toolCalls {
+					keys = append(keys, k)
+				}
+				sort.Ints(keys)
+
+				for _, k := range keys {
+					tc := toolCalls[k]
 					var args map[string]any
-					if tc.Arguments != nil {
-						// Arguments were already parsed during mergeJSON
-						args = tc.Arguments
+					if tc.argsBuffer != "" {
+						_ = json.Unmarshal([]byte(tc.argsBuffer), &args)
+					}
+					if args == nil {
+						args = make(map[string]any)
 					}
 					ch <- sdk.ProviderEvent{
 						Type: sdk.ProviderEventToolCall,
 						Content: sdk.ToolCall{
-							ID:        tc.ID,
-							Name:      tc.Name,
+							ID:        tc.id,
+							Name:      tc.name,
 							Arguments: args,
 						},
 					}
 				}
-				toolCalls = make(map[int]*sdk.ToolCall)
+				toolCalls = make(map[int]*toolCallAccum)
 			}
 		}
 	}
@@ -249,23 +263,6 @@ func parseSSE(reader io.Reader, ch chan<- sdk.ProviderEvent) {
 			Content: fmt.Sprintf("openai-compat: read stream: %v", err),
 		}
 	}
-}
-
-// mergeJSON merges a JSON fragment string into an existing map.
-func mergeJSON(existing map[string]any, fragment string) map[string]any {
-	if fragment == "" {
-		return existing
-	}
-	if existing == nil {
-		existing = make(map[string]any)
-	}
-	var parsed map[string]any
-	if err := json.Unmarshal([]byte(fragment), &parsed); err == nil {
-		for k, v := range parsed {
-			existing[k] = v
-		}
-	}
-	return existing
 }
 
 // ConvertMessages converts SDK messages to OpenAI chat format.

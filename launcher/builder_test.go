@@ -120,7 +120,7 @@ func TestComputeHash_GoModChangesHash(t *testing.T) {
 func TestGenerateGoMod_Content(t *testing.T) {
 	dir := t.TempDir()
 	exts := []ExtensionInfo{
-		{Name: "noop", Dir: "/tmp/exts/noop"},
+		{Name: "noop", Dir: "/tmp/exts/noop", ModulePath: "weave/ext/noop"},
 	}
 
 	require.NoError(t, GenerateGoMod(dir, "/tmp/weave", exts))
@@ -137,11 +137,27 @@ func TestGenerateGoMod_Content(t *testing.T) {
 	assert.Contains(t, s, "replace weave/ext/noop => /tmp/exts/noop")
 }
 
+func TestGenerateGoMod_NestedModulePath(t *testing.T) {
+	dir := t.TempDir()
+	exts := []ExtensionInfo{
+		{Name: "bash", Dir: "/tmp/exts/tools/bash", ModulePath: "weave/ext/tools/bash"},
+	}
+
+	require.NoError(t, GenerateGoMod(dir, "/tmp/weave", exts))
+
+	content, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+	require.NoError(t, err)
+
+	s := string(content)
+	assert.Contains(t, s, "weave/ext/tools/bash v0.0.0")
+	assert.Contains(t, s, "replace weave/ext/tools/bash => /tmp/exts/tools/bash")
+}
+
 func TestGenerateMainGo_Content(t *testing.T) {
 	dir := t.TempDir()
 	exts := []ExtensionInfo{
-		{Name: "noop", Dir: "/tmp/exts/noop"},
-		{Name: "log", Dir: "/tmp/exts/log"},
+		{Name: "noop", Dir: "/tmp/exts/noop", ModulePath: "weave/ext/noop"},
+		{Name: "log", Dir: "/tmp/exts/log", ModulePath: "weave/ext/log"},
 	}
 
 	require.NoError(t, GenerateMainGo(dir, exts, "loop", []string{"anthropic"}))

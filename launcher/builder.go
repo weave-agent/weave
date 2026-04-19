@@ -145,6 +145,32 @@ func goVersion() string {
 	return "go " + v
 }
 
+// extModulePath returns the module path for an extension, reading it from
+// the extension's go.mod. Falls back to "weave/ext/{name}" if unavailable.
+func extModulePath(ext ExtensionInfo) string {
+	if ext.ModulePath != "" {
+		return ext.ModulePath
+	}
+
+	return "weave/ext/" + ext.Name
+}
+
+// readModulePath reads the module path from a go.mod file in dir.
+func readModulePath(dir string) string {
+	data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+	if err != nil {
+		return ""
+	}
+
+	for line := range strings.SplitSeq(string(data), "\n") {
+		if after, ok := strings.CutPrefix(strings.TrimSpace(line), "module "); ok {
+			return strings.TrimSpace(after)
+		}
+	}
+
+	return ""
+}
+
 // GenerateGoMod creates a go.mod file for the built binary.
 // moduleRoot is the path to the weave module root (containing go.mod).
 func GenerateGoMod(dir, moduleRoot string, exts []ExtensionInfo) error {
@@ -155,14 +181,14 @@ func GenerateGoMod(dir, moduleRoot string, exts []ExtensionInfo) error {
 	b.WriteString("\tweave v0.0.0\n")
 
 	for _, ext := range exts {
-		b.WriteString("\tweave/ext/" + ext.Name + " v0.0.0\n")
+		b.WriteString("\t" + extModulePath(ext) + " v0.0.0\n")
 	}
 
 	b.WriteString(")\n\n")
 	b.WriteString("replace weave => " + moduleRoot + "\n")
 
 	for _, ext := range exts {
-		b.WriteString("replace weave/ext/" + ext.Name + " => " + ext.Dir + "\n")
+		b.WriteString("replace " + extModulePath(ext) + " => " + ext.Dir + "\n")
 	}
 
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(b.String()), 0o600); err != nil {
@@ -192,7 +218,7 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string, provider
 
 	for _, ext := range exts {
 		b.WriteString("\n")
-		b.WriteString("\t_ \"weave/ext/" + ext.Name + "\"\n")
+		b.WriteString("\t_ \"" + extModulePath(ext) + "\"\n")
 	}
 
 	b.WriteString(")\n\n")
@@ -310,19 +336,24 @@ func Build(dir, moduleRoot, agentLoop string, providers []string, exts []Extensi
 		return sorted[i].Name < sorted[j].Name
 	})
 
+	// Ensure each extension dir has a go.mod so Go treats it as a module
+	for _, ext := range sorted {
+		if err := ensureExtGoMod(ext, moduleRoot); err != nil {
+			return "", fmt.Errorf("build: extension %s go.mod: %w", ext.Name, err)
+		}
+	}
+
+	// Read actual module paths from extension go.mods
+	for i := range sorted {
+		sorted[i].ModulePath = readModulePath(sorted[i].Dir)
+	}
+
 	if err := GenerateGoMod(dir, moduleRoot, sorted); err != nil {
 		return "", fmt.Errorf("build: generate go.mod: %w", err)
 	}
 
 	if err := GenerateMainGo(dir, sorted, agentLoop, providers); err != nil {
 		return "", fmt.Errorf("build: generate main.go: %w", err)
-	}
-
-	// Ensure each extension dir has a go.mod so Go treats it as a module
-	for _, ext := range sorted {
-		if err := ensureExtGoMod(ext, moduleRoot); err != nil {
-			return "", fmt.Errorf("build: extension %s go.mod: %w", ext.Name, err)
-		}
 	}
 
 	binaryPath := filepath.Join(dir, "weave")

@@ -199,10 +199,10 @@ All tools use `map[string]any` parameter schemas compatible with provider tool-u
 - Both emit `sdk.ProviderEventTextDelta` and `sdk.ProviderEventToolCall` events
 
 ### Config resolution
-- Anthropic: `ANTHROPIC_API_KEY` env var, model from `.weave.yaml` or default
-- OpenAI: `OPENAI_API_KEY` env var, model from config or default
-- Z.ai: `ZAI_API_KEY` env var, model from config or default
-- All use `gonfig` with `WithFile` + `WithEnvPrefix("WEAVE")` pattern
+- Anthropic: `ANTHROPIC_API_KEY` env var (required), `ANTHROPIC_MODEL` env var (default: `claude-sonnet-4-20250514`)
+- OpenAI: `OPENAI_API_KEY` env var (required), `OPENAI_MODEL` env var (default: `gpt-4o`)
+- Z.ai: `ZAI_API_KEY` env var (required), `ZAI_MODEL` env var (default: `glm-4`)
+- All providers read env vars directly via `os.Getenv` in factory functions
 
 ## Post-Completion
 *Items requiring manual intervention or external systems — no checkboxes, informational only*
@@ -215,4 +215,4 @@ All tools use `map[string]any` parameter schemas compatible with provider tool-u
 **External system updates:**
 - API keys need to be set in environment for provider extensions to work
 - Launcher hash computation will change — cached binaries will be rebuilt
-- Launcher discovery may need update to handle nested extension directories (`tools/*`, `providers/*`)
+- Launcher discovery updated — nested extension directories (`tools/*`, `providers/*`) are supported via two-level lookup in `findBuiltin`

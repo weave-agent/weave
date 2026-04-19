@@ -38,7 +38,8 @@ Standard library as much as possible. Every replaceable component is an extensio
 - `internal/truncate/` — shared output truncation (2000 lines / 50KB) used by all tools for consistent output limiting
 - `extensions/agent-loop/` — core extension implementing the two-level while-loop agent cycle (outer: follow-ups, inner: steering + tool calls); subscribes to `agent.prompt`, `agent.steer`, `agent.followup`; publishes `agent.turn_start/end`, `agent.message_start/update/end`, `agent.tool_result`, `agent.end`
 - `extensions/tools/{bash,read,edit,write,grep,find,ls}/` — individual tool extension modules, each an independent Go module self-registering via `sdk.RegisterTool`
-- `extensions/providers/{anthropic,openai,zai}/` — provider extension modules; Anthropic uses official SDK, OpenAI and Z.ai delegate to shared `extensions/providers/openai-compat/` library
+- `extensions/providers/openai-compat/` — shared library for OpenAI-compatible providers (SSE parsing, message/tool conversion); reused by `openai` and `zai` providers; import as `openaicompat` package
+- `extensions/providers/{anthropic,openai,zai}/` — provider extension modules; Anthropic uses official SDK, OpenAI and Z.ai delegate to `openai-compat`
 - `launcher/` — full pipeline: `Discover` extensions (project-local `.weave/extensions/{name}/`, global `~/.weave/extensions/{name}/`, then built-in under `extensions/{category}/{name}/` with nested lookup), `ComputeHash` of .go files, `Cache` in `~/.weave/bin/{hash}/`, `Build` by generating go.mod+main.go with blank imports, then `syscall.Exec`
 
 **Extension lifecycle:** Extension packages call `sdk.RegisterExtension(name, factory)` in `init()`. Provider and tool extensions similarly call `sdk.RegisterProvider` and `sdk.RegisterTool`. The built binary blank-imports selected extensions, triggering registration. `sdk.Wire()` or `sdk.WireWithCore()` resolves names from registries and subscribes each to the bus.
@@ -48,6 +49,20 @@ Standard library as much as possible. Every replaceable component is an extensio
 All config loading uses `github.com/nniel-ape/gonfig` (user-owned lib). No direct `yaml.v3` imports — gonfig handles all file parsing internally. Config files are `.weave.yaml` or `.weave/config.yaml`, discovered by walking up from cwd. Extensions define their own typed config structs with gonfig tags (`default`, `description`, `env`, `validate`) and call `gonfig.Load` themselves with `WithFile` + `WithEnvPrefix("WEAVE")`.
 
 `sdk.Config` is a thin carrier interface (`FilePath() string`) — extensions use the path to load their own config via gonfig. `sdk.Wire` takes `[]string` (extension names) directly. `sdk.WireWithCore` takes a `CoreWireConfig` struct (AgentLoop + Providers) alongside optional extension names, merging and deduplicating them. Config yaml format:
+
+```yaml
+core:
+  agent_loop: loop       # default: "loop"
+  providers:             # default: ["anthropic"]
+    - anthropic
+extensions:
+  - bash-tool
+```
+
+**Provider environment variables:**
+- `ANTHROPIC_API_KEY` — required for Anthropic provider (default model: `claude-sonnet-4-20250514`, override with `ANTHROPIC_MODEL`)
+- `OPENAI_API_KEY` — required for OpenAI provider (default model: `gpt-4o`, override with `OPENAI_MODEL`)
+- `ZAI_API_KEY` — required for Z.ai provider (default model: `glm-4`, override with `ZAI_MODEL`)
 
 ```yaml
 core:

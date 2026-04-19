@@ -522,24 +522,96 @@ func TestStream_DefaultModel(t *testing.T) {
 	assert.Equal(t, "gpt-4o", receivedBody.Model)
 }
 
-func TestMergeJSON(t *testing.T) {
-	t.Run("empty fragment", func(t *testing.T) {
-		result := mergeJSON(map[string]any{"a": 1}, "")
-		assert.Equal(t, map[string]any{"a": 1}, result)
-	})
+func TestStream_PartialJSONArguments(t *testing.T) {
+	// Simulate real-world streaming where JSON arguments arrive in fragments
+	stream := sseStream(
+		sseChunk(ChunkDelta{Role: "assistant"}, nil),
+		sseChunk(ChunkDelta{
+			ToolCalls: []ToolCallDelta{
+				{Index: 0, ID: "call_1", Type: "function", Function: &FunctionCallDelta{Name: "bash"}},
+			},
+		}, nil),
+		sseChunk(ChunkDelta{
+			ToolCalls: []ToolCallDelta{
+				{Index: 0, Function: &FunctionCallDelta{Arguments: `{"com`}},
+			},
+		}, nil),
+		sseChunk(ChunkDelta{
+			ToolCalls: []ToolCallDelta{
+				{Index: 0, Function: &FunctionCallDelta{Arguments: `mand":"ls -la"}`}},
+			},
+		}, nil),
+		sseChunk(ChunkDelta{}, strPtr("tool_calls")),
+		sseDone(),
+	)
 
-	t.Run("nil existing", func(t *testing.T) {
-		result := mergeJSON(nil, `{"key":"value"}`)
-		assert.Equal(t, map[string]any{"key": "value"}, result)
-	})
+	server := setupServer(stream)
+	defer server.Close()
 
-	t.Run("merge into existing", func(t *testing.T) {
-		result := mergeJSON(map[string]any{"a": 1}, `{"b":2}`)
-		assert.Equal(t, map[string]any{"a": 1, "b": float64(2)}, result)
+	ch, err := Stream(context.Background(), server.Client(), ProviderConfig{
+		BaseURL: server.URL,
+		APIKey:  "test-key",
+	}, sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("run ls")},
 	})
+	require.NoError(t, err)
 
-	t.Run("invalid JSON fragment", func(t *testing.T) {
-		result := mergeJSON(map[string]any{"a": 1}, "not json")
-		assert.Equal(t, map[string]any{"a": 1}, result)
+	events := collectEvents(ch)
+
+	var toolCalls []sdk.ToolCall
+	for _, e := range events {
+		if e.Type == sdk.ProviderEventToolCall {
+			toolCalls = append(toolCalls, e.Content.(sdk.ToolCall))
+		}
+	}
+	require.Len(t, toolCalls, 1)
+	assert.Equal(t, "bash", toolCalls[0].Name)
+	assert.Equal(t, map[string]any{"command": "ls -la"}, toolCalls[0].Arguments)
+}
+
+func TestStream_ToolCallOrdering(t *testing.T) {
+	stream := sseStream(
+		sseChunk(ChunkDelta{Role: "assistant"}, nil),
+		sseChunk(ChunkDelta{
+			ToolCalls: []ToolCallDelta{
+				{Index: 2, ID: "call_2", Type: "function", Function: &FunctionCallDelta{Name: "read"}},
+				{Index: 0, ID: "call_0", Type: "function", Function: &FunctionCallDelta{Name: "bash"}},
+				{Index: 1, ID: "call_1", Type: "function", Function: &FunctionCallDelta{Name: "edit"}},
+			},
+		}, nil),
+		sseChunk(ChunkDelta{
+			ToolCalls: []ToolCallDelta{
+				{Index: 0, Function: &FunctionCallDelta{Arguments: `{"command":"ls"}`}},
+				{Index: 1, Function: &FunctionCallDelta{Arguments: `{"path":"a"}`}},
+				{Index: 2, Function: &FunctionCallDelta{Arguments: `{"path":"b"}`}},
+			},
+		}, nil),
+		sseChunk(ChunkDelta{}, strPtr("tool_calls")),
+		sseDone(),
+	)
+
+	server := setupServer(stream)
+	defer server.Close()
+
+	ch, err := Stream(context.Background(), server.Client(), ProviderConfig{
+		BaseURL: server.URL,
+		APIKey:  "test-key",
+	}, sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("do stuff")},
 	})
+	require.NoError(t, err)
+
+	events := collectEvents(ch)
+
+	var toolCalls []sdk.ToolCall
+	for _, e := range events {
+		if e.Type == sdk.ProviderEventToolCall {
+			toolCalls = append(toolCalls, e.Content.(sdk.ToolCall))
+		}
+	}
+	require.Len(t, toolCalls, 3)
+	// Tool calls should be emitted in index order, not arrival order
+	assert.Equal(t, "bash", toolCalls[0].Name)
+	assert.Equal(t, "edit", toolCalls[1].Name)
+	assert.Equal(t, "read", toolCalls[2].Name)
 }

@@ -99,7 +99,11 @@ func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest) (<-chan 
 			if toolUse, ok := block.AsAny().(anthropic.ToolUseBlock); ok {
 				var args map[string]any
 				if raw := toolUse.JSON.Input.Raw(); raw != "" {
-					_ = json.Unmarshal([]byte(raw), &args)
+					if err := json.Unmarshal([]byte(raw), &args); err != nil {
+						args = make(map[string]any)
+					}
+				} else {
+					args = make(map[string]any)
 				}
 				ch <- sdk.ProviderEvent{
 					Type: sdk.ProviderEventToolCall,

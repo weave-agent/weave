@@ -80,7 +80,10 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		edits = append(edits, struct{ oldText, newText string }{oldText, newText})
 	}
 
-	original, _ := os.ReadFile(path)
+	original, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
+	}
 	content := string(original)
 
 	for i, e := range edits {
@@ -111,18 +114,16 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		Context:  3,
 	})
 
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
-	}
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
+	if content != string(original) {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
+		}
 	}
 
 	result := truncate.Truncate(diff, truncate.DefaultMaxLines, truncate.DefaultMaxBytes)
-	output := result.Content
-	if result.Truncated {
-		output = fmt.Sprintf("%s\n[output truncated: %d lines, %d bytes]", output, result.Lines, result.Bytes)
-	}
 
-	return sdk.ToolResult{Content: output, IsError: false}, nil
+	return sdk.ToolResult{Content: result.Format(), IsError: false}, nil
 }

@@ -13,9 +13,10 @@ import (
 var validExtName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 type ExtensionInfo struct {
-	Name    string
-	Dir     string
-	GoFiles []string
+	Name       string
+	Dir        string
+	GoFiles    []string
+	ModulePath string // e.g. "weave/ext/tools/bash"; populated by builder
 }
 
 // Discover resolves each named extension to its source directory and Go files.
