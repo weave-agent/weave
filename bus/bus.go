@@ -29,17 +29,14 @@ func New() *Bus {
 
 func (b *Bus) Subscribe(topics ...string) <-chan sdk.Event {
 	b.closeMu.RLock()
+	defer b.closeMu.RUnlock()
 
 	if b.closed {
-		b.closeMu.RUnlock()
-
 		ch := make(chan sdk.Event)
 		close(ch)
 
 		return ch
 	}
-
-	b.closeMu.RUnlock()
 
 	ch := make(chan sdk.Event, topicBufSize)
 
@@ -54,17 +51,14 @@ func (b *Bus) Subscribe(topics ...string) <-chan sdk.Event {
 
 func (b *Bus) SubscribeAll() <-chan sdk.Event {
 	b.closeMu.RLock()
+	defer b.closeMu.RUnlock()
 
 	if b.closed {
-		b.closeMu.RUnlock()
-
 		ch := make(chan sdk.Event)
 		close(ch)
 
 		return ch
 	}
-
-	b.closeMu.RUnlock()
 
 	ch := make(chan sdk.Event, allBufSize)
 
@@ -84,13 +78,11 @@ func (b *Bus) Publish(e sdk.Event) bool {
 	}
 
 	b.mu.RLock()
-	subs := b.topicSubs[e.Topic]
-	allSubs := b.allSubs
-	b.mu.RUnlock()
+	defer b.mu.RUnlock()
 
 	delivered := false
 
-	for _, ch := range subs {
+	for _, ch := range b.topicSubs[e.Topic] {
 		select {
 		case ch <- e:
 			delivered = true
@@ -98,7 +90,7 @@ func (b *Bus) Publish(e sdk.Event) bool {
 		}
 	}
 
-	for _, ch := range allSubs {
+	for _, ch := range b.allSubs {
 		select {
 		case ch <- e:
 			delivered = true
@@ -122,25 +114,40 @@ func (b *Bus) Unsubscribe(ch <-chan sdk.Event) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
+	closed := false
+
 	for topic, subs := range b.topicSubs {
-		b.topicSubs[topic] = removeSub(subs, ch)
-		if len(b.topicSubs[topic]) == 0 {
+		remaining := make([]chan sdk.Event, 0, len(subs))
+		for _, s := range subs {
+			if s == ch {
+				if !closed {
+					close(s)
+
+					closed = true
+				}
+			} else {
+				remaining = append(remaining, s)
+			}
+		}
+
+		if len(remaining) == 0 {
 			delete(b.topicSubs, topic)
+		} else {
+			b.topicSubs[topic] = remaining
 		}
 	}
 
-	b.allSubs = removeSub(b.allSubs, ch)
-}
+	for i, s := range b.allSubs {
+		if s == ch {
+			if !closed {
+				close(s)
+			}
 
-func removeSub(subs []chan sdk.Event, target <-chan sdk.Event) []chan sdk.Event {
-	for i, s := range subs {
-		if s == target {
-			close(s)
-			return append(subs[:i], subs[i+1:]...)
+			b.allSubs = append(b.allSubs[:i], b.allSubs[i+1:]...)
+
+			break
 		}
 	}
-
-	return subs
 }
 
 func (b *Bus) Close() error {
@@ -151,7 +158,6 @@ func (b *Bus) Close() error {
 	}
 
 	b.closed = true
-
 	b.closeMu.Unlock()
 
 	b.mu.Lock()

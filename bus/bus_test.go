@@ -278,6 +278,22 @@ func TestUnsubscribeUnknownChannel(t *testing.T) {
 	b.Unsubscribe(ch)
 }
 
+func TestUnsubscribeMultiTopic(t *testing.T) {
+	b := New()
+	defer b.Close()
+
+	ch := b.Subscribe("a", "b")
+	b.Unsubscribe(ch)
+
+	_, ok := <-ch
+	if ok {
+		t.Error("unsubscribed channel should be closed")
+	}
+
+	b.Publish(sdk.NewEvent("a", nil))
+	b.Publish(sdk.NewEvent("b", nil))
+}
+
 func TestPublishReturnsFalseOnDrop(t *testing.T) {
 	b := New()
 	defer b.Close()
