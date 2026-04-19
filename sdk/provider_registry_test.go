@@ -14,6 +14,7 @@ type mockProvider struct {
 func (m *mockProvider) Stream(_ context.Context, _ ProviderRequest) (<-chan ProviderEvent, error) {
 	ch := make(chan ProviderEvent)
 	close(ch)
+
 	return ch, nil
 }
 

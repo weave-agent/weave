@@ -158,6 +158,7 @@ func TestLoad_CoreExts(t *testing.T) {
 	if len(coreExts) != len(expectedCore) {
 		t.Fatalf("expected %d core exts, got %d: %v", len(expectedCore), len(coreExts), coreExts)
 	}
+
 	for i, name := range expectedCore {
 		if coreExts[i] != name {
 			t.Errorf("coreExts[%d] = %q, want %q", i, coreExts[i], name)
@@ -168,6 +169,7 @@ func TestLoad_CoreExts(t *testing.T) {
 	if len(optExts) != len(expectedOpt) {
 		t.Fatalf("expected %d optional exts, got %d: %v", len(expectedOpt), len(optExts), optExts)
 	}
+
 	for i, name := range expectedOpt {
 		if optExts[i] != name {
 			t.Errorf("optExts[%d] = %q, want %q", i, optExts[i], name)
@@ -189,6 +191,7 @@ func TestLoad_CoreExtsDefaults(t *testing.T) {
 	if len(coreExts) != 2 {
 		t.Fatalf("expected 2 core exts (loop + anthropic), got %d: %v", len(coreExts), coreExts)
 	}
+
 	if coreExts[0] != "loop" || coreExts[1] != "anthropic" {
 		t.Errorf("expected [loop, anthropic], got %v", coreExts)
 	}

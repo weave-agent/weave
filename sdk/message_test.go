@@ -14,15 +14,19 @@ func TestNewUserMessage(t *testing.T) {
 	if msg.Role != RoleUser {
 		t.Errorf("Role = %q, want %q", msg.Role, RoleUser)
 	}
+
 	if msg.Content != "hello" {
 		t.Errorf("Content = %v, want %v", msg.Content, "hello")
 	}
+
 	if msg.ToolCallID != "" {
 		t.Errorf("ToolCallID = %q, want empty", msg.ToolCallID)
 	}
+
 	if msg.ToolName != "" {
 		t.Errorf("ToolName = %q, want empty", msg.ToolName)
 	}
+
 	if msg.Timestamp.Before(before) || msg.Timestamp.After(after) {
 		t.Errorf("Timestamp %v not between %v and %v", msg.Timestamp, before, after)
 	}
@@ -36,16 +40,20 @@ func TestNewAssistantMessage(t *testing.T) {
 	if msg.Role != RoleAssistant {
 		t.Errorf("Role = %q, want %q", msg.Role, RoleAssistant)
 	}
+
 	if msg.Content == nil {
 		t.Fatal("Content is nil")
 	}
+
 	m, ok := msg.Content.(map[string]any)
 	if !ok {
 		t.Fatalf("Content type = %T, want map[string]any", msg.Content)
 	}
+
 	if m["text"] != "response" {
 		t.Errorf("Content[text] = %v, want %q", m["text"], "response")
 	}
+
 	if msg.Timestamp.Before(before) || msg.Timestamp.After(after) {
 		t.Errorf("Timestamp %v not between %v and %v", msg.Timestamp, before, after)
 	}
@@ -59,15 +67,19 @@ func TestNewToolResultMessage(t *testing.T) {
 	if msg.Role != RoleToolResult {
 		t.Errorf("Role = %q, want %q", msg.Role, RoleToolResult)
 	}
+
 	if msg.Content != "output text" {
 		t.Errorf("Content = %v, want %v", msg.Content, "output text")
 	}
+
 	if msg.ToolCallID != "call_123" {
 		t.Errorf("ToolCallID = %q, want %q", msg.ToolCallID, "call_123")
 	}
+
 	if msg.ToolName != "bash" {
 		t.Errorf("ToolName = %q, want %q", msg.ToolName, "bash")
 	}
+
 	if msg.Timestamp.Before(before) || msg.Timestamp.After(after) {
 		t.Errorf("Timestamp %v not between %v and %v", msg.Timestamp, before, after)
 	}
@@ -137,10 +149,12 @@ func TestMessageValidate(t *testing.T) {
 
 func TestMessageValidate_ErrorMessage(t *testing.T) {
 	msg := Message{Role: "bad_role", Timestamp: time.Now()}
+
 	err := msg.Validate()
 	if err == nil {
 		t.Fatal("expected error for invalid role")
 	}
+
 	if !strings.Contains(err.Error(), "bad_role") {
 		t.Errorf("error message %q should contain role %q", err.Error(), "bad_role")
 	}
@@ -150,9 +164,11 @@ func TestRoleConstants(t *testing.T) {
 	if RoleUser != "user" {
 		t.Errorf("RoleUser = %q, want %q", RoleUser, "user")
 	}
+
 	if RoleAssistant != "assistant" {
 		t.Errorf("RoleAssistant = %q, want %q", RoleAssistant, "assistant")
 	}
+
 	if RoleToolResult != "tool_result" {
 		t.Errorf("RoleToolResult = %q, want %q", RoleToolResult, "tool_result")
 	}

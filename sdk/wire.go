@@ -100,6 +100,7 @@ func validateCore(core CoreWireConfig) error {
 
 func mergeCoreAndOptional(core CoreWireConfig, optExts []string) []string {
 	seen := make(map[string]bool)
+
 	var result []string
 
 	for _, name := range core.Providers {
