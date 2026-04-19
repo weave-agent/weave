@@ -12,6 +12,7 @@ type Wired struct {
 }
 
 func Wire(extNames []string, bus Bus, cfg Config) (*Wired, error) {
+	cfg = configOrDefault(cfg)
 	exts := make([]Extension, 0, len(extNames))
 
 	for _, name := range extNames {
@@ -24,8 +25,11 @@ func Wire(extNames []string, bus Bus, cfg Config) (*Wired, error) {
 			return nil, fmt.Errorf("wire: %w", err)
 		}
 
-		ext.Subscribe(bus)
 		exts = append(exts, ext)
+	}
+
+	for _, ext := range exts {
+		ext.Subscribe(bus)
 	}
 
 	return &Wired{extensions: exts, bus: bus}, nil

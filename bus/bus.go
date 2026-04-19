@@ -114,6 +114,10 @@ func (b *Bus) Unsubscribe(ch <-chan sdk.Event) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
+	if b.closed {
+		return
+	}
+
 	closed := false
 
 	for topic, subs := range b.topicSubs {
