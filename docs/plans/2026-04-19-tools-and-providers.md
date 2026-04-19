@@ -75,11 +75,11 @@ Create a shared truncation package used by all tools for consistent output limit
 - [x] run `go test ./extensions/tools/grep/...` — must pass before next task
 
 ### Task 7: find tool
-- [ ] create `extensions/tools/find/go.mod` and `extensions/tools/find/find.go` with `init()` registering via `sdk.RegisterTool("find", ...)`
-- [ ] implement `Execute`: walk directory tree matching glob pattern via `filepath.Glob` / `filepath.Walk`, ignore common dirs (.git, node_modules), apply truncation
-- [ ] tool definition: `{ pattern: string, path?: string }` parameters
-- [ ] write tests (find by extension, find by name, nested match, no matches, nonexistent path)
-- [ ] run `go test ./extensions/tools/find/...` — must pass before next task
+- [x] create `extensions/tools/find/go.mod` and `extensions/tools/find/find.go` with `init()` registering via `sdk.RegisterTool("find", ...)`
+- [x] implement `Execute`: walk directory tree matching glob pattern via `filepath.Glob` / `filepath.Walk`, ignore common dirs (.git, node_modules), apply truncation
+- [x] tool definition: `{ pattern: string, path?: string }` parameters
+- [x] write tests (find by extension, find by name, nested match, no matches, nonexistent path)
+- [x] run `go test ./extensions/tools/find/...` — must pass before next task
 
 ### Task 8: ls tool
 - [ ] create `extensions/tools/ls/go.mod` and `extensions/tools/ls/ls.go` with `init()` registering via `sdk.RegisterTool("ls", ...)`
