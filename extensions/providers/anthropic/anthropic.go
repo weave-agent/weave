@@ -100,7 +100,11 @@ func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest) (<-chan 
 				var args map[string]any
 				if raw := toolUse.JSON.Input.Raw(); raw != "" {
 					if err := json.Unmarshal([]byte(raw), &args); err != nil {
-						args = make(map[string]any)
+						ch <- sdk.ProviderEvent{
+							Type:    sdk.ProviderEventError,
+							Content: fmt.Sprintf("anthropic: parse tool call arguments for %s: %v", toolUse.Name, err),
+						}
+						return
 					}
 				} else {
 					args = make(map[string]any)

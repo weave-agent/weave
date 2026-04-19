@@ -62,9 +62,9 @@ func TestExecute(t *testing.T) {
 		{
 			name:      "failure exit code",
 			args:      map[string]any{"command": "exit 1"},
-			wantError: true,
+			wantError: false,
 			check: func(t *testing.T, result sdk.ToolResult) {
-				assert.Contains(t, result.Content, "error:")
+				assert.Contains(t, result.Content, "[exit code 1]")
 			},
 		},
 		{

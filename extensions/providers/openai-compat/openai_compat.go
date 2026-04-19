@@ -170,6 +170,7 @@ type toolCallAccum struct {
 // parseSSE reads an SSE stream and emits ProviderEvents.
 func parseSSE(reader io.Reader, ch chan<- sdk.ProviderEvent) {
 	scanner := bufio.NewScanner(reader)
+	scanner.Buffer(make([]byte, 0, 1024*1024), 10*1024*1024)
 	toolCalls := make(map[int]*toolCallAccum)
 
 	for scanner.Scan() {
@@ -238,7 +239,13 @@ func parseSSE(reader io.Reader, ch chan<- sdk.ProviderEvent) {
 					tc := toolCalls[k]
 					var args map[string]any
 					if tc.argsBuffer != "" {
-						_ = json.Unmarshal([]byte(tc.argsBuffer), &args)
+						if err := json.Unmarshal([]byte(tc.argsBuffer), &args); err != nil {
+							ch <- sdk.ProviderEvent{
+								Type:    sdk.ProviderEventError,
+								Content: fmt.Sprintf("openai-compat: parse tool call arguments for %s: %v", tc.name, err),
+							}
+							return
+						}
 					}
 					if args == nil {
 						args = make(map[string]any)

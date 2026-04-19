@@ -103,6 +103,13 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 				IsError: true,
 			}, nil
 		}
+		count := strings.Count(content, e.oldText)
+		if count > 1 {
+			return sdk.ToolResult{
+				Content: fmt.Sprintf("error: oldText matched %d times in file, expected exactly 1 (edit %d)", count, i),
+				IsError: true,
+			}, nil
+		}
 		content = strings.Replace(content, e.oldText, e.newText, 1)
 	}
 

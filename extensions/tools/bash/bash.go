@@ -2,6 +2,7 @@ package bash
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"time"
@@ -65,8 +66,15 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 	result := truncate.Truncate(string(out), truncate.DefaultMaxLines, truncate.DefaultMaxBytes)
 
 	var content string
+	var isErr bool
+
 	if err != nil {
-		content = fmt.Sprintf("%s\nerror: %s", result.Content, err)
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
+			content = fmt.Sprintf("%s\n[exit code %d]", result.Content, exitErr.ExitCode())
+		} else {
+			content = fmt.Sprintf("%s\nerror: %s", result.Content, err)
+			isErr = true
+		}
 	} else {
 		content = result.Content
 	}
@@ -75,5 +83,5 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 		content = fmt.Sprintf("%s\n[output truncated: %d lines, %d bytes]", content, result.Lines, result.Bytes)
 	}
 
-	return sdk.ToolResult{Content: content, IsError: err != nil}, nil
+	return sdk.ToolResult{Content: content, IsError: isErr}, nil
 }

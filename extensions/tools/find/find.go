@@ -31,7 +31,7 @@ func (t *tool) Definition() sdk.ToolDef {
 			"properties": map[string]any{
 				"pattern": map[string]any{
 					"type":        "string",
-					"description": "Glob pattern to match (e.g. \"*.go\", \"**/*.txt\", \"config.yaml\").",
+					"description": "Glob pattern to match against file names (e.g. \"*.go\", \"config.yaml\").",
 				},
 				"path": map[string]any{
 					"type":        "string",

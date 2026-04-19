@@ -156,6 +156,23 @@ func TestExecute(t *testing.T) {
 				assert.Equal(t, "fresh file", string(data))
 			},
 		},
+		{
+			name: "duplicate match error",
+			setup: func(t *testing.T) string {
+				p := filepath.Join(tmpDir, "dup.txt")
+				require.NoError(t, os.WriteFile(p, []byte("aaa bbb aaa"), 0o644))
+				return p
+			},
+			args: map[string]any{
+				"edits": []any{
+					map[string]any{"oldText": "aaa", "newText": "ccc"},
+				},
+			},
+			wantError: true,
+			check: func(t *testing.T, result sdk.ToolResult, _ string) {
+				assert.Contains(t, result.Content, "matched 2 times")
+			},
+		},
 	}
 
 	for _, tt := range tests {
