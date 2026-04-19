@@ -6,6 +6,9 @@ import (
 	"time"
 
 	"weave/sdk"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPubSub(t *testing.T) {
@@ -18,13 +21,8 @@ func TestPubSub(t *testing.T) {
 
 	select {
 	case got := <-ch:
-		if got.Topic != "test.topic" {
-			t.Errorf("expected topic %q, got %q", "test.topic", got.Topic)
-		}
-
-		if got.Payload != "hello" {
-			t.Errorf("expected payload %q, got %q", "hello", got.Payload)
-		}
+		assert.Equal(t, "test.topic", got.Topic)
+		assert.Equal(t, "hello", got.Payload)
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for event")
 	}
@@ -74,9 +72,7 @@ func TestSubscribeAll(t *testing.T) {
 
 	select {
 	case got := <-all:
-		if got.Topic != "any.topic" {
-			t.Errorf("expected topic %q, got %q", "any.topic", got.Topic)
-		}
+		assert.Equal(t, "any.topic", got.Topic)
 	case <-time.After(time.Second):
 		t.Fatal("SubscribeAll did not receive event")
 	}
@@ -117,13 +113,9 @@ func TestBufferOverflow(t *testing.T) {
 	}
 
 done:
-	if count > topicBufSize {
-		t.Errorf("received %d events, expected at most %d (buffer overflow)", count, topicBufSize)
-	}
+	assert.LessOrEqual(t, count, topicBufSize, "received more events than buffer size")
 
-	if count == 0 {
-		t.Error("expected some events to be buffered")
-	}
+	assert.NotZero(t, count, "expected some events to be buffered")
 }
 
 func TestClose(t *testing.T) {
@@ -132,9 +124,7 @@ func TestClose(t *testing.T) {
 	_ = b.Close()
 
 	_, ok := <-ch
-	if ok {
-		t.Error("expected channel to be closed")
-	}
+	assert.False(t, ok, "expected channel to be closed")
 }
 
 func TestPublishAfterClose(t *testing.T) {
@@ -145,9 +135,7 @@ func TestPublishAfterClose(t *testing.T) {
 	b.Publish(sdk.NewEvent("x", nil))
 
 	_, ok := <-ch
-	if ok {
-		t.Fatal("subscribe after close should return closed channel")
-	}
+	assert.False(t, ok, "subscribe after close should return closed channel")
 }
 
 func TestCloseAllSubscriber(t *testing.T) {
@@ -156,9 +144,7 @@ func TestCloseAllSubscriber(t *testing.T) {
 	_ = b.Close()
 
 	_, ok := <-all
-	if ok {
-		t.Error("expected SubscribeAll channel to be closed")
-	}
+	assert.False(t, ok, "expected SubscribeAll channel to be closed")
 }
 
 func TestConcurrentPublish(t *testing.T) {
@@ -176,7 +162,6 @@ func TestConcurrentPublish(t *testing.T) {
 
 	wg.Wait()
 
-	// Drain what we can — non-blocking sends mean some may be dropped at buffer limit.
 	drained := 0
 
 	for {
@@ -184,10 +169,7 @@ func TestConcurrentPublish(t *testing.T) {
 		case <-ch:
 			drained++
 		default:
-			if drained == 0 {
-				t.Fatal("expected at least some events from concurrent publishes")
-			}
-
+			require.NotZero(t, drained, "expected at least some events from concurrent publishes")
 			return
 		}
 	}
@@ -199,16 +181,21 @@ func TestConcurrentPublishAndClose(t *testing.T) {
 		_ = b.Subscribe("race")
 
 		var wg sync.WaitGroup
+		wg.Add(2)
 
-		wg.Go(func() {
+		go func() {
+			defer wg.Done()
+
 			for range 200 {
 				b.Publish(sdk.NewEvent("race", nil))
 			}
-		})
+		}()
 
-		wg.Go(func() {
+		go func() {
+			defer wg.Done()
+
 			_ = b.Close()
-		})
+		}()
 
 		wg.Wait()
 	}
@@ -219,18 +206,12 @@ func TestSubscribeAfterClose(t *testing.T) {
 	_ = b.Close()
 
 	ch := b.Subscribe("x")
-
 	_, ok := <-ch
-	if ok {
-		t.Error("Subscribe after Close should return closed channel")
-	}
+	assert.False(t, ok, "Subscribe after Close should return closed channel")
 
 	allCh := b.SubscribeAll()
-
 	_, ok = <-allCh
-	if ok {
-		t.Error("SubscribeAll after Close should return closed channel")
-	}
+	assert.False(t, ok, "SubscribeAll after Close should return closed channel")
 }
 
 func TestUnsubscribe(t *testing.T) {
@@ -241,9 +222,7 @@ func TestUnsubscribe(t *testing.T) {
 	b.Unsubscribe(ch)
 
 	_, ok := <-ch
-	if ok {
-		t.Error("unsubscribed channel should be closed")
-	}
+	assert.False(t, ok, "unsubscribed channel should be closed")
 
 	b.Publish(sdk.NewEvent("topic", "data"))
 }
@@ -256,9 +235,7 @@ func TestUnsubscribeAllSubscriber(t *testing.T) {
 	b.Unsubscribe(ch)
 
 	_, ok := <-ch
-	if ok {
-		t.Error("unsubscribed channel should be closed")
-	}
+	assert.False(t, ok, "unsubscribed channel should be closed")
 }
 
 func TestUnsubscribeDoubleSafe(t *testing.T) {
@@ -286,9 +263,7 @@ func TestUnsubscribeMultiTopic(t *testing.T) {
 	b.Unsubscribe(ch)
 
 	_, ok := <-ch
-	if ok {
-		t.Error("unsubscribed channel should be closed")
-	}
+	assert.False(t, ok, "unsubscribed channel should be closed")
 
 	b.Publish(sdk.NewEvent("a", nil))
 	b.Publish(sdk.NewEvent("b", nil))
@@ -300,36 +275,26 @@ func TestPublishReturnsFalseOnDrop(t *testing.T) {
 
 	ch := b.Subscribe("full")
 	for i := range topicBufSize {
-		if !b.Publish(sdk.NewEvent("full", i)) {
-			t.Fatalf("Publish %d returned false before buffer full", i)
-		}
+		require.True(t, b.Publish(sdk.NewEvent("full", i)), "Publish %d returned false before buffer full", i)
 	}
 
-	if b.Publish(sdk.NewEvent("full", "overflow")) {
-		t.Error("expected Publish to return false when subscriber buffer is full")
-	}
+	assert.False(t, b.Publish(sdk.NewEvent("full", "overflow")), "expected Publish to return false when subscriber buffer is full")
 
 	<-ch
 
-	if !b.Publish(sdk.NewEvent("full", "after-drain")) {
-		t.Error("expected Publish to return true after drain")
-	}
+	assert.True(t, b.Publish(sdk.NewEvent("full", "after-drain")), "expected Publish to return true after drain")
 }
 
 func TestPublishReturnsFalseWhenClosed(t *testing.T) {
 	b := New()
 	_ = b.Close()
 
-	if b.Publish(sdk.NewEvent("x", nil)) {
-		t.Error("expected Publish to return false on closed bus")
-	}
+	assert.False(t, b.Publish(sdk.NewEvent("x", nil)), "expected Publish to return false on closed bus")
 }
 
 func TestPublishReturnsFalseWithNoSubscribers(t *testing.T) {
 	b := New()
 	defer b.Close()
 
-	if b.Publish(sdk.NewEvent("nobody", nil)) {
-		t.Error("expected Publish to return false with no subscribers")
-	}
+	assert.False(t, b.Publish(sdk.NewEvent("nobody", nil)), "expected Publish to return false with no subscribers")
 }

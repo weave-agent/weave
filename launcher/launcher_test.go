@@ -6,6 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRun_NoExtensions(t *testing.T) {
@@ -16,9 +19,7 @@ func TestRun_NoExtensions(t *testing.T) {
 	}
 
 	err := l.Run(context.Background(), t.TempDir(), nil, nil, "", "loop", nil)
-	if err == nil {
-		t.Fatal("expected error for empty extensions")
-	}
+	require.Error(t, err, "expected error for empty extensions")
 }
 
 func TestRun_DiscoveryFails(t *testing.T) {
@@ -29,9 +30,7 @@ func TestRun_DiscoveryFails(t *testing.T) {
 	}
 
 	err := l.Run(context.Background(), t.TempDir(), []string{"nonexistent_ext"}, nil, "", "loop", nil)
-	if err == nil {
-		t.Fatal("expected error for missing extension")
-	}
+	require.Error(t, err, "expected error for missing extension")
 }
 
 func TestRun_BuildFails(t *testing.T) {
@@ -50,9 +49,7 @@ func TestRun_BuildFails(t *testing.T) {
 	}
 
 	err := l.Run(context.Background(), projectDir, []string{"noop"}, nil, "", "loop", nil)
-	if err == nil {
-		t.Fatal("expected error for build failure")
-	}
+	require.Error(t, err, "expected error for build failure")
 }
 
 func TestRun_CacheHit(t *testing.T) {
@@ -63,36 +60,19 @@ func TestRun_CacheHit(t *testing.T) {
 	cacheDir := t.TempDir()
 	c := NewCache(cacheDir)
 
-	// Pre-seed the cache with a binary
-	// First, discover and compute hash to know what hash to seed
 	exts, err := Discover(projectDir, []string{"noop"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	hash, err := ComputeHash(exts, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	// Create a fake cached binary that exits successfully
 	fakeBin := filepath.Join(cacheDir, hash, "weave")
-	if err := os.MkdirAll(filepath.Join(cacheDir, hash), 0o750); err != nil {
-		t.Fatal(err)
-	}
-	// Write a simple script that just exits 0
-	if err := os.WriteFile(fakeBin, []byte("#!/bin/sh\nexit 0\n"), 0o750); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.MkdirAll(filepath.Join(cacheDir, hash), 0o750))
+	require.NoError(t, os.WriteFile(fakeBin, []byte("#!/bin/sh\nexit 0\n"), 0o750))
 
 	binPath, found := c.Lookup(hash)
-	if !found {
-		t.Fatal("expected cache hit")
-	}
-
-	if binPath != fakeBin {
-		t.Errorf("expected %s, got %s", fakeBin, binPath)
-	}
+	require.True(t, found)
+	assert.Equal(t, fakeBin, binPath)
 }
 
 func TestRun_FullPipelineWithMockBuild(t *testing.T) {
@@ -117,53 +97,26 @@ func TestRun_FullPipelineWithMockBuild(t *testing.T) {
 		BuildTmpDir: buildDir,
 	}
 
-	// We can't call Run() because syscall.Exec replaces the process.
-	// Test the pipeline steps manually (discover, hash, cache miss, build, cache store).
 	exts, err := Discover(projectDir, []string{"noop"})
-	if err != nil {
-		t.Fatalf("Discover: %v", err)
-	}
+	require.NoError(t, err, "Discover")
 
 	hash, err := ComputeHash(exts, "")
-	if err != nil {
-		t.Fatalf("ComputeHash: %v", err)
-	}
+	require.NoError(t, err, "ComputeHash")
 
 	_, found := l.Cache.Lookup(hash)
-	if found {
-		t.Fatal("expected cache miss for new extension")
-	}
+	assert.False(t, found, "expected cache miss for new extension")
 
-	// Use the buildAndCache method indirectly by creating a launcher with a
-	// non-exec-ing exec. Instead, test buildAndCache directly.
 	binPath, err := l.buildAndCache(hash, "loop", nil, exts)
-	if err != nil {
-		t.Fatalf("buildAndCache: %v", err)
-	}
+	require.NoError(t, err, "buildAndCache")
+	require.NotEmpty(t, binPath)
 
-	if binPath == "" {
-		t.Fatal("expected non-empty binPath")
-	}
-
-	// Verify cached
 	cached, found := l.Cache.Lookup(hash)
-	if !found {
-		t.Fatal("expected cache hit after buildAndCache")
-	}
+	require.True(t, found, "expected cache hit after buildAndCache")
+	assert.Equal(t, binPath, cached)
 
-	if cached != binPath {
-		t.Errorf("cached path %q != built path %q", cached, binPath)
-	}
-
-	// Verify the cached binary content
 	got, err := os.ReadFile(cached)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if string(got) != "fake-binary" {
-		t.Errorf("cached content = %q, want %q", got, "fake-binary")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "fake-binary", string(got))
 }
 
 func TestRun_SecondRunUsesCache(t *testing.T) {
@@ -181,7 +134,6 @@ func TestRun_SecondRunUsesCache(t *testing.T) {
 			buildCount++
 
 			binPath := filepath.Join(dir, "weave")
-
 			if err := os.WriteFile(binPath, []byte("fake-binary"), 0o750); err != nil {
 				return "", fmt.Errorf("write fake binary: %w", err)
 			}
@@ -193,54 +145,28 @@ func TestRun_SecondRunUsesCache(t *testing.T) {
 	}
 
 	exts, err := Discover(projectDir, []string{"noop"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	hash, err := ComputeHash(exts, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	// First build
 	_, err = l.buildAndCache(hash, "loop", nil, exts)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 1, buildCount)
 
-	if buildCount != 1 {
-		t.Errorf("expected 1 build, got %d", buildCount)
-	}
-
-	// Second "run" — cache should hit, build not called again
 	_, found := l.Cache.Lookup(hash)
-	if !found {
-		t.Fatal("expected cache hit on second run")
-	}
-
-	if buildCount != 1 {
-		t.Errorf("expected 1 build after cache hit, got %d", buildCount)
-	}
+	require.True(t, found, "expected cache hit on second run")
+	assert.Equal(t, 1, buildCount)
 }
 
 func TestBuildDir_CustomTmpDir(t *testing.T) {
 	l := &Launcher{BuildTmpDir: "/custom/tmp"}
-	dir := l.buildDir("abc123")
-
-	expected := "/custom/tmp/abc123"
-	if dir != expected {
-		t.Errorf("buildDir = %q, want %q", dir, expected)
-	}
+	assert.Equal(t, "/custom/tmp/abc123", l.buildDir("abc123"))
 }
 
 func TestBuildDir_DefaultTmpDir(t *testing.T) {
 	l := &Launcher{}
-	dir := l.buildDir("abc123")
-
-	expected := filepath.Join(os.TempDir(), "weave-build-abc123")
-	if dir != expected {
-		t.Errorf("buildDir = %q, want %q", dir, expected)
-	}
+	assert.Equal(t, filepath.Join(os.TempDir(), "weave-build-abc123"), l.buildDir("abc123"))
 }
 
 // fmtError wraps a string as an error for test use.

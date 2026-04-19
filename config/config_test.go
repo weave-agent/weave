@@ -4,6 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFindConfigPath_WeaveYaml(t *testing.T) {
@@ -11,14 +14,8 @@ func TestFindConfigPath_WeaveYaml(t *testing.T) {
 	writeFile(t, dir, ".weave.yaml", "extensions: [noop]\n")
 
 	got, err := FindConfigPath(dir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	want := filepath.Join(dir, ".weave.yaml")
-	if got != want {
-		t.Errorf("got %q, want %q", got, want)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(dir, ".weave.yaml"), got)
 }
 
 func TestFindConfigPath_ConfigDir(t *testing.T) {
@@ -28,14 +25,8 @@ func TestFindConfigPath_ConfigDir(t *testing.T) {
 	writeFile(t, configDir, "config.yaml", "extensions: []\n")
 
 	got, err := FindConfigPath(dir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	want := filepath.Join(configDir, "config.yaml")
-	if got != want {
-		t.Errorf("got %q, want %q", got, want)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(configDir, "config.yaml"), got)
 }
 
 func TestFindConfigPath_WalkUp(t *testing.T) {
@@ -45,23 +36,15 @@ func TestFindConfigPath_WalkUp(t *testing.T) {
 	writeFile(t, root, ".weave.yaml", "extensions: []\n")
 
 	got, err := FindConfigPath(child)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	want := filepath.Join(root, ".weave.yaml")
-	if got != want {
-		t.Errorf("got %q, want %q", got, want)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(root, ".weave.yaml"), got)
 }
 
 func TestFindConfigPath_NotFound(t *testing.T) {
 	dir := t.TempDir()
 
 	_, err := FindConfigPath(dir)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
+	require.Error(t, err)
 }
 
 func TestFindConfigPath_PrefersWeaveYaml(t *testing.T) {
@@ -72,13 +55,8 @@ func TestFindConfigPath_PrefersWeaveYaml(t *testing.T) {
 	writeFile(t, configDir, "config.yaml", "extensions: [second]\n")
 
 	got, err := FindConfigPath(dir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if filepath.Base(got) != ".weave.yaml" {
-		t.Errorf("expected .weave.yaml to be preferred, got %q", got)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, ".weave.yaml", filepath.Base(got))
 }
 
 func TestLoad_Extensions(t *testing.T) {
@@ -86,17 +64,11 @@ func TestLoad_Extensions(t *testing.T) {
 	writeFile(t, dir, ".weave.yaml", "extensions: [noop, logging]\n")
 
 	_, cf, _, err := LoadFromDir(dir, nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 
-	if len(cf.Extensions) != 2 {
-		t.Fatalf("expected 2 extensions, got %d", len(cf.Extensions))
-	}
-
-	if cf.Extensions[0] != "noop" || cf.Extensions[1] != "logging" {
-		t.Errorf("got extensions %v", cf.Extensions)
-	}
+	require.Len(t, cf.Extensions, 2)
+	assert.Equal(t, "noop", cf.Extensions[0])
+	assert.Equal(t, "logging", cf.Extensions[1])
 }
 
 func TestLoad_CoreDefaults(t *testing.T) {
@@ -104,17 +76,10 @@ func TestLoad_CoreDefaults(t *testing.T) {
 	writeFile(t, dir, ".weave.yaml", "extensions: []\n")
 
 	_, cf, _, err := LoadFromDir(dir, nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 
-	if cf.Core.AgentLoop != "loop" {
-		t.Errorf("expected default agent-loop 'loop', got %q", cf.Core.AgentLoop)
-	}
-
-	if len(cf.Core.Providers) != 1 || cf.Core.Providers[0] != "anthropic" {
-		t.Errorf("expected default providers [anthropic], got %v", cf.Core.Providers)
-	}
+	assert.Equal(t, "loop", cf.Core.AgentLoop)
+	assert.Equal(t, []string{"anthropic"}, cf.Core.Providers)
 }
 
 func TestLoad_CoreOverride(t *testing.T) {
@@ -122,25 +87,14 @@ func TestLoad_CoreOverride(t *testing.T) {
 	writeFile(t, dir, ".weave.yaml", "core:\n  agent_loop: custom-loop\n  providers:\n    - openai\n    - google\nextensions:\n  - bash\n")
 
 	_, cf, _, err := LoadFromDir(dir, nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 
-	if cf.Core.AgentLoop != "custom-loop" {
-		t.Errorf("expected agent-loop 'custom-loop', got %q", cf.Core.AgentLoop)
-	}
-
-	if len(cf.Core.Providers) != 2 {
-		t.Fatalf("expected 2 providers, got %d", len(cf.Core.Providers))
-	}
-
-	if cf.Core.Providers[0] != "openai" || cf.Core.Providers[1] != "google" {
-		t.Errorf("got providers %v", cf.Core.Providers)
-	}
-
-	if len(cf.Extensions) != 1 || cf.Extensions[0] != "bash" {
-		t.Errorf("got extensions %v", cf.Extensions)
-	}
+	assert.Equal(t, "custom-loop", cf.Core.AgentLoop)
+	require.Len(t, cf.Core.Providers, 2)
+	assert.Equal(t, "openai", cf.Core.Providers[0])
+	assert.Equal(t, "google", cf.Core.Providers[1])
+	require.Len(t, cf.Extensions, 1)
+	assert.Equal(t, "bash", cf.Extensions[0])
 }
 
 func TestLoad_CoreExts(t *testing.T) {
@@ -148,32 +102,22 @@ func TestLoad_CoreExts(t *testing.T) {
 	writeFile(t, dir, ".weave.yaml", "core:\n  providers:\n    - anthropic\n    - openai\nextensions:\n  - bash\n  - file\n")
 
 	_, cf, _, err := LoadFromDir(dir, nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 
 	coreExts, optExts := cf.CoreExts()
 
 	expectedCore := []string{"loop", "anthropic", "openai"}
-	if len(coreExts) != len(expectedCore) {
-		t.Fatalf("expected %d core exts, got %d: %v", len(expectedCore), len(coreExts), coreExts)
-	}
+	require.Len(t, coreExts, len(expectedCore))
 
 	for i, name := range expectedCore {
-		if coreExts[i] != name {
-			t.Errorf("coreExts[%d] = %q, want %q", i, coreExts[i], name)
-		}
+		assert.Equal(t, name, coreExts[i])
 	}
 
 	expectedOpt := []string{"bash", "file"}
-	if len(optExts) != len(expectedOpt) {
-		t.Fatalf("expected %d optional exts, got %d: %v", len(expectedOpt), len(optExts), optExts)
-	}
+	require.Len(t, optExts, len(expectedOpt))
 
 	for i, name := range expectedOpt {
-		if optExts[i] != name {
-			t.Errorf("optExts[%d] = %q, want %q", i, optExts[i], name)
-		}
+		assert.Equal(t, name, optExts[i])
 	}
 }
 
@@ -182,30 +126,19 @@ func TestLoad_CoreExtsDefaults(t *testing.T) {
 	writeFile(t, dir, ".weave.yaml", "extensions: []\n")
 
 	_, cf, _, err := LoadFromDir(dir, nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 
 	coreExts, optExts := cf.CoreExts()
 
-	if len(coreExts) != 2 {
-		t.Fatalf("expected 2 core exts (loop + anthropic), got %d: %v", len(coreExts), coreExts)
-	}
-
-	if coreExts[0] != "loop" || coreExts[1] != "anthropic" {
-		t.Errorf("expected [loop, anthropic], got %v", coreExts)
-	}
-
-	if len(optExts) != 0 {
-		t.Errorf("expected 0 optional exts, got %d: %v", len(optExts), optExts)
-	}
+	require.Len(t, coreExts, 2)
+	assert.Equal(t, "loop", coreExts[0])
+	assert.Equal(t, "anthropic", coreExts[1])
+	assert.Empty(t, optExts)
 }
 
 func TestLoad_MissingFile(t *testing.T) {
 	_, _, _, err := LoadFromDir("/nonexistent", nil)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
+	require.Error(t, err)
 }
 
 func writeFile(t *testing.T, dir, name, content string) {

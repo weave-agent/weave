@@ -4,6 +4,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewUserMessage(t *testing.T) {
@@ -11,25 +14,11 @@ func TestNewUserMessage(t *testing.T) {
 	msg := NewUserMessage("hello")
 	after := time.Now()
 
-	if msg.Role != RoleUser {
-		t.Errorf("Role = %q, want %q", msg.Role, RoleUser)
-	}
-
-	if msg.Content != "hello" {
-		t.Errorf("Content = %v, want %v", msg.Content, "hello")
-	}
-
-	if msg.ToolCallID != "" {
-		t.Errorf("ToolCallID = %q, want empty", msg.ToolCallID)
-	}
-
-	if msg.ToolName != "" {
-		t.Errorf("ToolName = %q, want empty", msg.ToolName)
-	}
-
-	if msg.Timestamp.Before(before) || msg.Timestamp.After(after) {
-		t.Errorf("Timestamp %v not between %v and %v", msg.Timestamp, before, after)
-	}
+	assert.Equal(t, RoleUser, msg.Role)
+	assert.Equal(t, "hello", msg.Content)
+	assert.Empty(t, msg.ToolCallID)
+	assert.Empty(t, msg.ToolName)
+	assert.True(t, !msg.Timestamp.Before(before) && !msg.Timestamp.After(after))
 }
 
 func TestNewAssistantMessage(t *testing.T) {
@@ -37,26 +26,13 @@ func TestNewAssistantMessage(t *testing.T) {
 	msg := NewAssistantMessage(map[string]any{"text": "response"})
 	after := time.Now()
 
-	if msg.Role != RoleAssistant {
-		t.Errorf("Role = %q, want %q", msg.Role, RoleAssistant)
-	}
-
-	if msg.Content == nil {
-		t.Fatal("Content is nil")
-	}
+	assert.Equal(t, RoleAssistant, msg.Role)
+	require.NotNil(t, msg.Content)
 
 	m, ok := msg.Content.(map[string]any)
-	if !ok {
-		t.Fatalf("Content type = %T, want map[string]any", msg.Content)
-	}
-
-	if m["text"] != "response" {
-		t.Errorf("Content[text] = %v, want %q", m["text"], "response")
-	}
-
-	if msg.Timestamp.Before(before) || msg.Timestamp.After(after) {
-		t.Errorf("Timestamp %v not between %v and %v", msg.Timestamp, before, after)
-	}
+	require.True(t, ok, "Content type = %T, want map[string]any", msg.Content)
+	assert.Equal(t, "response", m["text"])
+	assert.True(t, !msg.Timestamp.Before(before) && !msg.Timestamp.After(after))
 }
 
 func TestNewToolResultMessage(t *testing.T) {
@@ -64,51 +40,27 @@ func TestNewToolResultMessage(t *testing.T) {
 	msg := NewToolResultMessage("call_123", "bash", "output text", false)
 	after := time.Now()
 
-	if msg.Role != RoleToolResult {
-		t.Errorf("Role = %q, want %q", msg.Role, RoleToolResult)
-	}
-
-	if msg.Content != "output text" {
-		t.Errorf("Content = %v, want %v", msg.Content, "output text")
-	}
-
-	if msg.ToolCallID != "call_123" {
-		t.Errorf("ToolCallID = %q, want %q", msg.ToolCallID, "call_123")
-	}
-
-	if msg.ToolName != "bash" {
-		t.Errorf("ToolName = %q, want %q", msg.ToolName, "bash")
-	}
-
-	if msg.Timestamp.Before(before) || msg.Timestamp.After(after) {
-		t.Errorf("Timestamp %v not between %v and %v", msg.Timestamp, before, after)
-	}
-
-	if msg.IsError {
-		t.Errorf("IsError = %v, want false", msg.IsError)
-	}
+	assert.Equal(t, RoleToolResult, msg.Role)
+	assert.Equal(t, "output text", msg.Content)
+	assert.Equal(t, "call_123", msg.ToolCallID)
+	assert.Equal(t, "bash", msg.ToolName)
+	assert.False(t, msg.IsError)
+	assert.True(t, !msg.Timestamp.Before(before) && !msg.Timestamp.After(after))
 }
 
 func TestNewToolResultMessage_Error(t *testing.T) {
 	msg := NewToolResultMessage("call_err", "bash", "command failed", true)
-
-	if !msg.IsError {
-		t.Errorf("IsError = %v, want true", msg.IsError)
-	}
+	assert.True(t, msg.IsError)
 }
 
 func TestNewUserMessage_NilContent(t *testing.T) {
 	msg := NewUserMessage(nil)
-	if msg.Content != nil {
-		t.Errorf("Content = %v, want nil", msg.Content)
-	}
+	assert.Nil(t, msg.Content)
 }
 
 func TestNewAssistantMessage_NilContent(t *testing.T) {
 	msg := NewAssistantMessage(nil)
-	if msg.Content != nil {
-		t.Errorf("Content = %v, want nil", msg.Content)
-	}
+	assert.Nil(t, msg.Content)
 }
 
 func TestMessageValidate(t *testing.T) {
@@ -152,8 +104,10 @@ func TestMessageValidate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.msg.Validate()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			if tt.wantErr {
+				require.Error(t, err, tt.name)
+			} else {
+				require.NoError(t, err, tt.name)
 			}
 		})
 	}
@@ -163,11 +117,9 @@ func TestMessageValidate_ErrorMessage(t *testing.T) {
 	msg := Message{Role: "bad_role", Timestamp: time.Now()}
 
 	err := msg.Validate()
-	if err == nil {
-		t.Fatal("expected error for invalid role")
-	}
-
-	if !strings.Contains(err.Error(), "bad_role") {
-		t.Errorf("error message %q should contain role %q", err.Error(), "bad_role")
-	}
+	require.Error(t, err, "expected error for invalid role")
+	assert.Contains(t, err.Error(), "bad_role")
 }
+
+// Suppress unused import warning.
+var _ = strings.TrimSpace

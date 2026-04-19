@@ -1,55 +1,39 @@
 package sdk
 
 import (
-	"context"
 	"errors"
 	"sort"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
-
-type mockProvider struct {
-	name string
-}
-
-func (m *mockProvider) Stream(_ context.Context, _ ProviderRequest) (<-chan ProviderEvent, error) {
-	ch := make(chan ProviderEvent)
-	close(ch)
-
-	return ch, nil
-}
 
 func TestRegisterAndRetrieveProvider(t *testing.T) {
 	ResetProviderRegistry()
 
 	RegisterProvider("mock", func(Config) (Provider, error) {
-		return &mockProvider{name: "mock"}, nil
+		return &ProviderMock{}, nil
 	})
 
 	got, err := GetProvider("mock", nil)
-	if err != nil {
-		t.Fatalf("GetProvider: %v", err)
-	}
-
-	if got.(*mockProvider).name != "mock" {
-		t.Errorf("provider name = %q, want %q", got.(*mockProvider).name, "mock")
-	}
+	require.NoError(t, err, "GetProvider")
+	require.NotNil(t, got)
 }
 
 func TestDuplicateProviderRegistration(t *testing.T) {
 	ResetProviderRegistry()
 
 	RegisterProvider("dup", func(Config) (Provider, error) {
-		return &mockProvider{name: "first"}, nil
+		return &ProviderMock{}, nil
 	})
 
 	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic on duplicate provider registration")
-		}
+		require.NotNil(t, recover(), "expected panic on duplicate provider registration")
 	}()
 
 	RegisterProvider("dup", func(Config) (Provider, error) {
-		return &mockProvider{name: "second"}, nil
+		return &ProviderMock{}, nil
 	})
 }
 
@@ -57,9 +41,7 @@ func TestMissingProvider(t *testing.T) {
 	ResetProviderRegistry()
 
 	_, err := GetProvider("nonexistent", nil)
-	if err == nil {
-		t.Fatal("expected error for missing provider")
-	}
+	require.Error(t, err, "expected error for missing provider")
 }
 
 func TestGetProvider_FactoryError(t *testing.T) {
@@ -70,51 +52,34 @@ func TestGetProvider_FactoryError(t *testing.T) {
 	})
 
 	_, err := GetProvider("fail", nil)
-	if err == nil {
-		t.Fatal("expected error from failing factory")
-	}
-
-	if err.Error() != "factory error" {
-		t.Errorf("error = %q, want %q", err.Error(), "factory error")
-	}
+	require.Error(t, err, "expected error from failing factory")
+	assert.Equal(t, "factory error", err.Error())
 }
 
 func TestListProviders(t *testing.T) {
 	ResetProviderRegistry()
 
 	RegisterProvider("anthropic", func(Config) (Provider, error) {
-		return &mockProvider{name: "anthropic"}, nil
+		return &ProviderMock{}, nil
 	})
 	RegisterProvider("openai", func(Config) (Provider, error) {
-		return &mockProvider{name: "openai"}, nil
+		return &ProviderMock{}, nil
 	})
 
 	names := ListProviders()
 	sort.Strings(names)
 
-	want := []string{"anthropic", "openai"}
-	if len(names) != len(want) {
-		t.Fatalf("ListProviders() = %v, want %v", names, want)
-	}
-
-	for i, n := range names {
-		if n != want[i] {
-			t.Errorf("names[%d] = %q, want %q", i, names[i], want[i])
-		}
-	}
+	assert.Equal(t, []string{"anthropic", "openai"}, names)
 }
 
 func TestResetProviderRegistry(t *testing.T) {
 	ResetProviderRegistry()
 
 	RegisterProvider("temp", func(Config) (Provider, error) {
-		return &mockProvider{name: "temp"}, nil
+		return &ProviderMock{}, nil
 	})
 
 	ResetProviderRegistry()
 
-	names := ListProviders()
-	if len(names) != 0 {
-		t.Errorf("after reset, ListProviders() = %v, want empty", names)
-	}
+	assert.Empty(t, ListProviders())
 }

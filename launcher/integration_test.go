@@ -10,6 +10,9 @@ import (
 
 	"weave/bus"
 	"weave/sdk"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // noopCode is a minimal extension that registers itself and publishes an event on Subscribe.
@@ -105,57 +108,33 @@ func TestIntegration_FullPipeline(t *testing.T) {
 	extDir := filepath.Join(projectDir, ".weave", "extensions", "noop")
 	createGoFile(t, extDir, "noop.go", noopCode)
 
-	// Step 1: Discover
 	exts, err := Discover(projectDir, []string{"noop"})
-	if err != nil {
-		t.Fatalf("Discover: %v", err)
-	}
+	require.NoError(t, err, "Discover")
 
-	// Step 2: Compute hash
 	hash, err := ComputeHash(exts, "")
-	if err != nil {
-		t.Fatalf("ComputeHash: %v", err)
-	}
+	require.NoError(t, err, "ComputeHash")
 
-	// Step 3: Cache miss
 	cacheDir := t.TempDir()
-
 	cache := NewCache(cacheDir)
-	if _, found := cache.Lookup(hash); found {
-		t.Fatal("expected cache miss before build")
-	}
+	_, found := cache.Lookup(hash)
+	require.False(t, found, "expected cache miss before build")
 
-	// Step 4: Build
 	buildDir := t.TempDir()
-
 	binPath, err := Build(buildDir, moduleRoot, "noop", []string{"noop"}, exts)
-	if err != nil {
-		t.Fatalf("Build: %v", err)
-	}
+	require.NoError(t, err, "Build")
 
-	// Step 5: Store in cache
-	if err := cache.Store(hash, binPath); err != nil {
-		t.Fatalf("Cache.Store: %v", err)
-	}
+	require.NoError(t, cache.Store(hash, binPath), "Cache.Store")
 
-	// Step 6: Cache hit
 	cachedPath, found := cache.Lookup(hash)
-	if !found {
-		t.Fatal("expected cache hit after store")
-	}
+	require.True(t, found, "expected cache hit after store")
 
-	// Step 7: Run the built binary — it blocks on signal, so use a timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, cachedPath)
 	cmd.Env = os.Environ()
+	require.NoError(t, cmd.Start(), "start built binary")
 
-	if err := cmd.Start(); err != nil {
-		t.Fatalf("start built binary: %v", err)
-	}
-
-	// Give it time to wire extensions, then kill
 	time.Sleep(500 * time.Millisecond)
 
 	_ = cmd.Process.Kill()
@@ -170,46 +149,29 @@ func TestIntegration_CacheHitOnSecondRun(t *testing.T) {
 	createGoFile(t, extDir, "noop.go", noopCode)
 
 	exts, err := Discover(projectDir, []string{"noop"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	hash, err := ComputeHash(exts, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	cacheDir := t.TempDir()
 	cache := NewCache(cacheDir)
 
-	// First build + store
 	buildDir := t.TempDir()
-
 	binPath, err := Build(buildDir, moduleRoot, "noop", []string{"noop"}, exts)
-	if err != nil {
-		t.Fatalf("first build: %v", err)
-	}
+	require.NoError(t, err, "first build")
 
-	if err := cache.Store(hash, binPath); err != nil {
-		t.Fatalf("cache store: %v", err)
-	}
+	require.NoError(t, cache.Store(hash, binPath), "cache store")
 
-	// Second lookup = cache hit
 	cachedPath, found := cache.Lookup(hash)
-	if !found {
-		t.Fatal("expected cache hit on second lookup")
-	}
+	require.True(t, found, "expected cache hit on second lookup")
 
-	// Verify cached binary runs (blocks on signal, so use timeout)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, cachedPath)
 	cmd.Env = os.Environ()
-
-	if err := cmd.Start(); err != nil {
-		t.Fatalf("start cached binary: %v", err)
-	}
+	require.NoError(t, cmd.Start(), "start cached binary")
 
 	time.Sleep(500 * time.Millisecond)
 
@@ -225,20 +187,12 @@ func TestIntegration_ExtensionInitAndWireInBuiltBinary(t *testing.T) {
 	createGoFile(t, extDir, "noop.go", noopMarkerCode)
 
 	exts, err := Discover(projectDir, []string{"noop"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	// Build
 	buildDir := t.TempDir()
-
 	binPath, err := Build(buildDir, moduleRoot, "noop", []string{"noop"}, exts)
-	if err != nil {
-		t.Fatalf("Build: %v", err)
-	}
+	require.NoError(t, err, "Build")
 
-	// Run the binary with a marker env var.
-	// The generated main creates a bus and calls sdk.Wire, which triggers Subscribe.
 	markerFile := filepath.Join(t.TempDir(), "marker.txt")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -248,25 +202,16 @@ func TestIntegration_ExtensionInitAndWireInBuiltBinary(t *testing.T) {
 
 	cmd.Env = append(os.Environ(), "WEAVE_NOOP_MARKER="+markerFile)
 
-	if startErr := cmd.Start(); startErr != nil {
-		t.Fatalf("start binary: %v", startErr)
-	}
+	require.NoError(t, cmd.Start(), "start binary")
 
-	// Give Wire + Subscribe time to run
 	time.Sleep(500 * time.Millisecond)
 
 	_ = cmd.Process.Kill()
 	_ = cmd.Wait()
 
-	// Subscribe was called → marker file should exist
-	data, readErr := os.ReadFile(markerFile)
-	if readErr != nil {
-		t.Fatalf("marker file not found — Subscribe was not called: %v", readErr)
-	}
-
-	if string(data) != "subscribed" {
-		t.Errorf("marker content = %q, want %q", string(data), "subscribed")
-	}
+	data, err := os.ReadFile(markerFile)
+	require.NoError(t, err, "marker file not found — Subscribe was not called")
+	assert.Equal(t, "subscribed", string(data))
 }
 
 func TestIntegration_WireSubscribesExtensionsInProcess(t *testing.T) {
@@ -286,31 +231,19 @@ func TestIntegration_WireSubscribesExtensionsInProcess(t *testing.T) {
 	allCh := b.SubscribeAll()
 
 	wired, err := sdk.Wire([]string{"noop"}, b, nil)
-	if err != nil {
-		t.Fatalf("Wire: %v", err)
-	}
+	require.NoError(t, err, "Wire")
 
-	if !subscribeCalled {
-		t.Fatal("Subscribe was not called")
-	}
+	require.True(t, subscribeCalled, "Subscribe was not called")
 
 	select {
 	case evt := <-allCh:
-		if evt.Topic != "noop.subscribed" {
-			t.Errorf("topic = %q, want %q", evt.Topic, "noop.subscribed")
-		}
-
-		if evt.Payload != "hello" {
-			t.Errorf("payload = %v, want %q", evt.Payload, "hello")
-		}
+		assert.Equal(t, "noop.subscribed", evt.Topic)
+		assert.Equal(t, "hello", evt.Payload)
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for event")
 	}
 
-	if err := wired.Close(); err != nil {
-		t.Fatalf("Close: %v", err)
-	}
-
+	require.NoError(t, wired.Close(), "Close")
 	_ = b.Close()
 }
 
@@ -318,29 +251,17 @@ func TestIntegration_DiscoverCustomHome(t *testing.T) {
 	projectDir := t.TempDir()
 	homeDir := t.TempDir()
 
-	// No local extension, only global
 	globalDir := filepath.Join(homeDir, ".weave", "extensions", "noop")
 	createGoFile(t, globalDir, "noop.go", "package noop")
 
 	exts, err := DiscoverCustomHome(projectDir, homeDir, []string{"noop"})
-	if err != nil {
-		t.Fatalf("DiscoverCustomHome: %v", err)
-	}
+	require.NoError(t, err, "DiscoverCustomHome")
+	assert.Equal(t, globalDir, exts[0].Dir)
 
-	if exts[0].Dir != globalDir {
-		t.Errorf("dir = %q, want %q", exts[0].Dir, globalDir)
-	}
-
-	// Local preferred over global
 	localDir := filepath.Join(projectDir, ".weave", "extensions", "noop")
 	createGoFile(t, localDir, "noop.go", "package noop")
 
 	exts2, err := DiscoverCustomHome(projectDir, homeDir, []string{"noop"})
-	if err != nil {
-		t.Fatalf("DiscoverCustomHome: %v", err)
-	}
-
-	if exts2[0].Dir != localDir {
-		t.Errorf("dir = %q, want %q", exts2[0].Dir, localDir)
-	}
+	require.NoError(t, err, "DiscoverCustomHome")
+	assert.Equal(t, localDir, exts2[0].Dir)
 }

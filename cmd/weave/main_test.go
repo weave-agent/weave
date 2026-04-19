@@ -6,6 +6,9 @@ import (
 	"testing"
 
 	"weave/config"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMergeUnique(t *testing.T) {
@@ -26,16 +29,7 @@ func TestMergeUnique(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := mergeUnique(tt.in)
-			if len(got) != len(tt.want) {
-				t.Errorf("mergeUnique(%v) = %v, want %v", tt.in, got, tt.want)
-				return
-			}
-
-			for i := range got {
-				if got[i] != tt.want[i] {
-					t.Errorf("mergeUnique(%v)[%d] = %q, want %q", tt.in, i, got[i], tt.want[i])
-				}
-			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -51,10 +45,7 @@ func TestRunFlagParsing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			exitCode := run(tt.args...)
-			if exitCode != tt.wantCode {
-				t.Errorf("run(%v) = %d, want %d", tt.args, exitCode, tt.wantCode)
-			}
+			assert.Equal(t, tt.wantCode, run(tt.args...))
 		})
 	}
 }
@@ -63,68 +54,45 @@ func TestRunMissingConfig(t *testing.T) {
 	dir := t.TempDir()
 	origWd, _ := os.Getwd()
 
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.Chdir(dir))
 
 	defer func() { _ = os.Chdir(origWd) }()
 
-	exitCode := run()
-	if exitCode != 1 {
-		t.Errorf("run() in empty dir = %d, want 1", exitCode)
-	}
+	assert.Equal(t, 1, run())
 }
 
 func TestRunExtensionOverride(t *testing.T) {
 	dir := t.TempDir()
 
 	cfgFile := dir + "/.weave.yaml"
-	if err := os.WriteFile(cfgFile, []byte("extensions: [noop]\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(cfgFile, []byte("extensions: [noop]\n"), 0o600))
 
 	origWd, _ := os.Getwd()
 
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.Chdir(dir))
 
 	defer func() { _ = os.Chdir(origWd) }()
 
-	exitCode := run("-e", "ext1,ext2")
-	if exitCode != 1 {
-		t.Errorf("run with -e flag returned %d, want 1 (expected failure at discovery)", exitCode)
-	}
+	assert.Equal(t, 1, run("-e", "ext1,ext2"))
 }
 
 func TestRunCoreDefaultsUsed(t *testing.T) {
 	dir := t.TempDir()
 
 	cfgFile := dir + "/.weave.yaml"
-	if err := os.WriteFile(cfgFile, []byte("{}\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(cfgFile, []byte("{}\n"), 0o600))
 
-	// Create a go.mod so findModuleRoot succeeds and the test gets to the launcher.
-	if err := os.WriteFile(dir+"/go.mod", []byte("module weave\n\ngo 1.24\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(dir+"/go.mod", []byte("module weave\n\ngo 1.24\n"), 0o600))
 
 	origWd, _ := os.Getwd()
 
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.Chdir(dir))
 
 	defer func() { _ = os.Chdir(origWd) }()
 
-	// Capture stderr to verify the error mentions core default extension names.
 	old := os.Stderr
-
 	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	os.Stderr = w
 
@@ -135,20 +103,14 @@ func TestRunCoreDefaultsUsed(t *testing.T) {
 	_ = w.Close()
 
 	buf := make([]byte, 4096)
-
 	n, _ := r.Read(buf)
-
 	_ = r.Close()
 
 	stderr := string(buf[:n])
 
-	if exitCode != 1 {
-		t.Errorf("run() = %d, want 1", exitCode)
-	}
-
-	if !strings.Contains(stderr, "loop") && !strings.Contains(stderr, "anthropic") {
-		t.Errorf("stderr = %q, want mention of 'loop' or 'anthropic' (core defaults)", stderr)
-	}
+	assert.Equal(t, 1, exitCode)
+	assert.True(t, strings.Contains(stderr, "loop") || strings.Contains(stderr, "anthropic"),
+		"stderr should mention 'loop' or 'anthropic' (core defaults), got: %q", stderr)
 }
 
 func TestValidateCoreConfig(t *testing.T) {
@@ -188,15 +150,10 @@ func TestValidateCoreConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateCoreConfig(tt.config)
 			if tt.wantErr == nil {
-				if err != nil {
-					t.Errorf("validateCoreConfig() = %v, want nil", err)
-				}
+				assert.NoError(t, err)
 			} else {
-				if err == nil {
-					t.Errorf("validateCoreConfig() = nil, want %v", tt.wantErr)
-				} else if !strings.Contains(err.Error(), tt.wantErr.Error()) {
-					t.Errorf("validateCoreConfig() = %v, want error containing %v", err, tt.wantErr)
-				}
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr.Error())
 			}
 		})
 	}

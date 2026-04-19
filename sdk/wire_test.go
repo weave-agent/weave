@@ -6,6 +6,9 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // --- helpers ---
@@ -19,31 +22,21 @@ func coreCfg(providers ...string) CoreWireConfig {
 func TestWire_NoExtensions(t *testing.T) {
 	ResetRegistry()
 
-	bus := &mockBus{}
+	bus := &BusMock{}
 
 	wired, err := Wire(nil, bus, nil)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if wired == nil {
-		t.Fatal("expected non-nil Wired")
-	}
+	require.NoError(t, err)
+	require.NotNil(t, wired)
 }
 
 func TestWire_EmptyExtensions(t *testing.T) {
 	ResetRegistry()
 
-	bus := &mockBus{}
+	bus := &BusMock{}
 
 	wired, err := Wire([]string{}, bus, nil)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if wired == nil {
-		t.Fatal("expected non-nil Wired")
-	}
+	require.NoError(t, err)
+	require.NotNil(t, wired)
 }
 
 func TestWire_SubscribesAllExtensions(t *testing.T) {
@@ -62,16 +55,12 @@ func TestWire_SubscribesAllExtensions(t *testing.T) {
 		}), nil
 	})
 
-	bus := &mockBus{}
+	bus := &BusMock{}
 
 	wired, err := Wire([]string{"ext-a", "ext-b"}, bus, nil)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
+	require.NoError(t, err)
 
-	if got := subscribed.Load(); got != 2 {
-		t.Fatalf("expected 2 subscriptions, got %d", got)
-	}
+	assert.Equal(t, int32(2), subscribed.Load())
 
 	_ = wired
 }
@@ -79,16 +68,11 @@ func TestWire_SubscribesAllExtensions(t *testing.T) {
 func TestWire_MissingExtension(t *testing.T) {
 	ResetRegistry()
 
-	bus := &mockBus{}
+	bus := &BusMock{}
 
 	_, err := Wire([]string{"nonexistent"}, bus, nil)
-	if err == nil {
-		t.Fatal("expected error for missing extension")
-	}
-
-	if got, want := err.Error(), "wire: extension \"nonexistent\" not registered"; got != want {
-		t.Fatalf("error = %q, want %q", got, want)
-	}
+	require.Error(t, err)
+	assert.Equal(t, "wire: extension \"nonexistent\" not registered", err.Error())
 }
 
 func TestWire_ReceiveBusInSubscribe(t *testing.T) {
@@ -102,16 +86,11 @@ func TestWire_ReceiveBusInSubscribe(t *testing.T) {
 		}), nil
 	})
 
-	bus := &mockBus{}
+	bus := &BusMock{}
 
 	_, err := Wire([]string{"ext-c"}, bus, nil)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if receivedBus == nil {
-		t.Fatal("expected bus to be passed to Subscribe")
-	}
+	require.NoError(t, err)
+	require.NotNil(t, receivedBus)
 }
 
 func TestWire_PartialMissing(t *testing.T) {
@@ -121,12 +100,10 @@ func TestWire_PartialMissing(t *testing.T) {
 		return NewExtensionFunc("good", func(bus Bus) {}), nil
 	})
 
-	bus := &mockBus{}
+	bus := &BusMock{}
 
 	_, err := Wire([]string{"good", "missing"}, bus, nil)
-	if err == nil {
-		t.Fatal("expected error for missing extension")
-	}
+	require.Error(t, err)
 }
 
 func TestWire_PassesConfigToFactory(t *testing.T) {
@@ -139,21 +116,13 @@ func TestWire_PassesConfigToFactory(t *testing.T) {
 		return NewExtensionFunc("cfg-ext", func(Bus) {}), nil
 	})
 
-	cfg := &mockConfig{filePath: "/test/.weave.yaml"}
-	bus := &mockBus{}
+	cfg := FilePathConfig("/test/.weave.yaml")
+	bus := &BusMock{}
 
 	_, err := Wire([]string{"cfg-ext"}, bus, cfg)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if receivedCfg == nil {
-		t.Fatal("expected config to be passed to factory")
-	}
-
-	if receivedCfg.FilePath() != "/test/.weave.yaml" {
-		t.Errorf("FilePath() = %q, want %q", receivedCfg.FilePath(), "/test/.weave.yaml")
-	}
+	require.NoError(t, err)
+	require.NotNil(t, receivedCfg)
+	assert.Equal(t, "/test/.weave.yaml", receivedCfg.FilePath())
 }
 
 func TestWire_FactoryError(t *testing.T) {
@@ -163,12 +132,10 @@ func TestWire_FactoryError(t *testing.T) {
 		return nil, errors.New("init failed")
 	})
 
-	bus := &mockBus{}
+	bus := &BusMock{}
 
 	_, err := Wire([]string{"bad"}, bus, nil)
-	if err == nil {
-		t.Fatal("expected error from failing factory")
-	}
+	require.Error(t, err)
 }
 
 func TestWired_Close(t *testing.T) {
@@ -189,20 +156,13 @@ func TestWired_Close(t *testing.T) {
 		}), nil
 	})
 
-	bus := &mockBus{}
+	bus := &BusMock{}
 
 	wired, err := Wire([]string{"a", "b"}, bus, nil)
-	if err != nil {
-		t.Fatalf("Wire: %v", err)
-	}
+	require.NoError(t, err, "Wire")
 
-	if err := wired.Close(); err != nil {
-		t.Fatalf("Close: %v", err)
-	}
-
-	if got := closed.Load(); got != 2 {
-		t.Errorf("expected 2 Close calls, got %d", got)
-	}
+	require.NoError(t, wired.Close(), "Close")
+	assert.Equal(t, int32(2), closed.Load())
 }
 
 func TestWired_CloseReverseOrder(t *testing.T) {
@@ -223,20 +183,13 @@ func TestWired_CloseReverseOrder(t *testing.T) {
 		}), nil
 	})
 
-	bus := &mockBus{}
+	bus := &BusMock{}
 
 	wired, err := Wire([]string{"first", "second"}, bus, nil)
-	if err != nil {
-		t.Fatalf("Wire: %v", err)
-	}
+	require.NoError(t, err, "Wire")
 
-	if err := wired.Close(); err != nil {
-		t.Fatalf("Close: %v", err)
-	}
-
-	if len(order) != 2 || order[0] != "second" || order[1] != "first" {
-		t.Errorf("close order = %v, want [second first]", order)
-	}
+	require.NoError(t, wired.Close(), "Close")
+	assert.Equal(t, []string{"second", "first"}, order)
 }
 
 // --- WireWithCore: merging ---
@@ -248,7 +201,7 @@ func TestWireWithCore_MergesCoreAndOptional(t *testing.T) {
 	var names []string
 
 	RegisterProvider("anthropic", func(Config) (Provider, error) {
-		return &mockProvider{}, nil
+		return &ProviderMock{}, nil
 	})
 
 	reg := func(n string) {
@@ -262,23 +215,16 @@ func TestWireWithCore_MergesCoreAndOptional(t *testing.T) {
 	reg("bash-tool")
 	reg("file-tool")
 
-	bus := &mockBus{}
+	bus := &BusMock{}
 
 	_, err := WireWithCore(coreCfg("anthropic"), []string{"bash-tool", "file-tool"}, bus, nil)
-	if err != nil {
-		t.Fatalf("WireWithCore: %v", err)
-	}
+	require.NoError(t, err, "WireWithCore")
 
-	// Providers are validated but not wired; only loop + optional extensions are wired.
 	want := []string{"loop", "bash-tool", "file-tool"}
-	if len(names) != len(want) {
-		t.Fatalf("got %d extensions, want %d", len(names), len(want))
-	}
+	require.Len(t, names, len(want))
 
 	for i, n := range want {
-		if names[i] != n {
-			t.Errorf("names[%d] = %q, want %q", i, names[i], n)
-		}
+		assert.Equal(t, n, names[i])
 	}
 }
 
@@ -289,7 +235,7 @@ func TestWireWithCore_Deduplicates(t *testing.T) {
 	var subscribed atomic.Int32
 
 	RegisterProvider("anthropic", func(Config) (Provider, error) {
-		return &mockProvider{}, nil
+		return &ProviderMock{}, nil
 	})
 
 	reg := func(n string) {
@@ -302,7 +248,7 @@ func TestWireWithCore_Deduplicates(t *testing.T) {
 	reg("loop")
 	reg("bash-tool")
 
-	bus := &mockBus{}
+	bus := &BusMock{}
 
 	_, err := WireWithCore(
 		coreCfg("anthropic"),
@@ -310,14 +256,9 @@ func TestWireWithCore_Deduplicates(t *testing.T) {
 		bus,
 		nil,
 	)
-	if err != nil {
-		t.Fatalf("WireWithCore: %v", err)
-	}
+	require.NoError(t, err, "WireWithCore")
 
-	// Provider not wired, only loop + bash-tool (deduped)
-	if got := subscribed.Load(); got != 2 {
-		t.Errorf("expected 2 subscriptions (deduped), got %d", got)
-	}
+	assert.Equal(t, int32(2), subscribed.Load())
 }
 
 func TestWireWithCore_CoreOnly(t *testing.T) {
@@ -325,7 +266,7 @@ func TestWireWithCore_CoreOnly(t *testing.T) {
 	ResetProviderRegistry()
 
 	RegisterProvider("anthropic", func(Config) (Provider, error) {
-		return &mockProvider{}, nil
+		return &ProviderMock{}, nil
 	})
 
 	var names []string
@@ -339,17 +280,13 @@ func TestWireWithCore_CoreOnly(t *testing.T) {
 	}
 	reg("loop")
 
-	bus := &mockBus{}
+	bus := &BusMock{}
 
 	_, err := WireWithCore(coreCfg("anthropic"), nil, bus, nil)
-	if err != nil {
-		t.Fatalf("WireWithCore: %v", err)
-	}
+	require.NoError(t, err, "WireWithCore")
 
-	// Only the loop extension is wired, provider is just validated
-	if len(names) != 1 || names[0] != "loop" {
-		t.Errorf("expected [loop], got %v", names)
-	}
+	require.Len(t, names, 1)
+	assert.Equal(t, "loop", names[0])
 }
 
 // --- WireWithCore: validation errors ---
@@ -357,57 +294,40 @@ func TestWireWithCore_CoreOnly(t *testing.T) {
 func TestWireWithCore_ErrMissingAgentLoop(t *testing.T) {
 	ResetRegistry()
 
-	bus := &mockBus{}
+	bus := &BusMock{}
 
 	_, err := WireWithCore(CoreWireConfig{Providers: []string{"anthropic"}}, nil, bus, nil)
-	if err == nil {
-		t.Fatal("expected error for missing agent-loop")
-	}
-
-	if got, want := err.Error(), "wire: agent-loop is required"; got != want {
-		t.Fatalf("error = %q, want %q", got, want)
-	}
+	require.Error(t, err)
+	assert.Equal(t, "wire: agent-loop is required", err.Error())
 }
 
 func TestWireWithCore_ErrNoProvider(t *testing.T) {
 	ResetRegistry()
 
-	bus := &mockBus{}
+	bus := &BusMock{}
 
 	_, err := WireWithCore(CoreWireConfig{AgentLoop: "loop"}, nil, bus, nil)
-	if err == nil {
-		t.Fatal("expected error for no provider")
-	}
-
-	if got, want := err.Error(), "wire: at least one provider is required"; got != want {
-		t.Fatalf("error = %q, want %q", got, want)
-	}
+	require.Error(t, err)
+	assert.Equal(t, "wire: at least one provider is required", err.Error())
 }
 
 func TestWireWithCore_ErrEmptyProviders(t *testing.T) {
 	ResetRegistry()
 
-	bus := &mockBus{}
+	bus := &BusMock{}
 
 	_, err := WireWithCore(CoreWireConfig{AgentLoop: "loop", Providers: []string{}}, nil, bus, nil)
-	if err == nil {
-		t.Fatal("expected error for empty providers")
-	}
+	require.Error(t, err)
 }
 
 func TestWireWithCore_ErrDuplicateProviders(t *testing.T) {
 	ResetRegistry()
 
-	bus := &mockBus{}
+	bus := &BusMock{}
 
 	_, err := WireWithCore(CoreWireConfig{AgentLoop: "loop", Providers: []string{"anthropic", "anthropic"}}, nil, bus, nil)
-	if err == nil {
-		t.Fatal("expected error for duplicate providers")
-	}
-
-	if !strings.Contains(err.Error(), "duplicate provider") {
-		t.Errorf("error = %q, want mention of 'duplicate provider'", err.Error())
-	}
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "duplicate provider")
 }
 
 func TestWireWithCore_FactoryErrorRollback(t *testing.T) {
@@ -415,7 +335,7 @@ func TestWireWithCore_FactoryErrorRollback(t *testing.T) {
 	ResetProviderRegistry()
 
 	RegisterProvider("anthropic", func(Config) (Provider, error) {
-		return &mockProvider{}, nil
+		return &ProviderMock{}, nil
 	})
 
 	var closed atomic.Int32
@@ -430,16 +350,12 @@ func TestWireWithCore_FactoryErrorRollback(t *testing.T) {
 		return nil, errors.New("init failed")
 	})
 
-	bus := &mockBus{}
+	bus := &BusMock{}
 
 	_, err := WireWithCore(coreCfg("anthropic"), []string{"bad"}, bus, nil)
-	if err == nil {
-		t.Fatal("expected error from failing factory")
-	}
+	require.Error(t, err)
 
-	if got := closed.Load(); got != 1 {
-		t.Errorf("expected 1 Close call on rollback (loop only), got %d", got)
-	}
+	assert.Equal(t, int32(1), closed.Load())
 }
 
 func TestWired_CloseErrorAggregation(t *testing.T) {
@@ -456,21 +372,15 @@ func TestWired_CloseErrorAggregation(t *testing.T) {
 		}), nil
 	})
 
-	bus := &mockBus{}
+	bus := &BusMock{}
 
 	wired, err := Wire([]string{"a", "b"}, bus, nil)
-	if err != nil {
-		t.Fatalf("Wire: %v", err)
-	}
+	require.NoError(t, err, "Wire")
 
 	err = wired.Close()
-	if err == nil {
-		t.Fatal("expected error from Close")
-	}
-
-	if !strings.Contains(err.Error(), "a failed") || !strings.Contains(err.Error(), "b failed") {
-		t.Errorf("error = %q, want both 'a failed' and 'b failed'", err.Error())
-	}
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "a failed")
+	assert.Contains(t, err.Error(), "b failed")
 }
 
 func TestWireWithCore_SyncsProviderEnv(t *testing.T) {
@@ -478,7 +388,7 @@ func TestWireWithCore_SyncsProviderEnv(t *testing.T) {
 	ResetProviderRegistry()
 
 	RegisterProvider("openai", func(Config) (Provider, error) {
-		return &mockProvider{}, nil
+		return &ProviderMock{}, nil
 	})
 
 	RegisterExtension("loop", func(Config) (Extension, error) {
@@ -487,16 +397,12 @@ func TestWireWithCore_SyncsProviderEnv(t *testing.T) {
 
 	t.Setenv("WEAVE_PROVIDER", "")
 
-	bus := &mockBus{}
+	bus := &BusMock{}
 
 	_, err := WireWithCore(CoreWireConfig{AgentLoop: "loop", Providers: []string{"openai"}}, nil, bus, nil)
-	if err != nil {
-		t.Fatalf("WireWithCore: %v", err)
-	}
+	require.NoError(t, err, "WireWithCore")
 
-	if got := os.Getenv("WEAVE_PROVIDER"); got != "openai" {
-		t.Errorf("WEAVE_PROVIDER = %q, want %q", got, "openai")
-	}
+	assert.Equal(t, "openai", os.Getenv("WEAVE_PROVIDER"))
 }
 
 func TestWireWithCore_DoesNotOverrideExistingProviderEnv(t *testing.T) {
@@ -504,10 +410,10 @@ func TestWireWithCore_DoesNotOverrideExistingProviderEnv(t *testing.T) {
 	ResetProviderRegistry()
 
 	RegisterProvider("anthropic", func(Config) (Provider, error) {
-		return &mockProvider{}, nil
+		return &ProviderMock{}, nil
 	})
 	RegisterProvider("openai", func(Config) (Provider, error) {
-		return &mockProvider{}, nil
+		return &ProviderMock{}, nil
 	})
 
 	RegisterExtension("loop", func(Config) (Extension, error) {
@@ -516,17 +422,12 @@ func TestWireWithCore_DoesNotOverrideExistingProviderEnv(t *testing.T) {
 
 	t.Setenv("WEAVE_PROVIDER", "anthropic")
 
-	bus := &mockBus{}
+	bus := &BusMock{}
 
 	_, err := WireWithCore(CoreWireConfig{AgentLoop: "loop", Providers: []string{"openai"}}, nil, bus, nil)
-	if err != nil {
-		t.Fatalf("WireWithCore: %v", err)
-	}
+	require.NoError(t, err, "WireWithCore")
 
-	// Existing env var should NOT be overridden
-	if got := os.Getenv("WEAVE_PROVIDER"); got != "anthropic" {
-		t.Errorf("WEAVE_PROVIDER = %q, want %q (should not be overridden)", got, "anthropic")
-	}
+	assert.Equal(t, "anthropic", os.Getenv("WEAVE_PROVIDER"))
 }
 
 func TestWireWithCore_PassesConfigToFactories(t *testing.T) {
@@ -534,7 +435,7 @@ func TestWireWithCore_PassesConfigToFactories(t *testing.T) {
 	ResetProviderRegistry()
 
 	RegisterProvider("anthropic", func(Config) (Provider, error) {
-		return &mockProvider{}, nil
+		return &ProviderMock{}, nil
 	})
 
 	var receivedCfg Config
@@ -545,18 +446,14 @@ func TestWireWithCore_PassesConfigToFactories(t *testing.T) {
 	})
 
 	cfg := FilePathConfig("/test/.weave.yaml")
-	bus := &mockBus{}
+	bus := &BusMock{}
 
 	_, err := WireWithCore(coreCfg("anthropic"), nil, bus, cfg)
-	if err != nil {
-		t.Fatalf("WireWithCore: %v", err)
-	}
+	require.NoError(t, err, "WireWithCore")
 
-	if receivedCfg == nil {
-		t.Fatal("expected config passed to factory")
-	}
-
-	if receivedCfg.FilePath() != "/test/.weave.yaml" {
-		t.Errorf("FilePath() = %q, want %q", receivedCfg.FilePath(), "/test/.weave.yaml")
-	}
+	require.NotNil(t, receivedCfg)
+	assert.Equal(t, "/test/.weave.yaml", receivedCfg.FilePath())
 }
+
+// Suppress unused import warning.
+var _ = strings.TrimSpace

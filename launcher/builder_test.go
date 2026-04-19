@@ -6,33 +6,28 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestComputeHash_Deterministic(t *testing.T) {
 	dir := t.TempDir()
 
 	f1 := filepath.Join(dir, "ext.go")
-	if err := os.WriteFile(f1, []byte("package noop"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(f1, []byte("package noop"), 0o600))
 
 	exts := []ExtensionInfo{
 		{Name: "alpha", Dir: dir, GoFiles: []string{f1}},
 	}
 
 	h1, err := ComputeHash(exts, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	h2, err := ComputeHash(exts, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	if h1 != h2 {
-		t.Errorf("hash not deterministic: %s != %s", h1, h2)
-	}
+	assert.Equal(t, h1, h2)
 }
 
 func TestComputeHash_SortedByName(t *testing.T) {
@@ -40,13 +35,8 @@ func TestComputeHash_SortedByName(t *testing.T) {
 	f1 := filepath.Join(dir, "a.go")
 	f2 := filepath.Join(dir, "b.go")
 
-	if err := os.WriteFile(f1, []byte("package a"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := os.WriteFile(f2, []byte("package b"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(f1, []byte("package a"), 0o600))
+	require.NoError(t, os.WriteFile(f2, []byte("package b"), 0o600))
 
 	exts1 := []ExtensionInfo{
 		{Name: "alpha", Dir: dir, GoFiles: []string{f1}},
@@ -58,18 +48,12 @@ func TestComputeHash_SortedByName(t *testing.T) {
 	}
 
 	h1, err := ComputeHash(exts1, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	h2, err := ComputeHash(exts2, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	if h1 != h2 {
-		t.Errorf("hash should be order-independent: %s != %s", h1, h2)
-	}
+	assert.Equal(t, h1, h2)
 }
 
 func TestComputeHash_DifferentContent(t *testing.T) {
@@ -77,50 +61,31 @@ func TestComputeHash_DifferentContent(t *testing.T) {
 	f1 := filepath.Join(dir, "a.go")
 	f2 := filepath.Join(dir, "b.go")
 
-	if err := os.WriteFile(f1, []byte("package a"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := os.WriteFile(f2, []byte("package different"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(f1, []byte("package a"), 0o600))
+	require.NoError(t, os.WriteFile(f2, []byte("package different"), 0o600))
 
 	h1, err := ComputeHash([]ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f1}}}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	h2, err := ComputeHash([]ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f2}}}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	if h1 == h2 {
-		t.Error("different content should produce different hash")
-	}
+	assert.NotEqual(t, h1, h2)
 }
 
 func TestComputeHash_DifferentNames(t *testing.T) {
 	dir := t.TempDir()
 
 	f := filepath.Join(dir, "ext.go")
-	if err := os.WriteFile(f, []byte("package ext"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(f, []byte("package ext"), 0o600))
 
 	h1, err := ComputeHash([]ExtensionInfo{{Name: "alpha", Dir: dir, GoFiles: []string{f}}}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	h2, err := ComputeHash([]ExtensionInfo{{Name: "beta", Dir: dir, GoFiles: []string{f}}}, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	if h1 == h2 {
-		t.Error("extensions with different names should produce different hashes")
-	}
+	assert.NotEqual(t, h1, h2)
 }
 
 func TestComputeHash_ReadError(t *testing.T) {
@@ -129,39 +94,27 @@ func TestComputeHash_ReadError(t *testing.T) {
 	}
 
 	_, err := ComputeHash(exts, "")
-	if err == nil {
-		t.Error("expected error for missing file")
-	}
+	require.Error(t, err)
 }
 
 func TestComputeHash_GoModChangesHash(t *testing.T) {
 	dir := t.TempDir()
 
 	f := filepath.Join(dir, "ext.go")
-	if err := os.WriteFile(f, []byte("package ext"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(f, []byte("package ext"), 0o600))
 
 	exts := []ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f}}}
 
 	h1, err := ComputeHash(exts, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	goMod := filepath.Join(dir, "go.mod")
-	if writeErr := os.WriteFile(goMod, []byte("module weave/ext/x\ngo 1.22\n"), 0o600); writeErr != nil {
-		t.Fatal(writeErr)
-	}
+	require.NoError(t, os.WriteFile(goMod, []byte("module weave/ext/x\ngo 1.22\n"), 0o600))
 
 	h2, err := ComputeHash(exts, "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	if h1 == h2 {
-		t.Error("adding go.mod should change the hash")
-	}
+	assert.NotEqual(t, h1, h2)
 }
 
 func TestGenerateGoMod_Content(t *testing.T) {
@@ -170,40 +123,18 @@ func TestGenerateGoMod_Content(t *testing.T) {
 		{Name: "noop", Dir: "/tmp/exts/noop"},
 	}
 
-	err := GenerateGoMod(dir, "/tmp/weave", exts)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, GenerateGoMod(dir, "/tmp/weave", exts))
 
 	content, err := os.ReadFile(filepath.Join(dir, "go.mod"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	s := string(content)
-	if !strings.Contains(s, "module weave-built") {
-		t.Error("go.mod missing module declaration")
-	}
-
-	if !strings.Contains(s, goVersion()) {
-		t.Error("go.mod missing go version")
-	}
-
-	if !strings.Contains(s, "weave v0.0.0") {
-		t.Error("go.mod missing weave require")
-	}
-
-	if !strings.Contains(s, "weave/ext/noop v0.0.0") {
-		t.Error("go.mod missing extension require")
-	}
-
-	if !strings.Contains(s, "replace weave => /tmp/weave") {
-		t.Error("go.mod missing module replace")
-	}
-
-	if !strings.Contains(s, "replace weave/ext/noop => /tmp/exts/noop") {
-		t.Error("go.mod missing extension replace")
-	}
+	assert.Contains(t, s, "module weave-built")
+	assert.Contains(t, s, goVersion())
+	assert.Contains(t, s, "weave v0.0.0")
+	assert.Contains(t, s, "weave/ext/noop v0.0.0")
+	assert.Contains(t, s, "replace weave => /tmp/weave")
+	assert.Contains(t, s, "replace weave/ext/noop => /tmp/exts/noop")
 }
 
 func TestGenerateMainGo_Content(t *testing.T) {
@@ -213,84 +144,29 @@ func TestGenerateMainGo_Content(t *testing.T) {
 		{Name: "log", Dir: "/tmp/exts/log"},
 	}
 
-	err := GenerateMainGo(dir, exts, "loop", []string{"anthropic"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, GenerateMainGo(dir, exts, "loop", []string{"anthropic"}))
 
 	content, err := os.ReadFile(filepath.Join(dir, "main.go"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	s := string(content)
-	if !strings.Contains(s, "package main") {
-		t.Error("main.go missing package declaration")
-	}
-
-	if !strings.Contains(s, `"weave/sdk"`) {
-		t.Error("main.go missing sdk import")
-	}
-
-	if !strings.Contains(s, `"weave/bus"`) {
-		t.Error("main.go missing bus import")
-	}
-
-	if !strings.Contains(s, `"strings"`) {
-		t.Error("main.go missing strings import")
-	}
-
-	if !strings.Contains(s, `_ "weave/ext/noop"`) {
-		t.Error("main.go missing noop import")
-	}
-
-	if !strings.Contains(s, `_ "weave/ext/log"`) {
-		t.Error("main.go missing log import")
-	}
-
-	if !strings.Contains(s, "bus.New()") {
-		t.Error("main.go missing bus.New()")
-	}
-
-	if !strings.Contains(s, "sdk.WireWithCore") {
-		t.Error("main.go missing sdk.WireWithCore call")
-	}
-
-	if !strings.Contains(s, "AgentLoop: \"loop\"") {
-		t.Error("main.go missing agent-loop name")
-	}
-
-	if !strings.Contains(s, `"anthropic"`) {
-		t.Error("main.go missing provider name")
-	}
-
-	if !strings.Contains(s, "strings.CutPrefix") {
-		t.Error("main.go missing config path parsing")
-	}
-
-	if !strings.Contains(s, "sdk.FilePathConfig") {
-		t.Error("main.go missing sdk.FilePathConfig usage")
-	}
-
-	if !strings.Contains(s, "signal.Notify") {
-		t.Error("main.go missing signal blocking")
-	}
-
-	if !strings.Contains(s, `b.Subscribe("agent.end")`) {
-		t.Error("main.go missing agent.end subscription")
-	}
-
-	if !strings.Contains(s, "wired.Close()") {
-		t.Error("main.go missing wired.Close() call")
-	}
-
-	if !strings.Contains(s, "shutdown error") {
-		t.Error("main.go missing shutdown error reporting")
-	}
-
-	if !strings.Contains(s, "os.Args = append([]string{os.Args[0]}, filtered...)") {
-		t.Error("main.go missing os.Args cleanup after filtering --weave-config")
-	}
+	assert.Contains(t, s, "package main")
+	assert.Contains(t, s, `"weave/sdk"`)
+	assert.Contains(t, s, `"weave/bus"`)
+	assert.Contains(t, s, `"strings"`)
+	assert.Contains(t, s, `_ "weave/ext/noop"`)
+	assert.Contains(t, s, `_ "weave/ext/log"`)
+	assert.Contains(t, s, "bus.New()")
+	assert.Contains(t, s, "sdk.WireWithCore")
+	assert.Contains(t, s, `AgentLoop: "loop"`)
+	assert.Contains(t, s, `"anthropic"`)
+	assert.Contains(t, s, "strings.CutPrefix")
+	assert.Contains(t, s, "sdk.FilePathConfig")
+	assert.Contains(t, s, "signal.Notify")
+	assert.Contains(t, s, `b.Subscribe("agent.end")`)
+	assert.Contains(t, s, "wired.Close()")
+	assert.Contains(t, s, "shutdown error")
+	assert.Contains(t, s, "os.Args = append([]string{os.Args[0]}, filtered...)")
 }
 
 func TestBuild_WithTrivialExtension(t *testing.T) {
@@ -312,22 +188,17 @@ func init() {
 	})
 }
 `
-	if writeErr := os.WriteFile(filepath.Join(extDir, "noop.go"), []byte(extCode), 0o600); writeErr != nil {
-		t.Fatal(writeErr)
-	}
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, "noop.go"), []byte(extCode), 0o600))
 
 	exts := []ExtensionInfo{
 		{Name: "noop", Dir: extDir, GoFiles: []string{filepath.Join(extDir, "noop.go")}},
 	}
 
 	binaryPath, err := Build(buildDir, moduleRoot, "noop", nil, exts)
-	if err != nil {
-		t.Fatalf("Build failed: %v", err)
-	}
+	require.NoError(t, err, "Build failed")
 
-	if _, err := os.Stat(binaryPath); err != nil {
-		t.Errorf("binary not found at %s: %v", binaryPath, err)
-	}
+	_, err = os.Stat(binaryPath)
+	assert.NoError(t, err, "binary not found at %s", binaryPath)
 }
 
 func findModuleRoot() (string, error) {
@@ -351,3 +222,6 @@ func findModuleRoot() (string, error) {
 
 	return "", os.ErrNotExist
 }
+
+// Suppress unused import warning.
+var _ = strings.TrimSpace

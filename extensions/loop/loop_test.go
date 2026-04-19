@@ -9,18 +9,12 @@ import (
 
 	"weave/bus"
 	"weave/sdk"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-// --- mock provider ---
-
-type mockProvider struct {
-	responses []providerResponse
-	callMu    sync.Mutex
-	calls     []sdk.ProviderRequest
-
-	// StreamFunc overrides the default Stream behavior if set.
-	StreamFunc func(ctx context.Context, req sdk.ProviderRequest) (<-chan sdk.ProviderEvent, error)
-}
+// --- test helpers ---
 
 type providerResponse struct {
 	textDeltas []string
@@ -28,82 +22,61 @@ type providerResponse struct {
 	err        error
 }
 
-func (m *mockProvider) Stream(ctx context.Context, req sdk.ProviderRequest) (<-chan sdk.ProviderEvent, error) {
-	if m.StreamFunc != nil {
-		m.callMu.Lock()
-		m.calls = append(m.calls, req)
-		m.callMu.Unlock()
+func newMockProvider(responses []providerResponse) *ProviderMock {
+	var mu sync.Mutex
+	callCount := 0
 
-		return m.StreamFunc(ctx, req)
-	}
+	return &ProviderMock{
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest) (<-chan sdk.ProviderEvent, error) {
+			mu.Lock()
+			idx := callCount
+			callCount++
+			mu.Unlock()
 
-	m.callMu.Lock()
-	idx := len(m.calls)
-	m.calls = append(m.calls, req)
-	m.callMu.Unlock()
-
-	if idx >= len(m.responses) {
-		ch := make(chan sdk.ProviderEvent)
-		close(ch)
-
-		return ch, nil
-	}
-
-	resp := m.responses[idx]
-	if resp.err != nil {
-		return nil, resp.err
-	}
-
-	ch := make(chan sdk.ProviderEvent, len(resp.textDeltas)+len(resp.toolCalls)+1)
-
-	go func() {
-		defer close(ch)
-
-		for _, delta := range resp.textDeltas {
-			select {
-			case ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: delta}:
-			case <-ctx.Done():
-				return
+			if idx >= len(responses) {
+				ch := make(chan sdk.ProviderEvent)
+				close(ch)
+				return ch, nil
 			}
-		}
 
-		for _, tc := range resp.toolCalls {
-			select {
-			case ch <- sdk.ProviderEvent{Type: sdk.ProviderEventToolCall, Content: tc}:
-			case <-ctx.Done():
-				return
+			resp := responses[idx]
+			if resp.err != nil {
+				return nil, resp.err
 			}
-		}
-	}()
 
-	return ch, nil
-}
-
-// --- mock tool ---
-
-type mockTool struct {
-	name    string
-	def     sdk.ToolDef
-	execute func(ctx context.Context, args map[string]any) (sdk.ToolResult, error)
-	callMu  sync.Mutex
-	calls   []map[string]any
-}
-
-func (m *mockTool) Name() string            { return m.name }
-func (m *mockTool) Definition() sdk.ToolDef { return m.def }
-func (m *mockTool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult, error) {
-	m.callMu.Lock()
-	m.calls = append(m.calls, args)
-	m.callMu.Unlock()
-
-	if m.execute != nil {
-		return m.execute(ctx, args)
+			ch := make(chan sdk.ProviderEvent, len(resp.textDeltas)+len(resp.toolCalls)+1)
+			go func() {
+				defer close(ch)
+				for _, delta := range resp.textDeltas {
+					select {
+					case ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: delta}:
+					case <-ctx.Done():
+						return
+					}
+				}
+				for _, tc := range resp.toolCalls {
+					select {
+					case ch <- sdk.ProviderEvent{Type: sdk.ProviderEventToolCall, Content: tc}:
+					case <-ctx.Done():
+						return
+					}
+				}
+			}()
+			return ch, nil
+		},
 	}
-
-	return sdk.ToolResult{Content: "mock result"}, nil
 }
 
-// --- helpers ---
+func newMockTool(name string, def sdk.ToolDef, executeFunc func(ctx context.Context, args map[string]any) (sdk.ToolResult, error)) *ToolMock {
+	mt := &ToolMock{
+		NameFunc:       func() string { return name },
+		DefinitionFunc: func() sdk.ToolDef { return def },
+	}
+	if executeFunc != nil {
+		mt.ExecuteFunc = executeFunc
+	}
+	return mt
+}
 
 func resetRegistries() {
 	sdk.ResetRegistry()
@@ -115,9 +88,7 @@ func setupLoop(t *testing.T, providerName string) (*Loop, *bus.Bus, func()) {
 	t.Helper()
 
 	l, err := NewLoop(nil, providerName)
-	if err != nil {
-		t.Fatalf("NewLoop: %v", err)
-	}
+	require.NoError(t, err, "NewLoop")
 
 	b := bus.New()
 
@@ -126,14 +97,14 @@ func setupLoop(t *testing.T, providerName string) (*Loop, *bus.Bus, func()) {
 	}
 }
 
-func registerMockProvider(_ string, mp *mockProvider) {
+func registerMockProvider(_ string, mp *ProviderMock) {
 	sdk.RegisterProvider("anthropic", func(sdk.Config) (sdk.Provider, error) {
 		return mp, nil
 	})
 }
 
-func registerMockTool(mt *mockTool) {
-	sdk.RegisterTool(mt.name, func(sdk.Config) (sdk.Tool, error) {
+func registerMockTool(mt *ToolMock) {
+	sdk.RegisterTool(mt.NameFunc(), func(sdk.Config) (sdk.Tool, error) {
 		return mt, nil
 	})
 }
@@ -148,7 +119,6 @@ func waitForTopic(events <-chan sdk.Event, topic string, timeout time.Duration) 
 			if !ok {
 				return sdk.Event{}, false
 			}
-
 			if evt.Topic == topic {
 				return evt, true
 			}
@@ -160,7 +130,6 @@ func waitForTopic(events <-chan sdk.Event, topic string, timeout time.Duration) 
 
 func collectTopic(events <-chan sdk.Event, topic string, timeout time.Duration) []sdk.Event {
 	var result []sdk.Event
-
 	deadline := time.After(timeout)
 
 	for {
@@ -169,7 +138,6 @@ func collectTopic(events <-chan sdk.Event, topic string, timeout time.Duration) 
 			if !ok {
 				return result
 			}
-
 			if evt.Topic == topic {
 				result = append(result, evt)
 			}
@@ -185,7 +153,7 @@ func TestLoop_StartupAndShutdown(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	mp := &mockProvider{}
+	mp := &ProviderMock{}
 	registerMockProvider("anthropic", mp)
 
 	l, b, cleanup := setupLoop(t, "anthropic")
@@ -193,20 +161,16 @@ func TestLoop_StartupAndShutdown(t *testing.T) {
 
 	l.Subscribe(b)
 
-	if err := l.Close(); err != nil {
-		t.Fatalf("Close: %v", err)
-	}
+	require.NoError(t, l.Close())
 }
 
 func TestLoop_SingleTurn_NoTools(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	mp := &mockProvider{
-		responses: []providerResponse{
-			{textDeltas: []string{"hello", " world"}},
-		},
-	}
+	mp := newMockProvider([]providerResponse{
+		{textDeltas: []string{"hello", " world"}},
+	})
 	registerMockProvider("anthropic", mp)
 
 	l, b, cleanup := setupLoop(t, "anthropic")
@@ -218,64 +182,42 @@ func TestLoop_SingleTurn_NoTools(t *testing.T) {
 	b.Publish(sdk.NewEvent(TopicPrompt, "test prompt"))
 
 	turnStart, found := waitForTopic(allCh, TopicTurnStart, 2*time.Second)
-	if !found {
-		t.Fatal("timeout waiting for turn_start")
-	}
+	require.True(t, found, "timeout waiting for turn_start")
 
-	if count, ok := turnStart.Payload.(int); !ok || count != 1 {
-		t.Errorf("turn_start payload = %v, want 1", turnStart.Payload)
-	}
+	count, ok := turnStart.Payload.(int)
+	require.True(t, ok, "turn_start payload type = %T", turnStart.Payload)
+	assert.Equal(t, 1, count)
 
 	msgEnd, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
-	if !ok {
-		t.Fatal("timeout waiting for msg_end")
-	}
-
-	if msgEnd.Payload != "hello world" {
-		t.Errorf("msg_end payload = %q, want %q", msgEnd.Payload, "hello world")
-	}
+	require.True(t, ok, "timeout waiting for msg_end")
+	assert.Equal(t, "hello world", msgEnd.Payload)
 
 	_, ok = waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
-	if !ok {
-		t.Fatal("timeout waiting for turn_end")
-	}
+	require.True(t, ok, "timeout waiting for turn_end")
 
 	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
-	if !ok {
-		t.Fatal("timeout waiting for end")
-	}
+	require.True(t, ok, "timeout waiting for end")
 
-	mp.callMu.Lock()
-	if len(mp.calls) != 1 {
-		t.Fatalf("expected 1 provider call, got %d", len(mp.calls))
-	}
-
-	if len(mp.calls[0].Messages) != 1 {
-		t.Errorf("expected 1 message, got %d", len(mp.calls[0].Messages))
-	}
-	mp.callMu.Unlock()
+	calls := mp.StreamCalls()
+	require.Len(t, calls, 1)
+	assert.Len(t, calls[0].Req.Messages, 1)
 }
 
 func TestLoop_ToolCallCycle(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	mt := &mockTool{
-		name: "bash",
-		def:  sdk.ToolDef{Name: "bash", Description: "run commands"},
-	}
+	mt := newMockTool("bash", sdk.ToolDef{Name: "bash", Description: "run commands"}, nil)
 	registerMockTool(mt)
 
-	mp := &mockProvider{
-		responses: []providerResponse{
-			{
-				toolCalls: []sdk.ToolCall{
-					{ID: "tc1", Name: "bash", Arguments: map[string]any{"command": "echo hi"}},
-				},
+	mp := newMockProvider([]providerResponse{
+		{
+			toolCalls: []sdk.ToolCall{
+				{ID: "tc1", Name: "bash", Arguments: map[string]any{"command": "echo hi"}},
 			},
-			{textDeltas: []string{"done"}},
 		},
-	}
+		{textDeltas: []string{"done"}},
+	})
 	registerMockProvider("anthropic", mp)
 
 	l, b, cleanup := setupLoop(t, "anthropic")
@@ -287,53 +229,31 @@ func TestLoop_ToolCallCycle(t *testing.T) {
 	b.Publish(sdk.NewEvent(TopicPrompt, "run echo"))
 
 	toolResultEvt, ok := waitForTopic(allCh, TopicToolResult, 2*time.Second)
-	if !ok {
-		t.Fatal("timeout waiting for tool_result")
-	}
+	require.True(t, ok, "timeout waiting for tool_result")
 
 	payload, ok := toolResultEvt.Payload.(map[string]any)
-	if !ok {
-		t.Fatalf("tool_result payload type = %T", toolResultEvt.Payload)
-	}
-
-	if payload["tool"] != "bash" {
-		t.Errorf("tool_result tool = %v, want bash", payload["tool"])
-	}
+	require.True(t, ok, "tool_result payload type = %T", toolResultEvt.Payload)
+	assert.Equal(t, "bash", payload["tool"])
 
 	msgEnd, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
-	if !ok {
-		t.Fatal("timeout waiting for second msg_end")
-	}
+	require.True(t, ok, "timeout waiting for second msg_end")
+	assert.Equal(t, "done", msgEnd.Payload)
 
-	if msgEnd.Payload != "done" {
-		t.Errorf("final msg_end = %q, want %q", msgEnd.Payload, "done")
-	}
+	execCalls := mt.ExecuteCalls()
+	require.Len(t, execCalls, 1)
+	assert.Equal(t, "echo hi", execCalls[0].Args["command"])
 
-	mt.callMu.Lock()
-	if len(mt.calls) != 1 {
-		t.Errorf("expected 1 tool call, got %d", len(mt.calls))
-	} else if mt.calls[0]["command"] != "echo hi" {
-		t.Errorf("tool args = %v, want command=echo hi", mt.calls[0])
-	}
-	mt.callMu.Unlock()
-
-	mp.callMu.Lock()
-	if len(mp.calls) != 2 {
-		t.Errorf("expected 2 provider calls, got %d", len(mp.calls))
-	}
-	mp.callMu.Unlock()
+	assert.Len(t, mp.StreamCalls(), 2)
 }
 
 func TestLoop_SteeringInjection(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	mp := &mockProvider{
-		responses: []providerResponse{
-			{textDeltas: []string{"first"}},
-			{textDeltas: []string{"steered"}},
-		},
-	}
+	mp := newMockProvider([]providerResponse{
+		{textDeltas: []string{"first"}},
+		{textDeltas: []string{"steered"}},
+	})
 	registerMockProvider("anthropic", mp)
 
 	l, b, cleanup := setupLoop(t, "anthropic")
@@ -345,28 +265,15 @@ func TestLoop_SteeringInjection(t *testing.T) {
 	b.Publish(sdk.NewEvent(TopicPrompt, "start"))
 	b.Publish(sdk.NewEvent(TopicSteer, "steer this"))
 
-	// Steering published before the turn is included in the first provider call.
-	// No extra turn is triggered — the steering is already part of the request.
 	_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
-	if !ok {
-		t.Fatal("timeout waiting for turn_end")
-	}
+	require.True(t, ok, "timeout waiting for turn_end")
 
 	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
-	if !ok {
-		t.Fatal("timeout waiting for end")
-	}
+	require.True(t, ok, "timeout waiting for end")
 
-	mp.callMu.Lock()
-	if len(mp.calls) != 1 {
-		t.Fatalf("expected 1 provider call, got %d", len(mp.calls))
-	}
-
-	// The single call should have both the prompt and the steering message.
-	if len(mp.calls[0].Messages) != 2 {
-		t.Errorf("expected 2 messages (prompt + steering), got %d", len(mp.calls[0].Messages))
-	}
-	mp.callMu.Unlock()
+	calls := mp.StreamCalls()
+	require.Len(t, calls, 1)
+	assert.Len(t, calls[0].Req.Messages, 2, "expected 2 messages (prompt + steering)")
 }
 
 func TestLoop_SteeringDuringTurn(t *testing.T) {
@@ -375,42 +282,21 @@ func TestLoop_SteeringDuringTurn(t *testing.T) {
 
 	streamingStarted := make(chan struct{})
 
-	mp := &mockProvider{
-		responses: []providerResponse{
-			{textDeltas: []string{"first"}},
-			{textDeltas: []string{"steered"}},
-		},
+	responses := []providerResponse{
+		{textDeltas: []string{"first"}},
+		{textDeltas: []string{"steered"}},
 	}
 
+	mp := newMockProvider(responses)
+
+	originalStreamFunc := mp.StreamFunc
 	mp.StreamFunc = func(ctx context.Context, req sdk.ProviderRequest) (<-chan sdk.ProviderEvent, error) {
-		ch := make(chan sdk.ProviderEvent, 2)
-
-		go func() {
-			defer close(ch)
-
-			mp.callMu.Lock()
-			callIdx := len(mp.calls) - 1
-			mp.callMu.Unlock()
-
-			if callIdx == 0 {
-				close(streamingStarted)
-				time.Sleep(100 * time.Millisecond)
-			}
-
-			if callIdx < len(mp.responses) {
-				resp := mp.responses[callIdx]
-
-				for _, delta := range resp.textDeltas {
-					select {
-					case ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: delta}:
-					case <-ctx.Done():
-						return
-					}
-				}
-			}
-		}()
-
-		return ch, nil
+		callIdx := len(mp.StreamCalls()) - 1
+		if callIdx == 0 {
+			close(streamingStarted)
+			time.Sleep(100 * time.Millisecond)
+		}
+		return originalStreamFunc(ctx, req)
 	}
 
 	registerMockProvider("anthropic", mp)
@@ -428,34 +314,23 @@ func TestLoop_SteeringDuringTurn(t *testing.T) {
 
 	for i := range 2 {
 		_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
-		if !ok {
-			t.Fatalf("timeout waiting for turn_end %d", i+1)
-		}
+		require.True(t, ok, "timeout waiting for turn_end %d", i+1)
 	}
 
 	_, ok := waitForTopic(allCh, TopicEnd, 2*time.Second)
-	if !ok {
-		t.Fatal("timeout waiting for end")
-	}
+	require.True(t, ok, "timeout waiting for end")
 
-	mp.callMu.Lock()
-	if len(mp.calls) != 2 {
-		t.Fatalf("expected 2 provider calls, got %d", len(mp.calls))
-	}
-
-	mp.callMu.Unlock()
+	assert.Len(t, mp.StreamCalls(), 2)
 }
 
 func TestLoop_FollowupReentry(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	mp := &mockProvider{
-		responses: []providerResponse{
-			{textDeltas: []string{"first response"}},
-			{textDeltas: []string{"follow-up response"}},
-		},
-	}
+	mp := newMockProvider([]providerResponse{
+		{textDeltas: []string{"first response"}},
+		{textDeltas: []string{"follow-up response"}},
+	})
 	registerMockProvider("anthropic", mp)
 
 	l, b, cleanup := setupLoop(t, "anthropic")
@@ -464,40 +339,27 @@ func TestLoop_FollowupReentry(t *testing.T) {
 	allCh := b.SubscribeAll()
 	l.Subscribe(b)
 
-	// Publish prompt and follow-up together — follow-up will be waiting
-	// on the channel when the inner loop finishes its first pass.
 	b.Publish(sdk.NewEvent(TopicPrompt, "initial"))
 	b.Publish(sdk.NewEvent(TopicFollowup, "follow up question"))
 
-	// Should see two turn_end events (one for each turn)
 	for i := range 2 {
 		_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
-		if !ok {
-			t.Fatalf("timeout waiting for turn_end %d", i+1)
-		}
+		require.True(t, ok, "timeout waiting for turn_end %d", i+1)
 	}
 
 	_, ok := waitForTopic(allCh, TopicEnd, 2*time.Second)
-	if !ok {
-		t.Fatal("timeout waiting for end")
-	}
+	require.True(t, ok, "timeout waiting for end")
 
-	mp.callMu.Lock()
-	if len(mp.calls) != 2 {
-		t.Errorf("expected 2 provider calls, got %d", len(mp.calls))
-	}
-	mp.callMu.Unlock()
+	assert.Len(t, mp.StreamCalls(), 2)
 }
 
 func TestLoop_ErrorAbort(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	mp := &mockProvider{
-		responses: []providerResponse{
-			{err: context.DeadlineExceeded},
-		},
-	}
+	mp := newMockProvider([]providerResponse{
+		{err: context.DeadlineExceeded},
+	})
 	registerMockProvider("anthropic", mp)
 
 	l, b, cleanup := setupLoop(t, "anthropic")
@@ -509,25 +371,17 @@ func TestLoop_ErrorAbort(t *testing.T) {
 	b.Publish(sdk.NewEvent(TopicPrompt, "trigger error"))
 
 	_, ok := waitForTopic(allCh, TopicTurnStart, 2*time.Second)
-	if !ok {
-		t.Fatal("timeout waiting for turn_start")
-	}
+	require.True(t, ok, "timeout waiting for turn_start")
 
 	endEvt, ok := waitForTopic(allCh, TopicEnd, 2*time.Second)
-	if !ok {
-		t.Fatal("timeout waiting for end")
-	}
-
-	if endEvt.Payload == nil {
-		t.Error("expected non-nil error payload on end")
-	}
+	require.True(t, ok, "timeout waiting for end")
+	assert.NotNil(t, endEvt.Payload)
 }
 
 func TestLoop_ProviderErrorOnStartup(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	// No provider registered
 	l, b, cleanup := setupLoop(t, "nonexistent")
 	defer cleanup()
 
@@ -537,36 +391,26 @@ func TestLoop_ProviderErrorOnStartup(t *testing.T) {
 	b.Publish(sdk.NewEvent(TopicPrompt, "test"))
 
 	endEvts := collectTopic(allCh, TopicEnd, 2*time.Second)
-	if len(endEvts) != 1 {
-		t.Fatalf("expected exactly 1 end event, got %d", len(endEvts))
-	}
-
-	if endEvts[0].Payload == nil {
-		t.Error("expected non-nil error payload in end event")
-	}
+	require.Len(t, endEvts, 1)
+	assert.NotNil(t, endEvts[0].Payload)
 }
 
 func TestLoop_ContextCancellation(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	// Provider that blocks forever until context is canceled.
 	blockCh := make(chan sdk.ProviderEvent)
 
-	registerMockProvider("anthropic", &mockProvider{
-		responses: []providerResponse{},
+	registerMockProvider("anthropic", &ProviderMock{
 		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest) (<-chan sdk.ProviderEvent, error) {
 			ch := make(chan sdk.ProviderEvent)
-
 			go func() {
 				defer close(ch)
-
 				select {
 				case <-ctx.Done():
 				case blockCh <- sdk.ProviderEvent{}:
 				}
 			}()
-
 			return ch, nil
 		},
 	})
@@ -580,33 +424,26 @@ func TestLoop_ContextCancellation(t *testing.T) {
 	b.Publish(sdk.NewEvent(TopicPrompt, "test"))
 
 	done := make(chan error, 1)
-
 	go func() { done <- l.Close() }()
 
 	select {
 	case err := <-done:
-		if err != nil {
-			t.Fatalf("Close: %v", err)
-		}
+		require.NoError(t, err)
 	case <-time.After(2 * time.Second):
 		t.Fatal("Close hung — context cancellation did not unblock the loop")
 	}
 
 	_, ok := waitForTopic(allCh, TopicEnd, time.Second)
-	if !ok {
-		t.Error("expected TopicEnd after cancellation")
-	}
+	assert.True(t, ok, "expected TopicEnd after cancellation")
 }
 
 func TestLoop_MsgUpdateEvents(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	mp := &mockProvider{
-		responses: []providerResponse{
-			{textDeltas: []string{"a", "b", "c"}},
-		},
-	}
+	mp := newMockProvider([]providerResponse{
+		{textDeltas: []string{"a", "b", "c"}},
+	})
 	registerMockProvider("anthropic", mp)
 
 	l, b, cleanup := setupLoop(t, "anthropic")
@@ -618,15 +455,11 @@ func TestLoop_MsgUpdateEvents(t *testing.T) {
 	b.Publish(sdk.NewEvent(TopicPrompt, "stream test"))
 
 	updates := collectTopic(allCh, TopicMsgUpdate, 2*time.Second)
-	if len(updates) != 3 {
-		t.Fatalf("expected 3 msg_update events, got %d", len(updates))
-	}
+	require.Len(t, updates, 3)
 
 	expected := []string{"a", "b", "c"}
 	for i, u := range updates {
-		if u.Payload != expected[i] {
-			t.Errorf("update[%d] = %v, want %v", i, u.Payload, expected[i])
-		}
+		assert.Equal(t, expected[i], u.Payload)
 	}
 }
 
@@ -634,16 +467,14 @@ func TestLoop_MissingToolError(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	mp := &mockProvider{
-		responses: []providerResponse{
-			{
-				toolCalls: []sdk.ToolCall{
-					{ID: "tc1", Name: "nonexistent", Arguments: nil},
-				},
+	mp := newMockProvider([]providerResponse{
+		{
+			toolCalls: []sdk.ToolCall{
+				{ID: "tc1", Name: "nonexistent", Arguments: nil},
 			},
-			{textDeltas: []string{"recovered"}},
 		},
-	}
+		{textDeltas: []string{"recovered"}},
+	})
 	registerMockProvider("anthropic", mp)
 
 	l, b, cleanup := setupLoop(t, "anthropic")
@@ -655,71 +486,52 @@ func TestLoop_MissingToolError(t *testing.T) {
 	b.Publish(sdk.NewEvent(TopicPrompt, "call missing tool"))
 
 	toolResultEvt, ok := waitForTopic(allCh, TopicToolResult, 2*time.Second)
-	if !ok {
-		t.Fatal("timeout waiting for tool_result")
-	}
+	require.True(t, ok, "timeout waiting for tool_result")
 
 	payload := toolResultEvt.Payload.(map[string]any)
-
 	result := payload["result"].(sdk.ToolResult)
-	if !result.IsError {
-		t.Error("expected tool_result to have IsError=true")
-	}
+	assert.True(t, result.IsError)
 
 	msgEnd, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
-	if !ok {
-		t.Fatal("timeout waiting for second msg_end")
-	}
-
-	if msgEnd.Payload != "recovered" {
-		t.Errorf("final response = %q, want %q", msgEnd.Payload, "recovered")
-	}
+	require.True(t, ok, "timeout waiting for second msg_end")
+	assert.Equal(t, "recovered", msgEnd.Payload)
 }
 
 func TestLoop_RegisterAsExtension(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	// Manually register (simulates what init() does)
 	sdk.RegisterExtension("loop", func(cfg sdk.Config) (sdk.Extension, error) {
 		return NewLoop(cfg, "anthropic")
 	})
 
 	ext, err := sdk.GetExtension("loop", nil)
-	if err != nil {
-		t.Fatalf("GetExtension(loop): %v", err)
-	}
+	require.NoError(t, err, "GetExtension(loop)")
+	assert.Equal(t, "loop", ext.Name())
 
-	if ext.Name() != "loop" {
-		t.Errorf("extension name = %q, want %q", ext.Name(), "loop")
-	}
-
-	if _, ok := ext.(*Loop); !ok {
-		t.Errorf("expected *Loop, got %T", ext)
-	}
+	_, ok := ext.(*Loop)
+	require.True(t, ok, "expected *Loop, got %T", ext)
 }
 
 func TestLoop_MultipleToolCalls(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	tool1 := &mockTool{name: "tool-a", def: sdk.ToolDef{Name: "tool-a"}}
-	tool2 := &mockTool{name: "tool-b", def: sdk.ToolDef{Name: "tool-b"}}
+	tool1 := newMockTool("tool-a", sdk.ToolDef{Name: "tool-a"}, nil)
+	tool2 := newMockTool("tool-b", sdk.ToolDef{Name: "tool-b"}, nil)
 
 	registerMockTool(tool1)
 	registerMockTool(tool2)
 
-	mp := &mockProvider{
-		responses: []providerResponse{
-			{
-				toolCalls: []sdk.ToolCall{
-					{ID: "tc1", Name: "tool-a", Arguments: map[string]any{"x": 1}},
-					{ID: "tc2", Name: "tool-b", Arguments: map[string]any{"y": 2}},
-				},
+	mp := newMockProvider([]providerResponse{
+		{
+			toolCalls: []sdk.ToolCall{
+				{ID: "tc1", Name: "tool-a", Arguments: map[string]any{"x": 1}},
+				{ID: "tc2", Name: "tool-b", Arguments: map[string]any{"y": 2}},
 			},
-			{textDeltas: []string{"both done"}},
 		},
-	}
+		{textDeltas: []string{"both done"}},
+	})
 	registerMockProvider("anthropic", mp)
 
 	l, b, cleanup := setupLoop(t, "anthropic")
@@ -730,9 +542,7 @@ func TestLoop_MultipleToolCalls(t *testing.T) {
 
 	b.Publish(sdk.NewEvent(TopicPrompt, "multi-tool"))
 
-	// Collect all events until end
 	var toolResults []sdk.Event
-
 	var finalMsgEnd *sdk.Event
 
 	endDeadline := time.After(5 * time.Second)
@@ -740,9 +550,7 @@ func TestLoop_MultipleToolCalls(t *testing.T) {
 	for {
 		select {
 		case evt, ok := <-allCh:
-			if !ok {
-				t.Fatal("event channel closed")
-			}
+			require.True(t, ok, "event channel closed")
 
 			switch evt.Topic {
 			case TopicToolResult:
@@ -760,17 +568,10 @@ func TestLoop_MultipleToolCalls(t *testing.T) {
 
 done:
 
-	if len(toolResults) != 2 {
-		t.Fatalf("expected 2 tool_result events, got %d", len(toolResults))
-	}
+	require.Len(t, toolResults, 2)
 
-	if finalMsgEnd == nil || finalMsgEnd.Payload != "both done" {
-		if finalMsgEnd == nil {
-			t.Fatal("no msg_end received")
-		}
-
-		t.Errorf("final = %q, want %q", finalMsgEnd.Payload, "both done")
-	}
+	require.NotNil(t, finalMsgEnd)
+	assert.Equal(t, "both done", finalMsgEnd.Payload)
 }
 
 func TestLoop_StreamingUpdatesPreserveOrder(t *testing.T) {
@@ -782,11 +583,9 @@ func TestLoop_StreamingUpdatesPreserveOrder(t *testing.T) {
 		deltas[i] = strings.Repeat("x", i+1)
 	}
 
-	mp := &mockProvider{
-		responses: []providerResponse{
-			{textDeltas: deltas},
-		},
-	}
+	mp := newMockProvider([]providerResponse{
+		{textDeltas: deltas},
+	})
 	registerMockProvider("anthropic", mp)
 
 	l, b, cleanup := setupLoop(t, "anthropic")
@@ -798,12 +597,8 @@ func TestLoop_StreamingUpdatesPreserveOrder(t *testing.T) {
 	b.Publish(sdk.NewEvent(TopicPrompt, "order test"))
 
 	msgEnd, ok := waitForTopic(allCh, TopicMsgEnd, 3*time.Second)
-	if !ok {
-		t.Fatal("timeout waiting for msg_end")
-	}
+	require.True(t, ok, "timeout waiting for msg_end")
 
 	expected := strings.Join(deltas, "")
-	if msgEnd.Payload != expected {
-		t.Errorf("streaming content mismatch: got %d chars, want %d", len(msgEnd.Payload.(string)), len(expected))
-	}
+	assert.Equal(t, expected, msgEnd.Payload)
 }

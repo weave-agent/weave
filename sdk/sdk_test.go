@@ -4,6 +4,9 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewEvent(t *testing.T) {
@@ -11,52 +14,20 @@ func TestNewEvent(t *testing.T) {
 	evt := NewEvent("test.topic", "hello")
 	after := time.Now()
 
-	if evt.Topic != "test.topic" {
-		t.Errorf("Topic = %q, want %q", evt.Topic, "test.topic")
-	}
-
-	if evt.Payload != "hello" {
-		t.Errorf("Payload = %v, want %v", evt.Payload, "hello")
-	}
-
-	if evt.Timestamp.Before(before) || evt.Timestamp.After(after) {
-		t.Errorf("Timestamp %v not between %v and %v", evt.Timestamp, before, after)
-	}
+	assert.Equal(t, "test.topic", evt.Topic)
+	assert.Equal(t, "hello", evt.Payload)
+	assert.True(t, !evt.Timestamp.Before(before) && !evt.Timestamp.After(after))
 }
 
 func TestEventNilPayload(t *testing.T) {
 	evt := NewEvent("empty", nil)
-	if evt.Payload != nil {
-		t.Errorf("Payload = %v, want nil", evt.Payload)
-	}
+	assert.Nil(t, evt.Payload)
 }
-
-type mockConfig struct {
-	filePath string
-}
-
-func (m *mockConfig) FilePath() string { return m.filePath }
-
-var _ Config = (*mockConfig)(nil)
 
 func TestConfigInterface(t *testing.T) {
-	cfg := &mockConfig{filePath: "/path/to/.weave.yaml"}
-	if v := cfg.FilePath(); v != "/path/to/.weave.yaml" {
-		t.Errorf("FilePath = %q, want %q", v, "/path/to/.weave.yaml")
-	}
+	cfg := FilePathConfig("/path/to/.weave.yaml")
+	assert.Equal(t, "/path/to/.weave.yaml", cfg.FilePath())
 }
-
-type mockBus struct {
-	published []Event
-}
-
-func (m *mockBus) Publish(e Event) bool                    { m.published = append(m.published, e); return true }
-func (m *mockBus) Subscribe(topics ...string) <-chan Event { return nil }
-func (m *mockBus) SubscribeAll() <-chan Event              { return nil }
-func (m *mockBus) Unsubscribe(<-chan Event)                {}
-func (m *mockBus) Close() error                            { return nil }
-
-var _ Bus = (*mockBus)(nil)
 
 func TestExtensionFunc(t *testing.T) {
 	var subscribed bool
@@ -65,16 +36,12 @@ func TestExtensionFunc(t *testing.T) {
 		subscribed = true
 	})
 
-	if ext.Name() != "test-ext" {
-		t.Errorf("Name() = %q, want %q", ext.Name(), "test-ext")
-	}
+	assert.Equal(t, "test-ext", ext.Name())
 
-	bus := &mockBus{}
+	bus := &BusMock{}
 	ext.Subscribe(bus)
 
-	if !subscribed {
-		t.Error("Subscribe callback was not called")
-	}
+	assert.True(t, subscribed)
 }
 
 func TestExtensionFuncSatisfiesInterface(t *testing.T) {
@@ -83,16 +50,14 @@ func TestExtensionFuncSatisfiesInterface(t *testing.T) {
 	ext := Extension(NewExtensionFunc("check", func(b Bus) {
 		b.Publish(NewEvent("fired", nil))
 	}))
-	bus := &mockBus{}
+	bus := &BusMock{
+		PublishFunc: func(e Event) bool { return true },
+	}
 	ext.Subscribe(bus)
 
-	if len(bus.published) != 1 {
-		t.Fatalf("published events = %d, want 1", len(bus.published))
-	}
-
-	if bus.published[0].Topic != "fired" {
-		t.Errorf("topic = %q, want %q", bus.published[0].Topic, "fired")
-	}
+	calls := bus.PublishCalls()
+	require.Len(t, calls, 1)
+	assert.Equal(t, "fired", calls[0].Event.Topic)
 }
 
 func TestExtensionFuncMultipleSubscriptions(t *testing.T) {
@@ -105,33 +70,22 @@ func TestExtensionFuncMultipleSubscriptions(t *testing.T) {
 		b.Publish(NewEvent("e2", 2))
 	})
 
-	bus := &mockBus{}
+	bus := &BusMock{
+		PublishFunc: func(e Event) bool { return true },
+	}
 	ext.Subscribe(bus)
 
-	if len(calls) != 1 {
-		t.Errorf("callback calls = %d, want 1", len(calls))
-	}
+	require.Len(t, calls, 1)
 
-	if len(bus.published) != 2 {
-		t.Errorf("published = %d, want 2", len(bus.published))
-	}
-
-	topics := []string{bus.published[0].Topic, bus.published[1].Topic}
-
-	want := []string{"e1", "e2"}
-	for i, w := range want {
-		if topics[i] != w {
-			t.Errorf("event[%d].Topic = %q, want %q", i, topics[i], w)
-		}
-	}
+	pubCalls := bus.PublishCalls()
+	require.Len(t, pubCalls, 2)
+	assert.Equal(t, "e1", pubCalls[0].Event.Topic)
+	assert.Equal(t, "e2", pubCalls[1].Event.Topic)
 }
 
 func TestExtensionFunc_CloseNil(t *testing.T) {
 	ext := NewExtensionFunc("no-close", func(Bus) {})
-
-	if err := ext.Close(); err != nil {
-		t.Errorf("Close() = %v, want nil", err)
-	}
+	require.NoError(t, ext.Close())
 }
 
 func TestExtensionFuncWithClose(t *testing.T) {
@@ -142,13 +96,8 @@ func TestExtensionFuncWithClose(t *testing.T) {
 		return nil
 	})
 
-	if err := ext.Close(); err != nil {
-		t.Errorf("Close() = %v, want nil", err)
-	}
-
-	if !closed {
-		t.Error("closeFn was not called")
-	}
+	require.NoError(t, ext.Close())
+	assert.True(t, closed)
 }
 
 func TestExtensionFuncWithClose_Error(t *testing.T) {
@@ -156,7 +105,5 @@ func TestExtensionFuncWithClose_Error(t *testing.T) {
 		return errors.New("close failed")
 	})
 
-	if err := ext.Close(); err == nil {
-		t.Fatal("expected error from Close()")
-	}
+	require.Error(t, ext.Close())
 }

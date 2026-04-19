@@ -4,6 +4,9 @@ import (
 	"errors"
 	"sort"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRegisterAndRetrieve(t *testing.T) {
@@ -14,13 +17,8 @@ func TestRegisterAndRetrieve(t *testing.T) {
 	RegisterExtension("test", func(Config) (Extension, error) { return ext, nil })
 
 	got, err := GetExtension("test", nil)
-	if err != nil {
-		t.Fatalf("GetExtension: %v", err)
-	}
-
-	if got.Name() != "test" {
-		t.Errorf("Name() = %q, want %q", got.Name(), "test")
-	}
+	require.NoError(t, err, "GetExtension")
+	assert.Equal(t, "test", got.Name())
 }
 
 func TestDuplicateRegistration(t *testing.T) {
@@ -31,9 +29,7 @@ func TestDuplicateRegistration(t *testing.T) {
 	})
 
 	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic on duplicate registration")
-		}
+		require.NotNil(t, recover(), "expected panic on duplicate registration")
 	}()
 
 	RegisterExtension("dup", func(Config) (Extension, error) {
@@ -45,9 +41,7 @@ func TestMissingExtension(t *testing.T) {
 	ResetRegistry()
 
 	_, err := GetExtension("nonexistent", nil)
-	if err == nil {
-		t.Fatal("expected error for missing extension")
-	}
+	require.Error(t, err, "expected error for missing extension")
 }
 
 func TestGetExtension_FactoryError(t *testing.T) {
@@ -58,13 +52,8 @@ func TestGetExtension_FactoryError(t *testing.T) {
 	})
 
 	_, err := GetExtension("fail", nil)
-	if err == nil {
-		t.Fatal("expected error from failing factory")
-	}
-
-	if err.Error() != "boom" {
-		t.Errorf("error = %q, want %q", err.Error(), "boom")
-	}
+	require.Error(t, err, "expected error from failing factory")
+	assert.Equal(t, "boom", err.Error())
 }
 
 func TestListExtensions(t *testing.T) {
@@ -76,14 +65,5 @@ func TestListExtensions(t *testing.T) {
 	names := ListExtensions()
 	sort.Strings(names)
 
-	want := []string{"alpha", "beta"}
-	if len(names) != len(want) {
-		t.Fatalf("ListExtensions() = %v, want %v", names, want)
-	}
-
-	for i, n := range names {
-		if n != want[i] {
-			t.Errorf("names[%d] = %q, want %q", i, names[i], want[i])
-		}
-	}
+	assert.Equal(t, []string{"alpha", "beta"}, names)
 }
