@@ -118,12 +118,12 @@ Create a shared truncation package used by all tools for consistent output limit
 - [x] run `go test ./extensions/providers/zai/...` — must pass before next task
 
 ### Task 13: Integration verification
-- [ ] verify all tool extensions register correctly via `sdk.ListTools()`
-- [ ] verify all provider extensions register correctly via `sdk.ListProviders()`
-- [ ] verify launcher discovery picks up nested extension directories (`extensions/tools/*`, `extensions/providers/*`)
-- [ ] update launcher integration tests to include new extensions
-- [ ] run `go test ./...` — full suite must pass
-- [ ] run `make lint` — all issues must be fixed
+- [x] verify all tool extensions register correctly via `sdk.ListTools()`
+- [x] verify all provider extensions register correctly via `sdk.ListProviders()`
+- [x] verify launcher discovery picks up nested extension directories (`extensions/tools/*`, `extensions/providers/*`)
+- [x] update launcher integration tests to include new extensions
+- [x] run `go test ./...` — full suite must pass
+- [x] run `make lint` — all issues must be fixed
 
 ### Task 14: Update documentation
 - [ ] update CLAUDE.md if new patterns or conventions discovered

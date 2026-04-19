@@ -163,23 +163,47 @@ func findExtensionWithBuiltins(projectDir, homeDir, moduleRoot, name string) (*E
 		return nil, err
 	}
 
-	// Fallback: built-in extension under moduleRoot/extensions/{name}/
-	builtinDir := filepath.Join(moduleRoot, "extensions", name)
-
-	goFiles, goErr := collectGoFiles(builtinDir)
-	if goErr != nil {
+	// Fallback: try built-in extension under moduleRoot/extensions/{name}/
+	// and also one level deeper: moduleRoot/extensions/*/{name}/
+	info, foundErr := findBuiltin(moduleRoot, name)
+	if foundErr != nil {
 		return nil, fmt.Errorf("discover: extension %q not found (local, global, or built-in): %w", name, err)
 	}
 
-	if len(goFiles) > 0 {
-		return &ExtensionInfo{
-			Name:    name,
-			Dir:     builtinDir,
-			GoFiles: goFiles,
-		}, nil
+	return info, nil
+}
+
+// findBuiltin searches for a built-in extension first at
+// moduleRoot/extensions/{name}/ then one level deeper at
+// moduleRoot/extensions/*/{name}/.
+func findBuiltin(moduleRoot, name string) (*ExtensionInfo, error) {
+	builtinDir := filepath.Join(moduleRoot, "extensions", name)
+
+	if goFiles, err := collectGoFiles(builtinDir); err == nil && len(goFiles) > 0 {
+		return &ExtensionInfo{Name: name, Dir: builtinDir, GoFiles: goFiles}, nil
 	}
 
-	return nil, fmt.Errorf("discover: extension %q not found (local, global, or built-in)", name)
+	// Search one level deeper: extensions/*/{name}/
+	extRoot := filepath.Join(moduleRoot, "extensions")
+
+	entries, err := os.ReadDir(extRoot)
+	if err != nil {
+		return nil, fmt.Errorf("extension %q not found in built-ins", name)
+	}
+
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+
+		nestedDir := filepath.Join(extRoot, e.Name(), name)
+
+		if goFiles, goErr := collectGoFiles(nestedDir); goErr == nil && len(goFiles) > 0 {
+			return &ExtensionInfo{Name: name, Dir: nestedDir, GoFiles: goFiles}, nil
+		}
+	}
+
+	return nil, fmt.Errorf("extension %q not found in built-ins", name)
 }
 
 func collectGoFiles(dir string) ([]string, error) {

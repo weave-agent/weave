@@ -265,3 +265,75 @@ func TestIntegration_DiscoverCustomHome(t *testing.T) {
 	require.NoError(t, err, "DiscoverCustomHome")
 	assert.Equal(t, localDir, exts2[0].Dir)
 }
+
+// TestIntegration_DiscoverBuiltinNestedTools verifies that the discovery finds
+// real tool extensions under extensions/tools/* in the module root.
+func TestIntegration_DiscoverBuiltinNestedTools(t *testing.T) {
+	moduleRoot := findModuleRootHelper(t)
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+
+	tools := []string{"bash", "read", "edit", "write", "grep", "find", "ls"}
+
+	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, tools)
+	require.NoError(t, err, "DiscoverCustomHomeWithBuiltins for tools")
+
+	require.Len(t, exts, len(tools))
+
+	extMap := make(map[string]ExtensionInfo, len(exts))
+	for _, e := range exts {
+		extMap[e.Name] = e
+	}
+
+	for _, name := range tools {
+		info, ok := extMap[name]
+		require.True(t, ok, "tool %q not discovered", name)
+		assert.NotEmpty(t, info.GoFiles, "tool %q has no .go files", name)
+		assert.Contains(t, info.Dir, filepath.Join("extensions", "tools", name),
+			"tool %q should be found in nested tools/ directory", name)
+	}
+}
+
+// TestIntegration_DiscoverBuiltinNestedProviders verifies that the discovery finds
+// real provider extensions under extensions/providers/* in the module root.
+func TestIntegration_DiscoverBuiltinNestedProviders(t *testing.T) {
+	moduleRoot := findModuleRootHelper(t)
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+
+	providers := []string{"anthropic", "openai", "zai"}
+
+	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, providers)
+	require.NoError(t, err, "DiscoverCustomHomeWithBuiltins for providers")
+
+	require.Len(t, exts, len(providers))
+
+	extMap := make(map[string]ExtensionInfo, len(exts))
+	for _, e := range exts {
+		extMap[e.Name] = e
+	}
+
+	for _, name := range providers {
+		info, ok := extMap[name]
+		require.True(t, ok, "provider %q not discovered", name)
+		assert.NotEmpty(t, info.GoFiles, "provider %q has no .go files", name)
+		assert.Contains(t, info.Dir, filepath.Join("extensions", "providers", name),
+			"provider %q should be found in nested providers/ directory", name)
+	}
+}
+
+// TestIntegration_DiscoverBuiltinLoopDirect verifies the loop extension is still
+// found at the direct path extensions/loop/.
+func TestIntegration_DiscoverBuiltinLoopDirect(t *testing.T) {
+	moduleRoot := findModuleRootHelper(t)
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+
+	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"loop"})
+	require.NoError(t, err, "DiscoverCustomHomeWithBuiltins for loop")
+
+	require.Len(t, exts, 1)
+	assert.Equal(t, "loop", exts[0].Name)
+	assert.Equal(t, filepath.Join(moduleRoot, "extensions", "loop"), exts[0].Dir)
+	assert.NotEmpty(t, exts[0].GoFiles)
+}

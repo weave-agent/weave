@@ -121,3 +121,125 @@ func TestDiscover_PartialMissing(t *testing.T) {
 	_, err := Discover(projectDir, []string{"exists", "missing"})
 	require.Error(t, err)
 }
+
+func TestDiscoverWithBuiltins_NestedExtension(t *testing.T) {
+	moduleRoot := t.TempDir()
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+
+	// Create a nested extension at moduleRoot/extensions/tools/bash/
+	nestedDir := filepath.Join(moduleRoot, "extensions", "tools", "bash")
+	createGoFile(t, nestedDir, "bash.go", "package bash")
+
+	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"bash"})
+	require.NoError(t, err, "DiscoverCustomHomeWithBuiltins")
+
+	require.Len(t, exts, 1)
+	assert.Equal(t, "bash", exts[0].Name)
+	assert.Equal(t, nestedDir, exts[0].Dir)
+	assert.Len(t, exts[0].GoFiles, 1)
+}
+
+func TestDiscoverWithBuiltins_NestedProviders(t *testing.T) {
+	moduleRoot := t.TempDir()
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+
+	// Create nested provider extensions
+	anthropicDir := filepath.Join(moduleRoot, "extensions", "providers", "anthropic")
+	createGoFile(t, anthropicDir, "anthropic.go", "package anthropic")
+
+	openaiDir := filepath.Join(moduleRoot, "extensions", "providers", "openai")
+	createGoFile(t, openaiDir, "openai.go", "package openai")
+
+	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"anthropic", "openai"})
+	require.NoError(t, err, "DiscoverCustomHomeWithBuiltins")
+
+	require.Len(t, exts, 2)
+	assert.Equal(t, "anthropic", exts[0].Name)
+	assert.Equal(t, "openai", exts[1].Name)
+}
+
+func TestDiscoverWithBuiltins_DirectPreferredOverNested(t *testing.T) {
+	moduleRoot := t.TempDir()
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+
+	// Create both direct and nested paths for the same name
+	directDir := filepath.Join(moduleRoot, "extensions", "myext")
+	createGoFile(t, directDir, "myext.go", "package myext")
+
+	nestedDir := filepath.Join(moduleRoot, "extensions", "tools", "myext")
+	createGoFile(t, nestedDir, "myext.go", "package myext")
+
+	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"myext"})
+	require.NoError(t, err)
+
+	require.Len(t, exts, 1)
+	assert.Equal(t, directDir, exts[0].Dir, "direct path should take priority over nested")
+}
+
+func TestDiscoverWithBuiltins_MixedNestedAndDirect(t *testing.T) {
+	moduleRoot := t.TempDir()
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+
+	// Direct: extensions/loop/
+	loopDir := filepath.Join(moduleRoot, "extensions", "loop")
+	createGoFile(t, loopDir, "loop.go", "package loop")
+
+	// Nested: extensions/tools/bash/
+	bashDir := filepath.Join(moduleRoot, "extensions", "tools", "bash")
+	createGoFile(t, bashDir, "bash.go", "package bash")
+
+	// Nested: extensions/providers/anthropic/
+	anthropicDir := filepath.Join(moduleRoot, "extensions", "providers", "anthropic")
+	createGoFile(t, anthropicDir, "anthropic.go", "package anthropic")
+
+	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"loop", "bash", "anthropic"})
+	require.NoError(t, err)
+
+	require.Len(t, exts, 3)
+
+	extMap := make(map[string]ExtensionInfo, len(exts))
+	for _, e := range exts {
+		extMap[e.Name] = e
+	}
+
+	assert.Equal(t, loopDir, extMap["loop"].Dir)
+	assert.Equal(t, bashDir, extMap["bash"].Dir)
+	assert.Equal(t, anthropicDir, extMap["anthropic"].Dir)
+}
+
+func TestDiscoverWithBuiltins_NestedNotFound(t *testing.T) {
+	moduleRoot := t.TempDir()
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+
+	// Create a tools directory but no "bash" inside it
+	require.NoError(t, os.MkdirAll(filepath.Join(moduleRoot, "extensions", "tools"), 0o750))
+
+	_, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"bash"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bash")
+}
+
+func TestDiscoverWithBuiltins_LocalOverridesNestedBuiltin(t *testing.T) {
+	moduleRoot := t.TempDir()
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+
+	// Nested builtin
+	bashDir := filepath.Join(moduleRoot, "extensions", "tools", "bash")
+	createGoFile(t, bashDir, "bash.go", "package bash")
+
+	// Local override
+	localDir := filepath.Join(projectDir, ".weave", "extensions", "bash")
+	createGoFile(t, localDir, "bash.go", "package bash")
+
+	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"bash"})
+	require.NoError(t, err)
+
+	require.Len(t, exts, 1)
+	assert.Equal(t, localDir, exts[0].Dir, "local should override nested builtin")
+}
