@@ -81,9 +81,9 @@ weave/
 - [x] run tests — must pass before next task
 
 ### Task 4: Add Message types to sdk/
-- [ ] create `sdk/message.go` — `Message` struct with `Role` (enum: "user", "assistant", "toolResult"), `Content` (any), `ToolCallID` string, `ToolName` string, `Timestamp` time.Time; typed constructors `NewUserMessage`, `NewAssistantMessage`, `NewToolResultMessage`
-- [ ] write tests for message constructors and role validation
-- [ ] run tests — must pass before next task
+- [x] create `sdk/message.go` — `Message` struct with `Role` (enum: "user", "assistant", "toolResult"), `Content` (any), `ToolCallID` string, `ToolName` string, `Timestamp` time.Time; typed constructors `NewUserMessage`, `NewAssistantMessage`, `NewToolResultMessage`
+- [x] write tests for message constructors and role validation
+- [x] run tests — must pass before next task
 
 ### Task 5: Update Wire for core/extension merging
 - [ ] update `sdk/wire.go` — `Wire` signature changes to accept core config: add core extension names to the front of the list, validate exactly one agent-loop extension and at least one provider
