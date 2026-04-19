@@ -37,6 +37,7 @@ type ChatMessage struct {
 	Content    string       `json:"content,omitempty"`
 	ToolCalls  []StreamTool `json:"tool_calls,omitempty"`
 	ToolCallID string       `json:"tool_call_id,omitempty"`
+	Status     string       `json:"status,omitempty"` // "error" for failed tool results
 }
 
 // Tool represents an OpenAI function tool definition.
@@ -154,7 +155,7 @@ func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sd
 	go func() {
 		defer resp.Body.Close()
 		defer close(ch)
-		parseSSE(resp.Body, ch)
+		parseSSE(ctx, resp.Body, ch)
 	}()
 
 	return ch, nil
@@ -168,7 +169,17 @@ type toolCallAccum struct {
 }
 
 // parseSSE reads an SSE stream and emits ProviderEvents.
-func parseSSE(reader io.Reader, ch chan<- sdk.ProviderEvent) {
+// It respects context cancellation to prevent goroutine leaks.
+func parseSSE(ctx context.Context, reader io.Reader, ch chan<- sdk.ProviderEvent) {
+	send := func(evt sdk.ProviderEvent) bool {
+		select {
+		case ch <- evt:
+			return true
+		case <-ctx.Done():
+			return false
+		}
+	}
+
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 0, 1024*1024), 10*1024*1024)
 	toolCalls := make(map[int]*toolCallAccum)
@@ -191,18 +202,20 @@ func parseSSE(reader io.Reader, ch chan<- sdk.ProviderEvent) {
 
 		var chunk StreamChunk
 		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
-			ch <- sdk.ProviderEvent{
+			send(sdk.ProviderEvent{
 				Type:    sdk.ProviderEventError,
 				Content: fmt.Sprintf("openai-compat: parse chunk: %v", err),
-			}
+			})
 			return
 		}
 
 		for _, choice := range chunk.Choices {
 			if choice.Delta.Content != "" {
-				ch <- sdk.ProviderEvent{
+				if !send(sdk.ProviderEvent{
 					Type:    sdk.ProviderEventTextDelta,
 					Content: choice.Delta.Content,
+				}) {
+					return
 				}
 			}
 
@@ -240,23 +253,25 @@ func parseSSE(reader io.Reader, ch chan<- sdk.ProviderEvent) {
 					var args map[string]any
 					if tc.argsBuffer != "" {
 						if err := json.Unmarshal([]byte(tc.argsBuffer), &args); err != nil {
-							ch <- sdk.ProviderEvent{
+							send(sdk.ProviderEvent{
 								Type:    sdk.ProviderEventError,
 								Content: fmt.Sprintf("openai-compat: parse tool call arguments for %s: %v", tc.name, err),
-							}
+							})
 							return
 						}
 					}
 					if args == nil {
 						args = make(map[string]any)
 					}
-					ch <- sdk.ProviderEvent{
+					if !send(sdk.ProviderEvent{
 						Type: sdk.ProviderEventToolCall,
 						Content: sdk.ToolCall{
 							ID:        tc.id,
 							Name:      tc.name,
 							Arguments: args,
 						},
+					}) {
+						return
 					}
 				}
 				toolCalls = make(map[int]*toolCallAccum)
@@ -265,10 +280,10 @@ func parseSSE(reader io.Reader, ch chan<- sdk.ProviderEvent) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		ch <- sdk.ProviderEvent{
+		send(sdk.ProviderEvent{
 			Type:    sdk.ProviderEventError,
 			Content: fmt.Sprintf("openai-compat: read stream: %v", err),
-		}
+		})
 	}
 }
 
@@ -299,11 +314,15 @@ func ConvertMessages(msgs []sdk.Message) []ChatMessage {
 			}
 			result = append(result, cm)
 		case sdk.RoleToolResult:
-			result = append(result, ChatMessage{
+			cm := ChatMessage{
 				Role:       "tool",
 				Content:    fmt.Sprint(msg.Content),
 				ToolCallID: msg.ToolCallID,
-			})
+			}
+			if msg.IsError {
+				cm.Status = "error"
+			}
+			result = append(result, cm)
 		}
 	}
 

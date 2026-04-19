@@ -64,15 +64,6 @@ extensions:
 - `OPENAI_API_KEY` — required for OpenAI provider (default model: `gpt-4o`, override with `OPENAI_MODEL`)
 - `ZAI_API_KEY` — required for Z.ai provider (default model: `glm-4`, override with `ZAI_MODEL`)
 
-```yaml
-core:
-  agent_loop: loop       # default: "loop"
-  providers:             # default: ["anthropic"]
-    - anthropic
-extensions:
-  - bash-tool
-```
-
 ## Design Reference
 
 `docs/design.md` is **strong inspiration, not direct instruction**. It captures the architectural intent and data flow, but implementation details will evolve. Treat it as a north star, not a spec to copy verbatim.

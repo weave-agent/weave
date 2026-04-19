@@ -66,6 +66,15 @@ func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest) (<-chan 
 		params.Tools = convertTools(req.Tools)
 	}
 
+	send := func(evt sdk.ProviderEvent) bool {
+		select {
+		case ch <- evt:
+			return true
+		case <-ctx.Done():
+			return false
+		}
+	}
+
 	go func() {
 		defer close(ch)
 
@@ -79,19 +88,21 @@ func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest) (<-chan 
 			switch e := event.AsAny().(type) {
 			case anthropic.ContentBlockDeltaEvent:
 				if e.Delta.Text != "" {
-					ch <- sdk.ProviderEvent{
+					if !send(sdk.ProviderEvent{
 						Type:    sdk.ProviderEventTextDelta,
 						Content: e.Delta.Text,
+					}) {
+						return
 					}
 				}
 			}
 		}
 
 		if err := stream.Err(); err != nil {
-			ch <- sdk.ProviderEvent{
+			send(sdk.ProviderEvent{
 				Type:    sdk.ProviderEventError,
 				Content: err.Error(),
-			}
+			})
 			return
 		}
 
@@ -100,22 +111,24 @@ func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest) (<-chan 
 				var args map[string]any
 				if raw := toolUse.JSON.Input.Raw(); raw != "" {
 					if err := json.Unmarshal([]byte(raw), &args); err != nil {
-						ch <- sdk.ProviderEvent{
+						send(sdk.ProviderEvent{
 							Type:    sdk.ProviderEventError,
 							Content: fmt.Sprintf("anthropic: parse tool call arguments for %s: %v", toolUse.Name, err),
-						}
+						})
 						return
 					}
 				} else {
 					args = make(map[string]any)
 				}
-				ch <- sdk.ProviderEvent{
+				if !send(sdk.ProviderEvent{
 					Type: sdk.ProviderEventToolCall,
 					Content: sdk.ToolCall{
 						ID:        toolUse.ID,
 						Name:      toolUse.Name,
 						Arguments: args,
 					},
+				}) {
+					return
 				}
 			}
 		}

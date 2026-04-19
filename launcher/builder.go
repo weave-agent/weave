@@ -184,6 +184,36 @@ func GenerateGoMod(dir, moduleRoot string, exts []ExtensionInfo) error {
 		b.WriteString("\t" + extModulePath(ext) + " v0.0.0\n")
 	}
 
+	// Propagate transitive local dependencies from extension go.mod files.
+	directModulePaths := make(map[string]bool)
+
+	directModulePaths["weave"] = true
+	for _, ext := range exts {
+		directModulePaths[extModulePath(ext)] = true
+	}
+
+	var (
+		extraRequires []string
+		extraReplaces []string
+	)
+
+	for _, ext := range exts {
+		localReplaces := readLocalReplaces(ext.Dir)
+		for modPath, localPath := range localReplaces {
+			if directModulePaths[modPath] {
+				continue
+			}
+
+			directModulePaths[modPath] = true
+			extraRequires = append(extraRequires, modPath+" v0.0.0")
+			extraReplaces = append(extraReplaces, "replace "+modPath+" => "+localPath)
+		}
+	}
+
+	for _, req := range extraRequires {
+		b.WriteString("\t" + req + "\n")
+	}
+
 	b.WriteString(")\n\n")
 	b.WriteString("replace weave => " + moduleRoot + "\n")
 
@@ -191,11 +221,86 @@ func GenerateGoMod(dir, moduleRoot string, exts []ExtensionInfo) error {
 		b.WriteString("replace " + extModulePath(ext) + " => " + ext.Dir + "\n")
 	}
 
+	for _, rep := range extraReplaces {
+		b.WriteString(rep + "\n")
+	}
+
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(b.String()), 0o600); err != nil {
 		return fmt.Errorf("generate go.mod: %w", err)
 	}
 
 	return nil
+}
+
+// readLocalReplaces parses a go.mod file and returns replace directives that
+// point to local paths (relative or absolute). The returned map keys are
+// module paths and values are resolved absolute paths.
+func readLocalReplaces(dir string) map[string]string {
+	data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+	if err != nil {
+		return nil
+	}
+
+	result := make(map[string]string)
+	inReplaceBlock := false
+
+	for line := range strings.SplitSeq(string(data), "\n") {
+		trimmed := strings.TrimSpace(line)
+
+		if trimmed == "" || strings.HasPrefix(trimmed, "//") {
+			continue
+		}
+
+		if strings.HasPrefix(trimmed, "replace ") {
+			if strings.Contains(trimmed, "=>") {
+				parseSingleReplace(trimmed[len("replace "):], dir, result)
+			} else {
+				inReplaceBlock = true
+			}
+
+			continue
+		}
+
+		if inReplaceBlock {
+			if trimmed == ")" {
+				inReplaceBlock = false
+
+				continue
+			}
+
+			if strings.Contains(trimmed, "=>") {
+				parseSingleReplace(trimmed, dir, result)
+			}
+		}
+	}
+
+	return result
+}
+
+func parseSingleReplace(s, dir string, result map[string]string) {
+	before, after, ok := strings.Cut(s, "=>")
+	if !ok {
+		return
+	}
+
+	modPath := strings.TrimSpace(before)
+	localPath := strings.TrimSpace(after)
+
+	if localPath == "" {
+		return
+	}
+
+	// Only capture local paths (relative or absolute), not version queries.
+	if !strings.HasPrefix(localPath, ".") && !strings.HasPrefix(localPath, "/") {
+		return
+	}
+
+	absPath := localPath
+	if !strings.HasPrefix(localPath, "/") {
+		absPath = filepath.Join(dir, localPath)
+	}
+
+	result[modPath] = absPath
 }
 
 // GenerateMainGo creates a main.go that creates a bus, wires all extensions, and blocks on signal.
@@ -354,6 +459,13 @@ func Build(dir, moduleRoot, agentLoop string, providers []string, exts []Extensi
 
 	if err := GenerateMainGo(dir, sorted, agentLoop, providers); err != nil {
 		return "", fmt.Errorf("build: generate main.go: %w", err)
+	}
+
+	tidyCmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
+
+	tidyCmd.Dir = dir
+	if output, err := tidyCmd.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("build: go mod tidy: %w\n%s", err, output)
 	}
 
 	binaryPath := filepath.Join(dir, "weave")
