@@ -89,12 +89,12 @@ Create a shared truncation package used by all tools for consistent output limit
 - [x] run `go test ./extensions/tools/ls/...` — must pass before next task
 
 ### Task 9: Anthropic provider
-- [ ] create `extensions/providers/anthropic/go.mod` and `extensions/providers/anthropic/anthropic.go` with `init()` registering via `sdk.RegisterProvider("anthropic", ...)`
-- [ ] implement `Stream`: call Anthropic Messages API with streaming, emit `ProviderEventTextDelta` and `ProviderEventToolCall` events, handle tool use blocks
-- [ ] use official `github.com/anthropics/anthropic-sdk-go` SDK
-- [ ] config: API key from `ANTHROPIC_API_KEY` env var, model from config
-- [ ] write tests with mocked HTTP server (streaming response, tool calls, error handling)
-- [ ] run `go test ./extensions/providers/anthropic/...` — must pass before next task
+- [x] create `extensions/providers/anthropic/go.mod` and `extensions/providers/anthropic/anthropic.go` with `init()` registering via `sdk.RegisterProvider("anthropic", ...)`
+- [x] implement `Stream`: call Anthropic Messages API with streaming, emit `ProviderEventTextDelta` and `ProviderEventToolCall` events, handle tool use blocks
+- [x] use official `github.com/anthropics/anthropic-sdk-go` SDK
+- [x] config: API key from `ANTHROPIC_API_KEY` env var, model from config
+- [x] write tests with mocked HTTP server (streaming response, tool calls, error handling)
+- [x] run `go test ./extensions/providers/anthropic/...` — must pass before next task
 
 ### Task 10: OpenAI-compat shared library
 - [ ] create `extensions/providers/openai-compat/openai_compat.go` with shared types and streaming logic for OpenAI-compatible APIs
