@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -172,8 +173,11 @@ func GenerateGoMod(dir, moduleRoot string, exts []ExtensionInfo) error {
 }
 
 // GenerateMainGo creates a main.go that creates a bus, wires all extensions, and blocks on signal.
-// The generated binary accepts a --weave-config=<path> argument to pass config to extensions.
-func GenerateMainGo(dir string, exts []ExtensionInfo) error {
+// The generated binary accepts:
+//   - --weave-config=<path> to pass config to extensions
+//   - --weave-prompt-file=<path> to read the initial prompt from a file
+//   - --weave-agent-loop=<name> and --weave-providers=<name1,name2> for core wiring
+func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string, providers []string) error {
 	var b strings.Builder
 	b.WriteString("package main\n\n")
 	b.WriteString("import (\n")
@@ -194,18 +198,34 @@ func GenerateMainGo(dir string, exts []ExtensionInfo) error {
 	b.WriteString(")\n\n")
 	b.WriteString("func main() {\n")
 	b.WriteString("\tvar cfgPath string\n")
-	b.WriteString("\tvar prompt string\n")
+	b.WriteString("\tvar promptFilePath string\n")
+	b.WriteString("\tvar agentLoopName string\n")
+	b.WriteString("\tvar providersFlag string\n")
 	b.WriteString("\tfiltered := make([]string, 0, len(os.Args)-1)\n")
 	b.WriteString("\tfor _, a := range os.Args[1:] {\n")
 	b.WriteString("\t\tif p, ok := strings.CutPrefix(a, \"--weave-config=\"); ok {\n")
 	b.WriteString("\t\t\tcfgPath = p\n")
-	b.WriteString("\t\t} else if p, ok := strings.CutPrefix(a, \"--weave-prompt=\"); ok {\n")
-	b.WriteString("\t\t\tprompt = p\n")
+	b.WriteString("\t\t} else if p, ok := strings.CutPrefix(a, \"--weave-prompt-file=\"); ok {\n")
+	b.WriteString("\t\t\tpromptFilePath = p\n")
+	b.WriteString("\t\t} else if p, ok := strings.CutPrefix(a, \"--weave-agent-loop=\"); ok {\n")
+	b.WriteString("\t\t\tagentLoopName = p\n")
+	b.WriteString("\t\t} else if p, ok := strings.CutPrefix(a, \"--weave-providers=\"); ok {\n")
+	b.WriteString("\t\t\tprovidersFlag = p\n")
 	b.WriteString("\t\t} else {\n")
 	b.WriteString("\t\t\tfiltered = append(filtered, a)\n")
 	b.WriteString("\t\t}\n")
 	b.WriteString("\t}\n")
 	b.WriteString("\tos.Args = append([]string{os.Args[0]}, filtered...)\n\n")
+	b.WriteString("\tvar prompt string\n")
+	b.WriteString("\tif promptFilePath != \"\" {\n")
+	b.WriteString("\t\tdata, err := os.ReadFile(promptFilePath)\n")
+	b.WriteString("\t\tos.Remove(promptFilePath)\n")
+	b.WriteString("\t\tif err != nil {\n")
+	b.WriteString("\t\t\tfmt.Fprintf(os.Stderr, \"weave: read prompt file: %v\\n\", err)\n")
+	b.WriteString("\t\t\tos.Exit(1)\n")
+	b.WriteString("\t\t}\n")
+	b.WriteString("\t\tprompt = string(data)\n")
+	b.WriteString("\t}\n\n")
 	b.WriteString("\tb := bus.New()\n")
 	b.WriteString("\tdefer b.Close()\n\n")
 	b.WriteString("\tendCh := b.Subscribe(\"agent.end\")\n\n")
@@ -214,12 +234,37 @@ func GenerateMainGo(dir string, exts []ExtensionInfo) error {
 	b.WriteString("\t\tcfg = sdk.FilePathConfig(cfgPath)\n")
 	b.WriteString("\t}\n\n")
 
-	extNames := make([]string, len(exts))
-	for i, ext := range exts {
-		extNames[i] = `"` + ext.Name + `"`
+	optExtNames := make([]string, 0, len(exts))
+	for _, ext := range exts {
+		// Core extensions (agent-loop, providers) are handled by WireWithCore,
+		// not passed as optional extensions.
+		if ext.Name == agentLoop || slices.Contains(providers, ext.Name) {
+			continue
+		}
+
+		optExtNames = append(optExtNames, `"`+ext.Name+`"`)
 	}
 
-	b.WriteString("\twired, err := sdk.Wire([]string{" + strings.Join(extNames, ", ") + "}, b, cfg)\n")
+	providerNames := make([]string, len(providers))
+	for i, p := range providers {
+		providerNames[i] = `"` + p + `"`
+	}
+
+	b.WriteString("\tvar optExts []string\n")
+
+	if len(optExtNames) > 0 {
+		b.WriteString("\toptExts = []string{" + strings.Join(optExtNames, ", ") + "}\n")
+	}
+
+	b.WriteString("\n")
+	b.WriteString("\tcore := sdk.CoreWireConfig{AgentLoop: \"" + agentLoop + "\", Providers: []string{" + strings.Join(providerNames, ", ") + "}}\n")
+	b.WriteString("\tif agentLoopName != \"\" {\n")
+	b.WriteString("\t\tcore.AgentLoop = agentLoopName\n")
+	b.WriteString("\t}\n")
+	b.WriteString("\tif providersFlag != \"\" {\n")
+	b.WriteString("\t\tcore.Providers = strings.Split(providersFlag, \",\")\n")
+	b.WriteString("\t}\n")
+	b.WriteString("\twired, err := sdk.WireWithCore(core, optExts, b, cfg)\n")
 	b.WriteString("\tif err != nil {\n")
 	b.WriteString("\t\tfmt.Fprintf(os.Stderr, \"weave: %v\\n\", err)\n")
 	b.WriteString("\t\tos.Exit(1)\n")
@@ -229,12 +274,20 @@ func GenerateMainGo(dir string, exts []ExtensionInfo) error {
 	b.WriteString("\t}\n\n")
 	b.WriteString("\tsig := make(chan os.Signal, 1)\n")
 	b.WriteString("\tsignal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)\n")
+	b.WriteString("\tvar endErr string\n")
 	b.WriteString("\tselect {\n")
 	b.WriteString("\tcase <-sig:\n")
-	b.WriteString("\tcase <-endCh:\n")
+	b.WriteString("\tcase evt := <-endCh:\n")
+	b.WriteString("\t\tif s, ok := evt.Payload.(string); ok && s != \"\" {\n")
+	b.WriteString("\t\t\tendErr = s\n")
+	b.WriteString("\t\t}\n")
 	b.WriteString("\t}\n")
 	b.WriteString("\tif err := wired.Close(); err != nil {\n")
 	b.WriteString("\t\tfmt.Fprintf(os.Stderr, \"weave: shutdown error: %v\\n\", err)\n")
+	b.WriteString("\t\tos.Exit(1)\n")
+	b.WriteString("\t}\n")
+	b.WriteString("\tif endErr != \"\" {\n")
+	b.WriteString("\t\tfmt.Fprintf(os.Stderr, \"weave: %s\\n\", endErr)\n")
 	b.WriteString("\t\tos.Exit(1)\n")
 	b.WriteString("\t}\n")
 	b.WriteString("}\n")
@@ -248,8 +301,9 @@ func GenerateMainGo(dir string, exts []ExtensionInfo) error {
 
 // Build generates go.mod and main.go in dir, runs go build, and returns the binary path.
 // moduleRoot is the absolute path to the weave module root (containing go.mod).
+// agentLoop and providers identify the core extensions for WireWithCore.
 // Extensions are sorted by name to match the hash computation order.
-func Build(dir, moduleRoot string, exts []ExtensionInfo) (string, error) {
+func Build(dir, moduleRoot, agentLoop string, providers []string, exts []ExtensionInfo) (string, error) {
 	sorted := make([]ExtensionInfo, len(exts))
 	copy(sorted, exts)
 	sort.Slice(sorted, func(i, j int) bool {
@@ -260,7 +314,7 @@ func Build(dir, moduleRoot string, exts []ExtensionInfo) (string, error) {
 		return "", fmt.Errorf("build: generate go.mod: %w", err)
 	}
 
-	if err := GenerateMainGo(dir, sorted); err != nil {
+	if err := GenerateMainGo(dir, sorted, agentLoop, providers); err != nil {
 		return "", fmt.Errorf("build: generate main.go: %w", err)
 	}
 

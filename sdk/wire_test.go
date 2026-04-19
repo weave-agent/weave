@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"errors"
+	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -242,8 +243,13 @@ func TestWired_CloseReverseOrder(t *testing.T) {
 
 func TestWireWithCore_MergesCoreAndOptional(t *testing.T) {
 	ResetRegistry()
+	ResetProviderRegistry()
 
 	var names []string
+
+	RegisterProvider("anthropic", func(Config) (Provider, error) {
+		return &mockProvider{}, nil
+	})
 
 	reg := func(n string) {
 		RegisterExtension(n, func(Config) (Extension, error) {
@@ -253,7 +259,6 @@ func TestWireWithCore_MergesCoreAndOptional(t *testing.T) {
 		})
 	}
 	reg("loop")
-	reg("anthropic")
 	reg("bash-tool")
 	reg("file-tool")
 
@@ -264,7 +269,8 @@ func TestWireWithCore_MergesCoreAndOptional(t *testing.T) {
 		t.Fatalf("WireWithCore: %v", err)
 	}
 
-	want := []string{"anthropic", "loop", "bash-tool", "file-tool"}
+	// Providers are validated but not wired; only loop + optional extensions are wired.
+	want := []string{"loop", "bash-tool", "file-tool"}
 	if len(names) != len(want) {
 		t.Fatalf("got %d extensions, want %d", len(names), len(want))
 	}
@@ -278,8 +284,13 @@ func TestWireWithCore_MergesCoreAndOptional(t *testing.T) {
 
 func TestWireWithCore_Deduplicates(t *testing.T) {
 	ResetRegistry()
+	ResetProviderRegistry()
 
 	var subscribed atomic.Int32
+
+	RegisterProvider("anthropic", func(Config) (Provider, error) {
+		return &mockProvider{}, nil
+	})
 
 	reg := func(n string) {
 		RegisterExtension(n, func(Config) (Extension, error) {
@@ -289,14 +300,13 @@ func TestWireWithCore_Deduplicates(t *testing.T) {
 		})
 	}
 	reg("loop")
-	reg("anthropic")
 	reg("bash-tool")
 
 	bus := &mockBus{}
 
 	_, err := WireWithCore(
 		coreCfg("anthropic"),
-		[]string{"anthropic", "bash-tool", "loop"},
+		[]string{"bash-tool", "loop"},
 		bus,
 		nil,
 	)
@@ -304,13 +314,19 @@ func TestWireWithCore_Deduplicates(t *testing.T) {
 		t.Fatalf("WireWithCore: %v", err)
 	}
 
-	if got := subscribed.Load(); got != 3 {
-		t.Errorf("expected 3 subscriptions (deduped), got %d", got)
+	// Provider not wired, only loop + bash-tool (deduped)
+	if got := subscribed.Load(); got != 2 {
+		t.Errorf("expected 2 subscriptions (deduped), got %d", got)
 	}
 }
 
 func TestWireWithCore_CoreOnly(t *testing.T) {
 	ResetRegistry()
+	ResetProviderRegistry()
+
+	RegisterProvider("anthropic", func(Config) (Provider, error) {
+		return &mockProvider{}, nil
+	})
 
 	var names []string
 
@@ -322,7 +338,6 @@ func TestWireWithCore_CoreOnly(t *testing.T) {
 		})
 	}
 	reg("loop")
-	reg("anthropic")
 
 	bus := &mockBus{}
 
@@ -331,8 +346,9 @@ func TestWireWithCore_CoreOnly(t *testing.T) {
 		t.Fatalf("WireWithCore: %v", err)
 	}
 
-	if len(names) != 2 {
-		t.Errorf("expected 2 extensions, got %d", len(names))
+	// Only the loop extension is wired, provider is just validated
+	if len(names) != 1 || names[0] != "loop" {
+		t.Errorf("expected [loop], got %v", names)
 	}
 }
 
@@ -396,17 +412,16 @@ func TestWireWithCore_ErrDuplicateProviders(t *testing.T) {
 
 func TestWireWithCore_FactoryErrorRollback(t *testing.T) {
 	ResetRegistry()
+	ResetProviderRegistry()
+
+	RegisterProvider("anthropic", func(Config) (Provider, error) {
+		return &mockProvider{}, nil
+	})
 
 	var closed atomic.Int32
 
 	RegisterExtension("loop", func(Config) (Extension, error) {
 		return NewExtensionFuncWithClose("loop", func(Bus) {}, func() error {
-			closed.Add(1)
-			return nil
-		}), nil
-	})
-	RegisterExtension("anthropic", func(Config) (Extension, error) {
-		return NewExtensionFuncWithClose("anthropic", func(Bus) {}, func() error {
 			closed.Add(1)
 			return nil
 		}), nil
@@ -422,8 +437,8 @@ func TestWireWithCore_FactoryErrorRollback(t *testing.T) {
 		t.Fatal("expected error from failing factory")
 	}
 
-	if got := closed.Load(); got != 2 {
-		t.Errorf("expected 2 Close calls on rollback, got %d", got)
+	if got := closed.Load(); got != 1 {
+		t.Errorf("expected 1 Close call on rollback (loop only), got %d", got)
 	}
 }
 
@@ -458,17 +473,75 @@ func TestWired_CloseErrorAggregation(t *testing.T) {
 	}
 }
 
+func TestWireWithCore_SyncsProviderEnv(t *testing.T) {
+	ResetRegistry()
+	ResetProviderRegistry()
+
+	RegisterProvider("openai", func(Config) (Provider, error) {
+		return &mockProvider{}, nil
+	})
+
+	RegisterExtension("loop", func(Config) (Extension, error) {
+		return NewExtensionFunc("loop", func(Bus) {}), nil
+	})
+
+	t.Setenv("WEAVE_PROVIDER", "")
+
+	bus := &mockBus{}
+
+	_, err := WireWithCore(CoreWireConfig{AgentLoop: "loop", Providers: []string{"openai"}}, nil, bus, nil)
+	if err != nil {
+		t.Fatalf("WireWithCore: %v", err)
+	}
+
+	if got := os.Getenv("WEAVE_PROVIDER"); got != "openai" {
+		t.Errorf("WEAVE_PROVIDER = %q, want %q", got, "openai")
+	}
+}
+
+func TestWireWithCore_DoesNotOverrideExistingProviderEnv(t *testing.T) {
+	ResetRegistry()
+	ResetProviderRegistry()
+
+	RegisterProvider("anthropic", func(Config) (Provider, error) {
+		return &mockProvider{}, nil
+	})
+	RegisterProvider("openai", func(Config) (Provider, error) {
+		return &mockProvider{}, nil
+	})
+
+	RegisterExtension("loop", func(Config) (Extension, error) {
+		return NewExtensionFunc("loop", func(Bus) {}), nil
+	})
+
+	t.Setenv("WEAVE_PROVIDER", "anthropic")
+
+	bus := &mockBus{}
+
+	_, err := WireWithCore(CoreWireConfig{AgentLoop: "loop", Providers: []string{"openai"}}, nil, bus, nil)
+	if err != nil {
+		t.Fatalf("WireWithCore: %v", err)
+	}
+
+	// Existing env var should NOT be overridden
+	if got := os.Getenv("WEAVE_PROVIDER"); got != "anthropic" {
+		t.Errorf("WEAVE_PROVIDER = %q, want %q (should not be overridden)", got, "anthropic")
+	}
+}
+
 func TestWireWithCore_PassesConfigToFactories(t *testing.T) {
 	ResetRegistry()
+	ResetProviderRegistry()
+
+	RegisterProvider("anthropic", func(Config) (Provider, error) {
+		return &mockProvider{}, nil
+	})
 
 	var receivedCfg Config
 
 	RegisterExtension("loop", func(cfg Config) (Extension, error) {
 		receivedCfg = cfg
 		return NewExtensionFunc("loop", func(Bus) {}), nil
-	})
-	RegisterExtension("anthropic", func(Config) (Extension, error) {
-		return NewExtensionFunc("anthropic", func(Bus) {}), nil
 	})
 
 	cfg := FilePathConfig("/test/.weave.yaml")

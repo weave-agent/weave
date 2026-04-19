@@ -61,7 +61,7 @@ func TestNewAssistantMessage(t *testing.T) {
 
 func TestNewToolResultMessage(t *testing.T) {
 	before := time.Now()
-	msg := NewToolResultMessage("call_123", "bash", "output text")
+	msg := NewToolResultMessage("call_123", "bash", "output text", false)
 	after := time.Now()
 
 	if msg.Role != RoleToolResult {
@@ -82,6 +82,18 @@ func TestNewToolResultMessage(t *testing.T) {
 
 	if msg.Timestamp.Before(before) || msg.Timestamp.After(after) {
 		t.Errorf("Timestamp %v not between %v and %v", msg.Timestamp, before, after)
+	}
+
+	if msg.IsError {
+		t.Errorf("IsError = %v, want false", msg.IsError)
+	}
+}
+
+func TestNewToolResultMessage_Error(t *testing.T) {
+	msg := NewToolResultMessage("call_err", "bash", "command failed", true)
+
+	if !msg.IsError {
+		t.Errorf("IsError = %v, want true", msg.IsError)
 	}
 }
 
@@ -117,7 +129,7 @@ func TestMessageValidate(t *testing.T) {
 		},
 		{
 			name:    "tool_result role valid",
-			msg:     NewToolResultMessage("id", "tool", "result"),
+			msg:     NewToolResultMessage("id", "tool", "result", false),
 			wantErr: false,
 		},
 		{

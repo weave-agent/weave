@@ -345,6 +345,87 @@ func TestLoop_SteeringInjection(t *testing.T) {
 	b.Publish(sdk.NewEvent(TopicPrompt, "start"))
 	b.Publish(sdk.NewEvent(TopicSteer, "steer this"))
 
+	// Steering published before the turn is included in the first provider call.
+	// No extra turn is triggered — the steering is already part of the request.
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	if !ok {
+		t.Fatal("timeout waiting for turn_end")
+	}
+
+	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
+	if !ok {
+		t.Fatal("timeout waiting for end")
+	}
+
+	mp.callMu.Lock()
+	if len(mp.calls) != 1 {
+		t.Fatalf("expected 1 provider call, got %d", len(mp.calls))
+	}
+
+	// The single call should have both the prompt and the steering message.
+	if len(mp.calls[0].Messages) != 2 {
+		t.Errorf("expected 2 messages (prompt + steering), got %d", len(mp.calls[0].Messages))
+	}
+	mp.callMu.Unlock()
+}
+
+func TestLoop_SteeringDuringTurn(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	streamingStarted := make(chan struct{})
+
+	mp := &mockProvider{
+		responses: []providerResponse{
+			{textDeltas: []string{"first"}},
+			{textDeltas: []string{"steered"}},
+		},
+	}
+
+	mp.StreamFunc = func(ctx context.Context, req sdk.ProviderRequest) (<-chan sdk.ProviderEvent, error) {
+		ch := make(chan sdk.ProviderEvent, 2)
+
+		go func() {
+			defer close(ch)
+
+			mp.callMu.Lock()
+			callIdx := len(mp.calls) - 1
+			mp.callMu.Unlock()
+
+			if callIdx == 0 {
+				close(streamingStarted)
+				time.Sleep(100 * time.Millisecond)
+			}
+
+			if callIdx < len(mp.responses) {
+				resp := mp.responses[callIdx]
+
+				for _, delta := range resp.textDeltas {
+					select {
+					case ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: delta}:
+					case <-ctx.Done():
+						return
+					}
+				}
+			}
+		}()
+
+		return ch, nil
+	}
+
+	registerMockProvider("anthropic", mp)
+
+	l, b, cleanup := setupLoop(t, "anthropic")
+	defer cleanup()
+
+	allCh := b.SubscribeAll()
+	l.Subscribe(b)
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "start"))
+
+	<-streamingStarted
+	b.Publish(sdk.NewEvent(TopicSteer, "steer during turn"))
+
 	for i := range 2 {
 		_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
 		if !ok {
@@ -358,14 +439,10 @@ func TestLoop_SteeringInjection(t *testing.T) {
 	}
 
 	mp.callMu.Lock()
-	if len(mp.calls) < 2 {
+	if len(mp.calls) != 2 {
 		t.Fatalf("expected 2 provider calls, got %d", len(mp.calls))
 	}
 
-	secondCallMsgs := mp.calls[1].Messages
-	if len(secondCallMsgs) < 3 {
-		t.Errorf("second call messages = %d, want at least 3", len(secondCallMsgs))
-	}
 	mp.callMu.Unlock()
 }
 

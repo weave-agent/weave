@@ -11,11 +11,11 @@ import (
 func TestRun_NoExtensions(t *testing.T) {
 	l := &Launcher{
 		Cache:      NewCache(t.TempDir()),
-		Build:      func(string, string, []ExtensionInfo) (string, error) { return "", nil },
+		Build:      func(string, string, string, []string, []ExtensionInfo) (string, error) { return "", nil },
 		ModuleRoot: "/fake",
 	}
 
-	err := l.Run(context.Background(), t.TempDir(), nil, nil, "")
+	err := l.Run(context.Background(), t.TempDir(), nil, nil, "", "loop", nil)
 	if err == nil {
 		t.Fatal("expected error for empty extensions")
 	}
@@ -24,11 +24,11 @@ func TestRun_NoExtensions(t *testing.T) {
 func TestRun_DiscoveryFails(t *testing.T) {
 	l := &Launcher{
 		Cache:      NewCache(t.TempDir()),
-		Build:      func(string, string, []ExtensionInfo) (string, error) { return "", nil },
+		Build:      func(string, string, string, []string, []ExtensionInfo) (string, error) { return "", nil },
 		ModuleRoot: "/fake",
 	}
 
-	err := l.Run(context.Background(), t.TempDir(), []string{"nonexistent_ext"}, nil, "")
+	err := l.Run(context.Background(), t.TempDir(), []string{"nonexistent_ext"}, nil, "", "loop", nil)
 	if err == nil {
 		t.Fatal("expected error for missing extension")
 	}
@@ -42,14 +42,14 @@ func TestRun_BuildFails(t *testing.T) {
 	buildErr := error(fmtError("mock build failure"))
 	l := &Launcher{
 		Cache: NewCache(t.TempDir()),
-		Build: func(string, string, []ExtensionInfo) (string, error) {
+		Build: func(string, string, string, []string, []ExtensionInfo) (string, error) {
 			return "", buildErr
 		},
 		ModuleRoot:  "/fake",
 		BuildTmpDir: t.TempDir(),
 	}
 
-	err := l.Run(context.Background(), projectDir, []string{"noop"}, nil, "")
+	err := l.Run(context.Background(), projectDir, []string{"noop"}, nil, "", "loop", nil)
 	if err == nil {
 		t.Fatal("expected error for build failure")
 	}
@@ -105,7 +105,7 @@ func TestRun_FullPipelineWithMockBuild(t *testing.T) {
 
 	l := &Launcher{
 		Cache: NewCache(cacheDir),
-		Build: func(dir, _ string, _ []ExtensionInfo) (string, error) {
+		Build: func(dir, _, _ string, _ []string, _ []ExtensionInfo) (string, error) {
 			binPath := filepath.Join(dir, "weave")
 			if err := os.WriteFile(binPath, []byte("fake-binary"), 0o750); err != nil {
 				return "", fmt.Errorf("write fake binary: %w", err)
@@ -136,7 +136,7 @@ func TestRun_FullPipelineWithMockBuild(t *testing.T) {
 
 	// Use the buildAndCache method indirectly by creating a launcher with a
 	// non-exec-ing exec. Instead, test buildAndCache directly.
-	binPath, err := l.buildAndCache(hash, exts)
+	binPath, err := l.buildAndCache(hash, "loop", nil, exts)
 	if err != nil {
 		t.Fatalf("buildAndCache: %v", err)
 	}
@@ -177,7 +177,7 @@ func TestRun_SecondRunUsesCache(t *testing.T) {
 	buildCount := 0
 	l := &Launcher{
 		Cache: NewCache(cacheDir),
-		Build: func(dir, _ string, _ []ExtensionInfo) (string, error) {
+		Build: func(dir, _, _ string, _ []string, _ []ExtensionInfo) (string, error) {
 			buildCount++
 
 			binPath := filepath.Join(dir, "weave")
@@ -203,7 +203,7 @@ func TestRun_SecondRunUsesCache(t *testing.T) {
 	}
 
 	// First build
-	_, err = l.buildAndCache(hash, exts)
+	_, err = l.buildAndCache(hash, "loop", nil, exts)
 	if err != nil {
 		t.Fatal(err)
 	}

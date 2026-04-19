@@ -15,7 +15,10 @@ import (
 // noopCode is a minimal extension that registers itself and publishes an event on Subscribe.
 const noopCode = `package noop
 
-import "weave/sdk"
+import (
+	"context"
+	"weave/sdk"
+)
 
 func init() {
 	sdk.RegisterExtension("noop", func(cfg sdk.Config) (sdk.Extension, error) {
@@ -23,6 +26,17 @@ func init() {
 			b.Publish(sdk.NewEvent("noop.ready", "noop extension active"))
 		}), nil
 	})
+	sdk.RegisterProvider("noop", func(cfg sdk.Config) (sdk.Provider, error) {
+		return &noopProvider{}, nil
+	})
+}
+
+type noopProvider struct{}
+
+func (p *noopProvider) Stream(_ context.Context, _ sdk.ProviderRequest) (<-chan sdk.ProviderEvent, error) {
+	ch := make(chan sdk.ProviderEvent)
+	close(ch)
+	return ch, nil
 }
 `
 
@@ -30,6 +44,7 @@ func init() {
 const noopMarkerCode = `package noop
 
 import (
+	"context"
 	"os"
 	"weave/sdk"
 )
@@ -43,6 +58,17 @@ func init() {
 			}
 		}), nil
 	})
+	sdk.RegisterProvider("noop", func(cfg sdk.Config) (sdk.Provider, error) {
+		return &noopProvider{}, nil
+	})
+}
+
+type noopProvider struct{}
+
+func (p *noopProvider) Stream(_ context.Context, _ sdk.ProviderRequest) (<-chan sdk.ProviderEvent, error) {
+	ch := make(chan sdk.ProviderEvent)
+	close(ch)
+	return ch, nil
 }
 `
 
@@ -102,7 +128,7 @@ func TestIntegration_FullPipeline(t *testing.T) {
 	// Step 4: Build
 	buildDir := t.TempDir()
 
-	binPath, err := Build(buildDir, moduleRoot, exts)
+	binPath, err := Build(buildDir, moduleRoot, "noop", []string{"noop"}, exts)
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
@@ -159,7 +185,7 @@ func TestIntegration_CacheHitOnSecondRun(t *testing.T) {
 	// First build + store
 	buildDir := t.TempDir()
 
-	binPath, err := Build(buildDir, moduleRoot, exts)
+	binPath, err := Build(buildDir, moduleRoot, "noop", []string{"noop"}, exts)
 	if err != nil {
 		t.Fatalf("first build: %v", err)
 	}
@@ -206,7 +232,7 @@ func TestIntegration_ExtensionInitAndWireInBuiltBinary(t *testing.T) {
 	// Build
 	buildDir := t.TempDir()
 
-	binPath, err := Build(buildDir, moduleRoot, exts)
+	binPath, err := Build(buildDir, moduleRoot, "noop", []string{"noop"}, exts)
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}

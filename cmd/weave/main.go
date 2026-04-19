@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"weave/config"
@@ -55,19 +56,64 @@ func run(args ...string) (exitCode int) {
 		projectDir = filepath.Dir(projectDir)
 	}
 
+	envProvider := os.Getenv("WEAVE_PROVIDER")
+	if envProvider == "" && len(cf.Core.Providers) > 0 {
+		if err := os.Setenv("WEAVE_PROVIDER", cf.Core.Providers[0]); err != nil {
+			fmt.Fprintf(os.Stderr, "weave: setenv: %v\n", err)
+
+			return 1
+		}
+	}
+
 	coreExts, optExts := cf.CoreExts()
 	allExts := mergeUnique(append(coreExts, optExts...))
 
-	if cf.Prompt != "" {
-		rest = append([]string{"--weave-prompt=" + cf.Prompt}, rest...)
+	// Compute effective providers: config providers + env override if set.
+	providers := cf.Core.Providers
+	if envProvider != "" {
+		providers = ensurePresent(providers, envProvider)
+		allExts = ensurePresent(allExts, envProvider)
 	}
 
-	if err := l.Run(context.Background(), projectDir, allExts, rest, configFile); err != nil {
+	if cf.Prompt != "" {
+		f, err := os.CreateTemp("", "weave-prompt-*")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "weave: creating prompt file: %v\n", err)
+
+			return 1
+		}
+
+		promptFile := f.Name()
+		//nolint:wsl // cleanup defer adjacent to captured var
+		defer func() { _ = os.Remove(promptFile) }()
+
+		if _, err := f.WriteString(cf.Prompt); err != nil {
+			_ = f.Close()
+
+			fmt.Fprintf(os.Stderr, "weave: writing prompt file: %v\n", err)
+
+			return 1
+		}
+
+		_ = f.Close()
+
+		rest = append([]string{"--weave-prompt-file=" + promptFile}, rest...)
+	}
+
+	if err := l.Run(context.Background(), projectDir, allExts, rest, configFile, cf.Core.AgentLoop, providers); err != nil {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", err)
 		return 1
 	}
 
 	return 0
+}
+
+func ensurePresent(exts []string, name string) []string {
+	if slices.Contains(exts, name) {
+		return exts
+	}
+
+	return append(exts, name)
 }
 
 func mergeUnique(exts []string) []string {

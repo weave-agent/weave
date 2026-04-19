@@ -7,12 +7,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 )
 
 // BuildFunc builds a binary from extension infos and returns its path.
-type BuildFunc func(dir, moduleRoot string, exts []ExtensionInfo) (string, error)
+type BuildFunc func(dir, moduleRoot, agentLoop string, providers []string, exts []ExtensionInfo) (string, error)
 
 // Launcher orchestrates the full pipeline: discover -> hash -> cache -> build -> exec.
 type Launcher struct {
@@ -37,12 +38,12 @@ func NewLauncher(cache *Cache, moduleRoot string) *Launcher {
 //  3. Check cache for existing binary
 //  4. Build if cache miss
 //  5. Exec the binary
-func (l *Launcher) Run(ctx context.Context, projectDir string, extensionNames, args []string, configPath string) error {
+func (l *Launcher) Run(ctx context.Context, projectDir string, extensionNames, args []string, configPath, agentLoop string, providers []string) error {
 	if len(extensionNames) == 0 {
 		return errors.New("launcher: no extensions configured")
 	}
 
-	exts, err := Discover(projectDir, extensionNames)
+	exts, err := DiscoverWithBuiltins(projectDir, l.ModuleRoot, extensionNames)
 	if err != nil {
 		return fmt.Errorf("launcher: discover: %w", err)
 	}
@@ -54,16 +55,16 @@ func (l *Launcher) Run(ctx context.Context, projectDir string, extensionNames, a
 
 	binPath, found := l.Cache.Lookup(hash)
 	if !found {
-		binPath, err = l.buildAndCache(hash, exts)
+		binPath, err = l.buildAndCache(hash, agentLoop, providers, exts)
 		if err != nil {
 			return fmt.Errorf("launcher: build: %w", err)
 		}
 	}
 
-	return l.exec(ctx, binPath, configPath, args)
+	return l.exec(ctx, binPath, configPath, agentLoop, providers, args)
 }
 
-func (l *Launcher) buildAndCache(hash string, exts []ExtensionInfo) (string, error) {
+func (l *Launcher) buildAndCache(hash, agentLoop string, providers []string, exts []ExtensionInfo) (string, error) {
 	unlock, lockErr := lockBuildDir(hash)
 	if lockErr != nil {
 		return "", fmt.Errorf("acquire build lock: %w", lockErr)
@@ -82,7 +83,7 @@ func (l *Launcher) buildAndCache(hash string, exts []ExtensionInfo) (string, err
 
 	defer func() { _ = os.RemoveAll(buildDir) }()
 
-	binPath, err := l.Build(buildDir, l.ModuleRoot, exts)
+	binPath, err := l.Build(buildDir, l.ModuleRoot, agentLoop, providers, exts)
 	if err != nil {
 		return "", err
 	}
@@ -116,10 +117,16 @@ func (l *Launcher) buildDir(hash string) string {
 	return filepath.Join(os.TempDir(), "weave-build-"+hash)
 }
 
-func (l *Launcher) exec(_ context.Context, binPath, configPath string, args []string) error {
+func (l *Launcher) exec(_ context.Context, binPath, configPath, agentLoop string, providers, args []string) error {
 	argv := []string{binPath}
 	if configPath != "" {
 		argv = append(argv, "--weave-config="+configPath)
+	}
+
+	argv = append(argv, "--weave-agent-loop="+agentLoop)
+
+	if len(providers) > 0 {
+		argv = append(argv, "--weave-providers="+strings.Join(providers, ","))
 	}
 
 	argv = append(argv, args...)

@@ -213,7 +213,7 @@ func TestGenerateMainGo_Content(t *testing.T) {
 		{Name: "log", Dir: "/tmp/exts/log"},
 	}
 
-	err := GenerateMainGo(dir, exts)
+	err := GenerateMainGo(dir, exts, "loop", []string{"anthropic"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -252,8 +252,16 @@ func TestGenerateMainGo_Content(t *testing.T) {
 		t.Error("main.go missing bus.New()")
 	}
 
-	if !strings.Contains(s, `sdk.Wire([]string{"noop", "log"}`) {
-		t.Error("main.go missing sdk.Wire call with extension names")
+	if !strings.Contains(s, "sdk.WireWithCore") {
+		t.Error("main.go missing sdk.WireWithCore call")
+	}
+
+	if !strings.Contains(s, "AgentLoop: \"loop\"") {
+		t.Error("main.go missing agent-loop name")
+	}
+
+	if !strings.Contains(s, `"anthropic"`) {
+		t.Error("main.go missing provider name")
 	}
 
 	if !strings.Contains(s, "strings.CutPrefix") {
@@ -312,7 +320,7 @@ func init() {
 		{Name: "noop", Dir: extDir, GoFiles: []string{filepath.Join(extDir, "noop.go")}},
 	}
 
-	binaryPath, err := Build(buildDir, moduleRoot, exts)
+	binaryPath, err := Build(buildDir, moduleRoot, "noop", nil, exts)
 	if err != nil {
 		t.Fatalf("Build failed: %v", err)
 	}

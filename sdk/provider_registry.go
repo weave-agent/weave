@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 )
 
@@ -19,6 +20,16 @@ func RegisterProvider(name string, factory func(Config) (Provider, error)) {
 	}
 
 	providerReg[name] = factory
+}
+
+func ProviderRegistered(name string) bool {
+	providerMu.RLock()
+
+	ok := providerReg[name] != nil
+
+	providerMu.RUnlock()
+
+	return ok
 }
 
 func GetProvider(name string, cfg Config) (Provider, error) {
@@ -43,6 +54,8 @@ func ListProviders() []string {
 	for name := range providerReg {
 		names = append(names, name)
 	}
+
+	sort.Strings(names)
 
 	return names
 }

@@ -14,8 +14,10 @@ const (
 type Message struct {
 	Role       string
 	Content    any
+	ToolCalls  []ToolCall
 	ToolCallID string
 	ToolName   string
+	IsError    bool
 	Timestamp  time.Time
 }
 
@@ -36,6 +38,6 @@ func NewAssistantMessage(content any) Message {
 	return Message{Role: RoleAssistant, Content: content, Timestamp: time.Now()}
 }
 
-func NewToolResultMessage(toolCallID, toolName string, content any) Message {
-	return Message{Role: RoleToolResult, Content: content, ToolCallID: toolCallID, ToolName: toolName, Timestamp: time.Now()}
+func NewToolResultMessage(toolCallID, toolName string, content any, isError bool) Message {
+	return Message{Role: RoleToolResult, Content: content, ToolCallID: toolCallID, ToolName: toolName, IsError: isError, Timestamp: time.Now()}
 }

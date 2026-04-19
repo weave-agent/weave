@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 )
 
@@ -43,6 +44,8 @@ func ListTools() []string {
 	for name := range toolReg {
 		names = append(names, name)
 	}
+
+	sort.Strings(names)
 
 	return names
 }

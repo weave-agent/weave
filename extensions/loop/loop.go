@@ -61,7 +61,6 @@ func (l *Loop) Subscribe(bus sdk.Bus) {
 		l.mu.Unlock()
 		panic("loop: Subscribe called twice without Close")
 	}
-	l.mu.Unlock()
 
 	promptCh := bus.Subscribe(TopicPrompt)
 	steerCh := bus.Subscribe(TopicSteer)
@@ -69,7 +68,6 @@ func (l *Loop) Subscribe(bus sdk.Bus) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	l.mu.Lock()
 	l.cancel = cancel
 	l.done = make(chan struct{})
 	l.mu.Unlock()
@@ -124,12 +122,12 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 
 	// Outer loop: follow-ups
 	for {
-		// Inner loop: tool calls + steering. Continues while there are
-		// tool calls or pending steering messages that require a new turn.
+		// Inner loop: tool calls. Continues while the provider returns
+		// tool calls that need execution.
 		continueLoop := true
 
 		for continueLoop {
-			messages, continueLoop = drainSteering(steerCh, messages)
+			messages, _ = drainSteering(steerCh, messages)
 
 			bus.Publish(sdk.NewEvent(TopicTurnStart, len(messages)))
 
@@ -144,12 +142,6 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 
 			messages = append(messages, resp)
 
-			bus.Publish(sdk.NewEvent(TopicTurnEnd, nil))
-
-			if len(toolCalls) > 0 {
-				continueLoop = true
-			}
-
 			for _, tc := range toolCalls {
 				result, err := executeTool(ctx, l.cfg, tc)
 				if err != nil {
@@ -157,12 +149,19 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 				}
 
 				bus.Publish(sdk.NewEvent(TopicToolResult, map[string]any{
+					"id":     tc.ID,
 					"tool":   tc.Name,
 					"result": result,
 				}))
 
-				messages = append(messages, sdk.NewToolResultMessage(tc.ID, tc.Name, result.Content))
+				messages = append(messages, sdk.NewToolResultMessage(tc.ID, tc.Name, result.Content, result.IsError))
 			}
+
+			bus.Publish(sdk.NewEvent(TopicTurnEnd, nil))
+
+			var hasNewSteering bool
+			messages, hasNewSteering = drainSteering(steerCh, messages)
+			continueLoop = len(toolCalls) > 0 || hasNewSteering
 		}
 
 		// Check for follow-up — non-blocking drain. If a follow-up was
@@ -237,7 +236,9 @@ func streamTurn(ctx context.Context, bus sdk.Bus, provider sdk.Provider, message
 
 	bus.Publish(sdk.NewEvent(TopicMsgEnd, content.String()))
 
-	return sdk.NewAssistantMessage(content.String()), toolCalls, nil
+	resp := sdk.NewAssistantMessage(content.String())
+	resp.ToolCalls = toolCalls
+	return resp, toolCalls, nil
 }
 
 func executeTool(ctx context.Context, cfg sdk.Config, tc sdk.ToolCall) (sdk.ToolResult, error) {

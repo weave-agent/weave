@@ -3,6 +3,7 @@ package sdk
 import (
 	"errors"
 	"fmt"
+	"os"
 )
 
 type CoreWireConfig struct {
@@ -45,9 +46,24 @@ func WireWithCore(core CoreWireConfig, optExts []string, bus Bus, cfg Config) (*
 		return nil, fmt.Errorf("wire: %w", err)
 	}
 
-	merged := mergeCoreAndOptional(core, optExts)
+	// Validate that provider factories exist (they are resolved on demand by
+	// the agent loop, not wired as extensions).
+	for _, p := range core.Providers {
+		if !ProviderRegistered(p) {
+			return nil, fmt.Errorf("wire: provider %q not registered", p)
+		}
+	}
 
-	return Wire(merged, bus, cfg)
+	// Sync the primary provider to the env var that the loop extension reads
+	// in its factory, so direct WireWithCore callers don't need to set it.
+	if os.Getenv("WEAVE_PROVIDER") == "" {
+		_ = os.Setenv("WEAVE_PROVIDER", core.Providers[0])
+	}
+
+	// Only wire the agent-loop extension and optional extensions.
+	extNames := mergeCoreAndOptional(CoreWireConfig{AgentLoop: core.AgentLoop}, optExts)
+
+	return Wire(extNames, bus, cfg)
 }
 
 func (w *Wired) Close() error {
