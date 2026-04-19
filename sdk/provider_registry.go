@@ -6,8 +6,8 @@ import (
 )
 
 var (
-	providerMu     sync.RWMutex
-	providerReg    = make(map[string]func(Config) (Provider, error))
+	providerMu  sync.RWMutex
+	providerReg = make(map[string]func(Config) (Provider, error))
 )
 
 func RegisterProvider(name string, factory func(Config) (Provider, error)) {

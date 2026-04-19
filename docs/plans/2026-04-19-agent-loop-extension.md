@@ -95,21 +95,21 @@ weave/
 - [x] run tests — must pass before next task
 
 ### Task 6: Implement agent-loop extension
-- [ ] create `extensions/agent-loop/go.mod` — extension module with `require weave` and `replace` directive
-- [ ] create `extensions/agent-loop/loop.go` — register as "loop" extension via `sdk.RegisterExtension("loop", ...)`
-- [ ] implement `Subscribe(bus)`: subscribe to `agent.prompt`, `agent.steer`, `agent.followup` topics; launch goroutine for the main loop
-- [ ] implement the two-level while loop: outer (follow-ups via bus), inner (steering via bus + tool calls)
-- [ ] inner loop: inject steering messages → call `provider.Stream` → extract tool calls → look up tools in registry → execute → emit `agent.tool_result` → feed results back → repeat
-- [ ] emit bus events: `agent.turn_start/end`, `agent.message_start/update/end`, `agent.tool_result`, `agent.end`
-- [ ] implement `Close()`: cancel context, clean up goroutines
-- [ ] create mock provider and mock tool for testing
-- [ ] write tests for loop startup and shutdown
-- [ ] write tests for single turn (prompt → response, no tools)
-- [ ] write tests for tool call cycle (prompt → tool call → tool result → final response)
-- [ ] write tests for steering message injection mid-loop
-- [ ] write tests for follow-up message re-entry
-- [ ] write tests for error/abort stop conditions
-- [ ] run tests — must pass before next task
+- [x] create `extensions/agent-loop/go.mod` — extension module with `require weave` and `replace` directive
+- [x] create `extensions/agent-loop/loop.go` — register as "loop" extension via `sdk.RegisterExtension("loop", ...)`
+- [x] implement `Subscribe(bus)`: subscribe to `agent.prompt`, `agent.steer`, `agent.followup` topics; launch goroutine for the main loop
+- [x] implement the two-level while loop: outer (follow-ups via bus), inner (steering via bus + tool calls)
+- [x] inner loop: inject steering messages → call `provider.Stream` → extract tool calls → look up tools in registry → execute → emit `agent.tool_result` → feed results back → repeat
+- [x] emit bus events: `agent.turn_start/end`, `agent.message_start/update/end`, `agent.tool_result`, `agent.end`
+- [x] implement `Close()`: cancel context, clean up goroutines
+- [x] create mock provider and mock tool for testing
+- [x] write tests for loop startup and shutdown
+- [x] write tests for single turn (prompt → response, no tools)
+- [x] write tests for tool call cycle (prompt → tool call → tool result → final response)
+- [x] write tests for steering message injection mid-loop
+- [x] write tests for follow-up message re-entry
+- [x] write tests for error/abort stop conditions
+- [x] run tests — must pass before next task
 
 ### Task 7: Update launcher to handle core config
 - [ ] update `cmd/weave/main.go` — extract core and optional extensions from config, pass merged list to Wire

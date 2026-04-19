@@ -14,10 +14,10 @@ type ProviderEvent struct {
 }
 
 const (
-	ProviderEventTextDelta  = "text_delta"
-	ProviderEventToolCall   = "tool_call"
-	ProviderEventDone       = "done"
-	ProviderEventError      = "error"
+	ProviderEventTextDelta = "text_delta"
+	ProviderEventToolCall  = "tool_call"
+	ProviderEventDone      = "done"
+	ProviderEventError     = "error"
 )
 
 type Provider interface {

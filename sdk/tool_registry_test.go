@@ -12,8 +12,8 @@ type mockTool struct {
 	def  ToolDef
 }
 
-func (m *mockTool) Name() string          { return m.name }
-func (m *mockTool) Definition() ToolDef   { return m.def }
+func (m *mockTool) Name() string        { return m.name }
+func (m *mockTool) Definition() ToolDef { return m.def }
 func (m *mockTool) Execute(_ context.Context, _ map[string]any) (ToolResult, error) {
 	return ToolResult{Content: "ok"}, nil
 }
