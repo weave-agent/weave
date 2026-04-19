@@ -69,6 +69,28 @@ func ComputeHash(exts []ExtensionInfo, moduleRoot string, coreDirs ...string) (s
 		}
 	}
 
+	// Hash transitive local dependencies discovered from extension go.mod files.
+	// These are shared libraries (e.g. openai-compat) that extensions depend on
+	// via replace directives. Without this, changes to shared libs don't
+	// invalidate the cache.
+	transitiveSeen := make(map[string]bool)
+
+	for _, ext := range sorted {
+		for depModPath, depDir := range readLocalReplaces(ext.Dir) {
+			if transitiveSeen[depDir] {
+				continue
+			}
+
+			transitiveSeen[depDir] = true
+
+			h.Write([]byte("transitive:" + depModPath + "\n"))
+
+			if err := hashDir(h, depDir); err != nil {
+				return "", fmt.Errorf("hash: transitive dep %s: %w", depDir, err)
+			}
+		}
+	}
+
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 

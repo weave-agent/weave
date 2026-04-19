@@ -74,7 +74,7 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 	var contextLines int
 	if v, ok := args["context"]; ok {
 		if f, ok := v.(float64); ok && f >= 0 {
-			contextLines = int(f)
+			contextLines = min(int(f), 50)
 		}
 	}
 

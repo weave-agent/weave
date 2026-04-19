@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"time"
 
 	openaicompat "weave/ext/providers/openaicompat"
 	"weave/sdk"
@@ -31,9 +30,7 @@ func init() {
 		}
 
 		return &provider{
-			client: &http.Client{
-				Timeout: 5 * time.Minute,
-			},
+			client: &http.Client{},
 			config: openaicompat.ProviderConfig{
 				BaseURL: "https://api.openai.com/v1",
 				APIKey:  apiKey,

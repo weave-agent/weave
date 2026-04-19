@@ -3,6 +3,7 @@ package edit
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -125,7 +126,11 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
 		}
-		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		perm := fs.FileMode(0o644)
+		if info, statErr := os.Stat(path); statErr == nil {
+			perm = info.Mode().Perm()
+		}
+		if err := os.WriteFile(path, []byte(content), perm); err != nil {
 			return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
 		}
 	}
