@@ -47,11 +47,11 @@ Create a shared truncation package used by all tools for consistent output limit
 - [x] run `go test ./extensions/tools/bash/...` — must pass before next task
 
 ### Task 3: read tool
-- [ ] create `extensions/tools/read/go.mod` and `extensions/tools/read/read.go` with `init()` registering via `sdk.RegisterTool("read", ...)`
-- [ ] implement `Execute`: read file at path, apply offset/limit for line-based pagination, apply truncation, return content with line numbers
-- [ ] tool definition: `{ path: string, offset?: number, limit?: number }` parameters
-- [ ] write tests (read full file, with offset, with limit, nonexistent file, directory path, binary file)
-- [ ] run `go test ./extensions/tools/read/...` — must pass before next task
+- [x] create `extensions/tools/read/go.mod` and `extensions/tools/read/read.go` with `init()` registering via `sdk.RegisterTool("read", ...)`
+- [x] implement `Execute`: read file at path, apply offset/limit for line-based pagination, apply truncation, return content with line numbers
+- [x] tool definition: `{ path: string, offset?: number, limit?: number }` parameters
+- [x] write tests (read full file, with offset, with limit, nonexistent file, directory path, binary file)
+- [x] run `go test ./extensions/tools/read/...` — must pass before next task
 
 ### Task 4: edit tool
 - [ ] create `extensions/tools/edit/go.mod` and `extensions/tools/edit/edit.go` with `init()` registering via `sdk.RegisterTool("edit", ...)`
