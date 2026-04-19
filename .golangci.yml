@@ -139,6 +139,9 @@ linters:
         path: _test\.go$
       - linters:
           - dupl
+        path: sdk/registry\.go$
+      - linters:
+          - dupl
         path: sdk/provider_registry\.go$
       - linters:
           - dupl

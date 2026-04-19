@@ -32,7 +32,7 @@ func GetExtension(name string, cfg Config) (Extension, error) {
 		return nil, fmt.Errorf("extension %q not registered", name)
 	}
 
-	return factory(cfg)
+	return factory(configOrDefault(cfg))
 }
 
 func ListExtensions() []string {
