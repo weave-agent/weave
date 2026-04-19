@@ -40,11 +40,11 @@ Create a shared truncation package used by all tools for consistent output limit
 - [x] run `go test ./internal/truncate/...` — must pass before next task
 
 ### Task 2: bash tool
-- [ ] create `extensions/tools/bash/go.mod` and `extensions/tools/bash/bash.go` with `init()` registering via `sdk.RegisterTool("bash", ...)`
-- [ ] implement `Execute`: run command via `exec.CommandContext`, capture combined stdout+stderr, apply truncation, return `ToolResult`
-- [ ] tool definition: `{ command: string, timeout?: number }` parameters
-- [ ] write tests using table-driven cases (simple command, timeout, failure exit code, large output truncation, empty output)
-- [ ] run `go test ./extensions/tools/bash/...` — must pass before next task
+- [x] create `extensions/tools/bash/go.mod` and `extensions/tools/bash/bash.go` with `init()` registering via `sdk.RegisterTool("bash", ...)`
+- [x] implement `Execute`: run command via `exec.CommandContext`, capture combined stdout+stderr, apply truncation, return `ToolResult`
+- [x] tool definition: `{ command: string, timeout?: number }` parameters
+- [x] write tests using table-driven cases (simple command, timeout, failure exit code, large output truncation, empty output)
+- [x] run `go test ./extensions/tools/bash/...` — must pass before next task
 
 ### Task 3: read tool
 - [ ] create `extensions/tools/read/go.mod` and `extensions/tools/read/read.go` with `init()` registering via `sdk.RegisterTool("read", ...)`
