@@ -57,9 +57,16 @@ func TestComputeHash_SortedByName(t *testing.T) {
 		{Name: "alpha", Dir: dir, GoFiles: []string{f1}},
 	}
 
-	h1, _ := ComputeHash(exts1)
+	h1, err := ComputeHash(exts1)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	h2, _ := ComputeHash(exts2)
+	h2, err := ComputeHash(exts2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	if h1 != h2 {
 		t.Errorf("hash should be order-independent: %s != %s", h1, h2)
 	}
@@ -78,9 +85,16 @@ func TestComputeHash_DifferentContent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	h1, _ := ComputeHash([]ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f1}}})
+	h1, err := ComputeHash([]ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f1}}})
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	h2, _ := ComputeHash([]ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f2}}})
+	h2, err := ComputeHash([]ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f2}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	if h1 == h2 {
 		t.Error("different content should produce different hash")
 	}
@@ -94,8 +108,15 @@ func TestComputeHash_DifferentNames(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	h1, _ := ComputeHash([]ExtensionInfo{{Name: "alpha", Dir: dir, GoFiles: []string{f}}})
-	h2, _ := ComputeHash([]ExtensionInfo{{Name: "beta", Dir: dir, GoFiles: []string{f}}})
+	h1, err := ComputeHash([]ExtensionInfo{{Name: "alpha", Dir: dir, GoFiles: []string{f}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	h2, err := ComputeHash([]ExtensionInfo{{Name: "beta", Dir: dir, GoFiles: []string{f}}})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if h1 == h2 {
 		t.Error("extensions with different names should produce different hashes")
@@ -134,7 +155,7 @@ func TestGenerateGoMod_Content(t *testing.T) {
 		t.Error("go.mod missing module declaration")
 	}
 
-	if !strings.Contains(s, "go 1.26.2") {
+	if !strings.Contains(s, goVersion()) {
 		t.Error("go.mod missing go version")
 	}
 

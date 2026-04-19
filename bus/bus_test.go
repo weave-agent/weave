@@ -144,10 +144,9 @@ func TestPublishAfterClose(t *testing.T) {
 	ch := b.Subscribe("x")
 	b.Publish(sdk.NewEvent("x", nil))
 
-	select {
-	case <-ch:
-		t.Fatal("should not receive event after close")
-	case <-time.After(50 * time.Millisecond):
+	_, ok := <-ch
+	if ok {
+		t.Fatal("subscribe after close should return closed channel")
 	}
 }
 

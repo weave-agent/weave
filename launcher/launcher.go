@@ -47,12 +47,6 @@ func (l *Launcher) Run(ctx context.Context, projectDir string, extensionNames, a
 		return fmt.Errorf("launcher: discover: %w", err)
 	}
 
-	for _, ext := range exts {
-		if ensureErr := ensureExtGoMod(ext, l.ModuleRoot); ensureErr != nil {
-			return fmt.Errorf("launcher: extension %s go.mod: %w", ext.Name, ensureErr)
-		}
-	}
-
 	hash, err := ComputeHash(exts, l.coreDirs()...)
 	if err != nil {
 		return fmt.Errorf("launcher: hash: %w", err)
@@ -107,8 +101,6 @@ func (l *Launcher) coreDirs() []string {
 	return []string{
 		filepath.Join(l.ModuleRoot, "sdk"),
 		filepath.Join(l.ModuleRoot, "bus"),
-		filepath.Join(l.ModuleRoot, "config"),
-		filepath.Join(l.ModuleRoot, "launcher"),
 	}
 }
 
@@ -172,5 +164,6 @@ func lockBuildDir(hash string) (unlock func(), err error) {
 	return func() {
 		_ = syscall.Flock(fd, syscall.LOCK_UN)
 		_ = f.Close()
+		_ = os.Remove(lockPath)
 	}, nil
 }

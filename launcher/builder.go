@@ -199,20 +199,22 @@ func GenerateMainGo(dir string, exts []ExtensionInfo) error {
 // moduleRoot is the absolute path to the weave module root (containing go.mod).
 // Extensions are sorted by name to match the hash computation order.
 func Build(dir, moduleRoot string, exts []ExtensionInfo) (string, error) {
-	sort.Slice(exts, func(i, j int) bool {
-		return exts[i].Name < exts[j].Name
+	sorted := make([]ExtensionInfo, len(exts))
+	copy(sorted, exts)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Name < sorted[j].Name
 	})
 
-	if err := GenerateGoMod(dir, moduleRoot, exts); err != nil {
+	if err := GenerateGoMod(dir, moduleRoot, sorted); err != nil {
 		return "", fmt.Errorf("build: generate go.mod: %w", err)
 	}
 
-	if err := GenerateMainGo(dir, exts); err != nil {
+	if err := GenerateMainGo(dir, sorted); err != nil {
 		return "", fmt.Errorf("build: generate main.go: %w", err)
 	}
 
 	// Ensure each extension dir has a go.mod so Go treats it as a module
-	for _, ext := range exts {
+	for _, ext := range sorted {
 		if err := ensureExtGoMod(ext, moduleRoot); err != nil {
 			return "", fmt.Errorf("build: extension %s go.mod: %w", ext.Name, err)
 		}

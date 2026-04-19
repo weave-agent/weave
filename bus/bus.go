@@ -11,6 +11,8 @@ const (
 	allBufSize   = 256
 )
 
+var _ sdk.Bus = (*Bus)(nil)
+
 type Bus struct {
 	mu        sync.RWMutex
 	topicSubs map[string][]chan sdk.Event
@@ -26,6 +28,19 @@ func New() *Bus {
 }
 
 func (b *Bus) Subscribe(topics ...string) <-chan sdk.Event {
+	b.closeMu.RLock()
+
+	if b.closed {
+		b.closeMu.RUnlock()
+
+		ch := make(chan sdk.Event)
+		close(ch)
+
+		return ch
+	}
+
+	b.closeMu.RUnlock()
+
 	ch := make(chan sdk.Event, topicBufSize)
 
 	b.mu.Lock()
@@ -38,6 +53,19 @@ func (b *Bus) Subscribe(topics ...string) <-chan sdk.Event {
 }
 
 func (b *Bus) SubscribeAll() <-chan sdk.Event {
+	b.closeMu.RLock()
+
+	if b.closed {
+		b.closeMu.RUnlock()
+
+		ch := make(chan sdk.Event)
+		close(ch)
+
+		return ch
+	}
+
+	b.closeMu.RUnlock()
+
 	ch := make(chan sdk.Event, allBufSize)
 
 	b.mu.Lock()

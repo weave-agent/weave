@@ -19,9 +19,11 @@ func RegisterExtension(name string, factory func(Config) (Extension, error)) {
 
 func GetExtension(name string, cfg Config) (Extension, error) {
 	registryMu.RLock()
-	defer registryMu.RUnlock()
 
 	factory, ok := registry[name]
+
+	registryMu.RUnlock()
+
 	if !ok {
 		return nil, fmt.Errorf("extension %q not registered", name)
 	}

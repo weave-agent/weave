@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -16,6 +17,10 @@ func Wire(extNames []string, bus Bus, cfg Config) (*Wired, error) {
 	for _, name := range extNames {
 		ext, err := GetExtension(name, cfg)
 		if err != nil {
+			for i := len(exts) - 1; i >= 0; i-- {
+				_ = exts[i].Close()
+			}
+
 			return nil, fmt.Errorf("wire: %w", err)
 		}
 
@@ -36,7 +41,7 @@ func (w *Wired) Close() error {
 	}
 
 	if len(errs) > 0 {
-		return fmt.Errorf("close: %v", errs)
+		return fmt.Errorf("close: %w", errors.Join(errs...))
 	}
 
 	return nil
