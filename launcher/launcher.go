@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"syscall"
+	"time"
 )
 
 // BuildFunc builds a binary from extension infos and returns its path.
@@ -46,7 +47,13 @@ func (l *Launcher) Run(ctx context.Context, projectDir string, extensionNames, a
 		return fmt.Errorf("launcher: discover: %w", err)
 	}
 
-	hash, err := ComputeHash(exts)
+	for _, ext := range exts {
+		if ensureErr := ensureExtGoMod(ext, l.ModuleRoot); ensureErr != nil {
+			return fmt.Errorf("launcher: extension %s go.mod: %w", ext.Name, ensureErr)
+		}
+	}
+
+	hash, err := ComputeHash(exts, l.coreDirs()...)
 	if err != nil {
 		return fmt.Errorf("launcher: hash: %w", err)
 	}
@@ -63,6 +70,17 @@ func (l *Launcher) Run(ctx context.Context, projectDir string, extensionNames, a
 }
 
 func (l *Launcher) buildAndCache(hash string, exts []ExtensionInfo) (string, error) {
+	unlock, lockErr := lockBuildDir(hash)
+	if lockErr != nil {
+		return "", fmt.Errorf("acquire build lock: %w", lockErr)
+	}
+	defer unlock()
+
+	// Re-check cache after acquiring lock — another process may have built it.
+	if cached, found := l.Cache.Lookup(hash); found {
+		return cached, nil
+	}
+
 	buildDir := l.buildDir(hash)
 	if err := os.MkdirAll(buildDir, 0o750); err != nil {
 		return "", fmt.Errorf("mkdir build dir: %w", err)
@@ -83,6 +101,14 @@ func (l *Launcher) buildAndCache(hash string, exts []ExtensionInfo) (string, err
 	}
 
 	return cached, nil
+}
+
+func (l *Launcher) coreDirs() []string {
+	return []string{
+		filepath.Join(l.ModuleRoot, "sdk"),
+		filepath.Join(l.ModuleRoot, "bus"),
+		filepath.Join(l.ModuleRoot, "launcher"),
+	}
 }
 
 func (l *Launcher) buildDir(hash string) string {
@@ -111,4 +137,39 @@ func RunCommand(ctx context.Context, binPath string, args []string) error {
 	}
 
 	return nil
+}
+
+// lockBuildDir acquires a file-based lock for the given build hash to prevent
+// concurrent builds from racing on the shared build directory.
+func lockBuildDir(hash string) (unlock func(), err error) {
+	lockPath := filepath.Join(os.TempDir(), "weave-build-"+hash+".lock")
+
+	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, fmt.Errorf("open lock file: %w", err)
+	}
+
+	fd := int(f.Fd()) //nolint:gosec // G115: fd fits in int on all supported platforms
+
+	// Retry with backoff for up to 30s — another process may be building.
+	deadline := time.Now().Add(30 * time.Second)
+
+	for {
+		if lockErr := syscall.Flock(fd, syscall.LOCK_EX|syscall.LOCK_NB); lockErr == nil {
+			break
+		}
+
+		if time.Now().After(deadline) {
+			_ = f.Close()
+
+			return nil, fmt.Errorf("timed out waiting for build lock %s", lockPath)
+		}
+
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	return func() {
+		_ = syscall.Flock(fd, syscall.LOCK_UN)
+		_ = f.Close()
+	}, nil
 }

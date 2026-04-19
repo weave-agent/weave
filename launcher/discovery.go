@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -50,45 +51,69 @@ func DiscoverCustomHome(projectDir, homeDir string, names []string) ([]Extension
 }
 
 func findExtension(projectDir, homeDir, name string) (*ExtensionInfo, error) {
-	candidates := []string{
-		filepath.Join(projectDir, ".weave", "extensions", name),
-		filepath.Join(homeDir, ".weave", "extensions", name),
+	localDir := filepath.Join(projectDir, ".weave", "extensions", name)
+
+	stat, statErr := os.Stat(localDir)
+	if statErr == nil {
+		if !stat.IsDir() {
+			return nil, fmt.Errorf("discover: local extension path %q exists but is not a directory", localDir)
+		}
+
+		goFiles, err := collectGoFiles(localDir)
+		if err != nil {
+			return nil, fmt.Errorf("discover: local extension %q: %w", name, err)
+		}
+
+		return &ExtensionInfo{
+			Name:    name,
+			Dir:     localDir,
+			GoFiles: goFiles,
+		}, nil
 	}
 
-	for _, dir := range candidates {
-		goFiles, err := collectGoFiles(dir)
-		if err != nil {
-			continue
-		}
+	if !os.IsNotExist(statErr) {
+		return nil, fmt.Errorf("discover: local extension path %q: %w", localDir, statErr)
+	}
 
-		if len(goFiles) > 0 {
-			return &ExtensionInfo{
-				Name:    name,
-				Dir:     dir,
-				GoFiles: goFiles,
-			}, nil
-		}
+	globalDir := filepath.Join(homeDir, ".weave", "extensions", name)
+
+	goFiles, err := collectGoFiles(globalDir)
+	if err != nil {
+		return nil, fmt.Errorf("discover: extension %q not found in .weave/extensions/ (local or global)", name)
+	}
+
+	if len(goFiles) > 0 {
+		return &ExtensionInfo{
+			Name:    name,
+			Dir:     globalDir,
+			GoFiles: goFiles,
+		}, nil
 	}
 
 	return nil, fmt.Errorf("discover: extension %q not found in .weave/extensions/ (local or global)", name)
 }
 
 func collectGoFiles(dir string) ([]string, error) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, fmt.Errorf("collect go files in %s: %w", dir, err)
-	}
-
 	var files []string
 
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
 		}
 
-		if strings.HasSuffix(e.Name(), ".go") && !strings.HasSuffix(e.Name(), "_test.go") {
-			files = append(files, filepath.Join(dir, e.Name()))
+		if d.IsDir() {
+			return nil
 		}
+
+		name := d.Name()
+		if strings.HasSuffix(name, ".go") && !strings.HasSuffix(name, "_test.go") {
+			files = append(files, path)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("collect go files in %s: %w", dir, err)
 	}
 
 	if len(files) == 0 {

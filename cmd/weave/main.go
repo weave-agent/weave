@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"weave/config"
 	"weave/launcher"
@@ -52,14 +53,27 @@ func run(args ...string) (exitCode int) {
 }
 
 func findModuleRoot() (string, error) {
-	exe, err := os.Executable()
-	if err != nil {
-		return "", fmt.Errorf("find module root: get executable: %w", err)
+	// Try walking up from the executable first (works when binary is in the repo tree).
+	if root, err := findModuleRootFrom(os.Executable); err == nil {
+		return root, nil
 	}
 
-	dir := filepath.Dir(exe)
+	// Fallback: walk up from the working directory (works for go run / go install).
+	if root, err := findModuleRootFrom(os.Getwd); err == nil {
+		return root, nil
+	}
+
+	return "", errors.New("cannot find module root: go.mod not found walking up from executable or working directory")
+}
+
+func findModuleRootFrom(startFn func() (string, error)) (string, error) {
+	dir, err := startFn()
+	if err != nil {
+		return "", err
+	}
+
 	for {
-		if _, statErr := os.Stat(filepath.Join(dir, "go.mod")); statErr == nil {
+		if isWeaveModule(dir) {
 			return dir, nil
 		}
 
@@ -71,5 +85,25 @@ func findModuleRoot() (string, error) {
 		dir = parent
 	}
 
-	return "", errors.New("cannot find module root: go.mod not found walking up from executable")
+	return "", errors.New("go.mod not found")
+}
+
+func isWeaveModule(dir string) bool {
+	data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+	if err != nil {
+		return false
+	}
+
+	for line := range strings.SplitSeq(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "//") {
+			continue
+		}
+
+		if name, ok := strings.CutPrefix(line, "module "); ok {
+			return strings.TrimSpace(name) == "weave"
+		}
+	}
+
+	return false
 }

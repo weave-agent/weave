@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 )
 
 // Cache manages per-hash binary caching under a root directory.
@@ -45,6 +46,9 @@ func (c *Cache) Lookup(hash string) (string, bool) {
 }
 
 // Store copies the binary at src into the cache under the given hash.
+// It writes to a PID-scoped temp file first, then renames atomically to
+// avoid concurrent readers seeing a partial binary and to prevent O_EXCL
+// collisions between concurrent stores.
 func (c *Cache) Store(hash, src string) error {
 	dir := filepath.Join(c.Root, hash)
 	if err := os.MkdirAll(dir, 0o750); err != nil {
@@ -58,16 +62,36 @@ func (c *Cache) Store(hash, src string) error {
 	defer srcFile.Close()
 
 	dst := filepath.Join(dir, "weave")
+	tmp := dst + ".tmp." + strconv.Itoa(os.Getpid())
 
-	dstFile, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o750)
+	dstFile, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o750)
 	if err != nil {
 		return fmt.Errorf("cache: create dest: %w", err)
 	}
-	defer dstFile.Close()
+
+	cleanup := true
+
+	defer func() {
+		_ = dstFile.Close()
+
+		if cleanup {
+			_ = os.Remove(tmp)
+		}
+	}()
 
 	if _, err := io.Copy(dstFile, srcFile); err != nil {
 		return fmt.Errorf("cache: copy: %w", err)
 	}
+
+	if err := dstFile.Close(); err != nil {
+		return fmt.Errorf("cache: close tmp: %w", err)
+	}
+
+	if err := os.Rename(tmp, dst); err != nil {
+		return fmt.Errorf("cache: rename: %w", err)
+	}
+
+	cleanup = false
 
 	return nil
 }

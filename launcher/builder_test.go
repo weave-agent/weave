@@ -86,6 +86,22 @@ func TestComputeHash_DifferentContent(t *testing.T) {
 	}
 }
 
+func TestComputeHash_DifferentNames(t *testing.T) {
+	dir := t.TempDir()
+
+	f := filepath.Join(dir, "ext.go")
+	if err := os.WriteFile(f, []byte("package ext"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	h1, _ := ComputeHash([]ExtensionInfo{{Name: "alpha", Dir: dir, GoFiles: []string{f}}})
+	h2, _ := ComputeHash([]ExtensionInfo{{Name: "beta", Dir: dir, GoFiles: []string{f}}})
+
+	if h1 == h2 {
+		t.Error("extensions with different names should produce different hashes")
+	}
+}
+
 func TestComputeHash_ReadError(t *testing.T) {
 	exts := []ExtensionInfo{
 		{Name: "x", Dir: "/nonexistent", GoFiles: []string{"/nonexistent/missing.go"}},
