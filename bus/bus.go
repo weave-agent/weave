@@ -75,12 +75,12 @@ func (b *Bus) SubscribeAll() <-chan sdk.Event {
 	return ch
 }
 
-func (b *Bus) Publish(e sdk.Event) {
+func (b *Bus) Publish(e sdk.Event) bool {
 	b.closeMu.RLock()
 	defer b.closeMu.RUnlock()
 
 	if b.closed {
-		return
+		return false
 	}
 
 	b.mu.RLock()
@@ -88,9 +88,12 @@ func (b *Bus) Publish(e sdk.Event) {
 	allSubs := b.allSubs
 	b.mu.RUnlock()
 
+	delivered := false
+
 	for _, ch := range subs {
 		select {
 		case ch <- e:
+			delivered = true
 		default:
 		}
 	}
@@ -98,16 +101,53 @@ func (b *Bus) Publish(e sdk.Event) {
 	for _, ch := range allSubs {
 		select {
 		case ch <- e:
+			delivered = true
 		default:
 		}
 	}
+
+	return delivered
 }
 
-func (b *Bus) Close() {
+func (b *Bus) Unsubscribe(ch <-chan sdk.Event) {
+	b.closeMu.RLock()
+
+	if b.closed {
+		b.closeMu.RUnlock()
+		return
+	}
+
+	b.closeMu.RUnlock()
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	for topic, subs := range b.topicSubs {
+		b.topicSubs[topic] = removeSub(subs, ch)
+		if len(b.topicSubs[topic]) == 0 {
+			delete(b.topicSubs, topic)
+		}
+	}
+
+	b.allSubs = removeSub(b.allSubs, ch)
+}
+
+func removeSub(subs []chan sdk.Event, target <-chan sdk.Event) []chan sdk.Event {
+	for i, s := range subs {
+		if s == target {
+			close(s)
+			return append(subs[:i], subs[i+1:]...)
+		}
+	}
+
+	return subs
+}
+
+func (b *Bus) Close() error {
 	b.closeMu.Lock()
 	if b.closed {
 		b.closeMu.Unlock()
-		return
+		return nil
 	}
 
 	b.closed = true
@@ -137,4 +177,6 @@ func (b *Bus) Close() {
 
 	b.topicSubs = make(map[string][]chan sdk.Event)
 	b.allSubs = nil
+
+	return nil
 }

@@ -129,7 +129,7 @@ done:
 func TestClose(t *testing.T) {
 	b := New()
 	ch := b.Subscribe("x")
-	b.Close()
+	_ = b.Close()
 
 	_, ok := <-ch
 	if ok {
@@ -139,7 +139,7 @@ func TestClose(t *testing.T) {
 
 func TestPublishAfterClose(t *testing.T) {
 	b := New()
-	b.Close()
+	_ = b.Close()
 
 	ch := b.Subscribe("x")
 	b.Publish(sdk.NewEvent("x", nil))
@@ -153,7 +153,7 @@ func TestPublishAfterClose(t *testing.T) {
 func TestCloseAllSubscriber(t *testing.T) {
 	b := New()
 	all := b.SubscribeAll()
-	b.Close()
+	_ = b.Close()
 
 	_, ok := <-all
 	if ok {
@@ -207,9 +207,113 @@ func TestConcurrentPublishAndClose(t *testing.T) {
 		})
 
 		wg.Go(func() {
-			b.Close()
+			_ = b.Close()
 		})
 
 		wg.Wait()
+	}
+}
+
+func TestSubscribeAfterClose(t *testing.T) {
+	b := New()
+	_ = b.Close()
+
+	ch := b.Subscribe("x")
+
+	_, ok := <-ch
+	if ok {
+		t.Error("Subscribe after Close should return closed channel")
+	}
+
+	allCh := b.SubscribeAll()
+
+	_, ok = <-allCh
+	if ok {
+		t.Error("SubscribeAll after Close should return closed channel")
+	}
+}
+
+func TestUnsubscribe(t *testing.T) {
+	b := New()
+	defer b.Close()
+
+	ch := b.Subscribe("topic")
+	b.Unsubscribe(ch)
+
+	_, ok := <-ch
+	if ok {
+		t.Error("unsubscribed channel should be closed")
+	}
+
+	b.Publish(sdk.NewEvent("topic", "data"))
+}
+
+func TestUnsubscribeAllSubscriber(t *testing.T) {
+	b := New()
+	defer b.Close()
+
+	ch := b.SubscribeAll()
+	b.Unsubscribe(ch)
+
+	_, ok := <-ch
+	if ok {
+		t.Error("unsubscribed channel should be closed")
+	}
+}
+
+func TestUnsubscribeDoubleSafe(t *testing.T) {
+	b := New()
+	defer b.Close()
+
+	ch := b.Subscribe("x")
+	b.Unsubscribe(ch)
+	b.Unsubscribe(ch)
+}
+
+func TestUnsubscribeUnknownChannel(t *testing.T) {
+	b := New()
+	defer b.Close()
+
+	ch := make(chan sdk.Event)
+	b.Unsubscribe(ch)
+}
+
+func TestPublishReturnsFalseOnDrop(t *testing.T) {
+	b := New()
+	defer b.Close()
+
+	ch := b.Subscribe("full")
+	for i := range topicBufSize {
+		if !b.Publish(sdk.NewEvent("full", i)) {
+			t.Fatalf("Publish %d returned false before buffer full", i)
+		}
+	}
+
+	if b.Publish(sdk.NewEvent("full", "overflow")) {
+		t.Error("expected Publish to return false when subscriber buffer is full")
+	}
+
+	<-ch
+
+	if !b.Publish(sdk.NewEvent("full", "after-drain")) {
+		t.Error("expected Publish to return true after drain")
+	}
+}
+
+func TestPublishReturnsFalseWhenClosed(t *testing.T) {
+	b := New()
+	_ = b.Close()
+
+	if b.Publish(sdk.NewEvent("x", nil)) {
+		t.Error("expected Publish to return false on closed bus")
+	}
+}
+
+func TestPublishReturnsFalseWithNoSubscribers(t *testing.T) {
+	b := New()
+	defer b.Close()
+
+	if b.Publish(sdk.NewEvent("nobody", nil)) {
+		t.Error("expected Publish to return false with no subscribers")
 	}
 }

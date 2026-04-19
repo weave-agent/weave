@@ -1,9 +1,11 @@
 package sdk
 
 type Bus interface {
-	Publish(Event)
+	Publish(Event) bool
 	Subscribe(topics ...string) <-chan Event
 	SubscribeAll() <-chan Event
+	Unsubscribe(ch <-chan Event)
+	Close() error
 }
 
 type Extension interface {

@@ -6,6 +6,7 @@ type Event struct {
 	Topic     string
 	Payload   any
 	Timestamp time.Time
+	TraceID   string
 }
 
 func NewEvent(topic string, payload any) Event {

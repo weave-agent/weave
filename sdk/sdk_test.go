@@ -50,9 +50,11 @@ type mockBus struct {
 	published []Event
 }
 
-func (m *mockBus) Publish(e Event)                         { m.published = append(m.published, e) }
+func (m *mockBus) Publish(e Event) bool                    { m.published = append(m.published, e); return true }
 func (m *mockBus) Subscribe(topics ...string) <-chan Event { return nil }
 func (m *mockBus) SubscribeAll() <-chan Event              { return nil }
+func (m *mockBus) Unsubscribe(<-chan Event)                {}
+func (m *mockBus) Close() error                            { return nil }
 
 var _ Bus = (*mockBus)(nil)
 

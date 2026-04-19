@@ -285,7 +285,7 @@ func TestIntegration_WireSubscribesExtensionsInProcess(t *testing.T) {
 		t.Fatalf("Close: %v", err)
 	}
 
-	b.Close()
+	_ = b.Close()
 }
 
 func TestIntegration_DiscoverCustomHome(t *testing.T) {
