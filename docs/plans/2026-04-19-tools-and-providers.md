@@ -34,10 +34,10 @@ Implement basic tools (bash, read, edit, write, grep, find, ls) as individual Go
 ### Task 1: Shared truncation utility
 Create a shared truncation package used by all tools for consistent output limiting (matching Pi's behavior: 2000 lines / 50KB, never partial lines).
 
-- [ ] create `internal/truncate/truncate.go` with `Truncate(input string, maxLines int, maxBytes int) Result` and `Result` struct (content, truncated bool, lineCount, byteCount)
-- [ ] set defaults: 2000 lines, 50KB
-- [ ] write tests for Truncate (under limit, line limit, byte limit, empty input, single huge line, exact boundary)
-- [ ] run `go test ./internal/truncate/...` — must pass before next task
+- [x] create `internal/truncate/truncate.go` with `Truncate(input string, maxLines int, maxBytes int) Result` and `Result` struct (content, truncated bool, lineCount, byteCount)
+- [x] set defaults: 2000 lines, 50KB
+- [x] write tests for Truncate (under limit, line limit, byte limit, empty input, single huge line, exact boundary)
+- [x] run `go test ./internal/truncate/...` — must pass before next task
 
 ### Task 2: bash tool
 - [ ] create `extensions/tools/bash/go.mod` and `extensions/tools/bash/bash.go` with `init()` registering via `sdk.RegisterTool("bash", ...)`
