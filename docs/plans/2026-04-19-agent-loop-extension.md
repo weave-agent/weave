@@ -74,11 +74,11 @@ weave/
 - [x] run tests — must pass before next task
 
 ### Task 3: Add Tool interface and registry to sdk/
-- [ ] create `sdk/tool.go` — `Tool` interface with `Name() string`, `Definition() ToolDef`, `Execute(ctx, args map[string]any) (ToolResult, error)`; `ToolDef` struct (Name, Description, Parameters any); `ToolResult` struct (Content string, IsError bool)
-- [ ] create `sdk/tool_registry.go` — `RegisterTool(name, factory)` / `GetTool(name, cfg)` / `ListTools()` / `ResetToolRegistry()` — same pattern as provider registry
-- [ ] write tests for tool registration and retrieval
-- [ ] write tests for duplicate registration and missing tool
-- [ ] run tests — must pass before next task
+- [x] create `sdk/tool.go` — `Tool` interface with `Name() string`, `Definition() ToolDef`, `Execute(ctx, args map[string]any) (ToolResult, error)`; `ToolDef` struct (Name, Description, Parameters any); `ToolResult` struct (Content string, IsError bool)
+- [x] create `sdk/tool_registry.go` — `RegisterTool(name, factory)` / `GetTool(name, cfg)` / `ListTools()` / `ResetToolRegistry()` — same pattern as provider registry
+- [x] write tests for tool registration and retrieval
+- [x] write tests for duplicate registration and missing tool
+- [x] run tests — must pass before next task
 
 ### Task 4: Add Message types to sdk/
 - [ ] create `sdk/message.go` — `Message` struct with `Role` (enum: "user", "assistant", "toolResult"), `Content` (any), `ToolCallID` string, `ToolName` string, `Timestamp` time.Time; typed constructors `NewUserMessage`, `NewAssistantMessage`, `NewToolResultMessage`
