@@ -67,11 +67,11 @@ weave/
 - [x] run tests — must pass before next task
 
 ### Task 2: Add Provider interface and registry to sdk/
-- [ ] create `sdk/provider.go` — `Provider` interface with `Stream(ctx, ProviderRequest) (<-chan ProviderEvent, error)`, `ProviderRequest` struct (SystemPrompt, Messages, Tools), `ProviderEvent` struct (Type string, Content any)
-- [ ] create `sdk/provider_registry.go` — `RegisterProvider(name, factory)` / `GetProvider(name, cfg)` / `ListProviders()` / `ResetProviderRegistry()` — same pattern as extension registry
-- [ ] write tests for provider registration and retrieval
-- [ ] write tests for duplicate registration and missing provider
-- [ ] run tests — must pass before next task
+- [x] create `sdk/provider.go` — `Provider` interface with `Stream(ctx, ProviderRequest) (<-chan ProviderEvent, error)`, `ProviderRequest` struct (SystemPrompt, Messages, Tools), `ProviderEvent` struct (Type string, Content any)
+- [x] create `sdk/provider_registry.go` — `RegisterProvider(name, factory)` / `GetProvider(name, cfg)` / `ListProviders()` / `ResetProviderRegistry()` — same pattern as extension registry
+- [x] write tests for provider registration and retrieval
+- [x] write tests for duplicate registration and missing provider
+- [x] run tests — must pass before next task
 
 ### Task 3: Add Tool interface and registry to sdk/
 - [ ] create `sdk/tool.go` — `Tool` interface with `Name() string`, `Definition() ToolDef`, `Execute(ctx, args map[string]any) (ToolResult, error)`; `ToolDef` struct (Name, Description, Parameters any); `ToolResult` struct (Content string, IsError bool)
