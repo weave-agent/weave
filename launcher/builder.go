@@ -79,6 +79,8 @@ func ComputeHash(exts []ExtensionInfo, moduleRoot string, coreDirs ...string) (s
 	// These are shared libraries (e.g. openai-compat) that extensions depend on
 	// via replace directives. Without this, changes to shared libs don't
 	// invalidate the cache.
+	var transitiveDeps []struct{ modPath, dir string }
+
 	transitiveSeen := make(map[string]bool)
 
 	for _, ext := range sorted {
@@ -88,12 +90,19 @@ func ComputeHash(exts []ExtensionInfo, moduleRoot string, coreDirs ...string) (s
 			}
 
 			transitiveSeen[depDir] = true
+			transitiveDeps = append(transitiveDeps, struct{ modPath, dir string }{depModPath, depDir})
+		}
+	}
 
-			h.Write([]byte("transitive:" + depModPath + "\n"))
+	sort.Slice(transitiveDeps, func(i, j int) bool {
+		return transitiveDeps[i].modPath < transitiveDeps[j].modPath
+	})
 
-			if err := hashDir(h, depDir); err != nil {
-				return "", fmt.Errorf("hash: transitive dep %s: %w", depDir, err)
-			}
+	for _, dep := range transitiveDeps {
+		h.Write([]byte("transitive:" + dep.modPath + "\n"))
+
+		if err := hashDir(h, dep.dir); err != nil {
+			return "", fmt.Errorf("hash: transitive dep %s: %w", dep.dir, err)
 		}
 	}
 
@@ -237,6 +246,9 @@ func GenerateGoMod(dir, moduleRoot string, exts []ExtensionInfo) error {
 			extraReplaces = append(extraReplaces, "replace "+modPath+" => "+localPath)
 		}
 	}
+
+	sort.Strings(extraRequires)
+	sort.Strings(extraReplaces)
 
 	for _, req := range extraRequires {
 		b.WriteString("\t" + req + "\n")

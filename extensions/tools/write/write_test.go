@@ -2,6 +2,7 @@ package write
 
 import (
 	"context"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -148,6 +149,28 @@ func TestExecuteFileContents(t *testing.T) {
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 	assert.Equal(t, content, string(data))
+}
+
+func TestExecutePreservesPermissions(t *testing.T) {
+	tool := &tool{}
+	dir := t.TempDir()
+
+	// Create a file with executable permissions
+	p := filepath.Join(dir, "script.sh")
+	require.NoError(t, os.WriteFile(p, []byte("original"), 0o755))
+
+	// Overwrite it
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"path":    p,
+		"content": "#!/bin/bash\necho hello",
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	// Verify permissions are preserved
+	info, err := os.Stat(p)
+	require.NoError(t, err)
+	assert.Equal(t, fs.FileMode(0o755), info.Mode().Perm())
 }
 
 func TestExecuteNestedDirCreation(t *testing.T) {
