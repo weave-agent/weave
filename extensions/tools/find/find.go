@@ -98,7 +98,7 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		}
 
 		if matched {
-			matches = append(matches, walkPath)
+			matches = append(matches, rel)
 		}
 		return nil
 	})

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 
 	"weave/sdk"
 )
@@ -168,6 +169,53 @@ type toolCallAccum struct {
 	argsBuffer string
 }
 
+// emitToolCalls sorts and emits accumulated tool calls as ProviderEvents.
+func emitToolCalls(toolCalls map[int]*toolCallAccum, send func(sdk.ProviderEvent) bool) {
+	if len(toolCalls) == 0 {
+		return
+	}
+
+	keys := make([]int, 0, len(toolCalls))
+
+	for k := range toolCalls {
+		keys = append(keys, k)
+	}
+
+	sort.Ints(keys)
+
+	for _, k := range keys {
+		tc := toolCalls[k]
+
+		var args map[string]any
+
+		if tc.argsBuffer != "" {
+			if err := json.Unmarshal([]byte(tc.argsBuffer), &args); err != nil {
+				send(sdk.ProviderEvent{
+					Type:    sdk.ProviderEventError,
+					Content: fmt.Sprintf("openai-compat: parse tool call arguments for %s: %v", tc.name, err),
+				})
+
+				continue
+			}
+		}
+
+		if args == nil {
+			args = make(map[string]any)
+		}
+
+		if !send(sdk.ProviderEvent{
+			Type: sdk.ProviderEventToolCall,
+			Content: sdk.ToolCall{
+				ID:        tc.id,
+				Name:      tc.name,
+				Arguments: args,
+			},
+		}) {
+			return
+		}
+	}
+}
+
 // parseSSE reads an SSE stream and emits ProviderEvents.
 // It respects context cancellation to prevent goroutine leaks.
 func parseSSE(ctx context.Context, reader io.Reader, ch chan<- sdk.ProviderEvent) {
@@ -191,11 +239,12 @@ func parseSSE(ctx context.Context, reader io.Reader, ch chan<- sdk.ProviderEvent
 			continue
 		}
 
-		if len(line) < 6 || line[:6] != "data: " {
+		data, ok := strings.CutPrefix(line, "data:")
+		if !ok {
 			continue
 		}
 
-		data := line[6:]
+		data = strings.TrimPrefix(data, " ")
 		if data == "[DONE]" {
 			break
 		}
@@ -246,38 +295,7 @@ func parseSSE(ctx context.Context, reader io.Reader, ch chan<- sdk.ProviderEvent
 			}
 
 			if choice.FinishReason != nil && *choice.FinishReason == "tool_calls" {
-				keys := make([]int, 0, len(toolCalls))
-				for k := range toolCalls {
-					keys = append(keys, k)
-				}
-				sort.Ints(keys)
-
-				for _, k := range keys {
-					tc := toolCalls[k]
-					var args map[string]any
-					if tc.argsBuffer != "" {
-						if err := json.Unmarshal([]byte(tc.argsBuffer), &args); err != nil {
-							send(sdk.ProviderEvent{
-								Type:    sdk.ProviderEventError,
-								Content: fmt.Sprintf("openai-compat: parse tool call arguments for %s: %v", tc.name, err),
-							})
-							return
-						}
-					}
-					if args == nil {
-						args = make(map[string]any)
-					}
-					if !send(sdk.ProviderEvent{
-						Type: sdk.ProviderEventToolCall,
-						Content: sdk.ToolCall{
-							ID:        tc.id,
-							Name:      tc.name,
-							Arguments: args,
-						},
-					}) {
-						return
-					}
-				}
+				emitToolCalls(toolCalls, send)
 				toolCalls = make(map[int]*toolCallAccum)
 			}
 		}
@@ -288,7 +306,12 @@ func parseSSE(ctx context.Context, reader io.Reader, ch chan<- sdk.ProviderEvent
 			Type:    sdk.ProviderEventError,
 			Content: fmt.Sprintf("openai-compat: read stream: %v", err),
 		})
+		return
 	}
+
+	// Emit any tool calls accumulated but never flushed by a finish_reason
+	// (e.g. stream ended without one, or the API omitted it).
+	emitToolCalls(toolCalls, send)
 }
 
 // ConvertMessages converts SDK messages to OpenAI chat format.
