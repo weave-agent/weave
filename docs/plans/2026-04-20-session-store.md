@@ -174,8 +174,8 @@ Use `crypto/rand` to generate 8-char hex IDs (no external dependency). Check for
 - [x] run linter (`make lint`)
 
 ### Task 6: Update documentation
-- [ ] update `docs/design.md` Implementation Divergences section noting store is bus-only, no SDK interface
-- [ ] update `CLAUDE.md` if architecture section needs store extension mention
+- [x] update `docs/design.md` Implementation Divergences section noting store is bus-only, no SDK interface
+- [x] update `CLAUDE.md` if architecture section needs store extension mention
 
 ## Post-Completion
 
