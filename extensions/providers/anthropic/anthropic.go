@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
@@ -13,10 +14,12 @@ import (
 )
 
 const defaultModel = "claude-sonnet-4-20250514"
+const defaultMaxTokens = 8192
 
 type provider struct {
-	client anthropic.Client
-	model  string
+	client    anthropic.Client
+	model     string
+	maxTokens int64
 }
 
 func init() {
@@ -31,11 +34,19 @@ func init() {
 			model = defaultModel
 		}
 
+		maxTokens := int64(defaultMaxTokens)
+		if v := os.Getenv("ANTHROPIC_MAX_TOKENS"); v != "" {
+			if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
+				maxTokens = n
+			}
+		}
+
 		client := anthropic.NewClient(option.WithAPIKey(apiKey))
 
 		return &provider{
-			client: client,
-			model:  model,
+			client:    client,
+			model:     model,
+			maxTokens: maxTokens,
 		}, nil
 	})
 }
@@ -45,7 +56,7 @@ func NewProviderWithClient(client anthropic.Client, model string) sdk.Provider {
 	if model == "" {
 		model = defaultModel
 	}
-	return &provider{client: client, model: model}
+	return &provider{client: client, model: model, maxTokens: defaultMaxTokens}
 }
 
 func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest) (<-chan sdk.ProviderEvent, error) {
@@ -53,7 +64,7 @@ func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest) (<-chan 
 
 	params := anthropic.MessageNewParams{
 		Model:     p.model,
-		MaxTokens: 8192,
+		MaxTokens: p.maxTokens,
 		Messages:  convertMessages(req.Messages),
 	}
 

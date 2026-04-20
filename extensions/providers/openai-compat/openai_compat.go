@@ -248,6 +248,9 @@ func parseSSE(ctx context.Context, reader io.Reader, ch chan<- sdk.ProviderEvent
 		if data == "[DONE]" {
 			break
 		}
+		if data == "" {
+			continue
+		}
 
 		var chunk StreamChunk
 		if err := json.Unmarshal([]byte(data), &chunk); err != nil {

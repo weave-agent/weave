@@ -65,6 +65,9 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 	cmd := exec.CommandContext(ctx, "bash", "-c", command)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return os.ErrProcessDone
+		}
 		err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 		if errors.Is(err, syscall.ESRCH) {
 			return os.ErrProcessDone
