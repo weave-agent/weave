@@ -139,20 +139,20 @@ Use `crypto/rand` to generate 8-char hex IDs (no external dependency). Check for
 - [x] verify module compiles with `go build`
 
 ### Task 2: Implement core store operations
-- [ ] implement `generateID()` — 8-char hex via `crypto/rand`
-- [ ] implement `sessionDir()` — resolve session directory (config or `~/.weave/sessions`)
-- [ ] implement `Create(cwd string) (*Session, error)` — generate session ID, write header line
-- [ ] implement `Append(sessionID string, entry Entry) error` — set ID/parentID/created, append JSON line
-- [ ] implement `loadFromFile(path string) (*Session, error)` — parse JSONL file into Session
-- [ ] implement `Load(sessionID string) (*Session, error)` — resolve path, delegate to loadFromFile
-- [ ] implement `History(sessionID string) ([]Entry, error)` — load session, return entries
-- [ ] implement `List() ([]SessionInfo, error)` — scan dir, read headers, stat files
-- [ ] write tests for Create (creates file, writes header)
-- [ ] write tests for Append (appends entry, sets ID/timestamp, chains parentId)
-- [ ] write tests for Load (roundtrip: Create + Append → Load)
-- [ ] write tests for History (returns entries in order)
-- [ ] write tests for List (multiple sessions, file info)
-- [ ] run tests — must pass before next task
+- [x] implement `generateID()` — 8-char hex via `crypto/rand`
+- [x] implement `sessionDir()` — resolve session directory (config or `~/.weave/sessions`)
+- [x] implement `Create(cwd string) (*Session, error)` — generate session ID, write header line
+- [x] implement `Append(sessionID string, entry Entry) error` — set ID/parentID/created, append JSON line
+- [x] implement `loadFromFile(path string) (*Session, error)` — parse JSONL file into Session
+- [x] implement `Load(sessionID string) (*Session, error)` — resolve path, delegate to loadFromFile
+- [x] implement `History(sessionID string) ([]Entry, error)` — load session, return entries
+- [x] implement `List() ([]SessionInfo, error)` — scan dir, read headers, stat files
+- [x] write tests for Create (creates file, writes header)
+- [x] write tests for Append (appends entry, sets ID/timestamp, chains parentId)
+- [x] write tests for Load (roundtrip: Create + Append → Load)
+- [x] write tests for History (returns entries in order)
+- [x] write tests for List (multiple sessions, file info)
+- [x] run tests — must pass before next task
 
 ### Task 3: Implement Compact
 - [ ] implement `Compact(sessionID string, keepLast int) error` — read all entries, keep last N, prepend summary entry, rewrite file
