@@ -268,6 +268,74 @@ func (s *Store) List() ([]SessionInfo, error) {
 	return infos, nil
 }
 
+func (s *Store) Compact(sessionID string, keepLast int) error {
+	sess, err := s.Load(sessionID)
+	if err != nil {
+		return fmt.Errorf("compact load: %w", err)
+	}
+
+	if keepLast >= len(sess.Entries) {
+		return nil
+	}
+
+	removed := sess.Entries[:len(sess.Entries)-keepLast]
+	kept := sess.Entries[len(sess.Entries)-keepLast:]
+
+	summaryID, err := generateID()
+	if err != nil {
+		return err
+	}
+
+	summary := Entry{
+		ID:      summaryID,
+		Type:    "summary",
+		Turn:    removed[len(removed)-1].Turn,
+		Data:    json.RawMessage(fmt.Sprintf(`{"removed_count":%d,"first_turn":%d,"last_turn":%d}`, len(removed), removed[0].Turn, removed[len(removed)-1].Turn)),
+		Created: time.Now().UTC(),
+	}
+
+	if len(kept) > 0 {
+		kept[0].ParentID = summary.ID
+	}
+
+	newEntries := make([]Entry, 0, 1+len(kept))
+	newEntries = append(newEntries, summary)
+	newEntries = append(newEntries, kept...)
+
+	return s.rewriteFile(sessionID, sess.Header, newEntries)
+}
+
+func (s *Store) rewriteFile(sessionID string, header SessionHeader, entries []Entry) error {
+	path, err := s.sessionPath(sessionID)
+	if err != nil {
+		return err
+	}
+
+	headerLine, err := json.Marshal(header)
+	if err != nil {
+		return fmt.Errorf("marshal header: %w", err)
+	}
+
+	var lines []string
+	lines = append(lines, string(headerLine))
+
+	for _, e := range entries {
+		line, err := json.Marshal(e)
+		if err != nil {
+			return fmt.Errorf("marshal entry: %w", err)
+		}
+		lines = append(lines, string(line))
+	}
+
+	var buf []byte
+	for _, l := range lines {
+		buf = append(buf, []byte(l)...)
+		buf = append(buf, '\n')
+	}
+
+	return os.WriteFile(path, buf, 0o644)
+}
+
 func splitLines(data []byte) []string {
 	var lines []string
 	for _, line := range splitSlice(data, '\n') {

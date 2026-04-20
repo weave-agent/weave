@@ -155,9 +155,9 @@ Use `crypto/rand` to generate 8-char hex IDs (no external dependency). Check for
 - [x] run tests — must pass before next task
 
 ### Task 3: Implement Compact
-- [ ] implement `Compact(sessionID string, keepLast int) error` — read all entries, keep last N, prepend summary entry, rewrite file
-- [ ] write tests for Compact (truncation, summary entry, keepLast > total entries)
-- [ ] run tests — must pass before next task
+- [x] implement `Compact(sessionID string, keepLast int) error` — read all entries, keep last N, prepend summary entry, rewrite file
+- [x] write tests for Compact (truncation, summary entry, keepLast > total entries)
+- [x] run tests — must pass before next task
 
 ### Task 4: Wire extension to bus events
 - [ ] implement `Subscribe(bus Bus)` — subscribe to `agent.prompt`, `agent.message_end`, `agent.tool_result`, `agent.turn_start`, `agent.end`

@@ -192,6 +192,98 @@ func TestList_EmptyDir(t *testing.T) {
 	assert.Nil(t, infos)
 }
 
+func TestCompact_Truncation(t *testing.T) {
+	s := newTestStore(t)
+	sess, err := s.Create("/tmp/project")
+	require.NoError(t, err)
+
+	for i := 0; i < 5; i++ {
+		require.NoError(t, s.Append(sess.Header.ID, Entry{
+			Type: "message",
+			Turn: i + 1,
+			Data: json.RawMessage(`{"role":"user","content":"msg"}`),
+		}))
+	}
+
+	require.NoError(t, s.Compact(sess.Header.ID, 2))
+
+	loaded, err := s.Load(sess.Header.ID)
+	require.NoError(t, err)
+	require.Len(t, loaded.Entries, 3)
+
+	assert.Equal(t, "summary", loaded.Entries[0].Type)
+	assert.Equal(t, 4, loaded.Entries[1].Turn)
+	assert.Equal(t, 5, loaded.Entries[2].Turn)
+
+	assert.Equal(t, loaded.Entries[0].ID, loaded.Entries[1].ParentID,
+		"first kept entry should reference summary as parent")
+}
+
+func TestCompact_SummaryEntry(t *testing.T) {
+	s := newTestStore(t)
+	sess, err := s.Create("/tmp/project")
+	require.NoError(t, err)
+
+	for i := 0; i < 4; i++ {
+		require.NoError(t, s.Append(sess.Header.ID, Entry{
+			Type: "message",
+			Turn: i + 1,
+			Data: json.RawMessage(`{}`),
+		}))
+	}
+
+	require.NoError(t, s.Compact(sess.Header.ID, 1))
+
+	loaded, err := s.Load(sess.Header.ID)
+	require.NoError(t, err)
+	require.Len(t, loaded.Entries, 2)
+
+	summary := loaded.Entries[0]
+	assert.Equal(t, "summary", summary.Type)
+	assert.NotEmpty(t, summary.ID)
+	assert.False(t, summary.Created.IsZero())
+	assert.Contains(t, string(summary.Data), `"removed_count":3`)
+	assert.Contains(t, string(summary.Data), `"first_turn":1`)
+	assert.Contains(t, string(summary.Data), `"last_turn":3`)
+}
+
+func TestCompact_KeepLastExceedsTotal(t *testing.T) {
+	s := newTestStore(t)
+	sess, err := s.Create("/tmp/project")
+	require.NoError(t, err)
+
+	for i := 0; i < 3; i++ {
+		require.NoError(t, s.Append(sess.Header.ID, Entry{
+			Type: "message",
+			Turn: i + 1,
+			Data: json.RawMessage(`{}`),
+		}))
+	}
+
+	require.NoError(t, s.Compact(sess.Header.ID, 10))
+
+	loaded, err := s.Load(sess.Header.ID)
+	require.NoError(t, err)
+	assert.Len(t, loaded.Entries, 3, "should not modify file when keepLast >= total")
+}
+
+func TestCompact_PreservesHeader(t *testing.T) {
+	s := newTestStore(t)
+	sess, err := s.Create("/tmp/my-project")
+	require.NoError(t, err)
+
+	for i := 0; i < 3; i++ {
+		require.NoError(t, s.Append(sess.Header.ID, Entry{Type: "message", Turn: i + 1, Data: json.RawMessage(`{}`)}))
+	}
+
+	require.NoError(t, s.Compact(sess.Header.ID, 1))
+
+	loaded, err := s.Load(sess.Header.ID)
+	require.NoError(t, err)
+	assert.Equal(t, sess.Header.ID, loaded.Header.ID)
+	assert.Equal(t, "/tmp/my-project", loaded.Header.CWD)
+}
+
 func TestList_IgnoresNonJSONL(t *testing.T) {
 	s := newTestStore(t)
 	require.NoError(t, os.WriteFile(filepath.Join(s.cfg.Dir, "other.txt"), []byte("data"), 0o644))
