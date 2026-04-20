@@ -57,24 +57,24 @@ type Function struct {
 type StreamChunk struct {
 	ID      string `json:"id"`
 	Choices []struct {
-		Index        int         `json:"index"`
-		Delta        ChunkDelta  `json:"delta"`
-		FinishReason *string     `json:"finish_reason"`
+		Index        int        `json:"index"`
+		Delta        ChunkDelta `json:"delta"`
+		FinishReason *string    `json:"finish_reason"`
 	} `json:"choices"`
 }
 
 // ChunkDelta represents the delta content in a streaming chunk.
 type ChunkDelta struct {
-	Role      string        `json:"role,omitempty"`
-	Content   string        `json:"content,omitempty"`
+	Role      string          `json:"role,omitempty"`
+	Content   string          `json:"content,omitempty"`
 	ToolCalls []ToolCallDelta `json:"tool_calls,omitempty"`
 }
 
 // ToolCallDelta represents a partial tool call in a streaming chunk.
 type ToolCallDelta struct {
-	Index    int               `json:"index"`
-	ID       string            `json:"id,omitempty"`
-	Type     string            `json:"type,omitempty"`
+	Index    int                `json:"index"`
+	ID       string             `json:"id,omitempty"`
+	Type     string             `json:"type,omitempty"`
 	Function *FunctionCallDelta `json:"function,omitempty"`
 }
 
@@ -223,10 +223,10 @@ func parseSSE(ctx context.Context, reader io.Reader, ch chan<- sdk.ProviderEvent
 				accumulated, exists := toolCalls[tc.Index]
 				if !exists {
 					var name string
-			if tc.Function != nil {
-				name = tc.Function.Name
-			}
-			accumulated = &toolCallAccum{id: tc.ID, name: name}
+					if tc.Function != nil {
+						name = tc.Function.Name
+					}
+					accumulated = &toolCallAccum{id: tc.ID, name: name}
 					if accumulated.id == "" {
 						accumulated.id = "call_" + strconv.Itoa(tc.Index)
 					}

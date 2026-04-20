@@ -117,6 +117,52 @@ func TestComputeHash_GoModChangesHash(t *testing.T) {
 	assert.NotEqual(t, h1, h2)
 }
 
+func TestComputeHash_GoSumChangesHash(t *testing.T) {
+	dir := t.TempDir()
+
+	f := filepath.Join(dir, "ext.go")
+	require.NoError(t, os.WriteFile(f, []byte("package ext"), 0o600))
+
+	goMod := filepath.Join(dir, "go.mod")
+	require.NoError(t, os.WriteFile(goMod, []byte("module weave/ext/x\ngo 1.22\n"), 0o600))
+
+	exts := []ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f}}}
+
+	h1, err := ComputeHash(exts, "")
+	require.NoError(t, err)
+
+	goSum := filepath.Join(dir, "go.sum")
+	require.NoError(t, os.WriteFile(goSum, []byte("example.com/pkg v1.0.0 h1:abc123\n"), 0o600))
+
+	h2, err := ComputeHash(exts, "")
+	require.NoError(t, err)
+
+	assert.NotEqual(t, h1, h2, "go.sum change should produce different hash")
+}
+
+func TestComputeHash_GoSumIgnoredForShim(t *testing.T) {
+	dir := t.TempDir()
+
+	f := filepath.Join(dir, "ext.go")
+	require.NoError(t, os.WriteFile(f, []byte("package ext"), 0o600))
+
+	goMod := filepath.Join(dir, "go.mod")
+	require.NoError(t, os.WriteFile(goMod, []byte(shimSentinel+"module weave/ext/x\ngo 1.22\n"), 0o600))
+
+	exts := []ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f}}}
+
+	h1, err := ComputeHash(exts, "")
+	require.NoError(t, err)
+
+	goSum := filepath.Join(dir, "go.sum")
+	require.NoError(t, os.WriteFile(goSum, []byte("example.com/pkg v1.0.0 h1:abc123\n"), 0o600))
+
+	h2, err := ComputeHash(exts, "")
+	require.NoError(t, err)
+
+	assert.Equal(t, h1, h2, "go.sum should not affect hash for shim go.mod extensions")
+}
+
 func TestGenerateGoMod_Content(t *testing.T) {
 	dir := t.TempDir()
 	exts := []ExtensionInfo{

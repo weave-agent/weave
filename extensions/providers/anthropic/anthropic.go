@@ -8,6 +8,7 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
+
 	"weave/sdk"
 )
 
@@ -193,7 +194,10 @@ func convertTools(tools []sdk.ToolDef) []anthropic.ToolUnionParam {
 			if p, ok := params["properties"].(map[string]any); ok {
 				properties = p
 			}
-			if r, ok := params["required"].([]any); ok {
+			switch r := params["required"].(type) {
+			case []string:
+				required = r
+			case []any:
 				for _, v := range r {
 					if s, ok := v.(string); ok {
 						required = append(required, s)

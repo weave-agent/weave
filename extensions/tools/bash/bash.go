@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"syscall"
 	"time"
@@ -63,6 +64,13 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 
 	cmd := exec.CommandContext(ctx, "bash", "-c", command)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error {
+		err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		if errors.Is(err, syscall.ESRCH) {
+			return os.ErrProcessDone
+		}
+		return err
+	}
 	out, err := cmd.CombinedOutput()
 
 	result := truncate.Truncate(string(out), truncate.DefaultMaxLines, truncate.DefaultMaxBytes)
@@ -71,11 +79,14 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 	var isErr bool
 
 	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok && exitErr.ExitCode() >= 0 {
+			content = fmt.Sprintf("%s\n[exit code %d]", result.Content, exitErr.ExitCode())
+		} else if ctx.Err() == context.DeadlineExceeded {
 			content = fmt.Sprintf("%s\nerror: command timed out", result.Content)
 			isErr = true
-		} else if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
-			content = fmt.Sprintf("%s\n[exit code %d]", result.Content, exitErr.ExitCode())
+		} else if ctx.Err() == context.Canceled {
+			content = fmt.Sprintf("%s\nerror: command canceled", result.Content)
+			isErr = true
 		} else {
 			content = fmt.Sprintf("%s\nerror: %s", result.Content, err)
 			isErr = true

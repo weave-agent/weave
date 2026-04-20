@@ -125,8 +125,8 @@ func TestExecute(t *testing.T) {
 			},
 		},
 		{
-			name:      "path is a file",
-			setup:     func(t *testing.T) string {
+			name: "path is a file",
+			setup: func(t *testing.T) string {
 				dir := t.TempDir()
 				f := filepath.Join(dir, "file.txt")
 				require.NoError(t, os.WriteFile(f, []byte("hi"), 0o644))

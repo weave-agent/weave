@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -12,7 +13,39 @@ import (
 	"weave/sdk"
 )
 
+// maxLineContentBytes caps raw line content so the formatted line (with line
+// number prefix and optional truncation suffix) stays under truncate.DefaultMaxBytes.
+const maxLineContentBytes = truncate.DefaultMaxBytes - 100
+
 type tool struct{}
+
+// readLine reads one line from r, returning at most maxBytes of content.
+// If the line exceeds maxBytes the excess is consumed but discarded and
+// truncated is true.
+func readLine(r *bufio.Reader, maxBytes int) (line string, truncated bool, err error) {
+	var buf strings.Builder
+	for {
+		chunk, sliceErr := r.ReadSlice('\n')
+		if !truncated && len(chunk) > 0 {
+			if buf.Len()+len(chunk) > maxBytes {
+				n := maxBytes - buf.Len()
+				if n > 0 {
+					buf.Write(chunk[:n])
+				}
+				truncated = true
+			} else {
+				buf.Write(chunk)
+			}
+		}
+		if sliceErr == nil {
+			return buf.String(), truncated, nil
+		}
+		if sliceErr == bufio.ErrBufferFull {
+			continue
+		}
+		return buf.String(), truncated, sliceErr
+	}
+}
 
 func init() {
 	sdk.RegisterTool("read", func(_ sdk.Config) (sdk.Tool, error) {
@@ -81,24 +114,37 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		}
 	}
 
-	scanner := bufio.NewScanner(f)
+	reader := bufio.NewReader(f)
 	var lines []string
 	lineNum := 0
 	collected := 0
 
-	for scanner.Scan() {
-		lineNum++
-		if lineNum < offset {
-			continue
-		}
-		lines = append(lines, strconv.Itoa(lineNum)+"\t"+scanner.Text())
-		collected++
-		if limit > 0 && collected >= limit {
+	for {
+		line, lineTruncated, readErr := readLine(reader, maxLineContentBytes)
+
+		if readErr == io.EOF && line == "" {
 			break
 		}
-	}
-	if err := scanner.Err(); err != nil {
-		return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
+		if readErr != nil && readErr != io.EOF {
+			return sdk.ToolResult{Content: fmt.Sprintf("error: %s", readErr), IsError: true}, nil
+		}
+
+		lineNum++
+		if lineNum >= offset {
+			line = strings.TrimRight(line, "\r\n")
+			if lineTruncated {
+				line = line + "\n[... line truncated]"
+			}
+			lines = append(lines, strconv.Itoa(lineNum)+"\t"+line)
+			collected++
+			if limit > 0 && collected >= limit {
+				break
+			}
+		}
+
+		if readErr == io.EOF {
+			break
+		}
 	}
 
 	content := strings.Join(lines, "\n")

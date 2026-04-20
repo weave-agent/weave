@@ -53,9 +53,9 @@ func sseChunk(delta openaicompat.ChunkDelta, finish *string) string {
 	chunk := openaicompat.StreamChunk{
 		ID: "chatcmpl-test",
 		Choices: []struct {
-			Index        int                          `json:"index"`
-			Delta        openaicompat.ChunkDelta      `json:"delta"`
-			FinishReason *string                      `json:"finish_reason"`
+			Index        int                     `json:"index"`
+			Delta        openaicompat.ChunkDelta `json:"delta"`
+			FinishReason *string                 `json:"finish_reason"`
 		}{
 			{Index: 0, Delta: delta, FinishReason: finish},
 		},

@@ -2,7 +2,6 @@ package bash
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -96,7 +95,7 @@ func TestExecute(t *testing.T) {
 		},
 		{
 			name:      "large output truncation",
-			args:      map[string]any{"command": fmt.Sprintf("seq 3000")},
+			args:      map[string]any{"command": "seq 3000"},
 			wantError: false,
 			check: func(t *testing.T, result sdk.ToolResult) {
 				assert.Contains(t, result.Content, "output truncated")
@@ -127,10 +126,21 @@ func TestExecute(t *testing.T) {
 	}
 }
 
+func TestExecuteCanceled(t *testing.T) {
+	tool := &tool{}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	result, err := tool.Execute(ctx, map[string]any{"command": "sleep 10"})
+	require.NoError(t, err)
+	assert.True(t, result.IsError)
+	assert.Contains(t, result.Content, "canceled")
+}
+
 func TestExecuteTruncation(t *testing.T) {
 	tool := &tool{}
 	// Generate enough lines to exceed the 2000-line default
-	largeCmd := fmt.Sprintf("for i in $(seq 1 3000); do echo \"line $i\"; done")
+	largeCmd := "for i in $(seq 1 3000); do echo \"line $i\"; done"
 	result, err := tool.Execute(context.Background(), map[string]any{"command": largeCmd})
 	require.NoError(t, err)
 

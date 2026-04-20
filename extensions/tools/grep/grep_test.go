@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"weave/sdk"
@@ -86,7 +87,7 @@ func TestExecute(t *testing.T) {
 			},
 		},
 		{
-			name:  "context lines",
+			name: "context lines",
 			setup: func(t *testing.T) string {
 				return createTempFile(t, "line1\nline2\nMATCH\nline4\nline5")
 			},
@@ -100,18 +101,18 @@ func TestExecute(t *testing.T) {
 			},
 		},
 		{
-			name:  "invalid regex",
-			setup: func(t *testing.T) string { return createTempFile(t, "hello") },
-			args:  map[string]any{"pattern": "[invalid"},
+			name:      "invalid regex",
+			setup:     func(t *testing.T) string { return createTempFile(t, "hello") },
+			args:      map[string]any{"pattern": "[invalid"},
 			wantError: true,
 			check: func(t *testing.T, result sdk.ToolResult) {
 				assert.Contains(t, result.Content, "invalid pattern")
 			},
 		},
 		{
-			name:  "nonexistent path",
-			setup: func(t *testing.T) string { return "/nonexistent/path/xyz" },
-			args:  map[string]any{"pattern": "test", "path": "/nonexistent/path/xyz"},
+			name:      "nonexistent path",
+			setup:     func(t *testing.T) string { return "/nonexistent/path/xyz" },
+			args:      map[string]any{"pattern": "test", "path": "/nonexistent/path/xyz"},
 			wantError: true,
 			check: func(t *testing.T, result sdk.ToolResult) {
 				assert.Contains(t, result.Content, "error:")
@@ -146,6 +147,18 @@ func TestExecute(t *testing.T) {
 			check: func(t *testing.T, result sdk.ToolResult) {
 				assert.Contains(t, result.Content, "findme main")
 				assert.NotContains(t, result.Content, "findme git")
+			},
+		},
+		{
+			name: "long line",
+			setup: func(t *testing.T) string {
+				longLine := strings.Repeat("x", 2*1024*1024)
+				return createTempFile(t, "before\nTARGET"+longLine+"\nafter")
+			},
+			args: map[string]any{"pattern": "TARGET"},
+			check: func(t *testing.T, result sdk.ToolResult) {
+				assert.NotContains(t, result.Content, "no matches found")
+				assert.Contains(t, result.Content, "output truncated")
 			},
 		},
 	}

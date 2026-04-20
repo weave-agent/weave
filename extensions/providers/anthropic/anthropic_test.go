@@ -12,6 +12,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"weave/sdk"
 )
 
@@ -39,7 +40,7 @@ func writeSSE(w http.ResponseWriter, events []sseEvent) {
 func textStreamEvents(text string) []sseEvent {
 	return []sseEvent{
 		{EventType: "message_start", Data: `{"type":"message_start","message":{"id":"msg_test","type":"message","role":"assistant","content":[],"model":"claude-sonnet-4","stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":1}}}`},
-		{EventType: "content_block_start", Data: fmt.Sprintf(`{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`)},
+		{EventType: "content_block_start", Data: `{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`},
 		{EventType: "content_block_delta", Data: fmt.Sprintf(`{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":%q}}`, text)},
 		{EventType: "content_block_stop", Data: `{"type":"content_block_stop","index":0}`},
 		{EventType: "message_delta", Data: `{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":5}}`},

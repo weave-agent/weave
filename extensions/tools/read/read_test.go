@@ -59,7 +59,7 @@ func TestExecute(t *testing.T) {
 	t.Run("read full file", func(t *testing.T) {
 		path := filepath.Join(tmpDir, "full.txt")
 		content := "line one\nline two\nline three"
-		require.NoError(t, os.WriteFile(path, []byte(content), 0644))
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 
 		result, err := tool.Execute(context.Background(), map[string]any{"path": path})
 		require.NoError(t, err)
@@ -72,7 +72,7 @@ func TestExecute(t *testing.T) {
 	t.Run("read with offset", func(t *testing.T) {
 		path := filepath.Join(tmpDir, "offset.txt")
 		content := "first\nsecond\nthird\nfourth"
-		require.NoError(t, os.WriteFile(path, []byte(content), 0644))
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 
 		result, err := tool.Execute(context.Background(), map[string]any{
 			"path":   path,
@@ -88,7 +88,7 @@ func TestExecute(t *testing.T) {
 	t.Run("read with limit", func(t *testing.T) {
 		path := filepath.Join(tmpDir, "limit.txt")
 		content := "first\nsecond\nthird\nfourth\nfifth"
-		require.NoError(t, os.WriteFile(path, []byte(content), 0644))
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 
 		result, err := tool.Execute(context.Background(), map[string]any{
 			"path":  path,
@@ -104,12 +104,12 @@ func TestExecute(t *testing.T) {
 	t.Run("read with offset and limit", func(t *testing.T) {
 		path := filepath.Join(tmpDir, "offsetlimit.txt")
 		content := "a\nb\nc\nd\ne"
-		require.NoError(t, os.WriteFile(path, []byte(content), 0644))
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 
 		result, err := tool.Execute(context.Background(), map[string]any{
 			"path":   path,
 			"offset": float64(2),
-			"limit":   float64(2),
+			"limit":  float64(2),
 		})
 		require.NoError(t, err)
 		assert.False(t, result.IsError)
@@ -122,7 +122,7 @@ func TestExecute(t *testing.T) {
 	t.Run("binary file", func(t *testing.T) {
 		path := filepath.Join(tmpDir, "binary.bin")
 		data := []byte{0x00, 0x01, 0x02, 0xFF, 0xFE}
-		require.NoError(t, os.WriteFile(path, data, 0644))
+		require.NoError(t, os.WriteFile(path, data, 0o644))
 
 		result, err := tool.Execute(context.Background(), map[string]any{"path": path})
 		require.NoError(t, err)
@@ -132,7 +132,7 @@ func TestExecute(t *testing.T) {
 
 	t.Run("empty file", func(t *testing.T) {
 		path := filepath.Join(tmpDir, "empty.txt")
-		require.NoError(t, os.WriteFile(path, []byte(""), 0644))
+		require.NoError(t, os.WriteFile(path, []byte(""), 0o644))
 
 		result, err := tool.Execute(context.Background(), map[string]any{"path": path})
 		require.NoError(t, err)
@@ -146,11 +146,46 @@ func TestExecute(t *testing.T) {
 		for i := range lines {
 			lines[i] = strings.Repeat("x", 20)
 		}
-		require.NoError(t, os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0644))
+		require.NoError(t, os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o644))
 
 		result, err := tool.Execute(context.Background(), map[string]any{"path": path})
 		require.NoError(t, err)
 		assert.False(t, result.IsError)
 		assert.Contains(t, result.Content, "output truncated")
+	})
+
+	t.Run("long line", func(t *testing.T) {
+		path := filepath.Join(tmpDir, "longline.txt")
+		longLine := strings.Repeat("x", 2*1024*1024)
+		require.NoError(t, os.WriteFile(path, []byte("before\nTARGET"+longLine+"\nafter"), 0o644))
+
+		result, err := tool.Execute(context.Background(), map[string]any{"path": path})
+		require.NoError(t, err)
+		assert.False(t, result.IsError)
+		assert.Contains(t, result.Content, "1\tbefore")
+	})
+
+	t.Run("very long line exceeds old scanner cap", func(t *testing.T) {
+		path := filepath.Join(tmpDir, "verylongline.txt")
+		longLine := strings.Repeat("y", 12*1024*1024)
+		require.NoError(t, os.WriteFile(path, []byte("first\n"+longLine+"\nlast"), 0o644))
+
+		result, err := tool.Execute(context.Background(), map[string]any{"path": path})
+		require.NoError(t, err)
+		assert.False(t, result.IsError)
+		assert.Contains(t, result.Content, "1\tfirst")
+	})
+
+	t.Run("single long line produces visible content", func(t *testing.T) {
+		path := filepath.Join(tmpDir, "singlelongline.txt")
+		longLine := strings.Repeat("a", 60000)
+		require.NoError(t, os.WriteFile(path, []byte(longLine), 0o644))
+
+		result, err := tool.Execute(context.Background(), map[string]any{"path": path})
+		require.NoError(t, err)
+		assert.False(t, result.IsError)
+		assert.Contains(t, result.Content, "1\t")
+		assert.Contains(t, result.Content, "line truncated")
+		assert.Contains(t, result.Content, "a")
 	})
 }

@@ -59,6 +59,12 @@ func ComputeHash(exts []ExtensionInfo, moduleRoot string, coreDirs ...string) (s
 			if !strings.HasPrefix(string(data), shimSentinel) {
 				h.Write([]byte("go.mod\n"))
 				h.Write(data)
+
+				goSumPath := filepath.Join(ext.Dir, "go.sum")
+				if sumData, sumErr := os.ReadFile(goSumPath); sumErr == nil {
+					h.Write([]byte("go.sum\n"))
+					h.Write(sumData)
+				}
 			}
 		}
 	}
@@ -122,7 +128,7 @@ func hashDir(h hash.Hash, dir string) error {
 		}
 
 		name := d.Name()
-		if strings.HasSuffix(name, ".go") && !strings.HasSuffix(name, "_test.go") {
+		if (strings.HasSuffix(name, ".go") && !strings.HasSuffix(name, "_test.go")) || name == "go.mod" || name == "go.sum" {
 			files = append(files, path)
 		}
 

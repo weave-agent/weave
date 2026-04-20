@@ -45,7 +45,7 @@ func TestTruncate_ByteLimit(t *testing.T) {
 	result := Truncate(input, DefaultMaxLines, maxBytes)
 	assert.True(t, result.Truncated)
 	assert.Equal(t, len(input), result.Bytes)
-	for _, line := range strings.Split(result.Content, "\n") {
+	for line := range strings.SplitSeq(result.Content, "\n") {
 		assert.True(t, len(line) <= maxBytes, "line exceeds byte limit: %q", line)
 	}
 }

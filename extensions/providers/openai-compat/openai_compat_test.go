@@ -87,7 +87,7 @@ func TestConvertMessages(t *testing.T) {
 			want: []ChatMessage{
 				{Role: "user", Content: "run ls"},
 				{
-					Role:    "assistant",
+					Role: "assistant",
 					ToolCalls: []StreamTool{
 						{
 							ID:   "call_1",
@@ -157,9 +157,9 @@ func sseChunk(delta ChunkDelta, finish *string) string {
 	chunk := StreamChunk{
 		ID: "chatcmpl-test",
 		Choices: []struct {
-			Index        int         `json:"index"`
-			Delta        ChunkDelta  `json:"delta"`
-			FinishReason *string     `json:"finish_reason"`
+			Index        int        `json:"index"`
+			Delta        ChunkDelta `json:"delta"`
+			FinishReason *string    `json:"finish_reason"`
 		}{
 			{Index: 0, Delta: delta, FinishReason: finish},
 		},
