@@ -1612,7 +1612,7 @@ Design shows flat discovery: `extensions/{name}/`. Implementation adds two-level
 
 ### Store: bus-only extension, no SDK interface
 
-Design defines `sdk.Store` as a first-class SDK interface with `RegisterStore` and slot-based resolution in `Wire()`. Implementation takes a different approach: the `jsonl-store` extension operates entirely through the event bus with no SDK interface changes. It subscribes to bus events (`agent.prompt`, `agent.message_end`, `agent.tool_result`, `agent.turn_start`, `agent.end`) and writes JSONL files to `~/.weave/sessions/` autonomously. This avoids adding a Store slot to the wiring pipeline and keeps session persistence as a pure side-effect of the event bus — any extension can react to the same events without the runner needing to pass a Store dependency.
+Design defines `sdk.Store` as a first-class SDK interface with `RegisterStore` and slot-based resolution in `Wire()`. Implementation takes a different approach: the `jsonl` extension operates entirely through the event bus with no SDK interface changes. It subscribes to bus events (`agent.prompt`, `agent.message_end`, `agent.tool_result`, `agent.turn_start`, `agent.end`) and writes JSONL files to `~/.weave/sessions/` autonomously. This avoids adding a Store slot to the wiring pipeline and keeps session persistence as a pure side-effect of the event bus — any extension can react to the same events without the runner needing to pass a Store dependency.
 
 ### Config path: .agent → .weave
 

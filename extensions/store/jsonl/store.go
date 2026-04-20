@@ -1,11 +1,13 @@
 package jsonlstore
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -26,9 +28,8 @@ type Entry struct {
 	ParentID string          `json:"parent_id,omitempty"`
 	Type     string          `json:"type"`
 	Turn     int             `json:"turn"`
-	Data     json.RawMessage `json:"data"`
-	Meta     map[string]any  `json:"meta,omitempty"`
-	Created  time.Time       `json:"created"`
+	Data    json.RawMessage `json:"data"`
+	Created time.Time       `json:"created"`
 }
 
 type Session struct {
@@ -45,14 +46,11 @@ type SessionInfo struct {
 }
 
 type Config struct {
-	Dir               string `default:"" description:"Session directory (default: ~/.weave/sessions)"`
-	AutoCompact       bool   `default:"false" description:"Auto-compact sessions on close"`
-	CompactThreshold  int    `default:"100" description:"Entry count threshold for auto-compact"`
+	Dir string `default:"" description:"Session directory (default: ~/.weave/sessions)"`
 }
 
 type Store struct {
-	cfg    Config
-	cfgDir string
+	cfg Config
 
 	mu        sync.Mutex
 	sessionID string
@@ -69,12 +67,7 @@ func init() { //nolint:gochecknoinits // required for extension self-registratio
 }
 
 func NewStore(cfg sdk.Config) (*Store, error) {
-	dir := ""
-	if cfg != nil {
-		dir = cfg.FilePath()
-	}
-
-	return &Store{cfgDir: dir}, nil
+	return &Store{}, nil
 }
 
 func (s *Store) Name() string { return "jsonl" }
@@ -161,6 +154,7 @@ func (s *Store) handlePrompt(evt sdk.Event) {
 
 	sess, err := s.Create(cwd)
 	if err != nil {
+		slog.Error("jsonl: create session", "error", err)
 		return
 	}
 
@@ -170,25 +164,20 @@ func (s *Store) handlePrompt(evt sdk.Event) {
 	})
 
 	entry := Entry{
-		Type:    "message",
-		Turn:    1,
-		Data:    data,
+		Type: "message",
+		Turn: 1,
+		Data: data,
 	}
 
-	if err := s.Append(sess.Header.ID, entry); err != nil {
-		return
-	}
-
-	loaded, err := s.Load(sess.Header.ID)
+	entryID, err := s.Append(sess.Header.ID, entry)
 	if err != nil {
+		slog.Error("jsonl: append entry", "error", err)
 		return
 	}
 
 	s.mu.Lock()
 	s.sessionID = sess.Header.ID
-	if len(loaded.Entries) > 0 {
-		s.lastEntry = loaded.Entries[len(loaded.Entries)-1].ID
-	}
+	s.lastEntry = entryID
 	s.turn = 1
 	s.mu.Unlock()
 }
@@ -233,7 +222,8 @@ func (s *Store) handleMsgEnd(evt sdk.Event) {
 		Data:     data,
 	}
 
-	if err := s.Append(sessionID, entry); err != nil {
+	if _, err := s.Append(sessionID, entry); err != nil {
+		slog.Error("jsonl: append entry", "error", err)
 		return
 	}
 
@@ -271,7 +261,8 @@ func (s *Store) handleToolResult(evt sdk.Event) {
 		Data:     data,
 	}
 
-	if err := s.Append(sessionID, entry); err != nil {
+	if _, err := s.Append(sessionID, entry); err != nil {
+		slog.Error("jsonl: append entry", "error", err)
 		return
 	}
 
@@ -302,11 +293,26 @@ func (s *Store) sessionDir() (string, error) {
 }
 
 func (s *Store) sessionPath(sessionID string) (string, error) {
+	if !isValidID(sessionID) {
+		return "", fmt.Errorf("invalid session ID: %q", sessionID)
+	}
 	dir, err := s.sessionDir()
 	if err != nil {
 		return "", err
 	}
 	return filepath.Join(dir, sessionID+".jsonl"), nil
+}
+
+func isValidID(id string) bool {
+	if len(id) == 0 {
+		return false
+	}
+	for _, c := range id {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Store) Create(cwd string) (*Session, error) {
@@ -339,7 +345,7 @@ func (s *Store) Create(cwd string) (*Session, error) {
 	}
 
 	path := filepath.Join(dir, id+".jsonl")
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0o644)
 	if err != nil {
 		return nil, fmt.Errorf("create session file: %w", err)
 	}
@@ -352,11 +358,11 @@ func (s *Store) Create(cwd string) (*Session, error) {
 	return sess, nil
 }
 
-func (s *Store) Append(sessionID string, entry Entry) error {
+func (s *Store) Append(sessionID string, entry Entry) (string, error) {
 	if entry.ID == "" {
 		id, err := generateID()
 		if err != nil {
-			return err
+			return "", err
 		}
 		entry.ID = id
 	}
@@ -366,25 +372,25 @@ func (s *Store) Append(sessionID string, entry Entry) error {
 
 	line, err := json.Marshal(entry)
 	if err != nil {
-		return fmt.Errorf("marshal entry: %w", err)
+		return "", fmt.Errorf("marshal entry: %w", err)
 	}
 
 	path, err := s.sessionPath(sessionID)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
-		return fmt.Errorf("open session file: %w", err)
+		return "", fmt.Errorf("open session file: %w", err)
 	}
 	defer f.Close()
 
 	if _, err := fmt.Fprintf(f, "%s\n", line); err != nil {
-		return fmt.Errorf("append entry: %w", err)
+		return "", fmt.Errorf("append entry: %w", err)
 	}
 
-	return nil
+	return entry.ID, nil
 }
 
 func loadFromFile(path string) (*Session, error) {
@@ -535,43 +541,26 @@ func (s *Store) rewriteFile(sessionID string, header SessionHeader, entries []En
 
 	var buf []byte
 	for _, l := range lines {
-		buf = append(buf, []byte(l)...)
+		buf = append(buf, l...)
 		buf = append(buf, '\n')
 	}
 
-	return os.WriteFile(path, buf, 0o644)
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, buf, 0o644); err != nil {
+		return fmt.Errorf("write temp file: %w", err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		return fmt.Errorf("rename temp file: %w", err)
+	}
+	return nil
 }
 
 func splitLines(data []byte) []string {
 	var lines []string
-	for _, line := range splitSlice(data, '\n') {
+	for _, line := range bytes.Split(data, []byte{'\n'}) {
 		if len(line) > 0 {
 			lines = append(lines, string(line))
 		}
 	}
 	return lines
-}
-
-func splitSlice(data []byte, sep byte) [][]byte {
-	var result [][]byte
-	for {
-		i := indexByte(data, sep)
-		if i < 0 {
-			if len(data) > 0 {
-				result = append(result, data)
-			}
-			return result
-		}
-		result = append(result, data[:i])
-		data = data[i+1:]
-	}
-}
-
-func indexByte(data []byte, sep byte) int {
-	for i, b := range data {
-		if b == sep {
-			return i
-		}
-	}
-	return -1
 }

@@ -62,14 +62,16 @@ func TestAppend(t *testing.T) {
 		Turn: 1,
 		Data: json.RawMessage(`{"role":"user","content":"hello"}`),
 	}
-	require.NoError(t, s.Append(sess.Header.ID, entry))
+	_, err = s.Append(sess.Header.ID, entry)
+	require.NoError(t, err)
 
 	entry2 := Entry{
 		Type: "message",
 		Turn: 2,
 		Data: json.RawMessage(`{"role":"assistant","content":"hi"}`),
 	}
-	require.NoError(t, s.Append(sess.Header.ID, entry2))
+	_, err = s.Append(sess.Header.ID, entry2)
+	require.NoError(t, err)
 
 	loaded, err := s.Load(sess.Header.ID)
 	require.NoError(t, err)
@@ -97,7 +99,8 @@ func TestAppend_PreservesIDAndTimestamp(t *testing.T) {
 		Data:    json.RawMessage(`{}`),
 		Created: ts,
 	}
-	require.NoError(t, s.Append(sess.Header.ID, entry))
+	_, err = s.Append(sess.Header.ID, entry)
+	require.NoError(t, err)
 
 	loaded, err := s.Load(sess.Header.ID)
 	require.NoError(t, err)
@@ -115,7 +118,8 @@ func TestLoad_Roundtrip(t *testing.T) {
 		{Type: "message", Turn: 2, Data: json.RawMessage(`{"role":"assistant","content":"world"}`)},
 	}
 	for _, e := range entries {
-		require.NoError(t, s.Append(sess.Header.ID, e))
+		_, err := s.Append(sess.Header.ID, e)
+		require.NoError(t, err)
 	}
 
 	loaded, err := s.Load(sess.Header.ID)
@@ -139,11 +143,12 @@ func TestHistory(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 3; i++ {
-		require.NoError(t, s.Append(sess.Header.ID, Entry{
+		_, err := s.Append(sess.Header.ID, Entry{
 			Type: "message",
 			Turn: i + 1,
 			Data: json.RawMessage(`{}`),
-		}))
+		})
+		require.NoError(t, err)
 	}
 
 	history, err := s.History(sess.Header.ID)
@@ -165,9 +170,11 @@ func TestList(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 3; i++ {
-		require.NoError(t, s.Append(sess1.Header.ID, Entry{Type: "message", Turn: i + 1, Data: json.RawMessage(`{}`)}))
+		_, err := s.Append(sess1.Header.ID, Entry{Type: "message", Turn: i + 1, Data: json.RawMessage(`{}`)})
+		require.NoError(t, err)
 	}
-	require.NoError(t, s.Append(sess2.Header.ID, Entry{Type: "message", Turn: 1, Data: json.RawMessage(`{}`)}))
+	_, err = s.Append(sess2.Header.ID, Entry{Type: "message", Turn: 1, Data: json.RawMessage(`{}`)})
+	require.NoError(t, err)
 
 	infos, err := s.List()
 	require.NoError(t, err)
@@ -202,11 +209,12 @@ func TestCompact_Truncation(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 5; i++ {
-		require.NoError(t, s.Append(sess.Header.ID, Entry{
+		_, err := s.Append(sess.Header.ID, Entry{
 			Type: "message",
 			Turn: i + 1,
 			Data: json.RawMessage(`{"role":"user","content":"msg"}`),
-		}))
+		})
+		require.NoError(t, err)
 	}
 
 	require.NoError(t, s.Compact(sess.Header.ID, 2))
@@ -229,11 +237,12 @@ func TestCompact_SummaryEntry(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 4; i++ {
-		require.NoError(t, s.Append(sess.Header.ID, Entry{
+		_, err := s.Append(sess.Header.ID, Entry{
 			Type: "message",
 			Turn: i + 1,
 			Data: json.RawMessage(`{}`),
-		}))
+		})
+		require.NoError(t, err)
 	}
 
 	require.NoError(t, s.Compact(sess.Header.ID, 1))
@@ -257,11 +266,12 @@ func TestCompact_KeepLastExceedsTotal(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 3; i++ {
-		require.NoError(t, s.Append(sess.Header.ID, Entry{
+		_, err := s.Append(sess.Header.ID, Entry{
 			Type: "message",
 			Turn: i + 1,
 			Data: json.RawMessage(`{}`),
-		}))
+		})
+		require.NoError(t, err)
 	}
 
 	require.NoError(t, s.Compact(sess.Header.ID, 10))
@@ -277,7 +287,8 @@ func TestCompact_PreservesHeader(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 3; i++ {
-		require.NoError(t, s.Append(sess.Header.ID, Entry{Type: "message", Turn: i + 1, Data: json.RawMessage(`{}`)}))
+		_, err := s.Append(sess.Header.ID, Entry{Type: "message", Turn: i + 1, Data: json.RawMessage(`{}`)})
+		require.NoError(t, err)
 	}
 
 	require.NoError(t, s.Compact(sess.Header.ID, 1))
@@ -295,6 +306,38 @@ func TestList_IgnoresNonJSONL(t *testing.T) {
 	infos, err := s.List()
 	require.NoError(t, err)
 	assert.Nil(t, infos)
+}
+
+func TestSessionPath_InvalidID(t *testing.T) {
+	s := newTestStore(t)
+	_, err := s.sessionPath("../../etc/passwd")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid session ID")
+}
+
+func TestLoad_EmptyFile(t *testing.T) {
+	s := newTestStore(t)
+	path := filepath.Join(s.cfg.Dir, "empty.jsonl")
+	require.NoError(t, os.WriteFile(path, []byte(""), 0o644))
+	_, err := loadFromFile(path)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "empty session file")
+}
+
+func TestList_SkipsCorruptedFile(t *testing.T) {
+	s := newTestStore(t)
+
+	sess, err := s.Create("/tmp/valid")
+	require.NoError(t, err)
+	_, err = s.Append(sess.Header.ID, Entry{Type: "message", Turn: 1, Data: json.RawMessage(`{}`)})
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(filepath.Join(s.cfg.Dir, "corrupt.jsonl"), []byte("not json\n"), 0o644))
+
+	infos, err := s.List()
+	require.NoError(t, err)
+	require.Len(t, infos, 1)
+	assert.Equal(t, sess.Header.ID, infos[0].ID)
 }
 
 func TestSubscribe_CreatesSessionOnPrompt(t *testing.T) {

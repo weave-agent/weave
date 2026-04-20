@@ -83,23 +83,19 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 
 	if err != nil {
 		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok && exitErr.ExitCode() >= 0 {
-			content = fmt.Sprintf("%s\n[exit code %d]", result.Content, exitErr.ExitCode())
+			content = fmt.Sprintf("%s\n[exit code %d]", result.Format(), exitErr.ExitCode())
 		} else if ctx.Err() == context.DeadlineExceeded {
-			content = fmt.Sprintf("%s\nerror: command timed out", result.Content)
+			content = fmt.Sprintf("%s\nerror: command timed out", result.Format())
 			isErr = true
 		} else if ctx.Err() == context.Canceled {
-			content = fmt.Sprintf("%s\nerror: command canceled", result.Content)
+			content = fmt.Sprintf("%s\nerror: command canceled", result.Format())
 			isErr = true
 		} else {
-			content = fmt.Sprintf("%s\nerror: %s", result.Content, err)
+			content = fmt.Sprintf("%s\nerror: %s", result.Format(), err)
 			isErr = true
 		}
 	} else {
-		content = result.Content
-	}
-
-	if result.Truncated {
-		content = fmt.Sprintf("%s\n[output truncated: %d lines, %d bytes]", content, result.Lines, result.Bytes)
+		content = result.Format()
 	}
 
 	return sdk.ToolResult{Content: content, IsError: isErr}, nil
