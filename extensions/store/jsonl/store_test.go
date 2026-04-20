@@ -7,6 +7,10 @@ import (
 	"testing"
 	"time"
 
+	eventbus "weave/bus"
+
+	"weave/sdk"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -291,4 +295,134 @@ func TestList_IgnoresNonJSONL(t *testing.T) {
 	infos, err := s.List()
 	require.NoError(t, err)
 	assert.Nil(t, infos)
+}
+
+func TestSubscribe_CreatesSessionOnPrompt(t *testing.T) {
+	s := newTestStore(t)
+	b := eventbus.New()
+
+	s.Subscribe(b)
+	defer s.Close()
+
+	b.Publish(sdk.NewEvent("agent.prompt", "hello world"))
+	time.Sleep(50 * time.Millisecond)
+
+	s.mu.Lock()
+	sessionID := s.sessionID
+	s.mu.Unlock()
+
+	require.NotEmpty(t, sessionID)
+
+	sess, err := s.Load(sessionID)
+	require.NoError(t, err)
+	require.Len(t, sess.Entries, 1)
+
+	assert.Equal(t, "message", sess.Entries[0].Type)
+	assert.Equal(t, 1, sess.Entries[0].Turn)
+
+	var data map[string]any
+	require.NoError(t, json.Unmarshal(sess.Entries[0].Data, &data))
+	assert.Equal(t, "user", data["role"])
+	assert.Equal(t, "hello world", data["content"])
+}
+
+func TestSubscribe_AppendsAssistantOnMsgEnd(t *testing.T) {
+	s := newTestStore(t)
+	b := eventbus.New()
+
+	s.Subscribe(b)
+	defer s.Close()
+
+	b.Publish(sdk.NewEvent("agent.prompt", "hello"))
+	time.Sleep(50 * time.Millisecond)
+
+	b.Publish(sdk.NewEvent("agent.turn_start", 1))
+	b.Publish(sdk.NewEvent("agent.message_end", "hi there"))
+	time.Sleep(50 * time.Millisecond)
+
+	s.mu.Lock()
+	sessionID := s.sessionID
+	s.mu.Unlock()
+
+	sess, err := s.Load(sessionID)
+	require.NoError(t, err)
+	require.Len(t, sess.Entries, 2)
+
+	assert.Equal(t, "message", sess.Entries[1].Type)
+
+	var data map[string]any
+	require.NoError(t, json.Unmarshal(sess.Entries[1].Data, &data))
+	assert.Equal(t, "assistant", data["role"])
+	assert.Equal(t, "hi there", data["content"])
+
+	assert.Equal(t, sess.Entries[0].ID, sess.Entries[1].ParentID)
+}
+
+func TestSubscribe_AppendsToolResult(t *testing.T) {
+	s := newTestStore(t)
+	b := eventbus.New()
+
+	s.Subscribe(b)
+	defer s.Close()
+
+	b.Publish(sdk.NewEvent("agent.prompt", "list files"))
+	time.Sleep(50 * time.Millisecond)
+
+	b.Publish(sdk.NewEvent("agent.turn_start", 1))
+	b.Publish(sdk.NewEvent("agent.message_end", "let me check"))
+	time.Sleep(50 * time.Millisecond)
+
+	b.Publish(sdk.NewEvent("agent.tool_result", map[string]any{
+		"id":     "call-123",
+		"tool":   "bash",
+		"result": "file1.txt\nfile2.txt",
+	}))
+	time.Sleep(50 * time.Millisecond)
+
+	s.mu.Lock()
+	sessionID := s.sessionID
+	s.mu.Unlock()
+
+	sess, err := s.Load(sessionID)
+	require.NoError(t, err)
+	require.Len(t, sess.Entries, 3)
+
+	assert.Equal(t, "message", sess.Entries[2].Type)
+
+	var data map[string]any
+	require.NoError(t, json.Unmarshal(sess.Entries[2].Data, &data))
+	assert.Equal(t, "tool_result", data["role"])
+
+	assert.Equal(t, sess.Entries[1].ID, sess.Entries[2].ParentID)
+}
+
+func TestSubscribe_EndStopsGoroutine(t *testing.T) {
+	s := newTestStore(t)
+	b := eventbus.New()
+
+	s.Subscribe(b)
+
+	b.Publish(sdk.NewEvent("agent.prompt", "hello"))
+	time.Sleep(50 * time.Millisecond)
+
+	b.Publish(sdk.NewEvent("agent.end", nil))
+
+	require.NoError(t, s.Close())
+}
+
+func TestSubscribe_CloseCancelsGoroutine(t *testing.T) {
+	s := newTestStore(t)
+	b := eventbus.New()
+
+	s.Subscribe(b)
+
+	b.Publish(sdk.NewEvent("agent.prompt", "test"))
+	time.Sleep(50 * time.Millisecond)
+
+	require.NoError(t, s.Close())
+
+	s.mu.Lock()
+	sessionID := s.sessionID
+	s.mu.Unlock()
+	require.NotEmpty(t, sessionID)
 }

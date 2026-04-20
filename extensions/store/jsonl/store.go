@@ -1,12 +1,14 @@
 package jsonlstore
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"weave/sdk"
@@ -51,6 +53,13 @@ type Config struct {
 type Store struct {
 	cfg    Config
 	cfgDir string
+
+	mu        sync.Mutex
+	sessionID string
+	lastEntry string
+	turn      int
+	cancel    context.CancelFunc
+	done      chan struct{}
 }
 
 func init() { //nolint:gochecknoinits // required for extension self-registration
@@ -70,9 +79,206 @@ func NewStore(cfg sdk.Config) (*Store, error) {
 
 func (s *Store) Name() string { return "jsonl-store" }
 
-func (s *Store) Subscribe(bus sdk.Bus) {}
+func (s *Store) Subscribe(bus sdk.Bus) {
+	s.mu.Lock()
+	if s.cancel != nil {
+		s.mu.Unlock()
+		panic("jsonl-store: Subscribe called twice without Close")
+	}
 
-func (s *Store) Close() error { return nil }
+	promptCh := bus.Subscribe("agent.prompt")
+	turnStartCh := bus.Subscribe("agent.turn_start")
+	msgEndCh := bus.Subscribe("agent.message_end")
+	toolResultCh := bus.Subscribe("agent.tool_result")
+	endCh := bus.Subscribe("agent.end")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	s.cancel = cancel
+	s.done = make(chan struct{})
+	s.mu.Unlock()
+
+	go s.run(ctx, promptCh, turnStartCh, msgEndCh, toolResultCh, endCh)
+}
+
+func (s *Store) Close() error {
+	s.mu.Lock()
+	cancel := s.cancel
+	done := s.done
+	s.mu.Unlock()
+
+	if cancel != nil {
+		cancel()
+	}
+
+	if done != nil {
+		<-done
+	}
+
+	return nil
+}
+
+func (s *Store) run(ctx context.Context, promptCh, turnStartCh, msgEndCh, toolResultCh, endCh <-chan sdk.Event) {
+	defer close(s.done)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case evt, ok := <-promptCh:
+			if !ok {
+				return
+			}
+			s.handlePrompt(evt)
+		case evt, ok := <-turnStartCh:
+			if !ok {
+				return
+			}
+			s.handleTurnStart(evt)
+		case evt, ok := <-msgEndCh:
+			if !ok {
+				return
+			}
+			s.handleMsgEnd(evt)
+		case evt, ok := <-toolResultCh:
+			if !ok {
+				return
+			}
+			s.handleToolResult(evt)
+		case _, ok := <-endCh:
+			if !ok {
+				return
+			}
+			return
+		}
+	}
+}
+
+func (s *Store) handlePrompt(evt sdk.Event) {
+	cwd, _ := os.Getwd()
+	if cwd == "" {
+		cwd = "/"
+	}
+
+	sess, err := s.Create(cwd)
+	if err != nil {
+		return
+	}
+
+	data, _ := json.Marshal(map[string]any{
+		"role":    sdk.RoleUser,
+		"content": evt.Payload,
+	})
+
+	entry := Entry{
+		Type:    "message",
+		Turn:    1,
+		Data:    data,
+	}
+
+	if err := s.Append(sess.Header.ID, entry); err != nil {
+		return
+	}
+
+	loaded, err := s.Load(sess.Header.ID)
+	if err != nil {
+		return
+	}
+
+	s.mu.Lock()
+	s.sessionID = sess.Header.ID
+	if len(loaded.Entries) > 0 {
+		s.lastEntry = loaded.Entries[len(loaded.Entries)-1].ID
+	}
+	s.turn = 1
+	s.mu.Unlock()
+}
+
+func (s *Store) handleTurnStart(evt sdk.Event) {
+	turn, ok := evt.Payload.(int)
+	if !ok {
+		return
+	}
+
+	s.mu.Lock()
+	s.turn = turn
+	s.mu.Unlock()
+}
+
+func (s *Store) handleMsgEnd(evt sdk.Event) {
+	s.mu.Lock()
+	sessionID := s.sessionID
+	lastEntry := s.lastEntry
+	turn := s.turn
+	s.mu.Unlock()
+
+	if sessionID == "" {
+		return
+	}
+
+	id, err := generateID()
+	if err != nil {
+		return
+	}
+
+	data, _ := json.Marshal(map[string]any{
+		"role":    sdk.RoleAssistant,
+		"content": evt.Payload,
+	})
+
+	entry := Entry{
+		ID:       id,
+		ParentID: lastEntry,
+		Type:     "message",
+		Turn:     turn,
+		Data:     data,
+	}
+
+	if err := s.Append(sessionID, entry); err != nil {
+		return
+	}
+
+	s.mu.Lock()
+	s.lastEntry = id
+	s.mu.Unlock()
+}
+
+func (s *Store) handleToolResult(evt sdk.Event) {
+	s.mu.Lock()
+	sessionID := s.sessionID
+	lastEntry := s.lastEntry
+	turn := s.turn
+	s.mu.Unlock()
+
+	if sessionID == "" {
+		return
+	}
+
+	id, err := generateID()
+	if err != nil {
+		return
+	}
+
+	data, _ := json.Marshal(map[string]any{
+		"role": sdk.RoleToolResult,
+		"tool": evt.Payload,
+	})
+
+	entry := Entry{
+		ID:       id,
+		ParentID: lastEntry,
+		Type:     "message",
+		Turn:     turn,
+		Data:     data,
+	}
+
+	if err := s.Append(sessionID, entry); err != nil {
+		return
+	}
+
+	s.mu.Lock()
+	s.lastEntry = id
+	s.mu.Unlock()
+}
 
 func generateID() (string, error) {
 	b := make([]byte, 4)

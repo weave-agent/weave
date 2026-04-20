@@ -160,12 +160,12 @@ Use `crypto/rand` to generate 8-char hex IDs (no external dependency). Check for
 - [x] run tests — must pass before next task
 
 ### Task 4: Wire extension to bus events
-- [ ] implement `Subscribe(bus Bus)` — subscribe to `agent.prompt`, `agent.message_end`, `agent.tool_result`, `agent.turn_start`, `agent.end`
-- [ ] implement event handler goroutine: on `agent.prompt` → Create session + Append user entry, on `agent.message_end` → Append assistant entry, on `agent.tool_result` → Append tool result entry
-- [ ] track current session state (session ID, last entry ID, turn counter) in the extension struct
-- [ ] implement `Close()` — close open file handle, clean up goroutine
-- [ ] write tests for Subscribe (publish events, verify JSONL file contents)
-- [ ] run tests — must pass before next task
+- [x] implement `Subscribe(bus Bus)` — subscribe to `agent.prompt`, `agent.message_end`, `agent.tool_result`, `agent.turn_start`, `agent.end`
+- [x] implement event handler goroutine: on `agent.prompt` → Create session + Append user entry, on `agent.message_end` → Append assistant entry, on `agent.tool_result` → Append tool result entry
+- [x] track current session state (session ID, last entry ID, turn counter) in the extension struct
+- [x] implement `Close()` — close open file handle, clean up goroutine
+- [x] write tests for Subscribe (publish events, verify JSONL file contents)
+- [x] run tests — must pass before next task
 
 ### Task 5: Integration with launcher
 - [ ] verify extension is discovered by launcher's nested lookup (`extensions/store/jsonl/` → name `jsonl`)
