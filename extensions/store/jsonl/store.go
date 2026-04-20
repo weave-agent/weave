@@ -63,7 +63,7 @@ type Store struct {
 }
 
 func init() { //nolint:gochecknoinits // required for extension self-registration
-	sdk.RegisterExtension("jsonl-store", func(cfg sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension("jsonl", func(cfg sdk.Config) (sdk.Extension, error) {
 		return NewStore(cfg)
 	})
 }
@@ -77,13 +77,13 @@ func NewStore(cfg sdk.Config) (*Store, error) {
 	return &Store{cfgDir: dir}, nil
 }
 
-func (s *Store) Name() string { return "jsonl-store" }
+func (s *Store) Name() string { return "jsonl" }
 
 func (s *Store) Subscribe(bus sdk.Bus) {
 	s.mu.Lock()
 	if s.cancel != nil {
 		s.mu.Unlock()
-		panic("jsonl-store: Subscribe called twice without Close")
+		panic("jsonl: Subscribe called twice without Close")
 	}
 
 	promptCh := bus.Subscribe("agent.prompt")

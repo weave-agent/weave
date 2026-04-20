@@ -107,9 +107,9 @@ type SessionInfo struct {
 ```yaml
 # .weave.yaml
 extensions:
-  - jsonl-store
+  - jsonl
 
-jsonl-store:
+jsonl:
   dir: ""                  # default: ~/.weave/sessions
   auto_compact: false
   compact_threshold: 100
@@ -168,10 +168,10 @@ Use `crypto/rand` to generate 8-char hex IDs (no external dependency). Check for
 - [x] run tests — must pass before next task
 
 ### Task 5: Integration with launcher
-- [ ] verify extension is discovered by launcher's nested lookup (`extensions/store/jsonl/` → name `jsonl`)
-- [ ] add `jsonl-store` to default config or example `.weave.yaml`
-- [ ] run full test suite (`go test ./...`)
-- [ ] run linter (`make lint`)
+- [x] verify extension is discovered by launcher's nested lookup (`extensions/store/jsonl/` → name `jsonl`)
+- [x] add `jsonl-store` to default config or example `.weave.yaml`
+- [x] run full test suite (`go test ./...`)
+- [x] run linter (`make lint`)
 
 ### Task 6: Update documentation
 - [ ] update `docs/design.md` Implementation Divergences section noting store is bus-only, no SDK interface

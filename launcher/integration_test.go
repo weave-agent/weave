@@ -322,6 +322,23 @@ func TestIntegration_DiscoverBuiltinNestedProviders(t *testing.T) {
 	}
 }
 
+// TestIntegration_DiscoverBuiltinNestedStore verifies that the jsonl store extension
+// is discovered via nested lookup at extensions/store/jsonl/.
+func TestIntegration_DiscoverBuiltinNestedStore(t *testing.T) {
+	moduleRoot := findModuleRootHelper(t)
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+
+	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"jsonl"})
+	require.NoError(t, err, "DiscoverCustomHomeWithBuiltins for jsonl store")
+
+	require.Len(t, exts, 1)
+	assert.Equal(t, "jsonl", exts[0].Name)
+	assert.Contains(t, exts[0].Dir, filepath.Join("extensions", "store", "jsonl"),
+		"jsonl store should be found in nested store/ directory")
+	assert.NotEmpty(t, exts[0].GoFiles)
+}
+
 // TestIntegration_DiscoverBuiltinLoopDirect verifies the loop extension is still
 // found at the direct path extensions/loop/.
 func TestIntegration_DiscoverBuiltinLoopDirect(t *testing.T) {
