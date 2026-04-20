@@ -49,7 +49,7 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 	content, _ := args["content"].(string)
 
 	dir := filepath.Dir(path)
-	if dir != "" && dir != "." {
+	if dir != "." {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return sdk.ToolResult{Content: fmt.Sprintf("error: creating directories: %s", err), IsError: true}, nil
 		}

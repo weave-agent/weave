@@ -43,7 +43,7 @@ func (t *tool) Definition() sdk.ToolDef {
 	}
 }
 
-func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult, error) {
+func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, error) {
 	pattern, _ := args["pattern"].(string)
 	if pattern == "" {
 		return sdk.ToolResult{Content: "error: pattern is required", IsError: true}, nil
@@ -66,6 +66,10 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 
 	if !info.IsDir() {
 		return sdk.ToolResult{Content: fmt.Sprintf("error: %s is not a directory", absPath), IsError: true}, nil
+	}
+
+	if _, err := filepath.Match(pattern, ""); err != nil {
+		return sdk.ToolResult{Content: fmt.Sprintf("error: invalid pattern: %s", err), IsError: true}, nil
 	}
 
 	var matches []string
@@ -91,9 +95,6 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 		matched, _ := filepath.Match(pattern, d.Name())
 		if !matched {
 			matched, _ = filepath.Match(pattern, rel)
-		}
-		if !matched {
-			matched, _ = filepath.Match(pattern, filepath.Base(rel))
 		}
 
 		if matched {

@@ -57,7 +57,7 @@ func (t *tool) Definition() sdk.ToolDef {
 	}
 }
 
-func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult, error) {
+func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, error) {
 	pattern, _ := args["pattern"].(string)
 	if pattern == "" {
 		return sdk.ToolResult{Content: "error: pattern is required", IsError: true}, nil
