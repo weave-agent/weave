@@ -24,7 +24,7 @@ func newTestStore(t *testing.T) *Store {
 func TestGenerateID(t *testing.T) {
 	id, err := generateID()
 	require.NoError(t, err)
-	assert.Len(t, id, 8)
+	assert.Len(t, id, 32)
 
 	id2, err := generateID()
 	require.NoError(t, err)
@@ -38,7 +38,7 @@ func TestCreate(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "session", sess.Header.Type)
-	assert.Len(t, sess.Header.ID, 8)
+	assert.Len(t, sess.Header.ID, 32)
 	assert.Equal(t, "/tmp/project", sess.Header.CWD)
 	assert.False(t, sess.Header.Timestamp.IsZero())
 
@@ -77,12 +77,12 @@ func TestAppend(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, loaded.Entries, 2)
 
-	assert.Len(t, loaded.Entries[0].ID, 8)
+	assert.Len(t, loaded.Entries[0].ID, 32)
 	assert.False(t, loaded.Entries[0].Created.IsZero())
 	assert.Equal(t, 1, loaded.Entries[0].Turn)
 	assert.Equal(t, `{"role":"user","content":"hello"}`, string(loaded.Entries[0].Data))
 
-	assert.Len(t, loaded.Entries[1].ID, 8)
+	assert.Len(t, loaded.Entries[1].ID, 32)
 	assert.Equal(t, 2, loaded.Entries[1].Turn)
 }
 

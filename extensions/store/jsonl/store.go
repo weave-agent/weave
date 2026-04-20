@@ -272,7 +272,7 @@ func (s *Store) handleToolResult(evt sdk.Event) {
 }
 
 func generateID() (string, error) {
-	b := make([]byte, 4)
+	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
 		return "", fmt.Errorf("generate id: %w", err)
 	}
@@ -550,6 +550,7 @@ func (s *Store) rewriteFile(sessionID string, header SessionHeader, entries []En
 		return fmt.Errorf("write temp file: %w", err)
 	}
 	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("rename temp file: %w", err)
 	}
 	return nil
