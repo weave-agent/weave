@@ -56,7 +56,7 @@ core:
   providers:             # default: ["anthropic"]
     - anthropic
 extensions:
-  - bash-tool
+  - bash
 ```
 
 **Provider environment variables:**
