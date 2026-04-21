@@ -5,6 +5,7 @@ import (
 
 	"weave/ext/ui/tui/components"
 	"weave/ext/ui/tui/components/messages"
+	"weave/sdk"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -206,7 +207,199 @@ func TestModel_MultipleTurns(t *testing.T) {
 }
 
 func TestChatItemInterface(t *testing.T) {
-	// Verify both message types satisfy ChatItem interface
+	// Verify all chat item types satisfy ChatItem interface
 	var _ components.ChatItem = messages.NewAssistantMessage()
 	var _ components.ChatItem = messages.NewUserMessage("test")
+	var _ components.ChatItem = messages.NewToolPanel("tc1", "bash", "")
+}
+
+func TestToolPanelItemIdentity(t *testing.T) {
+	// Verify ToolPanel satisfies ChatItemIdentity
+	var _ components.ChatItemIdentity = messages.NewToolPanel("tc1", "bash", "")
+}
+
+func TestModel_MessageEndCreatesToolPanels(t *testing.T) {
+	m := newModel(nil, nil)
+	m.width = 80
+	m.height = 20
+	m.chat = m.chat.SetSize(80, 20)
+
+	// Start assistant message
+	model, _ := m.Update(MessageStartMsg{})
+	m = model.(Model)
+
+	// End with tool calls
+	model, _ = m.Update(MessageEndMsg{
+		Content: "I'll run bash",
+		ToolCalls: []sdk.ToolCall{
+			{ID: "tc1", Name: "bash", Arguments: map[string]any{"command": "ls"}},
+			{ID: "tc2", Name: "read", Arguments: map[string]any{"path": "main.go"}},
+		},
+	})
+	m = model.(Model)
+
+	items := m.chat.Items()
+	require.Len(t, items, 3) // assistant + 2 tool panels
+
+	// Assistant message finalized
+	am, ok := items[0].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Equal(t, "I'll run bash", am.Content())
+	assert.False(t, am.IsStreaming())
+
+	// Tool panel 1
+	tp1, ok := items[1].(*messages.ToolPanel)
+	require.True(t, ok)
+	assert.Equal(t, "tc1", tp1.ToolID())
+	assert.Equal(t, messages.ToolPending, tp1.State())
+
+	// Tool panel 2
+	tp2, ok := items[2].(*messages.ToolPanel)
+	require.True(t, ok)
+	assert.Equal(t, "tc2", tp2.ToolID())
+
+	// Check toolPanels map
+	assert.Contains(t, m.toolPanels, "tc1")
+	assert.Contains(t, m.toolPanels, "tc2")
+}
+
+func TestModel_ToolResultUpdatesPanel(t *testing.T) {
+	m := newModel(nil, nil)
+	m.width = 80
+	m.height = 20
+	m.chat = m.chat.SetSize(80, 20)
+
+	// Start assistant message
+	model, _ := m.Update(MessageStartMsg{})
+	m = model.(Model)
+
+	// End with tool call
+	model, _ = m.Update(MessageEndMsg{
+		Content:   "running bash",
+		ToolCalls: []sdk.ToolCall{{ID: "tc1", Name: "bash", Arguments: nil}},
+	})
+	m = model.(Model)
+
+	// Tool result arrives
+	model, _ = m.Update(ToolResultMsg{
+		ToolID: "tc1",
+		Tool:   "bash",
+		Result: sdk.ToolResult{Content: "file.txt", IsError: false},
+	})
+	m = model.(Model)
+
+	items := m.chat.Items()
+	require.Len(t, items, 2) // assistant + tool panel
+
+	tp, ok := items[1].(*messages.ToolPanel)
+	require.True(t, ok)
+	assert.Equal(t, messages.ToolSuccess, tp.State())
+	assert.Contains(t, tp.View(80), "file.txt")
+}
+
+func TestModel_ToolResultError(t *testing.T) {
+	m := newModel(nil, nil)
+	m.width = 80
+	m.height = 20
+	m.chat = m.chat.SetSize(80, 20)
+
+	model, _ := m.Update(MessageStartMsg{})
+	m = model.(Model)
+
+	model, _ = m.Update(MessageEndMsg{
+		Content:   "running bash",
+		ToolCalls: []sdk.ToolCall{{ID: "tc1", Name: "bash", Arguments: nil}},
+	})
+	m = model.(Model)
+
+	model, _ = m.Update(ToolResultMsg{
+		ToolID: "tc1",
+		Tool:   "bash",
+		Result: sdk.ToolResult{Content: "permission denied", IsError: true},
+	})
+	m = model.(Model)
+
+	tp, ok := m.chat.Items()[1].(*messages.ToolPanel)
+	require.True(t, ok)
+	assert.Equal(t, messages.ToolError, tp.State())
+}
+
+func TestModel_ToolResultUnknownID(t *testing.T) {
+	m := newModel(nil, nil)
+	m.width = 80
+	m.height = 20
+	m.chat = m.chat.SetSize(80, 20)
+
+	// Result for a tool panel that wasn't created via MessageEnd
+	model, _ := m.Update(ToolResultMsg{
+		ToolID: "tc-unknown",
+		Tool:   "bash",
+		Result: sdk.ToolResult{Content: "output", IsError: false},
+	})
+	m = model.(Model)
+
+	// Should have created a new panel
+	items := m.chat.Items()
+	require.Len(t, items, 1)
+	tp, ok := items[0].(*messages.ToolPanel)
+	require.True(t, ok)
+	assert.Equal(t, "tc-unknown", tp.ToolID())
+	assert.Equal(t, messages.ToolSuccess, tp.State())
+}
+
+func TestModel_ToolPanelInlineInChat(t *testing.T) {
+	m := newModel(nil, nil)
+	m.width = 80
+	m.height = 30
+	m.chat = m.chat.SetSize(80, 30)
+
+	// User asks a question
+	m.AddUserMessage("list files")
+
+	// Assistant response with tool use
+	model, _ := m.Update(MessageStartMsg{})
+	m = model.(Model)
+	model, _ = m.Update(MessageUpdateMsg{Content: "I'll list"})
+	m = model.(Model)
+	model, _ = m.Update(MessageEndMsg{
+		Content:   "I'll list the files",
+		ToolCalls: []sdk.ToolCall{{ID: "tc1", Name: "bash", Arguments: map[string]any{"command": "ls"}}},
+	})
+	m = model.(Model)
+
+	// Tool result
+	model, _ = m.Update(ToolResultMsg{
+		ToolID: "tc1",
+		Tool:   "bash",
+		Result: sdk.ToolResult{Content: "file1.txt\nfile2.txt", IsError: false},
+	})
+	m = model.(Model)
+
+	// Second assistant message with final answer
+	model, _ = m.Update(MessageStartMsg{})
+	m = model.(Model)
+	model, _ = m.Update(MessageUpdateMsg{Content: "Here are"})
+	m = model.(Model)
+	model, _ = m.Update(MessageEndMsg{Content: "Here are the files"})
+	m = model.(Model)
+
+	items := m.chat.Items()
+	require.Len(t, items, 4) // user + assistant + tool + assistant
+
+	// Verify order: user -> assistant -> tool -> assistant
+	_, ok := items[0].(*messages.UserMessage)
+	assert.True(t, ok, "item 0 should be UserMessage")
+
+	_, ok = items[1].(*messages.AssistantMessage)
+	assert.True(t, ok, "item 1 should be AssistantMessage")
+
+	_, ok = items[2].(*messages.ToolPanel)
+	assert.True(t, ok, "item 2 should be ToolPanel")
+
+	_, ok = items[3].(*messages.AssistantMessage)
+	assert.True(t, ok, "item 3 should be AssistantMessage")
+
+	// Verify the view contains tool output
+	view := m.View()
+	assert.Contains(t, view, "file1.txt")
 }

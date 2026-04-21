@@ -108,6 +108,65 @@ func TestChatModel_IntegrationWithAssistantMessage(t *testing.T) {
 	assert.Contains(t, view, "hello world")
 }
 
+func TestChatModel_UpdateItemByID(t *testing.T) {
+	m := NewChatModel().SetSize(80, 10)
+
+	// Add user, then tool panel, then another user
+	m = m.AddItem(messages.NewUserMessage("first"))
+	panel := messages.NewToolPanel("tc1", "bash", "ls")
+	panel.SetResult("file.txt", false)
+	m = m.AddItem(panel)
+	m = m.AddItem(messages.NewUserMessage("second"))
+
+	require.Len(t, m.Items(), 3)
+
+	// Update the tool panel by ID
+	updated := messages.NewToolPanel("tc1", "bash", "ls")
+	updated.SetResult("new output", false)
+	m = m.UpdateItemByID(updated)
+
+	require.Len(t, m.Items(), 3) // still 3 items, not 4
+
+	// Verify the tool panel was updated in place
+	tp, ok := m.Items()[1].(*messages.ToolPanel)
+	require.True(t, ok)
+	assert.Contains(t, tp.View(80), "new output")
+}
+
+func TestChatModel_UpdateItemByID_NotFound_Appends(t *testing.T) {
+	m := NewChatModel().SetSize(80, 10)
+	m = m.AddItem(messages.NewUserMessage("first"))
+
+	panel := messages.NewToolPanel("tc-missing", "bash", "ls")
+	m = m.UpdateItemByID(panel)
+
+	require.Len(t, m.Items(), 2) // appended because not found
+}
+
+func TestChatModel_IntegrationWithToolPanel(t *testing.T) {
+	m := NewChatModel().SetSize(80, 10)
+
+	// Simulate a conversation with tool use
+	am := messages.NewAssistantMessage()
+	am.Finalize("I'll list the files")
+	m = m.AddItem(am)
+
+	panel := messages.NewToolPanel("tc1", "bash", "ls -la")
+	panel.SetResult("file1.txt\nfile2.txt", false)
+	m = m.AddItem(panel)
+
+	am2 := messages.NewAssistantMessage()
+	am2.Finalize("Here are the files")
+	m = m.AddItem(am2)
+
+	items := m.Items()
+	require.Len(t, items, 3)
+
+	view := m.View()
+	assert.Contains(t, view, "file1.txt")
+	assert.Contains(t, view, "file2.txt")
+}
+
 func TestChatModel_ScrollOffset(t *testing.T) {
 	m := NewChatModel()
 	assert.Equal(t, 0, m.ScrollOffset())

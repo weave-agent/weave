@@ -12,6 +12,13 @@ type ChatItem interface {
 	View(width int) string
 }
 
+// ChatItemIdentity is an optional interface for items that have a unique ID.
+// Used for in-place updates of non-last items (e.g., tool panels).
+type ChatItemIdentity interface {
+	ChatItem
+	ItemID() string
+}
+
 // ChatModel manages a scrollable list of chat items.
 type ChatModel struct {
 	items    []ChatItem
@@ -68,6 +75,23 @@ func (m ChatModel) UpdateItem(item ChatItem) ChatModel {
 		m.items = append(m.items, item)
 	}
 	return m
+}
+
+// UpdateItemByID finds an item by ChatItemIdentity interface and replaces it.
+// Falls back to appending if not found.
+func (m ChatModel) UpdateItemByID(item ChatItem) ChatModel {
+	id, ok := item.(ChatItemIdentity)
+	if !ok {
+		return m.AddItem(item)
+	}
+	targetID := id.ItemID()
+	for i, existing := range m.items {
+		if eid, ok := existing.(ChatItemIdentity); ok && eid.ItemID() == targetID {
+			m.items[i] = item
+			return m
+		}
+	}
+	return m.AddItem(item)
 }
 
 // scrollToBottom adjusts scroll to show the last line.

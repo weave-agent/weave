@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"fmt"
+
 	"weave/ext/ui/tui/components"
 	"weave/ext/ui/tui/components/messages"
 	"weave/sdk"
@@ -15,18 +17,20 @@ type Model struct {
 	bus    sdk.Bus
 	cfg    sdk.Config
 
-	chat    components.ChatModel
-	prompted bool
+	chat      components.ChatModel
+	prompted  bool
+	toolPanels map[string]*messages.ToolPanel // track pending tool panels by ID
 }
 
 // newModel creates a new root model.
 func newModel(bus sdk.Bus, cfg sdk.Config) Model {
 	return Model{
-		width:  80,
-		height: 24,
-		bus:    bus,
-		cfg:    cfg,
-		chat:   components.NewChatModel(),
+		width:      80,
+		height:     24,
+		bus:        bus,
+		cfg:        cfg,
+		chat:       components.NewChatModel(),
+		toolPanels: make(map[string]*messages.ToolPanel),
 	}
 }
 
@@ -62,7 +66,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.onMessageEnd(msg)
 
 	case ToolResultMsg:
-		// Tool results will be rendered in a later task
+		m.onToolResult(msg)
 
 	case AgentEndMsg:
 		// Agent finished
@@ -90,7 +94,7 @@ func (m *Model) onMessageUpdate(delta string) {
 	m.chat = m.chat.UpdateItem(am)
 }
 
-// onMessageEnd finalizes the current assistant message.
+// onMessageEnd finalizes the current assistant message and creates pending tool panels.
 func (m *Model) onMessageEnd(msg MessageEndMsg) {
 	items := m.chat.Items()
 	if len(items) == 0 {
@@ -104,6 +108,26 @@ func (m *Model) onMessageEnd(msg MessageEndMsg) {
 
 	am.Finalize(msg.Content)
 	m.chat = m.chat.UpdateItem(am)
+
+	for _, tc := range msg.ToolCalls {
+		args := fmt.Sprintf("%v", tc.Arguments)
+		panel := messages.NewToolPanel(tc.ID, tc.Name, args)
+		m.toolPanels[tc.ID] = panel
+		m.chat = m.chat.AddItem(panel)
+	}
+}
+
+// onToolResult updates the tool panel with the result.
+func (m *Model) onToolResult(msg ToolResultMsg) {
+	panel, ok := m.toolPanels[msg.ToolID]
+	if !ok {
+		panel = messages.NewToolPanel(msg.ToolID, msg.Tool, "")
+		m.toolPanels[msg.ToolID] = panel
+		m.chat = m.chat.AddItem(panel)
+	}
+
+	panel.SetResult(msg.Result.Content, msg.Result.IsError)
+	m.chat = m.chat.UpdateItemByID(panel)
 }
 
 // AddUserMessage adds a user message to the chat.
