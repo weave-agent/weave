@@ -3,6 +3,7 @@ package components
 import (
 	"fmt"
 	"time"
+	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -142,8 +143,9 @@ func RenderSpinnerClean(frame int, label string, width int) string {
 	}
 	char := SpinnerCharSet[frame]
 	text := fmt.Sprintf("%s %s", char, label)
-	if width > 0 && len(text) > width {
-		text = text[:width]
+	if width > 0 && utf8.RuneCountInString(text) > width {
+		runes := []rune(text)
+		text = string(runes[:width])
 	}
 	return text
 }

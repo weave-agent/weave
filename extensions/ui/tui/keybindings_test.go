@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"weave/ext/ui/tui/components/messages"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,13 +17,11 @@ func TestBindingRegistry_Defaults(t *testing.T) {
 	r := NewBindingRegistry()
 
 	actions := map[string]BindingAction{
-		"ctrl+d":  ActionExit,
-		"ctrl+c":  ActionClear,
-		"escape":  ActionInterrupt,
-		"ctrl+l":  ActionModelSelect,
-		"ctrl+p":  ActionModelCycle,
-		"ctrl+o":  ActionToolExpand,
-		"ctrl+t":  ActionThinkToggle,
+		"ctrl+d": ActionExit,
+		"ctrl+c": ActionClear,
+		"escape": ActionInterrupt,
+		"ctrl+l": ActionModelSelect,
+		"ctrl+p": ActionModelCycle,
 	}
 
 	for key, want := range actions {
@@ -159,7 +159,7 @@ func TestBindingRegistry_AllBindings(t *testing.T) {
 	bindings := r.AllBindings()
 	assert.NotEmpty(t, bindings)
 
-	// Should contain all 7 default actions
+	// Should contain all 5 default actions
 	names := make(map[BindingAction]bool)
 	for _, b := range bindings {
 		names[b.Action] = true
@@ -170,8 +170,6 @@ func TestBindingRegistry_AllBindings(t *testing.T) {
 	assert.True(t, names[ActionInterrupt])
 	assert.True(t, names[ActionModelSelect])
 	assert.True(t, names[ActionModelCycle])
-	assert.True(t, names[ActionToolExpand])
-	assert.True(t, names[ActionThinkToggle])
 }
 
 func TestBindingRegistry_AllBindingsSorted(t *testing.T) {
@@ -256,17 +254,23 @@ func TestModel_CtrlDExitsViaBinding(t *testing.T) {
 	assert.True(t, ok, "ctrl+d should quit via keybinding")
 }
 
-func TestModel_CtrlCExitsViaBinding(t *testing.T) {
+func TestModel_CtrlCClearsChatViaBinding(t *testing.T) {
 	m := newModel(nil, nil)
 	m.width = 80
 	m.height = 24
 
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
-	require.NotNil(t, cmd)
+	// Add some state
+	m.prompted = true
+	m.chat = m.chat.AddItem(messages.NewAssistantMessage())
+	m.toolPanels["test"] = messages.NewToolPanel("test", "tool", "")
 
-	msg := cmd()
-	_, ok := msg.(tea.QuitMsg)
-	assert.True(t, ok, "ctrl+c should quit via keybinding when no overlay")
+	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	m = model.(Model)
+
+	// Ctrl+C should clear chat, not quit
+	assert.Nil(t, cmd)
+	assert.False(t, m.prompted)
+	assert.Empty(t, m.toolPanels)
 }
 
 func TestModel_EscapeNoOpViaBinding(t *testing.T) {

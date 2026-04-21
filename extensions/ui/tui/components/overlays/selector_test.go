@@ -19,6 +19,13 @@ func TestFuzzyMatch(t *testing.T) {
 	assert.False(t, fuzzyMatch("", "x"))
 }
 
+func TestFuzzyMatchUnicode(t *testing.T) {
+	assert.True(t, fuzzyMatch("café", "cf"))
+	assert.True(t, fuzzyMatch("naïve", "nv"))
+	assert.True(t, fuzzyMatch("Tokyo東京", "to"))
+	assert.False(t, fuzzyMatch("café", "xyz"))
+}
+
 func TestNewSelectorModel(t *testing.T) {
 	items := []SelectorItem{
 		{Title: "Item 1", Subtitle: "sub1"},
@@ -57,8 +64,8 @@ func TestSelectorFilterOnTyping(t *testing.T) {
 	assert.Equal(t, "ap", m.Filter())
 	filtered := m.filteredItems()
 	assert.Equal(t, 2, len(filtered))
-	assert.Equal(t, "apple", filtered[0].Title)
-	assert.Equal(t, "apricot", filtered[1].Title)
+	assert.Equal(t, "apple", filtered[0].Item.Title)
+	assert.Equal(t, "apricot", filtered[1].Item.Title)
 }
 
 func TestSelectorFilterBackspace(t *testing.T) {
@@ -205,7 +212,7 @@ func TestSelectorFilterMatchesSubtitle(t *testing.T) {
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c', 'l'}})
 	filtered := m.filteredItems()
 	assert.Equal(t, 1, len(filtered))
-	assert.Equal(t, "model-a", filtered[0].Title)
+	assert.Equal(t, "model-a", filtered[0].Item.Title)
 }
 
 func TestSelectorSelectedMsgIndexMatchesOriginal(t *testing.T) {
@@ -225,4 +232,23 @@ func TestSelectorSelectedMsgIndexMatchesOriginal(t *testing.T) {
 	selected := msg.(SelectorSelectedMsg)
 	assert.Equal(t, 1, selected.Index) // original index, not filtered index
 	assert.Equal(t, "B", selected.Item.Title)
+}
+
+func TestSelectorDuplicateItemsReturnsCorrectIndex(t *testing.T) {
+	items := []SelectorItem{
+		{Title: "same", Subtitle: "first"},
+		{Title: "same", Subtitle: "second"},
+		{Title: "same", Subtitle: "third"},
+	}
+	m := NewSelectorModel("Test", items).Show()
+
+	// Go to second item (index 1 in filtered = "same/second")
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	require.NotNil(t, cmd)
+
+	msg := cmd()
+	selected := msg.(SelectorSelectedMsg)
+	assert.Equal(t, 1, selected.Index, "should return original index 1, not 0")
+	assert.Equal(t, "second", selected.Item.Subtitle)
 }

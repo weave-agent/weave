@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -134,9 +136,17 @@ func (m FooterModel) renderLine1() string {
 		parts = append(parts, branch)
 	}
 
-	// Extension status entries
-	for _, v := range m.extStatus {
-		parts = append(parts, v)
+	// Extension status entries (sorted for deterministic render order)
+	keys := make([]string, 0, len(m.extStatus))
+
+	for k := range m.extStatus {
+		keys = append(keys, k)
+	}
+
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		parts = append(parts, m.extStatus[k])
 	}
 
 	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
@@ -195,8 +205,9 @@ func shortenPath(path string, maxWidth int) string {
 		path = "~" + path[len(home):]
 	}
 
-	if maxWidth > 0 && len(path) > maxWidth {
-		path = "..." + path[len(path)-maxWidth+3:]
+	if maxWidth > 0 && utf8.RuneCountInString(path) > maxWidth {
+		runes := []rune(path)
+		path = "..." + string(runes[len(runes)-maxWidth+3:])
 	}
 	return path
 }

@@ -17,19 +17,6 @@ func TestModelEntry_Display(t *testing.T) {
 	assert.Equal(t, "anthropic/claude-sonnet-4-20250514", e.Display())
 }
 
-func TestParseModelDisplay(t *testing.T) {
-	e, ok := parseModelDisplay("openai/gpt-4o")
-	require.True(t, ok)
-	assert.Equal(t, "openai", e.Provider)
-	assert.Equal(t, "gpt-4o", e.Model)
-
-	_, ok = parseModelDisplay("invalid")
-	assert.False(t, ok)
-
-	_, ok = parseModelDisplay("/model")
-	assert.False(t, ok)
-}
-
 func TestCycleModel(t *testing.T) {
 	entries := []ModelEntry{
 		{Provider: "anthropic", Model: "claude-sonnet-4-20250514"},

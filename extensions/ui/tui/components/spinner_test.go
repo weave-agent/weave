@@ -2,6 +2,7 @@ package components
 
 import (
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -141,7 +142,7 @@ func TestRenderSpinnerClean(t *testing.T) {
 
 func TestRenderSpinnerClean_Truncates(t *testing.T) {
 	result := RenderSpinnerClean(0, "Thinking...", 5)
-	assert.LessOrEqual(t, len(result), 5)
+	assert.LessOrEqual(t, utf8.RuneCountInString(result), 5)
 }
 
 // helper

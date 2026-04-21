@@ -23,6 +23,12 @@ type SelectorSelectedMsg struct {
 // SelectorCancelledMsg is emitted when the user cancels selection.
 type SelectorCancelledMsg struct{}
 
+// filteredEntry pairs an item with its original index.
+type filteredEntry struct {
+	Item  SelectorItem
+	Index int
+}
+
 // SelectorModel is a fuzzy-searchable list overlay.
 type SelectorModel struct {
 	title   string
@@ -79,15 +85,19 @@ func (m SelectorModel) Cursor() int { return m.cursor }
 // Filter returns the current filter text.
 func (m SelectorModel) Filter() string { return m.filter }
 
-// filteredItems returns items matching the current filter.
-func (m SelectorModel) filteredItems() []SelectorItem {
+// filteredItems returns items matching the current filter with original indices.
+func (m SelectorModel) filteredItems() []filteredEntry {
 	if m.filter == "" {
-		return m.items
+		result := make([]filteredEntry, len(m.items))
+		for i, item := range m.items {
+			result[i] = filteredEntry{Item: item, Index: i}
+		}
+		return result
 	}
-	var matched []SelectorItem
-	for _, item := range m.items {
+	var matched []filteredEntry
+	for i, item := range m.items {
 		if fuzzyMatch(item.Title, m.filter) || fuzzyMatch(item.Subtitle, m.filter) {
-			matched = append(matched, item)
+			matched = append(matched, filteredEntry{Item: item, Index: i})
 		}
 	}
 	return matched
@@ -95,14 +105,14 @@ func (m SelectorModel) filteredItems() []SelectorItem {
 
 // fuzzyMatch returns true if all characters in query appear in target in order.
 func fuzzyMatch(target, query string) bool {
-	target = strings.ToLower(target)
+	runes := []rune(strings.ToLower(target))
 	query = strings.ToLower(query)
 
 	ti := 0
 	for _, qc := range query {
 		found := false
-		for ti < len(target) {
-			if rune(target[ti]) == qc {
+		for ti < len(runes) {
+			if runes[ti] == qc {
 				found = true
 				ti++
 				break
@@ -140,18 +150,10 @@ func (m SelectorModel) Update(msg tea.Msg) (SelectorModel, tea.Cmd) {
 				return m, nil
 			}
 			m.cursor = max(0, min(m.cursor, len(filtered)-1))
-			selected := filtered[m.cursor]
-			// find original index
-			origIdx := 0
-			for i, item := range m.items {
-				if item.Title == selected.Title && item.Subtitle == selected.Subtitle {
-					origIdx = i
-					break
-				}
-			}
+			entry := filtered[m.cursor]
 			m.visible = false
 			return m, func() tea.Msg {
-				return SelectorSelectedMsg{Index: origIdx, Item: selected}
+				return SelectorSelectedMsg{Index: entry.Index, Item: entry.Item}
 			}
 
 		case tea.KeyBackspace:
@@ -185,7 +187,7 @@ func (m SelectorModel) View() string {
 	borderStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("63")).
-		Width(boxWidth - 2).
+		Width(boxWidth-2).
 		Padding(0, 1)
 
 	// Header with title and filter
@@ -223,7 +225,7 @@ func (m SelectorModel) View() string {
 	maxItems := boxHeight - 4 // room for header + borders + padding
 	var listLines []string
 
-	for i, item := range filtered {
+	for i, entry := range filtered {
 		if i >= maxItems {
 			listLines = append(listLines, subtitleStyle.Render("  ..."))
 			break
@@ -234,9 +236,9 @@ func (m SelectorModel) View() string {
 			prefix = "> "
 		}
 
-		line := prefix + item.Title
-		if item.Subtitle != "" {
-			line += "  " + item.Subtitle
+		line := prefix + entry.Item.Title
+		if entry.Item.Subtitle != "" {
+			line += "  " + entry.Item.Subtitle
 		}
 
 		if i == m.cursor {

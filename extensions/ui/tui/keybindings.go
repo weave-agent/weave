@@ -40,8 +40,6 @@ var defaultBindings = []Binding{
 	{Action: ActionInterrupt, Keys: []string{"escape"}, Description: "Interrupt current operation"},
 	{Action: ActionModelSelect, Keys: []string{"ctrl+l"}, Description: "Open model selector"},
 	{Action: ActionModelCycle, Keys: []string{"ctrl+p"}, Description: "Cycle to next model"},
-	{Action: ActionToolExpand, Keys: []string{"ctrl+o"}, Description: "Toggle tool output expand"},
-	{Action: ActionThinkToggle, Keys: []string{"ctrl+t"}, Description: "Toggle thinking block"},
 }
 
 // BindingRegistry manages keybindings with priority resolution:
@@ -206,9 +204,16 @@ func loadKeybindings(configPath string) string {
 	if configPath != "" {
 		dir := filepath.Dir(configPath)
 
+		// Check next to the config file (works for .weave/config.yaml)
 		candidate := filepath.Join(dir, "keybindings.yaml")
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate
+		}
+
+		// Check .weave/ subdirectory (works when config is .weave.yaml in project root)
+		weaveDir := filepath.Join(dir, ".weave", "keybindings.yaml")
+		if _, err := os.Stat(weaveDir); err == nil {
+			return weaveDir
 		}
 	}
 

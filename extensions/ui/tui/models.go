@@ -3,7 +3,6 @@ package tui
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"weave/sdk"
 )
@@ -88,13 +87,4 @@ func cycleModel(entries []ModelEntry, current ModelEntry) ModelEntry {
 	}
 
 	return current
-}
-
-// parseModelDisplay parses "provider/model" back into a ModelEntry.
-func parseModelDisplay(s string) (ModelEntry, bool) {
-	provider, model, ok := strings.Cut(s, "/")
-	if !ok || provider == "" || model == "" {
-		return ModelEntry{}, false
-	}
-	return ModelEntry{Provider: provider, Model: model}, true
 }

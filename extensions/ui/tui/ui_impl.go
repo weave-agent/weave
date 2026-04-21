@@ -73,7 +73,9 @@ func (u *TUIImpl) Select(title string, items []string) (int, error) {
 		items:  items,
 		result: make(chan overlayResponse, 1),
 	}
-	u.enqueue(req)
+	if err := u.enqueue(req); err != nil {
+		return -1, err
+	}
 	resp := <-req.result
 	return resp.index, resp.err
 }
@@ -85,7 +87,9 @@ func (u *TUIImpl) Confirm(message string) (bool, error) {
 		message: message,
 		result:  make(chan overlayResponse, 1),
 	}
-	u.enqueue(req)
+	if err := u.enqueue(req); err != nil {
+		return false, err
+	}
 	resp := <-req.result
 	return resp.confirmed, resp.err
 }
@@ -97,7 +101,9 @@ func (u *TUIImpl) Input(prompt string) (string, error) {
 		message: prompt,
 		result:  make(chan overlayResponse, 1),
 	}
-	u.enqueue(req)
+	if err := u.enqueue(req); err != nil {
+		return "", err
+	}
 	resp := <-req.result
 	return resp.value, resp.err
 }
@@ -151,14 +157,18 @@ func (u *TUIImpl) GetRenderer(toolName string) (sdk.ToolRenderer, bool) {
 }
 
 // enqueue adds a request to the popup queue and notifies the program.
-func (u *TUIImpl) enqueue(req *overlayRequest) {
+// Returns an error if the program is not running.
+func (u *TUIImpl) enqueue(req *overlayRequest) error {
 	u.mu.Lock()
 	u.popupQ = append(u.popupQ, req)
 	u.mu.Unlock()
 
-	if u.program != nil {
-		u.program.Send(popupPendingMsg{})
+	if u.program == nil {
+		return fmt.Errorf("tui not running")
 	}
+
+	u.program.Send(popupPendingMsg{})
+	return nil
 }
 
 // dequeue removes and returns the next popup request, or nil if empty.

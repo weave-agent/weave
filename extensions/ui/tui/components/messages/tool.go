@@ -3,6 +3,9 @@ package messages
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
+
+	"weave/sdk"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -20,13 +23,14 @@ const (
 
 // ToolPanel renders a tool call with its output in a bordered panel.
 type ToolPanel struct {
-	toolID       string
-	toolName     string
-	args         string
-	output       string
-	state        ToolState
-	expanded     bool
-	diffRenderer *DiffRenderer
+	toolID         string
+	toolName       string
+	args           string
+	output         string
+	state          ToolState
+	expanded       bool
+	diffRenderer   *DiffRenderer
+	customRenderer sdk.ToolRenderer
 }
 
 // NewToolPanel creates a new tool panel in pending state.
@@ -80,6 +84,11 @@ func (p *ToolPanel) SetDiffRenderer(r *DiffRenderer) {
 	p.diffRenderer = r
 }
 
+// SetRenderer sets a custom tool renderer registered via sdk.UI.
+func (p *ToolPanel) SetRenderer(r sdk.ToolRenderer) {
+	p.customRenderer = r
+}
+
 // View renders the tool panel as a bordered box.
 func (p *ToolPanel) View(width int) string {
 	if width <= 0 {
@@ -113,6 +122,11 @@ func (p *ToolPanel) renderBody() string {
 			return dim.Render("  running...")
 		}
 		return dim.Render("  (no output)")
+	}
+
+	// Use custom renderer if registered.
+	if p.customRenderer != nil {
+		return p.customRenderer.Render(p.output, 0)
 	}
 
 	// Auto-detect diff content and use diff renderer.
@@ -180,8 +194,9 @@ func truncateArgs(args string, maxLen int) string {
 	args = strings.TrimSpace(args)
 	// Try to keep it on one line.
 	args = strings.ReplaceAll(args, "\n", " ")
-	if len(args) > maxLen {
-		return args[:maxLen-3] + "..."
+	if utf8.RuneCountInString(args) > maxLen {
+		runes := []rune(args)
+		return string(runes[:maxLen-3]) + "..."
 	}
 	return args
 }

@@ -15,6 +15,14 @@ func TestNoopUI_Select(t *testing.T) {
 	assert.Equal(t, 0, idx)
 }
 
+func TestNoopUI_SelectEmpty(t *testing.T) {
+	ui := NoopUI{}
+
+	idx, err := ui.Select("pick one", []string{})
+	require.NoError(t, err)
+	assert.Equal(t, -1, idx)
+}
+
 func TestNoopUI_Confirm(t *testing.T) {
 	ui := NoopUI{}
 

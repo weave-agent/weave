@@ -181,7 +181,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Payload != nil {
 			if errStr, ok := msg.Payload.(string); ok && errStr != "" {
 				am := messages.NewAssistantMessage()
-				am.Finalize(fmt.Sprintf("⚠ %s", errStr))
+				am.Finalize(fmt.Sprintf("[error] %s", errStr))
 				m.chat = m.chat.AddItem(am)
 			}
 		}
@@ -242,7 +242,10 @@ func (m Model) dispatchBinding(action BindingAction) (tea.Model, tea.Cmd) {
 	case ActionExit:
 		return m, tea.Quit
 	case ActionClear:
-		return m, tea.Quit
+		m.chat = components.NewChatModel().SetSize(m.width, m.chatHeight(m.height))
+		m.toolPanels = make(map[string]*messages.ToolPanel)
+		m.prompted = false
+		return m, nil
 	case ActionInterrupt:
 		return m.interruptStreaming()
 	case ActionModelSelect:
@@ -253,9 +256,6 @@ func (m Model) dispatchBinding(action BindingAction) (tea.Model, tea.Cmd) {
 			next := cycleModel(models, m.currentModel)
 			return m, func() tea.Msg { return ModelChangedMsg{Entry: next} }
 		}
-		return m, nil
-	case ActionToolExpand, ActionThinkToggle:
-		// Placeholder: no-op for now, will be wired in task 17
 		return m, nil
 	default:
 		return m, nil
@@ -300,7 +300,15 @@ func (m *Model) onMessageEnd(msg MessageEndMsg) {
 	for _, tc := range msg.ToolCalls {
 		args := fmt.Sprintf("%v", tc.Arguments)
 		panel := messages.NewToolPanel(tc.ID, tc.Name, args)
-		panel.SetDiffRenderer(messages.NewDiffRenderer())
+		if m.ui != nil {
+			if r, ok := m.ui.GetRenderer(tc.Name); ok {
+				panel.SetRenderer(r)
+			} else {
+				panel.SetDiffRenderer(messages.NewDiffRenderer())
+			}
+		} else {
+			panel.SetDiffRenderer(messages.NewDiffRenderer())
+		}
 		m.toolPanels[tc.ID] = panel
 		m.chat = m.chat.AddItem(panel)
 	}
@@ -534,6 +542,10 @@ func (m *Model) rebuildChatFromSession(sessionID string) {
 			am := messages.NewAssistantMessage()
 			am.Finalize(entry.Content)
 			m.chat = m.chat.AddItem(am)
+		case sdk.RoleToolResult:
+			panel := messages.NewToolPanel("", "tool", "")
+			panel.SetResult(entry.Content, false)
+			m.chat = m.chat.AddItem(panel)
 		}
 	}
 }

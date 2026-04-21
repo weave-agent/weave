@@ -831,7 +831,7 @@ func TestModel_RebuildChatFromSession(t *testing.T) {
 	m.rebuildChatFromSession(sessionID)
 
 	items := m.chat.Items()
-	require.Len(t, items, 2) // tool_result skipped
+	require.Len(t, items, 3) // user + assistant + tool_result
 
 	um, ok := items[0].(*messages.UserMessage)
 	require.True(t, ok)
@@ -841,6 +841,10 @@ func TestModel_RebuildChatFromSession(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "answer", am.Content())
 	assert.False(t, am.IsStreaming())
+
+	tp, ok := items[2].(*messages.ToolPanel)
+	require.True(t, ok)
+	assert.Contains(t, tp.View(80), "output")
 
 	assert.True(t, m.prompted)
 }
@@ -965,7 +969,7 @@ func TestModel_AgentEndMsg_WithError(t *testing.T) {
 	am, ok := items[0].(*messages.AssistantMessage)
 	require.True(t, ok)
 	assert.Contains(t, am.Content(), "stream error: timeout")
-	assert.Contains(t, am.Content(), "⚠")
+	assert.Contains(t, am.Content(), "[error]")
 }
 
 func TestModel_AgentEndMsg_WithNilPayload(t *testing.T) {
