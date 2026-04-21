@@ -17,6 +17,7 @@ type overlayKind int
 const (
 	overlayNone overlayKind = iota
 	overlaySession
+	overlayModel
 )
 
 // Model is the root Bubble Tea model for the TUI.
@@ -34,30 +35,41 @@ type Model struct {
 	toolPanels map[string]*messages.ToolPanel // track pending tool panels by ID
 	commands   *CommandRegistry
 
-	overlay       overlays.SelectorModel
-	activeOverlay overlayKind
+	overlay         overlays.SelectorModel
+	activeOverlay   overlayKind
 	pendingSessions []SessionEntry
+	pendingModels   []ModelEntry
+	currentModel    ModelEntry
 }
 
 // newModel creates a new root model.
 func newModel(bus sdk.Bus, cfg sdk.Config) Model {
 	commands := NewCommandRegistry(bus)
+	commands.register("/model", "Select or change model", func(_ string) CommandResult {
+		return CommandResult{Command: listModelsCmd()}
+	})
 
 	editor := components.NewEditorModel().Focus()
 	editor.SetSlashCommands(commands.Names())
 
-	return Model{
-		width:      80,
-		height:     24,
-		bus:        bus,
-		cfg:        cfg,
-		chat:       components.NewChatModel(),
-		editor:     editor,
-		footer:     components.NewFooterModel(),
-		spinner:    components.NewSpinnerModel(),
-		toolPanels: make(map[string]*messages.ToolPanel),
-		commands:   commands,
+	models := listModels()
+	cur := currentModel(models)
+
+	m := Model{
+		width:       80,
+		height:      24,
+		bus:         bus,
+		cfg:         cfg,
+		chat:        components.NewChatModel(),
+		editor:      editor,
+		footer:      components.NewFooterModel(),
+		spinner:     components.NewSpinnerModel(),
+		toolPanels:  make(map[string]*messages.ToolPanel),
+		commands:    commands,
+		currentModel: cur,
 	}
+	m.footer = m.footer.SetModel(cur.Model, cur.Provider)
+	return m
 }
 
 // Init returns the initial command (none for now).
@@ -100,6 +112,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 
+		// Ctrl+L opens model selector
+		if msg.String() == "ctrl+l" && m.activeOverlay == overlayNone {
+			return m, listModelsCmd()
+		}
+
+		// Ctrl+P cycles to next model
+		if msg.String() == "ctrl+p" && m.activeOverlay == overlayNone {
+			models := listModels()
+			if len(models) > 1 {
+				next := cycleModel(models, m.currentModel)
+				return m, func() tea.Msg { return ModelChangedMsg{Entry: next} }
+			}
+			return m, nil
+		}
+
 		if m.activeOverlay != overlayNone {
 			var cmd tea.Cmd
 			m.overlay, cmd = m.overlay.Update(msg)
@@ -139,6 +166,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case SessionListResultMsg:
 		return m.onSessionListResult(msg)
 
+	case ModelListResultMsg:
+		return m.onModelListResult(msg)
+
+	case ModelChangedMsg:
+		return m.onModelChanged(msg)
+
 	case overlays.SelectorSelectedMsg:
 		return m.onOverlaySelected(msg)
 
@@ -146,6 +179,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.activeOverlay = overlayNone
 		m.overlay = m.overlay.Hide()
 		m.pendingSessions = nil
+		m.pendingModels = nil
 		return m, nil
 
 	case ShutdownMsg:
@@ -295,10 +329,56 @@ func (m Model) onSessionListResult(msg SessionListResultMsg) (tea.Model, tea.Cmd
 	return m, nil
 }
 
+func (m Model) onModelListResult(msg ModelListResultMsg) (tea.Model, tea.Cmd) {
+	if len(msg.Models) == 0 {
+		am := messages.NewAssistantMessage()
+		am.Finalize("No models available.")
+		m.chat = m.chat.AddItem(am)
+		return m, nil
+	}
+
+	if len(msg.Models) == 1 {
+		// Only one model, no need for selector
+		am := messages.NewAssistantMessage()
+		am.Finalize(fmt.Sprintf("Only one model available: %s", msg.Models[0].Display()))
+		m.chat = m.chat.AddItem(am)
+		return m, nil
+	}
+
+	items := make([]overlays.SelectorItem, len(msg.Models))
+	for i, model := range msg.Models {
+		items[i] = overlays.SelectorItem{
+			Title:    model.Display(),
+			Subtitle: model.Provider,
+		}
+	}
+
+	m.pendingModels = msg.Models
+	m.overlay = overlays.NewSelectorModel("Select Model", items)
+	m.overlay = m.overlay.SetSize(m.width, m.height)
+	m.overlay = m.overlay.Show()
+	m.activeOverlay = overlayModel
+
+	return m, nil
+}
+
+func (m Model) onModelChanged(msg ModelChangedMsg) (tea.Model, tea.Cmd) {
+	m.currentModel = msg.Entry
+	m.footer = m.footer.SetModel(msg.Entry.Model, msg.Entry.Provider)
+
+	if m.bus != nil {
+		return m, PublishModelChange(m.bus, msg.Entry)
+	}
+
+	return m, nil
+}
+
 func (m Model) onOverlaySelected(msg overlays.SelectorSelectedMsg) (tea.Model, tea.Cmd) {
 	switch m.activeOverlay {
 	case overlaySession:
 		return m.onSessionSelected(msg)
+	case overlayModel:
+		return m.onModelSelected(msg)
 	default:
 		m.activeOverlay = overlayNone
 		m.overlay = m.overlay.Hide()
@@ -325,6 +405,21 @@ func (m Model) onSessionSelected(msg overlays.SelectorSelectedMsg) (tea.Model, t
 	}
 
 	return m, nil
+}
+
+func (m Model) onModelSelected(msg overlays.SelectorSelectedMsg) (tea.Model, tea.Cmd) {
+	m.activeOverlay = overlayNone
+	m.overlay = m.overlay.Hide()
+
+	if msg.Index < 0 || msg.Index >= len(m.pendingModels) {
+		m.pendingModels = nil
+		return m, nil
+	}
+
+	selected := m.pendingModels[msg.Index]
+	m.pendingModels = nil
+
+	return m.onModelChanged(ModelChangedMsg{Entry: selected})
 }
 
 func (m *Model) rebuildChatFromSession(sessionID string) {

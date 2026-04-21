@@ -22,6 +22,7 @@ const (
 
 	topicSessionList   = "session.list"
 	topicSessionResume = "session.resume"
+	topicModelChange   = "model.change"
 )
 
 // Sender abstracts tea.Program.Send for testability.
@@ -70,6 +71,16 @@ type SessionListResultMsg struct {
 // SessionResumedMsg is sent when a session resume event arrives from the bus.
 type SessionResumedMsg struct {
 	SessionID string
+}
+
+// ModelListResultMsg carries the result of listing available models.
+type ModelListResultMsg struct {
+	Models []ModelEntry
+}
+
+// ModelChangedMsg is sent when the user selects or cycles to a new model.
+type ModelChangedMsg struct {
+	Entry ModelEntry
 }
 
 // translateEvent converts a bus event into a tea.Msg.
@@ -177,5 +188,20 @@ func PublishSessionResume(bus sdk.Bus, sessionID string) tea.Cmd {
 	return func() tea.Msg {
 		bus.Publish(sdk.NewEvent(topicSessionResume, sessionID))
 		return nil
+	}
+}
+
+// PublishModelChange returns a tea.Cmd that publishes a model.change event.
+func PublishModelChange(bus sdk.Bus, entry ModelEntry) tea.Cmd {
+	return func() tea.Msg {
+		bus.Publish(sdk.NewEvent(topicModelChange, entry.Display()))
+		return nil
+	}
+}
+
+// listModelsCmd returns a tea.Cmd that lists available models.
+func listModelsCmd() tea.Cmd {
+	return func() tea.Msg {
+		return ModelListResultMsg{Models: listModels()}
 	}
 }
