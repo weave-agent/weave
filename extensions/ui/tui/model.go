@@ -17,8 +17,9 @@ type Model struct {
 	bus    sdk.Bus
 	cfg    sdk.Config
 
-	chat      components.ChatModel
-	prompted  bool
+	chat       components.ChatModel
+	editor     components.EditorModel
+	prompted   bool
 	toolPanels map[string]*messages.ToolPanel // track pending tool panels by ID
 }
 
@@ -30,6 +31,7 @@ func newModel(bus sdk.Bus, cfg sdk.Config) Model {
 		bus:        bus,
 		cfg:        cfg,
 		chat:       components.NewChatModel(),
+		editor:     components.NewEditorModel().Focus(),
 		toolPanels: make(map[string]*messages.ToolPanel),
 	}
 }
@@ -45,13 +47,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.chat = m.chat.SetSize(m.width, m.height)
+		m.chat = m.chat.SetSize(m.width, m.chatHeight(m.height))
+		m.editor = m.editor.SetSize(m.width, 3)
 		return m, nil
 
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" || msg.String() == "ctrl+d" {
 			return m, tea.Quit
 		}
+		var cmd tea.Cmd
+		m.editor, cmd = m.editor.Update(msg)
+		return m, cmd
+
+	case components.SubmitMsg:
+		return m, m.onSubmit(msg.Text)
 
 	case TurnStartMsg:
 		// New turn starting
@@ -140,7 +149,27 @@ func (m *Model) AddUserMessage(content string) {
 	m.chat = m.chat.AddItem(messages.NewUserMessage(content))
 }
 
+// onSubmit handles editor submit — publishes prompt or followup via bus.
+func (m Model) onSubmit(text string) tea.Cmd {
+	m.AddUserMessage(text)
+
+	if !m.prompted {
+		m.prompted = true
+		return PublishPrompt(m.bus, text)
+	}
+	return PublishFollowup(m.bus, text)
+}
+
+// chatHeight returns the height allocated to the chat area.
+func (m Model) chatHeight(totalHeight int) int {
+	editorLines := 3 + 2 // editor height + border
+	if totalHeight > editorLines+1 {
+		return totalHeight - editorLines - 1
+	}
+	return 1
+}
+
 // View renders the TUI.
 func (m Model) View() string {
-	return m.chat.View()
+	return m.chat.View() + "\n" + m.editor.View()
 }

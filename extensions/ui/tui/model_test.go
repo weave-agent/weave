@@ -170,7 +170,7 @@ func TestModel_WindowResize(t *testing.T) {
 	assert.Equal(t, 120, m.width)
 	assert.Equal(t, 40, m.height)
 	assert.Equal(t, 120, m.chat.Width())
-	assert.Equal(t, 40, m.chat.Height())
+	assert.Equal(t, m.chatHeight(40), m.chat.Height())
 }
 
 func TestModel_MultipleTurns(t *testing.T) {

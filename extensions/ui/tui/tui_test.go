@@ -41,7 +41,9 @@ func TestTUI_CloseWithoutSubscribe(t *testing.T) {
 
 func TestModel_View(t *testing.T) {
 	m := newModel(nil, nil)
-	assert.Equal(t, "", m.View()) // empty chat, no size set
+	// View now includes editor below chat; with no size set, chat="" and editor renders ""
+	// so the separator newline is present
+	assert.Equal(t, "\n", m.View())
 }
 
 func TestModel_Init(t *testing.T) {
