@@ -129,7 +129,9 @@ func TestTUIImpl_RegisterKeybinding(t *testing.T) {
 }
 
 func TestTUIImpl_PopupQueue(t *testing.T) {
+	sender := &mockSender{}
 	ui := NewTUIImpl(nil, nil)
+	ui.SetProgram(sender)
 
 	assert.False(t, ui.hasPendingPopups())
 
@@ -139,7 +141,7 @@ func TestTUIImpl_PopupQueue(t *testing.T) {
 		items:  []string{"a", "b"},
 		result: make(chan overlayResponse, 1),
 	}
-	ui.enqueue(req) //nolint:errcheck // test: program is nil, error expected and acceptable
+	require.NoError(t, ui.enqueue(req))
 
 	assert.True(t, ui.hasPendingPopups())
 
@@ -153,13 +155,15 @@ func TestTUIImpl_PopupQueue(t *testing.T) {
 }
 
 func TestTUIImpl_PopupQueueFIFO(t *testing.T) {
+	sender := &mockSender{}
 	ui := NewTUIImpl(nil, nil)
+	ui.SetProgram(sender)
 
 	req1 := &overlayRequest{kind: requestSelect, title: "first", result: make(chan overlayResponse, 1)}
 	req2 := &overlayRequest{kind: requestConfirm, message: "second", result: make(chan overlayResponse, 1)}
 
-	ui.enqueue(req1) //nolint:errcheck // test
-	ui.enqueue(req2) //nolint:errcheck // test
+	require.NoError(t, ui.enqueue(req1))
+	require.NoError(t, ui.enqueue(req2))
 
 	first := ui.dequeue()
 	require.NotNil(t, first)
@@ -192,7 +196,8 @@ func TestTUIImpl_EnqueueSendsPopupPendingMsg(t *testing.T) {
 // activatePopup is a helper that enqueues a request, dequeues it via handlePopupPending,
 // and returns the updated model.
 func activatePopup(m Model, ui *TUIImpl, req *overlayRequest) Model {
-	_ = ui.enqueue(req) //nolint:errcheck // test helper
+	ui.SetProgram(&mockSender{})
+	_ = ui.enqueue(req)
 	updated, _ := m.handlePopupPending()
 	return updated
 }
@@ -489,8 +494,9 @@ func TestModel_PopupSequentialQueuing(t *testing.T) {
 		result:  make(chan overlayResponse, 1),
 	}
 
-	ui.enqueue(req1) //nolint:errcheck // test
-	ui.enqueue(req2) //nolint:errcheck // test
+	ui.SetProgram(&mockSender{})
+	require.NoError(t, ui.enqueue(req1))
+	require.NoError(t, ui.enqueue(req2))
 
 	// First popup should be activated
 	m, _ = m.handlePopupPending()

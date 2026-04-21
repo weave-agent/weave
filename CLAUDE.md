@@ -65,10 +65,10 @@ extensions:
 **Keybindings** are configured in `.weave/keybindings.yaml` and override built-in defaults (priority: user config > extension registrations > built-in):
 ```yaml
 keybindings:
-  app.model.cycleForward: ["ctrl+p"]
+  app.model.cycle: ["ctrl+p"]
   app.model.select: ["ctrl+l"]
 ```
-Built-in bindings: Escape=interrupt, Ctrl+C=clear, Ctrl+D=exit, Ctrl+L=model selector, Ctrl+P=model cycle, Ctrl+O=tool expand, Ctrl+T=thinking toggle.
+Built-in bindings: Escape=interrupt, Ctrl+C=clear, Ctrl+D=exit, Ctrl+L=model selector, Ctrl+P=model cycle. `app.tool.expand` and `app.thinking.toggle` actions are defined but have no default keys — assign them in keybindings.yaml to enable.
 
 **Provider environment variables:**
 - `ANTHROPIC_API_KEY` — required for Anthropic provider (default model: `claude-sonnet-4-20250514`, override with `ANTHROPIC_MODEL`)

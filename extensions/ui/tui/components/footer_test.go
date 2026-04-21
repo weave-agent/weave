@@ -167,9 +167,8 @@ func TestShortenPath(t *testing.T) {
 }
 
 func TestGetGitBranch(t *testing.T) {
-	// This test just ensures the function doesn't panic.
-	// It may return empty if not in a git repo.
 	branch, dirty := getGitBranch()
+	// In this project's test environment, we should always be in a git repo.
+	assert.NotEmpty(t, branch, "getGitBranch should return a branch in a git repo")
 	t.Logf("branch=%q dirty=%v", branch, dirty)
-	// In CI or non-git dirs, branch may be empty — that's fine
 }

@@ -6,6 +6,7 @@ func (NoopUI) Select(_ string, items []string) (int, error) {
 	if len(items) == 0 {
 		return -1, nil
 	}
+
 	return 0, nil
 }
 

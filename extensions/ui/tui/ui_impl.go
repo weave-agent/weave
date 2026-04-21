@@ -62,6 +62,8 @@ func NewTUIImpl(commands *CommandRegistry, bindings *BindingRegistry) *TUIImpl {
 
 // SetProgram sets the Bubble Tea program for sending overlay requests.
 func (u *TUIImpl) SetProgram(p Sender) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
 	u.program = p
 }
 
@@ -110,17 +112,23 @@ func (u *TUIImpl) Input(prompt string) (string, error) {
 
 // SetStatus updates the footer's extension status area.
 func (u *TUIImpl) SetStatus(key, text string) {
-	// SetStatus is a fire-and-forget operation — it sends a message
-	// to the program to update footer state.
-	if u.program != nil {
-		u.program.Send(extStatusMsg{key: key, text: text})
+	u.mu.Lock()
+	p := u.program
+	u.mu.Unlock()
+
+	if p != nil {
+		p.Send(extStatusMsg{key: key, text: text})
 	}
 }
 
 // Notify shows a temporary notification in the chat area.
 func (u *TUIImpl) Notify(message string) {
-	if u.program != nil {
-		u.program.Send(notifyMsg{message: message})
+	u.mu.Lock()
+	p := u.program
+	u.mu.Unlock()
+
+	if p != nil {
+		p.Send(notifyMsg{message: message})
 	}
 }
 
@@ -160,13 +168,13 @@ func (u *TUIImpl) GetRenderer(toolName string) (sdk.ToolRenderer, bool) {
 // Returns an error if the program is not running.
 func (u *TUIImpl) enqueue(req *overlayRequest) error {
 	u.mu.Lock()
-	u.popupQ = append(u.popupQ, req)
-	u.mu.Unlock()
+	defer u.mu.Unlock()
 
 	if u.program == nil {
 		return fmt.Errorf("tui not running")
 	}
 
+	u.popupQ = append(u.popupQ, req)
 	u.program.Send(popupPendingMsg{})
 	return nil
 }

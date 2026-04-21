@@ -76,7 +76,7 @@ func currentModel(entries []ModelEntry) ModelEntry {
 // cycleModel returns the next model entry after the current one, wrapping around.
 func cycleModel(entries []ModelEntry, current ModelEntry) ModelEntry {
 	for i, e := range entries {
-		if e.Provider == current.Provider {
+		if e.Provider == current.Provider && e.Model == current.Model {
 			next := (i + 1) % len(entries)
 			return entries[next]
 		}

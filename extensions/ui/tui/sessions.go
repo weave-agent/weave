@@ -119,6 +119,10 @@ func loadSessionEntries(sessionID string) ([]sessionEntryData, error) {
 		return nil, err
 	}
 
+	if strings.Contains(sessionID, "..") || strings.ContainsAny(sessionID, `/\`) {
+		return nil, fmt.Errorf("invalid session ID: %s", sessionID)
+	}
+
 	path := filepath.Join(dir, sessionID+".jsonl")
 
 	data, err := os.ReadFile(path)
@@ -128,7 +132,7 @@ func loadSessionEntries(sessionID string) ([]sessionEntryData, error) {
 
 	lines := splitSessionLines(data)
 	if len(lines) <= 1 {
-		return nil, nil
+		return []sessionEntryData{}, nil
 	}
 
 	var entries []sessionEntryData

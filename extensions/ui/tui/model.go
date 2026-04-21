@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -298,8 +299,9 @@ func (m *Model) onMessageEnd(msg MessageEndMsg) {
 	}
 
 	for _, tc := range msg.ToolCalls {
-		args := fmt.Sprintf("%v", tc.Arguments)
-		panel := messages.NewToolPanel(tc.ID, tc.Name, args)
+		args, _ := json.Marshal(tc.Arguments)
+		argsStr := string(args)
+		panel := messages.NewToolPanel(tc.ID, tc.Name, argsStr)
 		if m.ui != nil {
 			if r, ok := m.ui.GetRenderer(tc.Name); ok {
 				panel.SetRenderer(r)
