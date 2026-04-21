@@ -39,20 +39,29 @@ func ParseDiff(text string) []DiffLine {
 	return result
 }
 
-// isUnifiedDiff checks if the text starts with ---/+++ diff markers.
+// isUnifiedDiff checks if the text starts with ---/+++ diff markers
+// and contains at least one @@ hunk marker.
 func isUnifiedDiff(lines []string) bool {
 	foundHeader := false
+	hasHunk := false
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
 			continue
 		}
-		if strings.HasPrefix(trimmed, "---") {
+		if strings.HasPrefix(trimmed, "--- ") {
 			foundHeader = true
 			continue
 		}
-		if foundHeader && strings.HasPrefix(trimmed, "+++") {
-			return true
+		if foundHeader && strings.HasPrefix(trimmed, "+++ ") {
+			// Require at least one hunk marker for confidence.
+			for _, l := range lines {
+				if strings.HasPrefix(strings.TrimSpace(l), "@@") {
+					hasHunk = true
+					break
+				}
+			}
+			return hasHunk
 		}
 		break
 	}

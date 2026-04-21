@@ -64,7 +64,8 @@ func TestIsDiffContent(t *testing.T) {
 		{"valid diff", sampleDiff, true},
 		{"plain text", "hello world", false},
 		{"only minus prefix", "- removed line\n+ added line", false},
-		{"header with leading whitespace", "  --- a/file\n  +++ b/file", true},
+		{"header with leading whitespace", "  --- a/file\n  +++ b/file\n  @@ -1 +1 @@", true},
+			{"header without hunk marker", "  --- a/file\n  +++ b/file", false},
 		{"empty string", "", false},
 	}
 	for _, tt := range tests {

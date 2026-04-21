@@ -3,6 +3,7 @@ package messages
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -70,8 +71,9 @@ func (b *ThinkingBlock) SetExpanded(expanded bool) {
 // Summary returns a short preview of the thinking content.
 func (b *ThinkingBlock) Summary(maxLen int) string {
 	first := strings.SplitN(b.content, "\n", 2)[0]
-	if len(first) > maxLen {
-		return first[:maxLen-3] + "..."
+	if utf8.RuneCountInString(first) > maxLen {
+		runes := []rune(first)
+		return string(runes[:maxLen-3]) + "..."
 	}
 	if first == "" {
 		return "(empty)"

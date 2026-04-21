@@ -219,20 +219,24 @@ func (u *TUIImpl) GetRenderer(toolName string) (sdk.ToolRenderer, bool) {
 // Returns an error if the program is not running.
 func (u *TUIImpl) enqueue(req *overlayRequest) error {
 	u.mu.Lock()
-	defer u.mu.Unlock()
 
 	if u.program == nil {
+		u.mu.Unlock()
 		return fmt.Errorf("tui not running")
 	}
 
 	select {
 	case <-u.done:
+		u.mu.Unlock()
 		return fmt.Errorf("tui shutting down")
 	default:
 	}
 
 	u.popupQ = append(u.popupQ, req)
-	u.program.Send(popupPendingMsg{})
+	p := u.program
+	u.mu.Unlock()
+
+	p.Send(popupPendingMsg{})
 	return nil
 }
 
