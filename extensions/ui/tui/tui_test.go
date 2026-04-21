@@ -41,9 +41,13 @@ func TestTUI_CloseWithoutSubscribe(t *testing.T) {
 
 func TestModel_View(t *testing.T) {
 	m := newModel(nil, nil)
-	// View now includes editor below chat; with no size set, chat="" and editor renders ""
-	// so the separator newline is present
-	assert.Equal(t, "\n", m.View())
+	// View includes: chat (empty) + editor (empty) + footer (2 lines)
+	// With no size set, chat="" and editor="" and footer renders "weave" label
+	view := m.View()
+	// Should contain the footer's "weave" fallback
+	assert.Contains(t, view, "weave")
+	// Should contain newlines separating sections
+	assert.Contains(t, view, "\n")
 }
 
 func TestModel_Init(t *testing.T) {

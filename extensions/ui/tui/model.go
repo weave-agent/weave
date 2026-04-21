@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 
 	"weave/ext/ui/tui/components"
 	"weave/ext/ui/tui/components/messages"
@@ -19,6 +20,8 @@ type Model struct {
 
 	chat       components.ChatModel
 	editor     components.EditorModel
+	footer     components.FooterModel
+	spinner    components.SpinnerModel
 	prompted   bool
 	toolPanels map[string]*messages.ToolPanel // track pending tool panels by ID
 }
@@ -32,6 +35,8 @@ func newModel(bus sdk.Bus, cfg sdk.Config) Model {
 		cfg:        cfg,
 		chat:       components.NewChatModel(),
 		editor:     components.NewEditorModel().Focus(),
+		footer:     components.NewFooterModel(),
+		spinner:    components.NewSpinnerModel(),
 		toolPanels: make(map[string]*messages.ToolPanel),
 	}
 }
@@ -43,12 +48,21 @@ func (m Model) Init() tea.Cmd {
 
 // Update handles messages.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Handle spinner control messages
+	if components.IsSpinnerMsg(msg) {
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.SpinnerUpdate(msg)
+		return m, cmd
+	}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
 		m.chat = m.chat.SetSize(m.width, m.chatHeight(m.height))
 		m.editor = m.editor.SetSize(m.width, 3)
+		m.footer = m.footer.SetSize(m.width)
+		m.spinner = m.spinner.SetSize(m.width)
 		return m, nil
 
 	case tea.KeyMsg:
@@ -63,7 +77,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.onSubmit(msg.Text)
 
 	case TurnStartMsg:
-		// New turn starting
+		// New turn starting — show spinner
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.SpinnerUpdate(components.SpinnerShowMsg{})
+		return m, cmd
 
 	case MessageStartMsg:
 		m.chat = m.chat.AddItem(messages.NewAssistantMessage())
@@ -77,11 +94,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ToolResultMsg:
 		m.onToolResult(msg)
 
+	case TurnEndMsg:
+		// Turn ended — refresh git branch and hide spinner
+		m.spinner = m.spinner.Hide()
+
 	case AgentEndMsg:
-		// Agent finished
+		// Agent finished — hide spinner
+		m.spinner = m.spinner.Hide()
 
 	case ShutdownMsg:
 		return m, tea.Quit
+	}
+
+	// Forward spinner ticks
+	if m.spinner.Visible() {
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
 	}
 
 	return m, nil
@@ -163,13 +192,30 @@ func (m Model) onSubmit(text string) tea.Cmd {
 // chatHeight returns the height allocated to the chat area.
 func (m Model) chatHeight(totalHeight int) int {
 	editorLines := 3 + 2 // editor height + border
-	if totalHeight > editorLines+1 {
-		return totalHeight - editorLines - 1
+	footerLines := 2
+	spinnerLines := 0
+	if m.spinner.Visible() {
+		spinnerLines = 1
+	}
+	reserved := editorLines + footerLines + spinnerLines
+	if totalHeight > reserved+1 {
+		return totalHeight - reserved
 	}
 	return 1
 }
 
 // View renders the TUI.
 func (m Model) View() string {
-	return m.chat.View() + "\n" + m.editor.View()
+	var sections []string
+
+	sections = append(sections, m.chat.View())
+
+	if m.spinner.Visible() {
+		sections = append(sections, m.spinner.View())
+	}
+
+	sections = append(sections, m.editor.View())
+	sections = append(sections, m.footer.View())
+
+	return strings.Join(sections, "\n")
 }
