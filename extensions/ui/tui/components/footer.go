@@ -85,6 +85,11 @@ func (m FooterModel) SetExtStatus(key, text string) FooterModel {
 	return m
 }
 
+// ExtStatus returns the extension status map.
+func (m FooterModel) ExtStatus() map[string]string {
+	return m.extStatus
+}
+
 // InputTokens returns the input token count.
 func (m FooterModel) InputTokens() int { return m.inputTokens }
 

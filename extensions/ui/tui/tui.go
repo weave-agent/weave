@@ -11,7 +11,13 @@ import (
 
 func init() { //nolint:gochecknoinits // required for extension self-registration
 	sdk.RegisterExtension("tui", func(cfg sdk.Config) (sdk.Extension, error) {
-		return NewTUI(cfg)
+		t, err := NewTUI(cfg)
+		if err != nil {
+			return nil, err
+		}
+
+		sdk.RegisterUI("tui", t.ui)
+		return t, nil
 	})
 }
 
@@ -22,13 +28,17 @@ type TUI struct {
 	mu      sync.Mutex
 	program *tea.Program
 	done    chan struct{}
+	ui      *TUIImpl
 }
 
 // NewTUI creates a new TUI extension.
 func NewTUI(cfg sdk.Config) (*TUI, error) {
+	ui := NewTUIImpl(nil, nil)
+
 	return &TUI{
 		cfg:  cfg,
 		done: make(chan struct{}),
+		ui:   ui,
 	}, nil
 }
 
@@ -45,6 +55,11 @@ func (t *TUI) Subscribe(bus sdk.Bus) {
 	t.mu.Lock()
 	t.program = tea.NewProgram(model)
 	t.mu.Unlock()
+
+	// Wire the UI implementation to the program and model's registries.
+	t.ui.SetProgram(t.program)
+	t.ui.commands = model.commands
+	t.ui.bindings = model.bindings
 
 	go Bridge(t.program, events)
 

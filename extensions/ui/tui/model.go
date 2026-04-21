@@ -35,12 +35,15 @@ type Model struct {
 	toolPanels map[string]*messages.ToolPanel // track pending tool panels by ID
 	commands   *CommandRegistry
 	bindings   *BindingRegistry
+	ui         *TUIImpl
 
 	overlay         overlays.SelectorModel
 	activeOverlay   overlayKind
 	pendingSessions []SessionEntry
 	pendingModels   []ModelEntry
 	currentModel    ModelEntry
+
+	popup *popupState
 }
 
 // newModel creates a new root model.
@@ -64,6 +67,8 @@ func newModel(bus sdk.Bus, cfg sdk.Config) Model {
 		}
 	}
 
+	ui := NewTUIImpl(commands, bindings)
+
 	m := Model{
 		width:        80,
 		height:       24,
@@ -76,6 +81,7 @@ func newModel(bus sdk.Bus, cfg sdk.Config) Model {
 		toolPanels:   make(map[string]*messages.ToolPanel),
 		commands:     commands,
 		bindings:     bindings,
+		ui:           ui,
 		currentModel: cur,
 	}
 	m.footer = m.footer.SetModel(cur.Model, cur.Provider)
@@ -94,6 +100,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.SpinnerUpdate(msg)
 		return m, cmd
+	}
+
+	// Handle popup overlay messages first
+	if m.popup != nil {
+		switch msg.(type) {
+		case tea.KeyMsg:
+			return m.handlePopupUpdate(msg)
+		case overlays.SelectorSelectedMsg:
+			return m.handlePopupUpdate(msg)
+		case overlays.SelectorCancelledMsg:
+			return m.handlePopupUpdate(msg)
+		case overlays.ConfirmResultMsg:
+			return m.handlePopupUpdate(msg)
+		case overlays.InputResultMsg:
+			return m.handlePopupUpdate(msg)
+		}
 	}
 
 	switch msg := msg.(type) {
@@ -178,6 +200,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ShutdownMsg:
 		return m, tea.Quit
+
+	case popupPendingMsg:
+		return m.handlePopupPending()
+
+	case extStatusMsg:
+		m.footer = m.footer.SetExtStatus(msg.key, msg.text)
+		return m, nil
+
+	case notifyMsg:
+		m.chat = m.chat.AddItem(newNotifyAssistantMsg(msg.message))
+		return m, nil
+
+	case overlays.ConfirmResultMsg:
+		return m, nil
+
+	case overlays.InputResultMsg:
+		return m, nil
 	}
 
 	// Forward spinner ticks
@@ -358,7 +397,6 @@ func (m Model) onModelListResult(msg ModelListResultMsg) (tea.Model, tea.Cmd) {
 	}
 
 	if len(msg.Models) == 1 {
-		// Only one model, no need for selector
 		am := messages.NewAssistantMessage()
 		am.Finalize(fmt.Sprintf("Only one model available: %s", msg.Models[0].Display()))
 		m.chat = m.chat.AddItem(am)
@@ -487,6 +525,13 @@ func (m Model) chatHeight(totalHeight int) int {
 
 // View renders the TUI.
 func (m Model) View() string {
+	// Popup overlay takes highest priority
+	if m.popup != nil {
+		if view := m.popupView(); view != "" {
+			return view
+		}
+	}
+
 	if m.activeOverlay != overlayNone && m.overlay.Visible() {
 		return m.overlay.View()
 	}
