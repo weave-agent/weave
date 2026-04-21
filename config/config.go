@@ -18,6 +18,7 @@ type CoreConfig struct {
 type File struct {
 	Extensions []string   `short:"e" description:"List of optional extensions to load"`
 	Prompt     string     `short:"p" description:"Prompt to pass to the agent"`
+	UI         string     `default:"tui" description:"UI extension name (tui for interactive, none for headless)"`
 	Core       CoreConfig `description:"Core agent configuration"`
 }
 

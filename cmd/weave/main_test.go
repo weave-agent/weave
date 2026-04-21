@@ -158,3 +158,58 @@ func TestValidateCoreConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestTUIExtensionAddedWhenNoPrompt(t *testing.T) {
+	cf := &config.File{
+		Core:       config.CoreConfig{AgentLoop: "loop", Providers: []string{"anthropic"}},
+		Extensions: []string{"bash"},
+		UI:         "tui",
+	}
+
+	coreExts, optExts := cf.CoreExts()
+	allExts := mergeUnique(append(coreExts, optExts...))
+
+	if cf.Prompt == "" && cf.UI != "" && cf.UI != "none" {
+		allExts = ensurePresent(allExts, cf.UI)
+	}
+
+	assert.Contains(t, allExts, "tui", "tui should be in extension list when no prompt and ui=tui")
+	assert.Contains(t, allExts, "bash")
+	assert.Contains(t, allExts, "loop")
+	assert.Contains(t, allExts, "anthropic")
+}
+
+func TestTUIExtensionExcludedWhenPromptSet(t *testing.T) {
+	cf := &config.File{
+		Core:       config.CoreConfig{AgentLoop: "loop", Providers: []string{"anthropic"}},
+		Extensions: []string{"bash"},
+		Prompt:     "hello",
+		UI:         "tui",
+	}
+
+	coreExts, optExts := cf.CoreExts()
+	allExts := mergeUnique(append(coreExts, optExts...))
+
+	if cf.Prompt == "" && cf.UI != "" && cf.UI != "none" {
+		allExts = ensurePresent(allExts, cf.UI)
+	}
+
+	assert.NotContains(t, allExts, "tui", "tui should NOT be in extension list when prompt is set")
+}
+
+func TestTUIExtensionExcludedWhenUINone(t *testing.T) {
+	cf := &config.File{
+		Core:       config.CoreConfig{AgentLoop: "loop", Providers: []string{"anthropic"}},
+		Extensions: []string{"bash"},
+		UI:         "none",
+	}
+
+	coreExts, optExts := cf.CoreExts()
+	allExts := mergeUnique(append(coreExts, optExts...))
+
+	if cf.Prompt == "" && cf.UI != "" && cf.UI != "none" {
+		allExts = ensurePresent(allExts, cf.UI)
+	}
+
+	assert.NotContains(t, allExts, "tui", "tui should not be included when ui is 'none'")
+}

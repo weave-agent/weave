@@ -141,6 +141,36 @@ func TestLoad_MissingFile(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestLoad_UIDefault(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".weave.yaml", "extensions: []\n")
+
+	_, cf, _, err := LoadFromDir(dir, nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, "tui", cf.UI, "default ui should be 'tui'")
+}
+
+func TestLoad_UIOverride(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".weave.yaml", "ui: none\nextensions: []\n")
+
+	_, cf, _, err := LoadFromDir(dir, nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, "none", cf.UI)
+}
+
+func TestLoad_UIFlag(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".weave.yaml", "extensions: []\n")
+
+	_, cf, _, err := LoadFromDir(dir, []string{"--ui", "custom"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "custom", cf.UI)
+}
+
 func writeFile(t *testing.T, dir, name, content string) {
 	t.Helper()
 

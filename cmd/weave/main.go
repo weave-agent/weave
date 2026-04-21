@@ -68,6 +68,12 @@ func run(args ...string) (exitCode int) {
 	coreExts, optExts := cf.CoreExts()
 	allExts := mergeUnique(append(coreExts, optExts...))
 
+	// Add UI extension when no prompt is provided (interactive mode).
+	// When a prompt is set (-p flag), the agent runs in print mode without TUI.
+	if cf.Prompt == "" && cf.UI != "" && cf.UI != "none" {
+		allExts = ensurePresent(allExts, cf.UI)
+	}
+
 	// Compute effective providers: config providers + env override if set.
 	providers := cf.Core.Providers
 	if envProvider != "" {
