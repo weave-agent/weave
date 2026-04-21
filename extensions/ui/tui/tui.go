@@ -72,7 +72,7 @@ func (t *TUI) Subscribe(bus sdk.Bus) {
 	model := newModel(bus, t.cfg, t.ui)
 
 	t.mu.Lock()
-	t.program = tea.NewProgram(model)
+	t.program = tea.NewProgram(model, tea.WithAltScreen())
 	t.mu.Unlock()
 
 	// Wire the UI implementation to the program.
@@ -85,6 +85,7 @@ func (t *TUI) Subscribe(bus sdk.Bus) {
 		fmt.Printf("tui error: %v\n", err)
 	}
 
+	t.ui.Close()
 	bus.Unsubscribe(events)
 
 	close(t.done)

@@ -97,7 +97,7 @@ func (p *ToolPanel) View(width int) string {
 
 	borderStyle := borderStyleForState(p.state, width)
 	header := p.renderHeader()
-	body := p.renderBody()
+	body := p.renderBody(width)
 
 	var b strings.Builder
 	b.WriteString(borderStyle.Render(header))
@@ -115,7 +115,7 @@ func (p *ToolPanel) renderHeader() string {
 	return fmt.Sprintf(" %s %s", stateLabel, p.toolName)
 }
 
-func (p *ToolPanel) renderBody() string {
+func (p *ToolPanel) renderBody(width int) string {
 	if p.output == "" {
 		dim := lipgloss.NewStyle().Faint(true)
 		if p.state == ToolPending {
@@ -126,12 +126,12 @@ func (p *ToolPanel) renderBody() string {
 
 	// Use custom renderer if registered.
 	if p.customRenderer != nil {
-		return p.customRenderer.Render(p.output, 0)
+		return p.customRenderer.Render(p.output, width)
 	}
 
 	// Auto-detect diff content and use diff renderer.
 	if p.diffRenderer != nil && IsDiffContent(p.output) {
-		return p.diffRenderer.Render(p.output, 0)
+		return p.diffRenderer.Render(p.output, width)
 	}
 
 	lines := strings.Split(p.output, "\n")

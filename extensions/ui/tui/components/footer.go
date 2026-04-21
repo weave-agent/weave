@@ -202,7 +202,7 @@ func (m FooterModel) renderLine2() string {
 func shortenPath(path string, maxWidth int) string {
 	home, _ := os.UserHomeDir()
 	if home != "" && strings.HasPrefix(path, home) {
-		path = "~" + path[len(home):]
+		path = "~" + strings.TrimPrefix(path, home)
 	}
 
 	if maxWidth > 0 && utf8.RuneCountInString(path) > maxWidth {

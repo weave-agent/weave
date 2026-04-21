@@ -73,8 +73,7 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 	if ui == nil {
 		ui = NewTUIImpl(commands, bindings)
 	} else {
-		ui.commands = commands
-		ui.bindings = bindings
+		ui.SetRegistries(commands, bindings)
 	}
 
 	m := Model{

@@ -2,6 +2,7 @@ package components
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -347,9 +348,9 @@ func (m EditorModel) acceptAutocomplete() EditorModel {
 	// replace the prefix portion with the full command
 	trimmed := strings.TrimSpace(prefix)
 	spaceIdx := strings.Index(trimmed, " ")
-	replaceLen := len(trimmed)
+	replaceLen := utf8.RuneCountInString(trimmed)
 	if spaceIdx >= 0 {
-		replaceLen = spaceIdx
+		replaceLen = utf8.RuneCountInString(trimmed[:spaceIdx])
 	}
 
 	// calculate actual rune positions

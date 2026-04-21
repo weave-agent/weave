@@ -48,6 +48,7 @@ type TUIImpl struct {
 	mu     sync.Mutex
 	popupQ []*overlayRequest
 	active bool
+	done   chan struct{}
 }
 
 // NewTUIImpl creates a UI implementation backed by the given registries.
@@ -57,6 +58,7 @@ func NewTUIImpl(commands *CommandRegistry, bindings *BindingRegistry) *TUIImpl {
 		commands:  commands,
 		bindings:  bindings,
 		renderers: make(map[string]sdk.ToolRenderer),
+		done:      make(chan struct{}),
 	}
 }
 
@@ -65,6 +67,27 @@ func (u *TUIImpl) SetProgram(p Sender) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	u.program = p
+}
+
+// SetRegistries sets the command and binding registries under lock.
+func (u *TUIImpl) SetRegistries(commands *CommandRegistry, bindings *BindingRegistry) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	u.commands = commands
+	u.bindings = bindings
+}
+
+// Close signals that the TUI is shutting down, unblocking any pending overlay calls.
+func (u *TUIImpl) Close() {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	select {
+	case <-u.done:
+		// Already closed
+	default:
+		close(u.done)
+	}
 }
 
 // Select shows a selection overlay and blocks until the user picks an item or cancels.
@@ -78,8 +101,12 @@ func (u *TUIImpl) Select(title string, items []string) (int, error) {
 	if err := u.enqueue(req); err != nil {
 		return -1, err
 	}
-	resp := <-req.result
-	return resp.index, resp.err
+	select {
+	case resp := <-req.result:
+		return resp.index, resp.err
+	case <-u.done:
+		return -1, fmt.Errorf("tui shutting down")
+	}
 }
 
 // Confirm shows a yes/no dialog and blocks until the user responds.
@@ -92,8 +119,12 @@ func (u *TUIImpl) Confirm(message string) (bool, error) {
 	if err := u.enqueue(req); err != nil {
 		return false, err
 	}
-	resp := <-req.result
-	return resp.confirmed, resp.err
+	select {
+	case resp := <-req.result:
+		return resp.confirmed, resp.err
+	case <-u.done:
+		return false, fmt.Errorf("tui shutting down")
+	}
 }
 
 // Input shows a single-line input modal and blocks until the user submits or cancels.
@@ -106,8 +137,12 @@ func (u *TUIImpl) Input(prompt string) (string, error) {
 	if err := u.enqueue(req); err != nil {
 		return "", err
 	}
-	resp := <-req.result
-	return resp.value, resp.err
+	select {
+	case resp := <-req.result:
+		return resp.value, resp.err
+	case <-u.done:
+		return "", fmt.Errorf("tui shutting down")
+	}
 }
 
 // SetStatus updates the footer's extension status area.
@@ -134,7 +169,15 @@ func (u *TUIImpl) Notify(message string) {
 
 // RegisterCommand adds a command to the slash command registry.
 func (u *TUIImpl) RegisterCommand(name string, handler func(args string) error) {
-	u.commands.Register(name, "", func(args string) CommandResult {
+	u.mu.Lock()
+	commands := u.commands
+	u.mu.Unlock()
+
+	if commands == nil {
+		return
+	}
+
+	commands.Register(name, "", func(args string) CommandResult {
 		err := handler(args)
 		msg := "ok"
 		if err != nil {
@@ -153,7 +196,15 @@ func (u *TUIImpl) RegisterRenderer(toolName string, renderer sdk.ToolRenderer) {
 
 // RegisterKeybinding delegates to the binding registry.
 func (u *TUIImpl) RegisterKeybinding(kb sdk.Keybinding) {
-	u.bindings.Register(BindingAction(kb.Name), kb.Keys, kb.Description)
+	u.mu.Lock()
+	bindings := u.bindings
+	u.mu.Unlock()
+
+	if bindings == nil {
+		return
+	}
+
+	bindings.Register(BindingAction(kb.Name), kb.Keys, kb.Description)
 }
 
 // GetRenderer returns a registered tool renderer, if any.
