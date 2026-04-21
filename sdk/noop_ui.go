@@ -14,7 +14,7 @@ func (NoopUI) Confirm(_ string) (bool, error) {
 	return true, nil
 }
 
-func (NoopUI) Input(prompt string) (string, error) {
+func (NoopUI) Input(_ string) (string, error) {
 	return "", nil
 }
 

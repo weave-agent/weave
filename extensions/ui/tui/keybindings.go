@@ -22,8 +22,6 @@ const (
 	ActionInterrupt   BindingAction = "app.interrupt"
 	ActionModelSelect BindingAction = "app.model.select"
 	ActionModelCycle  BindingAction = "app.model.cycle"
-	ActionToolExpand  BindingAction = "app.tool.expand"
-	ActionThinkToggle BindingAction = "app.thinking.toggle"
 )
 
 // Binding maps a key sequence to a named action with a description.

@@ -79,7 +79,6 @@ func TestNoopUI_RegisterKeybinding(t *testing.T) {
 			Name:        "test",
 			Keys:        []string{"ctrl+t"},
 			Description: "test binding",
-			Handler:     func() error { return nil },
 		})
 	})
 }

@@ -25,9 +25,10 @@ type EditorModel struct {
 	focused  bool
 
 	// history
-	history []string
-	histIdx int // 0 = newest, len = no selection
-	dirty   bool
+	history   []string
+	histIdx   int // 0 = newest, len = no selection
+	dirty     bool
+	savedLine []rune // preserves current input during history navigation
 
 	// autocomplete
 	showAC       bool
@@ -259,6 +260,9 @@ func (m EditorModel) historyUp() EditorModel {
 		return m
 	}
 	if m.histIdx < len(m.history) {
+		if m.histIdx == 0 {
+			m.savedLine = m.value
+		}
 		m.histIdx++
 		idx := m.histIdx - 1
 		m.value = []rune(m.history[idx])
@@ -277,8 +281,9 @@ func (m EditorModel) historyDown() EditorModel {
 		m.dirty = true
 	} else if m.histIdx == 1 {
 		m.histIdx = 0
-		m.value = nil
-		m.cursor = 0
+		m.value = m.savedLine
+		m.savedLine = nil
+		m.cursor = len(m.value)
 		m.dirty = true
 	}
 	return m
