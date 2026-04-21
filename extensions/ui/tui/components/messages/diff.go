@@ -88,11 +88,11 @@ type DiffRenderer struct {
 // NewDiffRenderer creates a new diff renderer with default colors.
 func NewDiffRenderer() *DiffRenderer {
 	return &DiffRenderer{
-		addedStyle:   lipgloss.NewStyle().Foreground(lipgloss.Color("2")),  // green
-		removedStyle: lipgloss.NewStyle().Foreground(lipgloss.Color("1")),  // red
-		contextStyle: lipgloss.NewStyle().Faint(true),                      // dim
-		headerStyle:  lipgloss.NewStyle().Foreground(lipgloss.Color("6")),  // cyan
-		hunkStyle:    lipgloss.NewStyle().Foreground(lipgloss.Color("5")),  // magenta
+		addedStyle:   lipgloss.NewStyle().Foreground(lipgloss.Color("2")), // green
+		removedStyle: lipgloss.NewStyle().Foreground(lipgloss.Color("1")), // red
+		contextStyle: lipgloss.NewStyle().Faint(true),                     // dim
+		headerStyle:  lipgloss.NewStyle().Foreground(lipgloss.Color("6")), // cyan
+		hunkStyle:    lipgloss.NewStyle().Foreground(lipgloss.Color("5")), // magenta
 	}
 }
 

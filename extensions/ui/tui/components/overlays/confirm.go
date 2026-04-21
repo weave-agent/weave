@@ -15,11 +15,11 @@ type ConfirmResultMsg struct {
 
 // ConfirmModel is a yes/no dialog overlay.
 type ConfirmModel struct {
-	message  string
-	cursor   int // 0 = yes, 1 = no
-	width    int
-	height   int
-	visible  bool
+	message string
+	cursor  int // 0 = yes, 1 = no
+	width   int
+	height  int
+	visible bool
 }
 
 // NewConfirmModel creates a new confirm model.
@@ -109,7 +109,7 @@ func (m ConfirmModel) View() string {
 	borderStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("63")).
-		Width(boxWidth - 2).
+		Width(boxWidth-2).
 		Padding(0, 1)
 
 	messageStyle := lipgloss.NewStyle().

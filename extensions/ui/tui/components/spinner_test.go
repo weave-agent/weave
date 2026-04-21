@@ -27,7 +27,7 @@ func TestSpinnerModel_Hide(t *testing.T) {
 func TestSpinnerModel_HideResetsFrame(t *testing.T) {
 	s := NewSpinnerModel().Show()
 	// Simulate some frames
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		s, _ = s.Update(tickMsg{})
 	}
 	assert.True(t, s.Frame() > 0)

@@ -209,9 +209,9 @@ func TestCommandRegistry_Register(t *testing.T) {
 
 func TestParseCommand(t *testing.T) {
 	tests := []struct {
-		input  string
-		name   string
-		args   string
+		input string
+		name  string
+		args  string
 	}{
 		{"/quit", "/quit", ""},
 		{"/quit ", "/quit", ""},

@@ -130,7 +130,7 @@ func (m InputModel) View() string {
 	borderStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("63")).
-		Width(boxWidth - 2).
+		Width(boxWidth-2).
 		Padding(0, 1)
 
 	promptStyle := lipgloss.NewStyle().

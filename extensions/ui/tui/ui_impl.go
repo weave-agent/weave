@@ -225,6 +225,12 @@ func (u *TUIImpl) enqueue(req *overlayRequest) error {
 		return fmt.Errorf("tui not running")
 	}
 
+	select {
+	case <-u.done:
+		return fmt.Errorf("tui shutting down")
+	default:
+	}
+
 	u.popupQ = append(u.popupQ, req)
 	u.program.Send(popupPendingMsg{})
 	return nil
@@ -253,8 +259,8 @@ func (u *TUIImpl) hasPendingPopups() bool {
 
 // extStatusMsg is an internal tea.Msg to update footer extension status.
 type extStatusMsg struct {
-	key   string
-	text  string
+	key  string
+	text string
 }
 
 // notifyMsg is an internal tea.Msg to show a notification in chat.
@@ -295,7 +301,7 @@ type popupState struct {
 // handlePopupPending processes queued popup requests.
 // Returns a tea.Cmd if an overlay was activated.
 func (m Model) handlePopupPending() (Model, tea.Cmd) {
-	if m.ui == nil {
+	if m.ui == nil || m.popup != nil {
 		return m, nil
 	}
 

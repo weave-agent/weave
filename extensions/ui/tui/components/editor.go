@@ -19,11 +19,11 @@ var SlashCommands = []string{"/clear", "/compact", "/help", "/model", "/name", "
 
 // EditorModel is a multi-line input with history and autocomplete.
 type EditorModel struct {
-	value    []rune
-	cursor   int // rune position in value
-	width    int
-	height   int
-	focused  bool
+	value   []rune
+	cursor  int // rune position in value
+	width   int
+	height  int
+	focused bool
 
 	// history
 	history   []string
@@ -32,10 +32,10 @@ type EditorModel struct {
 	savedLine []rune // preserves current input during history navigation
 
 	// autocomplete
-	showAC       bool
-	acIndex      int
-	acItems      []string
-	slashCmds    []string
+	showAC    bool
+	acIndex   int
+	acItems   []string
+	slashCmds []string
 }
 
 // NewEditorModel creates a new editor model.
@@ -82,6 +82,9 @@ func (m EditorModel) Height() int { return m.height }
 
 // Focused returns whether the editor has focus.
 func (m EditorModel) Focused() bool { return m.focused }
+
+// AutocompleteVisible returns whether the autocomplete dropdown is showing.
+func (m EditorModel) AutocompleteVisible() bool { return m.showAC }
 
 // Focus gives the editor focus.
 func (m EditorModel) Focus() EditorModel {
@@ -347,10 +350,10 @@ func (m EditorModel) acceptAutocomplete() EditorModel {
 
 	// replace the prefix portion with the full command
 	trimmed := strings.TrimSpace(prefix)
-	spaceIdx := strings.Index(trimmed, " ")
+	before, _, ok := strings.Cut(trimmed, " ")
 	replaceLen := utf8.RuneCountInString(trimmed)
-	if spaceIdx >= 0 {
-		replaceLen = utf8.RuneCountInString(trimmed[:spaceIdx])
+	if ok {
+		replaceLen = utf8.RuneCountInString(before)
 	}
 
 	// calculate actual rune positions

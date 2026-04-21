@@ -277,7 +277,7 @@ func TestModel_PopupView(t *testing.T) {
 
 	// With confirm popup
 	m.popup = &popupState{
-		kind: requestConfirm,
+		kind:    requestConfirm,
 		confirm: overlays.NewConfirmModel("Sure?").SetSize(80, 24).Show(),
 	}
 	view := m.popupView()
@@ -285,7 +285,7 @@ func TestModel_PopupView(t *testing.T) {
 
 	// With input popup
 	m.popup = &popupState{
-		kind: requestInput,
+		kind:  requestInput,
 		input: overlays.NewInputModel("Name:").SetSize(80, 24).Show(),
 	}
 	view = m.popupView()
@@ -566,7 +566,7 @@ func TestModel_ViewWithPopup(t *testing.T) {
 	m.height = 24
 
 	m.popup = &popupState{
-		kind: requestConfirm,
+		kind:    requestConfirm,
 		confirm: overlays.NewConfirmModel("Sure?").SetSize(80, 24).Show(),
 	}
 

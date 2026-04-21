@@ -21,10 +21,10 @@ type ChatItemIdentity interface {
 
 // ChatModel manages a scrollable list of chat items.
 type ChatModel struct {
-	items    []ChatItem
-	width    int
-	height   int
-	scroll   int
+	items  []ChatItem
+	width  int
+	height int
+	scroll int
 }
 
 // NewChatModel creates a new chat model.

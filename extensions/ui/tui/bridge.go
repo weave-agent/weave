@@ -2,6 +2,7 @@ package tui
 
 import (
 	"strings"
+
 	"weave/sdk"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -9,10 +10,10 @@ import (
 
 // Bus event topics (matching agent-loop topics).
 const (
-	topicPrompt     = "agent.prompt"
-	topicSteer      = "agent.steer"
-	topicFollowup   = "agent.followup"
-	topicInterrupt  = "agent.interrupt"
+	topicPrompt    = "agent.prompt"
+	topicSteer     = "agent.steer"
+	topicFollowup  = "agent.followup"
+	topicInterrupt = "agent.interrupt"
 
 	topicTurnStart  = "agent.turn_start"
 	topicTurnEnd    = "agent.turn_end"

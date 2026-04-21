@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"strings"
 	"testing"
 
 	"weave/bus"
@@ -62,8 +63,8 @@ func TestTranslateEvent_MessageEnd_NilPayload(t *testing.T) {
 
 func TestTranslateEvent_MessageEnd_WithThinking(t *testing.T) {
 	payload := map[string]any{
-		"content":  "response text",
-		"thinking": "I considered the alternatives...",
+		"content":    "response text",
+		"thinking":   "I considered the alternatives...",
 		"tool_calls": []sdk.ToolCall{},
 	}
 
@@ -347,11 +348,11 @@ func TestBridge_DeltaBatching(t *testing.T) {
 	}
 
 	// All content should be present (either in one batched msg or multiple)
-	combined := ""
+	var combined strings.Builder
 	for _, u := range updates {
-		combined += u
+		combined.WriteString(u)
 	}
-	assert.Equal(t, "hello world test", combined)
+	assert.Equal(t, "hello world test", combined.String())
 
 	// Last message should be ShutdownMsg
 	_, ok := sender.msgs[len(sender.msgs)-1].(ShutdownMsg)
@@ -384,13 +385,13 @@ func TestBridge_DeltaBatchingMixedEvents(t *testing.T) {
 	assert.True(t, ok)
 
 	// Verify combined content of all updates
-	var combined string
+	var combined strings.Builder
 	for _, msg := range sender.msgs {
 		if mu, ok := msg.(MessageUpdateMsg); ok {
-			combined += mu.Content
+			combined.WriteString(mu.Content)
 		}
 	}
-	assert.Equal(t, "delta1delta2delta3", combined)
+	assert.Equal(t, "delta1delta2delta3", combined.String())
 
 	// Verify TurnEndMsg is present
 	hasTurnEnd := false

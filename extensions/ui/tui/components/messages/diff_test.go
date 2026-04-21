@@ -125,8 +125,8 @@ func TestFormatDiffStats(t *testing.T) {
 
 func TestClassifyLine(t *testing.T) {
 	tests := []struct {
-		input  string
-		kind   DiffLineKind
+		input string
+		kind  DiffLineKind
 	}{
 		{"--- a/file", DiffHeader},
 		{"+++ b/file", DiffHeader},

@@ -150,8 +150,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 
-		// Try keybinding resolver
+		// Try keybinding resolver (let editor handle Escape when autocomplete is visible)
 		if action, ok := m.bindings.Resolve(keyString(msg)); ok {
+			if action == ActionInterrupt && m.editor.AutocompleteVisible() {
+				var cmd tea.Cmd
+				m.editor, cmd = m.editor.Update(msg)
+				return m, cmd
+			}
 			return m.dispatchBinding(action)
 		}
 

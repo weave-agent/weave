@@ -16,8 +16,8 @@ type FooterModel struct {
 	width int
 
 	// Line 1: CWD + git branch
-	cwd        string
-	gitBranch  string
+	cwd         string
+	gitBranch   string
 	branchDirty bool
 
 	// Line 2: tokens + cost + context % + model + provider
@@ -36,9 +36,9 @@ type FooterModel struct {
 func NewFooterModel() FooterModel {
 	cwd, _ := os.Getwd()
 	f := FooterModel{
-		width:      80,
-		cwd:        cwd,
-		extStatus:  make(map[string]string),
+		width:     80,
+		cwd:       cwd,
+		extStatus: make(map[string]string),
 	}
 	f.gitBranch, f.branchDirty = getGitBranch()
 	return f
@@ -205,7 +205,7 @@ func shortenPath(path string, maxWidth int) string {
 		path = "~" + strings.TrimPrefix(path, home)
 	}
 
-	if maxWidth > 0 && utf8.RuneCountInString(path) > maxWidth {
+	if maxWidth > 3 && utf8.RuneCountInString(path) > maxWidth {
 		runes := []rune(path)
 		path = "..." + string(runes[len(runes)-maxWidth+3:])
 	}
