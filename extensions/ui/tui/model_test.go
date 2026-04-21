@@ -20,7 +20,7 @@ import (
 )
 
 func TestModel_HandlesMessageStart(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 10
 	m.chat = m.chat.SetSize(80, 10)
@@ -37,7 +37,7 @@ func TestModel_HandlesMessageStart(t *testing.T) {
 }
 
 func TestModel_HandlesMessageUpdate(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 10
 	m.chat = m.chat.SetSize(80, 10)
@@ -62,7 +62,7 @@ func TestModel_HandlesMessageUpdate(t *testing.T) {
 }
 
 func TestModel_HandlesMessageEnd(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 10
 	m.chat = m.chat.SetSize(80, 10)
@@ -86,7 +86,7 @@ func TestModel_HandlesMessageEnd(t *testing.T) {
 }
 
 func TestModel_FullStreamingFlow(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -126,7 +126,7 @@ func TestModel_FullStreamingFlow(t *testing.T) {
 }
 
 func TestModel_ViewShowsChatContent(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 10
 	m.chat = m.chat.SetSize(80, 10)
@@ -148,7 +148,7 @@ func TestModel_ViewShowsChatContent(t *testing.T) {
 }
 
 func TestModel_UpdateWithoutStartIgnored(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 10
 	m.chat = m.chat.SetSize(80, 10)
@@ -161,7 +161,7 @@ func TestModel_UpdateWithoutStartIgnored(t *testing.T) {
 }
 
 func TestModel_Shutdown(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	_, cmd := m.Update(ShutdownMsg{})
 	require.NotNil(t, cmd)
 	// tea.Quit is a func, so we verify it produces a tea.QuitMsg
@@ -171,7 +171,7 @@ func TestModel_Shutdown(t *testing.T) {
 }
 
 func TestModel_WindowResize(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	model, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	m = model.(Model)
 	assert.Equal(t, 120, m.width)
@@ -181,7 +181,7 @@ func TestModel_WindowResize(t *testing.T) {
 }
 
 func TestModel_ResizeRedistributesHeight(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 
 	// Large terminal
 	model, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
@@ -204,7 +204,7 @@ func TestModel_ResizeRedistributesHeight(t *testing.T) {
 }
 
 func TestModel_ResizeWithSpinner(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 
 	// Show spinner
 	model, _ := m.Update(MessageStartMsg{})
@@ -228,7 +228,7 @@ func TestModel_ResizeWithSpinner(t *testing.T) {
 }
 
 func TestModel_MultipleTurns(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -273,7 +273,7 @@ func TestToolPanelItemIdentity(t *testing.T) {
 }
 
 func TestModel_MessageEndCreatesToolPanels(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -318,7 +318,7 @@ func TestModel_MessageEndCreatesToolPanels(t *testing.T) {
 }
 
 func TestModel_ToolResultUpdatesPanel(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -352,7 +352,7 @@ func TestModel_ToolResultUpdatesPanel(t *testing.T) {
 }
 
 func TestModel_ToolResultError(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -379,7 +379,7 @@ func TestModel_ToolResultError(t *testing.T) {
 }
 
 func TestModel_ToolResultUnknownID(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -402,7 +402,7 @@ func TestModel_ToolResultUnknownID(t *testing.T) {
 }
 
 func TestModel_ToolPanelInlineInChat(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 30
 	m.chat = m.chat.SetSize(80, 30)
@@ -459,7 +459,7 @@ func TestModel_ToolPanelInlineInChat(t *testing.T) {
 }
 
 func TestModel_MessageEndWithThinking(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -492,7 +492,7 @@ func TestModel_MessageEndWithThinking(t *testing.T) {
 }
 
 func TestModel_MessageEndWithoutThinking(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -511,7 +511,7 @@ func TestModel_MessageEndWithoutThinking(t *testing.T) {
 }
 
 func TestModel_ThinkingBlockInChatView(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -530,7 +530,7 @@ func TestModel_ThinkingBlockInChatView(t *testing.T) {
 }
 
 func TestModel_ThinkingBlockWithToolCalls(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 30
 	m.chat = m.chat.SetSize(80, 30)
@@ -574,7 +574,7 @@ func TestModel_ResumeCommandDispatches(t *testing.T) {
 }
 
 func TestModel_SessionListResultShowsOverlay(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -596,7 +596,7 @@ func TestModel_SessionListResultShowsOverlay(t *testing.T) {
 }
 
 func TestModel_SessionListEmpty(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.chat = m.chat.SetSize(80, 10)
@@ -614,7 +614,7 @@ func TestModel_SessionListEmpty(t *testing.T) {
 }
 
 func TestModel_SessionListError(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.chat = m.chat.SetSize(80, 10)
@@ -632,7 +632,7 @@ func TestModel_SessionListError(t *testing.T) {
 }
 
 func TestModel_SessionSelectorCancel(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -653,7 +653,7 @@ func TestModel_SessionSelectorCancel(t *testing.T) {
 }
 
 func TestModel_SessionSelectorEscape(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -693,7 +693,7 @@ func TestModel_SessionSelectorSelect(t *testing.T) {
 
 	ch := b.Subscribe(topicSessionResume)
 
-	m := newModel(b, nil)
+	m := newModel(b, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.chat = m.chat.SetSize(80, 10)
@@ -750,7 +750,7 @@ func TestModel_SessionSelectorSelect(t *testing.T) {
 }
 
 func TestModel_OverlayInterceptsKeys(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -772,7 +772,7 @@ func TestModel_OverlayInterceptsKeys(t *testing.T) {
 }
 
 func TestModel_OverlayCtrlCDoesNotQuit(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -822,7 +822,7 @@ func TestModel_RebuildChatFromSession(t *testing.T) {
 	err := os.WriteFile(filepath.Join(dir, sessionID+".jsonl"), []byte(content), 0o644)
 	require.NoError(t, err)
 
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.chat = m.chat.SetSize(80, 10)
@@ -850,7 +850,7 @@ func TestModel_RebuildChatFromSession(t *testing.T) {
 }
 
 func TestModel_ViewShowsOverlayWhenActive(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -875,7 +875,7 @@ func TestModel_ResumeSlashCommandIntegration(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	m := newModel(b, nil)
+	m := newModel(b, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.chat = m.chat.SetSize(80, 10)
@@ -906,7 +906,7 @@ func TestModel_InterruptStreaming(t *testing.T) {
 
 	ch := b.Subscribe(topicInterrupt)
 
-	m := newModel(b, nil)
+	m := newModel(b, nil, nil)
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -942,7 +942,7 @@ func TestModel_InterruptStreaming(t *testing.T) {
 }
 
 func TestModel_InterruptNoStreamingMessage(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -955,7 +955,7 @@ func TestModel_InterruptNoStreamingMessage(t *testing.T) {
 }
 
 func TestModel_AgentEndMsg_WithError(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -973,7 +973,7 @@ func TestModel_AgentEndMsg_WithError(t *testing.T) {
 }
 
 func TestModel_AgentEndMsg_WithNilPayload(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -987,7 +987,7 @@ func TestModel_AgentEndMsg_WithNilPayload(t *testing.T) {
 }
 
 func TestModel_AgentEndMsg_WithEmptyString(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -999,7 +999,7 @@ func TestModel_AgentEndMsg_WithEmptyString(t *testing.T) {
 }
 
 func TestModel_GracefulShutdown(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 
 	// Ctrl+D triggers exit
 	_, cmd := m.dispatchBinding(ActionExit)
@@ -1010,7 +1010,7 @@ func TestModel_GracefulShutdown(t *testing.T) {
 }
 
 func TestModel_QuitCommand(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 20
 

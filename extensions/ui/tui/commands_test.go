@@ -242,7 +242,7 @@ func TestCommandRegistry_HelpListsAll(t *testing.T) {
 }
 
 func TestModel_SlashCommandQuit(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 10
 	m.chat = m.chat.SetSize(80, 10)
@@ -260,7 +260,7 @@ func TestModel_SlashCommandQuit(t *testing.T) {
 }
 
 func TestModel_SlashCommandNewClearsChat(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 10
 	m.chat = m.chat.SetSize(80, 10)
@@ -278,7 +278,7 @@ func TestModel_SlashCommandNewClearsChat(t *testing.T) {
 }
 
 func TestModel_SlashCommandClear(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 10
 	m.chat = m.chat.SetSize(80, 10)
@@ -294,7 +294,7 @@ func TestModel_SlashCommandClear(t *testing.T) {
 }
 
 func TestModel_SlashCommandHelpShowsMessage(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 10
 	m.chat = m.chat.SetSize(80, 10)
@@ -318,7 +318,7 @@ func TestModel_RegularSubmitPublishesPrompt(t *testing.T) {
 
 	ch := b.Subscribe(topicPrompt)
 
-	m := newModel(b, nil)
+	m := newModel(b, nil, nil)
 	m.width = 80
 	m.height = 10
 	m.chat = m.chat.SetSize(80, 10)
@@ -342,7 +342,7 @@ func TestModel_RegularSubmitFollowup(t *testing.T) {
 
 	ch := b.Subscribe(topicFollowup)
 
-	m := newModel(b, nil)
+	m := newModel(b, nil, nil)
 	m.width = 80
 	m.height = 10
 	m.chat = m.chat.SetSize(80, 10)
@@ -362,7 +362,7 @@ func TestModel_RegularSubmitFollowup(t *testing.T) {
 }
 
 func TestModel_UnknownCommandShowsError(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 10
 	m.chat = m.chat.SetSize(80, 10)

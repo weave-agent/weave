@@ -40,7 +40,7 @@ func TestTUI_CloseWithoutSubscribe(t *testing.T) {
 }
 
 func TestModel_View(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	// View includes: chat (empty) + editor (empty) + footer (2 lines)
 	// With no size set, chat="" and editor="" and footer renders "weave" label
 	view := m.View()
@@ -51,7 +51,7 @@ func TestModel_View(t *testing.T) {
 }
 
 func TestModel_Init(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	cmd := m.Init()
 	assert.Nil(t, cmd)
 }

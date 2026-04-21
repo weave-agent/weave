@@ -204,7 +204,7 @@ func activatePopup(m Model, ui *TUIImpl, req *overlayRequest) Model {
 
 func TestModel_HandlePopupPending_Select(t *testing.T) {
 	ui := NewTUIImpl(nil, nil)
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.ui = ui
@@ -224,7 +224,7 @@ func TestModel_HandlePopupPending_Select(t *testing.T) {
 
 func TestModel_HandlePopupPending_Confirm(t *testing.T) {
 	ui := NewTUIImpl(nil, nil)
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.ui = ui
@@ -242,7 +242,7 @@ func TestModel_HandlePopupPending_Confirm(t *testing.T) {
 
 func TestModel_HandlePopupPending_Input(t *testing.T) {
 	ui := NewTUIImpl(nil, nil)
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.ui = ui
@@ -259,7 +259,7 @@ func TestModel_HandlePopupPending_Input(t *testing.T) {
 }
 
 func TestModel_HandlePopupPending_NilUI(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.ui = nil
 
 	updated, cmd := m.handlePopupPending()
@@ -268,7 +268,7 @@ func TestModel_HandlePopupPending_NilUI(t *testing.T) {
 }
 
 func TestModel_PopupView(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -304,7 +304,7 @@ func TestModel_PopupView(t *testing.T) {
 
 func TestModel_PopupConfirmYes(t *testing.T) {
 	ui := NewTUIImpl(nil, nil)
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.ui = ui
@@ -332,7 +332,7 @@ func TestModel_PopupConfirmYes(t *testing.T) {
 
 func TestModel_PopupConfirmNo(t *testing.T) {
 	ui := NewTUIImpl(nil, nil)
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.ui = ui
@@ -360,7 +360,7 @@ func TestModel_PopupConfirmNo(t *testing.T) {
 
 func TestModel_PopupSelectCancel(t *testing.T) {
 	ui := NewTUIImpl(nil, nil)
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.ui = ui
@@ -390,7 +390,7 @@ func TestModel_PopupSelectCancel(t *testing.T) {
 
 func TestModel_PopupSelectConfirm(t *testing.T) {
 	ui := NewTUIImpl(nil, nil)
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.ui = ui
@@ -420,7 +420,7 @@ func TestModel_PopupSelectConfirm(t *testing.T) {
 
 func TestModel_PopupInputSubmit(t *testing.T) {
 	ui := NewTUIImpl(nil, nil)
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.ui = ui
@@ -449,7 +449,7 @@ func TestModel_PopupInputSubmit(t *testing.T) {
 
 func TestModel_PopupInputCancel(t *testing.T) {
 	ui := NewTUIImpl(nil, nil)
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.ui = ui
@@ -477,7 +477,7 @@ func TestModel_PopupInputCancel(t *testing.T) {
 
 func TestModel_PopupSequentialQueuing(t *testing.T) {
 	ui := NewTUIImpl(nil, nil)
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.ui = ui
@@ -523,7 +523,7 @@ func TestModel_PopupSequentialQueuing(t *testing.T) {
 }
 
 func TestModel_ExtStatusMsgUpdatesFooter(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -534,7 +534,7 @@ func TestModel_ExtStatusMsgUpdatesFooter(t *testing.T) {
 }
 
 func TestModel_NotifyMsgAddsToChat(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.chat = m.chat.SetSize(80, 10)
@@ -556,12 +556,12 @@ func TestNewNotifyAssistantMsg(t *testing.T) {
 }
 
 func TestModel_UIFieldSet(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	assert.NotNil(t, m.ui)
 }
 
 func TestModel_ViewWithPopup(t *testing.T) {
-	m := newModel(nil, nil)
+	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
 

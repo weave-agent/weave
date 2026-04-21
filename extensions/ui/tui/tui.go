@@ -69,16 +69,14 @@ func (t *TUI) Name() string { return "tui" }
 func (t *TUI) Subscribe(bus sdk.Bus) {
 	events := bus.SubscribeAll()
 
-	model := newModel(bus, t.cfg)
+	model := newModel(bus, t.cfg, t.ui)
 
 	t.mu.Lock()
 	t.program = tea.NewProgram(model)
 	t.mu.Unlock()
 
-	// Wire the UI implementation to the program and model's registries.
+	// Wire the UI implementation to the program.
 	t.ui.SetProgram(t.program)
-	t.ui.commands = model.commands
-	t.ui.bindings = model.bindings
 
 	go Bridge(t.program, events)
 

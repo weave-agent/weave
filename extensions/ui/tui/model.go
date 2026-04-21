@@ -48,7 +48,9 @@ type Model struct {
 }
 
 // newModel creates a new root model.
-func newModel(bus sdk.Bus, cfg sdk.Config) Model {
+// If ui is non-nil, it is reused (production path) so that renderers registered
+// via sdk.UI are visible to the model. If nil, a fresh TUIImpl is created (tests).
+func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 	commands := NewCommandRegistry(bus)
 	commands.register("/model", "Select or change model", func(_ string) CommandResult {
 		return CommandResult{Command: listModelsCmd()}
@@ -68,7 +70,12 @@ func newModel(bus sdk.Bus, cfg sdk.Config) Model {
 		}
 	}
 
-	ui := NewTUIImpl(commands, bindings)
+	if ui == nil {
+		ui = NewTUIImpl(commands, bindings)
+	} else {
+		ui.commands = commands
+		ui.bindings = bindings
+	}
 
 	m := Model{
 		width:        80,
