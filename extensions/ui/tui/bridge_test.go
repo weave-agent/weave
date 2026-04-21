@@ -60,6 +60,32 @@ func TestTranslateEvent_MessageEnd_NilPayload(t *testing.T) {
 	assert.Nil(t, me.ToolCalls)
 }
 
+func TestTranslateEvent_MessageEnd_WithThinking(t *testing.T) {
+	payload := map[string]any{
+		"content":  "response text",
+		"thinking": "I considered the alternatives...",
+		"tool_calls": []sdk.ToolCall{},
+	}
+
+	msg := translateEvent(sdk.NewEvent(topicMsgEnd, payload))
+	me, ok := msg.(MessageEndMsg)
+	require.True(t, ok)
+	assert.Equal(t, "response text", me.Content)
+	assert.Equal(t, "I considered the alternatives...", me.Thinking)
+}
+
+func TestTranslateEvent_MessageEnd_WithoutThinking(t *testing.T) {
+	payload := map[string]any{
+		"content":    "response text",
+		"tool_calls": []sdk.ToolCall{},
+	}
+
+	msg := translateEvent(sdk.NewEvent(topicMsgEnd, payload))
+	me, ok := msg.(MessageEndMsg)
+	require.True(t, ok)
+	assert.Equal(t, "", me.Thinking)
+}
+
 func TestTranslateEvent_ToolResult(t *testing.T) {
 	payload := map[string]any{
 		"id":     "tc1",

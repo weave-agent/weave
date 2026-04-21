@@ -109,9 +109,14 @@ func (m *Model) onMessageEnd(msg MessageEndMsg) {
 	am.Finalize(msg.Content)
 	m.chat = m.chat.UpdateItem(am)
 
+	if msg.Thinking != "" {
+		m.chat = m.chat.AddItem(messages.NewThinkingBlock(msg.Thinking))
+	}
+
 	for _, tc := range msg.ToolCalls {
 		args := fmt.Sprintf("%v", tc.Arguments)
 		panel := messages.NewToolPanel(tc.ID, tc.Name, args)
+		panel.SetDiffRenderer(messages.NewDiffRenderer())
 		m.toolPanels[tc.ID] = panel
 		m.chat = m.chat.AddItem(panel)
 	}

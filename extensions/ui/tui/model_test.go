@@ -403,3 +403,103 @@ func TestModel_ToolPanelInlineInChat(t *testing.T) {
 	view := m.View()
 	assert.Contains(t, view, "file1.txt")
 }
+
+func TestModel_MessageEndWithThinking(t *testing.T) {
+	m := newModel(nil, nil)
+	m.width = 80
+	m.height = 20
+	m.chat = m.chat.SetSize(80, 20)
+
+	// Start assistant message
+	model, _ := m.Update(MessageStartMsg{})
+	m = model.(Model)
+
+	// End with thinking content
+	model, _ = m.Update(MessageEndMsg{
+		Content:  "The answer is 42",
+		Thinking: "I need to consider the deep philosophical implications...",
+	})
+	m = model.(Model)
+
+	items := m.chat.Items()
+	require.Len(t, items, 2) // assistant + thinking block
+
+	// Assistant message finalized
+	am, ok := items[0].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Equal(t, "The answer is 42", am.Content())
+	assert.False(t, am.IsStreaming())
+
+	// Thinking block added
+	tb, ok := items[1].(*messages.ThinkingBlock)
+	require.True(t, ok)
+	assert.Equal(t, "I need to consider the deep philosophical implications...", tb.Content())
+	assert.False(t, tb.Expanded())
+}
+
+func TestModel_MessageEndWithoutThinking(t *testing.T) {
+	m := newModel(nil, nil)
+	m.width = 80
+	m.height = 20
+	m.chat = m.chat.SetSize(80, 20)
+
+	model, _ := m.Update(MessageStartMsg{})
+	m = model.(Model)
+
+	model, _ = m.Update(MessageEndMsg{
+		Content:  "simple response",
+		Thinking: "",
+	})
+	m = model.(Model)
+
+	items := m.chat.Items()
+	require.Len(t, items, 1) // just assistant, no thinking block
+}
+
+func TestModel_ThinkingBlockInChatView(t *testing.T) {
+	m := newModel(nil, nil)
+	m.width = 80
+	m.height = 20
+	m.chat = m.chat.SetSize(80, 20)
+
+	model, _ := m.Update(MessageStartMsg{})
+	m = model.(Model)
+
+	model, _ = m.Update(MessageEndMsg{
+		Content:  "result",
+		Thinking: "deep thoughts",
+	})
+	m = model.(Model)
+
+	view := m.View()
+	assert.Contains(t, view, "[thinking]")
+}
+
+func TestModel_ThinkingBlockWithToolCalls(t *testing.T) {
+	m := newModel(nil, nil)
+	m.width = 80
+	m.height = 30
+	m.chat = m.chat.SetSize(80, 30)
+
+	model, _ := m.Update(MessageStartMsg{})
+	m = model.(Model)
+
+	model, _ = m.Update(MessageEndMsg{
+		Content:   "let me check",
+		Thinking:  "I should use bash for this",
+		ToolCalls: []sdk.ToolCall{{ID: "tc1", Name: "bash", Arguments: map[string]any{"command": "ls"}}},
+	})
+	m = model.(Model)
+
+	items := m.chat.Items()
+	require.Len(t, items, 3) // assistant + thinking + tool panel
+
+	_, ok := items[0].(*messages.AssistantMessage)
+	assert.True(t, ok, "item 0 should be AssistantMessage")
+
+	_, ok = items[1].(*messages.ThinkingBlock)
+	assert.True(t, ok, "item 1 should be ThinkingBlock")
+
+	_, ok = items[2].(*messages.ToolPanel)
+	assert.True(t, ok, "item 2 should be ToolPanel")
+}

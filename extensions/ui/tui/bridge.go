@@ -42,6 +42,7 @@ type MessageUpdateMsg struct {
 
 type MessageEndMsg struct {
 	Content   string
+	Thinking  string
 	ToolCalls []sdk.ToolCall
 }
 
@@ -89,6 +90,7 @@ func translateMsgEnd(payload any) MessageEndMsg {
 	}
 
 	content, _ := m["content"].(string)
+	thinking, _ := m["thinking"].(string)
 
 	var toolCalls []sdk.ToolCall
 
@@ -96,7 +98,7 @@ func translateMsgEnd(payload any) MessageEndMsg {
 		toolCalls = tc
 	}
 
-	return MessageEndMsg{Content: content, ToolCalls: toolCalls}
+	return MessageEndMsg{Content: content, Thinking: thinking, ToolCalls: toolCalls}
 }
 
 func translateToolResult(payload any) ToolResultMsg {

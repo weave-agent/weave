@@ -20,12 +20,13 @@ const (
 
 // ToolPanel renders a tool call with its output in a bordered panel.
 type ToolPanel struct {
-	toolID   string
-	toolName string
-	args     string
-	output   string
-	state    ToolState
-	expanded bool
+	toolID       string
+	toolName     string
+	args         string
+	output       string
+	state        ToolState
+	expanded     bool
+	diffRenderer *DiffRenderer
 }
 
 // NewToolPanel creates a new tool panel in pending state.
@@ -74,6 +75,11 @@ func (p *ToolPanel) ToggleExpanded() {
 	p.expanded = !p.expanded
 }
 
+// SetDiffRenderer sets the diff renderer for auto-detecting diff output.
+func (p *ToolPanel) SetDiffRenderer(r *DiffRenderer) {
+	p.diffRenderer = r
+}
+
 // View renders the tool panel as a bordered box.
 func (p *ToolPanel) View(width int) string {
 	if width <= 0 {
@@ -107,6 +113,11 @@ func (p *ToolPanel) renderBody() string {
 			return dim.Render("  running...")
 		}
 		return dim.Render("  (no output)")
+	}
+
+	// Auto-detect diff content and use diff renderer.
+	if p.diffRenderer != nil && IsDiffContent(p.output) {
+		return p.diffRenderer.Render(p.output, 0)
 	}
 
 	lines := strings.Split(p.output, "\n")
