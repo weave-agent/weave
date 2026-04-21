@@ -71,6 +71,10 @@ func NewCommandRegistry(bus sdk.Bus) *CommandRegistry {
 		return CommandResult{Command: PublishSteer(bus, "name "+args)}
 	})
 
+	r.register("/resume", "Resume a previous session", func(_ string) CommandResult {
+		return CommandResult{Command: listSessionsCmd()}
+	})
+
 	return r
 }
 

@@ -6,9 +6,17 @@ import (
 
 	"weave/ext/ui/tui/components"
 	"weave/ext/ui/tui/components/messages"
+	"weave/ext/ui/tui/components/overlays"
 	"weave/sdk"
 
 	tea "github.com/charmbracelet/bubbletea"
+)
+
+type overlayKind int
+
+const (
+	overlayNone overlayKind = iota
+	overlaySession
 )
 
 // Model is the root Bubble Tea model for the TUI.
@@ -25,6 +33,10 @@ type Model struct {
 	prompted   bool
 	toolPanels map[string]*messages.ToolPanel // track pending tool panels by ID
 	commands   *CommandRegistry
+
+	overlay       overlays.SelectorModel
+	activeOverlay overlayKind
+	pendingSessions []SessionEntry
 }
 
 // newModel creates a new root model.
@@ -70,12 +82,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.editor = m.editor.SetSize(m.width, 3)
 		m.footer = m.footer.SetSize(m.width)
 		m.spinner = m.spinner.SetSize(m.width)
+		m.overlay = m.overlay.SetSize(m.width, m.height)
 		return m, nil
 
 	case tea.KeyMsg:
-		if msg.String() == "ctrl+c" || msg.String() == "ctrl+d" {
+		if msg.String() == "ctrl+c" {
+			if m.activeOverlay != overlayNone {
+				m.activeOverlay = overlayNone
+				m.overlay = m.overlay.Hide()
+				return m, nil
+			}
+
 			return m, tea.Quit
 		}
+
+		if msg.String() == "ctrl+d" {
+			return m, tea.Quit
+		}
+
+		if m.activeOverlay != overlayNone {
+			var cmd tea.Cmd
+			m.overlay, cmd = m.overlay.Update(msg)
+			return m, cmd
+		}
+
 		var cmd tea.Cmd
 		m.editor, cmd = m.editor.Update(msg)
 		return m, cmd
@@ -84,7 +114,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.onSubmit(msg.Text)
 
 	case TurnStartMsg:
-		// New turn starting — show spinner
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.SpinnerUpdate(components.SpinnerShowMsg{})
 		return m, cmd
@@ -102,12 +131,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.onToolResult(msg)
 
 	case TurnEndMsg:
-		// Turn ended — refresh git branch and hide spinner
 		m.spinner = m.spinner.Hide()
 
 	case AgentEndMsg:
-		// Agent finished — hide spinner
 		m.spinner = m.spinner.Hide()
+
+	case SessionListResultMsg:
+		return m.onSessionListResult(msg)
+
+	case overlays.SelectorSelectedMsg:
+		return m.onOverlaySelected(msg)
+
+	case overlays.SelectorCancelledMsg:
+		m.activeOverlay = overlayNone
+		m.overlay = m.overlay.Hide()
+		m.pendingSessions = nil
+		return m, nil
 
 	case ShutdownMsg:
 		return m, tea.Quit
@@ -192,13 +231,16 @@ func (m Model) onSubmit(text string) (tea.Model, tea.Cmd) {
 		if result.Quit {
 			return m, tea.Quit
 		}
+
 		if result.ClearChat {
 			m.chat = components.NewChatModel().SetSize(m.width, m.chatHeight(m.height))
 			m.toolPanels = make(map[string]*messages.ToolPanel)
 		}
+
 		if result.ResetPrompt {
 			m.prompted = false
 		}
+
 		if result.Notify != "" {
 			m.chat = m.chat.AddItem(messages.NewAssistantMessage())
 			items := m.chat.Items()
@@ -207,6 +249,7 @@ func (m Model) onSubmit(text string) (tea.Model, tea.Cmd) {
 				m.chat = m.chat.UpdateItem(am)
 			}
 		}
+
 		return m, result.Command
 	}
 
@@ -216,7 +259,98 @@ func (m Model) onSubmit(text string) (tea.Model, tea.Cmd) {
 		m.prompted = true
 		return m, PublishPrompt(m.bus, text)
 	}
+
 	return m, PublishFollowup(m.bus, text)
+}
+
+func (m Model) onSessionListResult(msg SessionListResultMsg) (tea.Model, tea.Cmd) {
+	if msg.Err != nil {
+		am := messages.NewAssistantMessage()
+		am.Finalize(fmt.Sprintf("Error listing sessions: %v", msg.Err))
+		m.chat = m.chat.AddItem(am)
+		return m, nil
+	}
+
+	if len(msg.Sessions) == 0 {
+		am := messages.NewAssistantMessage()
+		am.Finalize("No sessions found.")
+		m.chat = m.chat.AddItem(am)
+		return m, nil
+	}
+
+	items := make([]overlays.SelectorItem, len(msg.Sessions))
+	for i, s := range msg.Sessions {
+		items[i] = overlays.SelectorItem{
+			Title:    shortenCWD(s.CWD),
+			Subtitle: s.CreatedAt.Format("2006-01-02 15:04"),
+		}
+	}
+
+	m.pendingSessions = msg.Sessions
+	m.overlay = overlays.NewSelectorModel("Resume Session", items)
+	m.overlay = m.overlay.SetSize(m.width, m.height)
+	m.overlay = m.overlay.Show()
+	m.activeOverlay = overlaySession
+
+	return m, nil
+}
+
+func (m Model) onOverlaySelected(msg overlays.SelectorSelectedMsg) (tea.Model, tea.Cmd) {
+	switch m.activeOverlay {
+	case overlaySession:
+		return m.onSessionSelected(msg)
+	default:
+		m.activeOverlay = overlayNone
+		m.overlay = m.overlay.Hide()
+		return m, nil
+	}
+}
+
+func (m Model) onSessionSelected(msg overlays.SelectorSelectedMsg) (tea.Model, tea.Cmd) {
+	m.activeOverlay = overlayNone
+	m.overlay = m.overlay.Hide()
+
+	if msg.Index < 0 || msg.Index >= len(m.pendingSessions) {
+		m.pendingSessions = nil
+		return m, nil
+	}
+
+	session := m.pendingSessions[msg.Index]
+	m.pendingSessions = nil
+
+	m.rebuildChatFromSession(session.ID)
+
+	if m.bus != nil {
+		return m, PublishSessionResume(m.bus, session.ID)
+	}
+
+	return m, nil
+}
+
+func (m *Model) rebuildChatFromSession(sessionID string) {
+	entries, err := loadSessionEntries(sessionID)
+	if err != nil {
+		m.chat = components.NewChatModel().SetSize(m.width, m.chatHeight(m.height))
+		am := messages.NewAssistantMessage()
+		am.Finalize(fmt.Sprintf("Error loading session: %v", err))
+		m.chat = m.chat.AddItem(am)
+		return
+	}
+
+	m.chat = components.NewChatModel().SetSize(m.width, m.chatHeight(m.height))
+	m.toolPanels = make(map[string]*messages.ToolPanel)
+	m.prompted = true
+
+	for _, entry := range entries {
+		switch entry.Role {
+		case sdk.RoleUser:
+			m.chat = m.chat.AddItem(messages.NewUserMessage(entry.Content))
+		case sdk.RoleAssistant:
+			am := messages.NewAssistantMessage()
+			am.Finalize(entry.Content)
+			m.chat = m.chat.AddItem(am)
+		}
+	}
 }
 
 // chatHeight returns the height allocated to the chat area.
@@ -227,15 +361,21 @@ func (m Model) chatHeight(totalHeight int) int {
 	if m.spinner.Visible() {
 		spinnerLines = 1
 	}
+
 	reserved := editorLines + footerLines + spinnerLines
 	if totalHeight > reserved+1 {
 		return totalHeight - reserved
 	}
+
 	return 1
 }
 
 // View renders the TUI.
 func (m Model) View() string {
+	if m.activeOverlay != overlayNone && m.overlay.Visible() {
+		return m.overlay.View()
+	}
+
 	var sections []string
 
 	sections = append(sections, m.chat.View())

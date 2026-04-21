@@ -19,6 +19,9 @@ const (
 	topicMsgEnd     = "agent.message_end"
 	topicToolResult = "agent.tool_result"
 	topicEnd        = "agent.end"
+
+	topicSessionList   = "session.list"
+	topicSessionResume = "session.resume"
 )
 
 // Sender abstracts tea.Program.Send for testability.
@@ -58,6 +61,17 @@ type AgentEndMsg struct {
 
 type ShutdownMsg struct{}
 
+// SessionListResultMsg carries the result of listing sessions.
+type SessionListResultMsg struct {
+	Sessions []SessionEntry
+	Err      error
+}
+
+// SessionResumedMsg is sent when a session resume event arrives from the bus.
+type SessionResumedMsg struct {
+	SessionID string
+}
+
 // translateEvent converts a bus event into a tea.Msg.
 // Returns nil for unknown topics.
 func translateEvent(evt sdk.Event) tea.Msg {
@@ -78,6 +92,9 @@ func translateEvent(evt sdk.Event) tea.Msg {
 		return translateToolResult(evt.Payload)
 	case topicEnd:
 		return AgentEndMsg{Payload: evt.Payload}
+	case topicSessionResume:
+		id, _ := evt.Payload.(string)
+		return SessionResumedMsg{SessionID: id}
 	default:
 		return nil
 	}
@@ -151,6 +168,14 @@ func PublishFollowup(bus sdk.Bus, text string) tea.Cmd {
 func PublishSteer(bus sdk.Bus, text string) tea.Cmd {
 	return func() tea.Msg {
 		bus.Publish(sdk.NewEvent(topicSteer, text))
+		return nil
+	}
+}
+
+// PublishSessionResume returns a tea.Cmd that publishes a session.resume event.
+func PublishSessionResume(bus sdk.Bus, sessionID string) tea.Cmd {
+	return func() tea.Msg {
+		bus.Publish(sdk.NewEvent(topicSessionResume, sessionID))
 		return nil
 	}
 }

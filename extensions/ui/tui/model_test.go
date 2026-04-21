@@ -1,15 +1,22 @@
 package tui
 
 import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
+	"weave/bus"
 	"weave/ext/ui/tui/components"
 	"weave/ext/ui/tui/components/messages"
+	"weave/ext/ui/tui/components/overlays"
 	"weave/sdk"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 func TestModel_HandlesMessageStart(t *testing.T) {
@@ -502,4 +509,342 @@ func TestModel_ThinkingBlockWithToolCalls(t *testing.T) {
 
 	_, ok = items[2].(*messages.ToolPanel)
 	assert.True(t, ok, "item 2 should be ToolPanel")
+}
+
+func TestModel_ResumeCommandDispatches(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	r := NewCommandRegistry(b)
+
+	_, ok := r.Lookup("/resume")
+	require.True(t, ok, "/resume command should be registered")
+
+	handled, result := r.Dispatch("/resume")
+	require.True(t, handled)
+	assert.NotNil(t, result.Command)
+	assert.False(t, result.Quit)
+}
+
+func TestModel_SessionListResultShowsOverlay(t *testing.T) {
+	m := newModel(nil, nil)
+	m.width = 80
+	m.height = 24
+
+	sessions := []SessionEntry{
+		{ID: "aaa11122233344455566677788899900", CWD: "/project/alpha", CreatedAt: time.Now()},
+		{ID: "bbb11122233344455566677788899900", CWD: "/project/beta", CreatedAt: time.Now().Add(-time.Hour)},
+	}
+
+	model, _ := m.Update(SessionListResultMsg{Sessions: sessions})
+	m = model.(Model)
+
+	assert.Equal(t, overlaySession, m.activeOverlay)
+	assert.True(t, m.overlay.Visible())
+	assert.Equal(t, sessions, m.pendingSessions)
+
+	// Verify overlay items have CWD and timestamp
+	view := m.overlay.View()
+	assert.Contains(t, view, "Resume Session")
+}
+
+func TestModel_SessionListEmpty(t *testing.T) {
+	m := newModel(nil, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, 10)
+
+	model, _ := m.Update(SessionListResultMsg{Sessions: nil})
+	m = model.(Model)
+
+	assert.Equal(t, overlayNone, m.activeOverlay)
+
+	items := m.chat.Items()
+	require.Len(t, items, 1)
+	am, ok := items[0].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Contains(t, am.Content(), "No sessions found")
+}
+
+func TestModel_SessionListError(t *testing.T) {
+	m := newModel(nil, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, 10)
+
+	model, _ := m.Update(SessionListResultMsg{Err: fmt.Errorf("disk error")})
+	m = model.(Model)
+
+	assert.Equal(t, overlayNone, m.activeOverlay)
+
+	items := m.chat.Items()
+	require.Len(t, items, 1)
+	am, ok := items[0].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Contains(t, am.Content(), "Error listing sessions")
+}
+
+func TestModel_SessionSelectorCancel(t *testing.T) {
+	m := newModel(nil, nil)
+	m.width = 80
+	m.height = 24
+
+	sessions := []SessionEntry{
+		{ID: "aaa11122233344455566677788899900", CWD: "/project", CreatedAt: time.Now()},
+	}
+
+	model, _ := m.Update(SessionListResultMsg{Sessions: sessions})
+	m = model.(Model)
+	require.Equal(t, overlaySession, m.activeOverlay)
+
+	// Cancel via ctrl+c
+	model, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	m = model.(Model)
+
+	assert.Equal(t, overlayNone, m.activeOverlay)
+	assert.False(t, m.overlay.Visible())
+}
+
+func TestModel_SessionSelectorEscape(t *testing.T) {
+	m := newModel(nil, nil)
+	m.width = 80
+	m.height = 24
+
+	sessions := []SessionEntry{
+		{ID: "aaa11122233344455566677788899900", CWD: "/project", CreatedAt: time.Now()},
+	}
+
+	model, _ := m.Update(SessionListResultMsg{Sessions: sessions})
+	m = model.(Model)
+	require.Equal(t, overlaySession, m.activeOverlay)
+
+	// Escape cancels the selector overlay
+	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m = model.(Model)
+
+	// The overlay's Update produces SelectorCancelledMsg via cmd
+	assert.NotNil(t, cmd)
+
+	// Process the cancel message
+	msg := cmd()
+	_, ok := msg.(overlays.SelectorCancelledMsg)
+	assert.True(t, ok)
+
+	model, _ = m.Update(overlays.SelectorCancelledMsg{})
+	m = model.(Model)
+
+	assert.Equal(t, overlayNone, m.activeOverlay)
+	assert.Nil(t, m.pendingSessions)
+}
+
+func TestModel_SessionSelectorSelect(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("WEAVE_JSONL_DIR", dir)
+
+	b := bus.New()
+	defer b.Close()
+
+	ch := b.Subscribe(topicSessionResume)
+
+	m := newModel(b, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, 10)
+
+	sessionID := "aaa11122233344455566677788899900"
+	sessions := []SessionEntry{
+		{ID: sessionID, CWD: "/project", CreatedAt: time.Now()},
+	}
+
+	// Create a session file to load
+	header := sessionHeader{Type: "session", ID: sessionID, Timestamp: time.Now().UTC(), CWD: "/project"}
+	headerJSON, _ := json.Marshal(header)
+
+	entry := map[string]any{
+		"type": "message",
+		"data": map[string]any{"role": "user", "content": "previous question"},
+	}
+
+	eJSON, _ := json.Marshal(entry)
+	content := string(headerJSON) + "\n" + string(eJSON) + "\n"
+	err := os.WriteFile(filepath.Join(dir, sessionID+".jsonl"), []byte(content), 0o644)
+	require.NoError(t, err)
+
+	// Show selector
+	model, _ := m.Update(SessionListResultMsg{Sessions: sessions})
+	m = model.(Model)
+	require.Equal(t, overlaySession, m.activeOverlay)
+
+	// Select first item
+	model, cmd := m.Update(overlays.SelectorSelectedMsg{Index: 0, Item: overlays.SelectorItem{
+		Title: "/project", Subtitle: "2026-01-01 12:00",
+	}})
+	m = model.(Model)
+
+	assert.Equal(t, overlayNone, m.activeOverlay)
+	assert.Nil(t, m.pendingSessions)
+	assert.True(t, m.prompted)
+
+	// Verify chat was rebuilt with session history
+	items := m.chat.Items()
+	require.Len(t, items, 1)
+	um, ok := items[0].(*messages.UserMessage)
+	require.True(t, ok)
+	assert.Equal(t, "previous question", um.Content())
+
+	// Execute the cmd to publish the bus event
+	require.NotNil(t, cmd)
+	cmd()
+
+	// Verify session.resume event was published
+	evt := <-ch
+	assert.Equal(t, topicSessionResume, evt.Topic)
+	assert.Equal(t, sessionID, evt.Payload)
+}
+
+func TestModel_OverlayInterceptsKeys(t *testing.T) {
+	m := newModel(nil, nil)
+	m.width = 80
+	m.height = 24
+
+	sessions := []SessionEntry{
+		{ID: "aaa11122233344455566677788899900", CWD: "/project", CreatedAt: time.Now()},
+	}
+
+	model, _ := m.Update(SessionListResultMsg{Sessions: sessions})
+	m = model.(Model)
+	require.Equal(t, overlaySession, m.activeOverlay)
+
+	// Regular key press should go to overlay, not editor
+	model, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	m = model.(Model)
+
+	// Overlay should still be active (key was a filter char)
+	assert.Equal(t, overlaySession, m.activeOverlay)
+	assert.Equal(t, "a", m.overlay.Filter())
+}
+
+func TestModel_OverlayCtrlCDoesNotQuit(t *testing.T) {
+	m := newModel(nil, nil)
+	m.width = 80
+	m.height = 24
+
+	sessions := []SessionEntry{
+		{ID: "aaa11122233344455566677788899900", CWD: "/project", CreatedAt: time.Now()},
+	}
+
+	model, _ := m.Update(SessionListResultMsg{Sessions: sessions})
+	m = model.(Model)
+	require.Equal(t, overlaySession, m.activeOverlay)
+
+	// ctrl+c should cancel overlay, not quit
+	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	m = model.(Model)
+
+	assert.Equal(t, overlayNone, m.activeOverlay)
+	assert.Nil(t, cmd) // no quit command
+}
+
+func TestModel_RebuildChatFromSession(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("WEAVE_JSONL_DIR", dir)
+
+	sessionID := "aaa11122233344455566677788899900"
+
+	header := sessionHeader{Type: "session", ID: sessionID, Timestamp: time.Now().UTC(), CWD: "/test"}
+	headerJSON, _ := json.Marshal(header)
+
+	e1 := map[string]any{
+		"type": "message",
+		"data": map[string]any{"role": "user", "content": "question"},
+	}
+	e2 := map[string]any{
+		"type": "message",
+		"data": map[string]any{"role": "assistant", "content": "answer"},
+	}
+	e3 := map[string]any{
+		"type": "message",
+		"data": map[string]any{"role": "tool_result", "content": "output"},
+	}
+
+	e1JSON, _ := json.Marshal(e1)
+	e2JSON, _ := json.Marshal(e2)
+	e3JSON, _ := json.Marshal(e3)
+
+	content := string(headerJSON) + "\n" + string(e1JSON) + "\n" + string(e2JSON) + "\n" + string(e3JSON) + "\n"
+	err := os.WriteFile(filepath.Join(dir, sessionID+".jsonl"), []byte(content), 0o644)
+	require.NoError(t, err)
+
+	m := newModel(nil, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, 10)
+	m.prompted = true
+
+	m.rebuildChatFromSession(sessionID)
+
+	items := m.chat.Items()
+	require.Len(t, items, 2) // tool_result skipped
+
+	um, ok := items[0].(*messages.UserMessage)
+	require.True(t, ok)
+	assert.Equal(t, "question", um.Content())
+
+	am, ok := items[1].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Equal(t, "answer", am.Content())
+	assert.False(t, am.IsStreaming())
+
+	assert.True(t, m.prompted)
+}
+
+func TestModel_ViewShowsOverlayWhenActive(t *testing.T) {
+	m := newModel(nil, nil)
+	m.width = 80
+	m.height = 24
+
+	sessions := []SessionEntry{
+		{ID: "aaa11122233344455566677788899900", CWD: "/project", CreatedAt: time.Now()},
+	}
+
+	normalView := m.View()
+	assert.NotContains(t, normalView, "Resume Session")
+
+	model, _ := m.Update(SessionListResultMsg{Sessions: sessions})
+	m = model.(Model)
+
+	overlayView := m.View()
+	assert.Contains(t, overlayView, "Resume Session")
+}
+
+func TestModel_ResumeSlashCommandIntegration(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("WEAVE_JSONL_DIR", dir)
+
+	b := bus.New()
+	defer b.Close()
+
+	m := newModel(b, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, 10)
+
+	// Dispatch /resume command
+	model, cmd := m.onSubmit("/resume")
+	m = model.(Model)
+	require.NotNil(t, cmd)
+
+	// Execute the command to get SessionListResultMsg
+	msg := cmd()
+	result, ok := msg.(SessionListResultMsg)
+	require.True(t, ok)
+	require.NoError(t, result.Err)
+	assert.Empty(t, result.Sessions) // empty dir
+
+	// Process the result (empty sessions)
+	model, _ = m.Update(result)
+	m = model.(Model)
+
+	// Should show "No sessions found" message, not overlay
+	assert.Equal(t, overlayNone, m.activeOverlay)
 }
