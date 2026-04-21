@@ -4,14 +4,23 @@ import "strings"
 
 // AssistantMessage accumulates streaming text deltas into a single message.
 type AssistantMessage struct {
-	content  strings.Builder
-	final    string
+	content   strings.Builder
+	final     string
 	streaming bool
+	renderer  *MarkdownRenderer
 }
 
 // NewAssistantMessage creates a new assistant message in streaming mode.
 func NewAssistantMessage() *AssistantMessage {
-	return &AssistantMessage{streaming: true}
+	return &AssistantMessage{
+		streaming: true,
+		renderer:  NewMarkdownRenderer(80),
+	}
+}
+
+// SetWidth updates the markdown renderer width.
+func (m *AssistantMessage) SetWidth(width int) {
+	m.renderer.SetWidth(width)
 }
 
 // Append adds a content delta to the streaming message.
@@ -38,7 +47,12 @@ func (m *AssistantMessage) IsStreaming() bool {
 	return m.streaming
 }
 
-// View renders the assistant message as a string.
+// View renders the assistant message. Finalized messages use markdown rendering;
+// streaming messages render as plain text for performance.
 func (m *AssistantMessage) View(width int) string {
-	return m.Content()
+	m.renderer.SetWidth(width)
+	if m.streaming {
+		return m.Content()
+	}
+	return m.renderer.Render(m.Content())
 }
