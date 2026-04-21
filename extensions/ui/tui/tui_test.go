@@ -41,7 +41,7 @@ func TestTUI_CloseWithoutSubscribe(t *testing.T) {
 
 func TestModel_View(t *testing.T) {
 	m := newModel(nil, nil)
-	assert.Equal(t, "weave tui", m.View())
+	assert.Equal(t, "", m.View()) // empty chat, no size set
 }
 
 func TestModel_Init(t *testing.T) {
