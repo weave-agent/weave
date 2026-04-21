@@ -1,0 +1,159 @@
+package tui
+
+import (
+	"fmt"
+	"sort"
+	"strings"
+	"sync"
+
+	"weave/sdk"
+
+	tea "github.com/charmbracelet/bubbletea"
+)
+
+// CommandResult is returned by a command handler to signal side effects.
+type CommandResult struct {
+	// Quit exits the TUI.
+	Quit bool
+	// ClearChat clears all chat messages.
+	ClearChat bool
+	// Prompt resets prompt state so next submit sends agent.prompt.
+	ResetPrompt bool
+	// Notify shows a message in chat (info).
+	Notify string
+	// Command publishes a tea.Cmd.
+	Command tea.Cmd
+}
+
+// CommandHandler processes a slash command with its arguments.
+type CommandHandler func(args string) CommandResult
+
+// CommandInfo describes a registered slash command.
+type CommandInfo struct {
+	Name        string
+	Description string
+	Handler     CommandHandler
+}
+
+// CommandRegistry manages slash commands.
+type CommandRegistry struct {
+	mu       sync.Mutex
+	commands map[string]CommandInfo
+}
+
+// NewCommandRegistry creates a registry with built-in commands.
+func NewCommandRegistry(bus sdk.Bus) *CommandRegistry {
+	r := &CommandRegistry{
+		commands: make(map[string]CommandInfo),
+	}
+
+	r.register("/new", "Start a new conversation", func(_ string) CommandResult {
+		return CommandResult{ClearChat: true, ResetPrompt: true}
+	})
+
+	r.register("/clear", "Start a new conversation (alias for /new)", func(_ string) CommandResult {
+		return CommandResult{ClearChat: true, ResetPrompt: true}
+	})
+
+	r.register("/quit", "Exit weave", func(_ string) CommandResult {
+		return CommandResult{Quit: true}
+	})
+
+	r.register("/help", "Show available commands", func(_ string) CommandResult {
+		return CommandResult{Notify: r.helpText()}
+	})
+
+	r.register("/compact", "Compact conversation history", func(_ string) CommandResult {
+		return CommandResult{Command: PublishSteer(bus, "compact")}
+	})
+
+	r.register("/name", "Set conversation name", func(args string) CommandResult {
+		return CommandResult{Command: PublishSteer(bus, "name "+args)}
+	})
+
+	return r
+}
+
+func (r *CommandRegistry) register(name, description string, handler CommandHandler) {
+	r.commands[name] = CommandInfo{
+		Name:        name,
+		Description: description,
+		Handler:     handler,
+	}
+}
+
+// Register adds a command to the registry. Not safe for concurrent use with Dispatch.
+func (r *CommandRegistry) Register(name, description string, handler CommandHandler) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.register(name, description, handler)
+}
+
+// Dispatch parses input and, if it starts with /, runs the matching command.
+// Returns (true, result) if handled as a command, (false, zero) otherwise.
+func (r *CommandRegistry) Dispatch(input string) (bool, CommandResult) {
+	if !strings.HasPrefix(input, "/") {
+		return false, CommandResult{}
+	}
+
+	name, args := parseCommand(input)
+
+	r.mu.Lock()
+	cmd, ok := r.commands[name]
+	r.mu.Unlock()
+
+	if !ok {
+		return true, CommandResult{
+			Notify: fmt.Sprintf("unknown command: %s", name),
+		}
+	}
+
+	return true, cmd.Handler(args)
+}
+
+// Names returns sorted command names for autocomplete.
+func (r *CommandRegistry) Names() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	names := make([]string, 0, len(r.commands))
+	for k := range r.commands {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// Lookup returns command info by name.
+func (r *CommandRegistry) Lookup(name string) (CommandInfo, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	cmd, ok := r.commands[name]
+	return cmd, ok
+}
+
+func (r *CommandRegistry) helpText() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	names := make([]string, 0, len(r.commands))
+	for k := range r.commands {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+
+	var b strings.Builder
+	b.WriteString("Available commands:\n")
+	for _, name := range names {
+		info := r.commands[name]
+		fmt.Fprintf(&b, "  %-12s %s\n", name, info.Description)
+	}
+	return b.String()
+}
+
+// parseCommand splits "/name arg1 arg2" into ("/name", "arg1 arg2").
+func parseCommand(input string) (string, string) {
+	input = strings.TrimSpace(input)
+	name, args, _ := strings.Cut(input, " ")
+	return name, strings.TrimSpace(args)
+}

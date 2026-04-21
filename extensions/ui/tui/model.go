@@ -24,20 +24,27 @@ type Model struct {
 	spinner    components.SpinnerModel
 	prompted   bool
 	toolPanels map[string]*messages.ToolPanel // track pending tool panels by ID
+	commands   *CommandRegistry
 }
 
 // newModel creates a new root model.
 func newModel(bus sdk.Bus, cfg sdk.Config) Model {
+	commands := NewCommandRegistry(bus)
+
+	editor := components.NewEditorModel().Focus()
+	editor.SetSlashCommands(commands.Names())
+
 	return Model{
 		width:      80,
 		height:     24,
 		bus:        bus,
 		cfg:        cfg,
 		chat:       components.NewChatModel(),
-		editor:     components.NewEditorModel().Focus(),
+		editor:     editor,
 		footer:     components.NewFooterModel(),
 		spinner:    components.NewSpinnerModel(),
 		toolPanels: make(map[string]*messages.ToolPanel),
+		commands:   commands,
 	}
 }
 
@@ -74,7 +81,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case components.SubmitMsg:
-		return m, m.onSubmit(msg.Text)
+		return m.onSubmit(msg.Text)
 
 	case TurnStartMsg:
 		// New turn starting — show spinner
@@ -178,15 +185,38 @@ func (m *Model) AddUserMessage(content string) {
 	m.chat = m.chat.AddItem(messages.NewUserMessage(content))
 }
 
-// onSubmit handles editor submit — publishes prompt or followup via bus.
-func (m Model) onSubmit(text string) tea.Cmd {
+// onSubmit handles editor submit — routes slash commands or publishes prompt/followup.
+func (m Model) onSubmit(text string) (tea.Model, tea.Cmd) {
+	// Try slash command dispatch first.
+	if handled, result := m.commands.Dispatch(text); handled {
+		if result.Quit {
+			return m, tea.Quit
+		}
+		if result.ClearChat {
+			m.chat = components.NewChatModel().SetSize(m.width, m.chatHeight(m.height))
+			m.toolPanels = make(map[string]*messages.ToolPanel)
+		}
+		if result.ResetPrompt {
+			m.prompted = false
+		}
+		if result.Notify != "" {
+			m.chat = m.chat.AddItem(messages.NewAssistantMessage())
+			items := m.chat.Items()
+			if am, ok := items[len(items)-1].(*messages.AssistantMessage); ok {
+				am.Finalize(result.Notify)
+				m.chat = m.chat.UpdateItem(am)
+			}
+		}
+		return m, result.Command
+	}
+
 	m.AddUserMessage(text)
 
 	if !m.prompted {
 		m.prompted = true
-		return PublishPrompt(m.bus, text)
+		return m, PublishPrompt(m.bus, text)
 	}
-	return PublishFollowup(m.bus, text)
+	return m, PublishFollowup(m.bus, text)
 }
 
 // chatHeight returns the height allocated to the chat area.

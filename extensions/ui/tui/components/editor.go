@@ -30,17 +30,25 @@ type EditorModel struct {
 	dirty   bool
 
 	// autocomplete
-	showAC   bool
-	acIndex  int
-	acItems  []string
+	showAC       bool
+	acIndex      int
+	acItems      []string
+	slashCmds    []string
 }
 
 // NewEditorModel creates a new editor model.
 func NewEditorModel() EditorModel {
 	return EditorModel{
-		height: 3,
-		dirty:  true,
+		height:    3,
+		dirty:     true,
+		slashCmds: SlashCommands,
 	}
+}
+
+// SetSlashCommands updates the list of slash commands for autocomplete.
+func (m EditorModel) SetSlashCommands(cmds []string) EditorModel {
+	m.slashCmds = cmds
+	return m
 }
 
 // SetValue replaces the editor content.
@@ -300,7 +308,7 @@ func (m EditorModel) updateAutocomplete() EditorModel {
 	}
 
 	m.acItems = nil
-	for _, cmd := range SlashCommands {
+	for _, cmd := range m.slashCmds {
 		if strings.HasPrefix(cmd, prefix) {
 			m.acItems = append(m.acItems, cmd)
 		}
