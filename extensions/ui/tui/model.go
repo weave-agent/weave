@@ -34,6 +34,7 @@ type Model struct {
 	prompted   bool
 	toolPanels map[string]*messages.ToolPanel // track pending tool panels by ID
 	commands   *CommandRegistry
+	bindings   *BindingRegistry
 
 	overlay         overlays.SelectorModel
 	activeOverlay   overlayKind
@@ -55,17 +56,26 @@ func newModel(bus sdk.Bus, cfg sdk.Config) Model {
 	models := listModels()
 	cur := currentModel(models)
 
+	bindings := NewBindingRegistry()
+
+	if cfg != nil && cfg.FilePath() != "" {
+		if kbPath := loadKeybindings(cfg.FilePath()); kbPath != "" {
+			_ = bindings.LoadUserConfig(kbPath)
+		}
+	}
+
 	m := Model{
-		width:       80,
-		height:      24,
-		bus:         bus,
-		cfg:         cfg,
-		chat:        components.NewChatModel(),
-		editor:      editor,
-		footer:      components.NewFooterModel(),
-		spinner:     components.NewSpinnerModel(),
-		toolPanels:  make(map[string]*messages.ToolPanel),
-		commands:    commands,
+		width:        80,
+		height:       24,
+		bus:          bus,
+		cfg:          cfg,
+		chat:         components.NewChatModel(),
+		editor:       editor,
+		footer:       components.NewFooterModel(),
+		spinner:      components.NewSpinnerModel(),
+		toolPanels:   make(map[string]*messages.ToolPanel),
+		commands:     commands,
+		bindings:     bindings,
 		currentModel: cur,
 	}
 	m.footer = m.footer.SetModel(cur.Model, cur.Provider)
@@ -98,41 +108,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		if msg.String() == "ctrl+c" {
-			if m.activeOverlay != overlayNone {
+		// Overlay gets priority when active (ctrl+c dismisses it)
+		if m.activeOverlay != overlayNone {
+			if msg.String() == "ctrl+c" {
 				m.activeOverlay = overlayNone
 				m.overlay = m.overlay.Hide()
 				return m, nil
 			}
 
-			return m, tea.Quit
-		}
-
-		if msg.String() == "ctrl+d" {
-			return m, tea.Quit
-		}
-
-		// Ctrl+L opens model selector
-		if msg.String() == "ctrl+l" && m.activeOverlay == overlayNone {
-			return m, listModelsCmd()
-		}
-
-		// Ctrl+P cycles to next model
-		if msg.String() == "ctrl+p" && m.activeOverlay == overlayNone {
-			models := listModels()
-			if len(models) > 1 {
-				next := cycleModel(models, m.currentModel)
-				return m, func() tea.Msg { return ModelChangedMsg{Entry: next} }
-			}
-			return m, nil
-		}
-
-		if m.activeOverlay != overlayNone {
 			var cmd tea.Cmd
 			m.overlay, cmd = m.overlay.Update(msg)
 			return m, cmd
 		}
 
+		// Try keybinding resolver
+		if action, ok := m.bindings.Resolve(keyString(msg)); ok {
+			return m.dispatchBinding(action)
+		}
+
+		// Fall through to editor
 		var cmd tea.Cmd
 		m.editor, cmd = m.editor.Update(msg)
 		return m, cmd
@@ -194,6 +188,32 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// dispatchBinding handles a resolved keybinding action.
+func (m Model) dispatchBinding(action BindingAction) (tea.Model, tea.Cmd) {
+	switch action {
+	case ActionExit:
+		return m, tea.Quit
+	case ActionClear:
+		return m, tea.Quit
+	case ActionInterrupt:
+		return m, nil
+	case ActionModelSelect:
+		return m, listModelsCmd()
+	case ActionModelCycle:
+		models := listModels()
+		if len(models) > 1 {
+			next := cycleModel(models, m.currentModel)
+			return m, func() tea.Msg { return ModelChangedMsg{Entry: next} }
+		}
+		return m, nil
+	case ActionToolExpand, ActionThinkToggle:
+		// Placeholder: no-op for now, will be wired in task 17
+		return m, nil
+	default:
+		return m, nil
+	}
 }
 
 // onMessageUpdate appends a delta to the current assistant message.
