@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A coding agent framework written in Go — event-driven, extension-based, with dynamic compilation of selected extensions at runtime. Agent-loop, providers (Anthropic, OpenAI, Z.ai), and tools (bash, read, edit, write, grep, find, ls) are implemented as independent extension modules.
+A coding agent framework written in Go — event-driven, extension-based, with dynamic compilation of selected extensions at runtime. Agent-loop, providers (Anthropic, OpenAI, Z.ai), tools (bash, read, edit, write, grep, find, ls), and a terminal UI (TUI) are implemented as independent extension modules.
 
 ## Commands
 
@@ -32,7 +32,7 @@ Standard library as much as possible. Every replaceable component is an extensio
 **Launcher pattern:** resolve config → pick extensions → build a custom binary (cached per hash) → exec it. The `cmd/weave/main.go` entry point orchestrates this pipeline.
 
 **Key packages:**
-- `sdk/` — defines `Extension`, `Bus`, `Config` interfaces; global registries for extensions, providers, and tools (`RegisterExtension`/`GetExtension`, `RegisterProvider`/`GetProvider`, `RegisterTool`/`GetTool`); `Message` types; `Wire()` and `WireWithCore()` composition roots that resolve names and subscribe extensions to the bus
+- `sdk/` — defines `Extension`, `Bus`, `Config`, `UI` interfaces; global registries for extensions, providers, tools, and UIs (`RegisterExtension`/`GetExtension`, `RegisterProvider`/`GetProvider`, `RegisterTool`/`GetTool`, `RegisterUI`/`GetUI`); `Message` types; `Wire()` and `WireWithCore()` composition roots that resolve names and subscribe extensions to the bus; `NoopUI` stub for headless mode
 - `bus/` — channel-based pub/sub event bus (`Publish`/`Subscribe`/`SubscribeAll`) with buffered channels and graceful close
 - `config/` — config discovery (walks up from cwd for `.weave.yaml` or `.weave/config.yaml`) and loading via gonfig. Config has a `core` section (agent_loop + providers) and `extensions` list.
 - `internal/truncate/` — shared output truncation (2000 lines / 50KB) used by all tools for consistent output limiting
@@ -41,9 +41,10 @@ Standard library as much as possible. Every replaceable component is an extensio
 - `extensions/providers/openai-compat/` — shared library for OpenAI-compatible providers (SSE parsing, message/tool conversion); reused by `openai` and `zai` providers; import as `openaicompat` package
 - `extensions/providers/{anthropic,openai,zai}/` — provider extension modules; Anthropic uses official SDK, OpenAI and Z.ai delegate to `openai-compat`
 - `extensions/store/jsonl/` — session persistence extension; subscribes to bus events and writes JSONL files to `~/.weave/sessions/`; implements Create, Append, Load, History, List, Compact internally with no SDK interface
+- `extensions/ui/tui/` — interactive terminal UI extension built with Bubble Tea; self-registers via `sdk.RegisterExtension("tui", ...)` and `sdk.RegisterUI("tui", ...)`; implements `sdk.UI` interface for cross-extension integration (popups, status bar, slash commands, keybindings); bridge goroutine translates bus events to Bubble Tea messages; includes streaming chat, markdown rendering, tool output panels, thinking blocks, diff highlighting, multi-line editor with history, footer with git/token stats, slash commands, session/model selectors, and configurable keybindings
 - `launcher/` — full pipeline: `Discover` extensions (project-local `.weave/extensions/{name}/`, global `~/.weave/extensions/{name}/`, then built-in under `extensions/{category}/{name}/` with nested lookup), `ComputeHash` of .go files, `Cache` in `~/.weave/bin/{hash}/`, `Build` by generating go.mod+main.go with blank imports, then `syscall.Exec`
 
-**Extension lifecycle:** Extension packages call `sdk.RegisterExtension(name, factory)` in `init()`. Provider and tool extensions similarly call `sdk.RegisterProvider` and `sdk.RegisterTool`. The built binary blank-imports selected extensions, triggering registration. `sdk.Wire()` or `sdk.WireWithCore()` resolves names from registries and subscribes each to the bus.
+**Extension lifecycle:** Extension packages call `sdk.RegisterExtension(name, factory)` in `init()`. Provider, tool, and UI extensions similarly call `sdk.RegisterProvider`, `sdk.RegisterTool`, and `sdk.RegisterUI`. The built binary blank-imports selected extensions, triggering registration. `sdk.Wire()` or `sdk.WireWithCore()` resolves names from registries and subscribes each to the bus. When no prompt is provided (`-p` flag unset), the TUI extension is included in the build for interactive mode; with `-p`, weave runs in print mode without TUI.
 
 ## Configuration
 
@@ -56,9 +57,18 @@ core:
   agent_loop: loop       # default: "loop"
   providers:             # default: ["anthropic"]
     - anthropic
+ui: tui                  # default: "tui" (interactive). "none" for headless.
 extensions:
   - bash
 ```
+
+**Keybindings** are configured in `.weave/keybindings.yaml` and override built-in defaults (priority: user config > extension registrations > built-in):
+```yaml
+keybindings:
+  app.model.cycleForward: ["ctrl+p"]
+  app.model.select: ["ctrl+l"]
+```
+Built-in bindings: Escape=interrupt, Ctrl+C=clear, Ctrl+D=exit, Ctrl+L=model selector, Ctrl+P=model cycle, Ctrl+O=tool expand, Ctrl+T=thinking toggle.
 
 **Provider environment variables:**
 - `ANTHROPIC_API_KEY` — required for Anthropic provider (default model: `claude-sonnet-4-20250514`, override with `ANTHROPIC_MODEL`)
