@@ -18,7 +18,8 @@ import (
 func newTestStore(t *testing.T) *Store {
 	t.Helper()
 	dir := t.TempDir()
-	return &Store{cfg: Config{Dir: dir}}
+
+	return &Store{cfg: Config{JSONL: JSONLOpts{Dir: dir}}}
 }
 
 func TestGenerateID(t *testing.T) {
@@ -42,7 +43,7 @@ func TestCreate(t *testing.T) {
 	assert.Equal(t, "/tmp/project", sess.Header.CWD)
 	assert.False(t, sess.Header.Timestamp.IsZero())
 
-	path := filepath.Join(s.cfg.Dir, sess.Header.ID+".jsonl")
+	path := filepath.Join(s.cfg.JSONL.Dir, sess.Header.ID+".jsonl")
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 
@@ -80,7 +81,7 @@ func TestAppend(t *testing.T) {
 	assert.Len(t, loaded.Entries[0].ID, 32)
 	assert.False(t, loaded.Entries[0].Created.IsZero())
 	assert.Equal(t, 1, loaded.Entries[0].Turn)
-	assert.Equal(t, `{"role":"user","content":"hello"}`, string(loaded.Entries[0].Data))
+	assert.JSONEq(t, `{"role":"user","content":"hello"}`, string(loaded.Entries[0].Data))
 
 	assert.Len(t, loaded.Entries[1].ID, 32)
 	assert.Equal(t, 2, loaded.Entries[1].Turn)
@@ -118,7 +119,7 @@ func TestLoad_Roundtrip(t *testing.T) {
 		{Type: "message", Turn: 2, Data: json.RawMessage(`{"role":"assistant","content":"world"}`)},
 	}
 	for _, e := range entries {
-		_, err := s.Append(sess.Header.ID, e)
+		_, err = s.Append(sess.Header.ID, e)
 		require.NoError(t, err)
 	}
 
@@ -142,8 +143,8 @@ func TestHistory(t *testing.T) {
 	sess, err := s.Create("/tmp/project")
 	require.NoError(t, err)
 
-	for i := 0; i < 3; i++ {
-		_, err := s.Append(sess.Header.ID, Entry{
+	for i := range 3 {
+		_, err = s.Append(sess.Header.ID, Entry{
 			Type: "message",
 			Turn: i + 1,
 			Data: json.RawMessage(`{}`),
@@ -169,10 +170,11 @@ func TestList(t *testing.T) {
 	sess2, err := s.Create("/tmp/proj2")
 	require.NoError(t, err)
 
-	for i := 0; i < 3; i++ {
-		_, err := s.Append(sess1.Header.ID, Entry{Type: "message", Turn: i + 1, Data: json.RawMessage(`{}`)})
+	for i := range 3 {
+		_, err = s.Append(sess1.Header.ID, Entry{Type: "message", Turn: i + 1, Data: json.RawMessage(`{}`)})
 		require.NoError(t, err)
 	}
+
 	_, err = s.Append(sess2.Header.ID, Entry{Type: "message", Turn: 1, Data: json.RawMessage(`{}`)})
 	require.NoError(t, err)
 
@@ -208,8 +210,8 @@ func TestCompact_Truncation(t *testing.T) {
 	sess, err := s.Create("/tmp/project")
 	require.NoError(t, err)
 
-	for i := 0; i < 5; i++ {
-		_, err := s.Append(sess.Header.ID, Entry{
+	for i := range 5 {
+		_, err = s.Append(sess.Header.ID, Entry{
 			Type: "message",
 			Turn: i + 1,
 			Data: json.RawMessage(`{"role":"user","content":"msg"}`),
@@ -236,8 +238,8 @@ func TestCompact_SummaryEntry(t *testing.T) {
 	sess, err := s.Create("/tmp/project")
 	require.NoError(t, err)
 
-	for i := 0; i < 4; i++ {
-		_, err := s.Append(sess.Header.ID, Entry{
+	for i := range 4 {
+		_, err = s.Append(sess.Header.ID, Entry{
 			Type: "message",
 			Turn: i + 1,
 			Data: json.RawMessage(`{}`),
@@ -265,8 +267,8 @@ func TestCompact_KeepLastExceedsTotal(t *testing.T) {
 	sess, err := s.Create("/tmp/project")
 	require.NoError(t, err)
 
-	for i := 0; i < 3; i++ {
-		_, err := s.Append(sess.Header.ID, Entry{
+	for i := range 3 {
+		_, err = s.Append(sess.Header.ID, Entry{
 			Type: "message",
 			Turn: i + 1,
 			Data: json.RawMessage(`{}`),
@@ -286,8 +288,8 @@ func TestCompact_PreservesHeader(t *testing.T) {
 	sess, err := s.Create("/tmp/my-project")
 	require.NoError(t, err)
 
-	for i := 0; i < 3; i++ {
-		_, err := s.Append(sess.Header.ID, Entry{Type: "message", Turn: i + 1, Data: json.RawMessage(`{}`)})
+	for i := range 3 {
+		_, err = s.Append(sess.Header.ID, Entry{Type: "message", Turn: i + 1, Data: json.RawMessage(`{}`)})
 		require.NoError(t, err)
 	}
 
@@ -301,7 +303,7 @@ func TestCompact_PreservesHeader(t *testing.T) {
 
 func TestList_IgnoresNonJSONL(t *testing.T) {
 	s := newTestStore(t)
-	require.NoError(t, os.WriteFile(filepath.Join(s.cfg.Dir, "other.txt"), []byte("data"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(s.cfg.JSONL.Dir, "other.txt"), []byte("data"), 0o644))
 
 	infos, err := s.List()
 	require.NoError(t, err)
@@ -317,7 +319,7 @@ func TestSessionPath_InvalidID(t *testing.T) {
 
 func TestLoad_EmptyFile(t *testing.T) {
 	s := newTestStore(t)
-	path := filepath.Join(s.cfg.Dir, "empty.jsonl")
+	path := filepath.Join(s.cfg.JSONL.Dir, "empty.jsonl")
 	require.NoError(t, os.WriteFile(path, []byte(""), 0o644))
 	_, err := loadFromFile(path)
 	require.Error(t, err)
@@ -332,7 +334,7 @@ func TestList_SkipsCorruptedFile(t *testing.T) {
 	_, err = s.Append(sess.Header.ID, Entry{Type: "message", Turn: 1, Data: json.RawMessage(`{}`)})
 	require.NoError(t, err)
 
-	require.NoError(t, os.WriteFile(filepath.Join(s.cfg.Dir, "corrupt.jsonl"), []byte("not json\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(s.cfg.JSONL.Dir, "corrupt.jsonl"), []byte("not json\n"), 0o644))
 
 	infos, err := s.List()
 	require.NoError(t, err)
@@ -468,4 +470,41 @@ func TestSubscribe_CloseCancelsGoroutine(t *testing.T) {
 	sessionID := s.sessionID
 	s.mu.Unlock()
 	require.NotEmpty(t, sessionID)
+}
+
+type mockConfig struct {
+	path string
+}
+
+func (m *mockConfig) FilePath() string { return m.path }
+
+func TestNewStore_LoadsNestedDir(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, ".weave.yaml")
+	sessionDir := filepath.Join(dir, "sessions")
+	configContent := "extensions:\n  - jsonl\njsonl:\n  dir: " + sessionDir + "\n"
+	require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0o644))
+
+	s, err := NewStore(&mockConfig{path: configPath})
+	require.NoError(t, err)
+
+	got, err := s.sessionDir()
+	require.NoError(t, err)
+	assert.Equal(t, sessionDir, got)
+}
+
+func TestNewStore_DefaultDir(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, ".weave.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte("extensions:\n  - jsonl\n"), 0o644))
+
+	s, err := NewStore(&mockConfig{path: configPath})
+	require.NoError(t, err)
+
+	got, err := s.sessionDir()
+	require.NoError(t, err)
+
+	home, err := os.UserHomeDir()
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(home, ".weave", "sessions"), got)
 }

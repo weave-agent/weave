@@ -38,7 +38,6 @@ type ChatMessage struct {
 	Content    string       `json:"content,omitempty"`
 	ToolCalls  []StreamTool `json:"tool_calls,omitempty"`
 	ToolCallID string       `json:"tool_call_id,omitempty"`
-	Status     string       `json:"status,omitempty"` // "error" for failed tool results
 }
 
 // Tool represents an OpenAI function tool definition.
@@ -348,9 +347,6 @@ func ConvertMessages(msgs []sdk.Message) []ChatMessage {
 				Role:       "tool",
 				Content:    fmt.Sprint(msg.Content),
 				ToolCallID: msg.ToolCallID,
-			}
-			if msg.IsError {
-				cm.Status = "error"
 			}
 			result = append(result, cm)
 		}

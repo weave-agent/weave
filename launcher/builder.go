@@ -79,6 +79,8 @@ func ComputeHash(exts []ExtensionInfo, moduleRoot string, coreDirs ...string) (s
 	// These are shared libraries (e.g. openai-compat) that extensions depend on
 	// via replace directives. Without this, changes to shared libs don't
 	// invalidate the cache.
+	absModuleRoot, _ := filepath.Abs(moduleRoot)
+
 	var transitiveDeps []struct{ modPath, dir string }
 
 	transitiveSeen := make(map[string]bool)
@@ -86,6 +88,11 @@ func ComputeHash(exts []ExtensionInfo, moduleRoot string, coreDirs ...string) (s
 	for _, ext := range sorted {
 		for depModPath, depDir := range readLocalReplaces(ext.Dir) {
 			if transitiveSeen[depDir] {
+				continue
+			}
+
+			// Skip the root module — already hashed via HashModuleGraph and coreDirs.
+			if depDir == absModuleRoot {
 				continue
 			}
 
@@ -323,7 +330,9 @@ func parseSingleReplace(s, dir string, result map[string]string) {
 		return
 	}
 
-	modPath := strings.TrimSpace(before)
+	// The left side may include a version (e.g. "example.com/lib v1.2.3").
+	// Strip it so modPath is just the module path.
+	modPath, _, _ := strings.Cut(strings.TrimSpace(before), " ")
 	localPath := strings.TrimSpace(after)
 
 	if localPath == "" {

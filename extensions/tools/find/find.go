@@ -14,7 +14,7 @@ import (
 
 type tool struct{}
 
-func init() {
+func init() { //nolint:gochecknoinits // required for extension self-registration
 	sdk.RegisterTool("find", func(_ sdk.Config) (sdk.Tool, error) {
 		return &tool{}, nil
 	})
@@ -41,6 +41,15 @@ func (t *tool) Definition() sdk.ToolDef {
 			"required": []string{"pattern"},
 		},
 	}
+}
+
+func matchName(pattern, name, rel string) bool {
+	matched, _ := filepath.Match(pattern, name)
+	if !matched {
+		matched, _ = filepath.Match(pattern, rel)
+	}
+
+	return matched
 }
 
 func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, error) {
@@ -79,27 +88,28 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 			return nil
 		}
 
+		rel, relErr := filepath.Rel(absPath, walkPath)
+		if relErr != nil {
+			return nil
+		}
+
 		if d.IsDir() {
 			name := d.Name()
 			if name == ".git" || name == "node_modules" || name == ".hg" || name == ".svn" {
 				return filepath.SkipDir
 			}
+
+			if rel != "." && matchName(pattern, name, rel) {
+				matches = append(matches, rel)
+			}
+
 			return nil
 		}
 
-		rel, err := filepath.Rel(absPath, walkPath)
-		if err != nil {
-			return nil
-		}
-
-		matched, _ := filepath.Match(pattern, d.Name())
-		if !matched {
-			matched, _ = filepath.Match(pattern, rel)
-		}
-
-		if matched {
+		if matchName(pattern, d.Name(), rel) {
 			matches = append(matches, rel)
 		}
+
 		return nil
 	})
 	if err != nil {

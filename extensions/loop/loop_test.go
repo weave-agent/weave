@@ -24,6 +24,7 @@ type providerResponse struct {
 
 func newMockProvider(responses []providerResponse) *ProviderMock {
 	var mu sync.Mutex
+
 	callCount := 0
 
 	return &ProviderMock{
@@ -36,6 +37,7 @@ func newMockProvider(responses []providerResponse) *ProviderMock {
 			if idx >= len(responses) {
 				ch := make(chan sdk.ProviderEvent)
 				close(ch)
+
 				return ch, nil
 			}
 
@@ -45,8 +47,10 @@ func newMockProvider(responses []providerResponse) *ProviderMock {
 			}
 
 			ch := make(chan sdk.ProviderEvent, len(resp.textDeltas)+len(resp.toolCalls)+1)
+
 			go func() {
 				defer close(ch)
+
 				for _, delta := range resp.textDeltas {
 					select {
 					case ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: delta}:
@@ -54,6 +58,7 @@ func newMockProvider(responses []providerResponse) *ProviderMock {
 						return
 					}
 				}
+
 				for _, tc := range resp.toolCalls {
 					select {
 					case ch <- sdk.ProviderEvent{Type: sdk.ProviderEventToolCall, Content: tc}:
@@ -62,6 +67,7 @@ func newMockProvider(responses []providerResponse) *ProviderMock {
 					}
 				}
 			}()
+
 			return ch, nil
 		},
 	}
@@ -75,6 +81,7 @@ func newMockTool(name string, def sdk.ToolDef, executeFunc func(ctx context.Cont
 	if executeFunc != nil {
 		mt.ExecuteFunc = executeFunc
 	}
+
 	return mt
 }
 
@@ -119,6 +126,7 @@ func waitForTopic(events <-chan sdk.Event, topic string, timeout time.Duration) 
 			if !ok {
 				return sdk.Event{}, false
 			}
+
 			if evt.Topic == topic {
 				return evt, true
 			}
@@ -130,6 +138,7 @@ func waitForTopic(events <-chan sdk.Event, topic string, timeout time.Duration) 
 
 func collectTopic(events <-chan sdk.Event, topic string, timeout time.Duration) []sdk.Event {
 	var result []sdk.Event
+
 	deadline := time.After(timeout)
 
 	for {
@@ -138,6 +147,7 @@ func collectTopic(events <-chan sdk.Event, topic string, timeout time.Duration) 
 			if !ok {
 				return result
 			}
+
 			if evt.Topic == topic {
 				result = append(result, evt)
 			}
@@ -190,7 +200,9 @@ func TestLoop_SingleTurn_NoTools(t *testing.T) {
 
 	msgEnd, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
 	require.True(t, ok, "timeout waiting for msg_end")
-	assert.Equal(t, "hello world", msgEnd.Payload)
+	payload, ok := msgEnd.Payload.(map[string]any)
+	require.True(t, ok, "msg_end payload type = %T", msgEnd.Payload)
+	assert.Equal(t, "hello world", payload["content"])
 
 	_, ok = waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
 	require.True(t, ok, "timeout waiting for turn_end")
@@ -237,7 +249,9 @@ func TestLoop_ToolCallCycle(t *testing.T) {
 
 	msgEnd, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
 	require.True(t, ok, "timeout waiting for second msg_end")
-	assert.Equal(t, "done", msgEnd.Payload)
+	msgEndPayload, ok := msgEnd.Payload.(map[string]any)
+	require.True(t, ok, "msg_end payload type = %T", msgEnd.Payload)
+	assert.Equal(t, "done", msgEndPayload["content"])
 
 	execCalls := mt.ExecuteCalls()
 	require.Len(t, execCalls, 1)
@@ -296,6 +310,7 @@ func TestLoop_SteeringDuringTurn(t *testing.T) {
 			close(streamingStarted)
 			time.Sleep(100 * time.Millisecond)
 		}
+
 		return originalStreamFunc(ctx, req)
 	}
 
@@ -404,13 +419,16 @@ func TestLoop_ContextCancellation(t *testing.T) {
 	registerMockProvider("anthropic", &ProviderMock{
 		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest) (<-chan sdk.ProviderEvent, error) {
 			ch := make(chan sdk.ProviderEvent)
+
 			go func() {
 				defer close(ch)
+
 				select {
 				case <-ctx.Done():
 				case blockCh <- sdk.ProviderEvent{}:
 				}
 			}()
+
 			return ch, nil
 		},
 	})
@@ -424,6 +442,7 @@ func TestLoop_ContextCancellation(t *testing.T) {
 	b.Publish(sdk.NewEvent(TopicPrompt, "test"))
 
 	done := make(chan error, 1)
+
 	go func() { done <- l.Close() }()
 
 	select {
@@ -494,7 +513,9 @@ func TestLoop_MissingToolError(t *testing.T) {
 
 	msgEnd, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
 	require.True(t, ok, "timeout waiting for second msg_end")
-	assert.Equal(t, "recovered", msgEnd.Payload)
+	msgEndPayload, ok := msgEnd.Payload.(map[string]any)
+	require.True(t, ok, "msg_end payload type = %T", msgEnd.Payload)
+	assert.Equal(t, "recovered", msgEndPayload["content"])
 }
 
 func TestLoop_RegisterAsExtension(t *testing.T) {
@@ -542,8 +563,10 @@ func TestLoop_MultipleToolCalls(t *testing.T) {
 
 	b.Publish(sdk.NewEvent(TopicPrompt, "multi-tool"))
 
-	var toolResults []sdk.Event
-	var finalMsgEnd *sdk.Event
+	var (
+		toolResults []sdk.Event
+		finalMsgEnd *sdk.Event
+	)
 
 	endDeadline := time.After(5 * time.Second)
 
@@ -571,7 +594,9 @@ done:
 	require.Len(t, toolResults, 2)
 
 	require.NotNil(t, finalMsgEnd)
-	assert.Equal(t, "both done", finalMsgEnd.Payload)
+	msgEndPayload, ok := finalMsgEnd.Payload.(map[string]any)
+	require.True(t, ok, "msg_end payload type = %T", finalMsgEnd.Payload)
+	assert.Equal(t, "both done", msgEndPayload["content"])
 }
 
 func TestLoop_StreamingUpdatesPreserveOrder(t *testing.T) {
@@ -600,5 +625,7 @@ func TestLoop_StreamingUpdatesPreserveOrder(t *testing.T) {
 	require.True(t, ok, "timeout waiting for msg_end")
 
 	expected := strings.Join(deltas, "")
-	assert.Equal(t, expected, msgEnd.Payload)
+	msgEndPayload, ok := msgEnd.Payload.(map[string]any)
+	require.True(t, ok, "msg_end payload type = %T", msgEnd.Payload)
+	assert.Equal(t, expected, msgEndPayload["content"])
 }

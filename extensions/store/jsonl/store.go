@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nniel-ape/gonfig"
+
 	"weave/sdk"
 )
 
@@ -28,8 +30,8 @@ type Entry struct {
 	ParentID string          `json:"parent_id,omitempty"`
 	Type     string          `json:"type"`
 	Turn     int             `json:"turn"`
-	Data    json.RawMessage `json:"data"`
-	Created time.Time       `json:"created"`
+	Data     json.RawMessage `json:"data"`
+	Created  time.Time       `json:"created"`
 }
 
 type Session struct {
@@ -45,8 +47,12 @@ type SessionInfo struct {
 	UpdatedAt  time.Time `json:"updated_at"`
 }
 
-type Config struct {
+type JSONLOpts struct {
 	Dir string `default:"" description:"Session directory (default: ~/.weave/sessions)"`
+}
+
+type Config struct {
+	JSONL JSONLOpts
 }
 
 type Store struct {
@@ -67,7 +73,18 @@ func init() { //nolint:gochecknoinits // required for extension self-registratio
 }
 
 func NewStore(cfg sdk.Config) (*Store, error) {
-	return &Store{}, nil
+	var c Config
+
+	opts := []gonfig.Option{gonfig.WithEnvPrefix("WEAVE")}
+	if cfg != nil && cfg.FilePath() != "" {
+		opts = append(opts, gonfig.WithFile(cfg.FilePath()))
+	}
+
+	if err := gonfig.Load(&c, opts...); err != nil {
+		return nil, fmt.Errorf("jsonl config: %w", err)
+	}
+
+	return &Store{cfg: c}, nil
 }
 
 func (s *Store) Name() string { return "jsonl" }
@@ -79,18 +96,22 @@ func (s *Store) Subscribe(bus sdk.Bus) {
 		panic("jsonl: Subscribe called twice without Close")
 	}
 
-	promptCh := bus.Subscribe("agent.prompt")
-	turnStartCh := bus.Subscribe("agent.turn_start")
-	msgEndCh := bus.Subscribe("agent.message_end")
-	toolResultCh := bus.Subscribe("agent.tool_result")
-	endCh := bus.Subscribe("agent.end")
+	ch := bus.Subscribe(
+		"agent.prompt",
+		"agent.followup",
+		"agent.steer",
+		"agent.turn_start",
+		"agent.message_end",
+		"agent.tool_result",
+		"agent.end",
+	)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
 	s.done = make(chan struct{})
 	s.mu.Unlock()
 
-	go s.run(ctx, promptCh, turnStartCh, msgEndCh, toolResultCh, endCh)
+	go s.run(ctx, ch)
 }
 
 func (s *Store) Close() error {
@@ -110,38 +131,34 @@ func (s *Store) Close() error {
 	return nil
 }
 
-func (s *Store) run(ctx context.Context, promptCh, turnStartCh, msgEndCh, toolResultCh, endCh <-chan sdk.Event) {
+func (s *Store) run(ctx context.Context, ch <-chan sdk.Event) {
 	defer close(s.done)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case evt, ok := <-promptCh:
+		case evt, ok := <-ch:
 			if !ok {
 				return
 			}
-			s.handlePrompt(evt)
-		case evt, ok := <-turnStartCh:
-			if !ok {
+
+			switch evt.Topic {
+			case "agent.prompt":
+				s.handlePrompt(evt)
+			case "agent.followup":
+				s.handleFollowup(evt)
+			case "agent.steer":
+				s.handleSteer(evt)
+			case "agent.turn_start":
+				s.handleTurnStart(evt)
+			case "agent.message_end":
+				s.handleMsgEnd(evt)
+			case "agent.tool_result":
+				s.handleToolResult(evt)
+			case "agent.end":
 				return
 			}
-			s.handleTurnStart(evt)
-		case evt, ok := <-msgEndCh:
-			if !ok {
-				return
-			}
-			s.handleMsgEnd(evt)
-		case evt, ok := <-toolResultCh:
-			if !ok {
-				return
-			}
-			s.handleToolResult(evt)
-		case _, ok := <-endCh:
-			if !ok {
-				return
-			}
-			return
 		}
 	}
 }
@@ -182,6 +199,54 @@ func (s *Store) handlePrompt(evt sdk.Event) {
 	s.mu.Unlock()
 }
 
+func (s *Store) handleFollowup(evt sdk.Event) {
+	s.mu.Lock()
+	sessionID := s.sessionID
+	lastEntry := s.lastEntry
+	turn := s.turn + 1
+	s.mu.Unlock()
+
+	s.appendUserEntry(sessionID, turn, lastEntry, evt)
+}
+
+func (s *Store) handleSteer(evt sdk.Event) {
+	s.mu.Lock()
+	sessionID := s.sessionID
+	lastEntry := s.lastEntry
+	turn := s.turn
+	s.mu.Unlock()
+
+	s.appendUserEntry(sessionID, turn, lastEntry, evt)
+}
+
+func (s *Store) appendUserEntry(sessionID string, turn int, parentID string, evt sdk.Event) {
+	if sessionID == "" {
+		return
+	}
+
+	data, _ := json.Marshal(map[string]any{
+		"role":    sdk.RoleUser,
+		"content": evt.Payload,
+	})
+
+	entry := Entry{
+		ParentID: parentID,
+		Type:     "message",
+		Turn:     turn,
+		Data:     data,
+	}
+
+	entryID, err := s.Append(sessionID, entry)
+	if err != nil {
+		slog.Error("jsonl: append user input", "error", err)
+		return
+	}
+
+	s.mu.Lock()
+	s.lastEntry = entryID
+	s.mu.Unlock()
+}
+
 func (s *Store) handleTurnStart(evt sdk.Event) {
 	turn, ok := evt.Payload.(int)
 	if !ok {
@@ -209,10 +274,24 @@ func (s *Store) handleMsgEnd(evt sdk.Event) {
 		return
 	}
 
-	data, _ := json.Marshal(map[string]any{
-		"role":    sdk.RoleAssistant,
-		"content": evt.Payload,
-	})
+	payload := map[string]any{
+		"role": sdk.RoleAssistant,
+	}
+
+	switch p := evt.Payload.(type) {
+	case map[string]any:
+		if c, ok := p["content"]; ok {
+			payload["content"] = c
+		}
+
+		if tc, ok := p["tool_calls"]; ok {
+			payload["tool_calls"] = tc
+		}
+	case string:
+		payload["content"] = p
+	}
+
+	data, _ := json.Marshal(payload)
 
 	entry := Entry{
 		ID:       id,
@@ -276,12 +355,13 @@ func generateID() (string, error) {
 	if _, err := rand.Read(b); err != nil {
 		return "", fmt.Errorf("generate id: %w", err)
 	}
+
 	return hex.EncodeToString(b), nil
 }
 
 func (s *Store) sessionDir() (string, error) {
-	if s.cfg.Dir != "" {
-		return s.cfg.Dir, nil
+	if s.cfg.JSONL.Dir != "" {
+		return s.cfg.JSONL.Dir, nil
 	}
 
 	home, err := os.UserHomeDir()
@@ -296,22 +376,26 @@ func (s *Store) sessionPath(sessionID string) (string, error) {
 	if !isValidID(sessionID) {
 		return "", fmt.Errorf("invalid session ID: %q", sessionID)
 	}
+
 	dir, err := s.sessionDir()
 	if err != nil {
 		return "", err
 	}
+
 	return filepath.Join(dir, sessionID+".jsonl"), nil
 }
 
 func isValidID(id string) bool {
-	if len(id) == 0 {
+	if id == "" {
 		return false
 	}
+
 	for _, c := range id {
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -335,7 +419,8 @@ func (s *Store) Create(cwd string) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+
+	if err = os.MkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("create session dir: %w", err)
 	}
 
@@ -345,7 +430,8 @@ func (s *Store) Create(cwd string) (*Session, error) {
 	}
 
 	path := filepath.Join(dir, id+".jsonl")
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0o644)
+
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("create session file: %w", err)
 	}
@@ -364,8 +450,10 @@ func (s *Store) Append(sessionID string, entry Entry) (string, error) {
 		if err != nil {
 			return "", err
 		}
+
 		entry.ID = id
 	}
+
 	if entry.Created.IsZero() {
 		entry.Created = time.Now().UTC()
 	}
@@ -380,7 +468,7 @@ func (s *Store) Append(sessionID string, entry Entry) (string, error) {
 		return "", err
 	}
 
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0o644)
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		return "", fmt.Errorf("open session file: %w", err)
 	}
@@ -415,6 +503,7 @@ func loadFromFile(path string) (*Session, error) {
 		if err := json.Unmarshal([]byte(line), &entry); err != nil {
 			return nil, fmt.Errorf("parse entry: %w", err)
 		}
+
 		entries = append(entries, entry)
 	}
 
@@ -426,6 +515,7 @@ func (s *Store) Load(sessionID string) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return loadFromFile(path)
 }
 
@@ -434,6 +524,7 @@ func (s *Store) History(sessionID string) ([]Entry, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return sess.Entries, nil
 }
 
@@ -448,16 +539,19 @@ func (s *Store) List() ([]SessionInfo, error) {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
+
 		return nil, fmt.Errorf("read session dir: %w", err)
 	}
 
 	var infos []SessionInfo
+
 	for _, e := range entries {
 		if e.IsDir() || filepath.Ext(e.Name()) != ".jsonl" {
 			continue
 		}
 
 		path := filepath.Join(dir, e.Name())
+
 		sess, err := loadFromFile(path)
 		if err != nil {
 			continue
@@ -529,6 +623,7 @@ func (s *Store) rewriteFile(sessionID string, header SessionHeader, entries []En
 	}
 
 	var lines []string
+
 	lines = append(lines, string(headerLine))
 
 	for _, e := range entries {
@@ -536,6 +631,7 @@ func (s *Store) rewriteFile(sessionID string, header SessionHeader, entries []En
 		if err != nil {
 			return fmt.Errorf("marshal entry: %w", err)
 		}
+
 		lines = append(lines, string(line))
 	}
 
@@ -546,22 +642,26 @@ func (s *Store) rewriteFile(sessionID string, header SessionHeader, entries []En
 	}
 
 	tmpPath := path + ".tmp"
-	if err := os.WriteFile(tmpPath, buf, 0o644); err != nil {
+	if err := os.WriteFile(tmpPath, buf, 0o600); err != nil {
 		return fmt.Errorf("write temp file: %w", err)
 	}
+
 	if err := os.Rename(tmpPath, path); err != nil {
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("rename temp file: %w", err)
 	}
+
 	return nil
 }
 
 func splitLines(data []byte) []string {
 	var lines []string
-	for _, line := range bytes.Split(data, []byte{'\n'}) {
+
+	for line := range bytes.SplitSeq(data, []byte{'\n'}) {
 		if len(line) > 0 {
 			lines = append(lines, string(line))
 		}
 	}
+
 	return lines
 }

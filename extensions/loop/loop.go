@@ -122,6 +122,8 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 		return
 	}
 
+	turn := 1
+
 	// Outer loop: follow-ups
 	for {
 		// Inner loop: tool calls. Continues while the provider returns
@@ -131,7 +133,7 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 		for continueLoop {
 			messages, _ = drainSteering(steerCh, messages)
 
-			bus.Publish(sdk.NewEvent(TopicTurnStart, len(messages)))
+			bus.Publish(sdk.NewEvent(TopicTurnStart, turn))
 
 			resp, toolCalls, err := streamTurn(ctx, bus, provider, messages, toolDefs)
 			if err != nil {
@@ -162,9 +164,12 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 			bus.Publish(sdk.NewEvent(TopicTurnEnd, nil))
 
 			var hasNewSteering bool
+
 			messages, hasNewSteering = drainSteering(steerCh, messages)
 			continueLoop = len(toolCalls) > 0 || hasNewSteering
 		}
+
+		turn++
 
 		// Check for follow-up — non-blocking drain. If a follow-up was
 		// published while the inner loop was running, continue the outer loop.
@@ -231,15 +236,16 @@ func streamTurn(ctx context.Context, bus sdk.Bus, provider sdk.Provider, message
 				toolCalls = append(toolCalls, tc)
 			}
 		case sdk.ProviderEventError:
-			bus.Publish(sdk.NewEvent(TopicMsgEnd, content.String()))
+			bus.Publish(sdk.NewEvent(TopicMsgEnd, map[string]any{"content": content.String(), "tool_calls": toolCalls}))
 			return sdk.Message{}, nil, fmt.Errorf("provider error: %v", evt.Content)
 		}
 	}
 
-	bus.Publish(sdk.NewEvent(TopicMsgEnd, content.String()))
+	bus.Publish(sdk.NewEvent(TopicMsgEnd, map[string]any{"content": content.String(), "tool_calls": toolCalls}))
 
 	resp := sdk.NewAssistantMessage(content.String())
 	resp.ToolCalls = toolCalls
+
 	return resp, toolCalls, nil
 }
 
