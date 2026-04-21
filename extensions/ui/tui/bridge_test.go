@@ -301,3 +301,104 @@ type collectingSender struct {
 func (c *collectingSender) Send(msg tea.Msg) {
 	c.msgs = append(c.msgs, msg)
 }
+
+func TestBridge_DeltaBatching(t *testing.T) {
+	sender := &collectingSender{}
+	events := make(chan sdk.Event, 10)
+
+	done := make(chan struct{})
+	go func() {
+		Bridge(sender, events)
+		close(done)
+	}()
+
+	// Send three deltas in rapid succession
+	events <- sdk.NewEvent(topicMsgUpdate, "hello ")
+	events <- sdk.NewEvent(topicMsgUpdate, "world ")
+	events <- sdk.NewEvent(topicMsgUpdate, "test")
+	close(events)
+
+	<-done
+
+	// The bridge should batch consecutive MessageUpdateMsg into one
+	// (or at most a few) messages
+	require.True(t, len(sender.msgs) >= 1, "expected at least 1 message, got %d", len(sender.msgs))
+
+	// Find all MessageUpdateMsg
+	var updates []string
+	for _, msg := range sender.msgs {
+		if mu, ok := msg.(MessageUpdateMsg); ok {
+			updates = append(updates, mu.Content)
+		}
+	}
+
+	// All content should be present (either in one batched msg or multiple)
+	combined := ""
+	for _, u := range updates {
+		combined += u
+	}
+	assert.Equal(t, "hello world test", combined)
+
+	// Last message should be ShutdownMsg
+	_, ok := sender.msgs[len(sender.msgs)-1].(ShutdownMsg)
+	assert.True(t, ok)
+}
+
+func TestBridge_DeltaBatchingMixedEvents(t *testing.T) {
+	sender := &collectingSender{}
+	events := make(chan sdk.Event, 10)
+
+	done := make(chan struct{})
+	go func() {
+		Bridge(sender, events)
+		close(done)
+	}()
+
+	events <- sdk.NewEvent(topicMsgUpdate, "delta1")
+	events <- sdk.NewEvent(topicMsgUpdate, "delta2")
+	events <- sdk.NewEvent(topicTurnEnd, nil) // non-delta breaks the batch
+	events <- sdk.NewEvent(topicMsgUpdate, "delta3")
+	close(events)
+
+	<-done
+
+	// Should have: batched(delta1+delta2), TurnEnd, delta3, Shutdown
+	require.GreaterOrEqual(t, len(sender.msgs), 3)
+
+	// Last message is always ShutdownMsg
+	_, ok := sender.msgs[len(sender.msgs)-1].(ShutdownMsg)
+	assert.True(t, ok)
+
+	// Verify combined content of all updates
+	var combined string
+	for _, msg := range sender.msgs {
+		if mu, ok := msg.(MessageUpdateMsg); ok {
+			combined += mu.Content
+		}
+	}
+	assert.Equal(t, "delta1delta2delta3", combined)
+
+	// Verify TurnEndMsg is present
+	hasTurnEnd := false
+	for _, msg := range sender.msgs {
+		if _, ok := msg.(TurnEndMsg); ok {
+			hasTurnEnd = true
+		}
+	}
+	assert.True(t, hasTurnEnd)
+}
+
+func TestPublishInterrupt(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	ch := b.Subscribe(topicInterrupt)
+
+	cmd := PublishInterrupt(b)
+	result := cmd()
+	assert.Nil(t, result)
+
+	evt := <-ch
+	assert.Equal(t, topicInterrupt, evt.Topic)
+	assert.Equal(t, "user interrupt", evt.Payload)
+}

@@ -180,6 +180,53 @@ func TestModel_WindowResize(t *testing.T) {
 	assert.Equal(t, m.chatHeight(40), m.chat.Height())
 }
 
+func TestModel_ResizeRedistributesHeight(t *testing.T) {
+	m := newModel(nil, nil)
+
+	// Large terminal
+	model, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
+	m = model.(Model)
+	chatH := m.chatHeight(50)
+	assert.Greater(t, chatH, 30, "chat should get most of the height")
+	assert.Equal(t, chatH, m.chat.Height())
+
+	// Small terminal
+	model, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 10})
+	m = model.(Model)
+	chatH = m.chatHeight(10)
+	assert.GreaterOrEqual(t, chatH, 1, "chat should always have at least 1 line")
+
+	// Tiny terminal (below reserved space)
+	model, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 5})
+	m = model.(Model)
+	chatH = m.chatHeight(5)
+	assert.GreaterOrEqual(t, chatH, 1, "chat min is 1 even with tiny terminal")
+}
+
+func TestModel_ResizeWithSpinner(t *testing.T) {
+	m := newModel(nil, nil)
+
+	// Show spinner
+	model, _ := m.Update(MessageStartMsg{})
+	m = model.(Model)
+	model, cmd := m.Update(components.SpinnerShowMsg{})
+	m = model.(Model)
+	// Consume the spinner tick cmd
+	if cmd != nil {
+		cmd()
+	}
+
+	assert.True(t, m.spinner.Visible())
+
+	chatWithSpinner := m.chatHeight(40)
+
+	// Hide spinner
+	m.spinner = m.spinner.Hide()
+	chatWithoutSpinner := m.chatHeight(40)
+
+	assert.Equal(t, chatWithSpinner, chatWithoutSpinner-1, "spinner takes 1 line from chat")
+}
+
 func TestModel_MultipleTurns(t *testing.T) {
 	m := newModel(nil, nil)
 	m.width = 80
@@ -847,4 +894,126 @@ func TestModel_ResumeSlashCommandIntegration(t *testing.T) {
 
 	// Should show "No sessions found" message, not overlay
 	assert.Equal(t, overlayNone, m.activeOverlay)
+}
+
+func TestModel_InterruptStreaming(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	ch := b.Subscribe(topicInterrupt)
+
+	m := newModel(b, nil)
+	m.width = 80
+	m.height = 20
+	m.chat = m.chat.SetSize(80, 20)
+
+	// Start streaming
+	model, _ := m.Update(MessageStartMsg{})
+	m = model.(Model)
+	model, _ = m.Update(MessageUpdateMsg{Content: "partial"})
+	m = model.(Model)
+
+	// Trigger interrupt via keybinding
+	model, cmd := m.dispatchBinding(ActionInterrupt)
+	m = model.(Model)
+
+	// Verify message was interrupted
+	items := m.chat.Items()
+	require.Len(t, items, 1)
+	am, ok := items[0].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.False(t, am.IsStreaming())
+	assert.True(t, am.Interrupted())
+	assert.Contains(t, am.Content(), "partial")
+	assert.Contains(t, am.Content(), "[interrupted]")
+
+	// Verify spinner is hidden
+	assert.False(t, m.spinner.Visible())
+
+	// Verify interrupt event was published
+	require.NotNil(t, cmd)
+	cmd()
+	evt := <-ch
+	assert.Equal(t, topicInterrupt, evt.Topic)
+}
+
+func TestModel_InterruptNoStreamingMessage(t *testing.T) {
+	m := newModel(nil, nil)
+	m.width = 80
+	m.height = 20
+	m.chat = m.chat.SetSize(80, 20)
+
+	// Interrupt with no streaming message should be no-op
+	model, cmd := m.dispatchBinding(ActionInterrupt)
+	m = model.(Model)
+	assert.Nil(t, cmd)
+	assert.Empty(t, m.chat.Items())
+}
+
+func TestModel_AgentEndMsg_WithError(t *testing.T) {
+	m := newModel(nil, nil)
+	m.width = 80
+	m.height = 20
+	m.chat = m.chat.SetSize(80, 20)
+
+	// Simulate a provider error
+	model, _ := m.Update(AgentEndMsg{Payload: "stream error: timeout"})
+	m = model.(Model)
+
+	items := m.chat.Items()
+	require.Len(t, items, 1)
+	am, ok := items[0].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Contains(t, am.Content(), "stream error: timeout")
+	assert.Contains(t, am.Content(), "⚠")
+}
+
+func TestModel_AgentEndMsg_WithNilPayload(t *testing.T) {
+	m := newModel(nil, nil)
+	m.width = 80
+	m.height = 20
+	m.chat = m.chat.SetSize(80, 20)
+
+	// Normal end with no error
+	model, _ := m.Update(AgentEndMsg{Payload: nil})
+	m = model.(Model)
+
+	assert.Empty(t, m.chat.Items())
+	assert.False(t, m.spinner.Visible())
+}
+
+func TestModel_AgentEndMsg_WithEmptyString(t *testing.T) {
+	m := newModel(nil, nil)
+	m.width = 80
+	m.height = 20
+	m.chat = m.chat.SetSize(80, 20)
+
+	model, _ := m.Update(AgentEndMsg{Payload: ""})
+	m = model.(Model)
+
+	assert.Empty(t, m.chat.Items())
+}
+
+func TestModel_GracefulShutdown(t *testing.T) {
+	m := newModel(nil, nil)
+
+	// Ctrl+D triggers exit
+	_, cmd := m.dispatchBinding(ActionExit)
+	require.NotNil(t, cmd)
+	msg := cmd()
+	_, ok := msg.(tea.QuitMsg)
+	assert.True(t, ok)
+}
+
+func TestModel_QuitCommand(t *testing.T) {
+	m := newModel(nil, nil)
+	m.width = 80
+	m.height = 20
+
+	model, cmd := m.onSubmit("/quit")
+	m = model.(Model)
+	require.NotNil(t, cmd)
+	msg := cmd()
+	_, ok := msg.(tea.QuitMsg)
+	assert.True(t, ok)
 }

@@ -4,10 +4,11 @@ import "strings"
 
 // AssistantMessage accumulates streaming text deltas into a single message.
 type AssistantMessage struct {
-	content   strings.Builder
-	final     string
-	streaming bool
-	renderer  *MarkdownRenderer
+	content     strings.Builder
+	final       string
+	streaming   bool
+	interrupted bool
+	renderer    *MarkdownRenderer
 }
 
 // NewAssistantMessage creates a new assistant message in streaming mode.
@@ -45,6 +46,22 @@ func (m *AssistantMessage) Content() string {
 // IsStreaming returns whether the message is still streaming.
 func (m *AssistantMessage) IsStreaming() bool {
 	return m.streaming
+}
+
+// Interrupt marks a streaming message as interrupted, finalizing it with
+// the accumulated content plus an [interrupted] tag.
+func (m *AssistantMessage) Interrupt() {
+	if !m.streaming {
+		return
+	}
+	m.final = m.content.String() + "\n[interrupted]"
+	m.streaming = false
+	m.interrupted = true
+}
+
+// Interrupted returns whether the message was interrupted.
+func (m *AssistantMessage) Interrupted() bool {
+	return m.interrupted
 }
 
 // View renders the assistant message. Finalized messages use markdown rendering;

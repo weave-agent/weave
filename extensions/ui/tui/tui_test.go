@@ -55,3 +55,9 @@ func TestModel_Init(t *testing.T) {
 	cmd := m.Init()
 	assert.Nil(t, cmd)
 }
+
+func TestTUI_NoTTYError(t *testing.T) {
+	// ErrNoTTY should be a sentinel error that callers can check
+	assert.Error(t, ErrNoTTY)
+	assert.Contains(t, ErrNoTTY.Error(), "stdin")
+}

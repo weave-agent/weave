@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"strings"
 	"weave/sdk"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -8,9 +9,10 @@ import (
 
 // Bus event topics (matching agent-loop topics).
 const (
-	topicPrompt   = "agent.prompt"
-	topicSteer    = "agent.steer"
-	topicFollowup = "agent.followup"
+	topicPrompt     = "agent.prompt"
+	topicSteer      = "agent.steer"
+	topicFollowup   = "agent.followup"
+	topicInterrupt  = "agent.interrupt"
 
 	topicTurnStart  = "agent.turn_start"
 	topicTurnEnd    = "agent.turn_end"
@@ -147,13 +149,61 @@ func translateToolResult(payload any) ToolResultMsg {
 }
 
 // Bridge reads bus events and sends them as tea.Msg to the program.
+// When multiple MessageUpdateMsg deltas arrive in rapid succession, it batches
+// them into a single concatenated message to reduce UI update pressure.
 // Blocks until the event channel is closed.
 func Bridge(sender Sender, events <-chan sdk.Event) {
 	for evt := range events {
 		msg := translateEvent(evt)
-		if msg != nil {
-			sender.Send(msg)
+		if msg == nil {
+			continue
 		}
+
+		// Batch consecutive MessageUpdateMsg deltas
+		if _, ok := msg.(MessageUpdateMsg); ok {
+			var batch strings.Builder
+			mu, _ := msg.(MessageUpdateMsg)
+			batch.WriteString(mu.Content)
+
+			// Drain any queued deltas
+			draining := true
+			for draining {
+				select {
+				case next, ok := <-events:
+					if !ok {
+						// Channel closed while batching — flush and exit
+						if batch.Len() > 0 {
+							sender.Send(MessageUpdateMsg{Content: batch.String()})
+						}
+						sender.Send(ShutdownMsg{})
+						return
+					}
+					nextMsg := translateEvent(next)
+					if nextMu, ok := nextMsg.(MessageUpdateMsg); ok {
+						batch.WriteString(nextMu.Content)
+					} else {
+						// Non-delta message — flush the batch, then handle this message
+						if batch.Len() > 0 {
+							sender.Send(MessageUpdateMsg{Content: batch.String()})
+							batch.Reset()
+						}
+						if nextMsg != nil {
+							sender.Send(nextMsg)
+						}
+						draining = false
+					}
+				default:
+					draining = false
+				}
+			}
+
+			if batch.Len() > 0 {
+				sender.Send(MessageUpdateMsg{Content: batch.String()})
+			}
+			continue
+		}
+
+		sender.Send(msg)
 	}
 
 	sender.Send(ShutdownMsg{})
@@ -179,6 +229,14 @@ func PublishFollowup(bus sdk.Bus, text string) tea.Cmd {
 func PublishSteer(bus sdk.Bus, text string) tea.Cmd {
 	return func() tea.Msg {
 		bus.Publish(sdk.NewEvent(topicSteer, text))
+		return nil
+	}
+}
+
+// PublishInterrupt returns a tea.Cmd that publishes an agent.interrupt event.
+func PublishInterrupt(bus sdk.Bus) tea.Cmd {
+	return func() tea.Msg {
+		bus.Publish(sdk.NewEvent(topicInterrupt, "user interrupt"))
 		return nil
 	}
 }

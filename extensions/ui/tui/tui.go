@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"os"
 	"sync"
 
 	"weave/sdk"
@@ -32,7 +33,12 @@ type TUI struct {
 }
 
 // NewTUI creates a new TUI extension.
+// Returns ErrNoTTY if stdin is not a terminal.
 func NewTUI(cfg sdk.Config) (*TUI, error) {
+	if !isTerminal() {
+		return nil, ErrNoTTY
+	}
+
 	ui := NewTUIImpl(nil, nil)
 
 	return &TUI{
@@ -42,11 +48,24 @@ func NewTUI(cfg sdk.Config) (*TUI, error) {
 	}, nil
 }
 
+// ErrNoTTY is returned when stdin is not a terminal.
+var ErrNoTTY = fmt.Errorf("stdin is not a terminal (use -p for print mode)")
+
+// isTerminal checks whether stdin is connected to a terminal.
+func isTerminal() bool {
+	fi, err := os.Stdin.Stat()
+	if err != nil {
+		return false
+	}
+	return fi.Mode()&os.ModeCharDevice != 0
+}
+
 // Name returns the extension name.
 func (t *TUI) Name() string { return "tui" }
 
 // Subscribe starts the Bubble Tea program in a goroutine, blocking until it exits.
 // The bridge goroutine translates bus events into tea.Msg and forwards them.
+// When the program exits (user quit or close), the bus is unsubscribed.
 func (t *TUI) Subscribe(bus sdk.Bus) {
 	events := bus.SubscribeAll()
 
@@ -73,7 +92,7 @@ func (t *TUI) Subscribe(bus sdk.Bus) {
 	close(t.done)
 }
 
-// Close sends a quit message to the Bubble Tea program.
+// Close sends a quit message to the Bubble Tea program and waits for it to finish.
 func (t *TUI) Close() error {
 	t.mu.Lock()
 	p := t.program

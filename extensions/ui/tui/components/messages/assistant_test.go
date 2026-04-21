@@ -70,3 +70,30 @@ func TestAssistantMessage_SetWidth(t *testing.T) {
 	view := m.View(80)
 	assert.Contains(t, view, "Title")
 }
+
+func TestAssistantMessage_Interrupt(t *testing.T) {
+	m := NewAssistantMessage()
+	m.Append("partial response")
+	m.Interrupt()
+	assert.False(t, m.IsStreaming())
+	assert.True(t, m.Interrupted())
+	assert.Contains(t, m.Content(), "partial response")
+	assert.Contains(t, m.Content(), "[interrupted]")
+}
+
+func TestAssistantMessage_Interrupt_Idempotent(t *testing.T) {
+	m := NewAssistantMessage()
+	m.Append("partial")
+	m.Interrupt()
+	content1 := m.Content()
+	m.Interrupt() // second call should be no-op
+	assert.Equal(t, content1, m.Content())
+}
+
+func TestAssistantMessage_Interrupt_NotStreaming(t *testing.T) {
+	m := NewAssistantMessage()
+	m.Finalize("done")
+	m.Interrupt() // no-op on finalized message
+	assert.False(t, m.Interrupted())
+	assert.Equal(t, "done", m.Content())
+}

@@ -178,6 +178,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case AgentEndMsg:
 		m.spinner = m.spinner.Hide()
+		if msg.Payload != nil {
+			if errStr, ok := msg.Payload.(string); ok && errStr != "" {
+				am := messages.NewAssistantMessage()
+				am.Finalize(fmt.Sprintf("⚠ %s", errStr))
+				m.chat = m.chat.AddItem(am)
+			}
+		}
 
 	case SessionListResultMsg:
 		return m.onSessionListResult(msg)
@@ -237,7 +244,7 @@ func (m Model) dispatchBinding(action BindingAction) (tea.Model, tea.Cmd) {
 	case ActionClear:
 		return m, tea.Quit
 	case ActionInterrupt:
-		return m, nil
+		return m.interruptStreaming()
 	case ActionModelSelect:
 		return m, listModelsCmd()
 	case ActionModelCycle:
@@ -310,6 +317,31 @@ func (m *Model) onToolResult(msg ToolResultMsg) {
 
 	panel.SetResult(msg.Result.Content, msg.Result.IsError)
 	m.chat = m.chat.UpdateItemByID(panel)
+}
+
+// interruptStreaming finalizes the current streaming assistant message with
+// an [interrupted] tag, hides the spinner, and publishes an interrupt event.
+func (m Model) interruptStreaming() (tea.Model, tea.Cmd) {
+	items := m.chat.Items()
+	if len(items) == 0 {
+		return m, nil
+	}
+
+	am, ok := items[len(items)-1].(*messages.AssistantMessage)
+	if !ok || !am.IsStreaming() {
+		return m, nil
+	}
+
+	am.Interrupt()
+	m.chat = m.chat.UpdateItem(am)
+	m.spinner = m.spinner.Hide()
+
+	var cmds []tea.Cmd
+	if m.bus != nil {
+		cmds = append(cmds, PublishInterrupt(m.bus))
+	}
+
+	return m, tea.Batch(cmds...)
 }
 
 // AddUserMessage adds a user message to the chat.
