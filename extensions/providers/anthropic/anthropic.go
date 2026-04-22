@@ -13,8 +13,10 @@ import (
 	"weave/sdk"
 )
 
-const defaultModel = "claude-sonnet-4-20250514"
-const defaultMaxTokens = 8192
+const (
+	defaultModel     = "claude-sonnet-4-20250514"
+	defaultMaxTokens = 8192
+)
 
 type provider struct {
 	client    anthropic.Client
@@ -23,21 +25,36 @@ type provider struct {
 }
 
 func init() {
-	sdk.RegisterProvider("anthropic", func(_ sdk.Config) (sdk.Provider, error) {
-		apiKey := os.Getenv("ANTHROPIC_API_KEY")
+	sdk.RegisterProvider("anthropic", func(cfg sdk.Config) (sdk.Provider, error) {
+		apiKey, err := cfg.ResolveKey("anthropic", "ANTHROPIC_API_KEY")
+		if err != nil {
+			return nil, fmt.Errorf("anthropic: %w", err)
+		}
+
 		if apiKey == "" {
-			return nil, fmt.Errorf("anthropic: ANTHROPIC_API_KEY environment variable is required")
+			return nil, fmt.Errorf("anthropic: API key required (set ANTHROPIC_API_KEY, add to ~/.weave/auth.json, or configure in .weave.yaml)")
 		}
 
-		model := os.Getenv("ANTHROPIC_MODEL")
-		if model == "" {
-			model = defaultModel
-		}
-
+		model := defaultModel
 		maxTokens := int64(defaultMaxTokens)
+
+		if v := os.Getenv("ANTHROPIC_MODEL"); v != "" {
+			model = v
+		}
+
 		if v := os.Getenv("ANTHROPIC_MAX_TOKENS"); v != "" {
-			if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
+			if n, parseErr := strconv.ParseInt(v, 10, 64); parseErr == nil && n > 0 {
 				maxTokens = n
+			}
+		}
+
+		if pc := cfg.ProviderConfig("anthropic"); pc != nil {
+			if pc.Model != "" {
+				model = pc.Model
+			}
+
+			if pc.MaxTokens > 0 {
+				maxTokens = pc.MaxTokens
 			}
 		}
 
@@ -56,6 +73,7 @@ func NewProviderWithClient(client anthropic.Client, model string) sdk.Provider {
 	if model == "" {
 		model = defaultModel
 	}
+
 	return &provider{client: client, model: model, maxTokens: defaultMaxTokens}
 }
 
@@ -93,6 +111,7 @@ func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest) (<-chan 
 		stream := p.client.Messages.NewStreaming(ctx, params)
 
 		var message anthropic.Message
+
 		for stream.Next() {
 			event := stream.Current()
 			_ = message.Accumulate(event)
@@ -115,23 +134,27 @@ func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest) (<-chan 
 				Type:    sdk.ProviderEventError,
 				Content: err.Error(),
 			})
+
 			return
 		}
 
 		for _, block := range message.Content {
 			if toolUse, ok := block.AsAny().(anthropic.ToolUseBlock); ok {
 				var args map[string]any
+
 				if raw := toolUse.JSON.Input.Raw(); raw != "" {
 					if err := json.Unmarshal([]byte(raw), &args); err != nil {
 						send(sdk.ProviderEvent{
 							Type:    sdk.ProviderEventError,
 							Content: fmt.Sprintf("anthropic: parse tool call arguments for %s: %v", toolUse.Name, err),
 						})
+
 						return
 					}
 				} else {
 					args = make(map[string]any)
 				}
+
 				if !send(sdk.ProviderEvent{
 					Type: sdk.ProviderEventToolCall,
 					Content: sdk.ToolCall{
@@ -169,10 +192,13 @@ func convertMessages(msgs []sdk.Message) []anthropic.MessageParam {
 			))
 		case sdk.RoleAssistant:
 			flush()
+
 			var blocks []anthropic.ContentBlockParamUnion
+
 			if text, ok := msg.Content.(string); ok && text != "" {
 				blocks = append(blocks, anthropic.NewTextBlock(text))
 			}
+
 			for _, tc := range msg.ToolCalls {
 				inputJSON, _ := json.Marshal(tc.Arguments)
 				blocks = append(blocks, anthropic.ContentBlockParamUnion{
@@ -183,6 +209,7 @@ func convertMessages(msgs []sdk.Message) []anthropic.MessageParam {
 					},
 				})
 			}
+
 			if len(blocks) > 0 {
 				params = append(params, anthropic.NewAssistantMessage(blocks...))
 			}
@@ -192,19 +219,24 @@ func convertMessages(msgs []sdk.Message) []anthropic.MessageParam {
 				anthropic.NewToolResultBlock(msg.ToolCallID, content, msg.IsError))
 		}
 	}
+
 	flush()
+
 	return params
 }
 
 func convertTools(tools []sdk.ToolDef) []anthropic.ToolUnionParam {
 	result := make([]anthropic.ToolUnionParam, len(tools))
+
 	for i, t := range tools {
 		var properties map[string]any
 		var required []string
+
 		if params, ok := t.Parameters.(map[string]any); ok {
 			if p, ok := params["properties"].(map[string]any); ok {
 				properties = p
 			}
+
 			switch r := params["required"].(type) {
 			case []string:
 				required = r
@@ -216,6 +248,7 @@ func convertTools(tools []sdk.ToolDef) []anthropic.ToolUnionParam {
 				}
 			}
 		}
+
 		result[i] = anthropic.ToolUnionParam{
 			OfTool: &anthropic.ToolParam{
 				Name:        t.Name,
@@ -227,5 +260,6 @@ func convertTools(tools []sdk.ToolDef) []anthropic.ToolUnionParam {
 			},
 		}
 	}
+
 	return result
 }

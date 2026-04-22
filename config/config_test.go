@@ -47,6 +47,17 @@ func TestFindConfigPath_NotFound(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestFindConfigPath_ConfigJSON(t *testing.T) {
+	dir := t.TempDir()
+	configDir := filepath.Join(dir, ".weave")
+	mkdir(t, configDir)
+	writeFile(t, configDir, "config.json", `{"extensions":["noop"]}`)
+
+	got, err := FindConfigPath(dir)
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(configDir, "config.json"), got)
+}
+
 func TestFindConfigPath_PrefersWeaveYaml(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, ".weave.yaml", "extensions: [first]\n")
@@ -137,8 +148,21 @@ func TestLoad_CoreExtsDefaults(t *testing.T) {
 }
 
 func TestLoad_MissingFile(t *testing.T) {
-	_, _, _, err := LoadFromDir("/nonexistent", nil)
-	require.Error(t, err)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	projectDir := t.TempDir()
+
+	path, cf, _, err := LoadFromDir(projectDir, nil)
+	require.NoError(t, err)
+
+	// Should generate a global config in ~/.weave/config.json
+	assert.NotEmpty(t, path, "should have generated a global config")
+	assert.Equal(t, "tui", cf.UI)
+	assert.Equal(t, "loop", cf.Core.AgentLoop)
+	require.Len(t, cf.Extensions, 8)
+
+	_, statErr := os.Stat(path)
+	require.NoError(t, statErr)
 }
 
 func TestLoad_UIDefault(t *testing.T) {
@@ -169,6 +193,77 @@ func TestLoad_UIFlag(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "custom", cf.UI)
+}
+
+func TestEnsureGlobalConfig_GeneratesFile(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	projectDir := t.TempDir()
+
+	path, err := EnsureGlobalConfig(projectDir)
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(home, ".weave", "config.json"), path)
+
+	data, readErr := os.ReadFile(path)
+	require.NoError(t, readErr)
+	assert.Contains(t, string(data), `"anthropic"`)
+	assert.Contains(t, string(data), `"openai"`)
+	assert.Contains(t, string(data), `"zai"`)
+	assert.Contains(t, string(data), `"bash"`)
+	assert.Contains(t, string(data), `"jsonl"`)
+}
+
+func TestEnsureGlobalConfig_SkipsIfProjectConfigExists(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	projectDir := t.TempDir()
+	writeFile(t, projectDir, ".weave.yaml", "extensions: [custom]\n")
+
+	path, err := EnsureGlobalConfig(projectDir)
+	require.NoError(t, err)
+	assert.Empty(t, path, "should skip when project config exists")
+}
+
+func TestEnsureGlobalConfig_SkipsIfGlobalConfigExists(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	globalDir := filepath.Join(home, ".weave")
+	mkdir(t, globalDir)
+	writeFile(t, globalDir, "config.json", `{"core":{"providers":["openai"]}}`)
+	projectDir := t.TempDir()
+
+	path, err := EnsureGlobalConfig(projectDir)
+	require.NoError(t, err)
+	assert.Empty(t, path, "should skip when global config already exists")
+}
+
+func TestEnsureGlobalConfig_Idempotent(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	projectDir := t.TempDir()
+
+	path1, err := EnsureGlobalConfig(projectDir)
+	require.NoError(t, err)
+	assert.NotEmpty(t, path1)
+
+	path2, err := EnsureGlobalConfig(projectDir)
+	require.NoError(t, err)
+	assert.Empty(t, path2, "should skip on second call")
+}
+
+func TestDefaultConfigJSON(t *testing.T) {
+	j := DefaultConfigJSON()
+	assert.Contains(t, j, `"anthropic"`)
+	assert.Contains(t, j, `"openai"`)
+	assert.Contains(t, j, `"zai"`)
+	assert.Contains(t, j, `"jsonl"`)
+	assert.Contains(t, j, `"bash"`)
+	assert.Contains(t, j, `"edit"`)
+	assert.Contains(t, j, `"find"`)
+	assert.Contains(t, j, `"grep"`)
+	assert.Contains(t, j, `"ls"`)
+	assert.Contains(t, j, `"read"`)
+	assert.Contains(t, j, `"write"`)
 }
 
 func writeFile(t *testing.T, dir, name, content string) {

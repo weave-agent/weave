@@ -368,6 +368,7 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string, provider
 	b.WriteString("\t\"syscall\"\n")
 	b.WriteString("\n")
 	b.WriteString("\t\"weave/bus\"\n")
+	b.WriteString("\t\"weave/config\"\n")
 	b.WriteString("\t\"weave/sdk\"\n")
 
 	for _, ext := range exts {
@@ -410,9 +411,12 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string, provider
 	b.WriteString("\tdefer b.Close()\n\n")
 	b.WriteString("\tendCh := b.Subscribe(\"agent.end\")\n\n")
 	b.WriteString("\tvar cfg sdk.Config\n")
-	b.WriteString("\tif cfgPath != \"\" {\n")
-	b.WriteString("\t\tcfg = sdk.FilePathConfig(cfgPath)\n")
-	b.WriteString("\t}\n\n")
+	b.WriteString("\tfullCfg, cfgErr := config.LoadFullConfig(cfgPath)\n")
+	b.WriteString("\tif cfgErr != nil {\n")
+	b.WriteString("\t\tfmt.Fprintf(os.Stderr, \"weave: load config: %v\\n\", cfgErr)\n")
+	b.WriteString("\t\tos.Exit(1)\n")
+	b.WriteString("\t}\n")
+	b.WriteString("\tcfg = fullCfg\n\n")
 
 	optExtNames := make([]string, 0, len(exts))
 	for _, ext := range exts {

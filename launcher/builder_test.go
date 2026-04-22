@@ -223,7 +223,7 @@ func TestGenerateMainGo_Content(t *testing.T) {
 	assert.Contains(t, s, `AgentLoop: "loop"`)
 	assert.Contains(t, s, `"anthropic"`)
 	assert.Contains(t, s, "strings.CutPrefix")
-	assert.Contains(t, s, "sdk.FilePathConfig")
+	assert.Contains(t, s, "config.LoadFullConfig")
 	assert.Contains(t, s, "signal.Notify")
 	assert.Contains(t, s, `b.Subscribe("agent.end")`)
 	assert.Contains(t, s, "wired.Close()")

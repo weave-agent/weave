@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nniel-ape/gonfig"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/nniel-ape/gonfig"
 )
 
 // SessionEntry holds minimal session metadata for the selector.

@@ -35,6 +35,14 @@ func TestMergeUnique(t *testing.T) {
 }
 
 func TestRunFlagParsing(t *testing.T) {
+	dir := t.TempDir()
+
+	origWd, _ := os.Getwd()
+
+	require.NoError(t, os.Chdir(dir))
+
+	defer func() { _ = os.Chdir(origWd) }()
+
 	tests := []struct {
 		name     string
 		args     []string
@@ -58,6 +66,8 @@ func TestRunMissingConfig(t *testing.T) {
 
 	defer func() { _ = os.Chdir(origWd) }()
 
+	// Missing config now falls back to defaults, so run proceeds
+	// and fails because there's no module root in a temp dir.
 	assert.Equal(t, 1, run())
 }
 

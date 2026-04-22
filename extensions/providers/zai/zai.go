@@ -10,7 +10,10 @@ import (
 	"weave/sdk"
 )
 
-const defaultModel = "glm-4"
+const (
+	defaultModel   = "glm-4"
+	defaultBaseURL = "https://open.bigmodel.cn/api/paas/v4"
+)
 
 type provider struct {
 	client *http.Client
@@ -18,21 +21,37 @@ type provider struct {
 }
 
 func init() {
-	sdk.RegisterProvider("zai", func(_ sdk.Config) (sdk.Provider, error) {
-		apiKey := os.Getenv("ZAI_API_KEY")
-		if apiKey == "" {
-			return nil, fmt.Errorf("zai: ZAI_API_KEY environment variable is required")
+	sdk.RegisterProvider("zai", func(cfg sdk.Config) (sdk.Provider, error) {
+		apiKey, err := cfg.ResolveKey("zai", "ZAI_API_KEY")
+		if err != nil {
+			return nil, fmt.Errorf("zai: %w", err)
 		}
 
-		model := os.Getenv("ZAI_MODEL")
-		if model == "" {
-			model = defaultModel
+		if apiKey == "" {
+			return nil, fmt.Errorf("zai: API key required (set ZAI_API_KEY, add to ~/.weave/auth.json, or configure in .weave.yaml)")
+		}
+
+		model := defaultModel
+		baseURL := defaultBaseURL
+
+		if v := os.Getenv("ZAI_MODEL"); v != "" {
+			model = v
+		}
+
+		if pc := cfg.ProviderConfig("zai"); pc != nil {
+			if pc.Model != "" {
+				model = pc.Model
+			}
+
+			if pc.BaseURL != "" {
+				baseURL = pc.BaseURL
+			}
 		}
 
 		return &provider{
 			client: &http.Client{},
 			config: openaicompat.ProviderConfig{
-				BaseURL: "https://open.bigmodel.cn/api/paas/v4",
+				BaseURL: baseURL,
 				APIKey:  apiKey,
 				Model:   model,
 			},
