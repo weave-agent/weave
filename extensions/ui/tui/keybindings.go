@@ -18,10 +18,26 @@ type BindingAction string
 
 const (
 	ActionExit        BindingAction = "app.exit"
-	ActionClear       BindingAction = "app.clear"
 	ActionInterrupt   BindingAction = "app.interrupt"
 	ActionModelSelect BindingAction = "app.model.select"
 	ActionModelCycle  BindingAction = "app.model.cycle"
+
+	ActionCursorLineStart    BindingAction = "tui.editor.cursorLineStart"
+	ActionCursorLineEnd      BindingAction = "tui.editor.cursorLineEnd"
+	ActionCursorWordLeft     BindingAction = "tui.editor.cursorWordLeft"
+	ActionCursorWordRight    BindingAction = "tui.editor.cursorWordRight"
+	ActionScrollUp           BindingAction = "tui.editor.scrollUp"
+	ActionScrollDown         BindingAction = "tui.editor.scrollDown"
+	ActionDeleteWordBackward BindingAction = "tui.editor.deleteWordBackward"
+	ActionDeleteWordForward  BindingAction = "tui.editor.deleteWordForward"
+	ActionDeleteToLineStart  BindingAction = "tui.editor.deleteToLineStart"
+	ActionDeleteToLineEnd    BindingAction = "tui.editor.deleteToLineEnd"
+	ActionUndo               BindingAction = "tui.editor.undo"
+	ActionSuspend            BindingAction = "app.suspend"
+	ActionExternalEditor     BindingAction = "app.editor.external"
+	ActionToggleToolOutput   BindingAction = "app.tools.expand"
+	ActionToggleThinking     BindingAction = "app.thinking.toggle"
+	ActionNewSession         BindingAction = "app.session.new"
 )
 
 // Binding maps a key sequence to a named action with a description.
@@ -34,10 +50,37 @@ type Binding struct {
 // defaultBindings is the built-in keybinding set.
 var defaultBindings = []Binding{
 	{Action: ActionExit, Keys: []string{"ctrl+d"}, Description: "Exit weave"},
-	{Action: ActionClear, Keys: []string{"ctrl+c"}, Description: "Clear/quit"},
 	{Action: ActionInterrupt, Keys: []string{"escape"}, Description: "Interrupt current operation"},
 	{Action: ActionModelSelect, Keys: []string{"ctrl+l"}, Description: "Open model selector"},
 	{Action: ActionModelCycle, Keys: []string{"ctrl+p"}, Description: "Cycle to next model"},
+
+	// Editor navigation
+	{Action: ActionCursorLineStart, Keys: []string{"ctrl+a", "home"}, Description: "Cursor to line start"},
+	{Action: ActionCursorLineEnd, Keys: []string{"ctrl+e", "end"}, Description: "Cursor to line end"},
+	{Action: ActionCursorWordLeft, Keys: []string{"alt+left", "ctrl+left"}, Description: "Cursor word left"},
+	{Action: ActionCursorWordRight, Keys: []string{"alt+right", "ctrl+right"}, Description: "Cursor word right"},
+	{Action: ActionScrollUp, Keys: []string{"pgup"}, Description: "Scroll chat up"},
+	{Action: ActionScrollDown, Keys: []string{"pgdown"}, Description: "Scroll chat down"},
+
+	// Editor deletion
+	{Action: ActionDeleteWordBackward, Keys: []string{"ctrl+w"}, Description: "Delete word backward"},
+	{Action: ActionDeleteWordForward, Keys: []string{"alt+d"}, Description: "Delete word forward"},
+	{Action: ActionDeleteToLineStart, Keys: []string{"ctrl+u"}, Description: "Delete to line start"},
+	{Action: ActionDeleteToLineEnd, Keys: []string{"ctrl+k"}, Description: "Delete to line end"},
+
+	// Undo
+	{Action: ActionUndo, Keys: []string{"ctrl+_"}, Description: "Undo"},
+
+	// App control
+	{Action: ActionSuspend, Keys: []string{"ctrl+z"}, Description: "Suspend weave"},
+	{Action: ActionExternalEditor, Keys: []string{"ctrl+g"}, Description: "Open external editor"},
+
+	// Display
+	{Action: ActionToggleToolOutput, Keys: []string{"ctrl+o"}, Description: "Expand/collapse tool output"},
+	{Action: ActionToggleThinking, Keys: []string{"ctrl+t"}, Description: "Toggle thinking blocks"},
+
+	// Session
+	{Action: ActionNewSession, Keys: []string{"ctrl+n"}, Description: "New session"},
 }
 
 // BindingRegistry manages keybindings with priority resolution:

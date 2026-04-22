@@ -3,7 +3,10 @@ package tui
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
 	"strings"
+	"time"
 
 	"weave/config"
 	"weave/ext/ui/tui/components"
@@ -24,6 +27,10 @@ const (
 	overlayKeyInput
 )
 
+const doublePressWindow = 500 * time.Millisecond
+
+const defaultEditorHeight = 3
+
 // Model is the root Bubble Tea model for the TUI.
 type Model struct {
 	width  int
@@ -41,13 +48,13 @@ type Model struct {
 	bindings   *BindingRegistry
 	ui         *TUIImpl
 
-	overlay         overlays.SelectorModel
-	activeOverlay   overlayKind
-	pendingSessions []SessionEntry
-	pendingModels   []ModelEntry
+	overlay          overlays.SelectorModel
+	activeOverlay    overlayKind
+	pendingSessions  []SessionEntry
+	pendingModels    []ModelEntry
 	pendingProviders []ProviderEntry
-	currentModel    ModelEntry
-	prevModel       ModelEntry
+	currentModel     ModelEntry
+	prevModel        ModelEntry
 
 	keyInput       overlays.InputModel
 	providerTarget string
@@ -55,6 +62,10 @@ type Model struct {
 	sessionDir string
 
 	popup *popupState
+
+	// double-press tracking
+	lastCtrlC  time.Time
+	lastEscape time.Time
 }
 
 // newModel creates a new root model.
@@ -118,7 +129,7 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 	return m
 }
 
-// Init returns the initial command (none for now).
+// Init returns the initial command.
 func (m Model) Init() tea.Cmd {
 	return nil
 }
@@ -157,7 +168,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.chat = m.chat.SetSize(m.width, m.chatHeight(m.height))
-		m.editor = m.editor.SetSize(m.width, 3)
+		m.editor = m.editor.SetSize(m.width, defaultEditorHeight)
 		m.footer = m.footer.SetSize(m.width)
 		m.spinner = m.spinner.SetSize(m.width)
 		m.overlay = m.overlay.SetSize(m.width, m.height)
@@ -189,16 +200,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 
-		// Try keybinding resolver (let editor handle Escape when autocomplete is visible)
+		// Handle ctrl+c with double-press: first clears editor, second quits
+		if msg.Type == tea.KeyCtrlC {
+			return m.handleCtrlC()
+		}
+
+		// Handle escape with double-press: first interrupts, second clears editor
+		if msg.Type == tea.KeyEsc {
+			return m.handleEscape()
+		}
+
+		// Try keybinding resolver
 		if action, ok := m.bindings.Resolve(keyString(msg)); ok {
-			if action == ActionInterrupt && m.editor.AutocompleteVisible() {
-				var cmd tea.Cmd
-
-				m.editor, cmd = m.editor.Update(msg)
-
-				return m, cmd
-			}
-
 			return m.dispatchBinding(action)
 		}
 
@@ -208,6 +221,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.editor, cmd = m.editor.Update(msg)
 
 		return m, cmd
+
+	case externalEditorMsg:
+		if msg.err == nil && msg.text != "" {
+			m.editor = m.editor.SetValue(msg.text)
+		}
+
+		return m, nil
 
 	case components.SubmitMsg:
 		return m.onSubmit(msg.Text)
@@ -305,19 +325,52 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleCtrlC implements double-press ctrl+c: first press clears editor,
+// second press within the window quits.
+func (m Model) handleCtrlC() (tea.Model, tea.Cmd) {
+	now := time.Now()
+
+	if m.editor.Value() != "" {
+		m.editor = m.editor.SetValue("")
+		m.lastCtrlC = now
+
+		return m, nil
+	}
+
+	// Editor is empty — check for double press
+	if now.Sub(m.lastCtrlC) < doublePressWindow {
+		return m, tea.Quit
+	}
+
+	m.lastCtrlC = now
+
+	return m, nil
+}
+
+// handleEscape implements double-press escape: first press interrupts streaming,
+// second press within the window clears the editor.
+func (m Model) handleEscape() (tea.Model, tea.Cmd) {
+	now := time.Now()
+
+	// Check for double press — clear editor
+	if now.Sub(m.lastEscape) < doublePressWindow {
+		m.editor = m.editor.SetValue("")
+		m.lastEscape = time.Time{}
+
+		return m, nil
+	}
+
+	m.lastEscape = now
+
+	// First press — interrupt streaming if active
+	return m.interruptStreaming()
+}
+
 // dispatchBinding handles a resolved keybinding action.
 func (m Model) dispatchBinding(action BindingAction) (tea.Model, tea.Cmd) {
 	switch action {
 	case ActionExit:
 		return m, tea.Quit
-	case ActionClear:
-		m.chat = components.NewChatModel().SetSize(m.width, m.chatHeight(m.height))
-		m.toolPanels = make(map[string]*messages.ToolPanel)
-		m.prompted = false
-
-		return m, nil
-	case ActionInterrupt:
-		return m.interruptStreaming()
 	case ActionModelSelect:
 		return m, listModelsCmd()
 	case ActionModelCycle:
@@ -328,9 +381,154 @@ func (m Model) dispatchBinding(action BindingAction) (tea.Model, tea.Cmd) {
 		}
 
 		return m, nil
+
+	// Editor navigation
+	case ActionCursorLineStart:
+		m.editor = m.editor.CursorLineStart()
+		return m, nil
+	case ActionCursorLineEnd:
+		m.editor = m.editor.CursorLineEnd()
+		return m, nil
+	case ActionCursorWordLeft:
+		m.editor = m.editor.CursorWordLeft()
+		return m, nil
+	case ActionCursorWordRight:
+		m.editor = m.editor.CursorWordRight()
+		return m, nil
+
+	// Chat scroll
+	case ActionScrollUp:
+		m.chat = m.chat.ScrollUp(m.chatHeight(m.height))
+		return m, nil
+	case ActionScrollDown:
+		m.chat = m.chat.ScrollDown(m.chatHeight(m.height))
+		return m, nil
+
+	// Editor deletion
+	case ActionDeleteWordBackward:
+		m.editor = m.editor.DeleteWordBackward()
+		return m, nil
+	case ActionDeleteWordForward:
+		m.editor = m.editor.DeleteWordForward()
+		return m, nil
+	case ActionDeleteToLineStart:
+		m.editor = m.editor.DeleteToLineStart()
+		return m, nil
+	case ActionDeleteToLineEnd:
+		m.editor = m.editor.DeleteToLineEnd()
+		return m, nil
+
+	// Undo
+	case ActionUndo:
+		m.editor = m.editor.Undo()
+		return m, nil
+
+	// App control
+	case ActionSuspend:
+		return m, func() tea.Msg { return tea.SuspendMsg{} }
+	case ActionExternalEditor:
+		return m.openExternalEditor()
+
+	// Display
+	case ActionToggleToolOutput:
+		m.toggleLastToolOutput()
+		return m, nil
+	case ActionToggleThinking:
+		m.toggleLastThinkingBlock()
+		return m, nil
+
+	// Session
+	case ActionNewSession:
+		m.chat = components.NewChatModel().SetSize(m.width, m.chatHeight(m.height))
+		m.toolPanels = make(map[string]*messages.ToolPanel)
+		m.prompted = false
+
+		return m, nil
+
 	default:
 		return m, nil
 	}
+}
+
+// toggleLastToolOutput expands or collapses the last tool output panel.
+func (m *Model) toggleLastToolOutput() {
+	items := m.chat.Items()
+	for i := len(items) - 1; i >= 0; i-- {
+		if tp, ok := items[i].(*messages.ToolPanel); ok {
+			tp.ToggleExpanded()
+			m.chat = m.chat.UpdateItemByID(tp)
+
+			return
+		}
+	}
+}
+
+// toggleLastThinkingBlock expands or collapses the last thinking block.
+func (m *Model) toggleLastThinkingBlock() {
+	items := m.chat.Items()
+	for i := len(items) - 1; i >= 0; i-- {
+		if tb, ok := items[i].(*messages.ThinkingBlock); ok {
+			tb.ToggleExpanded()
+			m.chat = m.chat.UpdateItemByID(tb)
+
+			return
+		}
+	}
+}
+
+// externalEditorMsg is sent when the external editor finishes.
+type externalEditorMsg struct {
+	text string
+	err  error
+}
+
+// openExternalEditor opens the current editor content in an external editor.
+func (m Model) openExternalEditor() (tea.Model, tea.Cmd) {
+	text := m.editor.Value()
+
+	tmpFile, err := os.CreateTemp("", "weave-editor-*.md")
+	if err != nil {
+		return m, nil
+	}
+
+	tmpPath := tmpFile.Name()
+
+	if _, err := tmpFile.WriteString(text); err != nil {
+		tmpFile.Close()
+		os.Remove(tmpPath)
+
+		return m, nil
+	}
+
+	tmpFile.Close()
+
+	editor := os.Getenv("VISUAL")
+	if editor == "" {
+		editor = os.Getenv("EDITOR")
+	}
+
+	if editor == "" {
+		editor = "vi"
+	}
+
+	cmd := exec.Command(editor, tmpPath) //nolint:gosec // editor path comes from env
+
+	return m, tea.ExecProcess(cmd, func(procErr error) tea.Msg {
+		if procErr != nil {
+			os.Remove(tmpPath)
+
+			return externalEditorMsg{err: procErr}
+		}
+
+		data, readErr := os.ReadFile(tmpPath)
+		os.Remove(tmpPath)
+
+		if readErr != nil {
+			return externalEditorMsg{err: readErr}
+		}
+
+		return externalEditorMsg{text: string(data)}
+	})
 }
 
 // onMessageUpdate appends a delta to the current assistant message.
@@ -767,7 +965,7 @@ func parseToolEntry(raw json.RawMessage) (name, content string, isError bool) {
 
 // chatHeight returns the height allocated to the chat area.
 func (m Model) chatHeight(totalHeight int) int {
-	editorLines := 3 + 2 // editor height + border
+	editorLines := defaultEditorHeight + 2 // editor height + border
 	footerLines := 2
 
 	spinnerLines := 0

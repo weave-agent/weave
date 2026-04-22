@@ -6,8 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"weave/ext/ui/tui/components/messages"
-
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,7 +16,6 @@ func TestBindingRegistry_Defaults(t *testing.T) {
 
 	actions := map[string]BindingAction{
 		"ctrl+d": ActionExit,
-		"ctrl+c": ActionClear,
 		"escape": ActionInterrupt,
 		"ctrl+l": ActionModelSelect,
 		"ctrl+p": ActionModelCycle,
@@ -34,17 +31,17 @@ func TestBindingRegistry_Defaults(t *testing.T) {
 func TestBindingRegistry_UnknownKey(t *testing.T) {
 	r := NewBindingRegistry()
 
-	_, ok := r.Resolve("ctrl+z")
+	_, ok := r.Resolve("ctrl+f")
 	assert.False(t, ok)
 }
 
 func TestBindingRegistry_ExtensionOverridesDefault(t *testing.T) {
 	r := NewBindingRegistry()
 
-	// Register ctrl+c for a custom action
-	r.Register("app.custom", []string{"ctrl+c"}, "Custom action")
+	// Register ctrl+d for a custom action (overrides exit)
+	r.Register("app.custom", []string{"ctrl+d"}, "Custom action")
 
-	action, ok := r.Resolve("ctrl+c")
+	action, ok := r.Resolve("ctrl+d")
 	require.True(t, ok)
 	assert.Equal(t, BindingAction("app.custom"), action)
 }
@@ -159,17 +156,18 @@ func TestBindingRegistry_AllBindings(t *testing.T) {
 	bindings := r.AllBindings()
 	assert.NotEmpty(t, bindings)
 
-	// Should contain all 5 default actions
+	// Should contain all default actions
 	names := make(map[BindingAction]bool)
 	for _, b := range bindings {
 		names[b.Action] = true
 	}
 
 	assert.True(t, names[ActionExit])
-	assert.True(t, names[ActionClear])
 	assert.True(t, names[ActionInterrupt])
 	assert.True(t, names[ActionModelSelect])
 	assert.True(t, names[ActionModelCycle])
+	assert.True(t, names[ActionCursorLineStart])
+	assert.True(t, names[ActionSuspend])
 }
 
 func TestBindingRegistry_AllBindingsSorted(t *testing.T) {
@@ -254,23 +252,20 @@ func TestModel_CtrlDExitsViaBinding(t *testing.T) {
 	assert.True(t, ok, "ctrl+d should quit via keybinding")
 }
 
-func TestModel_CtrlCClearsChatViaBinding(t *testing.T) {
+func TestModel_CtrlCClearsEditorOnFirstPress(t *testing.T) {
 	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
-	// Add some state
-	m.prompted = true
-	m.chat = m.chat.AddItem(messages.NewAssistantMessage())
-	m.toolPanels["test"] = messages.NewToolPanel("test", "tool", "")
+	// Add text to editor
+	m.editor = m.editor.SetValue("some text")
 
 	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	m = model.(Model)
 
-	// Ctrl+C should clear chat, not quit
+	// First ctrl+c clears editor, doesn't quit
 	assert.Nil(t, cmd)
-	assert.False(t, m.prompted)
-	assert.Empty(t, m.toolPanels)
+	assert.Empty(t, m.editor.Value())
 }
 
 func TestModel_EscapeNoOpViaBinding(t *testing.T) {

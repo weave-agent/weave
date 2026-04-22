@@ -921,8 +921,8 @@ func TestModel_InterruptStreaming(t *testing.T) {
 	model, _ = m.Update(MessageUpdateMsg{Content: "partial"})
 	m = model.(Model)
 
-	// Trigger interrupt via keybinding
-	model, cmd := m.dispatchBinding(ActionInterrupt)
+	// Trigger interrupt
+	model, cmd := m.interruptStreaming()
 	m = model.(Model)
 
 	// Verify message was interrupted

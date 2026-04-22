@@ -59,6 +59,20 @@ func (m ChatModel) ScrollOffset() int {
 	return m.scroll
 }
 
+// ScrollUp moves the viewport up by n lines.
+func (m ChatModel) ScrollUp(n int) ChatModel {
+	m.scroll = max(0, m.scroll-n)
+	return m
+}
+
+// ScrollDown moves the viewport down by n lines.
+func (m ChatModel) ScrollDown(n int) ChatModel {
+	totalLines := m.totalLines()
+	maxScroll := max(0, totalLines-m.height)
+	m.scroll = min(maxScroll, m.scroll+n)
+	return m
+}
+
 // AddItem appends a chat item and auto-scrolls to bottom.
 func (m ChatModel) AddItem(item ChatItem) ChatModel {
 	m.items = append(m.items, item)
