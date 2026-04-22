@@ -93,6 +93,11 @@ type ModelChangeFailedMsg struct {
 	Error    string
 }
 
+// ProviderListResultMsg carries the result of listing providers with key status.
+type ProviderListResultMsg struct {
+	Providers []ProviderEntry
+}
+
 // translateEvent converts a bus event into a tea.Msg.
 // Returns nil for unknown topics.
 func translateEvent(evt sdk.Event) tea.Msg {
@@ -294,5 +299,12 @@ func PublishModelChange(bus sdk.Bus, entry ModelEntry) tea.Cmd {
 func listModelsCmd() tea.Cmd {
 	return func() tea.Msg {
 		return ModelListResultMsg{Models: listModels()}
+	}
+}
+
+// listProvidersCmd returns a tea.Cmd that lists providers with key status.
+func listProvidersCmd() tea.Cmd {
+	return func() tea.Msg {
+		return ProviderListResultMsg{Providers: listProviders()}
 	}
 }

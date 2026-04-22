@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"weave/config"
 	"weave/ext/ui/tui/components"
 	"weave/ext/ui/tui/components/messages"
 	"weave/ext/ui/tui/components/overlays"
@@ -19,6 +20,8 @@ const (
 	overlayNone overlayKind = iota
 	overlaySession
 	overlayModel
+	overlayProvider
+	overlayKeyInput
 )
 
 // Model is the root Bubble Tea model for the TUI.
@@ -42,8 +45,12 @@ type Model struct {
 	activeOverlay   overlayKind
 	pendingSessions []SessionEntry
 	pendingModels   []ModelEntry
+	pendingProviders []ProviderEntry
 	currentModel    ModelEntry
 	prevModel       ModelEntry
+
+	keyInput       overlays.InputModel
+	providerTarget string
 
 	sessionDir string
 
@@ -66,8 +73,12 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 		return CommandResult{Command: listModelsCmd()}
 	})
 
+	commands.register("/providers", "Manage provider API keys", func(_ string) CommandResult {
+		return CommandResult{Command: listProvidersCmd()}
+	})
+
 	editor := components.NewEditorModel().Focus()
-	editor.SetSlashCommands(commands.Names())
+	editor = editor.SetSlashCommands(commands.Names())
 
 	models := listModels()
 	cur := currentModel(models)
@@ -150,6 +161,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.footer = m.footer.SetSize(m.width)
 		m.spinner = m.spinner.SetSize(m.width)
 		m.overlay = m.overlay.SetSize(m.width, m.height)
+		m.keyInput = m.keyInput.SetSize(m.width, m.height)
 
 		return m, nil
 
@@ -159,13 +171,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if msg.String() == "ctrl+c" {
 				m.activeOverlay = overlayNone
 				m.overlay = m.overlay.Hide()
+				m.keyInput = m.keyInput.Hide()
+				m.pendingProviders = nil
+				m.providerTarget = ""
 
 				return m, nil
 			}
 
 			var cmd tea.Cmd
 
-			m.overlay, cmd = m.overlay.Update(msg)
+			if m.activeOverlay == overlayKeyInput {
+				m.keyInput, cmd = m.keyInput.Update(msg)
+			} else {
+				m.overlay, cmd = m.overlay.Update(msg)
+			}
 
 			return m, cmd
 		}
@@ -238,6 +257,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ModelChangeFailedMsg:
 		return m.onModelChangeFailed(msg)
 
+	case ProviderListResultMsg:
+		return m.onProviderListResult(msg)
+
 	case overlays.SelectorSelectedMsg:
 		return m.onOverlaySelected(msg)
 
@@ -246,6 +268,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.overlay = m.overlay.Hide()
 		m.pendingSessions = nil
 		m.pendingModels = nil
+		m.pendingProviders = nil
 
 		return m, nil
 
@@ -267,7 +290,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case overlays.InputResultMsg:
-		return m, nil
+		return m.onKeyInputResult(msg)
 	}
 
 	// Forward spinner ticks
@@ -544,12 +567,102 @@ func (m Model) onModelChangeFailed(msg ModelChangeFailedMsg) (tea.Model, tea.Cmd
 	return m, nil
 }
 
+func (m Model) onProviderListResult(msg ProviderListResultMsg) (tea.Model, tea.Cmd) {
+	if len(msg.Providers) == 0 {
+		am := messages.NewAssistantMessage()
+		am.Finalize("No providers available.")
+		m.chat = m.chat.AddItem(am)
+
+		return m, nil
+	}
+
+	items := make([]overlays.SelectorItem, len(msg.Providers))
+	for i, p := range msg.Providers {
+		statusText := "no key"
+		if p.HasKey {
+			statusText = "key set"
+		}
+		items[i] = overlays.SelectorItem{
+			Title:    p.Name,
+			Subtitle: statusText,
+		}
+	}
+
+	m.pendingProviders = msg.Providers
+	m.overlay = overlays.NewSelectorModel("Manage Provider Keys", items)
+	m.overlay = m.overlay.SetSize(m.width, m.height)
+	m.overlay = m.overlay.Show()
+	m.activeOverlay = overlayProvider
+
+	return m, nil
+}
+
+func (m Model) onProviderSelected(msg overlays.SelectorSelectedMsg) (tea.Model, tea.Cmd) {
+	if msg.Index < 0 || msg.Index >= len(m.pendingProviders) {
+		m.activeOverlay = overlayNone
+		m.overlay = m.overlay.Hide()
+		m.pendingProviders = nil
+
+		return m, nil
+	}
+
+	selected := m.pendingProviders[msg.Index]
+	m.providerTarget = selected.Name
+
+	m.overlay = m.overlay.Hide()
+	m.activeOverlay = overlayKeyInput
+
+	m.keyInput = overlays.NewInputModel("Enter API key for " + selected.Name)
+	m.keyInput = m.keyInput.SetSize(m.width, m.height)
+	m.keyInput = m.keyInput.Show()
+
+	return m, nil
+}
+
+func (m Model) onKeyInputResult(msg overlays.InputResultMsg) (tea.Model, tea.Cmd) {
+	m.activeOverlay = overlayNone
+	m.keyInput = m.keyInput.Hide()
+
+	if !msg.Ok || m.providerTarget == "" {
+		m.pendingProviders = nil
+		m.providerTarget = ""
+
+		return m, nil
+	}
+
+	apiKey := strings.TrimSpace(msg.Value)
+	if apiKey == "" {
+		m.pendingProviders = nil
+		m.providerTarget = ""
+
+		return m, nil
+	}
+
+	providerName := m.providerTarget
+	err := config.SetProviderKey(providerName, apiKey)
+
+	m.pendingProviders = nil
+	m.providerTarget = ""
+
+	am := messages.NewAssistantMessage()
+	if err != nil {
+		am.Finalize(fmt.Sprintf("Failed to save API key for %s: %v", providerName, err))
+	} else {
+		am.Finalize(fmt.Sprintf("API key saved for %s.", providerName))
+	}
+	m.chat = m.chat.AddItem(am)
+
+	return m, nil
+}
+
 func (m Model) onOverlaySelected(msg overlays.SelectorSelectedMsg) (tea.Model, tea.Cmd) {
 	switch m.activeOverlay {
 	case overlaySession:
 		return m.onSessionSelected(msg)
 	case overlayModel:
 		return m.onModelSelected(msg)
+	case overlayProvider:
+		return m.onProviderSelected(msg)
 	default:
 		m.activeOverlay = overlayNone
 		m.overlay = m.overlay.Hide()
@@ -679,8 +792,13 @@ func (m Model) View() string {
 		}
 	}
 
-	if m.activeOverlay != overlayNone && m.overlay.Visible() {
-		return m.overlay.View()
+	if m.activeOverlay != overlayNone {
+		if m.activeOverlay == overlayKeyInput && m.keyInput.Visible() {
+			return m.keyInput.View()
+		}
+		if m.overlay.Visible() {
+			return m.overlay.View()
+		}
 	}
 
 	var sections []string
