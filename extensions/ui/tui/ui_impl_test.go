@@ -65,7 +65,7 @@ func TestTUIImpl_RegisterCommand(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	commands := NewCommandRegistry(b)
+	commands := NewCommandRegistry(b, "")
 	ui := NewTUIImpl(commands, nil)
 
 	ui.RegisterCommand("/test-cmd", func(args string) error {
@@ -87,7 +87,7 @@ func TestTUIImpl_RegisterCommand_Error(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	commands := NewCommandRegistry(b)
+	commands := NewCommandRegistry(b, "")
 	ui := NewTUIImpl(commands, nil)
 
 	ui.RegisterCommand("/err-cmd", func(args string) error {
@@ -185,7 +185,7 @@ func TestTUIImpl_EnqueueSendsPopupPendingMsg(t *testing.T) {
 		items:  []string{"a"},
 		result: make(chan overlayResponse, 1),
 	}
-	ui.enqueue(req) //nolint:errcheck // test
+	ui.enqueue(req) //nolint:errcheck,gosec // test
 
 	require.Len(t, sender.msgs, 1)
 
@@ -199,6 +199,7 @@ func activatePopup(m Model, ui *TUIImpl, req *overlayRequest) Model {
 	ui.SetProgram(&mockSender{})
 	_ = ui.enqueue(req)
 	updated, _ := m.handlePopupPending()
+
 	return updated
 }
 
@@ -273,7 +274,7 @@ func TestModel_PopupView(t *testing.T) {
 	m.height = 24
 
 	// No popup → empty view
-	assert.Equal(t, "", m.popupView())
+	assert.Empty(t, m.popupView())
 
 	// With confirm popup
 	m.popup = &popupState{
@@ -380,7 +381,7 @@ func TestModel_PopupSelectCancel(t *testing.T) {
 	select {
 	case resp := <-req.result:
 		assert.Equal(t, -1, resp.index)
-		assert.Error(t, resp.err)
+		require.Error(t, resp.err)
 	default:
 		t.Fatal("expected response on result channel")
 	}
@@ -410,7 +411,7 @@ func TestModel_PopupSelectConfirm(t *testing.T) {
 	select {
 	case resp := <-req.result:
 		assert.Equal(t, 1, resp.index)
-		assert.NoError(t, resp.err)
+		require.NoError(t, resp.err)
 	default:
 		t.Fatal("expected response on result channel")
 	}
@@ -439,7 +440,7 @@ func TestModel_PopupInputSubmit(t *testing.T) {
 	select {
 	case resp := <-req.result:
 		assert.Equal(t, "hi", resp.value)
-		assert.NoError(t, resp.err)
+		require.NoError(t, resp.err)
 	default:
 		t.Fatal("expected response on result channel")
 	}
@@ -467,7 +468,7 @@ func TestModel_PopupInputCancel(t *testing.T) {
 
 	select {
 	case resp := <-req.result:
-		assert.Error(t, resp.err)
+		require.Error(t, resp.err)
 	default:
 		t.Fatal("expected response on result channel")
 	}

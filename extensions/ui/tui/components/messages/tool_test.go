@@ -87,6 +87,7 @@ func TestToolPanel_CollapseLongOutput(t *testing.T) {
 	for i := range lines {
 		lines[i] = "line of output"
 	}
+
 	output := strings.Join(lines, "\n")
 
 	p := NewToolPanel("tc1", "bash", "cat bigfile")
@@ -102,6 +103,7 @@ func TestToolPanel_ExpandShowsAll(t *testing.T) {
 	for i := range lines {
 		lines[i] = "line of output"
 	}
+
 	output := strings.Join(lines, "\n")
 
 	p := NewToolPanel("tc1", "bash", "cat bigfile")

@@ -11,7 +11,7 @@ import (
 func TestNewInputModel(t *testing.T) {
 	m := NewInputModel("Enter name:")
 	assert.Equal(t, "Enter name:", m.prompt)
-	assert.Equal(t, "", m.Value())
+	assert.Empty(t, m.Value())
 	assert.Equal(t, 0, m.Cursor())
 	assert.False(t, m.Visible())
 }
@@ -22,7 +22,7 @@ func TestInputShowHide(t *testing.T) {
 
 	m = m.Show()
 	assert.True(t, m.Visible())
-	assert.Equal(t, "", m.Value())
+	assert.Empty(t, m.Value())
 	assert.Equal(t, 0, m.Cursor())
 
 	m = m.Hide()
@@ -57,7 +57,7 @@ func TestInputBackspace(t *testing.T) {
 func TestInputBackspaceAtStart(t *testing.T) {
 	m := NewInputModel("Name:").Show()
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
-	assert.Equal(t, "", m.Value())
+	assert.Empty(t, m.Value())
 	assert.Equal(t, 0, m.Cursor())
 }
 
@@ -122,7 +122,7 @@ func TestInputEscapeCancels(t *testing.T) {
 	result, ok := msg.(InputResultMsg)
 	require.True(t, ok)
 	assert.False(t, result.Ok)
-	assert.Equal(t, "", result.Value)
+	assert.Empty(t, result.Value)
 }
 
 func TestInputInsertMidText(t *testing.T) {
@@ -137,7 +137,7 @@ func TestInputInsertMidText(t *testing.T) {
 
 func TestInputViewInvisible(t *testing.T) {
 	m := NewInputModel("Test")
-	assert.Equal(t, "", m.View())
+	assert.Empty(t, m.View())
 }
 
 func TestInputViewVisible(t *testing.T) {
@@ -149,7 +149,7 @@ func TestInputViewVisible(t *testing.T) {
 
 func TestInputViewZeroWidth(t *testing.T) {
 	m := NewInputModel("Test").Show()
-	assert.Equal(t, "", m.View())
+	assert.Empty(t, m.View())
 }
 
 func TestInputViewShowsCursor(t *testing.T) {

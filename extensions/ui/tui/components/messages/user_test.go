@@ -18,6 +18,6 @@ func TestUserMessage_View(t *testing.T) {
 
 func TestUserMessage_EmptyContent(t *testing.T) {
 	m := NewUserMessage("")
-	assert.Equal(t, "", m.Content())
-	assert.Equal(t, "", m.View(80))
+	assert.Empty(t, m.Content())
+	assert.Empty(t, m.View(80))
 }

@@ -10,7 +10,7 @@ import (
 
 func TestNewEditorModel(t *testing.T) {
 	m := NewEditorModel()
-	assert.Equal(t, "", m.Value())
+	assert.Empty(t, m.Value())
 	assert.Equal(t, 0, m.cursor)
 	assert.True(t, m.dirty)
 	assert.False(t, m.Focused())
@@ -118,7 +118,7 @@ func TestEditorEnterSubmits(t *testing.T) {
 	m = m.SetValue("hello world")
 
 	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	assert.Equal(t, "", m.Value())
+	assert.Empty(t, m.Value())
 	assert.Equal(t, 0, m.cursor)
 	require.NotNil(t, cmd)
 
@@ -131,7 +131,7 @@ func TestEditorEnterSubmits(t *testing.T) {
 func TestEditorEnterEmptyDoesNothing(t *testing.T) {
 	m := NewEditorModel().Focus()
 	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	assert.Equal(t, "", m.Value())
+	assert.Empty(t, m.Value())
 	assert.Nil(t, cmd)
 }
 
@@ -166,7 +166,7 @@ func TestEditorSubmitNoDuplicateHistory(t *testing.T) {
 func TestEditorSubmitEmptyNotInHistory(t *testing.T) {
 	m := NewEditorModel().Focus()
 	m = m.PushHistory("")
-	assert.Equal(t, 0, len(m.History()))
+	assert.Empty(t, m.History())
 }
 
 func TestEditorHistoryNavigation(t *testing.T) {
@@ -177,7 +177,7 @@ func TestEditorHistoryNavigation(t *testing.T) {
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 
 	// history: ["second", "first"], histIdx=0 (no selection)
-	assert.Equal(t, "", m.Value())
+	assert.Empty(t, m.Value())
 	assert.Equal(t, 0, m.histIdx)
 
 	// up once → newest = "second"
@@ -202,19 +202,19 @@ func TestEditorHistoryNavigation(t *testing.T) {
 
 	// down → empty (current)
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
-	assert.Equal(t, "", m.Value())
+	assert.Empty(t, m.Value())
 	assert.Equal(t, 0, m.histIdx)
 
 	// down at bottom stays
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
-	assert.Equal(t, "", m.Value())
+	assert.Empty(t, m.Value())
 	assert.Equal(t, 0, m.histIdx)
 }
 
 func TestEditorHistoryEmpty(t *testing.T) {
 	m := NewEditorModel().Focus()
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyUp})
-	assert.Equal(t, "", m.Value())
+	assert.Empty(t, m.Value())
 }
 
 func TestEditorInsertMidText(t *testing.T) {
@@ -232,7 +232,7 @@ func TestEditorUnfocusedIgnoresInput(t *testing.T) {
 	assert.False(t, m.Focused())
 
 	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
-	assert.Equal(t, "", m.Value())
+	assert.Empty(t, m.Value())
 	assert.Nil(t, cmd)
 }
 
@@ -243,7 +243,7 @@ func TestEditorSlashCommandAutocomplete(t *testing.T) {
 	// type "/" triggers autocomplete
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
 	assert.True(t, m.showAC)
-	assert.Greater(t, len(m.acItems), 0)
+	assert.NotEmpty(t, m.acItems)
 
 	// type "he" → narrows to /help
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h', 'e'}})
@@ -292,7 +292,7 @@ func TestEditorAutocompleteEnterAccepts(t *testing.T) {
 	// enter with AC visible accepts the selection (doesn't submit)
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	assert.False(t, m.showAC)
-	assert.NotEqual(t, "", m.Value())
+	assert.NotEmpty(t, m.Value())
 }
 
 func TestEditorAutocompleteSpaceDisables(t *testing.T) {
@@ -323,7 +323,7 @@ func TestEditorViewRendersCursor(t *testing.T) {
 func TestEditorViewEmptyWidth(t *testing.T) {
 	m := NewEditorModel().Focus()
 	view := m.View()
-	assert.Equal(t, "", view)
+	assert.Empty(t, view)
 }
 
 func TestWrapText(t *testing.T) {

@@ -9,7 +9,7 @@ import (
 func TestAssistantMessage_Streaming(t *testing.T) {
 	m := NewAssistantMessage()
 	assert.True(t, m.IsStreaming())
-	assert.Equal(t, "", m.Content())
+	assert.Empty(t, m.Content())
 }
 
 func TestAssistantMessage_Append(t *testing.T) {
@@ -52,7 +52,7 @@ func TestAssistantMessage_View_Finalized_Markdown(t *testing.T) {
 	assert.Contains(t, view, "Hello World")
 	assert.Contains(t, view, "bold")
 	// Markdown output is typically longer due to ANSI codes
-	assert.True(t, len(view) > len("Hello World"))
+	assert.Greater(t, len(view), len("Hello World"))
 }
 
 func TestAssistantMessage_View_Finalized_CodeBlock(t *testing.T) {

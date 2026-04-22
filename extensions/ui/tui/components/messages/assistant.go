@@ -40,6 +40,7 @@ func (m *AssistantMessage) Content() string {
 	if !m.streaming {
 		return m.final
 	}
+
 	return m.content.String()
 }
 
@@ -54,6 +55,7 @@ func (m *AssistantMessage) Interrupt() {
 	if !m.streaming {
 		return
 	}
+
 	m.final = m.content.String() + "\n[interrupted]"
 	m.streaming = false
 	m.interrupted = true
@@ -68,8 +70,10 @@ func (m *AssistantMessage) Interrupted() bool {
 // streaming messages render as plain text for performance.
 func (m *AssistantMessage) View(width int) string {
 	m.renderer.SetWidth(width)
+
 	if m.streaming {
 		return m.Content()
 	}
+
 	return m.renderer.Render(m.Content())
 }

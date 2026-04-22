@@ -18,6 +18,7 @@ type MarkdownRenderer struct {
 func NewMarkdownRenderer(width int) *MarkdownRenderer {
 	r := &MarkdownRenderer{width: width}
 	r.rebuild()
+
 	return r
 }
 
@@ -25,6 +26,7 @@ func NewMarkdownRenderer(width int) *MarkdownRenderer {
 func (r *MarkdownRenderer) SetWidth(width int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	if r.width != width {
 		r.width = width
 		r.rebuild()
@@ -46,6 +48,7 @@ func (r *MarkdownRenderer) Render(text string) string {
 	if err != nil {
 		return text
 	}
+
 	return strings.TrimRight(out, "\n")
 }
 
@@ -57,10 +60,12 @@ func (r *MarkdownRenderer) rebuild() {
 	if r.width > 0 {
 		opts = append(opts, glamour.WithWordWrap(r.width))
 	}
+
 	renderer, err := glamour.NewTermRenderer(opts...)
 	if err != nil {
 		r.renderer = nil
 		return
 	}
+
 	r.renderer = renderer
 }

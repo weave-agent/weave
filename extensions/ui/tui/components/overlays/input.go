@@ -39,6 +39,7 @@ func (m InputModel) Show() InputModel {
 	m.visible = true
 	m.value = nil
 	m.cursor = 0
+
 	return m
 }
 
@@ -52,6 +53,7 @@ func (m InputModel) Hide() InputModel {
 func (m InputModel) SetSize(width, height int) InputModel {
 	m.width = width
 	m.height = height
+
 	return m
 }
 
@@ -69,51 +71,65 @@ func (m InputModel) Value() string { return string(m.value) }
 
 // Update handles messages for the input modal.
 func (m InputModel) Update(msg tea.Msg) (InputModel, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.Type {
-		case tea.KeyEsc:
-			m.visible = false
-			return m, func() tea.Msg { return InputResultMsg{Ok: false} }
+	if key, ok := msg.(tea.KeyMsg); ok {
+		return m.handleKey(key)
+	}
 
-		case tea.KeyEnter:
-			val := string(m.value)
-			m.visible = false
-			return m, func() tea.Msg { return InputResultMsg{Value: val, Ok: true} }
+	return m, nil
+}
 
-		case tea.KeyBackspace:
-			if m.cursor > 0 {
-				m.value = append(m.value[:m.cursor-1], m.value[m.cursor:]...)
-				m.cursor--
-			}
-			return m, nil
+func (m InputModel) handleKey(msg tea.KeyMsg) (InputModel, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.visible = false
+		return m, func() tea.Msg { return InputResultMsg{Ok: false} }
 
-		case tea.KeyDelete:
-			if m.cursor < len(m.value) {
-				m.value = append(m.value[:m.cursor], m.value[m.cursor+1:]...)
-			}
-			return m, nil
+	case tea.KeyEnter:
+		val := string(m.value)
+		m.visible = false
 
-		case tea.KeyLeft:
-			if m.cursor > 0 {
-				m.cursor--
-			}
-			return m, nil
+		return m, func() tea.Msg { return InputResultMsg{Value: val, Ok: true} }
 
-		case tea.KeyRight:
-			if m.cursor < len(m.value) {
-				m.cursor++
-			}
-			return m, nil
-
-		case tea.KeyRunes:
-			tail := make([]rune, len(m.value[m.cursor:]))
-			copy(tail, m.value[m.cursor:])
-			m.value = append(m.value[:m.cursor], msg.Runes...)
-			m.value = append(m.value, tail...)
-			m.cursor += len(msg.Runes)
-			return m, nil
+	case tea.KeyBackspace:
+		if m.cursor > 0 {
+			m.value = append(m.value[:m.cursor-1], m.value[m.cursor:]...)
+			m.cursor--
 		}
+
+		return m, nil
+
+	case tea.KeyDelete:
+		if m.cursor < len(m.value) {
+			m.value = append(m.value[:m.cursor], m.value[m.cursor+1:]...)
+		}
+
+		return m, nil
+
+	case tea.KeyLeft:
+		if m.cursor > 0 {
+			m.cursor--
+		}
+
+		return m, nil
+
+	case tea.KeyRight:
+		if m.cursor < len(m.value) {
+			m.cursor++
+		}
+
+		return m, nil
+
+	case tea.KeyRunes:
+		tail := make([]rune, len(m.value[m.cursor:]))
+		copy(tail, m.value[m.cursor:])
+		m.value = append(m.value[:m.cursor], msg.Runes...)
+		m.value = append(m.value, tail...)
+		m.cursor += len(msg.Runes)
+
+		return m, nil
+
+	default:
+		// Ignore unhandled keys
 	}
 
 	return m, nil
@@ -143,16 +159,20 @@ func (m InputModel) View() string {
 		Foreground(lipgloss.Color("243"))
 
 	text := string(m.value)
-	cursor := ""
+
+	var cursor string
 	if m.cursor <= len(m.value) {
 		before := ""
 		after := ""
+
 		if m.cursor > 0 {
 			before = string(m.value[:m.cursor])
 		}
+
 		if m.cursor < len(m.value) {
 			after = string(m.value[m.cursor:])
 		}
+
 		cursor = fmt.Sprintf("%s▎%s", before, after)
 	} else {
 		cursor = text + "▎"
@@ -162,6 +182,7 @@ func (m InputModel) View() string {
 	box := borderStyle.Render(content)
 
 	lines := strings.Split(box, "\n")
+
 	return lipgloss.NewStyle().
 		MarginTop(max(0, (m.height-len(lines))/2)).
 		MarginLeft(max(0, (m.width-boxWidth)/2)).

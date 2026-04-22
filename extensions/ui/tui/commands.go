@@ -37,14 +37,16 @@ type CommandInfo struct {
 
 // CommandRegistry manages slash commands.
 type CommandRegistry struct {
-	mu       sync.Mutex
-	commands map[string]CommandInfo
+	mu         sync.Mutex
+	commands   map[string]CommandInfo
+	sessionDir string
 }
 
 // NewCommandRegistry creates a registry with built-in commands.
-func NewCommandRegistry(bus sdk.Bus) *CommandRegistry {
+func NewCommandRegistry(bus sdk.Bus, sessionDir string) *CommandRegistry {
 	r := &CommandRegistry{
-		commands: make(map[string]CommandInfo),
+		commands:   make(map[string]CommandInfo),
+		sessionDir: sessionDir,
 	}
 
 	r.register("/new", "Start a new conversation", func(_ string) CommandResult {
@@ -71,8 +73,8 @@ func NewCommandRegistry(bus sdk.Bus) *CommandRegistry {
 		return CommandResult{Command: PublishSteer(bus, "name "+args)}
 	})
 
-	r.register("/resume", "Resume a previous session", func(_ string) CommandResult {
-		return CommandResult{Command: listSessionsCmd()}
+	r.register("/resume", "View a previous session", func(_ string) CommandResult {
+		return CommandResult{Command: listSessionsCmd(r.sessionDir)}
 	})
 
 	return r
@@ -90,6 +92,7 @@ func (r *CommandRegistry) register(name, description string, handler CommandHand
 func (r *CommandRegistry) Register(name, description string, handler CommandHandler) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	r.register(name, description, handler)
 }
 
@@ -108,7 +111,7 @@ func (r *CommandRegistry) Dispatch(input string) (bool, CommandResult) {
 
 	if !ok {
 		return true, CommandResult{
-			Notify: fmt.Sprintf("unknown command: %s", name),
+			Notify: "unknown command: " + name,
 		}
 	}
 
@@ -124,7 +127,9 @@ func (r *CommandRegistry) Names() []string {
 	for k := range r.commands {
 		names = append(names, k)
 	}
+
 	sort.Strings(names)
+
 	return names
 }
 
@@ -132,7 +137,9 @@ func (r *CommandRegistry) Names() []string {
 func (r *CommandRegistry) Lookup(name string) (CommandInfo, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	cmd, ok := r.commands[name]
+
 	return cmd, ok
 }
 
@@ -144,14 +151,17 @@ func (r *CommandRegistry) helpText() string {
 	for k := range r.commands {
 		names = append(names, k)
 	}
+
 	sort.Strings(names)
 
 	var b strings.Builder
 	b.WriteString("Available commands:\n")
+
 	for _, name := range names {
 		info := r.commands[name]
 		fmt.Fprintf(&b, "  %-12s %s\n", name, info.Description)
 	}
+
 	return b.String()
 }
 
@@ -159,5 +169,6 @@ func (r *CommandRegistry) helpText() string {
 func parseCommand(input string) (string, string) {
 	input = strings.TrimSpace(input)
 	name, args, _ := strings.Cut(input, " ")
+
 	return name, strings.TrimSpace(args)
 }

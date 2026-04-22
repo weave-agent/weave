@@ -47,7 +47,7 @@ func TestChatModel_UpdateItem_EmptyList(t *testing.T) {
 
 func TestChatModel_View_NoSize(t *testing.T) {
 	m := NewChatModel()
-	assert.Equal(t, "", m.View())
+	assert.Empty(t, m.View())
 }
 
 func TestChatModel_View_SingleItem(t *testing.T) {
@@ -181,14 +181,19 @@ func splitLines(s string) []string {
 	if s == "" {
 		return nil
 	}
+
 	var result []string
+
 	start := 0
-	for i := 0; i < len(s); i++ {
+
+	for i := range len(s) {
 		if s[i] == '\n' {
 			result = append(result, s[start:i])
 			start = i + 1
 		}
 	}
+
 	result = append(result, s[start:])
+
 	return result
 }

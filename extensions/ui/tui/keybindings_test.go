@@ -211,7 +211,7 @@ func TestLoadKeybindings_ProjectConfig(t *testing.T) {
 
 	// No keybindings file -> empty
 	result := loadKeybindings(cfgPath)
-	assert.Equal(t, "", result)
+	assert.Empty(t, result)
 }
 
 func TestLoadKeybindings_NearConfigFile(t *testing.T) {
@@ -228,7 +228,7 @@ func TestLoadKeybindings_NearConfigFile(t *testing.T) {
 
 func TestLoadKeybindings_EmptyConfigPath(t *testing.T) {
 	result := loadKeybindings("")
-	assert.Equal(t, "", result)
+	assert.Empty(t, result)
 }
 
 func TestModel_BindingsRegistryInitialized(t *testing.T) {
@@ -280,6 +280,7 @@ func TestModel_EscapeNoOpViaBinding(t *testing.T) {
 
 	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	assert.Nil(t, cmd)
+
 	_ = model
 }
 
@@ -290,6 +291,7 @@ func TestModel_CtrlLOpensModelSelectorViaBinding(t *testing.T) {
 
 	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlL})
 	require.NotNil(t, cmd)
+
 	_ = model
 }
 
@@ -309,6 +311,7 @@ func TestModel_ExtensionKeybinding(t *testing.T) {
 	// Ctrl+f should not reach editor since it's bound
 	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlF})
 	assert.Nil(t, cmd, "unhandled action should return nil cmd")
+
 	_ = model
 }
 

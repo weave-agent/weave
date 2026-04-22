@@ -51,7 +51,7 @@ func TestConfirmEnterYesSelected(t *testing.T) {
 	m := NewConfirmModel("Continue?").Show()
 	assert.Equal(t, 0, m.Cursor()) // yes is selected by default
 
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	require.NotNil(t, cmd)
 
 	msg := cmd()
@@ -66,7 +66,7 @@ func TestConfirmEnterNoSelected(t *testing.T) {
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRight})
 	assert.Equal(t, 1, m.Cursor())
 
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	require.NotNil(t, cmd)
 
 	msg := cmd()
@@ -119,7 +119,7 @@ func TestConfirmOtherKeyIgnored(t *testing.T) {
 
 func TestConfirmViewInvisible(t *testing.T) {
 	m := NewConfirmModel("Test")
-	assert.Equal(t, "", m.View())
+	assert.Empty(t, m.View())
 }
 
 func TestConfirmViewVisible(t *testing.T) {
@@ -132,5 +132,5 @@ func TestConfirmViewVisible(t *testing.T) {
 
 func TestConfirmViewZeroWidth(t *testing.T) {
 	m := NewConfirmModel("Test").Show()
-	assert.Equal(t, "", m.View())
+	assert.Empty(t, m.View())
 }

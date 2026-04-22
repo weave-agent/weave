@@ -1,6 +1,7 @@
 package components
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -41,6 +42,7 @@ func NewFooterModel() FooterModel {
 		extStatus: make(map[string]string),
 	}
 	f.gitBranch, f.branchDirty = getGitBranch()
+
 	return f
 }
 
@@ -57,6 +59,7 @@ func (m FooterModel) Width() int { return m.width }
 func (m FooterModel) SetGitBranch(branch string, dirty bool) FooterModel {
 	m.gitBranch = branch
 	m.branchDirty = dirty
+
 	return m
 }
 
@@ -65,6 +68,7 @@ func (m FooterModel) SetTokenUsage(input, output int, cost float64) FooterModel 
 	m.inputTokens = input
 	m.outputTokens = output
 	m.cost = cost
+
 	return m
 }
 
@@ -78,6 +82,7 @@ func (m FooterModel) SetContextPct(pct float64) FooterModel {
 func (m FooterModel) SetModel(model, provider string) FooterModel {
 	m.modelName = model
 	m.providerName = provider
+
 	return m
 }
 
@@ -121,6 +126,7 @@ func (m FooterModel) View() string {
 
 	line1 := m.renderLine1()
 	line2 := m.renderLine2()
+
 	return line1 + "\n" + line2
 }
 
@@ -128,11 +134,13 @@ func (m FooterModel) renderLine1() string {
 	cwd := shortenPath(m.cwd, m.width/2)
 
 	parts := []string{cwd}
+
 	if m.gitBranch != "" {
 		branch := m.gitBranch
 		if m.branchDirty {
 			branch += "*"
 		}
+
 		parts = append(parts, branch)
 	}
 
@@ -150,6 +158,7 @@ func (m FooterModel) renderLine1() string {
 	}
 
 	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+
 	return dimStyle.Render(strings.Join(parts, " │ "))
 }
 
@@ -169,6 +178,7 @@ func (m FooterModel) renderLine2() string {
 	// Context percentage with color thresholds
 	if m.contextPct > 0 {
 		pctStyle := lipgloss.NewStyle()
+
 		switch {
 		case m.contextPct > 90:
 			pctStyle = pctStyle.Foreground(lipgloss.Color("196")) // red
@@ -177,6 +187,7 @@ func (m FooterModel) renderLine2() string {
 		default:
 			pctStyle = pctStyle.Foreground(lipgloss.Color("82")) // green
 		}
+
 		parts = append(parts, pctStyle.Render(fmt.Sprintf("ctx:%.0f%%", m.contextPct)))
 	}
 
@@ -186,6 +197,7 @@ func (m FooterModel) renderLine2() string {
 		if m.providerName != "" {
 			modelDisplay = m.providerName + "/" + m.modelName
 		}
+
 		parts = append(parts, modelDisplay)
 	}
 
@@ -195,6 +207,7 @@ func (m FooterModel) renderLine2() string {
 	}
 
 	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+
 	return dimStyle.Render(strings.Join(parts, " │ "))
 }
 
@@ -209,22 +222,25 @@ func shortenPath(path string, maxWidth int) string {
 		runes := []rune(path)
 		path = "..." + string(runes[len(runes)-maxWidth+3:])
 	}
+
 	return path
 }
 
 // getGitBranch returns the current git branch and dirty state.
 func getGitBranch() (string, bool) {
-	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	cmd := exec.CommandContext(context.Background(), "git", "rev-parse", "--abbrev-ref", "HEAD")
+
 	out, err := cmd.Output()
 	if err != nil {
 		return "", false
 	}
+
 	branch := strings.TrimSpace(string(out))
 
 	// Check dirty state
-	cmd2 := exec.Command("git", "status", "--porcelain")
+	cmd2 := exec.CommandContext(context.Background(), "git", "status", "--porcelain")
 	out2, err := cmd2.Output()
-	dirty := err == nil && len(strings.TrimSpace(string(out2))) > 0
+	dirty := err == nil && strings.TrimSpace(string(out2)) != ""
 
 	return branch, dirty
 }

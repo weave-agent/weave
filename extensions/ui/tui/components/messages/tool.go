@@ -112,6 +112,7 @@ func (p *ToolPanel) renderHeader() string {
 	if p.args != "" {
 		return fmt.Sprintf(" %s %s(%s)", stateLabel, p.toolName, p.args)
 	}
+
 	return fmt.Sprintf(" %s %s", stateLabel, p.toolName)
 }
 
@@ -121,6 +122,7 @@ func (p *ToolPanel) renderBody(width int) string {
 		if p.state == ToolPending {
 			return dim.Render("  running...")
 		}
+
 		return dim.Render("  (no output)")
 	}
 
@@ -139,10 +141,12 @@ func (p *ToolPanel) renderBody(width int) string {
 	if !p.expanded && len(lines) > maxCollapsedLines {
 		visible := lines[:maxCollapsedLines]
 		hidden := len(lines) - maxCollapsedLines
+
 		body := strings.Join(visible, "\n")
 		if p.state == ToolError {
 			body = lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Render(body)
 		}
+
 		return body + fmt.Sprintf("\n  ... %d more lines (collapsed)", hidden)
 	}
 
@@ -150,6 +154,7 @@ func (p *ToolPanel) renderBody(width int) string {
 	if p.state == ToolError {
 		body = lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Render(body)
 	}
+
 	return body
 }
 
@@ -198,5 +203,6 @@ func truncateArgs(args string, maxLen int) string {
 		runes := []rune(args)
 		return string(runes[:maxLen-3]) + "..."
 	}
+
 	return args
 }

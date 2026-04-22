@@ -62,6 +62,31 @@ func TestCurrentModel(t *testing.T) {
 	assert.Equal(t, "anthropic", cur.Provider)
 }
 
+func TestCurrentModel_EnvProvider(t *testing.T) {
+	entries := []ModelEntry{
+		{Provider: "anthropic", Model: "claude-sonnet-4-20250514"},
+		{Provider: "openai", Model: "gpt-4o"},
+	}
+
+	t.Setenv("WEAVE_PROVIDER", "openai")
+
+	cur := currentModel(entries)
+	assert.Equal(t, "openai", cur.Provider)
+	assert.Equal(t, "gpt-4o", cur.Model)
+}
+
+func TestCurrentModel_EnvProviderNotInEntries(t *testing.T) {
+	entries := []ModelEntry{
+		{Provider: "openai", Model: "gpt-4o"},
+	}
+
+	t.Setenv("WEAVE_PROVIDER", "anthropic")
+
+	cur := currentModel(entries)
+	// Falls back to first entry when env provider not found
+	assert.Equal(t, "openai", cur.Provider)
+}
+
 func TestModel_CommandRegistered(t *testing.T) {
 	m := newModel(nil, nil, nil)
 	info, ok := m.commands.Lookup("/model")
@@ -216,7 +241,7 @@ func TestModel_CtrlLOpensModelSelector(t *testing.T) {
 	m.height = 24
 
 	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlL})
-	m = model.(Model)
+	_ = model.(Model)
 
 	// Ctrl+L should trigger listModelsCmd
 	require.NotNil(t, cmd)
@@ -235,7 +260,8 @@ func TestModel_CtrlPWhenSingleModel(t *testing.T) {
 
 	// With no providers registered, cycle should be no-op
 	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
-	m = model.(Model)
+	_ = model.(Model)
+
 	assert.Nil(t, cmd)
 }
 
@@ -266,14 +292,14 @@ func TestModel_ModelChangedPublishesEvent(t *testing.T) {
 
 	entry := ModelEntry{Provider: "openai", Model: "gpt-4o"}
 	model, cmd := m.Update(ModelChangedMsg{Entry: entry})
-	m = model.(Model)
+	_ = model.(Model)
 
 	require.NotNil(t, cmd)
 	cmd()
 
 	evt := <-ch
 	assert.Equal(t, topicModelChange, evt.Topic)
-	assert.Equal(t, "openai/gpt-4o", evt.Payload)
+	assert.Equal(t, map[string]string{"provider": "openai", "model": "gpt-4o"}, evt.Payload)
 }
 
 func TestModel_ModelSlashCommandDispatches(t *testing.T) {
@@ -347,5 +373,5 @@ func TestModel_ModelSelectedInvalidIndex(t *testing.T) {
 	assert.Equal(t, overlayNone, m.activeOverlay)
 
 	// Original model should be unchanged
-	assert.NotEqual(t, "", m.currentModel.Provider)
+	assert.NotEmpty(t, m.currentModel.Provider)
 }

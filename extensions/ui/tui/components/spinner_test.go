@@ -30,7 +30,8 @@ func TestSpinnerModel_HideResetsFrame(t *testing.T) {
 	for range 5 {
 		s, _ = s.Update(tickMsg{})
 	}
-	assert.True(t, s.Frame() > 0)
+
+	assert.Positive(t, s.Frame())
 
 	s = s.Hide()
 	assert.Equal(t, 0, s.Frame())
@@ -47,12 +48,14 @@ func TestSpinnerModel_ViewVisible(t *testing.T) {
 	assert.Contains(t, view, "Thinking...")
 	// Should contain a spinner character
 	found := false
+
 	for _, ch := range SpinnerCharSet {
 		if containsStr(view, ch) {
 			found = true
 			break
 		}
 	}
+
 	assert.True(t, found, "spinner view should contain a spinner character")
 }
 
@@ -99,8 +102,8 @@ func TestSpinnerModel_SpinnerUpdate_HideMsg(t *testing.T) {
 
 func TestSpinnerModel_SpinnerUpdate_OtherMsg(t *testing.T) {
 	s := NewSpinnerModel().Show()
-	s, cmd := s.SpinnerUpdate(nil) //nolint:staticcheck // testing nil msg
-	assert.True(t, s.Visible())    // unchanged
+	s, cmd := s.SpinnerUpdate(nil)
+	assert.True(t, s.Visible()) // unchanged
 	assert.Nil(t, cmd)
 }
 
@@ -129,9 +132,10 @@ func TestStopSpinner(t *testing.T) {
 
 func TestSpinnerFrameWraps(t *testing.T) {
 	s := NewSpinnerModel().Show()
-	for i := 0; i < len(SpinnerCharSet); i++ {
+	for range SpinnerCharSet {
 		s, _ = s.Update(tickMsg{})
 	}
+
 	assert.Equal(t, 0, s.Frame()) // should wrap around
 }
 
@@ -147,8 +151,8 @@ func TestRenderSpinnerClean_Truncates(t *testing.T) {
 
 // helper
 func containsStr(s, sub string) bool {
-	return len(s) >= len(sub) && (s == sub || len(sub) == 0 ||
-		(len(s) > 0 && len(sub) > 0 && findSubstr(s, sub)))
+	return len(s) >= len(sub) && (s == sub || sub == "" ||
+		(s != "" && sub != "" && findSubstr(s, sub)))
 }
 
 func findSubstr(s, sub string) bool {
@@ -157,5 +161,6 @@ func findSubstr(s, sub string) bool {
 			return true
 		}
 	}
+
 	return false
 }

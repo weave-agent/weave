@@ -17,6 +17,7 @@ var (
 	errAgentLoopRequired = errors.New("core.agent_loop is required")
 	errProviderRequired  = errors.New("core.providers must include at least one provider")
 	errDuplicateProvider = errors.New("core.providers contains duplicates")
+	errNoInput           = errors.New("no prompt provided and ui is disabled — use -p to provide a prompt or set ui: tui")
 )
 
 func main() {
@@ -72,6 +73,12 @@ func run(args ...string) (exitCode int) {
 	// When a prompt is set (-p flag), the agent runs in print mode without TUI.
 	if cf.Prompt == "" && cf.UI != "" && cf.UI != "none" {
 		allExts = ensurePresent(allExts, cf.UI)
+	}
+
+	// Without a prompt and without a UI, the agent has no input and will hang.
+	if cf.Prompt == "" && (cf.UI == "" || cf.UI == "none") {
+		fmt.Fprintf(os.Stderr, "weave: %v\n", errNoInput)
+		return 1
 	}
 
 	// Compute effective providers: config providers + env override if set.

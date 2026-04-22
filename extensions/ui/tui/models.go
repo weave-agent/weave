@@ -64,12 +64,22 @@ func resolveModelName(provider string) string {
 	return "default"
 }
 
-// currentModel returns the first model entry as a reasonable default,
+// currentModel returns the model entry matching the configured provider
+// (from WEAVE_PROVIDER env var), the first available entry as fallback,
 // or an anthropic default if no providers are registered.
 func currentModel(entries []ModelEntry) ModelEntry {
+	if provider := os.Getenv("WEAVE_PROVIDER"); provider != "" {
+		for _, e := range entries {
+			if e.Provider == provider {
+				return e
+			}
+		}
+	}
+
 	if len(entries) > 0 {
 		return entries[0]
 	}
+
 	return ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-20250514"}
 }
 

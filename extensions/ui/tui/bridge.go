@@ -23,9 +23,10 @@ const (
 	topicToolResult = "agent.tool_result"
 	topicEnd        = "agent.end"
 
-	topicSessionList   = "session.list"
-	topicSessionResume = "session.resume"
-	topicModelChange   = "model.change"
+	topicSessionList       = "session.list"
+	topicSessionResume     = "session.resume"
+	topicModelChange       = "model.change"
+	topicModelChangeFailed = "model.change_failed"
 )
 
 // Sender abstracts tea.Program.Send for testability.
@@ -86,6 +87,12 @@ type ModelChangedMsg struct {
 	Entry ModelEntry
 }
 
+// ModelChangeFailedMsg is sent when the loop fails to switch providers.
+type ModelChangeFailedMsg struct {
+	Provider string
+	Error    string
+}
+
 // translateEvent converts a bus event into a tea.Msg.
 // Returns nil for unknown topics.
 func translateEvent(evt sdk.Event) tea.Msg {
@@ -109,6 +116,8 @@ func translateEvent(evt sdk.Event) tea.Msg {
 	case topicSessionResume:
 		id, _ := evt.Payload.(string)
 		return SessionResumedMsg{SessionID: id}
+	case topicModelChangeFailed:
+		return translateModelChangeFailed(evt.Payload)
 	default:
 		return nil
 	}
@@ -149,6 +158,18 @@ func translateToolResult(payload any) ToolResultMsg {
 	return ToolResultMsg{ToolID: id, Tool: tool, Result: result}
 }
 
+func translateModelChangeFailed(payload any) ModelChangeFailedMsg {
+	m, ok := payload.(map[string]any)
+	if !ok {
+		return ModelChangeFailedMsg{}
+	}
+
+	provider, _ := m["provider"].(string)
+	errStr, _ := m["error"].(string)
+
+	return ModelChangeFailedMsg{Provider: provider, Error: errStr}
+}
+
 // Bridge reads bus events and sends them as tea.Msg to the program.
 // When multiple MessageUpdateMsg deltas arrive in rapid succession, it batches
 // them into a single concatenated message to reduce UI update pressure.
@@ -161,8 +182,9 @@ func Bridge(sender Sender, events <-chan sdk.Event) {
 		}
 
 		// Batch consecutive MessageUpdateMsg deltas
-		if _, ok := msg.(MessageUpdateMsg); ok {
+		if _, ok := msg.(MessageUpdateMsg); ok { //nolint:nestif // batching requires nested select/drain
 			var batch strings.Builder
+
 			mu, _ := msg.(MessageUpdateMsg)
 			batch.WriteString(mu.Content)
 
@@ -176,9 +198,12 @@ func Bridge(sender Sender, events <-chan sdk.Event) {
 						if batch.Len() > 0 {
 							sender.Send(MessageUpdateMsg{Content: batch.String()})
 						}
+
 						sender.Send(ShutdownMsg{})
+
 						return
 					}
+
 					nextMsg := translateEvent(next)
 					if nextMu, ok := nextMsg.(MessageUpdateMsg); ok {
 						batch.WriteString(nextMu.Content)
@@ -188,9 +213,11 @@ func Bridge(sender Sender, events <-chan sdk.Event) {
 							sender.Send(MessageUpdateMsg{Content: batch.String()})
 							batch.Reset()
 						}
+
 						if nextMsg != nil {
 							sender.Send(nextMsg)
 						}
+
 						draining = false
 					}
 				default:
@@ -201,6 +228,7 @@ func Bridge(sender Sender, events <-chan sdk.Event) {
 			if batch.Len() > 0 {
 				sender.Send(MessageUpdateMsg{Content: batch.String()})
 			}
+
 			continue
 		}
 
@@ -253,7 +281,11 @@ func PublishSessionResume(bus sdk.Bus, sessionID string) tea.Cmd {
 // PublishModelChange returns a tea.Cmd that publishes a model.change event.
 func PublishModelChange(bus sdk.Bus, entry ModelEntry) tea.Cmd {
 	return func() tea.Msg {
-		bus.Publish(sdk.NewEvent(topicModelChange, entry.Display()))
+		bus.Publish(sdk.NewEvent(topicModelChange, map[string]string{
+			"provider": entry.Provider,
+			"model":    entry.Model,
+		}))
+
 		return nil
 	}
 }

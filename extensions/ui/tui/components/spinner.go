@@ -46,6 +46,7 @@ func (m SpinnerModel) Show() SpinnerModel {
 func (m SpinnerModel) Hide() SpinnerModel {
 	m.visible = false
 	m.frame = 0
+
 	return m
 }
 
@@ -67,8 +68,7 @@ func (m SpinnerModel) Update(msg tea.Msg) (SpinnerModel, tea.Cmd) {
 		return m, nil
 	}
 
-	switch msg.(type) {
-	case tickMsg:
+	if _, ok := msg.(tickMsg); ok {
 		m.frame = (m.frame + 1) % len(SpinnerCharSet)
 		return m, spinTick()
 	}
@@ -84,6 +84,7 @@ func (m SpinnerModel) View() string {
 
 	char := SpinnerCharSet[m.frame]
 	style := lipgloss.NewStyle().Foreground(lipgloss.Color("99"))
+
 	return style.Render(fmt.Sprintf("%s %s", char, m.label))
 }
 
@@ -124,6 +125,7 @@ func (m SpinnerModel) SpinnerUpdate(msg tea.Msg) (SpinnerModel, tea.Cmd) {
 		m = m.Hide()
 		return m, nil
 	}
+
 	return m, nil
 }
 
@@ -133,6 +135,7 @@ func IsSpinnerMsg(msg tea.Msg) bool {
 	case SpinnerShowMsg, SpinnerHideMsg, tickMsg:
 		return true
 	}
+
 	return false
 }
 
@@ -141,11 +144,14 @@ func RenderSpinnerClean(frame int, label string, width int) string {
 	if frame < 0 || frame >= len(SpinnerCharSet) {
 		frame = 0
 	}
+
 	char := SpinnerCharSet[frame]
+
 	text := fmt.Sprintf("%s %s", char, label)
 	if width > 0 && utf8.RuneCountInString(text) > width {
 		runes := []rune(text)
 		text = string(runes[:width])
 	}
+
 	return text
 }

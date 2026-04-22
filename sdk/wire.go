@@ -7,8 +7,9 @@ import (
 )
 
 type CoreWireConfig struct {
-	AgentLoop string
-	Providers []string
+	AgentLoop  string
+	Providers  []string
+	SingleTurn bool
 }
 
 // Wired holds all extensions wired to a bus. Call Close to shut down.
@@ -64,6 +65,10 @@ func WireWithCore(core CoreWireConfig, optExts []string, bus Bus, cfg Config) (*
 	// in its factory, so direct WireWithCore callers don't need to set it.
 	if os.Getenv("WEAVE_PROVIDER") == "" {
 		_ = os.Setenv("WEAVE_PROVIDER", core.Providers[0])
+	}
+
+	if core.SingleTurn {
+		_ = os.Setenv("WEAVE_SINGLE_TURN", "1")
 	}
 
 	// Only wire the agent-loop extension and optional extensions.

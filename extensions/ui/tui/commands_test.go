@@ -15,7 +15,7 @@ func TestCommandRegistry_BuiltinCommands(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	r := NewCommandRegistry(b)
+	r := NewCommandRegistry(b, "")
 
 	names := r.Names()
 	assert.Contains(t, names, "/new")
@@ -30,7 +30,7 @@ func TestCommandRegistry_DispatchNonCommand(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	r := NewCommandRegistry(b)
+	r := NewCommandRegistry(b, "")
 
 	handled, result := r.Dispatch("hello world")
 	assert.False(t, handled)
@@ -41,7 +41,7 @@ func TestCommandRegistry_DispatchQuit(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	r := NewCommandRegistry(b)
+	r := NewCommandRegistry(b, "")
 
 	handled, result := r.Dispatch("/quit")
 	require.True(t, handled)
@@ -53,7 +53,7 @@ func TestCommandRegistry_DispatchNew(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	r := NewCommandRegistry(b)
+	r := NewCommandRegistry(b, "")
 
 	handled, result := r.Dispatch("/new")
 	require.True(t, handled)
@@ -66,7 +66,7 @@ func TestCommandRegistry_DispatchClearAliasForNew(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	r := NewCommandRegistry(b)
+	r := NewCommandRegistry(b, "")
 
 	handled, result := r.Dispatch("/clear")
 	require.True(t, handled)
@@ -83,7 +83,7 @@ func TestCommandRegistry_DispatchHelp(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	r := NewCommandRegistry(b)
+	r := NewCommandRegistry(b, "")
 
 	handled, result := r.Dispatch("/help")
 	require.True(t, handled)
@@ -98,7 +98,7 @@ func TestCommandRegistry_DispatchCompact(t *testing.T) {
 
 	ch := b.Subscribe(topicSteer)
 
-	r := NewCommandRegistry(b)
+	r := NewCommandRegistry(b, "")
 
 	handled, result := r.Dispatch("/compact")
 	require.True(t, handled)
@@ -118,7 +118,7 @@ func TestCommandRegistry_DispatchNameWithArgs(t *testing.T) {
 
 	ch := b.Subscribe(topicSteer)
 
-	r := NewCommandRegistry(b)
+	r := NewCommandRegistry(b, "")
 
 	handled, result := r.Dispatch("/name my session")
 	require.True(t, handled)
@@ -135,7 +135,7 @@ func TestCommandRegistry_DispatchUnknownCommand(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	r := NewCommandRegistry(b)
+	r := NewCommandRegistry(b, "")
 
 	handled, result := r.Dispatch("/unknown")
 	require.True(t, handled)
@@ -146,7 +146,7 @@ func TestCommandRegistry_DispatchCommandWithArgs(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	r := NewCommandRegistry(b)
+	r := NewCommandRegistry(b, "")
 
 	// /name with args should work
 	handled, result := r.Dispatch("/name test")
@@ -163,11 +163,11 @@ func TestCommandRegistry_NamesSorted(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	r := NewCommandRegistry(b)
+	r := NewCommandRegistry(b, "")
 
 	names := r.Names()
 	for i := 1; i < len(names); i++ {
-		assert.True(t, names[i-1] <= names[i], "names should be sorted: %v", names)
+		assert.LessOrEqual(t, names[i-1], names[i], "names should be sorted: %v", names)
 	}
 }
 
@@ -175,7 +175,7 @@ func TestCommandRegistry_Lookup(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	r := NewCommandRegistry(b)
+	r := NewCommandRegistry(b, "")
 
 	info, ok := r.Lookup("/quit")
 	require.True(t, ok)
@@ -190,12 +190,15 @@ func TestCommandRegistry_Register(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	r := NewCommandRegistry(b)
+	r := NewCommandRegistry(b, "")
 
 	called := false
+
 	r.Register("/custom", "custom command", func(args string) CommandResult {
 		called = true
+
 		assert.Equal(t, "arg1", args)
+
 		return CommandResult{}
 	})
 
@@ -232,7 +235,7 @@ func TestCommandRegistry_HelpListsAll(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	r := NewCommandRegistry(b)
+	r := NewCommandRegistry(b, "")
 
 	r.Register("/testcmd", "a test", func(_ string) CommandResult { return CommandResult{} })
 

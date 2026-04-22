@@ -58,6 +58,6 @@ func TestModel_Init(t *testing.T) {
 
 func TestTUI_NoTTYError(t *testing.T) {
 	// ErrNoTTY should be a sentinel error that callers can check
-	assert.Error(t, ErrNoTTY)
+	require.Error(t, ErrNoTTY)
 	assert.Contains(t, ErrNoTTY.Error(), "stdin")
 }

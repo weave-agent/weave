@@ -2,7 +2,7 @@ package tui
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -33,7 +33,7 @@ func TestModel_HandlesMessageStart(t *testing.T) {
 	am, ok := items[0].(*messages.AssistantMessage)
 	require.True(t, ok)
 	assert.True(t, am.IsStreaming())
-	assert.Equal(t, "", am.Content())
+	assert.Empty(t, am.Content())
 }
 
 func TestModel_HandlesMessageUpdate(t *testing.T) {
@@ -262,9 +262,11 @@ func TestModel_MultipleTurns(t *testing.T) {
 
 func TestChatItemInterface(t *testing.T) {
 	// Verify all chat item types satisfy ChatItem interface
-	var _ components.ChatItem = messages.NewAssistantMessage()
-	var _ components.ChatItem = messages.NewUserMessage("test")
-	var _ components.ChatItem = messages.NewToolPanel("tc1", "bash", "")
+	var (
+		_ components.ChatItem = messages.NewAssistantMessage()
+		_ components.ChatItem = messages.NewUserMessage("test")
+		_ components.ChatItem = messages.NewToolPanel("tc1", "bash", "")
+	)
 }
 
 func TestToolPanelItemIdentity(t *testing.T) {
@@ -562,7 +564,7 @@ func TestModel_ResumeCommandDispatches(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	r := NewCommandRegistry(b)
+	r := NewCommandRegistry(b, "")
 
 	_, ok := r.Lookup("/resume")
 	require.True(t, ok, "/resume command should be registered")
@@ -619,7 +621,7 @@ func TestModel_SessionListError(t *testing.T) {
 	m.height = 24
 	m.chat = m.chat.SetSize(80, 10)
 
-	model, _ := m.Update(SessionListResultMsg{Err: fmt.Errorf("disk error")})
+	model, _ := m.Update(SessionListResultMsg{Err: errors.New("disk error")})
 	m = model.(Model)
 
 	assert.Equal(t, overlayNone, m.activeOverlay)
@@ -730,7 +732,7 @@ func TestModel_SessionSelectorSelect(t *testing.T) {
 
 	assert.Equal(t, overlayNone, m.activeOverlay)
 	assert.Nil(t, m.pendingSessions)
-	assert.True(t, m.prompted)
+	assert.False(t, m.prompted)
 
 	// Verify chat was rebuilt with session history
 	items := m.chat.Items()
@@ -846,6 +848,7 @@ func TestModel_RebuildChatFromSession(t *testing.T) {
 	require.True(t, ok)
 	assert.Contains(t, tp.View(80), "output")
 
+	// rebuildChatFromSession should not modify prompted — it stays whatever it was before.
 	assert.True(t, m.prompted)
 }
 
@@ -883,6 +886,7 @@ func TestModel_ResumeSlashCommandIntegration(t *testing.T) {
 	// Dispatch /resume command
 	model, cmd := m.onSubmit("/resume")
 	m = model.(Model)
+
 	require.NotNil(t, cmd)
 
 	// Execute the command to get SessionListResultMsg
@@ -937,6 +941,7 @@ func TestModel_InterruptStreaming(t *testing.T) {
 	// Verify interrupt event was published
 	require.NotNil(t, cmd)
 	cmd()
+
 	evt := <-ch
 	assert.Equal(t, topicInterrupt, evt.Topic)
 }
@@ -950,6 +955,7 @@ func TestModel_InterruptNoStreamingMessage(t *testing.T) {
 	// Interrupt with no streaming message should be no-op
 	model, cmd := m.dispatchBinding(ActionInterrupt)
 	m = model.(Model)
+
 	assert.Nil(t, cmd)
 	assert.Empty(t, m.chat.Items())
 }
@@ -1015,7 +1021,8 @@ func TestModel_QuitCommand(t *testing.T) {
 	m.height = 20
 
 	model, cmd := m.onSubmit("/quit")
-	m = model.(Model)
+	_ = model.(Model)
+
 	require.NotNil(t, cmd)
 	msg := cmd()
 	_, ok := msg.(tea.QuitMsg)

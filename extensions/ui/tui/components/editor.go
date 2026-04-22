@@ -59,6 +59,7 @@ func (m EditorModel) SetValue(s string) EditorModel {
 	m.cursor = len(m.value)
 	m.dirty = true
 	m.showAC = false
+
 	return m
 }
 
@@ -71,6 +72,7 @@ func (m EditorModel) Value() string {
 func (m EditorModel) SetSize(width, height int) EditorModel {
 	m.width = width
 	m.height = height
+
 	return m
 }
 
@@ -103,11 +105,14 @@ func (m EditorModel) PushHistory(s string) EditorModel {
 	if s == "" {
 		return m
 	}
+
 	if len(m.history) > 0 && m.history[0] == s {
 		return m
 	}
+
 	m.history = append([]string{s}, m.history...)
 	m.histIdx = 0
+
 	return m
 }
 
@@ -122,14 +127,14 @@ func (m EditorModel) Update(msg tea.Msg) (EditorModel, tea.Cmd) {
 		return m, nil
 	}
 
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	if msg, ok := msg.(tea.KeyMsg); ok {
 		return m.handleKey(msg)
 	}
 
 	return m, nil
 }
 
+//nolint:gocyclo // key dispatch naturally has many branches
 func (m EditorModel) handleKey(msg tea.KeyMsg) (EditorModel, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEnter:
@@ -141,6 +146,7 @@ func (m EditorModel) handleKey(msg tea.KeyMsg) (EditorModel, tea.Cmd) {
 		if m.showAC && len(m.acItems) > 0 {
 			return m.acceptAutocomplete(), nil
 		}
+
 		return m.submit()
 
 	case tea.KeyBackspace:
@@ -153,6 +159,7 @@ func (m EditorModel) handleKey(msg tea.KeyMsg) (EditorModel, tea.Cmd) {
 		if m.showAC && len(m.acItems) > 0 {
 			return m.acceptAutocomplete(), nil
 		}
+
 		return m, nil
 
 	case tea.KeyEsc:
@@ -164,6 +171,7 @@ func (m EditorModel) handleKey(msg tea.KeyMsg) (EditorModel, tea.Cmd) {
 			m.acIndex = max(0, m.acIndex-1)
 			return m, nil
 		}
+
 		return m.historyUp(), nil
 
 	case tea.KeyDown:
@@ -171,35 +179,43 @@ func (m EditorModel) handleKey(msg tea.KeyMsg) (EditorModel, tea.Cmd) {
 			m.acIndex = min(len(m.acItems)-1, m.acIndex+1)
 			return m, nil
 		}
+
 		return m.historyDown(), nil
 
 	case tea.KeyLeft:
 		if m.cursor > 0 {
 			m.cursor--
 		}
+
 		m.showAC = false
+
 		return m, nil
 
 	case tea.KeyRight:
 		if m.cursor < len(m.value) {
 			m.cursor++
 		}
+
 		m.showAC = false
+
 		return m, nil
 
 	case tea.KeyHome:
 		m.cursor = 0
 		m.showAC = false
+
 		return m, nil
 
 	case tea.KeyEnd:
 		m.cursor = len(m.value)
 		m.showAC = false
+
 		return m, nil
 
 	case tea.KeyRunes:
 		m = m.insertRune(msg.Runes...)
 		m = m.updateAutocomplete()
+
 		return m, nil
 
 	default:
@@ -235,6 +251,7 @@ func (m EditorModel) insertRune(runes ...rune) EditorModel {
 	m.value = append(m.value, tail...)
 	m.cursor += len(runes)
 	m.dirty = true
+
 	return m
 }
 
@@ -242,10 +259,12 @@ func (m EditorModel) backspace() EditorModel {
 	if m.cursor == 0 {
 		return m
 	}
+
 	m.value = append(m.value[:m.cursor-1], m.value[m.cursor:]...)
 	m.cursor--
 	m.dirty = true
 	m.showAC = false
+
 	return m
 }
 
@@ -253,9 +272,11 @@ func (m EditorModel) deleteForward() EditorModel {
 	if m.cursor >= len(m.value) {
 		return m
 	}
+
 	m.value = append(m.value[:m.cursor], m.value[m.cursor+1:]...)
 	m.dirty = true
 	m.showAC = false
+
 	return m
 }
 
@@ -263,16 +284,19 @@ func (m EditorModel) historyUp() EditorModel {
 	if len(m.history) == 0 {
 		return m
 	}
+
 	if m.histIdx < len(m.history) {
 		if m.histIdx == 0 {
 			m.savedLine = m.value
 		}
+
 		m.histIdx++
 		idx := m.histIdx - 1
 		m.value = []rune(m.history[idx])
 		m.cursor = len(m.value)
 		m.dirty = true
 	}
+
 	return m
 }
 
@@ -290,6 +314,7 @@ func (m EditorModel) historyDown() EditorModel {
 		m.cursor = len(m.value)
 		m.dirty = true
 	}
+
 	return m
 }
 
@@ -298,6 +323,7 @@ func (m EditorModel) updateAutocomplete() EditorModel {
 
 	// only trigger on / prefix at start of line or after newline
 	lastNewline := strings.LastIndex(text, "\n")
+
 	prefix := text
 	if lastNewline >= 0 {
 		prefix = text[lastNewline+1:]
@@ -332,6 +358,7 @@ func (m EditorModel) updateAutocomplete() EditorModel {
 	if m.acIndex >= len(m.acItems) {
 		m.acIndex = 0
 	}
+
 	return m
 }
 
@@ -351,6 +378,7 @@ func (m EditorModel) acceptAutocomplete() EditorModel {
 	// replace the prefix portion with the full command
 	trimmed := strings.TrimSpace(prefix)
 	before, _, ok := strings.Cut(trimmed, " ")
+
 	replaceLen := utf8.RuneCountInString(trimmed)
 	if ok {
 		replaceLen = utf8.RuneCountInString(before)
@@ -367,6 +395,7 @@ func (m EditorModel) acceptAutocomplete() EditorModel {
 	m.cursor = replaceStart + len([]rune(selected))
 	m.dirty = true
 	m.showAC = false
+
 	return m
 }
 
@@ -401,10 +430,12 @@ func (m EditorModel) View() string {
 	}
 
 	var b strings.Builder
+
 	for i, line := range lines {
 		if i >= maxLines {
 			break
 		}
+
 		if i == cursorLine && m.focused {
 			if cursorCol < len(line) {
 				b.WriteString(line[:cursorCol])
@@ -417,6 +448,7 @@ func (m EditorModel) View() string {
 		} else {
 			b.WriteString(line)
 		}
+
 		if i < maxLines-1 {
 			b.WriteString("\n")
 		}
@@ -435,6 +467,7 @@ func (m EditorModel) View() string {
 			Background(lipgloss.Color("99"))
 
 		var acLines []string
+
 		for i, item := range m.acItems {
 			if i == m.acIndex {
 				acLines = append(acLines, selectedStyle.Render(item))
@@ -442,6 +475,7 @@ func (m EditorModel) View() string {
 				acLines = append(acLines, acStyle.Render(item))
 			}
 		}
+
 		result = lipgloss.JoinVertical(lipgloss.Left, strings.Join(acLines, "\n"), result)
 	}
 
@@ -455,6 +489,7 @@ func wrapText(text string, width int) []string {
 	}
 
 	inputLines := strings.Split(text, "\n")
+
 	var result []string
 
 	for _, line := range inputLines {

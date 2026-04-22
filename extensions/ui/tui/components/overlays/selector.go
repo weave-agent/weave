@@ -57,6 +57,7 @@ func (m SelectorModel) Show() SelectorModel {
 	m.visible = true
 	m.filter = ""
 	m.cursor = 0
+
 	return m
 }
 
@@ -70,6 +71,7 @@ func (m SelectorModel) Hide() SelectorModel {
 func (m SelectorModel) SetSize(width, height int) SelectorModel {
 	m.width = width
 	m.height = height
+
 	return m
 }
 
@@ -92,14 +94,18 @@ func (m SelectorModel) filteredItems() []filteredEntry {
 		for i, item := range m.items {
 			result[i] = filteredEntry{Item: item, Index: i}
 		}
+
 		return result
 	}
+
 	var matched []filteredEntry
+
 	for i, item := range m.items {
 		if fuzzyMatch(item.Title, m.filter) || fuzzyMatch(item.Subtitle, m.filter) {
 			matched = append(matched, filteredEntry{Item: item, Index: i})
 		}
 	}
+
 	return matched
 }
 
@@ -109,65 +115,84 @@ func fuzzyMatch(target, query string) bool {
 	query = strings.ToLower(query)
 
 	ti := 0
+
 	for _, qc := range query {
 		found := false
+
 		for ti < len(runes) {
 			if runes[ti] == qc {
 				found = true
 				ti++
+
 				break
 			}
+
 			ti++
 		}
+
 		if !found {
 			return false
 		}
 	}
+
 	return true
 }
 
 // Update handles messages for the selector.
 func (m SelectorModel) Update(msg tea.Msg) (SelectorModel, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.Type {
-		case tea.KeyEsc:
-			m.visible = false
-			return m, func() tea.Msg { return SelectorCancelledMsg{} }
+	if key, ok := msg.(tea.KeyMsg); ok {
+		return m.handleKey(key)
+	}
 
-		case tea.KeyUp:
-			m.cursor = max(0, m.cursor-1)
-			return m, nil
+	return m, nil
+}
 
-		case tea.KeyDown:
-			filtered := m.filteredItems()
-			m.cursor = max(0, min(len(filtered)-1, m.cursor+1))
-			return m, nil
+func (m SelectorModel) handleKey(msg tea.KeyMsg) (SelectorModel, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.visible = false
+		return m, func() tea.Msg { return SelectorCancelledMsg{} }
 
-		case tea.KeyEnter:
-			filtered := m.filteredItems()
-			if len(filtered) == 0 {
-				return m, nil
-			}
-			m.cursor = max(0, min(m.cursor, len(filtered)-1))
-			entry := filtered[m.cursor]
-			m.visible = false
-			return m, func() tea.Msg {
-				return SelectorSelectedMsg{Index: entry.Index, Item: entry.Item}
-			}
+	case tea.KeyUp:
+		m.cursor = max(0, m.cursor-1)
+		return m, nil
 
-		case tea.KeyBackspace:
-			if len(m.filter) > 0 {
-				m.filter = m.filter[:len(m.filter)-1]
-				m.cursor = 0
-			}
-			return m, nil
+	case tea.KeyDown:
+		filtered := m.filteredItems()
+		m.cursor = max(0, min(len(filtered)-1, m.cursor+1))
 
-		case tea.KeyRunes:
-			m.filter += string(msg.Runes)
-			m.cursor = 0
+		return m, nil
+
+	case tea.KeyEnter:
+		filtered := m.filteredItems()
+		if len(filtered) == 0 {
 			return m, nil
 		}
+
+		m.cursor = max(0, min(m.cursor, len(filtered)-1))
+		entry := filtered[m.cursor]
+		m.visible = false
+
+		return m, func() tea.Msg {
+			return SelectorSelectedMsg{Index: entry.Index, Item: entry.Item}
+		}
+
+	case tea.KeyBackspace:
+		if m.filter != "" {
+			m.filter = m.filter[:len(m.filter)-1]
+			m.cursor = 0
+		}
+
+		return m, nil
+
+	case tea.KeyRunes:
+		m.filter += string(msg.Runes)
+		m.cursor = 0
+
+		return m, nil
+
+	default:
+		// Ignore unhandled keys
 	}
 
 	return m, nil
@@ -204,6 +229,7 @@ func (m SelectorModel) View() string {
 		Foreground(lipgloss.Color("99"))
 
 	var headerRendered string
+
 	if m.filter != "" {
 		parts := strings.SplitN(headerText, "  / ", 2)
 		headerRendered = titleStyle.Render(parts[0]) + "  / " + filterStyle.Render(parts[1])
@@ -223,6 +249,7 @@ func (m SelectorModel) View() string {
 
 	// Item list
 	maxItems := boxHeight - 4 // room for header + borders + padding
+
 	var listLines []string
 
 	for i, entry := range filtered {
@@ -257,6 +284,7 @@ func (m SelectorModel) View() string {
 
 	// Center the box
 	lines := strings.Split(box, "\n")
+
 	return lipgloss.NewStyle().
 		MarginTop(max(0, (m.height-len(lines))/2)).
 		MarginLeft(max(0, (m.width-boxWidth)/2)).

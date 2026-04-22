@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 
@@ -47,7 +48,6 @@ type TUIImpl struct {
 
 	mu     sync.Mutex
 	popupQ []*overlayRequest
-	active bool
 	done   chan struct{}
 }
 
@@ -66,6 +66,7 @@ func NewTUIImpl(commands *CommandRegistry, bindings *BindingRegistry) *TUIImpl {
 func (u *TUIImpl) SetProgram(p Sender) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
+
 	u.program = p
 }
 
@@ -73,6 +74,7 @@ func (u *TUIImpl) SetProgram(p Sender) {
 func (u *TUIImpl) SetRegistries(commands *CommandRegistry, bindings *BindingRegistry) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
+
 	u.commands = commands
 	u.bindings = bindings
 }
@@ -101,11 +103,12 @@ func (u *TUIImpl) Select(title string, items []string) (int, error) {
 	if err := u.enqueue(req); err != nil {
 		return -1, err
 	}
+
 	select {
 	case resp := <-req.result:
 		return resp.index, resp.err
 	case <-u.done:
-		return -1, fmt.Errorf("tui shutting down")
+		return -1, errors.New("tui shutting down")
 	}
 }
 
@@ -119,11 +122,12 @@ func (u *TUIImpl) Confirm(message string) (bool, error) {
 	if err := u.enqueue(req); err != nil {
 		return false, err
 	}
+
 	select {
 	case resp := <-req.result:
 		return resp.confirmed, resp.err
 	case <-u.done:
-		return false, fmt.Errorf("tui shutting down")
+		return false, errors.New("tui shutting down")
 	}
 }
 
@@ -137,11 +141,12 @@ func (u *TUIImpl) Input(prompt string) (string, error) {
 	if err := u.enqueue(req); err != nil {
 		return "", err
 	}
+
 	select {
 	case resp := <-req.result:
 		return resp.value, resp.err
 	case <-u.done:
-		return "", fmt.Errorf("tui shutting down")
+		return "", errors.New("tui shutting down")
 	}
 }
 
@@ -179,10 +184,12 @@ func (u *TUIImpl) RegisterCommand(name string, handler func(args string) error) 
 
 	commands.Register(name, "", func(args string) CommandResult {
 		err := handler(args)
+
 		msg := "ok"
 		if err != nil {
 			msg = fmt.Sprintf("error: %v", err)
 		}
+
 		return CommandResult{Notify: "/" + name + ": " + msg}
 	})
 }
@@ -191,6 +198,7 @@ func (u *TUIImpl) RegisterCommand(name string, handler func(args string) error) 
 func (u *TUIImpl) RegisterRenderer(toolName string, renderer sdk.ToolRenderer) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
+
 	u.renderers[toolName] = renderer
 }
 
@@ -211,7 +219,9 @@ func (u *TUIImpl) RegisterKeybinding(kb sdk.Keybinding) {
 func (u *TUIImpl) GetRenderer(toolName string) (sdk.ToolRenderer, bool) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
+
 	r, ok := u.renderers[toolName]
+
 	return r, ok
 }
 
@@ -222,13 +232,13 @@ func (u *TUIImpl) enqueue(req *overlayRequest) error {
 
 	if u.program == nil {
 		u.mu.Unlock()
-		return fmt.Errorf("tui not running")
+		return errors.New("tui not running")
 	}
 
 	select {
 	case <-u.done:
 		u.mu.Unlock()
-		return fmt.Errorf("tui shutting down")
+		return errors.New("tui shutting down")
 	default:
 	}
 
@@ -237,6 +247,7 @@ func (u *TUIImpl) enqueue(req *overlayRequest) error {
 	u.mu.Unlock()
 
 	p.Send(popupPendingMsg{})
+
 	return nil
 }
 
@@ -251,6 +262,7 @@ func (u *TUIImpl) dequeue() *overlayRequest {
 
 	req := u.popupQ[0]
 	u.popupQ = u.popupQ[1:]
+
 	return req
 }
 
@@ -258,6 +270,7 @@ func (u *TUIImpl) dequeue() *overlayRequest {
 func (u *TUIImpl) hasPendingPopups() bool {
 	u.mu.Lock()
 	defer u.mu.Unlock()
+
 	return len(u.popupQ) > 0
 }
 
@@ -275,23 +288,6 @@ type notifyMsg struct {
 // popupPendingMsg signals that a popup request is queued.
 type popupPendingMsg struct{}
 
-// selectResultMsg carries the result of a Select overlay back to the UI impl.
-type selectResultMsg struct {
-	index int
-	err   error
-}
-
-// confirmResultMsg carries the result of a Confirm overlay back to the UI impl.
-type confirmResultMsg struct {
-	confirmed bool
-}
-
-// inputResultMsg carries the result of an Input overlay back to the UI impl.
-type inputResultMsg struct {
-	value string
-	ok    bool
-}
-
 // popupState tracks the active cross-extension popup and its response channel.
 type popupState struct {
 	kind    overlayRequestKind
@@ -304,6 +300,8 @@ type popupState struct {
 
 // handlePopupPending processes queued popup requests.
 // Returns a tea.Cmd if an overlay was activated.
+//
+//nolint:unparam // tea.Cmd return matches Bubble Tea Update pattern
 func (m Model) handlePopupPending() (Model, tea.Cmd) {
 	if m.ui == nil || m.popup != nil {
 		return m, nil
@@ -325,6 +323,7 @@ func (m Model) handlePopupPending() (Model, tea.Cmd) {
 		for i, title := range req.items {
 			items[i] = overlays.SelectorItem{Title: title}
 		}
+
 		m.popup.select_ = overlays.NewSelectorModel(req.title, items)
 		m.popup.select_ = m.popup.select_.SetSize(m.width, m.height)
 		m.popup.select_ = m.popup.select_.Show()
@@ -355,21 +354,27 @@ func (m Model) handlePopupUpdate(msg tea.Msg) (Model, tea.Cmd) {
 		if m.popup.kind == requestSelect {
 			idx := msg.Index
 			m.popup.result <- overlayResponse{index: idx}
+
 			m.popup = nil
+
 			return m, checkNextPopupCmd(m.ui)
 		}
 
 	case overlays.SelectorCancelledMsg:
 		if m.popup.kind == requestSelect {
-			m.popup.result <- overlayResponse{index: -1, err: fmt.Errorf("cancelled")}
+			m.popup.result <- overlayResponse{index: -1, err: errors.New("canceled")}
+
 			m.popup = nil
+
 			return m, checkNextPopupCmd(m.ui)
 		}
 
 	case overlays.ConfirmResultMsg:
 		if m.popup.kind == requestConfirm {
 			m.popup.result <- overlayResponse{confirmed: msg.Confirmed}
+
 			m.popup = nil
+
 			return m, checkNextPopupCmd(m.ui)
 		}
 
@@ -378,9 +383,11 @@ func (m Model) handlePopupUpdate(msg tea.Msg) (Model, tea.Cmd) {
 			if msg.Ok {
 				m.popup.result <- overlayResponse{value: msg.Value}
 			} else {
-				m.popup.result <- overlayResponse{err: fmt.Errorf("cancelled")}
+				m.popup.result <- overlayResponse{err: errors.New("canceled")}
 			}
+
 			m.popup = nil
+
 			return m, checkNextPopupCmd(m.ui)
 		}
 
@@ -388,15 +395,21 @@ func (m Model) handlePopupUpdate(msg tea.Msg) (Model, tea.Cmd) {
 		switch m.popup.kind {
 		case requestSelect:
 			var cmd tea.Cmd
+
 			m.popup.select_, cmd = m.popup.select_.Update(msg)
+
 			return m, cmd
 		case requestConfirm:
 			var cmd tea.Cmd
+
 			m.popup.confirm, cmd = m.popup.confirm.Update(msg)
+
 			return m, cmd
 		case requestInput:
 			var cmd tea.Cmd
+
 			m.popup.input, cmd = m.popup.input.Update(msg)
+
 			return m, cmd
 		}
 	}
@@ -428,6 +441,7 @@ func checkNextPopupCmd(ui *TUIImpl) tea.Cmd {
 	if ui != nil && ui.hasPendingPopups() {
 		return func() tea.Msg { return popupPendingMsg{} }
 	}
+
 	return nil
 }
 
@@ -435,5 +449,6 @@ func checkNextPopupCmd(ui *TUIImpl) tea.Cmd {
 func newNotifyAssistantMsg(text string) *messages.AssistantMessage {
 	am := messages.NewAssistantMessage()
 	am.Finalize(text)
+
 	return am
 }

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -18,6 +19,7 @@ func init() { //nolint:gochecknoinits // required for extension self-registratio
 		}
 
 		sdk.RegisterUI("tui", t.ui)
+
 		return t, nil
 	})
 }
@@ -49,7 +51,7 @@ func NewTUI(cfg sdk.Config) (*TUI, error) {
 }
 
 // ErrNoTTY is returned when stdin is not a terminal.
-var ErrNoTTY = fmt.Errorf("stdin is not a terminal (use -p for print mode)")
+var ErrNoTTY = errors.New("stdin is not a terminal (use -p for print mode)")
 
 // isTerminal checks whether stdin is connected to a terminal.
 func isTerminal() bool {
@@ -57,6 +59,7 @@ func isTerminal() bool {
 	if err != nil {
 		return false
 	}
+
 	return fi.Mode()&os.ModeCharDevice != 0
 }
 
@@ -81,12 +84,18 @@ func (t *TUI) Subscribe(bus sdk.Bus) {
 	go Bridge(t.program, events)
 
 	_, err := t.program.Run()
-	if err != nil {
-		fmt.Printf("tui error: %v\n", err)
-	}
 
 	t.ui.Close()
 	bus.Unsubscribe(events)
+
+	endPayload := any(nil)
+	if err != nil {
+		endPayload = fmt.Sprintf("tui error: %v", err)
+	}
+
+	// Signal shutdown so the launcher's select (waiting on agent.end)
+	// can unblock and proceed to wired.Close().
+	bus.Publish(sdk.NewEvent(topicEnd, endPayload))
 
 	close(t.done)
 }

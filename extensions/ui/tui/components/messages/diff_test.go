@@ -65,7 +65,7 @@ func TestIsDiffContent(t *testing.T) {
 		{"plain text", "hello world", false},
 		{"only minus prefix", "- removed line\n+ added line", false},
 		{"header with leading whitespace", "  --- a/file\n  +++ b/file\n  @@ -1 +1 @@", true},
-			{"header without hunk marker", "  --- a/file\n  +++ b/file", false},
+		{"header without hunk marker", "  --- a/file\n  +++ b/file", false},
 		{"empty string", "", false},
 	}
 	for _, tt := range tests {
@@ -169,10 +169,12 @@ func TestDiffRenderer_AllLineTypes(t *testing.T) {
 func TestDiffRenderer_LargeDiff(t *testing.T) {
 	var bldr strings.Builder
 	bldr.WriteString("--- a/file.go\n+++ b/file.go\n@@ -1,4 +1,4 @@\n")
+
 	for range 100 {
 		bldr.WriteString("-old line\n")
 		bldr.WriteString("+new line\n")
 	}
+
 	bldr.WriteString(" context\n")
 
 	r := NewDiffRenderer()

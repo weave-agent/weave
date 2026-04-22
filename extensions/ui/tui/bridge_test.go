@@ -57,7 +57,7 @@ func TestTranslateEvent_MessageEnd_NilPayload(t *testing.T) {
 	msg := translateEvent(sdk.NewEvent(topicMsgEnd, nil))
 	me, ok := msg.(MessageEndMsg)
 	require.True(t, ok)
-	assert.Equal(t, "", me.Content)
+	assert.Empty(t, me.Content)
 	assert.Nil(t, me.ToolCalls)
 }
 
@@ -84,7 +84,7 @@ func TestTranslateEvent_MessageEnd_WithoutThinking(t *testing.T) {
 	msg := translateEvent(sdk.NewEvent(topicMsgEnd, payload))
 	me, ok := msg.(MessageEndMsg)
 	require.True(t, ok)
-	assert.Equal(t, "", me.Thinking)
+	assert.Empty(t, me.Thinking)
 }
 
 func TestTranslateEvent_ToolResult(t *testing.T) {
@@ -107,8 +107,8 @@ func TestTranslateEvent_ToolResult_NilPayload(t *testing.T) {
 	msg := translateEvent(sdk.NewEvent(topicToolResult, nil))
 	tr, ok := msg.(ToolResultMsg)
 	require.True(t, ok)
-	assert.Equal(t, "", tr.ToolID)
-	assert.Equal(t, "", tr.Tool)
+	assert.Empty(t, tr.ToolID)
+	assert.Empty(t, tr.Tool)
 }
 
 func TestTranslateEvent_AgentEnd(t *testing.T) {
@@ -141,14 +141,14 @@ func TestTranslateEvent_SessionResume_NonStringPayload(t *testing.T) {
 	msg := translateEvent(sdk.NewEvent(topicSessionResume, 42))
 	sr, ok := msg.(SessionResumedMsg)
 	require.True(t, ok)
-	assert.Equal(t, "", sr.SessionID)
+	assert.Empty(t, sr.SessionID)
 }
 
 func TestTranslateEvent_MessageUpdate_NonStringPayload(t *testing.T) {
 	msg := translateEvent(sdk.NewEvent(topicMsgUpdate, 42))
 	mu, ok := msg.(MessageUpdateMsg)
 	require.True(t, ok)
-	assert.Equal(t, "", mu.Content)
+	assert.Empty(t, mu.Content)
 }
 
 func TestTranslateEvent_TurnStart_NonIntPayload(t *testing.T) {
@@ -171,7 +171,9 @@ func TestBridge_ForwardsEventsAndShutdown(t *testing.T) {
 	}()
 
 	events <- sdk.NewEvent(topicMsgStart, nil)
+
 	events <- sdk.NewEvent(topicMsgUpdate, "hello")
+
 	events <- sdk.NewEvent(topicTurnEnd, nil)
 
 	close(events)
@@ -207,6 +209,7 @@ func TestBridge_SkipsUnknownTopics(t *testing.T) {
 	}()
 
 	events <- sdk.NewEvent("unknown.topic", "data")
+
 	events <- sdk.NewEvent(topicMsgStart, nil)
 
 	close(events)
@@ -322,6 +325,7 @@ func TestBridge_DeltaBatching(t *testing.T) {
 	events := make(chan sdk.Event, 10)
 
 	done := make(chan struct{})
+
 	go func() {
 		Bridge(sender, events)
 		close(done)
@@ -329,18 +333,22 @@ func TestBridge_DeltaBatching(t *testing.T) {
 
 	// Send three deltas in rapid succession
 	events <- sdk.NewEvent(topicMsgUpdate, "hello ")
+
 	events <- sdk.NewEvent(topicMsgUpdate, "world ")
+
 	events <- sdk.NewEvent(topicMsgUpdate, "test")
+
 	close(events)
 
 	<-done
 
 	// The bridge should batch consecutive MessageUpdateMsg into one
 	// (or at most a few) messages
-	require.True(t, len(sender.msgs) >= 1, "expected at least 1 message, got %d", len(sender.msgs))
+	require.GreaterOrEqual(t, len(sender.msgs), 1, "expected at least 1 message, got %d", len(sender.msgs))
 
 	// Find all MessageUpdateMsg
 	var updates []string
+
 	for _, msg := range sender.msgs {
 		if mu, ok := msg.(MessageUpdateMsg); ok {
 			updates = append(updates, mu.Content)
@@ -352,6 +360,7 @@ func TestBridge_DeltaBatching(t *testing.T) {
 	for _, u := range updates {
 		combined.WriteString(u)
 	}
+
 	assert.Equal(t, "hello world test", combined.String())
 
 	// Last message should be ShutdownMsg
@@ -364,15 +373,20 @@ func TestBridge_DeltaBatchingMixedEvents(t *testing.T) {
 	events := make(chan sdk.Event, 10)
 
 	done := make(chan struct{})
+
 	go func() {
 		Bridge(sender, events)
 		close(done)
 	}()
 
 	events <- sdk.NewEvent(topicMsgUpdate, "delta1")
+
 	events <- sdk.NewEvent(topicMsgUpdate, "delta2")
+
 	events <- sdk.NewEvent(topicTurnEnd, nil) // non-delta breaks the batch
+
 	events <- sdk.NewEvent(topicMsgUpdate, "delta3")
+
 	close(events)
 
 	<-done
@@ -386,20 +400,24 @@ func TestBridge_DeltaBatchingMixedEvents(t *testing.T) {
 
 	// Verify combined content of all updates
 	var combined strings.Builder
+
 	for _, msg := range sender.msgs {
 		if mu, ok := msg.(MessageUpdateMsg); ok {
 			combined.WriteString(mu.Content)
 		}
 	}
+
 	assert.Equal(t, "delta1delta2delta3", combined.String())
 
 	// Verify TurnEndMsg is present
 	hasTurnEnd := false
+
 	for _, msg := range sender.msgs {
 		if _, ok := msg.(TurnEndMsg); ok {
 			hasTurnEnd = true
 		}
 	}
+
 	assert.True(t, hasTurnEnd)
 }
 

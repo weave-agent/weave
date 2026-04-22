@@ -51,6 +51,7 @@ func (b *ThinkingBlock) View(width int) string {
 	}
 
 	lines := strings.Split(b.content, "\n")
+
 	var bldr strings.Builder
 	bldr.WriteString(dimStyle.Render("  [thinking] ▼"))
 	bldr.WriteString("\n")
@@ -75,9 +76,11 @@ func (b *ThinkingBlock) Summary(maxLen int) string {
 		runes := []rune(first)
 		return string(runes[:maxLen-3]) + "..."
 	}
+
 	if first == "" {
 		return "(empty)"
 	}
+
 	return first
 }
 
@@ -86,6 +89,7 @@ func (b *ThinkingBlock) LineCount() int {
 	if b.content == "" {
 		return 0
 	}
+
 	return len(strings.Split(b.content, "\n"))
 }
 
@@ -94,5 +98,6 @@ func FormatThinkingLabel(lineCount int) string {
 	if lineCount <= 0 {
 		return "  [thinking]"
 	}
+
 	return fmt.Sprintf("  [thinking] (%d lines)", lineCount)
 }

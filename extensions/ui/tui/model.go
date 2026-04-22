@@ -43,6 +43,9 @@ type Model struct {
 	pendingSessions []SessionEntry
 	pendingModels   []ModelEntry
 	currentModel    ModelEntry
+	prevModel       ModelEntry
+
+	sessionDir string
 
 	popup *popupState
 }
@@ -51,7 +54,14 @@ type Model struct {
 // If ui is non-nil, it is reused (production path) so that renderers registered
 // via sdk.UI are visible to the model. If nil, a fresh TUIImpl is created (tests).
 func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
-	commands := NewCommandRegistry(bus)
+	var cfgPath string
+	if cfg != nil {
+		cfgPath = cfg.FilePath()
+	}
+
+	sdir := resolveSessionDir(cfgPath)
+
+	commands := NewCommandRegistry(bus, sdir)
 	commands.register("/model", "Select or change model", func(_ string) CommandResult {
 		return CommandResult{Command: listModelsCmd()}
 	})
@@ -90,8 +100,10 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 		bindings:     bindings,
 		ui:           ui,
 		currentModel: cur,
+		sessionDir:   sdir,
 	}
 	m.footer = m.footer.SetModel(cur.Model, cur.Provider)
+
 	return m
 }
 
@@ -101,11 +113,15 @@ func (m Model) Init() tea.Cmd {
 }
 
 // Update handles messages.
+//
+//nolint:gocyclo // central message dispatch for the TUI
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Handle spinner control messages
 	if components.IsSpinnerMsg(msg) {
 		var cmd tea.Cmd
+
 		m.spinner, cmd = m.spinner.SpinnerUpdate(msg)
+
 		return m, cmd
 	}
 
@@ -134,6 +150,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.footer = m.footer.SetSize(m.width)
 		m.spinner = m.spinner.SetSize(m.width)
 		m.overlay = m.overlay.SetSize(m.width, m.height)
+
 		return m, nil
 
 	case tea.KeyMsg:
@@ -142,11 +159,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if msg.String() == "ctrl+c" {
 				m.activeOverlay = overlayNone
 				m.overlay = m.overlay.Hide()
+
 				return m, nil
 			}
 
 			var cmd tea.Cmd
+
 			m.overlay, cmd = m.overlay.Update(msg)
+
 			return m, cmd
 		}
 
@@ -154,15 +174,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if action, ok := m.bindings.Resolve(keyString(msg)); ok {
 			if action == ActionInterrupt && m.editor.AutocompleteVisible() {
 				var cmd tea.Cmd
+
 				m.editor, cmd = m.editor.Update(msg)
+
 				return m, cmd
 			}
+
 			return m.dispatchBinding(action)
 		}
 
 		// Fall through to editor
 		var cmd tea.Cmd
+
 		m.editor, cmd = m.editor.Update(msg)
+
 		return m, cmd
 
 	case components.SubmitMsg:
@@ -170,7 +195,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case TurnStartMsg:
 		var cmd tea.Cmd
+
 		m.spinner, cmd = m.spinner.SpinnerUpdate(components.SpinnerShowMsg{})
+
 		return m, cmd
 
 	case MessageStartMsg:
@@ -190,10 +217,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case AgentEndMsg:
 		m.spinner = m.spinner.Hide()
+
 		if msg.Payload != nil {
 			if errStr, ok := msg.Payload.(string); ok && errStr != "" {
 				am := messages.NewAssistantMessage()
-				am.Finalize(fmt.Sprintf("[error] %s", errStr))
+				am.Finalize("[error] " + errStr)
 				m.chat = m.chat.AddItem(am)
 			}
 		}
@@ -207,6 +235,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ModelChangedMsg:
 		return m.onModelChanged(msg)
 
+	case ModelChangeFailedMsg:
+		return m.onModelChangeFailed(msg)
+
 	case overlays.SelectorSelectedMsg:
 		return m.onOverlaySelected(msg)
 
@@ -215,6 +246,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.overlay = m.overlay.Hide()
 		m.pendingSessions = nil
 		m.pendingModels = nil
+
 		return m, nil
 
 	case ShutdownMsg:
@@ -241,7 +273,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Forward spinner ticks
 	if m.spinner.Visible() {
 		var cmd tea.Cmd
+
 		m.spinner, cmd = m.spinner.Update(msg)
+
 		return m, cmd
 	}
 
@@ -257,6 +291,7 @@ func (m Model) dispatchBinding(action BindingAction) (tea.Model, tea.Cmd) {
 		m.chat = components.NewChatModel().SetSize(m.width, m.chatHeight(m.height))
 		m.toolPanels = make(map[string]*messages.ToolPanel)
 		m.prompted = false
+
 		return m, nil
 	case ActionInterrupt:
 		return m.interruptStreaming()
@@ -268,6 +303,7 @@ func (m Model) dispatchBinding(action BindingAction) (tea.Model, tea.Cmd) {
 			next := cycleModel(models, m.currentModel)
 			return m, func() tea.Msg { return ModelChangedMsg{Entry: next} }
 		}
+
 		return m, nil
 	default:
 		return m, nil
@@ -302,6 +338,11 @@ func (m *Model) onMessageEnd(msg MessageEndMsg) {
 		return
 	}
 
+	// If the message was already finalized (e.g. by interrupt), don't overwrite.
+	if !am.IsStreaming() {
+		return
+	}
+
 	am.Finalize(msg.Content)
 	m.chat = m.chat.UpdateItem(am)
 
@@ -312,6 +353,7 @@ func (m *Model) onMessageEnd(msg MessageEndMsg) {
 	for _, tc := range msg.ToolCalls {
 		args, _ := json.Marshal(tc.Arguments)
 		argsStr := string(args)
+
 		panel := messages.NewToolPanel(tc.ID, tc.Name, argsStr)
 		if m.ui != nil {
 			if r, ok := m.ui.GetRenderer(tc.Name); ok {
@@ -322,6 +364,7 @@ func (m *Model) onMessageEnd(msg MessageEndMsg) {
 		} else {
 			panel.SetDiffRenderer(messages.NewDiffRenderer())
 		}
+
 		m.toolPanels[tc.ID] = panel
 		m.chat = m.chat.AddItem(panel)
 	}
@@ -373,7 +416,7 @@ func (m *Model) AddUserMessage(content string) {
 // onSubmit handles editor submit — routes slash commands or publishes prompt/followup.
 func (m Model) onSubmit(text string) (tea.Model, tea.Cmd) {
 	// Try slash command dispatch first.
-	if handled, result := m.commands.Dispatch(text); handled {
+	if handled, result := m.commands.Dispatch(text); handled { //nolint:nestif // command dispatch has multiple optional outcomes
 		if result.Quit {
 			return m, tea.Quit
 		}
@@ -389,6 +432,7 @@ func (m Model) onSubmit(text string) (tea.Model, tea.Cmd) {
 
 		if result.Notify != "" {
 			m.chat = m.chat.AddItem(messages.NewAssistantMessage())
+
 			items := m.chat.Items()
 			if am, ok := items[len(items)-1].(*messages.AssistantMessage); ok {
 				am.Finalize(result.Notify)
@@ -414,6 +458,7 @@ func (m Model) onSessionListResult(msg SessionListResultMsg) (tea.Model, tea.Cmd
 		am := messages.NewAssistantMessage()
 		am.Finalize(fmt.Sprintf("Error listing sessions: %v", msg.Err))
 		m.chat = m.chat.AddItem(am)
+
 		return m, nil
 	}
 
@@ -421,6 +466,7 @@ func (m Model) onSessionListResult(msg SessionListResultMsg) (tea.Model, tea.Cmd
 		am := messages.NewAssistantMessage()
 		am.Finalize("No sessions found.")
 		m.chat = m.chat.AddItem(am)
+
 		return m, nil
 	}
 
@@ -446,13 +492,15 @@ func (m Model) onModelListResult(msg ModelListResultMsg) (tea.Model, tea.Cmd) {
 		am := messages.NewAssistantMessage()
 		am.Finalize("No models available.")
 		m.chat = m.chat.AddItem(am)
+
 		return m, nil
 	}
 
 	if len(msg.Models) == 1 {
 		am := messages.NewAssistantMessage()
-		am.Finalize(fmt.Sprintf("Only one model available: %s", msg.Models[0].Display()))
+		am.Finalize("Only one model available: " + msg.Models[0].Display())
 		m.chat = m.chat.AddItem(am)
+
 		return m, nil
 	}
 
@@ -474,12 +522,24 @@ func (m Model) onModelListResult(msg ModelListResultMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) onModelChanged(msg ModelChangedMsg) (tea.Model, tea.Cmd) {
+	m.prevModel = m.currentModel
 	m.currentModel = msg.Entry
 	m.footer = m.footer.SetModel(msg.Entry.Model, msg.Entry.Provider)
 
 	if m.bus != nil {
 		return m, PublishModelChange(m.bus, msg.Entry)
 	}
+
+	return m, nil
+}
+
+func (m Model) onModelChangeFailed(msg ModelChangeFailedMsg) (tea.Model, tea.Cmd) {
+	m.currentModel = m.prevModel
+	m.footer = m.footer.SetModel(m.prevModel.Model, m.prevModel.Provider)
+
+	am := messages.NewAssistantMessage()
+	am.Finalize("Failed to switch provider: " + msg.Error)
+	m.chat = m.chat.AddItem(am)
 
 	return m, nil
 }
@@ -493,6 +553,7 @@ func (m Model) onOverlaySelected(msg overlays.SelectorSelectedMsg) (tea.Model, t
 	default:
 		m.activeOverlay = overlayNone
 		m.overlay = m.overlay.Hide()
+
 		return m, nil
 	}
 }
@@ -510,6 +571,7 @@ func (m Model) onSessionSelected(msg overlays.SelectorSelectedMsg) (tea.Model, t
 	m.pendingSessions = nil
 
 	m.rebuildChatFromSession(session.ID)
+	m.prompted = false
 
 	if m.bus != nil {
 		return m, PublishSessionResume(m.bus, session.ID)
@@ -534,18 +596,18 @@ func (m Model) onModelSelected(msg overlays.SelectorSelectedMsg) (tea.Model, tea
 }
 
 func (m *Model) rebuildChatFromSession(sessionID string) {
-	entries, err := loadSessionEntries(sessionID)
+	entries, err := loadSessionEntries(m.sessionDir, sessionID)
 	if err != nil {
 		m.chat = components.NewChatModel().SetSize(m.width, m.chatHeight(m.height))
 		am := messages.NewAssistantMessage()
 		am.Finalize(fmt.Sprintf("Error loading session: %v", err))
 		m.chat = m.chat.AddItem(am)
+
 		return
 	}
 
 	m.chat = components.NewChatModel().SetSize(m.width, m.chatHeight(m.height))
 	m.toolPanels = make(map[string]*messages.ToolPanel)
-	m.prompted = true
 
 	for _, entry := range entries {
 		switch entry.Role {
@@ -556,17 +618,45 @@ func (m *Model) rebuildChatFromSession(sessionID string) {
 			am.Finalize(entry.Content)
 			m.chat = m.chat.AddItem(am)
 		case sdk.RoleToolResult:
-			panel := messages.NewToolPanel("", "tool", "")
-			panel.SetResult(entry.Content, false)
+			toolName, toolContent, toolIsError := parseToolEntry(entry.Tool)
+			panel := messages.NewToolPanel("", toolName, "")
+			panel.SetResult(toolContent, toolIsError)
 			m.chat = m.chat.AddItem(panel)
 		}
 	}
+}
+
+// parseToolEntry extracts tool name, content, and error flag from a stored tool entry.
+func parseToolEntry(raw json.RawMessage) (name, content string, isError bool) {
+	if len(raw) == 0 {
+		return "tool", "", false
+	}
+
+	var toolData struct {
+		Tool   string `json:"tool"`
+		Result struct {
+			Content string `json:"content"`
+			IsError bool   `json:"is_error"`
+		} `json:"result"`
+	}
+
+	if err := json.Unmarshal(raw, &toolData); err != nil {
+		return "tool", "", false
+	}
+
+	name = toolData.Tool
+	if name == "" {
+		name = "tool"
+	}
+
+	return name, toolData.Result.Content, toolData.Result.IsError
 }
 
 // chatHeight returns the height allocated to the chat area.
 func (m Model) chatHeight(totalHeight int) int {
 	editorLines := 3 + 2 // editor height + border
 	footerLines := 2
+
 	spinnerLines := 0
 	if m.spinner.Visible() {
 		spinnerLines = 1
@@ -601,8 +691,7 @@ func (m Model) View() string {
 		sections = append(sections, m.spinner.View())
 	}
 
-	sections = append(sections, m.editor.View())
-	sections = append(sections, m.footer.View())
+	sections = append(sections, m.editor.View(), m.footer.View())
 
 	return strings.Join(sections, "\n")
 }

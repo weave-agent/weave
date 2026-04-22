@@ -207,6 +207,8 @@ func TestLoop_SingleTurn_NoTools(t *testing.T) {
 	_, ok = waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
 	require.True(t, ok, "timeout waiting for turn_end")
 
+	require.NoError(t, l.Close())
+
 	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
 	require.True(t, ok, "timeout waiting for end")
 
@@ -282,6 +284,8 @@ func TestLoop_SteeringInjection(t *testing.T) {
 	_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
 	require.True(t, ok, "timeout waiting for turn_end")
 
+	require.NoError(t, l.Close())
+
 	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
 	require.True(t, ok, "timeout waiting for end")
 
@@ -332,6 +336,8 @@ func TestLoop_SteeringDuringTurn(t *testing.T) {
 		require.True(t, ok, "timeout waiting for turn_end %d", i+1)
 	}
 
+	require.NoError(t, l.Close())
+
 	_, ok := waitForTopic(allCh, TopicEnd, 2*time.Second)
 	require.True(t, ok, "timeout waiting for end")
 
@@ -354,18 +360,66 @@ func TestLoop_FollowupReentry(t *testing.T) {
 	allCh := b.SubscribeAll()
 	l.Subscribe(b)
 
+	// Send initial prompt
 	b.Publish(sdk.NewEvent(TopicPrompt, "initial"))
+
+	// Wait for the first turn to complete (real-world timing: user reads response)
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for first turn_end")
+
+	// Send follow-up after the first turn completes (not before)
 	b.Publish(sdk.NewEvent(TopicFollowup, "follow up question"))
 
-	for i := range 2 {
-		_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
-		require.True(t, ok, "timeout waiting for turn_end %d", i+1)
-	}
+	_, ok = waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for second turn_end")
 
-	_, ok := waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.NoError(t, l.Close())
+
+	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
 	require.True(t, ok, "timeout waiting for end")
 
 	assert.Len(t, mp.StreamCalls(), 2)
+}
+
+func TestLoop_PromptResetsConversation(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mp := newMockProvider([]providerResponse{
+		{textDeltas: []string{"first response"}},
+		{textDeltas: []string{"new conversation"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	l, b, cleanup := setupLoop(t, "anthropic")
+	defer cleanup()
+
+	allCh := b.SubscribeAll()
+	l.Subscribe(b)
+
+	// First conversation
+	b.Publish(sdk.NewEvent(TopicPrompt, "first prompt"))
+
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for first turn_end")
+
+	// Simulate /new: send a second agent.prompt to reset the conversation
+	b.Publish(sdk.NewEvent(TopicPrompt, "new prompt after /new"))
+
+	_, ok = waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for second turn_end")
+
+	require.NoError(t, l.Close())
+
+	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
+
+	calls := mp.StreamCalls()
+	require.Len(t, calls, 2)
+	// First call: 1 message (just the first prompt)
+	assert.Len(t, calls[0].Req.Messages, 1)
+	// Second call: 1 message (conversation was reset, only the new prompt)
+	assert.Len(t, calls[1].Req.Messages, 1)
 }
 
 func TestLoop_ErrorAbort(t *testing.T) {
@@ -581,6 +635,9 @@ func TestLoop_MultipleToolCalls(t *testing.T) {
 			case TopicMsgEnd:
 				e := evt
 				finalMsgEnd = &e
+			case TopicTurnEnd:
+				// First turn done; close to trigger TopicEnd
+				require.NoError(t, l.Close())
 			case TopicEnd:
 				goto done
 			}
@@ -628,4 +685,60 @@ func TestLoop_StreamingUpdatesPreserveOrder(t *testing.T) {
 	msgEndPayload, ok := msgEnd.Payload.(map[string]any)
 	require.True(t, ok, "msg_end payload type = %T", msgEnd.Payload)
 	assert.Equal(t, expected, msgEndPayload["content"])
+}
+
+func TestLoop_InterruptHaltsTurn(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	started := make(chan struct{})
+
+	responses := []providerResponse{
+		{textDeltas: []string{"partial"}},
+		{textDeltas: []string{"after interrupt"}},
+	}
+
+	mp := newMockProvider(responses)
+	originalStreamFunc := mp.StreamFunc
+	mp.StreamFunc = func(ctx context.Context, req sdk.ProviderRequest) (<-chan sdk.ProviderEvent, error) {
+		callIdx := len(mp.StreamCalls()) - 1
+		if callIdx == 0 {
+			close(started)
+			// Give the interrupt time to arrive and cancel the context
+			time.Sleep(200 * time.Millisecond)
+		}
+
+		return originalStreamFunc(ctx, req)
+	}
+
+	registerMockProvider("anthropic", mp)
+
+	l, b, cleanup := setupLoop(t, "anthropic")
+	defer cleanup()
+
+	allCh := b.SubscribeAll()
+	l.Subscribe(b)
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "test"))
+
+	<-started
+	b.Publish(sdk.NewEvent(TopicInterrupt, "user interrupt"))
+
+	// The interrupted turn should eventually publish TurnEnd
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 3*time.Second)
+	require.True(t, ok, "timeout waiting for turn_end after interrupt")
+
+	// The loop should stay alive and accept a follow-up
+	b.Publish(sdk.NewEvent(TopicFollowup, "continue"))
+
+	_, ok = waitForTopic(allCh, TopicTurnEnd, 3*time.Second)
+	require.True(t, ok, "timeout waiting for second turn_end after followup")
+
+	require.NoError(t, l.Close())
+
+	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
+
+	// Two stream calls: first (interrupted) and second (follow-up)
+	assert.Len(t, mp.StreamCalls(), 2)
 }

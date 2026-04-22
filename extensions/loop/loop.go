@@ -14,23 +14,27 @@ import (
 
 // Bus topics
 const (
-	TopicPrompt   = "agent.prompt"
-	TopicSteer    = "agent.steer"
-	TopicFollowup = "agent.followup"
+	TopicPrompt    = "agent.prompt"
+	TopicSteer     = "agent.steer"
+	TopicFollowup  = "agent.followup"
+	TopicInterrupt = "agent.interrupt"
 
-	TopicTurnStart  = "agent.turn_start"
-	TopicTurnEnd    = "agent.turn_end"
-	TopicMsgStart   = "agent.message_start"
-	TopicMsgUpdate  = "agent.message_update"
-	TopicMsgEnd     = "agent.message_end"
-	TopicToolResult = "agent.tool_result"
-	TopicEnd        = "agent.end"
+	TopicTurnStart         = "agent.turn_start"
+	TopicTurnEnd           = "agent.turn_end"
+	TopicMsgStart          = "agent.message_start"
+	TopicMsgUpdate         = "agent.message_update"
+	TopicMsgEnd            = "agent.message_end"
+	TopicToolResult        = "agent.tool_result"
+	TopicEnd               = "agent.end"
+	TopicModelChange       = "model.change"
+	TopicModelChangeFailed = "model.change_failed"
 )
 
 // Loop is the agent-loop extension that drives the LLM conversation cycle.
 type Loop struct {
 	cfg          sdk.Config
 	providerName string
+	singleTurn   bool
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
@@ -52,6 +56,7 @@ func NewLoop(cfg sdk.Config, providerName string) (*Loop, error) {
 	return &Loop{
 		cfg:          cfg,
 		providerName: providerName,
+		singleTurn:   os.Getenv("WEAVE_SINGLE_TURN") == "1",
 	}, nil
 }
 
@@ -67,6 +72,8 @@ func (l *Loop) Subscribe(bus sdk.Bus) {
 	promptCh := bus.Subscribe(TopicPrompt)
 	steerCh := bus.Subscribe(TopicSteer)
 	followupCh := bus.Subscribe(TopicFollowup)
+	interruptCh := bus.Subscribe(TopicInterrupt)
+	modelChangeCh := bus.Subscribe(TopicModelChange)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -74,7 +81,7 @@ func (l *Loop) Subscribe(bus sdk.Bus) {
 	l.done = make(chan struct{})
 	l.mu.Unlock()
 
-	go l.run(ctx, bus, promptCh, steerCh, followupCh)
+	go l.run(ctx, bus, promptCh, steerCh, followupCh, interruptCh, modelChangeCh)
 }
 
 func (l *Loop) Close() error {
@@ -94,7 +101,8 @@ func (l *Loop) Close() error {
 	return nil
 }
 
-func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followupCh <-chan sdk.Event) {
+//nolint:gocyclo // central event loop with multiple channel selects
+func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followupCh, interruptCh, modelChangeCh <-chan sdk.Event) {
 	defer close(l.done)
 
 	var endPayload any
@@ -126,6 +134,21 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 
 	// Outer loop: follow-ups
 	for {
+		// Per-turn context that can be canceled by interrupt without
+		// killing the entire session.
+		turnCtx, turnCancel := context.WithCancel(ctx)
+		turnDone := make(chan struct{})
+
+		go func() {
+			defer close(turnDone)
+
+			select {
+			case <-interruptCh:
+				turnCancel()
+			case <-turnCtx.Done():
+			}
+		}()
+
 		// Inner loop: tool calls. Continues while the provider returns
 		// tool calls that need execution.
 		continueLoop := true
@@ -135,11 +158,19 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 
 			bus.Publish(sdk.NewEvent(TopicTurnStart, turn))
 
-			resp, toolCalls, err := streamTurn(ctx, bus, provider, messages, toolDefs)
+			resp, toolCalls, err := streamTurn(turnCtx, bus, provider, messages, toolDefs)
 			if err != nil {
 				bus.Publish(sdk.NewEvent(TopicTurnEnd, nil))
 
+				// If the turn was interrupted (not the main context), break to follow-up.
+				if turnCtx.Err() != nil && ctx.Err() == nil {
+					break
+				}
+
 				endPayload = fmt.Sprintf("stream error: %v", err)
+
+				turnCancel()
+				<-turnDone
 
 				return
 			}
@@ -147,7 +178,7 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 			messages = append(messages, resp)
 
 			for _, tc := range toolCalls {
-				result, err := executeTool(ctx, l.cfg, tc)
+				result, err := executeTool(turnCtx, l.cfg, tc)
 				if err != nil {
 					result = sdk.ToolResult{Content: err.Error(), IsError: true}
 				}
@@ -169,21 +200,92 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 			continueLoop = len(toolCalls) > 0 || hasNewSteering
 		}
 
+		turnCancel()
+		<-turnDone
+
+		drainInterrupts(interruptCh)
+
 		turn++
 
-		// Check for follow-up — non-blocking drain. If a follow-up was
-		// published while the inner loop was running, continue the outer loop.
+		if l.singleTurn {
+			return
+		}
+
+		// Wait for follow-up or new prompt. Blocking — the loop stays alive
+		// between turns. A new agent.prompt resets the conversation (e.g. /new).
 		select {
 		case evt, ok := <-followupCh:
 			if !ok {
 				return
 			}
 
+			l.providerName, provider = drainModelChanges(modelChangeCh, bus, l.cfg, l.providerName, provider)
+
 			messages = append(messages, sdk.NewUserMessage(evt.Payload))
+		case evt, ok := <-promptCh:
+			if !ok {
+				return
+			}
+
+			l.providerName, provider = drainModelChanges(modelChangeCh, bus, l.cfg, l.providerName, provider)
+			messages = []sdk.Message{sdk.NewUserMessage(evt.Payload)}
+			turn = 1
+		case evt, ok := <-modelChangeCh:
+			if !ok {
+				return
+			}
+
+			l.providerName, provider = applyModelChange(evt, bus, l.cfg, l.providerName, provider)
+			l.providerName, provider = drainModelChanges(modelChangeCh, bus, l.cfg, l.providerName, provider)
+
+			continue
 		case <-ctx.Done():
 			return
+		}
+	}
+}
+
+func drainInterrupts(ch <-chan sdk.Event) {
+	for {
+		select {
+		case <-ch:
 		default:
 			return
+		}
+	}
+}
+
+func applyModelChange(evt sdk.Event, bus sdk.Bus, cfg sdk.Config, currentName string, currentProv sdk.Provider) (string, sdk.Provider) {
+	if m, ok := evt.Payload.(map[string]string); ok {
+		if p, ok := m["provider"]; ok && p != "" {
+			newProv, err := sdk.GetProvider(p, cfg)
+			if err != nil {
+				bus.Publish(sdk.NewEvent(TopicModelChangeFailed, map[string]any{
+					"provider": currentName,
+					"error":    err.Error(),
+				}))
+
+				return currentName, currentProv
+			}
+
+			return p, newProv
+		}
+	}
+
+	return currentName, currentProv
+}
+
+func drainModelChanges(ch <-chan sdk.Event, bus sdk.Bus, cfg sdk.Config, currentName string, currentProv sdk.Provider) (string, sdk.Provider) {
+	for {
+		select {
+		case evt, ok := <-ch:
+			if !ok {
+				return currentName, currentProv
+			}
+
+			currentName, currentProv = applyModelChange(evt, bus, cfg, currentName, currentProv)
+		default:
+			return currentName, currentProv
 		}
 	}
 }

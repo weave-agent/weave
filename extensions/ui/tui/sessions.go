@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nniel-ape/gonfig"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -21,6 +22,7 @@ type SessionEntry struct {
 }
 
 // sessionDir returns the directory where session JSONL files are stored.
+// Checks WEAVE_JSONL_DIR env var, then falls back to ~/.weave/sessions.
 func sessionDir() (string, error) {
 	if dir := os.Getenv("WEAVE_JSONL_DIR"); dir != "" {
 		return dir, nil
@@ -34,6 +36,29 @@ func sessionDir() (string, error) {
 	return filepath.Join(home, ".weave", "sessions"), nil
 }
 
+// resolveSessionDir loads the session directory from config (matching the jsonl store's
+// resolution), falling back to env var and default.
+func resolveSessionDir(cfgPath string) string {
+	if cfgPath != "" {
+		var c struct {
+			JSONL struct {
+				Dir string `default:""`
+			}
+		}
+
+		if err := gonfig.Load(&c, gonfig.WithEnvPrefix("WEAVE"), gonfig.WithFile(cfgPath)); err == nil && c.JSONL.Dir != "" {
+			return c.JSONL.Dir
+		}
+	}
+
+	dir, err := sessionDir()
+	if err != nil {
+		return ""
+	}
+
+	return dir
+}
+
 // sessionHeader matches the first-line JSON of each JSONL session file.
 type sessionHeader struct {
 	Type      string    `json:"type"`
@@ -44,10 +69,16 @@ type sessionHeader struct {
 
 // listSessions reads session headers from the session directory.
 // Returns sessions sorted by most recent first.
-func listSessions() ([]SessionEntry, error) {
-	dir, err := sessionDir()
-	if err != nil {
-		return nil, err
+// dirOverride, when non-empty, is used instead of the default session directory.
+func listSessions(dirOverride string) ([]SessionEntry, error) {
+	dir := dirOverride
+	if dir == "" {
+		var err error
+
+		dir, err = sessionDir()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	entries, err := os.ReadDir(dir)
@@ -90,7 +121,7 @@ func listSessions() ([]SessionEntry, error) {
 func readSessionHeader(path string) (*sessionHeader, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("open session header: %w", err)
 	}
 
 	defer f.Close()
@@ -108,15 +139,22 @@ func readSessionHeader(path string) (*sessionHeader, error) {
 
 // sessionEntryData is the JSON payload of a message entry.
 type sessionEntryData struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role    string          `json:"role"`
+	Content string          `json:"content"`
+	Tool    json.RawMessage `json:"tool,omitempty"`
 }
 
 // loadSessionEntries reads all message entries from a session file.
-func loadSessionEntries(sessionID string) ([]sessionEntryData, error) {
-	dir, err := sessionDir()
-	if err != nil {
-		return nil, err
+// dirOverride, when non-empty, is used instead of the default session directory.
+func loadSessionEntries(dirOverride, sessionID string) ([]sessionEntryData, error) {
+	dir := dirOverride
+	if dir == "" {
+		var err error
+
+		dir, err = sessionDir()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if strings.Contains(sessionID, "..") || strings.ContainsAny(sessionID, `/\`) {
@@ -173,9 +211,9 @@ func shortenCWD(cwd string) string {
 }
 
 // listSessionsCmd returns a tea.Cmd that reads session headers and returns SessionListResultMsg.
-func listSessionsCmd() tea.Cmd {
+func listSessionsCmd(dirOverride string) tea.Cmd {
 	return func() tea.Msg {
-		sessions, err := listSessions()
+		sessions, err := listSessions(dirOverride)
 		return SessionListResultMsg{Sessions: sessions, Err: err}
 	}
 }

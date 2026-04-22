@@ -1,7 +1,6 @@
 package components
 
 import (
-	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -36,6 +35,7 @@ func NewChatModel() ChatModel {
 func (m ChatModel) SetSize(width, height int) ChatModel {
 	m.width = width
 	m.height = height
+
 	return m
 }
 
@@ -63,6 +63,7 @@ func (m ChatModel) ScrollOffset() int {
 func (m ChatModel) AddItem(item ChatItem) ChatModel {
 	m.items = append(m.items, item)
 	m.scrollToBottom()
+
 	return m
 }
 
@@ -74,6 +75,7 @@ func (m ChatModel) UpdateItem(item ChatItem) ChatModel {
 	} else {
 		m.items = append(m.items, item)
 	}
+
 	return m
 }
 
@@ -84,6 +86,7 @@ func (m ChatModel) UpdateItemByID(item ChatItem) ChatModel {
 	if !ok {
 		return m.AddItem(item)
 	}
+
 	targetID := id.ItemID()
 	for i, existing := range m.items {
 		if eid, ok := existing.(ChatItemIdentity); ok && eid.ItemID() == targetID {
@@ -91,6 +94,7 @@ func (m ChatModel) UpdateItemByID(item ChatItem) ChatModel {
 			return m
 		}
 	}
+
 	return m.AddItem(item)
 }
 
@@ -106,6 +110,7 @@ func (m ChatModel) totalLines() int {
 	for _, item := range m.items {
 		total += m.itemLines(item)
 	}
+
 	return total
 }
 
@@ -114,16 +119,16 @@ func (m ChatModel) itemLines(item ChatItem) int {
 	if m.width <= 0 {
 		return 1
 	}
+
 	text := item.View(m.width)
+
 	return len(strings.Split(text, "\n"))
 }
 
 // Update handles messages for the chat model.
 func (m ChatModel) Update(msg tea.Msg) (ChatModel, tea.Cmd) {
-	switch msg.(type) {
-	case tea.MouseMsg:
-		// Mouse wheel scrolling will be handled here
-	}
+	_ = msg
+
 	return m, nil
 }
 
@@ -134,6 +139,7 @@ func (m ChatModel) View() string {
 	}
 
 	var allLines []string
+
 	for _, item := range m.items {
 		text := item.View(m.width)
 		allLines = append(allLines, strings.Split(text, "\n")...)
@@ -157,5 +163,5 @@ func (m ChatModel) View() string {
 
 // FormatUserMessage creates a formatted string for a user message.
 func FormatUserMessage(content string) string {
-	return fmt.Sprintf("> %s", content)
+	return "> " + content
 }

@@ -193,6 +193,7 @@ func keyString(msg tea.KeyMsg) string {
 	if s == "esc" {
 		return "escape"
 	}
+
 	return s
 }
 

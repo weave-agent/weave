@@ -37,6 +37,7 @@ func (m ConfirmModel) Visible() bool { return m.visible }
 func (m ConfirmModel) Show() ConfirmModel {
 	m.visible = true
 	m.cursor = 0
+
 	return m
 }
 
@@ -50,6 +51,7 @@ func (m ConfirmModel) Hide() ConfirmModel {
 func (m ConfirmModel) SetSize(width, height int) ConfirmModel {
 	m.width = width
 	m.height = height
+
 	return m
 }
 
@@ -64,35 +66,43 @@ func (m ConfirmModel) Cursor() int { return m.cursor }
 
 // Update handles messages for the confirm dialog.
 func (m ConfirmModel) Update(msg tea.Msg) (ConfirmModel, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.Type {
-		case tea.KeyEsc:
+	if key, ok := msg.(tea.KeyMsg); ok {
+		return m.handleKey(key)
+	}
+
+	return m, nil
+}
+
+func (m ConfirmModel) handleKey(msg tea.KeyMsg) (ConfirmModel, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.visible = false
+		return m, func() tea.Msg { return ConfirmResultMsg{Confirmed: false} }
+
+	case tea.KeyLeft:
+		m.cursor = 0
+		return m, nil
+
+	case tea.KeyRight:
+		m.cursor = 1
+		return m, nil
+
+	case tea.KeyEnter:
+		m.visible = false
+		return m, func() tea.Msg { return ConfirmResultMsg{Confirmed: m.cursor == 0} }
+
+	case tea.KeyRunes:
+		switch strings.ToLower(string(msg.Runes)) {
+		case "y":
+			m.visible = false
+			return m, func() tea.Msg { return ConfirmResultMsg{Confirmed: true} }
+		case "n":
 			m.visible = false
 			return m, func() tea.Msg { return ConfirmResultMsg{Confirmed: false} }
-
-		case tea.KeyLeft:
-			m.cursor = 0
-			return m, nil
-
-		case tea.KeyRight:
-			m.cursor = 1
-			return m, nil
-
-		case tea.KeyEnter:
-			m.visible = false
-			return m, func() tea.Msg { return ConfirmResultMsg{Confirmed: m.cursor == 0} }
-
-		case tea.KeyRunes:
-			switch strings.ToLower(string(msg.Runes)) {
-			case "y":
-				m.visible = false
-				return m, func() tea.Msg { return ConfirmResultMsg{Confirmed: true} }
-			case "n":
-				m.visible = false
-				return m, func() tea.Msg { return ConfirmResultMsg{Confirmed: false} }
-			}
 		}
+
+	default:
+		// Ignore unhandled keys
 	}
 
 	return m, nil
@@ -125,6 +135,7 @@ func (m ConfirmModel) View() string {
 		Padding(0, 2)
 
 	yesBtn := inactiveBtnStyle.Render("Yes")
+
 	noBtn := inactiveBtnStyle.Render("No")
 	if m.cursor == 0 {
 		yesBtn = activeBtnStyle.Render("Yes")
@@ -137,6 +148,7 @@ func (m ConfirmModel) View() string {
 	box := borderStyle.Render(content)
 
 	lines := strings.Split(box, "\n")
+
 	return lipgloss.NewStyle().
 		MarginTop(max(0, (m.height-len(lines))/2)).
 		MarginLeft(max(0, (m.width-boxWidth)/2)).

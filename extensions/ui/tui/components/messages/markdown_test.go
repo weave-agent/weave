@@ -14,7 +14,7 @@ func TestMarkdownRenderer_CodeBlocks(t *testing.T) {
 	out := r.Render(input)
 	assert.Contains(t, out, "fmt.Println")
 	// Glamour adds ANSI escape codes for syntax highlighting
-	assert.True(t, len(out) > len(input), "rendered output should contain styling")
+	assert.Greater(t, len(out), len(input), "rendered output should contain styling")
 }
 
 func TestMarkdownRenderer_Bold(t *testing.T) {
@@ -23,7 +23,7 @@ func TestMarkdownRenderer_Bold(t *testing.T) {
 	out := r.Render(input)
 	assert.Contains(t, out, "bold")
 	// Styled output should differ from plain text
-	assert.True(t, len(out) >= len("bold"))
+	assert.GreaterOrEqual(t, len(out), len("bold"))
 }
 
 func TestMarkdownRenderer_Headers(t *testing.T) {
