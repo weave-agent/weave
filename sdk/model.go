@@ -18,15 +18,6 @@ const (
 	ThinkingXHigh   ThinkingLevel = "xhigh"
 )
 
-// ThinkingBudgets maps each level (except off) to a token budget.
-var ThinkingBudgets = map[ThinkingLevel]int{
-	ThinkingMinimal: 1024,
-	ThinkingLow:     2048,
-	ThinkingMedium:  8192,
-	ThinkingHigh:    16384,
-	ThinkingXHigh:   32768,
-}
-
 // AllThinkingLevels is the ordered list of all thinking levels.
 var AllThinkingLevels = []ThinkingLevel{
 	ThinkingOff, ThinkingMinimal, ThinkingLow,

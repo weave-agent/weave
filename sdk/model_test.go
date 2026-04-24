@@ -7,16 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestThinkingBudgets(t *testing.T) {
-	assert.Equal(t, 1024, ThinkingBudgets[ThinkingMinimal])
-	assert.Equal(t, 2048, ThinkingBudgets[ThinkingLow])
-	assert.Equal(t, 8192, ThinkingBudgets[ThinkingMedium])
-	assert.Equal(t, 16384, ThinkingBudgets[ThinkingHigh])
-	assert.Equal(t, 32768, ThinkingBudgets[ThinkingXHigh])
-	_, ok := ThinkingBudgets[ThinkingOff]
-	assert.False(t, ok, "off should have no budget")
-}
-
 func TestAllThinkingLevels(t *testing.T) {
 	assert.Len(t, AllThinkingLevels, 6)
 	assert.Equal(t, ThinkingOff, AllThinkingLevels[0])

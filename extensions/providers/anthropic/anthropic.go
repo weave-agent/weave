@@ -117,6 +117,17 @@ func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest, opts ...
 		params.Thinking = anthropic.ThinkingConfigParamUnion{
 			OfAdaptive: &anthropic.ThinkingConfigAdaptiveParam{},
 		}
+
+		effortMap := map[sdk.ThinkingLevel]anthropic.OutputConfigEffort{
+			sdk.ThinkingMinimal: anthropic.OutputConfigEffortLow,
+			sdk.ThinkingLow:     anthropic.OutputConfigEffortLow,
+			sdk.ThinkingMedium:  anthropic.OutputConfigEffortMedium,
+			sdk.ThinkingHigh:    anthropic.OutputConfigEffortHigh,
+			sdk.ThinkingXHigh:   anthropic.OutputConfigEffortXhigh,
+		}
+		if effort, ok := effortMap[thinkingLevel]; ok {
+			params.OutputConfig = anthropic.OutputConfigParam{Effort: effort}
+		}
 	}
 
 	send := func(evt sdk.ProviderEvent) bool {

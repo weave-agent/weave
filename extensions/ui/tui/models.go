@@ -36,9 +36,15 @@ func listModels() []ModelEntry {
 		return nil
 	}
 
+	seen := make(map[string]bool)
 	entries := make([]ModelEntry, 0, len(allModels))
 	for _, md := range allModels {
 		model := resolveModelName(md)
+		key := md.Provider + ":" + model
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
 		entries = append(entries, ModelEntry{Provider: md.Provider, Model: model})
 	}
 

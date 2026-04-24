@@ -464,6 +464,9 @@ func TestStream_WithThinkingLevel(t *testing.T) {
 
 	assert.Contains(t, receivedBody, `"thinking"`)
 	assert.Contains(t, receivedBody, `"adaptive"`)
+	assert.Contains(t, receivedBody, `"output_config"`)
+	assert.Contains(t, receivedBody, `"effort"`)
+	assert.Contains(t, receivedBody, `"high"`)
 }
 
 func TestStream_ThinkingOff_NoThinkingParam(t *testing.T) {
