@@ -24,8 +24,8 @@ func (e ProviderEntry) Display() string {
 }
 
 // listProviders builds a list of all known providers with their API key status.
-// Combines registered providers from sdk.ListProviders() with the knownModels map
-// to include providers that may not be registered yet but are known.
+// Combines registered providers from sdk.ListProviders() with the model registry
+// to include providers that may not be registered yet but have known models.
 func listProviders() []ProviderEntry {
 	auth, err := config.LoadAuth()
 	if err != nil {
@@ -43,12 +43,12 @@ func listProviders() []ProviderEntry {
 		})
 	}
 
-	for name := range knownModels {
-		if !seen[name] {
-			seen[name] = true
+	for _, md := range sdk.ListAllModels() {
+		if !seen[md.Provider] {
+			seen[md.Provider] = true
 			entries = append(entries, ProviderEntry{
-				Name:   name,
-				HasKey: auth.GetProviderKey(name) != "",
+				Name:   md.Provider,
+				HasKey: auth.GetProviderKey(md.Provider) != "",
 			})
 		}
 	}

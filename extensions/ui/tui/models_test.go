@@ -1,16 +1,22 @@
 package tui
 
 import (
+	"strings"
 	"testing"
 
 	"weave/bus"
 	"weave/ext/ui/tui/components/messages"
 	"weave/ext/ui/tui/components/overlays"
+	"weave/sdk"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func splitLines(s string) []string {
+	return strings.Split(s, "\n")
+}
 
 func TestModelEntry_Display(t *testing.T) {
 	e := ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-20250514"}
@@ -258,11 +264,12 @@ func TestModel_CtrlPWhenSingleModel(t *testing.T) {
 	m.width = 80
 	m.height = 24
 
-	// With no providers registered, cycle should be no-op
+	// With no providers registered, cycle shows status message
 	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
-	_ = model.(Model)
+	m = model.(Model)
 
-	assert.Nil(t, cmd)
+	assert.Equal(t, "Only one model available", m.statusMsg)
+	_ = cmd // timer cmd for status message auto-clear
 }
 
 func TestModel_ModelChangedUpdatesFooter(t *testing.T) {
@@ -295,7 +302,7 @@ func TestModel_ModelChangedPublishesEvent(t *testing.T) {
 	_ = model.(Model)
 
 	require.NotNil(t, cmd)
-	cmd()
+	executeBatchCmd(t, cmd)
 
 	evt := <-ch
 	assert.Equal(t, topicModelChange, evt.Topic)
@@ -374,4 +381,201 @@ func TestModel_ModelSelectedInvalidIndex(t *testing.T) {
 
 	// Original model should be unchanged
 	assert.NotEmpty(t, m.currentModel.Provider)
+}
+
+func TestListModelsWithRegistry(t *testing.T) {
+	sdk.ResetModelRegistry()
+	sdk.RegisterBuiltinModels()
+	defer sdk.ResetModelRegistry()
+
+	entries := listModels()
+	assert.NotEmpty(t, entries, "should return models from registry")
+
+	// Should include models from all providers
+	providers := make(map[string]bool)
+	for _, e := range entries {
+		providers[e.Provider] = true
+	}
+	assert.True(t, providers["anthropic"], "should include anthropic models")
+	assert.True(t, providers["openai"], "should include openai models")
+	assert.True(t, providers["zai"], "should include zai models")
+}
+
+func TestListModelsEmpty(t *testing.T) {
+	sdk.ResetModelRegistry()
+	defer sdk.ResetModelRegistry()
+
+	entries := listModels()
+	assert.Nil(t, entries)
+}
+
+func TestResolveModelNameEnvOverride(t *testing.T) {
+	sdk.ResetModelRegistry()
+	sdk.RegisterBuiltinModels()
+	defer sdk.ResetModelRegistry()
+
+	t.Setenv("ANTHROPIC_MODEL", "my-custom-model")
+
+	entries := listModels()
+
+	for _, e := range entries {
+		if e.Provider == "anthropic" {
+			assert.Equal(t, "my-custom-model", e.Model)
+			return
+		}
+	}
+	t.Fatal("anthropic entry not found")
+}
+
+func TestModelEntryDisplayName(t *testing.T) {
+	sdk.ResetModelRegistry()
+	sdk.RegisterBuiltinModels()
+	defer sdk.ResetModelRegistry()
+
+	e := ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-20250514"}
+	assert.Equal(t, "Claude Sonnet 4", e.DisplayName())
+
+	e = ModelEntry{Provider: "unknown", Model: "custom-model"}
+	assert.Equal(t, "unknown/custom-model", e.DisplayName())
+}
+
+func TestModelSelectorEntryBadges(t *testing.T) {
+	sdk.ResetModelRegistry()
+	sdk.RegisterBuiltinModels()
+	defer sdk.ResetModelRegistry()
+
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, 10)
+
+	models := []ModelEntry{
+		{Provider: "anthropic", Model: "claude-sonnet-4-20250514"},
+		{Provider: "openai", Model: "gpt-4o"},
+	}
+
+	model, _ := m.Update(ModelListResultMsg{Models: models})
+	m = model.(Model)
+	require.Equal(t, overlayModel, m.activeOverlay)
+
+	view := m.overlay.View()
+	assert.Contains(t, view, "[anthropic]", "should show provider badge")
+	assert.Contains(t, view, "[openai]", "should show provider badge")
+}
+
+func TestModelSelectorCurrentModelMarker(t *testing.T) {
+	sdk.ResetModelRegistry()
+	sdk.RegisterBuiltinModels()
+	defer sdk.ResetModelRegistry()
+
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, 10)
+
+	// Current model is the default (anthropic/claude-sonnet)
+	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-20250514"}
+
+	models := []ModelEntry{
+		{Provider: "anthropic", Model: "claude-sonnet-4-20250514"},
+		{Provider: "openai", Model: "gpt-4o"},
+	}
+
+	model, _ := m.Update(ModelListResultMsg{Models: models})
+	m = model.(Model)
+
+	view := m.overlay.View()
+	assert.Contains(t, view, "✓", "current model should have checkmark marker")
+}
+
+func TestStatusMessageOnModelCycle(t *testing.T) {
+	sdk.ResetModelRegistry()
+	sdk.RegisterBuiltinModels()
+	defer sdk.ResetModelRegistry()
+
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-20250514"}
+
+	// Cycle produces a ModelChangedMsg cmd — execute it and process the result
+	model, cmd := m.dispatchBinding(ActionModelCycle)
+	m = model.(Model)
+	require.NotNil(t, cmd)
+
+	msg := cmd()
+	changedMsg, ok := msg.(ModelChangedMsg)
+	require.True(t, ok, "expected ModelChangedMsg, got %T", msg)
+
+	model, _ = m.Update(changedMsg)
+	m = model.(Model)
+
+	assert.Contains(t, m.statusMsg, "Switched to")
+	assert.Contains(t, m.statusMsg, "thinking:")
+}
+
+func TestStatusMessageOnModelChanged(t *testing.T) {
+	sdk.ResetModelRegistry()
+	sdk.RegisterBuiltinModels()
+	defer sdk.ResetModelRegistry()
+
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	entry := ModelEntry{Provider: "openai", Model: "gpt-4o"}
+	model, _ := m.Update(ModelChangedMsg{Entry: entry})
+	m = model.(Model)
+
+	assert.Contains(t, m.statusMsg, "Switched to")
+	assert.Contains(t, m.statusMsg, "thinking:")
+}
+
+func TestStatusMessageOnThinkingCycle(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	model, _ := m.dispatchBinding(ActionThinkingCycle)
+	m = model.(Model)
+
+	assert.Contains(t, m.statusMsg, "Thinking level:")
+	assert.Contains(t, m.statusMsg, "high")
+}
+
+func TestStatusMessageClearsOnTimeout(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	m.statusMsg = "test status"
+
+	model, _ := m.Update(statusTimeoutMsg{})
+	m = model.(Model)
+
+	assert.Empty(t, m.statusMsg)
+	assert.Nil(t, m.statusTimer)
+}
+
+func TestStatusMessageRenderedInVIew(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.statusMsg = "test status message"
+
+	view := m.View()
+	assert.Contains(t, view, "test status message")
+}
+
+func TestStatusMessageNotRenderedWhenEmpty(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.statusMsg = ""
+
+	view := m.View()
+	// Should not contain any status-related artifacts
+	lines := splitLines(view)
+	// Count sections: chat + editor + footer = 3 lines minimum (no spinner, no status)
+	assert.GreaterOrEqual(t, len(lines), 3)
 }

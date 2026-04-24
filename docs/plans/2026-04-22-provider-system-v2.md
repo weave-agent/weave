@@ -94,11 +94,11 @@ Add thinking level to the TUI footer, implement pi-style editor border colors th
 ### Task 5: TUI — model selector enhancement and status messages
 Improve the model selector with [provider] badges and current model marker. Add status messages for model cycling. Update model list to use the registry.
 
-- [ ] update `extensions/ui/tui/models.go`: replace `knownModels` hardcoded map with `sdk.ListAllModels()`, update `listModels()` to build entries from registry with ModelDef metadata, update `resolveModelName()` to look up default from registry
-- [ ] update model selector in `extensions/ui/tui/model.go`: build `SelectorItem` entries with `Title = modelDef.DisplayName + " ✓"` for current model and `modelDef.DisplayName` otherwise, `Subtitle = "[" + provider + "]"` for all entries
-- [ ] add transient status message system to root Model: `statusMsg string` field, `statusTimer tea.Cmd`, render status line above editor for 2s after model cycle or thinking cycle (e.g. `"Switched to Claude Opus (thinking: medium)"`); show `"Only one model available"` if cycling with single model
-- [ ] write tests for model list from registry, status message display, selector entry formatting with badges
-- [ ] run tests - must pass before task 6
+- [x] update `extensions/ui/tui/models.go`: replace `knownModels` hardcoded map with `sdk.ListAllModels()`, update `listModels()` to build entries from registry with ModelDef metadata, update `resolveModelName()` to look up default from registry
+- [x] update model selector in `extensions/ui/tui/model.go`: build `SelectorItem` entries with `Title = modelDef.DisplayName + " ✓"` for current model and `modelDef.DisplayName` otherwise, `Subtitle = "[" + provider + "]"` for all entries
+- [x] add transient status message system to root Model: `statusMsg string` field, `statusTimer tea.Cmd`, render status line above editor for 2s after model cycle or thinking cycle (e.g. `"Switched to Claude Opus (thinking: medium)"`); show `"Only one model available"` if cycling with single model
+- [x] write tests for model list from registry, status message display, selector entry formatting with badges
+- [x] run tests - must pass before task 6
 
 ### Task 6: TUI — startup hints and /thinking command
 Add a startup keybinding hints banner and a `/thinking` slash command.

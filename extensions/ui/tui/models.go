@@ -18,50 +18,48 @@ func (e ModelEntry) Display() string {
 	return fmt.Sprintf("%s/%s", e.Provider, e.Model)
 }
 
-// knownModels maps provider names to their default model names.
-// Providers may override via env vars (e.g. ANTHROPIC_MODEL).
-var knownModels = map[string]string{
-	"anthropic": "claude-sonnet-4-20250514",
-	"openai":    "gpt-4o",
-	"zai":       "glm-4",
+// DisplayName returns the human-friendly name from the model registry,
+// falling back to provider/model format.
+func (e ModelEntry) DisplayName() string {
+	if def, ok := sdk.GetModel(e.Model); ok && def.DisplayName != "" {
+		return def.DisplayName
+	}
+
+	return e.Display()
 }
 
 // listModels returns available model entries by combining registered providers
-// with known model names. Env var overrides are respected.
+// with model registry entries. Env var overrides are respected.
 func listModels() []ModelEntry {
-	providers := sdk.ListProviders()
-	if len(providers) == 0 {
+	allModels := sdk.ListAllModels()
+	if len(allModels) == 0 {
 		return nil
 	}
 
-	entries := make([]ModelEntry, 0, len(providers))
-	for _, p := range providers {
-		model := resolveModelName(p)
-		entries = append(entries, ModelEntry{Provider: p, Model: model})
+	entries := make([]ModelEntry, 0, len(allModels))
+	for _, md := range allModels {
+		model := resolveModelName(md)
+		entries = append(entries, ModelEntry{Provider: md.Provider, Model: model})
 	}
 
 	return entries
 }
 
 // resolveModelName returns the model name for a provider, checking env overrides.
-func resolveModelName(provider string) string {
+func resolveModelName(md sdk.ModelDef) string {
 	envMap := map[string]string{
 		"anthropic": "ANTHROPIC_MODEL",
 		"openai":    "OPENAI_MODEL",
 		"zai":       "ZAI_MODEL",
 	}
 
-	if envVar, ok := envMap[provider]; ok {
+	if envVar, ok := envMap[md.Provider]; ok {
 		if v := os.Getenv(envVar); v != "" {
 			return v
 		}
 	}
 
-	if m, ok := knownModels[provider]; ok {
-		return m
-	}
-
-	return "default"
+	return md.ID
 }
 
 // currentModel returns the model entry matching the configured provider

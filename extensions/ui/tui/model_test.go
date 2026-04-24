@@ -19,6 +19,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// executeBatchCmd handles tea.Cmd results that may be tea.BatchMsg.
+// Executes all nested commands so their side effects (bus publishes, etc.) run.
+func executeBatchCmd(t *testing.T, cmd tea.Cmd) {
+	t.Helper()
+
+	msg := cmd()
+	if batch, ok := msg.(tea.BatchMsg); ok {
+		for _, c := range batch {
+			c()
+		}
+	}
+}
+
 func TestModel_HandlesMessageStart(t *testing.T) {
 	m := newModel(nil, nil, nil)
 	m.width = 80
@@ -1144,7 +1157,9 @@ func TestModel_CycleThinkingPublishesEvent(t *testing.T) {
 	m = model.(Model)
 
 	require.NotNil(t, cmd)
-	cmd() // execute the PublishThinkingChange cmd
+
+	// cmd is a tea.Batch — execute all wrapped commands
+	executeBatchCmd(t, cmd)
 
 	evt := <-ch
 	assert.Equal(t, topicThinkingChange, evt.Topic)

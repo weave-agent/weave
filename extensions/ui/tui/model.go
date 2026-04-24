@@ -16,6 +16,7 @@ import (
 	"weave/sdk"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type overlayKind int
@@ -31,6 +32,11 @@ const (
 const doublePressWindow = 500 * time.Millisecond
 
 const defaultEditorHeight = 3
+
+const statusMessageTimeout = 2 * time.Second
+
+// statusTimeoutMsg is sent when the transient status message should be cleared.
+type statusTimeoutMsg struct{}
 
 // Model is the root Bubble Tea model for the TUI.
 type Model struct {
@@ -70,6 +76,10 @@ type Model struct {
 
 	// thinking level state
 	thinkingLevel sdk.ThinkingLevel
+
+	// transient status message
+	statusMsg   string
+	statusTimer tea.Cmd
 }
 
 // newModel creates a new root model.
@@ -318,6 +328,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case overlays.InputResultMsg:
 		return m.onKeyInputResult(msg)
+
+	case statusTimeoutMsg:
+		m.statusMsg = ""
+		m.statusTimer = nil
+		return m, nil
 	}
 
 	// Forward spinner ticks
@@ -382,12 +397,13 @@ func (m Model) dispatchBinding(action BindingAction) (tea.Model, tea.Cmd) {
 		return m, listModelsCmd()
 	case ActionModelCycle:
 		models := listModels()
-		if len(models) > 1 {
-			next := cycleModel(models, m.currentModel)
-			return m, func() tea.Msg { return ModelChangedMsg{Entry: next} }
+		if len(models) <= 1 {
+			m.showStatus("Only one model available")
+			return m, m.statusTimer
 		}
 
-		return m, nil
+		next := cycleModel(models, m.currentModel)
+		return m, func() tea.Msg { return ModelChangedMsg{Entry: next} }
 
 	// Editor navigation
 	case ActionCursorLineStart:
@@ -737,9 +753,14 @@ func (m Model) onModelListResult(msg ModelListResultMsg) (tea.Model, tea.Cmd) {
 
 	items := make([]overlays.SelectorItem, len(msg.Models))
 	for i, model := range msg.Models {
+		title := model.DisplayName()
+		if model.Provider == m.currentModel.Provider && model.Model == m.currentModel.Model {
+			title += " ✓"
+		}
+
 		items[i] = overlays.SelectorItem{
-			Title:    model.Display(),
-			Subtitle: model.Provider,
+			Title:    title,
+			Subtitle: "[" + model.Provider + "]",
 		}
 	}
 
@@ -757,11 +778,14 @@ func (m Model) onModelChanged(msg ModelChangedMsg) (tea.Model, tea.Cmd) {
 	m.currentModel = msg.Entry
 	m.footer = m.footer.SetModel(msg.Entry.Model, msg.Entry.Provider)
 
+	displayName := msg.Entry.DisplayName()
+	m.showStatus(fmt.Sprintf("Switched to %s (thinking: %s)", displayName, m.thinkingLevel))
+
 	if m.bus != nil {
-		return m, PublishModelChange(m.bus, msg.Entry)
+		return m, tea.Batch(PublishModelChange(m.bus, msg.Entry), m.statusTimer)
 	}
 
-	return m, nil
+	return m, m.statusTimer
 }
 
 func (m Model) onModelChangeFailed(msg ModelChangeFailedMsg) (tea.Model, tea.Cmd) {
@@ -999,10 +1023,16 @@ func (m Model) cycleThinkingLevel() (tea.Model, tea.Cmd) {
 			m.footer = m.footer.SetThinkingLevel(string(next))
 			m.editor = m.editor.SetBorderColor(palette.ThinkingBorderColor(next))
 
+			m.showStatus(fmt.Sprintf("Thinking level: %s", next))
+
 			var cmds []tea.Cmd
 
 			if m.bus != nil {
 				cmds = append(cmds, PublishThinkingChange(m.bus, next))
+			}
+
+			if m.statusTimer != nil {
+				cmds = append(cmds, m.statusTimer)
 			}
 
 			return m, tea.Batch(cmds...)
@@ -1010,6 +1040,14 @@ func (m Model) cycleThinkingLevel() (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// showStatus sets a transient status message that clears after a timeout.
+func (m *Model) showStatus(msg string) {
+	m.statusMsg = msg
+	m.statusTimer = tea.Tick(statusMessageTimeout, func(_ time.Time) tea.Msg {
+		return statusTimeoutMsg{}
+	})
 }
 
 // chatHeight returns the height allocated to the chat area.
@@ -1054,6 +1092,11 @@ func (m Model) View() string {
 
 	if m.spinner.Visible() {
 		sections = append(sections, m.spinner.View())
+	}
+
+	if m.statusMsg != "" {
+		statusStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+		sections = append(sections, statusStyle.Render(m.statusMsg))
 	}
 
 	sections = append(sections, m.editor.View(), m.footer.View())
