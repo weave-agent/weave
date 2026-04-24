@@ -15,10 +15,11 @@ func TestBindingRegistry_Defaults(t *testing.T) {
 	r := NewBindingRegistry()
 
 	actions := map[string]BindingAction{
-		"ctrl+d": ActionExit,
-		"escape": ActionInterrupt,
-		"ctrl+l": ActionModelSelect,
-		"ctrl+p": ActionModelCycle,
+		"ctrl+d":    ActionExit,
+		"escape":    ActionInterrupt,
+		"ctrl+l":    ActionModelSelect,
+		"ctrl+p":    ActionModelCycle,
+		"shift+tab": ActionThinkingCycle,
 	}
 
 	for key, want := range actions {
@@ -166,6 +167,7 @@ func TestBindingRegistry_AllBindings(t *testing.T) {
 	assert.True(t, names[ActionInterrupt])
 	assert.True(t, names[ActionModelSelect])
 	assert.True(t, names[ActionModelCycle])
+	assert.True(t, names[ActionThinkingCycle])
 	assert.True(t, names[ActionCursorLineStart])
 	assert.True(t, names[ActionSuspend])
 }

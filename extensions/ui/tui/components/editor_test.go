@@ -358,3 +358,22 @@ func TestCursorPositionNewline(t *testing.T) {
 	assert.Equal(t, 1, line)
 	assert.Equal(t, 2, col)
 }
+
+func TestEditorDefaultBorderColor(t *testing.T) {
+	m := NewEditorModel()
+	assert.Equal(t, "63", m.BorderColor)
+}
+
+func TestEditorSetBorderColor(t *testing.T) {
+	m := NewEditorModel().SetBorderColor("177")
+	assert.Equal(t, "177", m.BorderColor)
+}
+
+func TestEditorViewUsesBorderColor(t *testing.T) {
+	m := NewEditorModel().Focus().SetSize(40, 3).SetBorderColor("99")
+	// Verify the field is set (ANSI codes are only rendered in terminal mode)
+	assert.Equal(t, "99", m.BorderColor)
+	// View should still render without error
+	view := m.View()
+	assert.NotEmpty(t, view)
+}

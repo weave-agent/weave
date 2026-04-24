@@ -19,11 +19,12 @@ var SlashCommands = []string{"/clear", "/compact", "/help", "/model", "/name", "
 
 // EditorModel is a multi-line input with history and autocomplete.
 type EditorModel struct {
-	value   []rune
-	cursor  int // rune position in value
-	width   int
-	height  int
-	focused bool
+	value       []rune
+	cursor      int // rune position in value
+	width       int
+	height      int
+	focused     bool
+	BorderColor string
 
 	// history
 	history   []string
@@ -47,9 +48,10 @@ const minEditorWidth = 20
 // NewEditorModel creates a new editor model.
 func NewEditorModel() EditorModel {
 	return EditorModel{
-		height:    3,
-		dirty:     true,
-		slashCmds: SlashCommands,
+		height:      3,
+		dirty:       true,
+		slashCmds:   SlashCommands,
+		BorderColor: "63",
 	}
 }
 
@@ -103,6 +105,12 @@ func (m EditorModel) Focus() EditorModel {
 // Blur removes focus from the editor.
 func (m EditorModel) Blur() EditorModel {
 	m.focused = false
+	return m
+}
+
+// SetBorderColor updates the editor border color.
+func (m EditorModel) SetBorderColor(color string) EditorModel {
+	m.BorderColor = color
 	return m
 }
 
@@ -412,9 +420,14 @@ func (m EditorModel) View() string {
 		return ""
 	}
 
+	borderColor := m.BorderColor
+	if borderColor == "" {
+		borderColor = "63"
+	}
+
 	borderStyle := lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("63")).
+		BorderForeground(lipgloss.Color(borderColor)).
 		PaddingLeft(1)
 
 	contentWidth := max(1, m.width-borderStyle.GetHorizontalBorderSize()-1)

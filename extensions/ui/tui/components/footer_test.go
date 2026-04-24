@@ -172,3 +172,27 @@ func TestGetGitBranch(t *testing.T) {
 	assert.NotEmpty(t, branch, "getGitBranch should return a branch in a git repo")
 	t.Logf("branch=%q dirty=%v", branch, dirty)
 }
+
+func TestFooterModel_SetThinkingLevel(t *testing.T) {
+	f := NewFooterModel().SetThinkingLevel("medium")
+	assert.Equal(t, "medium", f.ThinkingLevel())
+}
+
+func TestFooterView_ThinkingLevelAfterModel(t *testing.T) {
+	f := NewFooterModel().SetSize(80).SetModel("claude-sonnet-4", "anthropic").SetThinkingLevel("high")
+	view := f.View()
+	assert.Contains(t, view, "anthropic/claude-sonnet-4 · high")
+}
+
+func TestFooterView_ThinkingLevelEmpty(t *testing.T) {
+	f := NewFooterModel().SetSize(80).SetModel("claude-sonnet-4", "anthropic")
+	view := f.View()
+	assert.Contains(t, view, "anthropic/claude-sonnet-4")
+	assert.NotContains(t, view, " · ")
+}
+
+func TestFooterView_ThinkingLevelOff(t *testing.T) {
+	f := NewFooterModel().SetSize(80).SetModel("gpt-4o", "openai").SetThinkingLevel("off")
+	view := f.View()
+	assert.Contains(t, view, "openai/gpt-4o · off")
+}

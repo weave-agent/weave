@@ -83,13 +83,13 @@ Fix the critical bug where `applyModelChange()` ignores the model name. Add thin
 ### Task 4: TUI — thinking level display and editor border colors
 Add thinking level to the TUI footer, implement pi-style editor border colors that change with thinking level, and add the Shift+Tab cycling keybinding.
 
-- [ ] create `extensions/ui/tui/palette/thinking.go` with `ThinkingBorderColor(level ThinkingLevel) string` mapping: off→"240" (dark gray), minimal→"246" (medium gray), low→"67" (steel blue), medium→"99" (light blue-purple), high→"139" (muted purple), xhigh→"177" (bright magenta)
-- [ ] update `extensions/ui/tui/components/footer.go`: add `thinkingLevel string` field, `SetThinkingLevel(level string) FooterModel` setter, append ` · {level}` after model in `renderLine2()` — e.g. `anthropic/claude-sonnet · medium`; show level only when model has `Reasoning=true`
-- [ ] update `extensions/ui/tui/components/editor.go`: add `BorderColor string` field (default `"63"`), `SetBorderColor(color string) EditorModel` setter, use `BorderColor` instead of hardcoded `"63"` in `View()`'s `borderStyle`
-- [ ] add `ActionThinkingCycle BindingAction = "app.thinking.cycle"` to `extensions/ui/tui/keybindings.go` with default keys `["shift+tab"]`, description "Cycle thinking level"
-- [ ] update `extensions/ui/tui/model.go`: add `thinkingLevel sdk.ThinkingLevel` field (init from `WEAVE_THINKING_LEVEL` env var, default medium); handle `ActionThinkingCycle` in `dispatchBinding()` — cycle through levels (clamp xhigh to high for models without SupportsXHigh), update footer, update editor border color, publish `TopicThinkingChange`, show status message `"Thinking level: {level}"`
-- [ ] write tests for thinking level cycling logic, border color mapping (all 6 levels), footer rendering with thinking level, xhigh clamping for non-supporting models
-- [ ] run tests - must pass before task 5
+- [x] create `extensions/ui/tui/palette/thinking.go` with `ThinkingBorderColor(level ThinkingLevel) string` mapping: off→"240" (dark gray), minimal→"246" (medium gray), low→"67" (steel blue), medium→"99" (light blue-purple), high→"139" (muted purple), xhigh→"177" (bright magenta)
+- [x] update `extensions/ui/tui/components/footer.go`: add `thinkingLevel string` field, `SetThinkingLevel(level string) FooterModel` setter, append ` · {level}` after model in `renderLine2()` — e.g. `anthropic/claude-sonnet · medium`; show level only when model has `Reasoning=true`
+- [x] update `extensions/ui/tui/components/editor.go`: add `BorderColor string` field (default `"63"`), `SetBorderColor(color string) EditorModel` setter, use `BorderColor` instead of hardcoded `"63"` in `View()`'s `borderStyle`
+- [x] add `ActionThinkingCycle BindingAction = "app.thinking.cycle"` to `extensions/ui/tui/keybindings.go` with default keys `["shift+tab"]`, description "Cycle thinking level"
+- [x] update `extensions/ui/tui/model.go`: add `thinkingLevel sdk.ThinkingLevel` field (init from `WEAVE_THINKING_LEVEL` env var, default medium); handle `ActionThinkingCycle` in `dispatchBinding()` — cycle through levels (clamp xhigh to high for models without SupportsXHigh), update footer, update editor border color, publish `TopicThinkingChange`, show status message `"Thinking level: {level}"`
+- [x] write tests for thinking level cycling logic, border color mapping (all 6 levels), footer rendering with thinking level, xhigh clamping for non-supporting models
+- [x] run tests - must pass before task 5
 
 ### Task 5: TUI — model selector enhancement and status messages
 Improve the model selector with [provider] badges and current model marker. Add status messages for model cycling. Update model list to use the registry.

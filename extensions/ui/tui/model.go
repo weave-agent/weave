@@ -12,6 +12,7 @@ import (
 	"weave/ext/ui/tui/components"
 	"weave/ext/ui/tui/components/messages"
 	"weave/ext/ui/tui/components/overlays"
+	"weave/ext/ui/tui/palette"
 	"weave/sdk"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -66,6 +67,9 @@ type Model struct {
 	// double-press tracking
 	lastCtrlC  time.Time
 	lastEscape time.Time
+
+	// thinking level state
+	thinkingLevel sdk.ThinkingLevel
 }
 
 // newModel creates a new root model.
@@ -109,22 +113,25 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 	}
 
 	m := Model{
-		width:        80,
-		height:       24,
-		bus:          bus,
-		cfg:          cfg,
-		chat:         components.NewChatModel(),
-		editor:       editor,
-		footer:       components.NewFooterModel(),
-		spinner:      components.NewSpinnerModel(),
-		toolPanels:   make(map[string]*messages.ToolPanel),
-		commands:     commands,
-		bindings:     bindings,
-		ui:           ui,
-		currentModel: cur,
-		sessionDir:   sdir,
+		width:         80,
+		height:        24,
+		bus:           bus,
+		cfg:           cfg,
+		chat:          components.NewChatModel(),
+		editor:        editor,
+		footer:        components.NewFooterModel(),
+		spinner:       components.NewSpinnerModel(),
+		toolPanels:    make(map[string]*messages.ToolPanel),
+		commands:      commands,
+		bindings:      bindings,
+		ui:            ui,
+		currentModel:  cur,
+		sessionDir:    sdir,
+		thinkingLevel: initThinkingLevel(),
 	}
 	m.footer = m.footer.SetModel(cur.Model, cur.Provider)
+	m.footer = m.footer.SetThinkingLevel(string(m.thinkingLevel))
+	m.editor = m.editor.SetBorderColor(palette.ThinkingBorderColor(m.thinkingLevel))
 
 	return m
 }
@@ -436,6 +443,9 @@ func (m Model) dispatchBinding(action BindingAction) (tea.Model, tea.Cmd) {
 	case ActionToggleThinking:
 		m.toggleLastThinkingBlock()
 		return m, nil
+
+	case ActionThinkingCycle:
+		return m.cycleThinkingLevel()
 
 	// Session
 	case ActionNewSession:
@@ -961,6 +971,45 @@ func parseToolEntry(raw json.RawMessage) (name, content string, isError bool) {
 	}
 
 	return name, toolData.Result.Content, toolData.Result.IsError
+}
+
+// initThinkingLevel reads the initial thinking level from WEAVE_THINKING_LEVEL env var.
+func initThinkingLevel() sdk.ThinkingLevel {
+	if v := os.Getenv("WEAVE_THINKING_LEVEL"); v != "" {
+		if lvl, err := sdk.ParseThinkingLevel(v); err == nil {
+			return lvl
+		}
+	}
+
+	return sdk.ThinkingMedium
+}
+
+// cycleThinkingLevel returns the next thinking level, clamping xhigh for models without support.
+func (m Model) cycleThinkingLevel() (tea.Model, tea.Cmd) {
+	for i, lvl := range sdk.AllThinkingLevels {
+		if lvl == m.thinkingLevel {
+			next := sdk.AllThinkingLevels[(i+1)%len(sdk.AllThinkingLevels)]
+
+			// Clamp xhigh for models that don't support it
+			if modelDef, ok := sdk.GetModel(m.currentModel.Model); ok {
+				next = sdk.ClampForModel(next, modelDef)
+			}
+
+			m.thinkingLevel = next
+			m.footer = m.footer.SetThinkingLevel(string(next))
+			m.editor = m.editor.SetBorderColor(palette.ThinkingBorderColor(next))
+
+			var cmds []tea.Cmd
+
+			if m.bus != nil {
+				cmds = append(cmds, PublishThinkingChange(m.bus, next))
+			}
+
+			return m, tea.Batch(cmds...)
+		}
+	}
+
+	return m, nil
 }
 
 // chatHeight returns the height allocated to the chat area.

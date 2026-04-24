@@ -1028,3 +1028,156 @@ func TestModel_QuitCommand(t *testing.T) {
 	_, ok := msg.(tea.QuitMsg)
 	assert.True(t, ok)
 }
+
+func TestModel_DefaultThinkingLevel(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	assert.Equal(t, sdk.ThinkingMedium, m.thinkingLevel)
+	assert.Equal(t, "medium", m.footer.ThinkingLevel())
+}
+
+func TestModel_ThinkingLevelFromEnv(t *testing.T) {
+	t.Setenv("WEAVE_THINKING_LEVEL", "high")
+	m := newModel(nil, nil, nil)
+	assert.Equal(t, sdk.ThinkingHigh, m.thinkingLevel)
+	assert.Equal(t, "high", m.footer.ThinkingLevel())
+}
+
+func TestModel_ThinkingLevelInvalidEnv(t *testing.T) {
+	t.Setenv("WEAVE_THINKING_LEVEL", "invalid")
+	m := newModel(nil, nil, nil)
+	assert.Equal(t, sdk.ThinkingMedium, m.thinkingLevel)
+}
+
+func TestModel_CycleThinkingLevel(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	assert.Equal(t, sdk.ThinkingMedium, m.thinkingLevel)
+
+	model, _ := m.dispatchBinding(ActionThinkingCycle)
+	m = model.(Model)
+	assert.Equal(t, sdk.ThinkingHigh, m.thinkingLevel)
+	assert.Equal(t, "high", m.footer.ThinkingLevel())
+	assert.Equal(t, "139", m.editor.BorderColor)
+}
+
+func TestModel_CycleThinkingLevelWraps(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.thinkingLevel = sdk.ThinkingXHigh
+	m.editor = m.editor.SetBorderColor("177")
+
+	// Register models so xhigh clamping works
+	sdk.ResetModelRegistry()
+	sdk.RegisterBuiltinModels()
+	defer sdk.ResetModelRegistry()
+
+	// Set current model to one that supports xhigh (opus)
+	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-opus-4-20250514"}
+
+	model, _ := m.dispatchBinding(ActionThinkingCycle)
+	m = model.(Model)
+	assert.Equal(t, sdk.ThinkingOff, m.thinkingLevel)
+	assert.Equal(t, "off", m.footer.ThinkingLevel())
+	assert.Equal(t, "240", m.editor.BorderColor)
+}
+
+func TestModel_CycleThinkingLevelXHighClampForSonnet(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.thinkingLevel = sdk.ThinkingHigh
+
+	sdk.ResetModelRegistry()
+	sdk.RegisterBuiltinModels()
+	defer sdk.ResetModelRegistry()
+
+	// Set current model to Sonnet (does NOT support xhigh)
+	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-20250514"}
+
+	model, _ := m.dispatchBinding(ActionThinkingCycle)
+	m = model.(Model)
+	// High -> XHigh, but clamped to High for Sonnet
+	assert.Equal(t, sdk.ThinkingHigh, m.thinkingLevel)
+}
+
+func TestModel_CycleThinkingLevelAllLevels(t *testing.T) {
+	sdk.ResetModelRegistry()
+	sdk.RegisterBuiltinModels()
+	defer sdk.ResetModelRegistry()
+
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-opus-4-20250514"}
+
+	expected := []sdk.ThinkingLevel{
+		sdk.ThinkingMedium, // start
+		sdk.ThinkingHigh,
+		sdk.ThinkingXHigh,
+		sdk.ThinkingOff,
+		sdk.ThinkingMinimal,
+		sdk.ThinkingLow,
+		sdk.ThinkingMedium, // wraps
+	}
+
+	for _, want := range expected {
+		assert.Equal(t, want, m.thinkingLevel, "thinking level mismatch")
+		model, _ := m.dispatchBinding(ActionThinkingCycle)
+		m = model.(Model)
+	}
+}
+
+func TestModel_CycleThinkingPublishesEvent(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	ch := b.Subscribe(topicThinkingChange)
+
+	m := newModel(b, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	model, cmd := m.dispatchBinding(ActionThinkingCycle)
+	m = model.(Model)
+
+	require.NotNil(t, cmd)
+	cmd() // execute the PublishThinkingChange cmd
+
+	evt := <-ch
+	assert.Equal(t, topicThinkingChange, evt.Topic)
+
+	payload, ok := evt.Payload.(map[string]string)
+	require.True(t, ok)
+	assert.Equal(t, "high", payload["level"])
+}
+
+func TestModel_EditorBorderMatchesThinkingLevel(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	assert.Equal(t, "99", m.editor.BorderColor) // medium = "99"
+}
+
+func TestModel_ThinkingLevelUpdatesEditorBorder(t *testing.T) {
+	sdk.ResetModelRegistry()
+	sdk.RegisterBuiltinModels()
+	defer sdk.ResetModelRegistry()
+
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-opus-4-20250514"}
+
+	// medium -> high
+	model, _ := m.dispatchBinding(ActionThinkingCycle)
+	m = model.(Model)
+	assert.Equal(t, sdk.ThinkingHigh, m.thinkingLevel)
+	assert.Equal(t, "139", m.editor.BorderColor) // high = "139"
+
+	// high -> xhigh
+	model, _ = m.dispatchBinding(ActionThinkingCycle)
+	m = model.(Model)
+	assert.Equal(t, sdk.ThinkingXHigh, m.thinkingLevel)
+	assert.Equal(t, "177", m.editor.BorderColor) // xhigh = "177"
+}

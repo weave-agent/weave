@@ -27,6 +27,7 @@ const (
 	topicSessionResume     = "session.resume"
 	topicModelChange       = "model.change"
 	topicModelChangeFailed = "model.change_failed"
+	topicThinkingChange    = "thinking.change"
 )
 
 // Sender abstracts tea.Program.Send for testability.
@@ -289,6 +290,17 @@ func PublishModelChange(bus sdk.Bus, entry ModelEntry) tea.Cmd {
 		bus.Publish(sdk.NewEvent(topicModelChange, map[string]string{
 			"provider": entry.Provider,
 			"model":    entry.Model,
+		}))
+
+		return nil
+	}
+}
+
+// PublishThinkingChange returns a tea.Cmd that publishes a thinking.change event.
+func PublishThinkingChange(bus sdk.Bus, level sdk.ThinkingLevel) tea.Cmd {
+	return func() tea.Msg {
+		bus.Publish(sdk.NewEvent(topicThinkingChange, map[string]string{
+			"level": string(level),
 		}))
 
 		return nil

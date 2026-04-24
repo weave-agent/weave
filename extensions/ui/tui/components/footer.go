@@ -21,13 +21,14 @@ type FooterModel struct {
 	gitBranch   string
 	branchDirty bool
 
-	// Line 2: tokens + cost + context % + model + provider
-	inputTokens  int
-	outputTokens int
-	cost         float64
-	contextPct   float64 // 0-100
-	modelName    string
-	providerName string
+	// Line 2: tokens + cost + context % + model + provider + thinking
+	inputTokens   int
+	outputTokens  int
+	cost          float64
+	contextPct    float64 // 0-100
+	modelName     string
+	providerName  string
+	thinkingLevel string
 
 	// Extension status entries (set by cross-extension UI)
 	extStatus map[string]string
@@ -85,6 +86,15 @@ func (m FooterModel) SetModel(model, provider string) FooterModel {
 
 	return m
 }
+
+// SetThinkingLevel updates the thinking level display.
+func (m FooterModel) SetThinkingLevel(level string) FooterModel {
+	m.thinkingLevel = level
+	return m
+}
+
+// ThinkingLevel returns the current thinking level.
+func (m FooterModel) ThinkingLevel() string { return m.thinkingLevel }
 
 // SetExtStatus sets an extension status entry.
 func (m FooterModel) SetExtStatus(key, text string) FooterModel {
@@ -191,11 +201,15 @@ func (m FooterModel) renderLine2() string {
 		parts = append(parts, pctStyle.Render(fmt.Sprintf("ctx:%.0f%%", m.contextPct)))
 	}
 
-	// Model + provider
+	// Model + provider + thinking level
 	if m.modelName != "" {
 		modelDisplay := m.modelName
 		if m.providerName != "" {
 			modelDisplay = m.providerName + "/" + m.modelName
+		}
+
+		if m.thinkingLevel != "" {
+			modelDisplay += " · " + m.thinkingLevel
 		}
 
 		parts = append(parts, modelDisplay)

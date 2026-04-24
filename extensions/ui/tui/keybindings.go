@@ -37,6 +37,7 @@ const (
 	ActionExternalEditor     BindingAction = "app.editor.external"
 	ActionToggleToolOutput   BindingAction = "app.tools.expand"
 	ActionToggleThinking     BindingAction = "app.thinking.toggle"
+	ActionThinkingCycle      BindingAction = "app.thinking.cycle"
 	ActionNewSession         BindingAction = "app.session.new"
 )
 
@@ -78,6 +79,7 @@ var defaultBindings = []Binding{
 	// Display
 	{Action: ActionToggleToolOutput, Keys: []string{"ctrl+o"}, Description: "Expand/collapse tool output"},
 	{Action: ActionToggleThinking, Keys: []string{"ctrl+t"}, Description: "Toggle thinking blocks"},
+	{Action: ActionThinkingCycle, Keys: []string{"shift+tab"}, Description: "Cycle thinking level"},
 
 	// Session
 	{Action: ActionNewSession, Keys: []string{"ctrl+n"}, Description: "New session"},
