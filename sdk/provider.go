@@ -16,11 +16,24 @@ type ProviderEvent struct {
 }
 
 const (
-	ProviderEventTextDelta = "text_delta"
-	ProviderEventToolCall  = "tool_call"
-	ProviderEventError     = "error"
-	ProviderEventThinking  = "thinking_delta"
+	ProviderEventTextDelta            = "text_delta"
+	ProviderEventToolCall             = "tool_call"
+	ProviderEventError                = "error"
+	ProviderEventThinking             = "thinking_delta"
+	ProviderEventThinkingDone         = "thinking_done"
+	ProviderEventRedactedThinkingDone = "redacted_thinking_done"
 )
+
+// SignedThinking holds a signed thinking block from a provider response.
+type SignedThinking struct {
+	Signature string
+	Thinking  string
+}
+
+// RedactedThinking holds a redacted thinking block from a provider response.
+type RedactedThinking struct {
+	Data string
+}
 
 // ToolCall represents a parsed tool call from the provider response.
 type ToolCall struct {

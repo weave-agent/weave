@@ -12,13 +12,15 @@ const (
 )
 
 type Message struct {
-	Role       string
-	Content    any
-	ToolCalls  []ToolCall
-	ToolCallID string
-	ToolName   string
-	IsError    bool
-	Timestamp  time.Time
+	Role             string
+	Content          any
+	ToolCalls        []ToolCall
+	ToolCallID       string
+	ToolName         string
+	IsError          bool
+	Thinking         []SignedThinking
+	RedactedThinking []RedactedThinking
+	Timestamp        time.Time
 }
 
 func (m Message) Validate() error {

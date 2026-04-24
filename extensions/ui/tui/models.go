@@ -28,24 +28,23 @@ func (e ModelEntry) DisplayName() string {
 	return e.Display()
 }
 
-// listModels returns available model entries from the registry.
-// Env var overrides are NOT applied here — they're handled by providers at stream time.
+// listModels returns model entries for providers that are actually registered
+// (i.e. compiled into the binary). Env var overrides are NOT applied here —
+// they're handled by providers at stream time.
 func listModels() []ModelEntry {
-	allModels := sdk.ListAllModels()
-	if len(allModels) == 0 {
-		return nil
+	registered := sdk.ListProviders()
+
+	regSet := make(map[string]bool, len(registered))
+	for _, p := range registered {
+		regSet[p] = true
 	}
 
-	seen := make(map[string]bool)
+	var entries []ModelEntry
 
-	entries := make([]ModelEntry, 0, len(allModels))
-	for _, md := range allModels {
-		key := md.Provider + ":" + md.ID
-		if seen[key] {
+	for _, md := range sdk.ListAllModels() {
+		if !regSet[md.Provider] {
 			continue
 		}
-
-		seen[key] = true
 
 		entries = append(entries, ModelEntry{Provider: md.Provider, Model: md.ID})
 	}
@@ -62,8 +61,14 @@ func currentModel(entries []ModelEntry) ModelEntry {
 		provider = "anthropic"
 	}
 
+	// Only use the registry default if its provider is actually registered
+	// (present in the filtered entries), otherwise search entries directly.
 	if def, ok := sdk.DefaultModelForProvider(provider); ok {
-		return ModelEntry{Provider: provider, Model: def.ID}
+		for _, e := range entries {
+			if e.Provider == provider {
+				return ModelEntry{Provider: provider, Model: def.ID}
+			}
+		}
 	}
 
 	for _, e := range entries {

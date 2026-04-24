@@ -107,9 +107,13 @@ func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest, opts ...
 	}
 
 	thinkingLevel := so.ThinkingLevel
-	if thinkingLevel == sdk.ThinkingXHigh {
-		if m, ok := sdk.GetModel(model); ok && !m.SupportsXHigh {
-			thinkingLevel = sdk.ThinkingHigh
+	if thinkingLevel != sdk.ThinkingOff {
+		if m, ok := sdk.GetModel(model); ok && !m.Reasoning {
+			thinkingLevel = sdk.ThinkingOff
+		} else if thinkingLevel == sdk.ThinkingXHigh {
+			if m, ok := sdk.GetModel(model); ok && !m.SupportsXHigh {
+				thinkingLevel = sdk.ThinkingHigh
+			}
 		}
 	}
 
@@ -182,6 +186,25 @@ func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest, opts ...
 
 		for _, block := range message.Content {
 			switch b := block.AsAny().(type) {
+			case anthropic.ThinkingBlock:
+				if !send(sdk.ProviderEvent{
+					Type: sdk.ProviderEventThinkingDone,
+					Content: sdk.SignedThinking{
+						Signature: b.Signature,
+						Thinking:  b.Thinking,
+					},
+				}) {
+					return
+				}
+			case anthropic.RedactedThinkingBlock:
+				if !send(sdk.ProviderEvent{
+					Type: sdk.ProviderEventRedactedThinkingDone,
+					Content: sdk.RedactedThinking{
+						Data: b.Data,
+					},
+				}) {
+					return
+				}
 			case anthropic.ToolUseBlock:
 				var args map[string]any
 
@@ -237,6 +260,14 @@ func convertMessages(msgs []sdk.Message) []anthropic.MessageParam {
 			flush()
 
 			var blocks []anthropic.ContentBlockParamUnion
+
+			for _, st := range msg.Thinking {
+				blocks = append(blocks, anthropic.NewThinkingBlock(st.Signature, st.Thinking))
+			}
+
+			for _, rt := range msg.RedactedThinking {
+				blocks = append(blocks, anthropic.NewRedactedThinkingBlock(rt.Data))
+			}
 
 			if text, ok := msg.Content.(string); ok && text != "" {
 				blocks = append(blocks, anthropic.NewTextBlock(text))

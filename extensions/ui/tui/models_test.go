@@ -407,14 +407,21 @@ func TestModel_ModelSelectedInvalidIndex(t *testing.T) {
 
 func TestListModelsWithRegistry(t *testing.T) {
 	sdk.ResetModelRegistry()
+	sdk.ResetProviderRegistry()
 	sdk.RegisterBuiltinModels()
 
+	// Register providers so their models are included.
+	sdk.RegisterProvider("anthropic", func(cfg sdk.Config) (sdk.Provider, error) { return nil, nil })
+	sdk.RegisterProvider("openai", func(cfg sdk.Config) (sdk.Provider, error) { return nil, nil })
+	sdk.RegisterProvider("zai", func(cfg sdk.Config) (sdk.Provider, error) { return nil, nil })
+
 	defer sdk.ResetModelRegistry()
+	defer sdk.ResetProviderRegistry()
 
 	entries := listModels()
 	assert.NotEmpty(t, entries, "should return models from registry")
 
-	// Should include models from all providers
+	// Should include models from all registered providers
 	providers := make(map[string]bool)
 	for _, e := range entries {
 		providers[e.Provider] = true
@@ -427,7 +434,10 @@ func TestListModelsWithRegistry(t *testing.T) {
 
 func TestListModelsEmpty(t *testing.T) {
 	sdk.ResetModelRegistry()
+	sdk.ResetProviderRegistry()
+
 	defer sdk.ResetModelRegistry()
+	defer sdk.ResetProviderRegistry()
 
 	entries := listModels()
 	assert.Nil(t, entries)
@@ -435,9 +445,12 @@ func TestListModelsEmpty(t *testing.T) {
 
 func TestListModelsIgnoresEnvOverrides(t *testing.T) {
 	sdk.ResetModelRegistry()
+	sdk.ResetProviderRegistry()
 	sdk.RegisterBuiltinModels()
+	sdk.RegisterProvider("anthropic", func(cfg sdk.Config) (sdk.Provider, error) { return nil, nil })
 
 	defer sdk.ResetModelRegistry()
+	defer sdk.ResetProviderRegistry()
 
 	t.Setenv("ANTHROPIC_MODEL", "my-custom-model")
 
@@ -525,9 +538,13 @@ func TestModelSelectorCurrentModelMarker(t *testing.T) {
 
 func TestStatusMessageOnModelCycle(t *testing.T) {
 	sdk.ResetModelRegistry()
+	sdk.ResetProviderRegistry()
 	sdk.RegisterBuiltinModels()
+	sdk.RegisterProvider("anthropic", func(cfg sdk.Config) (sdk.Provider, error) { return nil, nil })
+	sdk.RegisterProvider("openai", func(cfg sdk.Config) (sdk.Provider, error) { return nil, nil })
 
 	defer sdk.ResetModelRegistry()
+	defer sdk.ResetProviderRegistry()
 
 	m := newModel(nil, nil, nil)
 	m.width = 80
