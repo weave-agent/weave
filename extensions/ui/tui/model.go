@@ -805,6 +805,14 @@ func (m Model) onModelChanged(msg ModelChangedMsg) (tea.Model, tea.Cmd) {
 	m.footer = m.footer.SetModel(msg.Entry.Model, msg.Entry.Provider)
 	m.footer = m.footer.SetReasoning(modelReasoning(msg.Entry.Model))
 
+	if modelDef, ok := sdk.GetModel(msg.Entry.Model); ok {
+		if clamped := sdk.ClampForModel(m.thinkingLevel, modelDef); clamped != m.thinkingLevel {
+			m.thinkingLevel = clamped
+			m.footer = m.footer.SetThinkingLevel(string(clamped))
+			m.editor = m.editor.SetBorderColor(palette.ThinkingBorderColor(clamped))
+		}
+	}
+
 	displayName := msg.Entry.DisplayName()
 	m.showStatus(fmt.Sprintf("Switched to %s (thinking: %s)", displayName, m.thinkingLevel))
 
