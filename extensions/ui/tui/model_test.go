@@ -1196,3 +1196,213 @@ func TestModel_ThinkingLevelUpdatesEditorBorder(t *testing.T) {
 	assert.Equal(t, sdk.ThinkingXHigh, m.thinkingLevel)
 	assert.Equal(t, "177", m.editor.BorderColor) // xhigh = "177"
 }
+
+func TestModel_ThinkingCommand(t *testing.T) {
+	sdk.ResetModelRegistry()
+	sdk.RegisterBuiltinModels()
+	defer sdk.ResetModelRegistry()
+
+	b := bus.New()
+	defer b.Close()
+
+	ch := b.Subscribe(topicThinkingChange)
+
+	m := newModel(b, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, 10)
+
+	assert.Equal(t, sdk.ThinkingMedium, m.thinkingLevel)
+
+	// Dispatch /thinking high
+	model, cmd := m.onSubmit("/thinking high")
+	m = model.(Model)
+
+	require.NotNil(t, cmd)
+
+	// Execute the command to get ThinkingLevelSetMsg
+	msg := cmd()
+	setMsg, ok := msg.(ThinkingLevelSetMsg)
+	require.True(t, ok)
+	assert.Equal(t, sdk.ThinkingHigh, setMsg.Level)
+
+	// Process the message
+	model, updateCmd := m.Update(setMsg)
+	m = model.(Model)
+
+	assert.Equal(t, sdk.ThinkingHigh, m.thinkingLevel)
+	assert.Equal(t, "high", m.footer.ThinkingLevel())
+	assert.Equal(t, "139", m.editor.BorderColor)
+
+	// Execute the batch cmd to trigger bus publish
+	require.NotNil(t, updateCmd)
+	executeBatchCmd(t, updateCmd)
+
+	// Verify bus event was published
+	evt := <-ch
+	assert.Equal(t, topicThinkingChange, evt.Topic)
+	payload, ok := evt.Payload.(map[string]string)
+	require.True(t, ok)
+	assert.Equal(t, "high", payload["level"])
+}
+
+func TestModel_ThinkingCommandNoArgs(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, 10)
+
+	model, _ := m.onSubmit("/thinking")
+	m = model.(Model)
+
+	items := m.chat.Items()
+	require.Len(t, items, 1)
+	am, ok := items[0].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Contains(t, am.Content(), "Usage:")
+	assert.Contains(t, am.Content(), "off")
+	assert.Contains(t, am.Content(), "xhigh")
+}
+
+func TestModel_ThinkingCommandInvalid(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, 10)
+
+	model, _ := m.onSubmit("/thinking bogus")
+	m = model.(Model)
+
+	items := m.chat.Items()
+	require.Len(t, items, 1)
+	am, ok := items[0].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Contains(t, am.Content(), "invalid thinking level")
+}
+
+func TestModel_ThinkingCommandXHighClamped(t *testing.T) {
+	sdk.ResetModelRegistry()
+	sdk.RegisterBuiltinModels()
+	defer sdk.ResetModelRegistry()
+
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, 10)
+
+	// Set to Sonnet (no xhigh support)
+	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-20250514"}
+
+	model, cmd := m.onSubmit("/thinking xhigh")
+	m = model.(Model)
+
+	require.NotNil(t, cmd)
+	msg := cmd()
+	setMsg, ok := msg.(ThinkingLevelSetMsg)
+	require.True(t, ok)
+
+	model, _ = m.Update(setMsg)
+	m = model.(Model)
+
+	// xhigh should be clamped to high for Sonnet
+	assert.Equal(t, sdk.ThinkingHigh, m.thinkingLevel)
+	assert.Equal(t, "139", m.editor.BorderColor)
+}
+
+func TestModel_ThinkingCommandAllLevels(t *testing.T) {
+	sdk.ResetModelRegistry()
+	sdk.RegisterBuiltinModels()
+	defer sdk.ResetModelRegistry()
+
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-opus-4-20250514"}
+
+	for _, level := range sdk.AllThinkingLevels {
+		m.chat = components.NewChatModel().SetSize(80, 10)
+
+		model, cmd := m.onSubmit("/thinking " + string(level))
+		m = model.(Model)
+
+		require.NotNil(t, cmd, "command should return a cmd for level %s", level)
+		msg := cmd()
+		setMsg, ok := msg.(ThinkingLevelSetMsg)
+		require.True(t, ok)
+		assert.Equal(t, level, setMsg.Level)
+
+		model, _ = m.Update(setMsg)
+		m = model.(Model)
+
+		assert.Equal(t, level, m.thinkingLevel)
+	}
+}
+
+func TestModel_StartupHintsShownInitially(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	assert.True(t, m.showHints)
+
+	view := m.View()
+	assert.Contains(t, view, "ctrl+p cycle model")
+	assert.Contains(t, view, "ctrl+l select model")
+	assert.Contains(t, view, "shift+tab cycle thinking")
+	assert.Contains(t, view, "ctrl+t toggle thinking")
+}
+
+func TestModel_StartupHintsDismissOnKeypress(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	assert.True(t, m.showHints)
+
+	// Any keypress dismisses hints
+	model, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	m = model.(Model)
+
+	assert.False(t, m.showHints)
+
+	view := m.View()
+	assert.NotContains(t, view, "ctrl+p cycle model")
+}
+
+func TestModel_StartupHintsHiddenAfterPrompt(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	b := bus.New()
+	defer b.Close()
+
+	m.bus = b
+
+	assert.True(t, m.showHints)
+
+	// Submit a prompt
+	model, _ := m.onSubmit("hello")
+	m = model.(Model)
+
+	// Hints should still be in the model but hidden from view because prompted
+	assert.True(t, m.showHints)
+	assert.True(t, m.prompted)
+
+	view := m.View()
+	assert.NotContains(t, view, "ctrl+p cycle model")
+}
+
+func TestModel_StartupHintsHiddenAfterChat(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, 10)
+
+	m.AddUserMessage("hello")
+
+	assert.True(t, m.showHints)
+
+	view := m.View()
+	assert.NotContains(t, view, "ctrl+p cycle model")
+}

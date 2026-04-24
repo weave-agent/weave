@@ -94,6 +94,11 @@ type ModelChangeFailedMsg struct {
 	Error    string
 }
 
+// ThinkingLevelSetMsg is sent when the user sets the thinking level via /thinking command.
+type ThinkingLevelSetMsg struct {
+	Level sdk.ThinkingLevel
+}
+
 // ProviderListResultMsg carries the result of listing providers with key status.
 type ProviderListResultMsg struct {
 	Providers []ProviderEntry

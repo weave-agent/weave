@@ -68,7 +68,17 @@ keybindings:
   app.model.cycle: ["ctrl+p"]
   app.model.select: ["ctrl+l"]
 ```
-Built-in bindings: Escape=interrupt, Ctrl+C=clear, Ctrl+D=exit, Ctrl+L=model selector, Ctrl+P=model cycle. `app.tool.expand` and `app.thinking.toggle` actions are defined but have no default keys — assign them in keybindings.yaml to enable.
+Built-in bindings: Escape=interrupt, Ctrl+C=clear, Ctrl+D=exit, Ctrl+L=model selector, Ctrl+P=model cycle, Shift+Tab=cycle thinking level, Ctrl+T=toggle thinking blocks, Ctrl+O=expand tool output.
+
+**Thinking levels** control reasoning depth for providers that support it. Six levels: off, minimal, low, medium (default), high, xhigh. Configured via:
+- Shift+Tab cycles through levels (editor border color changes with level)
+- `/thinking <level>` slash command sets a specific level
+- `WEAVE_THINKING_LEVEL` environment variable for initial level
+- Models that don't support xhigh (e.g. Sonnet) are automatically clamped to high
+
+**Model registry** (`sdk/model.go`) provides curated model metadata (display name, reasoning support, context window, max tokens) via `RegisterModel`/`GetModel`/`ListModelsForProvider`/`ListAllModels`. Built-in models are registered by `RegisterBuiltinModels()`.
+
+**StreamOptions** (`sdk/provider.go`) passes per-request options (model, thinking level, max tokens) to providers via functional options: `WithModel(model)`, `WithThinkingLevel(level)`, `WithMaxTokens(n)`. Providers read these instead of re-creating on model switch.
 
 **Provider environment variables:**
 - `ANTHROPIC_API_KEY` — required for Anthropic provider (default model: `claude-sonnet-4-20250514`, override with `ANTHROPIC_MODEL`)

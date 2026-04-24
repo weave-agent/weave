@@ -376,3 +376,25 @@ func TestModel_UnknownCommandShowsError(t *testing.T) {
 	view := m2.View()
 	assert.Contains(t, view, "unknown command: /bogus")
 }
+
+func TestModel_ThinkingCommandRegistered(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	_, ok := m.commands.Lookup("/thinking")
+	assert.True(t, ok, "/thinking command should be registered")
+}
+
+func TestModel_ThinkingCommandInHelp(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 10
+	m.chat = m.chat.SetSize(80, 10)
+
+	model, _ := m.onSubmit("/help")
+	m2 := model.(Model)
+
+	items := m2.chat.Items()
+	require.Len(t, items, 1)
+	am, ok := items[0].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Contains(t, am.Content(), "/thinking")
+}

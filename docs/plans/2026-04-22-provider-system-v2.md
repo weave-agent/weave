@@ -103,12 +103,12 @@ Improve the model selector with [provider] badges and current model marker. Add 
 ### Task 6: TUI — startup hints and /thinking command
 Add a startup keybinding hints banner and a `/thinking` slash command.
 
-- [ ] add `/thinking` command to `extensions/ui/tui/commands.go`: description "Set thinking level (off/minimal/low/medium/high/xhigh)", parse arg as ThinkingLevel, validate, apply change same as cycling
-- [ ] add startup hints banner in `extensions/ui/tui/model.go` `View()`: on first render (before first user message), show single dim line: `"ctrl+p cycle model · ctrl+l select model · shift+tab cycle thinking · ctrl+t toggle thinking"`, dismiss on first keypress
-- [ ] update `CLAUDE.md` to document ThinkingLevel, StreamOptions, model registry, new keybindings
-- [ ] run full test suite (`go test ./...`)
-- [ ] run linter (`make lint`) — fix any issues
-- [ ] run `make fix` for formatting
+- [x] add `/thinking` command to `extensions/ui/tui/commands.go`: description "Set thinking level (off/minimal/low/medium/high/xhigh)", parse arg as ThinkingLevel, validate, apply change same as cycling
+- [x] add startup hints banner in `extensions/ui/tui/model.go` `View()`: on first render (before first user message), show single dim line: `"ctrl+p cycle model · ctrl+l select model · shift+tab cycle thinking · ctrl+t toggle thinking"`, dismiss on first keypress
+- [x] update `CLAUDE.md` to document ThinkingLevel, StreamOptions, model registry, new keybindings
+- [x] run full test suite (`go test ./...`)
+- [x] run linter (`make lint`) — fix any issues
+- [x] run `make fix` for formatting
 
 ## Technical Details
 

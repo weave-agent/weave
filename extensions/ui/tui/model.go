@@ -77,6 +77,9 @@ type Model struct {
 	// thinking level state
 	thinkingLevel sdk.ThinkingLevel
 
+	// startup hints banner
+	showHints bool
+
 	// transient status message
 	statusMsg   string
 	statusTimer tea.Cmd
@@ -100,6 +103,21 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 
 	commands.register("/providers", "Manage provider API keys", func(_ string) CommandResult {
 		return CommandResult{Command: listProvidersCmd()}
+	})
+
+	commands.register("/thinking", "Set thinking level (off/minimal/low/medium/high/xhigh)", func(args string) CommandResult {
+		if args == "" {
+			return CommandResult{Notify: "Usage: /thinking <off|minimal|low|medium|high|xhigh>"}
+		}
+
+		level, err := sdk.ParseThinkingLevel(args)
+		if err != nil {
+			return CommandResult{Notify: err.Error()}
+		}
+
+		return CommandResult{Command: func() tea.Msg {
+			return ThinkingLevelSetMsg{Level: level}
+		}}
 	})
 
 	editor := components.NewEditorModel().Focus()
@@ -138,6 +156,7 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 		currentModel:  cur,
 		sessionDir:    sdir,
 		thinkingLevel: initThinkingLevel(),
+		showHints:     true,
 	}
 	m.footer = m.footer.SetModel(cur.Model, cur.Provider)
 	m.footer = m.footer.SetThinkingLevel(string(m.thinkingLevel))
@@ -216,6 +235,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			return m, cmd
 		}
+
+		// Dismiss startup hints on first keypress
+		m.showHints = false
 
 		// Handle ctrl+c with double-press: first clears editor, second quits
 		if msg.Type == tea.KeyCtrlC {
@@ -333,6 +355,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.statusMsg = ""
 		m.statusTimer = nil
 		return m, nil
+
+	case ThinkingLevelSetMsg:
+		return m.applyThinkingLevel(msg.Level)
 	}
 
 	// Forward spinner ticks
@@ -1008,38 +1033,43 @@ func initThinkingLevel() sdk.ThinkingLevel {
 	return sdk.ThinkingMedium
 }
 
-// cycleThinkingLevel returns the next thinking level, clamping xhigh for models without support.
+// cycleThinkingLevel returns the next thinking level.
 func (m Model) cycleThinkingLevel() (tea.Model, tea.Cmd) {
 	for i, lvl := range sdk.AllThinkingLevels {
 		if lvl == m.thinkingLevel {
 			next := sdk.AllThinkingLevels[(i+1)%len(sdk.AllThinkingLevels)]
-
-			// Clamp xhigh for models that don't support it
-			if modelDef, ok := sdk.GetModel(m.currentModel.Model); ok {
-				next = sdk.ClampForModel(next, modelDef)
-			}
-
-			m.thinkingLevel = next
-			m.footer = m.footer.SetThinkingLevel(string(next))
-			m.editor = m.editor.SetBorderColor(palette.ThinkingBorderColor(next))
-
-			m.showStatus(fmt.Sprintf("Thinking level: %s", next))
-
-			var cmds []tea.Cmd
-
-			if m.bus != nil {
-				cmds = append(cmds, PublishThinkingChange(m.bus, next))
-			}
-
-			if m.statusTimer != nil {
-				cmds = append(cmds, m.statusTimer)
-			}
-
-			return m, tea.Batch(cmds...)
+			return m.applyThinkingLevel(next)
 		}
 	}
 
 	return m, nil
+}
+
+// applyThinkingLevel applies a thinking level change.
+// It clamps xhigh for models that don't support it, updates UI elements,
+// shows a status message, and publishes the bus event.
+func (m Model) applyThinkingLevel(level sdk.ThinkingLevel) (tea.Model, tea.Cmd) {
+	if modelDef, ok := sdk.GetModel(m.currentModel.Model); ok {
+		level = sdk.ClampForModel(level, modelDef)
+	}
+
+	m.thinkingLevel = level
+	m.footer = m.footer.SetThinkingLevel(string(level))
+	m.editor = m.editor.SetBorderColor(palette.ThinkingBorderColor(level))
+
+	m.showStatus(fmt.Sprintf("Thinking level: %s", level))
+
+	var cmds []tea.Cmd
+
+	if m.bus != nil {
+		cmds = append(cmds, PublishThinkingChange(m.bus, level))
+	}
+
+	if m.statusTimer != nil {
+		cmds = append(cmds, m.statusTimer)
+	}
+
+	return m, tea.Batch(cmds...)
 }
 
 // showStatus sets a transient status message that clears after a timeout.
@@ -1087,6 +1117,13 @@ func (m Model) View() string {
 	}
 
 	var sections []string
+
+	if m.showHints && !m.prompted && len(m.chat.Items()) == 0 {
+		hintsStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("242"))
+		sections = append(sections, hintsStyle.Render(
+			"ctrl+p cycle model · ctrl+l select model · shift+tab cycle thinking · ctrl+t toggle thinking",
+		))
+	}
 
 	sections = append(sections, m.chat.View())
 
