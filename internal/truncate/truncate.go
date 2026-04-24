@@ -22,6 +22,7 @@ func (r Result) Format() string {
 	if !r.Truncated {
 		return r.Content
 	}
+
 	return fmt.Sprintf("%s\n[output truncated: %d lines, %d bytes]", r.Content, r.Lines, r.Bytes)
 }
 
@@ -52,18 +53,23 @@ func Truncate(input string, maxLines, maxBytes int) Result {
 
 	// Check byte limit using cumulative computation (avoids quadratic re-joining)
 	cumSize := 0
+
 	cutoff := len(lines)
 	for i, line := range lines {
 		if i > 0 {
 			cumSize++ // newline separator
 		}
+
 		cumSize += len(line)
+
 		if cumSize > maxBytes {
 			cutoff = i
 			truncated = true
+
 			break
 		}
 	}
+
 	lines = lines[:cutoff]
 
 	if len(lines) == 0 {

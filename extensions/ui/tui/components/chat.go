@@ -70,6 +70,7 @@ func (m ChatModel) ScrollDown(n int) ChatModel {
 	totalLines := m.totalLines()
 	maxScroll := max(0, totalLines-m.height)
 	m.scroll = min(maxScroll, m.scroll+n)
+
 	return m
 }
 

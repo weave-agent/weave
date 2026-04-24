@@ -818,6 +818,7 @@ func TestLoop_ThinkingLevelChange(t *testing.T) {
 	defer resetRegistries()
 
 	var mu sync.Mutex
+
 	var capturedOpts []sdk.StreamOption
 
 	mp := &ProviderMock{
@@ -828,6 +829,7 @@ func TestLoop_ThinkingLevelChange(t *testing.T) {
 
 			ch := make(chan sdk.ProviderEvent, 1)
 			ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "ok"}
+
 			close(ch)
 
 			return ch, nil
@@ -876,6 +878,7 @@ func TestLoop_ModelChangeWithModelKey(t *testing.T) {
 	defer resetRegistries()
 
 	var capturedOpts []sdk.StreamOption
+
 	var mu sync.Mutex
 
 	mp := &ProviderMock{
@@ -886,6 +889,7 @@ func TestLoop_ModelChangeWithModelKey(t *testing.T) {
 
 			ch := make(chan sdk.ProviderEvent, 1)
 			ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "ok"}
+
 			close(ch)
 
 			return ch, nil
@@ -909,7 +913,7 @@ func TestLoop_ModelChangeWithModelKey(t *testing.T) {
 	require.Len(t, capturedOpts, 1)
 	so := sdk.NewStreamOptions(capturedOpts...)
 	mu.Unlock()
-	assert.Equal(t, "", so.Model)
+	assert.Empty(t, so.Model)
 
 	// Switch model within same provider (the bug fix case).
 	// Model change should NOT trigger a spurious streamTurn — it applies on the next user input.
@@ -961,6 +965,7 @@ func TestLoop_ModelChangeDifferentProvider(t *testing.T) {
 
 	msgEnd1, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
 	require.True(t, ok, "timeout waiting for first msg_end")
+
 	payload1 := msgEnd1.Payload.(map[string]any)
 	assert.Equal(t, "anthropic response", payload1["content"])
 
@@ -977,6 +982,7 @@ func TestLoop_ModelChangeDifferentProvider(t *testing.T) {
 
 	msgEnd2, ok := waitForTopic(allCh, TopicMsgEnd, 4*time.Second)
 	require.True(t, ok, "timeout waiting for openai msg_end")
+
 	payload2 := msgEnd2.Payload.(map[string]any)
 	assert.Equal(t, "openai response", payload2["content"])
 
@@ -994,6 +1000,7 @@ func TestLoop_InvalidThinkingLevelIgnored(t *testing.T) {
 	defer resetRegistries()
 
 	var mu sync.Mutex
+
 	var capturedOpts []sdk.StreamOption
 
 	mp := &ProviderMock{
@@ -1004,6 +1011,7 @@ func TestLoop_InvalidThinkingLevelIgnored(t *testing.T) {
 
 			ch := make(chan sdk.ProviderEvent, 1)
 			ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "ok"}
+
 			close(ch)
 
 			return ch, nil

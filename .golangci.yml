@@ -175,7 +175,6 @@ formatters:
   enable:
     - gofumpt
     - goimports
-    - swaggo
 
   exclusions:
     generated: lax

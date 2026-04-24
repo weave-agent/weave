@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"fmt"
 	"sort"
 
 	"weave/config"
@@ -17,10 +16,10 @@ type ProviderEntry struct {
 // Display returns a human-readable label showing provider name and key status.
 func (e ProviderEntry) Display() string {
 	if e.HasKey {
-		return fmt.Sprintf("%s  key set", e.Name)
+		return e.Name + "  key set"
 	}
 
-	return fmt.Sprintf("%s  no key", e.Name)
+	return e.Name + "  no key"
 }
 
 // listProviders builds a list of all known providers with their API key status.
@@ -33,6 +32,7 @@ func listProviders() []ProviderEntry {
 	}
 
 	seen := make(map[string]bool)
+
 	var entries []ProviderEntry
 
 	for _, name := range sdk.ListProviders() {

@@ -269,6 +269,7 @@ func TestModel_CtrlPWhenSingleModel(t *testing.T) {
 	m = model.(Model)
 
 	assert.Equal(t, "Only one model available", m.statusMsg)
+
 	_ = cmd // timer cmd for status message auto-clear
 }
 
@@ -290,6 +291,7 @@ func TestModel_ModelChangedUpdatesFooter(t *testing.T) {
 func TestModel_ModelChangedToNonReasoningForcesThinkingOff(t *testing.T) {
 	sdk.ResetModelRegistry()
 	sdk.RegisterBuiltinModels()
+
 	defer sdk.ResetModelRegistry()
 
 	m := newModel(nil, nil, nil)
@@ -406,6 +408,7 @@ func TestModel_ModelSelectedInvalidIndex(t *testing.T) {
 func TestListModelsWithRegistry(t *testing.T) {
 	sdk.ResetModelRegistry()
 	sdk.RegisterBuiltinModels()
+
 	defer sdk.ResetModelRegistry()
 
 	entries := listModels()
@@ -416,6 +419,7 @@ func TestListModelsWithRegistry(t *testing.T) {
 	for _, e := range entries {
 		providers[e.Provider] = true
 	}
+
 	assert.True(t, providers["anthropic"], "should include anthropic models")
 	assert.True(t, providers["openai"], "should include openai models")
 	assert.True(t, providers["zai"], "should include zai models")
@@ -432,6 +436,7 @@ func TestListModelsEmpty(t *testing.T) {
 func TestListModelsIgnoresEnvOverrides(t *testing.T) {
 	sdk.ResetModelRegistry()
 	sdk.RegisterBuiltinModels()
+
 	defer sdk.ResetModelRegistry()
 
 	t.Setenv("ANTHROPIC_MODEL", "my-custom-model")
@@ -440,13 +445,16 @@ func TestListModelsIgnoresEnvOverrides(t *testing.T) {
 
 	// Should show registry entries as-is, not env-overridden names
 	anthropicCount := 0
+
 	for _, e := range entries {
 		if e.Provider == "anthropic" {
 			anthropicCount++
+
 			assert.NotEqual(t, "my-custom-model", e.Model,
 				"listModels should show registry IDs, not env overrides")
 		}
 	}
+
 	assert.Equal(t, 2, anthropicCount,
 		"should show both anthropic models, not collapsed by env override")
 }
@@ -454,6 +462,7 @@ func TestListModelsIgnoresEnvOverrides(t *testing.T) {
 func TestModelEntryDisplayName(t *testing.T) {
 	sdk.ResetModelRegistry()
 	sdk.RegisterBuiltinModels()
+
 	defer sdk.ResetModelRegistry()
 
 	e := ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-20250514"}
@@ -466,6 +475,7 @@ func TestModelEntryDisplayName(t *testing.T) {
 func TestModelSelectorEntryBadges(t *testing.T) {
 	sdk.ResetModelRegistry()
 	sdk.RegisterBuiltinModels()
+
 	defer sdk.ResetModelRegistry()
 
 	m := newModel(nil, nil, nil)
@@ -490,6 +500,7 @@ func TestModelSelectorEntryBadges(t *testing.T) {
 func TestModelSelectorCurrentModelMarker(t *testing.T) {
 	sdk.ResetModelRegistry()
 	sdk.RegisterBuiltinModels()
+
 	defer sdk.ResetModelRegistry()
 
 	m := newModel(nil, nil, nil)
@@ -515,6 +526,7 @@ func TestModelSelectorCurrentModelMarker(t *testing.T) {
 func TestStatusMessageOnModelCycle(t *testing.T) {
 	sdk.ResetModelRegistry()
 	sdk.RegisterBuiltinModels()
+
 	defer sdk.ResetModelRegistry()
 
 	m := newModel(nil, nil, nil)
@@ -525,6 +537,7 @@ func TestStatusMessageOnModelCycle(t *testing.T) {
 	// Cycle produces a ModelChangedMsg cmd — execute it and process the result
 	model, cmd := m.dispatchBinding(ActionModelCycle)
 	m = model.(Model)
+
 	require.NotNil(t, cmd)
 
 	msg := cmd()
@@ -541,6 +554,7 @@ func TestStatusMessageOnModelCycle(t *testing.T) {
 func TestStatusMessageOnModelChanged(t *testing.T) {
 	sdk.ResetModelRegistry()
 	sdk.RegisterBuiltinModels()
+
 	defer sdk.ResetModelRegistry()
 
 	m := newModel(nil, nil, nil)

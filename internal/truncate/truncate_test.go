@@ -9,7 +9,7 @@ import (
 
 func TestTruncate_EmptyInput(t *testing.T) {
 	result := Truncate("", DefaultMaxLines, DefaultMaxBytes)
-	assert.Equal(t, "", result.Content)
+	assert.Empty(t, result.Content)
 	assert.False(t, result.Truncated)
 	assert.Equal(t, 0, result.Lines)
 	assert.Equal(t, 0, result.Bytes)
@@ -26,10 +26,12 @@ func TestTruncate_UnderLimit(t *testing.T) {
 
 func TestTruncate_LineLimit(t *testing.T) {
 	maxLines := 3
+
 	lines := make([]string, 10)
 	for i := range lines {
 		lines[i] = "line"
 	}
+
 	input := strings.Join(lines, "\n")
 
 	result := Truncate(input, maxLines, DefaultMaxBytes)
@@ -45,8 +47,9 @@ func TestTruncate_ByteLimit(t *testing.T) {
 	result := Truncate(input, DefaultMaxLines, maxBytes)
 	assert.True(t, result.Truncated)
 	assert.Equal(t, len(input), result.Bytes)
+
 	for line := range strings.SplitSeq(result.Content, "\n") {
-		assert.True(t, len(line) <= maxBytes, "line exceeds byte limit: %q", line)
+		assert.LessOrEqual(t, len(line), maxBytes, "line exceeds byte limit: %q", line)
 	}
 }
 
@@ -56,7 +59,7 @@ func TestTruncate_SingleHugeLine(t *testing.T) {
 
 	result := Truncate(input, DefaultMaxLines, maxBytes)
 	assert.True(t, result.Truncated)
-	assert.Equal(t, "", result.Content)
+	assert.Empty(t, result.Content)
 	assert.Equal(t, 1, result.Lines)
 	assert.Equal(t, 1000, result.Bytes)
 }

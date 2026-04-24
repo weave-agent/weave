@@ -1050,6 +1050,7 @@ func TestModel_DefaultThinkingLevel(t *testing.T) {
 
 func TestModel_ThinkingLevelFromEnv(t *testing.T) {
 	t.Setenv("WEAVE_THINKING_LEVEL", "high")
+
 	m := newModel(nil, nil, nil)
 	assert.Equal(t, sdk.ThinkingHigh, m.thinkingLevel)
 	assert.Equal(t, "high", m.footer.ThinkingLevel())
@@ -1057,6 +1058,7 @@ func TestModel_ThinkingLevelFromEnv(t *testing.T) {
 
 func TestModel_ThinkingLevelInvalidEnv(t *testing.T) {
 	t.Setenv("WEAVE_THINKING_LEVEL", "invalid")
+
 	m := newModel(nil, nil, nil)
 	assert.Equal(t, sdk.ThinkingMedium, m.thinkingLevel)
 }
@@ -1085,6 +1087,7 @@ func TestModel_CycleThinkingLevelWraps(t *testing.T) {
 	// Register models so xhigh clamping works
 	sdk.ResetModelRegistry()
 	sdk.RegisterBuiltinModels()
+
 	defer sdk.ResetModelRegistry()
 
 	// Set current model to one that supports xhigh (opus)
@@ -1105,6 +1108,7 @@ func TestModel_CycleThinkingLevelXHighClampForSonnet(t *testing.T) {
 
 	sdk.ResetModelRegistry()
 	sdk.RegisterBuiltinModels()
+
 	defer sdk.ResetModelRegistry()
 
 	// Set current model to Sonnet (does NOT support xhigh)
@@ -1119,6 +1123,7 @@ func TestModel_CycleThinkingLevelXHighClampForSonnet(t *testing.T) {
 func TestModel_CycleThinkingLevelAllLevels(t *testing.T) {
 	sdk.ResetModelRegistry()
 	sdk.RegisterBuiltinModels()
+
 	defer sdk.ResetModelRegistry()
 
 	m := newModel(nil, nil, nil)
@@ -1153,8 +1158,7 @@ func TestModel_CycleThinkingPublishesEvent(t *testing.T) {
 	m.width = 80
 	m.height = 24
 
-	model, cmd := m.dispatchBinding(ActionThinkingCycle)
-	m = model.(Model)
+	_, cmd := m.dispatchBinding(ActionThinkingCycle)
 
 	require.NotNil(t, cmd)
 
@@ -1177,6 +1181,7 @@ func TestModel_EditorBorderMatchesThinkingLevel(t *testing.T) {
 func TestModel_ThinkingLevelUpdatesEditorBorder(t *testing.T) {
 	sdk.ResetModelRegistry()
 	sdk.RegisterBuiltinModels()
+
 	defer sdk.ResetModelRegistry()
 
 	m := newModel(nil, nil, nil)
@@ -1200,6 +1205,7 @@ func TestModel_ThinkingLevelUpdatesEditorBorder(t *testing.T) {
 func TestModel_ThinkingCommand(t *testing.T) {
 	sdk.ResetModelRegistry()
 	sdk.RegisterBuiltinModels()
+
 	defer sdk.ResetModelRegistry()
 
 	b := bus.New()
@@ -1283,6 +1289,7 @@ func TestModel_ThinkingCommandInvalid(t *testing.T) {
 func TestModel_ThinkingCommandXHighClamped(t *testing.T) {
 	sdk.ResetModelRegistry()
 	sdk.RegisterBuiltinModels()
+
 	defer sdk.ResetModelRegistry()
 
 	m := newModel(nil, nil, nil)
@@ -1312,6 +1319,7 @@ func TestModel_ThinkingCommandXHighClamped(t *testing.T) {
 func TestModel_ThinkingCommandAllLevels(t *testing.T) {
 	sdk.ResetModelRegistry()
 	sdk.RegisterBuiltinModels()
+
 	defer sdk.ResetModelRegistry()
 
 	m := newModel(nil, nil, nil)
