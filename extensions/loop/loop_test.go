@@ -28,7 +28,7 @@ func newMockProvider(responses []providerResponse) *ProviderMock {
 	callCount := 0
 
 	return &ProviderMock{
-		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest) (<-chan sdk.ProviderEvent, error) {
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, _ ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
 			mu.Lock()
 			idx := callCount
 			callCount++
@@ -308,7 +308,7 @@ func TestLoop_SteeringDuringTurn(t *testing.T) {
 	mp := newMockProvider(responses)
 
 	originalStreamFunc := mp.StreamFunc
-	mp.StreamFunc = func(ctx context.Context, req sdk.ProviderRequest) (<-chan sdk.ProviderEvent, error) {
+	mp.StreamFunc = func(ctx context.Context, req sdk.ProviderRequest, _ ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
 		callIdx := len(mp.StreamCalls()) - 1
 		if callIdx == 0 {
 			close(streamingStarted)
@@ -471,7 +471,7 @@ func TestLoop_ContextCancellation(t *testing.T) {
 	blockCh := make(chan sdk.ProviderEvent)
 
 	registerMockProvider("anthropic", &ProviderMock{
-		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest) (<-chan sdk.ProviderEvent, error) {
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, _ ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
 			ch := make(chan sdk.ProviderEvent)
 
 			go func() {
@@ -700,7 +700,7 @@ func TestLoop_InterruptHaltsTurn(t *testing.T) {
 
 	mp := newMockProvider(responses)
 	originalStreamFunc := mp.StreamFunc
-	mp.StreamFunc = func(ctx context.Context, req sdk.ProviderRequest) (<-chan sdk.ProviderEvent, error) {
+	mp.StreamFunc = func(ctx context.Context, req sdk.ProviderRequest, _ ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
 		callIdx := len(mp.StreamCalls()) - 1
 		if callIdx == 0 {
 			close(started)

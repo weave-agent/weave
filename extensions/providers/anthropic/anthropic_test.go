@@ -440,3 +440,109 @@ func TestStream_SplitToolInputJSON(t *testing.T) {
 func TestRegister(t *testing.T) {
 	assert.True(t, sdk.ProviderRegistered("anthropic"))
 }
+
+func TestStream_WithThinkingLevel(t *testing.T) {
+	sdk.ResetModelRegistry()
+	defer sdk.ResetModelRegistry()
+	sdk.RegisterBuiltinModels()
+
+	var receivedBody string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf := make([]byte, r.ContentLength)
+		r.Body.Read(buf)
+		receivedBody = string(buf)
+		writeSSE(w, textStreamEvents("thinking response"))
+	}))
+	defer server.Close()
+
+	p := newTestProvider(server)
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("think")},
+	}, sdk.WithThinkingLevel(sdk.ThinkingHigh))
+	require.NoError(t, err)
+	collectEvents(t, ch)
+
+	assert.Contains(t, receivedBody, `"thinking"`)
+	assert.Contains(t, receivedBody, `"adaptive"`)
+}
+
+func TestStream_ThinkingOff_NoThinkingParam(t *testing.T) {
+	var receivedBody string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf := make([]byte, r.ContentLength)
+		r.Body.Read(buf)
+		receivedBody = string(buf)
+		writeSSE(w, textStreamEvents("no thinking"))
+	}))
+	defer server.Close()
+
+	p := newTestProvider(server)
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("hello")},
+	}, sdk.WithThinkingLevel(sdk.ThinkingOff))
+	require.NoError(t, err)
+	collectEvents(t, ch)
+
+	assert.NotContains(t, receivedBody, `"thinking"`)
+}
+
+func TestStream_WithModelOverride(t *testing.T) {
+	var receivedBody string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf := make([]byte, r.ContentLength)
+		r.Body.Read(buf)
+		receivedBody = string(buf)
+		writeSSE(w, textStreamEvents("response"))
+	}))
+	defer server.Close()
+
+	p := newTestProvider(server)
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("hello")},
+	}, sdk.WithModel("claude-opus-4-20250514"))
+	require.NoError(t, err)
+	collectEvents(t, ch)
+
+	assert.Contains(t, receivedBody, "claude-opus-4-20250514")
+}
+
+func TestStream_ThinkingContentEmitted(t *testing.T) {
+	events := []sseEvent{
+		{EventType: "message_start", Data: `{"type":"message_start","message":{"id":"msg_test","type":"message","role":"assistant","content":[],"model":"claude-sonnet-4","stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":1}}}`},
+		{EventType: "content_block_start", Data: `{"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":""}}`},
+		{EventType: "content_block_delta", Data: `{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"let me think"}}`},
+		{EventType: "content_block_stop", Data: `{"type":"content_block_stop","index":0}`},
+		{EventType: "content_block_start", Data: `{"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}}`},
+		{EventType: "content_block_delta", Data: `{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"answer"}}`},
+		{EventType: "content_block_stop", Data: `{"type":"content_block_stop","index":1}`},
+		{EventType: "message_delta", Data: `{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":5}}`},
+		{EventType: "message_stop", Data: `{"type":"message_stop"}`},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeSSE(w, events)
+	}))
+	defer server.Close()
+
+	p := newTestProvider(server)
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("think")},
+	}, sdk.WithThinkingLevel(sdk.ThinkingMedium))
+	require.NoError(t, err)
+
+	evts := collectEvents(t, ch)
+
+	var thinkingDeltas []string
+	var textDeltas []string
+	for _, evt := range evts {
+		switch evt.Type {
+		case sdk.ProviderEventThinking:
+			thinkingDeltas = append(thinkingDeltas, evt.Content.(string))
+		case sdk.ProviderEventTextDelta:
+			textDeltas = append(textDeltas, evt.Content.(string))
+		}
+	}
+
+	assert.Equal(t, []string{"let me think"}, thinkingDeltas)
+	assert.Equal(t, []string{"answer"}, textDeltas)
+}

@@ -77,12 +77,22 @@ func NewProviderWithClient(client anthropic.Client, model string) sdk.Provider {
 	return &provider{client: client, model: model, maxTokens: defaultMaxTokens}
 }
 
-func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest) (<-chan sdk.ProviderEvent, error) {
+func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest, opts ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
 	ch := make(chan sdk.ProviderEvent, 64)
 
+	so := sdk.NewStreamOptions(opts...)
+	model := so.Model
+	if model == "" {
+		model = p.model
+	}
+	maxTokens := so.MaxTokens
+	if maxTokens == 0 {
+		maxTokens = p.maxTokens
+	}
+
 	params := anthropic.MessageNewParams{
-		Model:     p.model,
-		MaxTokens: p.maxTokens,
+		Model:     model,
+		MaxTokens: maxTokens,
 		Messages:  convertMessages(req.Messages),
 	}
 
@@ -94,6 +104,19 @@ func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest) (<-chan 
 
 	if len(req.Tools) > 0 {
 		params.Tools = convertTools(req.Tools)
+	}
+
+	thinkingLevel := so.ThinkingLevel
+	if thinkingLevel == sdk.ThinkingXHigh {
+		if m, ok := sdk.GetModel(model); ok && !m.SupportsXHigh {
+			thinkingLevel = sdk.ThinkingHigh
+		}
+	}
+
+	if thinkingLevel != sdk.ThinkingOff {
+		params.Thinking = anthropic.ThinkingConfigParamUnion{
+			OfAdaptive: &anthropic.ThinkingConfigAdaptiveParam{},
+		}
 	}
 
 	send := func(evt sdk.ProviderEvent) bool {
@@ -126,6 +149,14 @@ func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest) (<-chan 
 						return
 					}
 				}
+				if e.Delta.Thinking != "" {
+					if !send(sdk.ProviderEvent{
+						Type:    sdk.ProviderEventThinking,
+						Content: e.Delta.Thinking,
+					}) {
+						return
+					}
+				}
 			}
 		}
 
@@ -139,14 +170,15 @@ func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest) (<-chan 
 		}
 
 		for _, block := range message.Content {
-			if toolUse, ok := block.AsAny().(anthropic.ToolUseBlock); ok {
+			switch b := block.AsAny().(type) {
+			case anthropic.ToolUseBlock:
 				var args map[string]any
 
-				if raw := toolUse.JSON.Input.Raw(); raw != "" {
+				if raw := b.JSON.Input.Raw(); raw != "" {
 					if err := json.Unmarshal([]byte(raw), &args); err != nil {
 						send(sdk.ProviderEvent{
 							Type:    sdk.ProviderEventError,
-							Content: fmt.Sprintf("anthropic: parse tool call arguments for %s: %v", toolUse.Name, err),
+							Content: fmt.Sprintf("anthropic: parse tool call arguments for %s: %v", b.Name, err),
 						})
 
 						return
@@ -158,8 +190,8 @@ func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest) (<-chan 
 				if !send(sdk.ProviderEvent{
 					Type: sdk.ProviderEventToolCall,
 					Content: sdk.ToolCall{
-						ID:        toolUse.ID,
-						Name:      toolUse.Name,
+						ID:        b.ID,
+						Name:      b.Name,
 						Arguments: args,
 					},
 				}) {

@@ -36,7 +36,7 @@ func init() {
 
 type noopProvider struct{}
 
-func (p *noopProvider) Stream(_ context.Context, _ sdk.ProviderRequest) (<-chan sdk.ProviderEvent, error) {
+func (p *noopProvider) Stream(_ context.Context, _ sdk.ProviderRequest, _ ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
 	ch := make(chan sdk.ProviderEvent)
 	close(ch)
 	return ch, nil
@@ -68,7 +68,7 @@ func init() {
 
 type noopProvider struct{}
 
-func (p *noopProvider) Stream(_ context.Context, _ sdk.ProviderRequest) (<-chan sdk.ProviderEvent, error) {
+func (p *noopProvider) Stream(_ context.Context, _ sdk.ProviderRequest, _ ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
 	ch := make(chan sdk.ProviderEvent)
 	close(ch)
 	return ch, nil

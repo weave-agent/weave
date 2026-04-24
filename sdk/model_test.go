@@ -164,3 +164,28 @@ func TestStreamOptions(t *testing.T) {
 	assert.Equal(t, ThinkingHigh, opts.ThinkingLevel)
 	assert.Equal(t, int64(4096), opts.MaxTokens)
 }
+
+func TestNewStreamOptions_Defaults(t *testing.T) {
+	opts := NewStreamOptions()
+	assert.Empty(t, opts.Model)
+	assert.Equal(t, ThinkingOff, opts.ThinkingLevel)
+	assert.Equal(t, int64(0), opts.MaxTokens)
+}
+
+func TestNewStreamOptions_FunctionalOptions(t *testing.T) {
+	opts := NewStreamOptions(
+		WithModel("claude-opus-4-20250514"),
+		WithThinkingLevel(ThinkingHigh),
+		WithMaxTokens(8192),
+	)
+	assert.Equal(t, "claude-opus-4-20250514", opts.Model)
+	assert.Equal(t, ThinkingHigh, opts.ThinkingLevel)
+	assert.Equal(t, int64(8192), opts.MaxTokens)
+}
+
+func TestNewStreamOptions_PartialOptions(t *testing.T) {
+	opts := NewStreamOptions(WithThinkingLevel(ThinkingMedium))
+	assert.Empty(t, opts.Model)
+	assert.Equal(t, ThinkingMedium, opts.ThinkingLevel)
+	assert.Equal(t, int64(0), opts.MaxTokens)
+}

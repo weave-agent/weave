@@ -615,3 +615,126 @@ func TestStream_ToolCallOrdering(t *testing.T) {
 	assert.Equal(t, "edit", toolCalls[1].Name)
 	assert.Equal(t, "read", toolCalls[2].Name)
 }
+
+func TestStream_WithModelOverride(t *testing.T) {
+	var receivedBody ChatRequest
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&receivedBody)
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, sseStream(
+			sseChunk(ChunkDelta{Content: "ok"}, nil),
+			sseChunk(ChunkDelta{}, strPtr("stop")),
+			sseDone(),
+		))
+	}))
+	defer server.Close()
+
+	ch, err := Stream(context.Background(), server.Client(), ProviderConfig{
+		BaseURL: server.URL,
+		APIKey:  "test-key",
+		Model:   "gpt-4o",
+	}, sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("hi")},
+	}, sdk.WithModel("gpt-4o-mini"))
+	require.NoError(t, err)
+	collectEvents(ch)
+
+	assert.Equal(t, "gpt-4o-mini", receivedBody.Model)
+}
+
+func TestStream_WithThinkingLevel_SetsReasoningEffort(t *testing.T) {
+	tests := []struct {
+		level   sdk.ThinkingLevel
+		want    string
+		wantNot string
+	}{
+		{sdk.ThinkingOff, "", "reasoning_effort"},
+		{sdk.ThinkingMinimal, "low", ""},
+		{sdk.ThinkingLow, "low", ""},
+		{sdk.ThinkingMedium, "medium", ""},
+		{sdk.ThinkingHigh, "high", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.level), func(t *testing.T) {
+			var receivedBody ChatRequest
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				json.NewDecoder(r.Body).Decode(&receivedBody)
+				w.Header().Set("Content-Type", "text/event-stream")
+				fmt.Fprint(w, sseStream(
+					sseChunk(ChunkDelta{Content: "ok"}, nil),
+					sseChunk(ChunkDelta{}, strPtr("stop")),
+					sseDone(),
+				))
+			}))
+			defer server.Close()
+
+			ch, err := Stream(context.Background(), server.Client(), ProviderConfig{
+				BaseURL: server.URL,
+				APIKey:  "test-key",
+				Model:   "gpt-4o",
+			}, sdk.ProviderRequest{
+				Messages: []sdk.Message{sdk.NewUserMessage("hi")},
+			}, sdk.WithThinkingLevel(tt.level))
+			require.NoError(t, err)
+			collectEvents(ch)
+
+			assert.Equal(t, tt.want, receivedBody.ReasoningEffort)
+			if tt.wantNot != "" {
+				raw, _ := json.Marshal(receivedBody)
+				assert.NotContains(t, string(raw), tt.wantNot)
+			}
+		})
+	}
+}
+
+func TestStream_ReasoningContentEmitted(t *testing.T) {
+	chunk := StreamChunk{
+		ID: "chatcmpl-test",
+		Choices: []struct {
+			Index        int        `json:"index"`
+			Delta        ChunkDelta `json:"delta"`
+			FinishReason *string    `json:"finish_reason"`
+		}{
+			{Index: 0, Delta: ChunkDelta{ReasoningContent: "thinking step"}, FinishReason: nil},
+		},
+	}
+	data, _ := json.Marshal(chunk)
+
+	stream := sseStream(
+		sseChunk(ChunkDelta{Role: "assistant"}, nil),
+		"data: "+string(data)+"\n",
+		sseChunk(ChunkDelta{Content: "answer"}, nil),
+		sseChunk(ChunkDelta{}, strPtr("stop")),
+		sseDone(),
+	)
+
+	server := setupServer(stream)
+	defer server.Close()
+
+	ch, err := Stream(context.Background(), server.Client(), ProviderConfig{
+		BaseURL: server.URL,
+		APIKey:  "test-key",
+	}, sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("think")},
+	}, sdk.WithThinkingLevel(sdk.ThinkingMedium))
+	require.NoError(t, err)
+
+	events := collectEvents(ch)
+
+	var thinking []string
+	var text []string
+	for _, e := range events {
+		switch e.Type {
+		case sdk.ProviderEventThinking:
+			thinking = append(thinking, e.Content.(string))
+		case sdk.ProviderEventTextDelta:
+			text = append(text, e.Content.(string))
+		}
+	}
+
+	assert.Equal(t, []string{"thinking step"}, thinking)
+	assert.Equal(t, []string{"answer"}, text)
+}

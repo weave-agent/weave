@@ -308,13 +308,13 @@ func drainSteering(steerCh <-chan sdk.Event, messages []sdk.Message) ([]sdk.Mess
 	}
 }
 
-func streamTurn(ctx context.Context, bus sdk.Bus, provider sdk.Provider, messages []sdk.Message, tools []sdk.ToolDef) (sdk.Message, []sdk.ToolCall, error) {
+func streamTurn(ctx context.Context, bus sdk.Bus, provider sdk.Provider, messages []sdk.Message, tools []sdk.ToolDef, opts ...sdk.StreamOption) (sdk.Message, []sdk.ToolCall, error) {
 	req := sdk.ProviderRequest{
 		Messages: messages,
 		Tools:    tools,
 	}
 
-	ch, err := provider.Stream(ctx, req)
+	ch, err := provider.Stream(ctx, req, opts...)
 	if err != nil {
 		return sdk.Message{}, nil, fmt.Errorf("provider stream: %w", err)
 	}

@@ -59,6 +59,6 @@ func init() {
 	})
 }
 
-func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest) (<-chan sdk.ProviderEvent, error) {
-	return openaicompat.Stream(ctx, p.client, p.config, req)
+func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest, opts ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+	return openaicompat.Stream(ctx, p.client, p.config, req, opts...)
 }

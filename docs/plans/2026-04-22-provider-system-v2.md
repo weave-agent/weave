@@ -61,15 +61,15 @@ Create the foundational types: `ModelDef` (model metadata), `ThinkingLevel` (6 l
 ### Task 2: Extend Provider interface with StreamOptions
 Change `Provider.Stream()` to accept `StreamOptions`. Update all 3 provider implementations and the loop to pass options. This is the core decoupling that fixes model switching.
 
-- [ ] update `Provider` interface in `sdk/provider.go`: change `Stream(ctx, ProviderRequest)` to `Stream(ctx, ProviderRequest, ...StreamOption)` using variadic functional options pattern (`type StreamOption func(*StreamOptions)`); add `NewStreamOptions(opts ...StreamOption) *StreamOptions` that defaults Model from provider, ThinkingLevel to ThinkingOff, MaxTokens from provider config; add `WithModel(model)`, `WithThinkingLevel(level)`, `WithMaxTokens(n)` option constructors
-- [ ] update `extensions/providers/anthropic/anthropic.go`: accept model from StreamOptions (fallback to p.model), add thinking config to `anthropic.MessageNewParams` — adaptive thinking with effort mapping (minimal→"low", low→"low", medium→"medium", high→"high", xhigh→"xhigh"), emit `ProviderEventThinking` for thinking content blocks from streaming events; clamp xhigh→high if model doesn't support xhigh
-- [ ] update `extensions/providers/openai-compat/openai_compat.go`: accept model from StreamOptions, add `reasoning_effort` field to `ChatRequest` when thinking is enabled (effortMap: minimal→"low", low→"low", medium→"medium", high→"high"), emit thinking content from `delta.reasoning_content` or `delta.reasoning` fields
-- [ ] update `extensions/providers/openai/openai.go` and `extensions/providers/zai/zai.go`: pass StreamOptions through to openaicompat.Stream, ZAI uses `enable_thinking` compat flag
-- [ ] update `extensions/loop/loop.go` `streamTurn()`: accept and pass StreamOptions with current thinking level and model
-- [ ] run `make gen` to regenerate mocks, fix compile errors
-- [ ] write tests for StreamOptions defaults, functional option pattern, anthropic thinking level → SDK param mapping (including xhigh clamp for non-supporting models)
-- [ ] write tests for openaicompat thinking → request body mapping
-- [ ] run tests - must pass before task 3
+- [x] update `Provider` interface in `sdk/provider.go`: change `Stream(ctx, ProviderRequest)` to `Stream(ctx, ProviderRequest, ...StreamOption)` using variadic functional options pattern (`type StreamOption func(*StreamOptions)`); add `NewStreamOptions(opts ...StreamOption) *StreamOptions` that defaults Model from provider, ThinkingLevel to ThinkingOff, MaxTokens from provider config; add `WithModel(model)`, `WithThinkingLevel(level)`, `WithMaxTokens(n)` option constructors
+- [x] update `extensions/providers/anthropic/anthropic.go`: accept model from StreamOptions (fallback to p.model), add thinking config to `anthropic.MessageNewParams` — adaptive thinking with effort mapping (minimal→"low", low→"low", medium→"medium", high→"high", xhigh→"xhigh"), emit `ProviderEventThinking` for thinking content blocks from streaming events; clamp xhigh→high if model doesn't support xhigh
+- [x] update `extensions/providers/openai-compat/openai_compat.go`: accept model from StreamOptions, add `reasoning_effort` field to `ChatRequest` when thinking is enabled (effortMap: minimal→"low", low→"low", medium→"medium", high→"high"), emit thinking content from `delta.reasoning_content` or `delta.reasoning` fields
+- [x] update `extensions/providers/openai/openai.go` and `extensions/providers/zai/zai.go`: pass StreamOptions through to openaicompat.Stream, ZAI uses `enable_thinking` compat flag
+- [x] update `extensions/loop/loop.go` `streamTurn()`: accept and pass StreamOptions with current thinking level and model
+- [x] run `make gen` to regenerate mocks, fix compile errors
+- [x] write tests for StreamOptions defaults, functional option pattern, anthropic thinking level → SDK param mapping (including xhigh clamp for non-supporting models)
+- [x] write tests for openaicompat thinking → request body mapping
+- [x] run tests - must pass before task 3
 
 ### Task 3: Fix model switching and add thinking level propagation
 Fix the critical bug where `applyModelChange()` ignores the model name. Add thinking level state to the loop and propagate changes via bus events.

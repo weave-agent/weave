@@ -26,10 +26,11 @@ type ProviderConfig struct {
 
 // ChatRequest is the request body sent to the chat completions endpoint.
 type ChatRequest struct {
-	Model    string        `json:"model"`
-	Messages []ChatMessage `json:"messages"`
-	Stream   bool          `json:"stream"`
-	Tools    []Tool        `json:"tools,omitempty"`
+	Model           string        `json:"model"`
+	Messages        []ChatMessage `json:"messages"`
+	Stream          bool          `json:"stream"`
+	Tools           []Tool        `json:"tools,omitempty"`
+	ReasoningEffort string        `json:"reasoning_effort,omitempty"`
 }
 
 // ChatMessage represents a single message in the OpenAI chat format.
@@ -65,9 +66,11 @@ type StreamChunk struct {
 
 // ChunkDelta represents the delta content in a streaming chunk.
 type ChunkDelta struct {
-	Role      string          `json:"role,omitempty"`
-	Content   string          `json:"content,omitempty"`
-	ToolCalls []ToolCallDelta `json:"tool_calls,omitempty"`
+	Role             string          `json:"role,omitempty"`
+	Content          string          `json:"content,omitempty"`
+	ReasoningContent string          `json:"reasoning_content,omitempty"`
+	Reasoning        string          `json:"reasoning,omitempty"`
+	ToolCalls        []ToolCallDelta `json:"tool_calls,omitempty"`
 }
 
 // ToolCallDelta represents a partial tool call in a streaming chunk.
@@ -104,8 +107,13 @@ type ErrorResponse struct {
 }
 
 // Stream sends a request to an OpenAI-compatible API and returns a channel of ProviderEvents.
-func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sdk.ProviderRequest) (<-chan sdk.ProviderEvent, error) {
-	model := cfg.Model
+func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sdk.ProviderRequest, opts ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+	so := sdk.NewStreamOptions(opts...)
+
+	model := so.Model
+	if model == "" {
+		model = cfg.Model
+	}
 	if model == "" {
 		model = defaultModel
 	}
@@ -115,6 +123,19 @@ func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sd
 		Messages: ConvertMessages(req.Messages),
 		Stream:   true,
 		Tools:    ConvertTools(req.Tools),
+	}
+
+	effortMap := map[sdk.ThinkingLevel]string{
+		sdk.ThinkingMinimal: "low",
+		sdk.ThinkingLow:     "low",
+		sdk.ThinkingMedium:  "medium",
+		sdk.ThinkingHigh:    "high",
+	}
+
+	if so.ThinkingLevel != sdk.ThinkingOff {
+		if effort, ok := effortMap[so.ThinkingLevel]; ok {
+			chatReq.ReasoningEffort = effort
+		}
 	}
 
 	if req.SystemPrompt != "" {
@@ -265,6 +286,19 @@ func parseSSE(ctx context.Context, reader io.Reader, ch chan<- sdk.ProviderEvent
 				if !send(sdk.ProviderEvent{
 					Type:    sdk.ProviderEventTextDelta,
 					Content: choice.Delta.Content,
+				}) {
+					return
+				}
+			}
+
+			reasoning := choice.Delta.ReasoningContent
+			if reasoning == "" {
+				reasoning = choice.Delta.Reasoning
+			}
+			if reasoning != "" {
+				if !send(sdk.ProviderEvent{
+					Type:    sdk.ProviderEventThinking,
+					Content: reasoning,
 				}) {
 					return
 				}
