@@ -342,8 +342,12 @@ func (l *Loop) drainChanges(modelChangeCh, thinkingCh <-chan sdk.Event, bus sdk.
 func (l *Loop) streamOpts() []sdk.StreamOption {
 	level := l.thinkingLevel
 	if level != sdk.ThinkingOff {
-		if modelDef, ok := sdk.GetModel(l.modelName); ok && !modelDef.Reasoning {
-			level = sdk.ThinkingOff
+		if modelDef, ok := sdk.GetModel(l.modelName); ok {
+			if !modelDef.Reasoning {
+				level = sdk.ThinkingOff
+			} else {
+				level = sdk.ClampForModel(level, modelDef)
+			}
 		}
 	}
 

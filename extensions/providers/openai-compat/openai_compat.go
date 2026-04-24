@@ -270,7 +270,7 @@ func parseSSE(ctx context.Context, reader io.Reader, ch chan<- sdk.ProviderEvent
 			continue
 		}
 
-		data = strings.TrimLeft(data, " ")
+		data = strings.TrimPrefix(data, " ")
 		if data == "[DONE]" {
 			break
 		}
