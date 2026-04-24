@@ -355,6 +355,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case statusTimeoutMsg:
 		m.statusMsg = ""
 		m.statusTimer = nil
+
 		return m, nil
 
 	case ThinkingLevelSetMsg:
@@ -415,6 +416,8 @@ func (m Model) handleEscape() (tea.Model, tea.Cmd) {
 }
 
 // dispatchBinding handles a resolved keybinding action.
+//
+//nolint:gocyclo // central keybinding dispatch
 func (m Model) dispatchBinding(action BindingAction) (tea.Model, tea.Cmd) {
 	switch action {
 	case ActionExit:
@@ -429,6 +432,7 @@ func (m Model) dispatchBinding(action BindingAction) (tea.Model, tea.Cmd) {
 		}
 
 		next := cycleModel(models, m.currentModel)
+
 		return m, func() tea.Msg { return ModelChangedMsg{Entry: next} }
 
 	// Editor navigation
@@ -546,13 +550,13 @@ func (m Model) openExternalEditor() (tea.Model, tea.Cmd) {
 	tmpPath := tmpFile.Name()
 
 	if _, err := tmpFile.WriteString(text); err != nil {
-		tmpFile.Close()
-		os.Remove(tmpPath)
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
 
 		return m, nil
 	}
 
-	tmpFile.Close()
+	_ = tmpFile.Close()
 
 	editor := os.Getenv("VISUAL")
 	if editor == "" {
@@ -563,17 +567,17 @@ func (m Model) openExternalEditor() (tea.Model, tea.Cmd) {
 		editor = "vi"
 	}
 
-	cmd := exec.Command(editor, tmpPath) //nolint:gosec // editor path comes from env
+	cmd := exec.Command(editor, tmpPath) //nolint:gosec,noctx // editor path comes from env
 
 	return m, tea.ExecProcess(cmd, func(procErr error) tea.Msg {
 		if procErr != nil {
-			os.Remove(tmpPath)
+			_ = os.Remove(tmpPath)
 
 			return externalEditorMsg{err: procErr}
 		}
 
 		data, readErr := os.ReadFile(tmpPath)
-		os.Remove(tmpPath)
+		_ = os.Remove(tmpPath)
 
 		if readErr != nil {
 			return externalEditorMsg{err: readErr}
@@ -832,6 +836,18 @@ func (m Model) onModelChangeFailed(msg ModelChangeFailedMsg) (tea.Model, tea.Cmd
 	m.footer = m.footer.SetModel(m.prevModel.Model, m.prevModel.Provider)
 	m.footer = m.footer.SetReasoning(modelReasoning(m.prevModel.Model))
 
+	if modelDef, ok := sdk.GetModel(m.prevModel.Model); ok {
+		if !modelDef.Reasoning && m.thinkingLevel != sdk.ThinkingOff {
+			m.thinkingLevel = sdk.ThinkingOff
+			m.footer = m.footer.SetThinkingLevel(string(sdk.ThinkingOff))
+			m.editor = m.editor.SetBorderColor(palette.ThinkingBorderColor(sdk.ThinkingOff))
+		} else if modelDef.Reasoning && m.thinkingLevel == sdk.ThinkingOff {
+			m.thinkingLevel = sdk.ThinkingMedium
+			m.footer = m.footer.SetThinkingLevel(string(sdk.ThinkingMedium))
+			m.editor = m.editor.SetBorderColor(palette.ThinkingBorderColor(sdk.ThinkingMedium))
+		}
+	}
+
 	am := messages.NewAssistantMessage()
 	am.Finalize("Failed to switch provider: " + msg.Error)
 	m.chat = m.chat.AddItem(am)
@@ -854,6 +870,7 @@ func (m Model) onProviderListResult(msg ProviderListResultMsg) (tea.Model, tea.C
 		if p.HasKey {
 			statusText = "key set"
 		}
+
 		items[i] = overlays.SelectorItem{
 			Title:    p.Name,
 			Subtitle: statusText,
@@ -922,6 +939,7 @@ func (m Model) onKeyInputResult(msg overlays.InputResultMsg) (tea.Model, tea.Cmd
 	} else {
 		am.Finalize(fmt.Sprintf("API key saved for %s.", providerName))
 	}
+
 	m.chat = m.chat.AddItem(am)
 
 	return m, nil
@@ -1136,6 +1154,7 @@ func (m Model) View() string {
 		if m.activeOverlay == overlayKeyInput && m.keyInput.Visible() {
 			return m.keyInput.View()
 		}
+
 		if m.overlay.Visible() {
 			return m.overlay.View()
 		}

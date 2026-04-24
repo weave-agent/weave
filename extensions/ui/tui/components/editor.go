@@ -268,7 +268,7 @@ func (m EditorModel) backspace() EditorModel {
 		return m
 	}
 
-	m.saveUndo()
+	m = m.saveUndo()
 	m.value = append(m.value[:m.cursor-1], m.value[m.cursor:]...)
 	m.cursor--
 	m.dirty = true
@@ -282,7 +282,7 @@ func (m EditorModel) deleteForward() EditorModel {
 		return m
 	}
 
-	m.saveUndo()
+	m = m.saveUndo()
 	m.value = append(m.value[:m.cursor], m.value[m.cursor+1:]...)
 	m.dirty = true
 	m.showAC = false
@@ -452,6 +452,7 @@ func (m EditorModel) View() string {
 		}
 
 		var rendered string
+
 		if i == cursorLine && m.focused {
 			if cursorCol < len(line) {
 				rendered = line[:cursorCol] + "▎" + line[cursorCol:]
@@ -553,7 +554,7 @@ func cursorPosition(value []rune, cursor, width int) (int, int) {
 	return line, col
 }
 
-// cursorLineStart moves the cursor to the beginning of the current line.
+// CursorLineStart moves the cursor to the beginning of the current line.
 func (m EditorModel) CursorLineStart() EditorModel {
 	for i := m.cursor - 1; i >= 0; i-- {
 		if m.value[i] == '\n' {
@@ -572,7 +573,7 @@ func (m EditorModel) CursorLineStart() EditorModel {
 	return m
 }
 
-// cursorLineEnd moves the cursor to the end of the current line.
+// CursorLineEnd moves the cursor to the end of the current line.
 func (m EditorModel) CursorLineEnd() EditorModel {
 	for i := m.cursor; i < len(m.value); i++ {
 		if m.value[i] == '\n' {
@@ -591,7 +592,7 @@ func (m EditorModel) CursorLineEnd() EditorModel {
 	return m
 }
 
-// cursorWordLeft moves the cursor one word backward.
+// CursorWordLeft moves the cursor one word backward.
 func (m EditorModel) CursorWordLeft() EditorModel {
 	if m.cursor == 0 {
 		return m
@@ -614,7 +615,7 @@ func (m EditorModel) CursorWordLeft() EditorModel {
 	return m
 }
 
-// cursorWordRight moves the cursor one word forward.
+// CursorWordRight moves the cursor one word forward.
 func (m EditorModel) CursorWordRight() EditorModel {
 	if m.cursor >= len(m.value) {
 		return m
@@ -637,13 +638,13 @@ func (m EditorModel) CursorWordRight() EditorModel {
 	return m
 }
 
-// deleteWordBackward deletes the word before the cursor.
+// DeleteWordBackward deletes the word before the cursor.
 func (m EditorModel) DeleteWordBackward() EditorModel {
 	if m.cursor == 0 {
 		return m
 	}
 
-	m.saveUndo()
+	m = m.saveUndo()
 
 	start := m.cursor - 1
 
@@ -667,13 +668,13 @@ func (m EditorModel) DeleteWordBackward() EditorModel {
 	return m
 }
 
-// deleteWordForward deletes the word after the cursor.
+// DeleteWordForward deletes the word after the cursor.
 func (m EditorModel) DeleteWordForward() EditorModel {
 	if m.cursor >= len(m.value) {
 		return m
 	}
 
-	m.saveUndo()
+	m = m.saveUndo()
 
 	end := m.cursor
 
@@ -692,13 +693,13 @@ func (m EditorModel) DeleteWordForward() EditorModel {
 	return m
 }
 
-// deleteToLineStart deletes from cursor to the start of the current line.
+// DeleteToLineStart deletes from cursor to the start of the current line.
 func (m EditorModel) DeleteToLineStart() EditorModel {
 	if m.cursor == 0 {
 		return m
 	}
 
-	m.saveUndo()
+	m = m.saveUndo()
 
 	start := m.cursor - 1
 
@@ -706,9 +707,7 @@ func (m EditorModel) DeleteToLineStart() EditorModel {
 		start--
 	}
 
-	if start > 0 && m.value[start-1] == '\n' {
-		// keep the newline
-	} else {
+	if start > 0 && m.value[start-1] != '\n' {
 		start = 0
 	}
 
@@ -720,13 +719,13 @@ func (m EditorModel) DeleteToLineStart() EditorModel {
 	return m
 }
 
-// deleteToLineEnd deletes from cursor to the end of the current line.
+// DeleteToLineEnd deletes from cursor to the end of the current line.
 func (m EditorModel) DeleteToLineEnd() EditorModel {
 	if m.cursor >= len(m.value) {
 		return m
 	}
 
-	m.saveUndo()
+	m = m.saveUndo()
 
 	end := m.cursor
 
@@ -741,7 +740,7 @@ func (m EditorModel) DeleteToLineEnd() EditorModel {
 	return m
 }
 
-// undo restores the previous editor state from the undo stack.
+// Undo restores the previous editor state from the undo stack.
 func (m EditorModel) Undo() EditorModel {
 	if len(m.undoStack) == 0 {
 		return m
@@ -758,7 +757,7 @@ func (m EditorModel) Undo() EditorModel {
 }
 
 // saveUndo pushes the current state onto the undo stack.
-func (m EditorModel) saveUndo() {
+func (m EditorModel) saveUndo() EditorModel {
 	saved := make([]rune, len(m.value))
 	copy(saved, m.value)
 	m.undoStack = append(m.undoStack, saved)
@@ -768,6 +767,8 @@ func (m EditorModel) saveUndo() {
 		m.undoStack = m.undoStack[1:]
 		m.undoCursors = m.undoCursors[1:]
 	}
+
+	return m
 }
 
 func isWordBreak(r rune) bool {

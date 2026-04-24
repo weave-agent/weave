@@ -57,11 +57,19 @@ func init() { //nolint:gochecknoinits // required for extension self-registratio
 }
 
 func NewLoop(cfg sdk.Config, providerName string) (*Loop, error) {
+	thinkingLevel := sdk.ThinkingMedium
+
+	if v := os.Getenv("WEAVE_THINKING_LEVEL"); v != "" {
+		if lvl, err := sdk.ParseThinkingLevel(v); err == nil {
+			thinkingLevel = lvl
+		}
+	}
+
 	return &Loop{
 		cfg:           cfg,
 		providerName:  providerName,
 		singleTurn:    os.Getenv("WEAVE_SINGLE_TURN") == "1",
-		thinkingLevel: sdk.ThinkingMedium,
+		thinkingLevel: thinkingLevel,
 	}, nil
 }
 

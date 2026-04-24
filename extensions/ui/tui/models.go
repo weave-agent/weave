@@ -37,28 +37,38 @@ func listModels() []ModelEntry {
 	}
 
 	seen := make(map[string]bool)
+
 	entries := make([]ModelEntry, 0, len(allModels))
 	for _, md := range allModels {
 		key := md.Provider + ":" + md.ID
 		if seen[key] {
 			continue
 		}
+
 		seen[key] = true
+
 		entries = append(entries, ModelEntry{Provider: md.Provider, Model: md.ID})
 	}
 
 	return entries
 }
 
-// currentModel returns the model entry matching the configured provider
-// (from WEAVE_PROVIDER env var), the first available entry as fallback,
-// or an anthropic default if no providers are registered.
+// currentModel returns the default model entry for the configured provider
+// (from WEAVE_PROVIDER env var, defaulting to "anthropic"), falling back to
+// the first registry entry, or an anthropic default if no providers are registered.
 func currentModel(entries []ModelEntry) ModelEntry {
-	if provider := os.Getenv("WEAVE_PROVIDER"); provider != "" {
-		for _, e := range entries {
-			if e.Provider == provider {
-				return e
-			}
+	provider := os.Getenv("WEAVE_PROVIDER")
+	if provider == "" {
+		provider = "anthropic"
+	}
+
+	if def, ok := sdk.DefaultModelForProvider(provider); ok {
+		return ModelEntry{Provider: provider, Model: def.ID}
+	}
+
+	for _, e := range entries {
+		if e.Provider == provider {
+			return e
 		}
 	}
 
@@ -90,5 +100,6 @@ func modelReasoning(modelID string) bool {
 	if def, ok := sdk.GetModel(modelID); ok {
 		return def.Reasoning
 	}
+
 	return false
 }
