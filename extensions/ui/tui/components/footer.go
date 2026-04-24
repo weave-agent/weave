@@ -29,6 +29,7 @@ type FooterModel struct {
 	modelName     string
 	providerName  string
 	thinkingLevel string
+	reasoning     bool
 
 	// Extension status entries (set by cross-extension UI)
 	extStatus map[string]string
@@ -84,6 +85,12 @@ func (m FooterModel) SetModel(model, provider string) FooterModel {
 	m.modelName = model
 	m.providerName = provider
 
+	return m
+}
+
+// SetReasoning updates whether the current model supports reasoning.
+func (m FooterModel) SetReasoning(reasoning bool) FooterModel {
+	m.reasoning = reasoning
 	return m
 }
 
@@ -208,7 +215,7 @@ func (m FooterModel) renderLine2() string {
 			modelDisplay = m.providerName + "/" + m.modelName
 		}
 
-		if m.thinkingLevel != "" {
+		if m.thinkingLevel != "" && m.reasoning {
 			modelDisplay += " · " + m.thinkingLevel
 		}
 

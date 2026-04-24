@@ -6,11 +6,10 @@ import "os"
 
 // ProviderConfigEntry holds per-provider configuration from the config file.
 type ProviderConfigEntry struct {
-	Model         string
-	MaxTokens     int64
-	BaseURL       string
-	APIKey        string        // raw value (may be !command or literal)
-	ThinkingLevel ThinkingLevel // default thinking level for this provider
+	Model     string
+	MaxTokens int64
+	BaseURL   string
+	APIKey    string // raw value (may be !command or literal)
 }
 
 // Config carries configuration data into extension factories.

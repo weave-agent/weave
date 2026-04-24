@@ -159,6 +159,7 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 		showHints:     true,
 	}
 	m.footer = m.footer.SetModel(cur.Model, cur.Provider)
+	m.footer = m.footer.SetReasoning(modelReasoning(cur.Model))
 	m.footer = m.footer.SetThinkingLevel(string(m.thinkingLevel))
 	m.editor = m.editor.SetBorderColor(palette.ThinkingBorderColor(m.thinkingLevel))
 
@@ -802,6 +803,7 @@ func (m Model) onModelChanged(msg ModelChangedMsg) (tea.Model, tea.Cmd) {
 	m.prevModel = m.currentModel
 	m.currentModel = msg.Entry
 	m.footer = m.footer.SetModel(msg.Entry.Model, msg.Entry.Provider)
+	m.footer = m.footer.SetReasoning(modelReasoning(msg.Entry.Model))
 
 	displayName := msg.Entry.DisplayName()
 	m.showStatus(fmt.Sprintf("Switched to %s (thinking: %s)", displayName, m.thinkingLevel))
@@ -816,6 +818,7 @@ func (m Model) onModelChanged(msg ModelChangedMsg) (tea.Model, tea.Cmd) {
 func (m Model) onModelChangeFailed(msg ModelChangeFailedMsg) (tea.Model, tea.Cmd) {
 	m.currentModel = m.prevModel
 	m.footer = m.footer.SetModel(m.prevModel.Model, m.prevModel.Provider)
+	m.footer = m.footer.SetReasoning(modelReasoning(m.prevModel.Model))
 
 	am := messages.NewAssistantMessage()
 	am.Finalize("Failed to switch provider: " + msg.Error)

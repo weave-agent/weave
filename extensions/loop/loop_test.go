@@ -981,11 +981,14 @@ func TestLoop_InvalidThinkingLevelIgnored(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
+	var mu sync.Mutex
 	var capturedOpts []sdk.StreamOption
 
 	mp := &ProviderMock{
 		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, opts ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+			mu.Lock()
 			capturedOpts = opts
+			mu.Unlock()
 
 			ch := make(chan sdk.ProviderEvent, 1)
 			ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "ok"}
@@ -1015,8 +1018,9 @@ func TestLoop_InvalidThinkingLevelIgnored(t *testing.T) {
 	_, ok = waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
 	require.True(t, ok, "timeout waiting for second msg_end")
 
-	// Thinking level should still be the default medium (invalid was ignored)
+	mu.Lock()
 	so := sdk.NewStreamOptions(capturedOpts...)
+	mu.Unlock()
 	assert.Equal(t, sdk.ThinkingMedium, so.ThinkingLevel)
 
 	require.NoError(t, l.Close())

@@ -172,6 +172,10 @@ func ResetModelRegistry() {
 	modelReg = make(map[string]ModelDef)
 }
 
+func init() { //nolint:gochecknoinits // required to populate model registry before extensions access it
+	RegisterBuiltinModels()
+}
+
 // RegisterBuiltinModels registers the curated model entries for built-in providers.
 func RegisterBuiltinModels() {
 	// Anthropic

@@ -96,3 +96,11 @@ func cycleModel(entries []ModelEntry, current ModelEntry) ModelEntry {
 
 	return current
 }
+
+// modelReasoning returns whether the given model supports reasoning.
+func modelReasoning(modelID string) bool {
+	if def, ok := sdk.GetModel(modelID); ok {
+		return def.Reasoning
+	}
+	return false
+}

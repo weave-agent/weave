@@ -654,6 +654,7 @@ func TestStream_WithThinkingLevel_SetsReasoningEffort(t *testing.T) {
 		{sdk.ThinkingLow, "low", ""},
 		{sdk.ThinkingMedium, "medium", ""},
 		{sdk.ThinkingHigh, "high", ""},
+		{sdk.ThinkingXHigh, "high", ""},
 	}
 
 	for _, tt := range tests {

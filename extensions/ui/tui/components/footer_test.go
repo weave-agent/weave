@@ -179,7 +179,7 @@ func TestFooterModel_SetThinkingLevel(t *testing.T) {
 }
 
 func TestFooterView_ThinkingLevelAfterModel(t *testing.T) {
-	f := NewFooterModel().SetSize(80).SetModel("claude-sonnet-4", "anthropic").SetThinkingLevel("high")
+	f := NewFooterModel().SetSize(80).SetModel("claude-sonnet-4", "anthropic").SetReasoning(true).SetThinkingLevel("high")
 	view := f.View()
 	assert.Contains(t, view, "anthropic/claude-sonnet-4 · high")
 }
@@ -192,7 +192,20 @@ func TestFooterView_ThinkingLevelEmpty(t *testing.T) {
 }
 
 func TestFooterView_ThinkingLevelOff(t *testing.T) {
-	f := NewFooterModel().SetSize(80).SetModel("gpt-4o", "openai").SetThinkingLevel("off")
+	f := NewFooterModel().SetSize(80).SetModel("gpt-4o", "openai").SetReasoning(true).SetThinkingLevel("off")
 	view := f.View()
 	assert.Contains(t, view, "openai/gpt-4o · off")
+}
+
+func TestFooterView_ThinkingLevelHiddenForNonReasoning(t *testing.T) {
+	f := NewFooterModel().SetSize(80).SetModel("gpt-4o", "openai").SetReasoning(false).SetThinkingLevel("high")
+	view := f.View()
+	assert.Contains(t, view, "openai/gpt-4o")
+	assert.NotContains(t, view, " · high")
+}
+
+func TestFooterView_ThinkingLevelShownForReasoning(t *testing.T) {
+	f := NewFooterModel().SetSize(80).SetModel("claude-sonnet-4", "anthropic").SetReasoning(true).SetThinkingLevel("medium")
+	view := f.View()
+	assert.Contains(t, view, "anthropic/claude-sonnet-4 · medium")
 }

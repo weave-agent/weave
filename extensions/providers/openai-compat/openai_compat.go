@@ -130,6 +130,7 @@ func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sd
 		sdk.ThinkingLow:     "low",
 		sdk.ThinkingMedium:  "medium",
 		sdk.ThinkingHigh:    "high",
+		sdk.ThinkingXHigh:   "high",
 	}
 
 	if so.ThinkingLevel != sdk.ThinkingOff {
@@ -264,7 +265,7 @@ func parseSSE(ctx context.Context, reader io.Reader, ch chan<- sdk.ProviderEvent
 			continue
 		}
 
-		data = strings.TrimPrefix(data, " ")
+		data = strings.TrimLeft(data, " ")
 		if data == "[DONE]" {
 			break
 		}

@@ -36,7 +36,7 @@ Standard library as much as possible. Every replaceable component is an extensio
 - `bus/` — channel-based pub/sub event bus (`Publish`/`Subscribe`/`SubscribeAll`) with buffered channels and graceful close
 - `config/` — config discovery (walks up from cwd for `.weave.yaml` or `.weave/config.yaml`) and loading via gonfig. Config has a `core` section (agent_loop + providers) and `extensions` list.
 - `internal/truncate/` — shared output truncation (2000 lines / 50KB) used by all tools for consistent output limiting
-- `extensions/agent-loop/` — core extension implementing the two-level while-loop agent cycle (outer: follow-ups, inner: steering + tool calls); subscribes to `agent.prompt`, `agent.steer`, `agent.followup`; publishes `agent.turn_start/end`, `agent.message_start/update/end`, `agent.tool_result`, `agent.end`
+- `extensions/loop/` — core extension implementing the two-level while-loop agent cycle (outer: follow-ups, inner: steering + tool calls); subscribes to `agent.prompt`, `agent.steer`, `agent.followup`, `model.change`, `thinking.change`; publishes `agent.turn_start/end`, `agent.message_start/update/end`, `agent.tool_result`, `agent.end`
 - `extensions/tools/{bash,read,edit,write,grep,find,ls}/` — individual tool extension modules, each an independent Go module self-registering via `sdk.RegisterTool`
 - `extensions/providers/openai-compat/` — shared library for OpenAI-compatible providers (SSE parsing, message/tool conversion); reused by `openai` and `zai` providers; import as `openaicompat` package
 - `extensions/providers/{anthropic,openai,zai}/` — provider extension modules; Anthropic uses official SDK, OpenAI and Z.ai delegate to `openai-compat`
@@ -84,6 +84,7 @@ Built-in bindings: Escape=interrupt, Ctrl+C=clear, Ctrl+D=exit, Ctrl+L=model sel
 - `ANTHROPIC_API_KEY` — required for Anthropic provider (default model: `claude-sonnet-4-20250514`, override with `ANTHROPIC_MODEL`)
 - `OPENAI_API_KEY` — required for OpenAI provider (default model: `gpt-4o`, override with `OPENAI_MODEL`)
 - `ZAI_API_KEY` — required for Z.ai provider (default model: `glm-4`, override with `ZAI_MODEL`)
+- `WEAVE_THINKING_LEVEL` — initial thinking level (default: `medium`)
 
 ## Design Reference
 
