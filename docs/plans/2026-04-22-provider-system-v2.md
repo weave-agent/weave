@@ -74,11 +74,11 @@ Change `Provider.Stream()` to accept `StreamOptions`. Update all 3 provider impl
 ### Task 3: Fix model switching and add thinking level propagation
 Fix the critical bug where `applyModelChange()` ignores the model name. Add thinking level state to the loop and propagate changes via bus events.
 
-- [ ] fix `applyModelChange()` in `extensions/loop/loop.go`: extract both `provider` and `model` from event payload, store current model name in Loop struct, pass it via StreamOptions (no longer re-creating provider for same-provider model changes)
-- [ ] add thinking level state to Loop struct (`thinkingLevel ThinkingLevel`, default `ThinkingMedium`), add `TopicThinkingChange = "thinking.change"` bus topic, subscribe in `run()`, apply thinking level changes and drain like model changes
-- [ ] update `streamTurn()` to extract thinking content from `ProviderEventThinking` events and include `"thinking"` key in `TopicMsgEnd` payload
-- [ ] write tests for `applyModelChange` with model key (was the bug), thinking level application, drain functions, xhigh clamping on model switch
-- [ ] run tests - must pass before task 4
+- [x] fix `applyModelChange()` in `extensions/loop/loop.go`: extract both `provider` and `model` from event payload, store current model name in Loop struct, pass it via StreamOptions (no longer re-creating provider for same-provider model changes)
+- [x] add thinking level state to Loop struct (`thinkingLevel ThinkingLevel`, default `ThinkingMedium`), add `TopicThinkingChange = "thinking.change"` bus topic, subscribe in `run()`, apply thinking level changes and drain like model changes
+- [x] update `streamTurn()` to extract thinking content from `ProviderEventThinking` events and include `"thinking"` key in `TopicMsgEnd` payload
+- [x] write tests for `applyModelChange` with model key (was the bug), thinking level application, drain functions, xhigh clamping on model switch
+- [x] run tests - must pass before task 4
 
 ### Task 4: TUI — thinking level display and editor border colors
 Add thinking level to the TUI footer, implement pi-style editor border colors that change with thinking level, and add the Shift+Tab cycling keybinding.

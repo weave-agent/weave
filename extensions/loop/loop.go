@@ -28,13 +28,17 @@ const (
 	TopicEnd               = "agent.end"
 	TopicModelChange       = "model.change"
 	TopicModelChangeFailed = "model.change_failed"
+	TopicThinkingChange    = "thinking.change"
 )
 
 // Loop is the agent-loop extension that drives the LLM conversation cycle.
 type Loop struct {
 	cfg          sdk.Config
 	providerName string
+	modelName    string
 	singleTurn   bool
+
+	thinkingLevel sdk.ThinkingLevel
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
@@ -54,9 +58,10 @@ func init() { //nolint:gochecknoinits // required for extension self-registratio
 
 func NewLoop(cfg sdk.Config, providerName string) (*Loop, error) {
 	return &Loop{
-		cfg:          cfg,
-		providerName: providerName,
-		singleTurn:   os.Getenv("WEAVE_SINGLE_TURN") == "1",
+		cfg:           cfg,
+		providerName:  providerName,
+		singleTurn:    os.Getenv("WEAVE_SINGLE_TURN") == "1",
+		thinkingLevel: sdk.ThinkingMedium,
 	}, nil
 }
 
@@ -74,6 +79,7 @@ func (l *Loop) Subscribe(bus sdk.Bus) {
 	followupCh := bus.Subscribe(TopicFollowup)
 	interruptCh := bus.Subscribe(TopicInterrupt)
 	modelChangeCh := bus.Subscribe(TopicModelChange)
+	thinkingCh := bus.Subscribe(TopicThinkingChange)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -81,7 +87,7 @@ func (l *Loop) Subscribe(bus sdk.Bus) {
 	l.done = make(chan struct{})
 	l.mu.Unlock()
 
-	go l.run(ctx, bus, promptCh, steerCh, followupCh, interruptCh, modelChangeCh)
+	go l.run(ctx, bus, promptCh, steerCh, followupCh, interruptCh, modelChangeCh, thinkingCh)
 }
 
 func (l *Loop) Close() error {
@@ -102,7 +108,7 @@ func (l *Loop) Close() error {
 }
 
 //nolint:gocyclo // central event loop with multiple channel selects
-func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followupCh, interruptCh, modelChangeCh <-chan sdk.Event) {
+func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followupCh, interruptCh, modelChangeCh, thinkingCh <-chan sdk.Event) {
 	defer close(l.done)
 
 	var endPayload any
@@ -158,7 +164,9 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 
 			bus.Publish(sdk.NewEvent(TopicTurnStart, turn))
 
-			resp, toolCalls, err := streamTurn(turnCtx, bus, provider, messages, toolDefs)
+			opts := l.streamOpts()
+
+			resp, toolCalls, err := streamTurn(turnCtx, bus, provider, messages, toolDefs, opts...)
 			if err != nil {
 				bus.Publish(sdk.NewEvent(TopicTurnEnd, nil))
 
@@ -219,7 +227,7 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 				return
 			}
 
-			l.providerName, provider = drainModelChanges(modelChangeCh, bus, l.cfg, l.providerName, provider)
+			provider = l.drainChanges(modelChangeCh, thinkingCh, bus, provider)
 
 			messages = append(messages, sdk.NewUserMessage(evt.Payload))
 		case evt, ok := <-promptCh:
@@ -227,7 +235,7 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 				return
 			}
 
-			l.providerName, provider = drainModelChanges(modelChangeCh, bus, l.cfg, l.providerName, provider)
+			provider = l.drainChanges(modelChangeCh, thinkingCh, bus, provider)
 			messages = []sdk.Message{sdk.NewUserMessage(evt.Payload)}
 			turn = 1
 		case evt, ok := <-modelChangeCh:
@@ -235,8 +243,17 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 				return
 			}
 
-			l.providerName, provider = applyModelChange(evt, bus, l.cfg, l.providerName, provider)
-			l.providerName, provider = drainModelChanges(modelChangeCh, bus, l.cfg, l.providerName, provider)
+			provider = l.applyModelChange(evt, bus, provider)
+			provider = l.drainChanges(modelChangeCh, thinkingCh, bus, provider)
+
+			continue
+		case evt, ok := <-thinkingCh:
+			if !ok {
+				return
+			}
+
+			l.applyThinkingChange(evt)
+			provider = l.drainChanges(modelChangeCh, thinkingCh, bus, provider)
 
 			continue
 		case <-ctx.Done():
@@ -255,39 +272,81 @@ func drainInterrupts(ch <-chan sdk.Event) {
 	}
 }
 
-func applyModelChange(evt sdk.Event, bus sdk.Bus, cfg sdk.Config, currentName string, currentProv sdk.Provider) (string, sdk.Provider) {
-	if m, ok := evt.Payload.(map[string]string); ok {
-		if p, ok := m["provider"]; ok && p != "" {
-			newProv, err := sdk.GetProvider(p, cfg)
-			if err != nil {
-				bus.Publish(sdk.NewEvent(TopicModelChangeFailed, map[string]any{
-					"provider": currentName,
-					"error":    err.Error(),
-				}))
-
-				return currentName, currentProv
-			}
-
-			return p, newProv
-		}
+func (l *Loop) applyModelChange(evt sdk.Event, bus sdk.Bus, currentProv sdk.Provider) sdk.Provider {
+	m, ok := evt.Payload.(map[string]string)
+	if !ok {
+		return currentProv
 	}
 
-	return currentName, currentProv
+	provider := m["provider"]
+	model := m["model"]
+
+	if provider != "" && provider != l.providerName {
+		newProv, err := sdk.GetProvider(provider, l.cfg)
+		if err != nil {
+			bus.Publish(sdk.NewEvent(TopicModelChangeFailed, map[string]any{
+				"provider": l.providerName,
+				"error":    err.Error(),
+			}))
+
+			return currentProv
+		}
+
+		l.providerName = provider
+		currentProv = newProv
+	}
+
+	if model != "" {
+		l.modelName = model
+	}
+
+	return currentProv
 }
 
-func drainModelChanges(ch <-chan sdk.Event, bus sdk.Bus, cfg sdk.Config, currentName string, currentProv sdk.Provider) (string, sdk.Provider) {
-	for {
-		select {
-		case evt, ok := <-ch:
-			if !ok {
-				return currentName, currentProv
-			}
+func (l *Loop) applyThinkingChange(evt sdk.Event) {
+	m, ok := evt.Payload.(map[string]string)
+	if !ok {
+		return
+	}
 
-			currentName, currentProv = applyModelChange(evt, bus, cfg, currentName, currentProv)
-		default:
-			return currentName, currentProv
+	if level, ok := m["level"]; ok {
+		if parsed, err := sdk.ParseThinkingLevel(level); err == nil {
+			l.thinkingLevel = parsed
 		}
 	}
+}
+
+func (l *Loop) drainChanges(modelChangeCh, thinkingCh <-chan sdk.Event, bus sdk.Bus, currentProv sdk.Provider) sdk.Provider {
+	for {
+		select {
+		case evt, ok := <-modelChangeCh:
+			if !ok {
+				return currentProv
+			}
+
+			currentProv = l.applyModelChange(evt, bus, currentProv)
+		case evt, ok := <-thinkingCh:
+			if !ok {
+				return currentProv
+			}
+
+			l.applyThinkingChange(evt)
+		default:
+			return currentProv
+		}
+	}
+}
+
+func (l *Loop) streamOpts() []sdk.StreamOption {
+	opts := []sdk.StreamOption{
+		sdk.WithThinkingLevel(l.thinkingLevel),
+	}
+
+	if l.modelName != "" {
+		opts = append(opts, sdk.WithModel(l.modelName))
+	}
+
+	return opts
 }
 
 func drainSteering(steerCh <-chan sdk.Event, messages []sdk.Message) ([]sdk.Message, bool) {
@@ -323,6 +382,8 @@ func streamTurn(ctx context.Context, bus sdk.Bus, provider sdk.Provider, message
 
 	var content strings.Builder
 
+	var thinking strings.Builder
+
 	var toolCalls []sdk.ToolCall
 
 	for evt := range ch {
@@ -332,6 +393,10 @@ func streamTurn(ctx context.Context, bus sdk.Bus, provider sdk.Provider, message
 
 			if s, ok := evt.Content.(string); ok {
 				content.WriteString(s)
+			}
+		case sdk.ProviderEventThinking:
+			if s, ok := evt.Content.(string); ok {
+				thinking.WriteString(s)
 			}
 		case sdk.ProviderEventToolCall:
 			if tc, ok := evt.Content.(sdk.ToolCall); ok {
@@ -343,7 +408,12 @@ func streamTurn(ctx context.Context, bus sdk.Bus, provider sdk.Provider, message
 		}
 	}
 
-	bus.Publish(sdk.NewEvent(TopicMsgEnd, map[string]any{"content": content.String(), "tool_calls": toolCalls}))
+	msgEndPayload := map[string]any{"content": content.String(), "tool_calls": toolCalls}
+	if thinking.Len() > 0 {
+		msgEndPayload["thinking"] = thinking.String()
+	}
+
+	bus.Publish(sdk.NewEvent(TopicMsgEnd, msgEndPayload))
 
 	resp := sdk.NewAssistantMessage(content.String())
 	resp.ToolCalls = toolCalls

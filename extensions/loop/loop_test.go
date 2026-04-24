@@ -17,9 +17,10 @@ import (
 // --- test helpers ---
 
 type providerResponse struct {
-	textDeltas []string
-	toolCalls  []sdk.ToolCall
-	err        error
+	textDeltas     []string
+	thinkingDeltas []string
+	toolCalls      []sdk.ToolCall
+	err            error
 }
 
 func newMockProvider(responses []providerResponse) *ProviderMock {
@@ -46,10 +47,19 @@ func newMockProvider(responses []providerResponse) *ProviderMock {
 				return nil, resp.err
 			}
 
-			ch := make(chan sdk.ProviderEvent, len(resp.textDeltas)+len(resp.toolCalls)+1)
+			bufSize := len(resp.textDeltas) + len(resp.thinkingDeltas) + len(resp.toolCalls) + 1
+			ch := make(chan sdk.ProviderEvent, bufSize)
 
 			go func() {
 				defer close(ch)
+
+				for _, delta := range resp.thinkingDeltas {
+					select {
+					case ch <- sdk.ProviderEvent{Type: sdk.ProviderEventThinking, Content: delta}:
+					case <-ctx.Done():
+						return
+					}
+				}
 
 				for _, delta := range resp.textDeltas {
 					select {
@@ -741,4 +751,273 @@ func TestLoop_InterruptHaltsTurn(t *testing.T) {
 
 	// Two stream calls: first (interrupted) and second (follow-up)
 	assert.Len(t, mp.StreamCalls(), 2)
+}
+
+func TestLoop_ThinkingContentInMsgEnd(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mp := newMockProvider([]providerResponse{
+		{
+			thinkingDeltas: []string{"let me think", "... carefully"},
+			textDeltas:     []string{"here is the answer"},
+		},
+	})
+	registerMockProvider("anthropic", mp)
+
+	l, b, cleanup := setupLoop(t, "anthropic")
+	defer cleanup()
+
+	allCh := b.SubscribeAll()
+	l.Subscribe(b)
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "think about it"))
+
+	msgEnd, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for msg_end")
+
+	payload, ok := msgEnd.Payload.(map[string]any)
+	require.True(t, ok, "msg_end payload type = %T", msgEnd.Payload)
+	assert.Equal(t, "here is the answer", payload["content"])
+	assert.Equal(t, "let me think... carefully", payload["thinking"])
+
+	require.NoError(t, l.Close())
+}
+
+func TestLoop_NoThinkingKeyWhenEmpty(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mp := newMockProvider([]providerResponse{
+		{textDeltas: []string{"no thinking here"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	l, b, cleanup := setupLoop(t, "anthropic")
+	defer cleanup()
+
+	allCh := b.SubscribeAll()
+	l.Subscribe(b)
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "quick one"))
+
+	msgEnd, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for msg_end")
+
+	payload, ok := msgEnd.Payload.(map[string]any)
+	require.True(t, ok, "msg_end payload type = %T", msgEnd.Payload)
+	assert.Equal(t, "no thinking here", payload["content"])
+	_, hasThinking := payload["thinking"]
+	assert.False(t, hasThinking, "should not have thinking key when no thinking deltas")
+
+	require.NoError(t, l.Close())
+}
+
+func TestLoop_ThinkingLevelChange(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	var capturedOpts []sdk.StreamOption
+
+	mp := &ProviderMock{
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, opts ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+			capturedOpts = opts
+
+			ch := make(chan sdk.ProviderEvent, 1)
+			ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "ok"}
+			close(ch)
+
+			return ch, nil
+		},
+	}
+	registerMockProvider("anthropic", mp)
+
+	l, b, cleanup := setupLoop(t, "anthropic")
+	defer cleanup()
+
+	allCh := b.SubscribeAll()
+	l.Subscribe(b)
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "first"))
+
+	_, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for first msg_end")
+
+	// Default thinking level should be medium
+	require.Len(t, capturedOpts, 1)
+	so := sdk.NewStreamOptions(capturedOpts...)
+	assert.Equal(t, sdk.ThinkingMedium, so.ThinkingLevel)
+
+	// Change thinking level to high
+	b.Publish(sdk.NewEvent(TopicThinkingChange, map[string]string{"level": "high"}))
+
+	// Send a follow-up to trigger a new stream call with updated thinking level
+	b.Publish(sdk.NewEvent(TopicFollowup, "after thinking change"))
+
+	_, ok = waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for second msg_end")
+
+	require.Len(t, capturedOpts, 1)
+	so = sdk.NewStreamOptions(capturedOpts...)
+	assert.Equal(t, sdk.ThinkingHigh, so.ThinkingLevel)
+
+	require.NoError(t, l.Close())
+}
+
+func TestLoop_ModelChangeWithModelKey(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	var capturedOpts []sdk.StreamOption
+	var mu sync.Mutex
+
+	mp := &ProviderMock{
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, opts ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+			mu.Lock()
+			capturedOpts = opts
+			mu.Unlock()
+
+			ch := make(chan sdk.ProviderEvent, 1)
+			ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "ok"}
+			close(ch)
+
+			return ch, nil
+		},
+	}
+	registerMockProvider("anthropic", mp)
+
+	l, b, cleanup := setupLoop(t, "anthropic")
+	defer cleanup()
+
+	allCh := b.SubscribeAll()
+	l.Subscribe(b)
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "start"))
+
+	_, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for first msg_end")
+
+	// Initially no model option — only thinking level
+	mu.Lock()
+	require.Len(t, capturedOpts, 1)
+	so := sdk.NewStreamOptions(capturedOpts...)
+	mu.Unlock()
+	assert.Equal(t, "", so.Model)
+
+	// Switch model within same provider (the bug fix case)
+	b.Publish(sdk.NewEvent(TopicModelChange, map[string]string{
+		"provider": "anthropic",
+		"model":    "claude-opus-4-20250514",
+	}))
+
+	// The model change triggers a continue, which re-enters the loop and
+	// calls streamTurn with updated model. Wait for that turn's msg_end.
+	_, ok = waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for model-change msg_end")
+
+	mu.Lock()
+	require.Len(t, capturedOpts, 2)
+	so = sdk.NewStreamOptions(capturedOpts...)
+	mu.Unlock()
+	assert.Equal(t, "claude-opus-4-20250514", so.Model, "model should be passed via StreamOptions")
+
+	require.NoError(t, l.Close())
+}
+
+func TestLoop_ModelChangeDifferentProvider(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	anthropicMock := newMockProvider([]providerResponse{
+		{textDeltas: []string{"anthropic response"}},
+	})
+	openaiMock := newMockProvider([]providerResponse{
+		{textDeltas: []string{"openai response"}},
+	})
+
+	sdk.RegisterProvider("anthropic", func(sdk.Config) (sdk.Provider, error) {
+		return anthropicMock, nil
+	})
+	sdk.RegisterProvider("openai", func(sdk.Config) (sdk.Provider, error) {
+		return openaiMock, nil
+	})
+
+	l, b, cleanup := setupLoop(t, "anthropic")
+	defer cleanup()
+
+	allCh := b.SubscribeAll()
+	l.Subscribe(b)
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "start"))
+
+	msgEnd1, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for first msg_end")
+	payload1 := msgEnd1.Payload.(map[string]any)
+	assert.Equal(t, "anthropic response", payload1["content"])
+
+	assert.Len(t, anthropicMock.StreamCalls(), 1)
+
+	// Switch to openai provider — the continue triggers a new turn with openai
+	b.Publish(sdk.NewEvent(TopicModelChange, map[string]string{
+		"provider": "openai",
+		"model":    "gpt-4o",
+	}))
+
+	msgEnd2, ok := waitForTopic(allCh, TopicMsgEnd, 4*time.Second)
+	require.True(t, ok, "timeout waiting for openai msg_end")
+	payload2 := msgEnd2.Payload.(map[string]any)
+	assert.Equal(t, "openai response", payload2["content"])
+
+	require.NoError(t, l.Close())
+
+	// Verify openai was called and model was passed
+	require.Len(t, openaiMock.StreamCalls(), 1)
+	openaiOpts := openaiMock.StreamCalls()[0].Opts
+	so := sdk.NewStreamOptions(openaiOpts...)
+	assert.Equal(t, "gpt-4o", so.Model)
+}
+
+func TestLoop_InvalidThinkingLevelIgnored(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	var capturedOpts []sdk.StreamOption
+
+	mp := &ProviderMock{
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, opts ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+			capturedOpts = opts
+
+			ch := make(chan sdk.ProviderEvent, 1)
+			ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "ok"}
+			close(ch)
+
+			return ch, nil
+		},
+	}
+	registerMockProvider("anthropic", mp)
+
+	l, b, cleanup := setupLoop(t, "anthropic")
+	defer cleanup()
+
+	allCh := b.SubscribeAll()
+	l.Subscribe(b)
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "start"))
+
+	_, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for first msg_end")
+
+	// Try invalid thinking level
+	b.Publish(sdk.NewEvent(TopicThinkingChange, map[string]string{"level": "invalid"}))
+
+	b.Publish(sdk.NewEvent(TopicFollowup, "after bad thinking"))
+
+	_, ok = waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for second msg_end")
+
+	// Thinking level should still be the default medium (invalid was ignored)
+	so := sdk.NewStreamOptions(capturedOpts...)
+	assert.Equal(t, sdk.ThinkingMedium, so.ThinkingLevel)
+
+	require.NoError(t, l.Close())
 }
