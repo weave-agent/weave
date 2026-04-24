@@ -287,6 +287,26 @@ func TestModel_ModelChangedUpdatesFooter(t *testing.T) {
 	assert.Equal(t, "openai", m.footer.ProviderName())
 }
 
+func TestModel_ModelChangedToNonReasoningForcesThinkingOff(t *testing.T) {
+	sdk.ResetModelRegistry()
+	sdk.RegisterBuiltinModels()
+	defer sdk.ResetModelRegistry()
+
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	assert.Equal(t, sdk.ThinkingMedium, m.thinkingLevel)
+
+	// Switch to non-reasoning model
+	entry := ModelEntry{Provider: "openai", Model: "gpt-4o"}
+	model, _ := m.Update(ModelChangedMsg{Entry: entry})
+	m = model.(Model)
+
+	assert.Equal(t, sdk.ThinkingOff, m.thinkingLevel)
+	assert.Equal(t, "off", m.footer.ThinkingLevel())
+	assert.Equal(t, "240", m.editor.BorderColor) // off color
+}
+
 func TestModel_ModelChangedPublishesEvent(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
@@ -409,7 +429,7 @@ func TestListModelsEmpty(t *testing.T) {
 	assert.Nil(t, entries)
 }
 
-func TestResolveModelNameEnvOverride(t *testing.T) {
+func TestListModelsIgnoresEnvOverrides(t *testing.T) {
 	sdk.ResetModelRegistry()
 	sdk.RegisterBuiltinModels()
 	defer sdk.ResetModelRegistry()
@@ -418,13 +438,17 @@ func TestResolveModelNameEnvOverride(t *testing.T) {
 
 	entries := listModels()
 
+	// Should show registry entries as-is, not env-overridden names
+	anthropicCount := 0
 	for _, e := range entries {
 		if e.Provider == "anthropic" {
-			assert.Equal(t, "my-custom-model", e.Model)
-			return
+			anthropicCount++
+			assert.NotEqual(t, "my-custom-model", e.Model,
+				"listModels should show registry IDs, not env overrides")
 		}
 	}
-	t.Fatal("anthropic entry not found")
+	assert.Equal(t, 2, anthropicCount,
+		"should show both anthropic models, not collapsed by env override")
 }
 
 func TestModelEntryDisplayName(t *testing.T) {

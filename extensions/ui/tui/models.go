@@ -28,8 +28,8 @@ func (e ModelEntry) DisplayName() string {
 	return e.Display()
 }
 
-// listModels returns available model entries by combining registered providers
-// with model registry entries. Env var overrides are respected.
+// listModels returns available model entries from the registry.
+// Env var overrides are NOT applied here — they're handled by providers at stream time.
 func listModels() []ModelEntry {
 	allModels := sdk.ListAllModels()
 	if len(allModels) == 0 {
@@ -39,33 +39,15 @@ func listModels() []ModelEntry {
 	seen := make(map[string]bool)
 	entries := make([]ModelEntry, 0, len(allModels))
 	for _, md := range allModels {
-		model := resolveModelName(md)
-		key := md.Provider + ":" + model
+		key := md.Provider + ":" + md.ID
 		if seen[key] {
 			continue
 		}
 		seen[key] = true
-		entries = append(entries, ModelEntry{Provider: md.Provider, Model: model})
+		entries = append(entries, ModelEntry{Provider: md.Provider, Model: md.ID})
 	}
 
 	return entries
-}
-
-// resolveModelName returns the model name for a provider, checking env overrides.
-func resolveModelName(md sdk.ModelDef) string {
-	envMap := map[string]string{
-		"anthropic": "ANTHROPIC_MODEL",
-		"openai":    "OPENAI_MODEL",
-		"zai":       "ZAI_MODEL",
-	}
-
-	if envVar, ok := envMap[md.Provider]; ok {
-		if v := os.Getenv(envVar); v != "" {
-			return v
-		}
-	}
-
-	return md.ID
 }
 
 // currentModel returns the model entry matching the configured provider

@@ -806,7 +806,11 @@ func (m Model) onModelChanged(msg ModelChangedMsg) (tea.Model, tea.Cmd) {
 	m.footer = m.footer.SetReasoning(modelReasoning(msg.Entry.Model))
 
 	if modelDef, ok := sdk.GetModel(msg.Entry.Model); ok {
-		if clamped := sdk.ClampForModel(m.thinkingLevel, modelDef); clamped != m.thinkingLevel {
+		if !modelDef.Reasoning {
+			m.thinkingLevel = sdk.ThinkingOff
+			m.footer = m.footer.SetThinkingLevel(string(sdk.ThinkingOff))
+			m.editor = m.editor.SetBorderColor(palette.ThinkingBorderColor(sdk.ThinkingOff))
+		} else if clamped := sdk.ClampForModel(m.thinkingLevel, modelDef); clamped != m.thinkingLevel {
 			m.thinkingLevel = clamped
 			m.footer = m.footer.SetThinkingLevel(string(clamped))
 			m.editor = m.editor.SetBorderColor(palette.ThinkingBorderColor(clamped))

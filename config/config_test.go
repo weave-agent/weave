@@ -41,6 +41,12 @@ func TestFindConfigPath_WalkUp(t *testing.T) {
 }
 
 func TestFindConfigPath_NotFound(t *testing.T) {
+	// Only valid when no global config exists
+	globalDir, _ := GlobalConfigDir()
+	if _, err := os.Stat(filepath.Join(globalDir, "config.json")); err == nil {
+		t.Skip("skipping: global config exists, so FindConfigPath always succeeds")
+	}
+
 	dir := t.TempDir()
 
 	_, err := FindConfigPath(dir)
