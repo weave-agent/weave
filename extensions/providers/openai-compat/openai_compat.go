@@ -29,6 +29,7 @@ type ChatRequest struct {
 	Model           string        `json:"model"`
 	Messages        []ChatMessage `json:"messages"`
 	Stream          bool          `json:"stream"`
+	MaxTokens       int64         `json:"max_tokens,omitempty"`
 	Tools           []Tool        `json:"tools,omitempty"`
 	ReasoningEffort string        `json:"reasoning_effort,omitempty"`
 }
@@ -123,6 +124,10 @@ func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sd
 		Messages: ConvertMessages(req.Messages),
 		Stream:   true,
 		Tools:    ConvertTools(req.Tools),
+	}
+
+	if so.MaxTokens > 0 {
+		chatReq.MaxTokens = so.MaxTokens
 	}
 
 	effortMap := map[sdk.ThinkingLevel]string{

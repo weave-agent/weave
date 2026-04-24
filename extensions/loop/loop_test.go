@@ -904,16 +904,18 @@ func TestLoop_ModelChangeWithModelKey(t *testing.T) {
 	mu.Unlock()
 	assert.Equal(t, "", so.Model)
 
-	// Switch model within same provider (the bug fix case)
+	// Switch model within same provider (the bug fix case).
+	// Model change should NOT trigger a spurious streamTurn — it applies on the next user input.
 	b.Publish(sdk.NewEvent(TopicModelChange, map[string]string{
 		"provider": "anthropic",
 		"model":    "claude-opus-4-20250514",
 	}))
 
-	// The model change triggers a continue, which re-enters the loop and
-	// calls streamTurn with updated model. Wait for that turn's msg_end.
+	// Send a follow-up to trigger a stream call with the updated model.
+	b.Publish(sdk.NewEvent(TopicFollowup, "after model change"))
+
 	_, ok = waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
-	require.True(t, ok, "timeout waiting for model-change msg_end")
+	require.True(t, ok, "timeout waiting for follow-up msg_end")
 
 	mu.Lock()
 	require.Len(t, capturedOpts, 2)
@@ -957,11 +959,14 @@ func TestLoop_ModelChangeDifferentProvider(t *testing.T) {
 
 	assert.Len(t, anthropicMock.StreamCalls(), 1)
 
-	// Switch to openai provider — the continue triggers a new turn with openai
+	// Switch to openai provider — model change applies on next user input
 	b.Publish(sdk.NewEvent(TopicModelChange, map[string]string{
 		"provider": "openai",
 		"model":    "gpt-4o",
 	}))
+
+	// Send a follow-up to trigger a turn with the new provider
+	b.Publish(sdk.NewEvent(TopicFollowup, "after provider switch"))
 
 	msgEnd2, ok := waitForTopic(allCh, TopicMsgEnd, 4*time.Second)
 	require.True(t, ok, "timeout waiting for openai msg_end")

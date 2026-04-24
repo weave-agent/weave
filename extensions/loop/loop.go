@@ -138,7 +138,8 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 
 	turn := 1
 
-	// Outer loop: follow-ups
+	// Outer loop: follow-ups. The waitForInput label is used by model/thinking
+	// change handlers to skip streamTurn and go directly back to waiting.
 	for {
 		// Per-turn context that can be canceled by interrupt without
 		// killing the entire session.
@@ -219,6 +220,7 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 			return
 		}
 
+	waitForInput:
 		// Wait for follow-up or new prompt. Blocking — the loop stays alive
 		// between turns. A new agent.prompt resets the conversation (e.g. /new).
 		select {
@@ -246,7 +248,7 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 			provider = l.applyModelChange(evt, bus, provider)
 			provider = l.drainChanges(modelChangeCh, thinkingCh, bus, provider)
 
-			continue
+			goto waitForInput
 		case evt, ok := <-thinkingCh:
 			if !ok {
 				return
@@ -255,7 +257,7 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 			l.applyThinkingChange(evt)
 			provider = l.drainChanges(modelChangeCh, thinkingCh, bus, provider)
 
-			continue
+			goto waitForInput
 		case <-ctx.Done():
 			return
 		}

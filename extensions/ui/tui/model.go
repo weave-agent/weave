@@ -1093,7 +1093,17 @@ func (m Model) chatHeight(totalHeight int) int {
 		spinnerLines = 1
 	}
 
-	reserved := editorLines + footerLines + spinnerLines
+	statusLines := 0
+	if m.statusMsg != "" {
+		statusLines = 1
+	}
+
+	hintsLines := 0
+	if m.showHints && !m.prompted && len(m.chat.Items()) == 0 {
+		hintsLines = 1
+	}
+
+	reserved := editorLines + footerLines + spinnerLines + statusLines + hintsLines
 	if totalHeight > reserved+1 {
 		return totalHeight - reserved
 	}

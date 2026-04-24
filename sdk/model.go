@@ -50,6 +50,7 @@ type ModelDef struct {
 	SupportsXHigh bool
 	ContextWindow int
 	MaxTokens     int
+	Default       bool
 	Cost          *ModelCost
 }
 
@@ -154,11 +155,17 @@ func ListAllModels() []ModelDef {
 	return result
 }
 
-// DefaultModelForProvider returns the first model for the provider.
+// DefaultModelForProvider returns the default model for the provider.
 func DefaultModelForProvider(provider string) (ModelDef, bool) {
 	models := ListModelsForProvider(provider)
 	if len(models) == 0 {
 		return ModelDef{}, false
+	}
+
+	for _, m := range models {
+		if m.Default {
+			return m, true
+		}
 	}
 
 	return models[0], true
@@ -187,12 +194,12 @@ func RegisterBuiltinModels() {
 	RegisterModel(ModelDef{
 		ID: "claude-sonnet-4-20250514", Provider: "anthropic",
 		DisplayName: "Claude Sonnet 4", Reasoning: true, SupportsXHigh: false,
-		ContextWindow: 200000, MaxTokens: 16384,
+		ContextWindow: 200000, MaxTokens: 16384, Default: true,
 	})
 	// OpenAI
 	RegisterModel(ModelDef{
 		ID: "gpt-4o", Provider: "openai",
-		DisplayName: "GPT-4o", ContextWindow: 128000, MaxTokens: 16384,
+		DisplayName: "GPT-4o", ContextWindow: 128000, MaxTokens: 16384, Default: true,
 	})
 	RegisterModel(ModelDef{
 		ID: "gpt-4o-mini", Provider: "openai",
@@ -201,7 +208,7 @@ func RegisterBuiltinModels() {
 	// ZAI
 	RegisterModel(ModelDef{
 		ID: "glm-4", Provider: "zai",
-		DisplayName: "GLM-4", ContextWindow: 128000, MaxTokens: 8192,
+		DisplayName: "GLM-4", ContextWindow: 128000, MaxTokens: 8192, Default: true,
 	})
 	RegisterModel(ModelDef{
 		ID: "glm-4-flash", Provider: "zai",

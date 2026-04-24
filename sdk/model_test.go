@@ -148,10 +148,10 @@ func TestRegisterBuiltinModels(t *testing.T) {
 	models = ListModelsForProvider("zai")
 	assert.Len(t, models, 2)
 
-	// Default for anthropic is first sorted (claude-opus-4-20250514)
+	// Default for anthropic is Sonnet (marked Default: true)
 	def, ok := DefaultModelForProvider("anthropic")
 	require.True(t, ok)
-	assert.Equal(t, "claude-opus-4-20250514", def.ID)
+	assert.Equal(t, "claude-sonnet-4-20250514", def.ID)
 }
 
 func TestStreamOptions(t *testing.T) {
