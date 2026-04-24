@@ -53,10 +53,10 @@ Comprehensive overhaul of the provider, model, thinking level, and model switchi
 ### Task 1: Add model types and registry to SDK
 Create the foundational types: `ModelDef` (model metadata), `ThinkingLevel` (6 levels with budgets), `StreamOptions` (per-request options passed to providers). Add a model registry with curated entries for the 3 existing providers.
 
-- [ ] create `sdk/model.go` with: `ModelDef` struct (ID, Provider, DisplayName, Reasoning bool, SupportsXHigh bool, ContextWindow int, MaxTokens int, Cost *ModelCost); `ThinkingLevel` type with 6 levels (off/minimal/low/medium/high/xhigh); `ThinkingBudgets` map (minimal:1024, low:2048, medium:8192, high:16384, xhigh:32768); `StreamOptions` struct (Model string, ThinkingLevel, MaxTokens int64); `ProviderEventThinking = "thinking_delta"` event type; model registry functions `RegisterModel`, `GetModel`, `ListModelsForProvider`, `ListAllModels`, `DefaultModelForProvider`; curated models: anthropic (claude-opus-4-20250514: Reasoning=true, SupportsXHigh=true; claude-sonnet-4-20250514: Reasoning=true, SupportsXHigh=false), openai (gpt-4o, gpt-4o-mini), zai (glm-4, glm-4-flash)
-- [ ] add `ThinkingLevel` field to `ProviderConfigEntry` in `sdk/config.go`
-- [ ] write tests for model registry (register, get, list, default), ThinkingLevel budget lookup, StreamOptions defaults, SupportsXHigh clamping
-- [ ] run tests - must pass before task 2
+- [x] create `sdk/model.go` with: `ModelDef` struct (ID, Provider, DisplayName, Reasoning bool, SupportsXHigh bool, ContextWindow int, MaxTokens int, Cost *ModelCost); `ThinkingLevel` type with 6 levels (off/minimal/low/medium/high/xhigh); `ThinkingBudgets` map (minimal:1024, low:2048, medium:8192, high:16384, xhigh:32768); `StreamOptions` struct (Model string, ThinkingLevel, MaxTokens int64); `ProviderEventThinking = "thinking_delta"` event type; model registry functions `RegisterModel`, `GetModel`, `ListModelsForProvider`, `ListAllModels`, `DefaultModelForProvider`; curated models: anthropic (claude-opus-4-20250514: Reasoning=true, SupportsXHigh=true; claude-sonnet-4-20250514: Reasoning=true, SupportsXHigh=false), openai (gpt-4o, gpt-4o-mini), zai (glm-4, glm-4-flash)
+- [x] add `ThinkingLevel` field to `ProviderConfigEntry` in `sdk/config.go`
+- [x] write tests for model registry (register, get, list, default), ThinkingLevel budget lookup, StreamOptions defaults, SupportsXHigh clamping
+- [x] run tests - must pass before task 2
 
 ### Task 2: Extend Provider interface with StreamOptions
 Change `Provider.Stream()` to accept `StreamOptions`. Update all 3 provider implementations and the loop to pass options. This is the core decoupling that fixes model switching.
