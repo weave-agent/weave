@@ -445,8 +445,8 @@ func TestStream_ContextCancellation(t *testing.T) {
 	require.NoError(t, err)
 
 	events := collectEvents(ch)
-	// Channel should close (possibly with some events or an error)
-	_ = events
+	// Verify the channel closed and we got at least some events before cancellation.
+	assert.True(t, len(events) > 0, "expected at least one event before cancellation")
 }
 
 func TestStream_MixedTextAndToolCalls(t *testing.T) {
@@ -672,10 +672,15 @@ func TestStream_WithThinkingLevel_SetsReasoningEffort(t *testing.T) {
 			}))
 			defer server.Close()
 
+			// Use a reasoning model so reasoning_effort is actually set.
+			sdk.ResetModelRegistry()
+			sdk.RegisterModel(sdk.ModelDef{ID: "test-reasoning", Reasoning: true})
+			t.Cleanup(func() { sdk.RegisterBuiltinModels() })
+
 			ch, err := Stream(context.Background(), server.Client(), ProviderConfig{
 				BaseURL: server.URL,
 				APIKey:  "test-key",
-				Model:   "gpt-4o",
+				Model:   "test-reasoning",
 			}, sdk.ProviderRequest{
 				Messages: []sdk.Message{sdk.NewUserMessage("hi")},
 			}, sdk.WithThinkingLevel(tt.level))

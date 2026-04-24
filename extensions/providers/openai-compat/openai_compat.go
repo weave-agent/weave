@@ -139,7 +139,9 @@ func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sd
 	}
 
 	if so.ThinkingLevel != sdk.ThinkingOff {
-		if effort, ok := effortMap[so.ThinkingLevel]; ok {
+		if m, ok := sdk.GetModel(model); ok && !m.Reasoning {
+			// skip reasoning_effort for non-reasoning models
+		} else if effort, ok := effortMap[so.ThinkingLevel]; ok {
 			chatReq.ReasoningEffort = effort
 		}
 	}

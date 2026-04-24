@@ -707,10 +707,6 @@ func (m EditorModel) DeleteToLineStart() EditorModel {
 		start--
 	}
 
-	if start > 0 && m.value[start-1] != '\n' {
-		start = 0
-	}
-
 	m.value = append(m.value[:start], m.value[m.cursor:]...)
 	m.cursor = start
 	m.dirty = true

@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"sync"
 )
@@ -24,14 +25,6 @@ var AllThinkingLevels = []ThinkingLevel{
 	ThinkingMedium, ThinkingHigh, ThinkingXHigh,
 }
 
-// ModelCost holds per-token pricing for a model.
-type ModelCost struct {
-	InputPer1M      float64
-	OutputPer1M     float64
-	CacheReadPer1M  float64
-	CacheWritePer1M float64
-}
-
 // ModelDef describes a model's metadata and capabilities.
 type ModelDef struct {
 	ID            string
@@ -42,7 +35,6 @@ type ModelDef struct {
 	ContextWindow int
 	MaxTokens     int
 	Default       bool
-	Cost          *ModelCost
 }
 
 // StreamOptions configures per-request behavior for provider streaming.
@@ -61,15 +53,16 @@ func ClampForModel(level ThinkingLevel, model ModelDef) ThinkingLevel {
 	return level
 }
 
-// IsValidThinkingLevel reports whether s is a recognized ThinkingLevel.
-func IsValidThinkingLevel(s string) bool {
-	for _, l := range AllThinkingLevels {
-		if string(l) == s {
-			return true
+// DefaultThinkingLevel reads the initial thinking level from WEAVE_THINKING_LEVEL,
+// falling back to ThinkingMedium.
+func DefaultThinkingLevel() ThinkingLevel {
+	if v := os.Getenv("WEAVE_THINKING_LEVEL"); v != "" {
+		if lvl, err := ParseThinkingLevel(v); err == nil {
+			return lvl
 		}
 	}
 
-	return false
+	return ThinkingMedium
 }
 
 // ParseThinkingLevel converts a string to a ThinkingLevel, returning an error if invalid.

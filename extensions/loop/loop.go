@@ -57,19 +57,11 @@ func init() { //nolint:gochecknoinits // required for extension self-registratio
 }
 
 func NewLoop(cfg sdk.Config, providerName string) (*Loop, error) {
-	thinkingLevel := sdk.ThinkingMedium
-
-	if v := os.Getenv("WEAVE_THINKING_LEVEL"); v != "" {
-		if lvl, err := sdk.ParseThinkingLevel(v); err == nil {
-			thinkingLevel = lvl
-		}
-	}
-
 	return &Loop{
 		cfg:           cfg,
 		providerName:  providerName,
 		singleTurn:    os.Getenv("WEAVE_SINGLE_TURN") == "1",
-		thinkingLevel: thinkingLevel,
+		thinkingLevel: sdk.DefaultThinkingLevel(),
 	}, nil
 }
 
@@ -349,7 +341,8 @@ func (l *Loop) drainChanges(modelChangeCh, thinkingCh <-chan sdk.Event, bus sdk.
 
 func (l *Loop) streamOpts() []sdk.StreamOption {
 	level := l.thinkingLevel
-	if level != sdk.ThinkingOff {
+
+	if level != sdk.ThinkingOff && l.modelName != "" {
 		if modelDef, ok := sdk.GetModel(l.modelName); ok {
 			if !modelDef.Reasoning {
 				level = sdk.ThinkingOff
@@ -405,6 +398,10 @@ func streamTurn(ctx context.Context, bus sdk.Bus, provider sdk.Provider, message
 
 	var thinking strings.Builder
 
+	var signedThinking []sdk.SignedThinking
+
+	var redactedThinking []sdk.RedactedThinking
+
 	var toolCalls []sdk.ToolCall
 
 	for evt := range ch {
@@ -418,6 +415,14 @@ func streamTurn(ctx context.Context, bus sdk.Bus, provider sdk.Provider, message
 		case sdk.ProviderEventThinking:
 			if s, ok := evt.Content.(string); ok {
 				thinking.WriteString(s)
+			}
+		case sdk.ProviderEventThinkingDone:
+			if st, ok := evt.Content.(sdk.SignedThinking); ok {
+				signedThinking = append(signedThinking, st)
+			}
+		case sdk.ProviderEventRedactedThinkingDone:
+			if rt, ok := evt.Content.(sdk.RedactedThinking); ok {
+				redactedThinking = append(redactedThinking, rt)
 			}
 		case sdk.ProviderEventToolCall:
 			if tc, ok := evt.Content.(sdk.ToolCall); ok {
@@ -438,6 +443,8 @@ func streamTurn(ctx context.Context, bus sdk.Bus, provider sdk.Provider, message
 
 	resp := sdk.NewAssistantMessage(content.String())
 	resp.ToolCalls = toolCalls
+	resp.Thinking = signedThinking
+	resp.RedactedThinking = redactedThinking
 
 	return resp, toolCalls, nil
 }

@@ -36,7 +36,9 @@ const defaultEditorHeight = 3
 const statusMessageTimeout = 2 * time.Second
 
 // statusTimeoutMsg is sent when the transient status message should be cleared.
-type statusTimeoutMsg struct{}
+type statusTimeoutMsg struct {
+	gen int
+}
 
 // Model is the root Bubble Tea model for the TUI.
 type Model struct {
@@ -60,8 +62,9 @@ type Model struct {
 	pendingSessions  []SessionEntry
 	pendingModels    []ModelEntry
 	pendingProviders []ProviderEntry
-	currentModel     ModelEntry
-	prevModel        ModelEntry
+	currentModel      ModelEntry
+	prevModel         ModelEntry
+	prevThinkingLevel sdk.ThinkingLevel
 
 	keyInput       overlays.InputModel
 	providerTarget string
@@ -83,6 +86,7 @@ type Model struct {
 	// transient status message
 	statusMsg   string
 	statusTimer tea.Cmd
+	statusGen   int
 }
 
 // newModel creates a new root model.
@@ -155,7 +159,7 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 		ui:            ui,
 		currentModel:  cur,
 		sessionDir:    sdir,
-		thinkingLevel: initThinkingLevel(),
+		thinkingLevel: sdk.DefaultThinkingLevel(),
 		showHints:     true,
 	}
 	m.footer = m.footer.SetModel(cur.Model, cur.Provider)
@@ -353,8 +357,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.onKeyInputResult(msg)
 
 	case statusTimeoutMsg:
-		m.statusMsg = ""
-		m.statusTimer = nil
+		if msg.gen == m.statusGen {
+			m.statusMsg = ""
+			m.statusTimer = nil
+		}
 
 		return m, nil
 
@@ -805,16 +811,21 @@ func (m Model) onModelListResult(msg ModelListResultMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) onModelChanged(msg ModelChangedMsg) (tea.Model, tea.Cmd) {
 	m.prevModel = m.currentModel
+	m.prevThinkingLevel = m.thinkingLevel
 	m.currentModel = msg.Entry
 	m.footer = m.footer.SetModel(msg.Entry.Model, msg.Entry.Provider)
 	m.footer = m.footer.SetReasoning(modelReasoning(msg.Entry.Model))
 
+	thinkingChanged := false
+
 	if modelDef, ok := sdk.GetModel(msg.Entry.Model); ok {
 		if !modelDef.Reasoning {
+			thinkingChanged = m.thinkingLevel != sdk.ThinkingOff
 			m.thinkingLevel = sdk.ThinkingOff
 			m.footer = m.footer.SetThinkingLevel(string(sdk.ThinkingOff))
 			m.editor = m.editor.SetBorderColor(palette.ThinkingBorderColor(sdk.ThinkingOff))
 		} else if clamped := sdk.ClampForModel(m.thinkingLevel, modelDef); clamped != m.thinkingLevel {
+			thinkingChanged = true
 			m.thinkingLevel = clamped
 			m.footer = m.footer.SetThinkingLevel(string(clamped))
 			m.editor = m.editor.SetBorderColor(palette.ThinkingBorderColor(clamped))
@@ -825,7 +836,17 @@ func (m Model) onModelChanged(msg ModelChangedMsg) (tea.Model, tea.Cmd) {
 	m.showStatus(fmt.Sprintf("Switched to %s (thinking: %s)", displayName, m.thinkingLevel))
 
 	if m.bus != nil {
-		return m, tea.Batch(PublishModelChange(m.bus, msg.Entry), m.statusTimer)
+		var cmds []tea.Cmd
+
+		cmds = append(cmds, PublishModelChange(m.bus, msg.Entry))
+
+		if thinkingChanged {
+			cmds = append(cmds, PublishThinkingChange(m.bus, m.thinkingLevel))
+		}
+
+		cmds = append(cmds, m.statusTimer)
+
+		return m, tea.Batch(cmds...)
 	}
 
 	return m, m.statusTimer
@@ -836,21 +857,17 @@ func (m Model) onModelChangeFailed(msg ModelChangeFailedMsg) (tea.Model, tea.Cmd
 	m.footer = m.footer.SetModel(m.prevModel.Model, m.prevModel.Provider)
 	m.footer = m.footer.SetReasoning(modelReasoning(m.prevModel.Model))
 
-	if modelDef, ok := sdk.GetModel(m.prevModel.Model); ok {
-		if !modelDef.Reasoning && m.thinkingLevel != sdk.ThinkingOff {
-			m.thinkingLevel = sdk.ThinkingOff
-			m.footer = m.footer.SetThinkingLevel(string(sdk.ThinkingOff))
-			m.editor = m.editor.SetBorderColor(palette.ThinkingBorderColor(sdk.ThinkingOff))
-		} else if modelDef.Reasoning && m.thinkingLevel == sdk.ThinkingOff {
-			m.thinkingLevel = sdk.ThinkingMedium
-			m.footer = m.footer.SetThinkingLevel(string(sdk.ThinkingMedium))
-			m.editor = m.editor.SetBorderColor(palette.ThinkingBorderColor(sdk.ThinkingMedium))
-		}
-	}
+	m.thinkingLevel = m.prevThinkingLevel
+	m.footer = m.footer.SetThinkingLevel(string(m.thinkingLevel))
+	m.editor = m.editor.SetBorderColor(palette.ThinkingBorderColor(m.thinkingLevel))
 
 	am := messages.NewAssistantMessage()
 	am.Finalize("Failed to switch provider: " + msg.Error)
 	m.chat = m.chat.AddItem(am)
+
+	if m.bus != nil {
+		return m, PublishThinkingChange(m.bus, m.thinkingLevel)
+	}
 
 	return m, nil
 }
@@ -1055,17 +1072,6 @@ func parseToolEntry(raw json.RawMessage) (name, content string, isError bool) {
 	return name, toolData.Result.Content, toolData.Result.IsError
 }
 
-// initThinkingLevel reads the initial thinking level from WEAVE_THINKING_LEVEL env var.
-func initThinkingLevel() sdk.ThinkingLevel {
-	if v := os.Getenv("WEAVE_THINKING_LEVEL"); v != "" {
-		if lvl, err := sdk.ParseThinkingLevel(v); err == nil {
-			return lvl
-		}
-	}
-
-	return sdk.ThinkingMedium
-}
-
 // cycleThinkingLevel returns the next thinking level.
 func (m Model) cycleThinkingLevel() (tea.Model, tea.Cmd) {
 	for i, lvl := range sdk.AllThinkingLevels {
@@ -1083,7 +1089,11 @@ func (m Model) cycleThinkingLevel() (tea.Model, tea.Cmd) {
 // shows a status message, and publishes the bus event.
 func (m Model) applyThinkingLevel(level sdk.ThinkingLevel) (tea.Model, tea.Cmd) {
 	if modelDef, ok := sdk.GetModel(m.currentModel.Model); ok {
-		level = sdk.ClampForModel(level, modelDef)
+		if !modelDef.Reasoning {
+			level = sdk.ThinkingOff
+		} else {
+			level = sdk.ClampForModel(level, modelDef)
+		}
 	}
 
 	m.thinkingLevel = level
@@ -1108,8 +1118,10 @@ func (m Model) applyThinkingLevel(level sdk.ThinkingLevel) (tea.Model, tea.Cmd) 
 // showStatus sets a transient status message that clears after a timeout.
 func (m *Model) showStatus(msg string) {
 	m.statusMsg = msg
+	m.statusGen++
+	gen := m.statusGen
 	m.statusTimer = tea.Tick(statusMessageTimeout, func(_ time.Time) tea.Msg {
-		return statusTimeoutMsg{}
+		return statusTimeoutMsg{gen: gen}
 	})
 }
 

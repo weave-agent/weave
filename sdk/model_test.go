@@ -24,12 +24,6 @@ func TestParseThinkingLevel(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestIsValidThinkingLevel(t *testing.T) {
-	assert.True(t, IsValidThinkingLevel("off"))
-	assert.True(t, IsValidThinkingLevel("xhigh"))
-	assert.False(t, IsValidThinkingLevel("unknown"))
-}
-
 func TestClampForModel(t *testing.T) {
 	modelWithXHigh := ModelDef{ID: "test", SupportsXHigh: true}
 	modelNoXHigh := ModelDef{ID: "test", SupportsXHigh: false}
@@ -142,17 +136,6 @@ func TestRegisterBuiltinModels(t *testing.T) {
 	def, ok := DefaultModelForProvider("anthropic")
 	require.True(t, ok)
 	assert.Equal(t, "claude-sonnet-4-20250514", def.ID)
-}
-
-func TestStreamOptions(t *testing.T) {
-	opts := StreamOptions{
-		Model:         "gpt-4o",
-		ThinkingLevel: ThinkingHigh,
-		MaxTokens:     4096,
-	}
-	assert.Equal(t, "gpt-4o", opts.Model)
-	assert.Equal(t, ThinkingHigh, opts.ThinkingLevel)
-	assert.Equal(t, int64(4096), opts.MaxTokens)
 }
 
 func TestNewStreamOptions_Defaults(t *testing.T) {
