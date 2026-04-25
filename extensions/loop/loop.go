@@ -122,15 +122,37 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 	// Wait for the first prompt before instantiating the provider.
 	// This gives the TUI time to show "No providers configured" and let the
 	// user set an API key via /providers before we try to connect.
-	select {
-	case evt, ok := <-promptCh:
-		if !ok {
+	// Also drain model/thinking changes from the TUI's Init() so the
+	// initial provider matches what the user sees.
+	for {
+		select {
+		case evt, ok := <-promptCh:
+			if !ok {
+				return
+			}
+
+			messages = append(messages, sdk.NewUserMessage(evt.Payload))
+		case evt := <-modelChangeCh:
+			if m, ok := evt.Payload.(map[string]string); ok {
+				if p := m["provider"]; p != "" {
+					l.providerName = p
+				}
+			}
+
+			continue
+		case evt := <-thinkingCh:
+			if m, ok := evt.Payload.(string); ok {
+				if lvl, err := sdk.ParseThinkingLevel(m); err == nil {
+					l.thinkingLevel = lvl
+				}
+			}
+
+			continue
+		case <-ctx.Done():
 			return
 		}
 
-		messages = append(messages, sdk.NewUserMessage(evt.Payload))
-	case <-ctx.Done():
-		return
+		break
 	}
 
 	provider, err := sdk.GetProvider(l.providerName, l.cfg)
@@ -492,11 +514,11 @@ func collectToolDefs(cfg sdk.Config) []sdk.ToolDef {
 }
 
 // anyProviderHasKey returns true if at least one registered provider has
-// an API key set via environment variable.
-func anyProviderHasKey(_ sdk.Config) bool {
+// an API key available (env var, auth file, or config file).
+func anyProviderHasKey(cfg sdk.Config) bool {
 	for _, name := range sdk.ListProviders() {
 		envVar := sdk.ProviderEnvVar(name)
-		if envVar != "" && os.Getenv(envVar) != "" {
+		if key, err := cfg.ResolveKey(name, envVar); err == nil && key != "" {
 			return true
 		}
 	}

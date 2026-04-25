@@ -338,5 +338,11 @@ func (c *FullConfig) ProviderConfig(name string) *sdk.ProviderConfigEntry {
 }
 
 func (c *FullConfig) ResolveKey(providerName, envVar string) (string, error) {
-	return ResolveProviderKey(providerName, envVar, c.file.ProviderConfig(providerName), c.auth)
+	// Re-read auth file so keys set via /providers after startup are visible.
+	auth, err := LoadAuth()
+	if err != nil {
+		auth = c.auth // fall back to cached snapshot
+	}
+
+	return ResolveProviderKey(providerName, envVar, c.file.ProviderConfig(providerName), auth)
 }

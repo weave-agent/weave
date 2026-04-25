@@ -180,6 +180,10 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 
 // Init returns the initial command.
 func (m Model) Init() tea.Cmd {
+	if m.bus != nil {
+		return PublishModelChange(m.bus, m.currentModel)
+	}
+
 	return nil
 }
 
