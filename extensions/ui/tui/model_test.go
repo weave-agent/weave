@@ -1064,6 +1064,11 @@ func TestModel_ThinkingLevelInvalidEnv(t *testing.T) {
 }
 
 func TestModel_CycleThinkingLevel(t *testing.T) {
+	sdk.ResetModelRegistry()
+	sdk.RegisterBuiltinModels()
+
+	defer sdk.ResetModelRegistry()
+
 	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
@@ -1075,6 +1080,11 @@ func TestModel_CycleThinkingLevel(t *testing.T) {
 	assert.Equal(t, sdk.ThinkingHigh, m.thinkingLevel)
 	assert.Equal(t, "high", m.footer.ThinkingLevel())
 	assert.Equal(t, "139", m.editor.BorderColor)
+
+	// Second press skips xhigh (clamped for Sonnet) and goes to off
+	model, _ = m.dispatchBinding(ActionThinkingCycle)
+	m = model.(Model)
+	assert.Equal(t, sdk.ThinkingOff, m.thinkingLevel)
 }
 
 func TestModel_CycleThinkingLevelWraps(t *testing.T) {
@@ -1100,24 +1110,33 @@ func TestModel_CycleThinkingLevelWraps(t *testing.T) {
 	assert.Equal(t, "240", m.editor.BorderColor)
 }
 
-func TestModel_CycleThinkingLevelXHighClampForSonnet(t *testing.T) {
-	m := newModel(nil, nil, nil)
-	m.width = 80
-	m.height = 24
-	m.thinkingLevel = sdk.ThinkingHigh
-
+func TestModel_CycleThinkingLevelSkipsClampedForSonnet(t *testing.T) {
 	sdk.ResetModelRegistry()
 	sdk.RegisterBuiltinModels()
 
 	defer sdk.ResetModelRegistry()
 
-	// Set current model to Sonnet (does NOT support xhigh)
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
 	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-20250514"}
 
-	model, _ := m.dispatchBinding(ActionThinkingCycle)
-	m = model.(Model)
-	// High -> XHigh, but clamped to High for Sonnet
-	assert.Equal(t, sdk.ThinkingHigh, m.thinkingLevel)
+	// Sonnet doesn't support xhigh, so the cycle skips it:
+	// medium -> high -> off -> minimal -> low -> medium (wraps)
+	expected := []sdk.ThinkingLevel{
+		sdk.ThinkingMedium, // start
+		sdk.ThinkingHigh,
+		sdk.ThinkingOff,
+		sdk.ThinkingMinimal,
+		sdk.ThinkingLow,
+		sdk.ThinkingMedium, // wraps
+	}
+
+	for _, want := range expected {
+		assert.Equal(t, want, m.thinkingLevel, "thinking level mismatch")
+		model, _ := m.dispatchBinding(ActionThinkingCycle)
+		m = model.(Model)
+	}
 }
 
 func TestModel_CycleThinkingLevelAllLevels(t *testing.T) {
