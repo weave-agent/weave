@@ -461,7 +461,7 @@ func TestStream_ContextCancellation(t *testing.T) {
 
 	events := collectEvents(ch)
 	// Verify the channel closed and we got at least some events before cancellation.
-	assert.Positive(t, len(events), "expected at least one event before cancellation")
+	assert.NotEmpty(t, events, "expected at least one event before cancellation")
 }
 
 func TestStream_MixedTextAndToolCalls(t *testing.T) {

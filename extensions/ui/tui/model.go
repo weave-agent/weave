@@ -57,11 +57,11 @@ type Model struct {
 	bindings   *BindingRegistry
 	ui         *TUIImpl
 
-	overlay          overlays.SelectorModel
-	activeOverlay    overlayKind
-	pendingSessions  []SessionEntry
-	pendingModels    []ModelEntry
-	pendingProviders []ProviderEntry
+	overlay           overlays.SelectorModel
+	activeOverlay     overlayKind
+	pendingSessions   []SessionEntry
+	pendingModels     []ModelEntry
+	pendingProviders  []ProviderEntry
 	currentModel      ModelEntry
 	prevModel         ModelEntry
 	prevThinkingLevel sdk.ThinkingLevel
