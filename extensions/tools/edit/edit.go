@@ -76,6 +76,7 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		if !ok {
 			return sdk.ToolResult{Content: fmt.Sprintf("error: edit %d is not an object", i), IsError: true}, nil
 		}
+
 		oldText, _ := m["oldText"].(string)
 		newText, _ := m["newText"].(string)
 		edits = append(edits, struct{ oldText, newText string }{oldText, newText})
@@ -85,6 +86,7 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 	if err != nil && !os.IsNotExist(err) {
 		return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
 	}
+
 	content := string(original)
 
 	for i, e := range edits {
@@ -95,15 +97,19 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 					IsError: true,
 				}, nil
 			}
+
 			content = e.newText
+
 			continue
 		}
+
 		if !strings.Contains(content, e.oldText) {
 			return sdk.ToolResult{
 				Content: fmt.Sprintf("error: oldText not found in file (edit %d)", i),
 				IsError: true,
 			}, nil
 		}
+
 		count := strings.Count(content, e.oldText)
 		if count > 1 {
 			return sdk.ToolResult{
@@ -111,6 +117,7 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 				IsError: true,
 			}, nil
 		}
+
 		content = strings.Replace(content, e.oldText, e.newText, 1)
 	}
 
@@ -123,14 +130,16 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 	})
 
 	if content != string(original) {
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil { //nolint:gosec // G301: 0755 is intentional for created directories
 			return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
 		}
+
 		perm := fs.FileMode(0o644)
 		if info, statErr := os.Stat(path); statErr == nil {
 			perm = info.Mode().Perm()
 		}
-		if err := os.WriteFile(path, []byte(content), perm); err != nil {
+
+		if err := os.WriteFile(path, []byte(content), perm); err != nil { //nolint:gosec // G703: path is a tool parameter, intentionally user-specified
 			return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
 		}
 	}

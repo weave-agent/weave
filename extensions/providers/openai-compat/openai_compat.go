@@ -140,10 +140,10 @@ func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sd
 	}
 
 	if so.ThinkingLevel != sdk.ThinkingOff {
-		if m, ok := sdk.GetModel(model); ok && !m.Reasoning {
-			// skip reasoning_effort for non-reasoning models
-		} else if effort, ok := effortMap[so.ThinkingLevel]; ok {
-			chatReq.ReasoningEffort = effort
+		if m, ok := sdk.GetModel(model); !ok || m.Reasoning {
+			if effort, ok := effortMap[so.ThinkingLevel]; ok {
+				chatReq.ReasoningEffort = effort
+			}
 		}
 	}
 
@@ -152,12 +152,12 @@ func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sd
 		chatReq.Messages = append([]ChatMessage{sysMsg}, chatReq.Messages...)
 	}
 
-	body, err := json.Marshal(chatReq)
+	reqBody, err := json.Marshal(chatReq)
 	if err != nil {
 		return nil, fmt.Errorf("openai-compat: marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.BaseURL+"/chat/completions", bytes.NewReader(body))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.BaseURL+"/chat/completions", bytes.NewReader(reqBody))
 	if err != nil {
 		return nil, fmt.Errorf("openai-compat: create request: %w", err)
 	}
@@ -165,7 +165,27 @@ func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sd
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+cfg.APIKey)
 
-	resp, err := client.Do(httpReq)
+	respBody, err := doStreamRequest(client, httpReq)
+	if err != nil {
+		return nil, err
+	}
+
+	ch := make(chan sdk.ProviderEvent, 64)
+
+	go func() {
+		defer respBody.Close()
+		defer close(ch)
+
+		parseSSE(ctx, respBody, ch)
+	}()
+
+	return ch, nil
+}
+
+// doStreamRequest sends an HTTP request and returns the response body for streaming.
+// It closes the body on non-OK statuses and returns an error.
+func doStreamRequest(client *http.Client, req *http.Request) (io.ReadCloser, error) {
+	resp, err := client.Do(req) //nolint:gosec // G704: URL is constructed from config, not user input
 	if err != nil {
 		return nil, fmt.Errorf("openai-compat: send request: %w", err)
 	}
@@ -183,16 +203,7 @@ func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sd
 		return nil, fmt.Errorf("openai-compat: unexpected status %d: %s", resp.StatusCode, string(errBody))
 	}
 
-	ch := make(chan sdk.ProviderEvent, 64)
-
-	go func() {
-		defer resp.Body.Close()
-		defer close(ch)
-
-		parseSSE(ctx, resp.Body, ch)
-	}()
-
-	return ch, nil
+	return resp.Body, nil
 }
 
 // toolCallAccum accumulates partial tool call data across SSE chunks.
@@ -200,6 +211,42 @@ type toolCallAccum struct {
 	id         string
 	name       string
 	argsBuffer string
+}
+
+// accumulateToolCall merges a partial ToolCallDelta into the accumulator map.
+func accumulateToolCall(toolCalls map[int]*toolCallAccum, tc ToolCallDelta) {
+	accumulated, exists := toolCalls[tc.Index]
+	if !exists {
+		name := ""
+		if tc.Function != nil {
+			name = tc.Function.Name
+		}
+
+		accumulated = &toolCallAccum{id: tc.ID, name: name}
+		if accumulated.id == "" {
+			accumulated.id = "call_" + strconv.Itoa(tc.Index)
+		}
+
+		toolCalls[tc.Index] = accumulated
+
+		if tc.Function != nil {
+			accumulated.argsBuffer += tc.Function.Arguments
+		}
+
+		return
+	}
+
+	if tc.ID != "" {
+		accumulated.id = tc.ID
+	}
+
+	if tc.Function != nil {
+		if tc.Function.Name != "" {
+			accumulated.name = tc.Function.Name
+		}
+
+		accumulated.argsBuffer += tc.Function.Arguments
+	}
 }
 
 // emitToolCalls sorts and emits accumulated tool calls as ProviderEvents.
@@ -321,32 +368,7 @@ func parseSSE(ctx context.Context, reader io.Reader, ch chan<- sdk.ProviderEvent
 			}
 
 			for _, tc := range choice.Delta.ToolCalls {
-				accumulated, exists := toolCalls[tc.Index]
-				if !exists {
-					var name string
-					if tc.Function != nil {
-						name = tc.Function.Name
-					}
-
-					accumulated = &toolCallAccum{id: tc.ID, name: name}
-					if accumulated.id == "" {
-						accumulated.id = "call_" + strconv.Itoa(tc.Index)
-					}
-
-					toolCalls[tc.Index] = accumulated
-				} else {
-					if tc.ID != "" {
-						accumulated.id = tc.ID
-					}
-
-					if tc.Function != nil && tc.Function.Name != "" {
-						accumulated.name = tc.Function.Name
-					}
-				}
-
-				if tc.Function != nil {
-					accumulated.argsBuffer += tc.Function.Arguments
-				}
+				accumulateToolCall(toolCalls, tc)
 			}
 
 			if choice.FinishReason != nil && *choice.FinishReason == "tool_calls" {

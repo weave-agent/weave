@@ -119,6 +119,7 @@ func TestExecute(t *testing.T) {
 			result, err := tool.Execute(ctx, tt.args)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantError, result.IsError)
+
 			if tt.check != nil {
 				tt.check(t, result)
 			}

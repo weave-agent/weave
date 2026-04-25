@@ -2,6 +2,7 @@ package edit
 
 import (
 	"context"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -65,6 +66,7 @@ func TestExecute(t *testing.T) {
 			setup: func(t *testing.T) string {
 				p := filepath.Join(tmpDir, "single.txt")
 				require.NoError(t, os.WriteFile(p, []byte("hello world"), 0o644))
+
 				return p
 			},
 			args: map[string]any{
@@ -76,6 +78,7 @@ func TestExecute(t *testing.T) {
 			check: func(t *testing.T, result sdk.ToolResult, path string) {
 				assert.Contains(t, result.Content, "-hello")
 				assert.Contains(t, result.Content, "+goodbye")
+
 				data, err := os.ReadFile(path)
 				require.NoError(t, err)
 				assert.Equal(t, "goodbye world", string(data))
@@ -86,6 +89,7 @@ func TestExecute(t *testing.T) {
 			setup: func(t *testing.T) string {
 				p := filepath.Join(tmpDir, "multi.txt")
 				require.NoError(t, os.WriteFile(p, []byte("foo bar baz"), 0o644))
+
 				return p
 			},
 			args: map[string]any{
@@ -98,6 +102,7 @@ func TestExecute(t *testing.T) {
 			check: func(t *testing.T, result sdk.ToolResult, path string) {
 				assert.Contains(t, result.Content, "-foo bar baz")
 				assert.Contains(t, result.Content, "+one bar three")
+
 				data, err := os.ReadFile(path)
 				require.NoError(t, err)
 				assert.Equal(t, "one bar three", string(data))
@@ -108,6 +113,7 @@ func TestExecute(t *testing.T) {
 			setup: func(t *testing.T) string {
 				p := filepath.Join(tmpDir, "nomatch.txt")
 				require.NoError(t, os.WriteFile(p, []byte("hello"), 0o644))
+
 				return p
 			},
 			args: map[string]any{
@@ -125,6 +131,7 @@ func TestExecute(t *testing.T) {
 			setup: func(t *testing.T) string {
 				p := filepath.Join(tmpDir, "empty.txt")
 				require.NoError(t, os.WriteFile(p, []byte(""), 0o644))
+
 				return p
 			},
 			args: map[string]any{
@@ -161,6 +168,7 @@ func TestExecute(t *testing.T) {
 			setup: func(t *testing.T) string {
 				p := filepath.Join(tmpDir, "dup.txt")
 				require.NoError(t, os.WriteFile(p, []byte("aaa bbb aaa"), 0o644))
+
 				return p
 			},
 			args: map[string]any{
@@ -185,9 +193,8 @@ func TestExecute(t *testing.T) {
 			}
 
 			args := make(map[string]any, len(tt.args)+1)
-			for k, v := range tt.args {
-				args[k] = v
-			}
+			maps.Copy(args, tt.args)
+
 			if _, hasPath := args["path"]; !hasPath {
 				args["path"] = path
 			}
@@ -195,6 +202,7 @@ func TestExecute(t *testing.T) {
 			result, err := tool.Execute(context.Background(), args)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantError, result.IsError)
+
 			if tt.check != nil {
 				tt.check(t, result, path)
 			}
@@ -224,6 +232,7 @@ func TestExecuteMultilineDiff(t *testing.T) {
 
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
+
 	expected := "line1\nreplaced\nline4\nline5"
 	assert.Equal(t, expected, string(data))
 }
@@ -233,16 +242,18 @@ func TestExecuteTruncation(t *testing.T) {
 	tmpDir := t.TempDir()
 	path := filepath.Join(tmpDir, "big.txt")
 
-	var lines []string
-	for i := 0; i < 3000; i++ {
+	lines := make([]string, 0, 3000)
+	for range 3000 {
 		lines = append(lines, "original line")
 	}
+
 	require.NoError(t, os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o644))
 
-	var newLines []string
-	for i := 0; i < 3000; i++ {
+	newLines := make([]string, 0, 3000)
+	for range 3000 {
 		newLines = append(newLines, "replacement line that is longer")
 	}
+
 	result, err := tool.Execute(context.Background(), map[string]any{
 		"path": path,
 		"edits": []any{

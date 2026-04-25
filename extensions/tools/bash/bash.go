@@ -53,6 +53,7 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 	}
 
 	timeout := defaultTimeout
+
 	if v, ok := args["timeout"]; ok {
 		if f, ok := v.(float64); ok && f > 0 {
 			timeout = time.Duration(f) * time.Second
@@ -68,35 +69,38 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 		if cmd.Process == nil {
 			return os.ErrProcessDone
 		}
+
 		err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 		if errors.Is(err, syscall.ESRCH) {
 			return os.ErrProcessDone
 		}
-		return err
+
+		return fmt.Errorf("bash: kill process: %w", err)
 	}
 	out, err := cmd.CombinedOutput()
 
 	result := truncate.Truncate(string(out), truncate.DefaultMaxLines, truncate.DefaultMaxBytes)
 
-	var content string
-	var isErr bool
-
-	if err != nil {
-		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok && exitErr.ExitCode() >= 0 {
-			content = fmt.Sprintf("%s\n[exit code %d]", result.Format(), exitErr.ExitCode())
-		} else if ctx.Err() == context.DeadlineExceeded {
-			content = fmt.Sprintf("%s\nerror: command timed out", result.Format())
-			isErr = true
-		} else if ctx.Err() == context.Canceled {
-			content = fmt.Sprintf("%s\nerror: command canceled", result.Format())
-			isErr = true
-		} else {
-			content = fmt.Sprintf("%s\nerror: %s", result.Format(), err)
-			isErr = true
-		}
-	} else {
-		content = result.Format()
+	if err == nil {
+		return sdk.ToolResult{Content: result.Format()}, nil
 	}
 
+	content, isErr := formatCmdError(result, err, ctx)
+
 	return sdk.ToolResult{Content: content, IsError: isErr}, nil
+}
+
+func formatCmdError(result truncate.Result, err error, ctx context.Context) (string, bool) {
+	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok && exitErr.ExitCode() >= 0 {
+		return fmt.Sprintf("%s\n[exit code %d]", result.Format(), exitErr.ExitCode()), false
+	}
+
+	switch {
+	case ctx.Err() == context.DeadlineExceeded:
+		return result.Format() + "\nerror: command timed out", true
+	case ctx.Err() == context.Canceled:
+		return result.Format() + "\nerror: command canceled", true
+	default:
+		return fmt.Sprintf("%s\nerror: %s", result.Format(), err), true
+	}
 }

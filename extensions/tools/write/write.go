@@ -51,7 +51,7 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 
 	dir := filepath.Dir(path)
 	if dir != "." {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+		if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // G301: 0755 is intentional for created directories
 			return sdk.ToolResult{Content: fmt.Sprintf("error: creating directories: %s", err), IsError: true}, nil
 		}
 	}

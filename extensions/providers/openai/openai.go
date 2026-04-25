@@ -2,6 +2,7 @@ package openai
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -28,7 +29,7 @@ func init() {
 		}
 
 		if apiKey == "" {
-			return nil, fmt.Errorf("openai: API key required (set OPENAI_API_KEY, add to ~/.weave/auth.json, or configure in .weave.yaml)")
+			return nil, errors.New("openai: API key required (set OPENAI_API_KEY, add to ~/.weave/auth.json, or configure in .weave.yaml)")
 		}
 
 		model := defaultModel
@@ -60,5 +61,10 @@ func init() {
 }
 
 func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest, opts ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
-	return openaicompat.Stream(ctx, p.client, p.config, req, opts...)
+	ch, err := openaicompat.Stream(ctx, p.client, p.config, req, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("openai: %w", err)
+	}
+
+	return ch, nil
 }

@@ -61,6 +61,7 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 	}
 
 	var lines []string
+
 	for _, e := range entries {
 		if e.IsDir() {
 			lines = append(lines, e.Name()+"/")

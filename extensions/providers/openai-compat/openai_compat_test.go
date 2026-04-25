@@ -16,9 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:fix inline
-func strPtr(s string) *string { return new(s) }
-
 func TestConvertMessages(t *testing.T) {
 	tests := []struct {
 		name string
@@ -184,7 +181,7 @@ func setupServer(response string) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
-		fmt.Fprint(w, response)
+		_, _ = fmt.Fprint(w, response)
 	}))
 }
 
@@ -327,9 +324,10 @@ func TestStream_WithSystemPrompt(t *testing.T) {
 	var receivedBody ChatRequest
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewDecoder(r.Body).Decode(&receivedBody)
+		_ = json.NewDecoder(r.Body).Decode(&receivedBody)
+
 		w.Header().Set("Content-Type", "text/event-stream")
-		fmt.Fprint(w, sseStream(
+		_, _ = fmt.Fprint(w, sseStream(
 			sseChunk(ChunkDelta{Content: "ok"}, nil),
 			sseChunk(ChunkDelta{}, new("stop")),
 			sseDone(),
@@ -357,9 +355,10 @@ func TestStream_WithTools(t *testing.T) {
 	var receivedBody ChatRequest
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewDecoder(r.Body).Decode(&receivedBody)
+		_ = json.NewDecoder(r.Body).Decode(&receivedBody)
+
 		w.Header().Set("Content-Type", "text/event-stream")
-		fmt.Fprint(w, sseStream(
+		_, _ = fmt.Fprint(w, sseStream(
 			sseChunk(ChunkDelta{Content: "ok"}, nil),
 			sseChunk(ChunkDelta{}, new("stop")),
 			sseDone(),
@@ -395,7 +394,7 @@ func TestStream_WithTools(t *testing.T) {
 func TestStream_APIError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
-		fmt.Fprint(w, `{"error":{"message":"Invalid API key","type":"invalid_request_error"}}`)
+		_, _ = fmt.Fprint(w, `{"error":{"message":"Invalid API key","type":"invalid_request_error"}}`)
 	}))
 	defer server.Close()
 
@@ -412,7 +411,7 @@ func TestStream_APIError(t *testing.T) {
 func TestStream_UnexpectedStatus(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprint(w, "internal server error")
+		_, _ = fmt.Fprint(w, "internal server error")
 	}))
 	defer server.Close()
 
@@ -431,7 +430,7 @@ func TestStream_ContextCancellation(t *testing.T) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		// Slowly drip data so the stream stays open
 		for range 100 {
-			fmt.Fprint(w, sseChunk(ChunkDelta{Content: "x"}, nil))
+			_, _ = fmt.Fprint(w, sseChunk(ChunkDelta{Content: "x"}, nil))
 
 			if f, ok := w.(http.Flusher); ok {
 				f.Flush()
@@ -518,9 +517,10 @@ func TestStream_DefaultModel(t *testing.T) {
 	var receivedBody ChatRequest
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewDecoder(r.Body).Decode(&receivedBody)
+		_ = json.NewDecoder(r.Body).Decode(&receivedBody)
+
 		w.Header().Set("Content-Type", "text/event-stream")
-		fmt.Fprint(w, sseStream(
+		_, _ = fmt.Fprint(w, sseStream(
 			sseChunk(ChunkDelta{Content: "ok"}, nil),
 			sseChunk(ChunkDelta{}, new("stop")),
 			sseDone(),
@@ -643,9 +643,10 @@ func TestStream_WithModelOverride(t *testing.T) {
 	var receivedBody ChatRequest
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewDecoder(r.Body).Decode(&receivedBody)
+		_ = json.NewDecoder(r.Body).Decode(&receivedBody)
+
 		w.Header().Set("Content-Type", "text/event-stream")
-		fmt.Fprint(w, sseStream(
+		_, _ = fmt.Fprint(w, sseStream(
 			sseChunk(ChunkDelta{Content: "ok"}, nil),
 			sseChunk(ChunkDelta{}, new("stop")),
 			sseDone(),
@@ -685,9 +686,10 @@ func TestStream_WithThinkingLevel_SetsReasoningEffort(t *testing.T) {
 			var receivedBody ChatRequest
 
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				json.NewDecoder(r.Body).Decode(&receivedBody)
+				_ = json.NewDecoder(r.Body).Decode(&receivedBody)
+
 				w.Header().Set("Content-Type", "text/event-stream")
-				fmt.Fprint(w, sseStream(
+				_, _ = fmt.Fprint(w, sseStream(
 					sseChunk(ChunkDelta{Content: "ok"}, nil),
 					sseChunk(ChunkDelta{}, new("stop")),
 					sseDone(),

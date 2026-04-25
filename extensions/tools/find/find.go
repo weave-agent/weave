@@ -14,7 +14,7 @@ import (
 
 type tool struct{}
 
-func init() { //nolint:gochecknoinits // required for extension self-registration
+func init() {
 	sdk.RegisterTool("find", func(_ sdk.Config) (sdk.Tool, error) {
 		return &tool{}, nil
 	})
@@ -77,20 +77,21 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		return sdk.ToolResult{Content: fmt.Sprintf("error: %s is not a directory", absPath), IsError: true}, nil
 	}
 
-	if _, err := filepath.Match(pattern, ""); err != nil {
-		return sdk.ToolResult{Content: fmt.Sprintf("error: invalid pattern: %s", err), IsError: true}, nil
+	if _, validateErr := filepath.Match(pattern, ""); validateErr != nil {
+		return sdk.ToolResult{Content: fmt.Sprintf("error: invalid pattern: %s", validateErr), IsError: true}, nil
 	}
 
 	var matches []string
 
 	err = filepath.WalkDir(absPath, func(walkPath string, d fs.DirEntry, walkErr error) error {
+		//nolint:nilerr // walkErr/relErr are intentionally swallowed to skip inaccessible paths
 		if walkErr != nil {
 			return nil
 		}
 
 		rel, relErr := filepath.Rel(absPath, walkPath)
 		if relErr != nil {
-			return nil
+			return nil //nolint:nilerr // relErr intentionally swallowed to skip inaccessible paths
 		}
 
 		if d.IsDir() {

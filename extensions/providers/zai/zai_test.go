@@ -17,12 +17,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func strPtr(s string) *string { return &s }
-
 func newTestProvider(server *httptest.Server, model string) sdk.Provider {
 	if model == "" {
 		model = "glm-4"
 	}
+
 	return &provider{
 		client: server.Client(),
 		config: openaicompat.ProviderConfig{
@@ -35,13 +34,16 @@ func newTestProvider(server *httptest.Server, model string) sdk.Provider {
 
 func collectEvents(t *testing.T, ch <-chan sdk.ProviderEvent) []sdk.ProviderEvent {
 	t.Helper()
+
 	var events []sdk.ProviderEvent
+
 	for {
 		select {
 		case evt, ok := <-ch:
 			if !ok {
 				return events
 			}
+
 			events = append(events, evt)
 		case <-time.After(5 * time.Second):
 			t.Fatal("timed out waiting for events")
@@ -61,6 +63,7 @@ func sseChunk(delta openaicompat.ChunkDelta, finish *string) string {
 		},
 	}
 	data, _ := json.Marshal(chunk)
+
 	return "data: " + string(data) + "\n"
 }
 
@@ -76,7 +79,7 @@ func setupServer(response string) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
-		fmt.Fprint(w, response)
+		_, _ = fmt.Fprint(w, response)
 	}))
 }
 
@@ -84,7 +87,7 @@ func TestStream_TextResponse(t *testing.T) {
 	stream := sseStream(
 		sseChunk(openaicompat.ChunkDelta{Role: "assistant"}, nil),
 		sseChunk(openaicompat.ChunkDelta{Content: "Hello!"}, nil),
-		sseChunk(openaicompat.ChunkDelta{}, strPtr("stop")),
+		sseChunk(openaicompat.ChunkDelta{}, new("stop")),
 		sseDone(),
 	)
 
@@ -100,11 +103,13 @@ func TestStream_TextResponse(t *testing.T) {
 	events := collectEvents(t, ch)
 
 	var textParts []string
+
 	for _, e := range events {
 		if e.Type == sdk.ProviderEventTextDelta {
 			textParts = append(textParts, e.Content.(string))
 		}
 	}
+
 	assert.Equal(t, []string{"Hello!"}, textParts)
 }
 
@@ -121,7 +126,7 @@ func TestStream_ToolCall(t *testing.T) {
 				{Index: 0, Function: &openaicompat.FunctionCallDelta{Arguments: `{"command":"ls"}`}},
 			},
 		}, nil),
-		sseChunk(openaicompat.ChunkDelta{}, strPtr("tool_calls")),
+		sseChunk(openaicompat.ChunkDelta{}, new("tool_calls")),
 		sseDone(),
 	)
 
@@ -137,11 +142,13 @@ func TestStream_ToolCall(t *testing.T) {
 	events := collectEvents(t, ch)
 
 	var toolCalls []sdk.ToolCall
+
 	for _, e := range events {
 		if e.Type == sdk.ProviderEventToolCall {
 			toolCalls = append(toolCalls, e.Content.(sdk.ToolCall))
 		}
 	}
+
 	require.Len(t, toolCalls, 1)
 	assert.Equal(t, "call_abc", toolCalls[0].ID)
 	assert.Equal(t, "bash", toolCalls[0].Name)
@@ -152,11 +159,12 @@ func TestStream_WithSystemPrompt(t *testing.T) {
 	var receivedBody openaicompat.ChatRequest
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewDecoder(r.Body).Decode(&receivedBody)
+		_ = json.NewDecoder(r.Body).Decode(&receivedBody)
+
 		w.Header().Set("Content-Type", "text/event-stream")
-		fmt.Fprint(w, sseStream(
+		_, _ = fmt.Fprint(w, sseStream(
 			sseChunk(openaicompat.ChunkDelta{Content: "ok"}, nil),
-			sseChunk(openaicompat.ChunkDelta{}, strPtr("stop")),
+			sseChunk(openaicompat.ChunkDelta{}, new("stop")),
 			sseDone(),
 		))
 	}))
@@ -178,7 +186,7 @@ func TestStream_WithSystemPrompt(t *testing.T) {
 func TestStream_APIError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
-		fmt.Fprint(w, `{"error":{"message":"Invalid API key","type":"invalid_request_error"}}`)
+		_, _ = fmt.Fprint(w, `{"error":{"message":"Invalid API key","type":"invalid_request_error"}}`)
 	}))
 	defer server.Close()
 
@@ -194,11 +202,12 @@ func TestStream_WithTools(t *testing.T) {
 	var receivedBody openaicompat.ChatRequest
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewDecoder(r.Body).Decode(&receivedBody)
+		_ = json.NewDecoder(r.Body).Decode(&receivedBody)
+
 		w.Header().Set("Content-Type", "text/event-stream")
-		fmt.Fprint(w, sseStream(
+		_, _ = fmt.Fprint(w, sseStream(
 			sseChunk(openaicompat.ChunkDelta{Content: "ok"}, nil),
-			sseChunk(openaicompat.ChunkDelta{}, strPtr("stop")),
+			sseChunk(openaicompat.ChunkDelta{}, new("stop")),
 			sseDone(),
 		))
 	}))
@@ -242,7 +251,7 @@ func TestStream_MultipleToolCalls(t *testing.T) {
 				{Index: 1, Function: &openaicompat.FunctionCallDelta{Arguments: `{"path":"/tmp/file"}`}},
 			},
 		}, nil),
-		sseChunk(openaicompat.ChunkDelta{}, strPtr("tool_calls")),
+		sseChunk(openaicompat.ChunkDelta{}, new("tool_calls")),
 		sseDone(),
 	)
 
@@ -258,11 +267,13 @@ func TestStream_MultipleToolCalls(t *testing.T) {
 	events := collectEvents(t, ch)
 
 	var toolCalls []sdk.ToolCall
+
 	for _, e := range events {
 		if e.Type == sdk.ProviderEventToolCall {
 			toolCalls = append(toolCalls, e.Content.(sdk.ToolCall))
 		}
 	}
+
 	require.Len(t, toolCalls, 2)
 	names := []string{toolCalls[0].Name, toolCalls[1].Name}
 	assert.Contains(t, names, "bash")
@@ -273,11 +284,12 @@ func TestStream_DefaultModel(t *testing.T) {
 	var receivedBody openaicompat.ChatRequest
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewDecoder(r.Body).Decode(&receivedBody)
+		_ = json.NewDecoder(r.Body).Decode(&receivedBody)
+
 		w.Header().Set("Content-Type", "text/event-stream")
-		fmt.Fprint(w, sseStream(
+		_, _ = fmt.Fprint(w, sseStream(
 			sseChunk(openaicompat.ChunkDelta{Content: "ok"}, nil),
-			sseChunk(openaicompat.ChunkDelta{}, strPtr("stop")),
+			sseChunk(openaicompat.ChunkDelta{}, new("stop")),
 			sseDone(),
 		))
 	}))
@@ -298,10 +310,11 @@ func TestStream_SendsCorrectBaseURL(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedPath = r.URL.Path
+
 		w.Header().Set("Content-Type", "text/event-stream")
-		fmt.Fprint(w, sseStream(
+		_, _ = fmt.Fprint(w, sseStream(
 			sseChunk(openaicompat.ChunkDelta{Content: "ok"}, nil),
-			sseChunk(openaicompat.ChunkDelta{}, strPtr("stop")),
+			sseChunk(openaicompat.ChunkDelta{}, new("stop")),
 			sseDone(),
 		))
 	}))

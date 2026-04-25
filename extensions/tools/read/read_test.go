@@ -142,10 +142,12 @@ func TestExecute(t *testing.T) {
 
 	t.Run("large file truncation", func(t *testing.T) {
 		path := filepath.Join(tmpDir, "large.txt")
+
 		lines := make([]string, 3000)
 		for i := range lines {
 			lines[i] = strings.Repeat("x", 20)
 		}
+
 		require.NoError(t, os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o644))
 
 		result, err := tool.Execute(context.Background(), map[string]any{"path": path})

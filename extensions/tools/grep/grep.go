@@ -72,6 +72,7 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 	literal, _ := args["literal"].(bool)
 
 	var contextLines int
+
 	if v, ok := args["context"]; ok {
 		if f, ok := v.(float64); ok && f >= 0 {
 			contextLines = min(int(f), 50)
@@ -82,6 +83,7 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 	if literal {
 		expr = regexp.QuoteMeta(pattern)
 	}
+
 	if ignoreCase {
 		expr = "(?i)" + expr
 	}
@@ -104,21 +106,7 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 	var matches []string
 
 	if info.IsDir() {
-		err = filepath.WalkDir(absPath, func(walkPath string, d fs.DirEntry, walkErr error) error {
-			if walkErr != nil {
-				return nil
-			}
-			if d.IsDir() {
-				name := d.Name()
-				if name == ".git" || name == "node_modules" || name == ".hg" || name == ".svn" {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-			fileMatches := searchFile(walkPath, re, contextLines)
-			matches = append(matches, fileMatches...)
-			return nil
-		})
+		matches, err = searchDir(absPath, re, contextLines)
 		if err != nil {
 			return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
 		}
@@ -136,6 +124,35 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 	return sdk.ToolResult{Content: result.Format(), IsError: false}, nil
 }
 
+func searchDir(root string, re *regexp.Regexp, contextLines int) ([]string, error) {
+	var matches []string
+
+	err := filepath.WalkDir(root, func(walkPath string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return nil //nolint:nilerr // walkErr intentionally swallowed to skip inaccessible entries
+		}
+
+		if d.IsDir() {
+			name := d.Name()
+			if name == ".git" || name == "node_modules" || name == ".hg" || name == ".svn" {
+				return filepath.SkipDir
+			}
+
+			return nil
+		}
+
+		fileMatches := searchFile(walkPath, re, contextLines)
+		matches = append(matches, fileMatches...)
+
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("grep: walk directory: %w", err)
+	}
+
+	return matches, nil
+}
+
 func searchFile(path string, re *regexp.Regexp, contextLines int) []string {
 	fi, err := os.Stat(path)
 	if err != nil || fi.Size() > 10*1024*1024 {
@@ -149,16 +166,20 @@ func searchFile(path string, re *regexp.Regexp, contextLines int) []string {
 	defer f.Close()
 
 	var lines []string
+
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
+
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
 	}
+
 	if err := scanner.Err(); err != nil {
 		return nil
 	}
 
 	var results []string
+
 	matched := make(map[int]bool)
 
 	for i, line := range lines {
@@ -169,7 +190,7 @@ func searchFile(path string, re *regexp.Regexp, contextLines int) []string {
 		}
 	}
 
-	for i := range len(lines) {
+	for i := range lines {
 		if matched[i] {
 			results = append(results, fmt.Sprintf("%s:%d:%s", path, i+1, lines[i]))
 		}

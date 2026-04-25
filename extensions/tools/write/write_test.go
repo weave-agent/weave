@@ -69,7 +69,8 @@ func TestExecute(t *testing.T) {
 			args: func() map[string]any {
 				dir := t.TempDir()
 				p := filepath.Join(dir, "exists.txt")
-				os.WriteFile(p, []byte("original"), 0o644)
+				require.NoError(t, os.WriteFile(p, []byte("original"), 0o644))
+
 				return map[string]any{"path": p, "content": "updated"}
 			}(),
 			wantError: false,
@@ -125,6 +126,7 @@ func TestExecute(t *testing.T) {
 			result, err := tool.Execute(context.Background(), tt.args)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantError, result.IsError)
+
 			if tt.check != nil {
 				tt.check(t, result)
 			}

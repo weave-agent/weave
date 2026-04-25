@@ -40,6 +40,7 @@ func TestExecute(t *testing.T) {
 				require.NoError(t, os.WriteFile(filepath.Join(dir, "file1.txt"), []byte("a"), 0o644))
 				require.NoError(t, os.Mkdir(filepath.Join(dir, "subdir"), 0o755))
 				require.NoError(t, os.WriteFile(filepath.Join(dir, "file2.go"), []byte("b"), 0o644))
+
 				return dir
 			},
 			args: map[string]any{},
@@ -76,6 +77,7 @@ func TestExecute(t *testing.T) {
 				dir := t.TempDir()
 				f := filepath.Join(dir, "file.txt")
 				require.NoError(t, os.WriteFile(f, []byte("hi"), 0o644))
+
 				return f
 			},
 			args:      map[string]any{},
@@ -89,6 +91,7 @@ func TestExecute(t *testing.T) {
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
 				require.NoError(t, os.WriteFile(filepath.Join(dir, "hello.txt"), []byte("world"), 0o644))
+
 				return dir
 			},
 			args: map[string]any{},
@@ -103,6 +106,7 @@ func TestExecute(t *testing.T) {
 				dir := t.TempDir()
 				require.NoError(t, os.Mkdir(filepath.Join(dir, "mydir"), 0o755))
 				require.NoError(t, os.WriteFile(filepath.Join(dir, "myfile"), []byte("x"), 0o644))
+
 				return dir
 			},
 			args: map[string]any{},
@@ -117,6 +121,7 @@ func TestExecute(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			path := tt.setup(t)
+
 			args := tt.args
 			if _, ok := args["path"]; !ok {
 				args["path"] = path
@@ -125,6 +130,7 @@ func TestExecute(t *testing.T) {
 			result, err := (&tool{}).Execute(context.Background(), args)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantError, result.IsError)
+
 			if tt.check != nil {
 				tt.check(t, result)
 			}

@@ -49,6 +49,7 @@ func TestExecute(t *testing.T) {
 				require.NoError(t, os.WriteFile(filepath.Join(dir, "a.go"), []byte("package main"), 0o644))
 				require.NoError(t, os.WriteFile(filepath.Join(dir, "b.txt"), []byte("hello"), 0o644))
 				require.NoError(t, os.WriteFile(filepath.Join(dir, "c.go"), []byte("package pkg"), 0o644))
+
 				return dir
 			},
 			args: map[string]any{"pattern": "*.go"},
@@ -64,6 +65,7 @@ func TestExecute(t *testing.T) {
 				dir := t.TempDir()
 				require.NoError(t, os.WriteFile(filepath.Join(dir, "config.yaml"), []byte("key: val"), 0o644))
 				require.NoError(t, os.WriteFile(filepath.Join(dir, "config.json"), []byte("{}"), 0o644))
+
 				return dir
 			},
 			args: map[string]any{"pattern": "config.yaml"},
@@ -80,6 +82,7 @@ func TestExecute(t *testing.T) {
 				require.NoError(t, os.MkdirAll(sub, 0o755))
 				require.NoError(t, os.WriteFile(filepath.Join(sub, "target.txt"), []byte("found"), 0o644))
 				require.NoError(t, os.WriteFile(filepath.Join(dir, "other.go"), []byte("package main"), 0o644))
+
 				return dir
 			},
 			args: map[string]any{"pattern": "*.txt"},
@@ -93,6 +96,7 @@ func TestExecute(t *testing.T) {
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
 				require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("hello"), 0o644))
+
 				return dir
 			},
 			args: map[string]any{"pattern": "*.xyz"},
@@ -116,6 +120,7 @@ func TestExecute(t *testing.T) {
 				require.NoError(t, os.MkdirAll(filepath.Join(dir, ".git", "objects"), 0o755))
 				require.NoError(t, os.WriteFile(filepath.Join(dir, ".git", "config"), []byte("git config"), 0o644))
 				require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main"), 0o644))
+
 				return dir
 			},
 			args: map[string]any{"pattern": "*"},
@@ -130,6 +135,7 @@ func TestExecute(t *testing.T) {
 				dir := t.TempDir()
 				f := filepath.Join(dir, "file.txt")
 				require.NoError(t, os.WriteFile(f, []byte("hi"), 0o644))
+
 				return f
 			},
 			args:      map[string]any{"pattern": "*.txt"},
@@ -143,6 +149,7 @@ func TestExecute(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			path := tt.setup(t)
+
 			args := tt.args
 			if _, ok := args["path"]; !ok {
 				args["path"] = path
@@ -151,6 +158,7 @@ func TestExecute(t *testing.T) {
 			result, err := (&tool{}).Execute(context.Background(), args)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantError, result.IsError)
+
 			if tt.check != nil {
 				tt.check(t, result)
 			}

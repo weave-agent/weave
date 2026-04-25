@@ -31,6 +31,7 @@ func createTempFile(t *testing.T, content string) string {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "test.txt")
 	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+
 	return path
 }
 
@@ -125,6 +126,7 @@ func TestExecute(t *testing.T) {
 				require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("findme in a"), 0o644))
 				require.NoError(t, os.WriteFile(filepath.Join(dir, "b.txt"), []byte("no match here"), 0o644))
 				require.NoError(t, os.WriteFile(filepath.Join(dir, "c.txt"), []byte("findme in c"), 0o644))
+
 				return dir
 			},
 			args: map[string]any{"pattern": "findme"},
@@ -141,6 +143,7 @@ func TestExecute(t *testing.T) {
 				require.NoError(t, os.MkdirAll(filepath.Join(dir, ".git"), 0o755))
 				require.NoError(t, os.WriteFile(filepath.Join(dir, ".git", "config"), []byte("findme git"), 0o644))
 				require.NoError(t, os.WriteFile(filepath.Join(dir, "main.txt"), []byte("findme main"), 0o644))
+
 				return dir
 			},
 			args: map[string]any{"pattern": "findme"},
@@ -166,6 +169,7 @@ func TestExecute(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			path := tt.setup(t)
+
 			args := tt.args
 			if _, ok := args["path"]; !ok {
 				args["path"] = path
@@ -174,6 +178,7 @@ func TestExecute(t *testing.T) {
 			result, err := (&tool{}).Execute(context.Background(), args)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantError, result.IsError)
+
 			if tt.check != nil {
 				tt.check(t, result)
 			}

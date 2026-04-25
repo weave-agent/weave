@@ -411,9 +411,9 @@ func TestListModelsWithRegistry(t *testing.T) {
 	sdk.RegisterBuiltinModels()
 
 	// Register providers so their models are included.
-	sdk.RegisterProvider("anthropic", func(cfg sdk.Config) (sdk.Provider, error) { return nil, nil })
-	sdk.RegisterProvider("openai", func(cfg sdk.Config) (sdk.Provider, error) { return nil, nil })
-	sdk.RegisterProvider("zai", func(cfg sdk.Config) (sdk.Provider, error) { return nil, nil })
+	sdk.RegisterProvider("anthropic", func(_ sdk.Config) (sdk.Provider, error) { return nil, nil }) //nolint:nilnil // stub registration for model list tests
+	sdk.RegisterProvider("openai", func(_ sdk.Config) (sdk.Provider, error) { return nil, nil })    //nolint:nilnil // stub registration for model list tests
+	sdk.RegisterProvider("zai", func(_ sdk.Config) (sdk.Provider, error) { return nil, nil })       //nolint:nilnil // stub registration for model list tests
 
 	defer sdk.ResetModelRegistry()
 	defer sdk.ResetProviderRegistry()
@@ -447,7 +447,7 @@ func TestListModelsIgnoresEnvOverrides(t *testing.T) {
 	sdk.ResetModelRegistry()
 	sdk.ResetProviderRegistry()
 	sdk.RegisterBuiltinModels()
-	sdk.RegisterProvider("anthropic", func(cfg sdk.Config) (sdk.Provider, error) { return nil, nil })
+	sdk.RegisterProvider("anthropic", func(_ sdk.Config) (sdk.Provider, error) { return nil, nil }) //nolint:nilnil // stub registration for model list tests
 
 	defer sdk.ResetModelRegistry()
 	defer sdk.ResetProviderRegistry()
@@ -540,8 +540,8 @@ func TestStatusMessageOnModelCycle(t *testing.T) {
 	sdk.ResetModelRegistry()
 	sdk.ResetProviderRegistry()
 	sdk.RegisterBuiltinModels()
-	sdk.RegisterProvider("anthropic", func(cfg sdk.Config) (sdk.Provider, error) { return nil, nil })
-	sdk.RegisterProvider("openai", func(cfg sdk.Config) (sdk.Provider, error) { return nil, nil })
+	sdk.RegisterProvider("anthropic", func(_ sdk.Config) (sdk.Provider, error) { return nil, nil }) //nolint:nilnil // stub registration for model list tests
+	sdk.RegisterProvider("openai", func(_ sdk.Config) (sdk.Provider, error) { return nil, nil })    //nolint:nilnil // stub registration for model list tests
 
 	defer sdk.ResetModelRegistry()
 	defer sdk.ResetProviderRegistry()

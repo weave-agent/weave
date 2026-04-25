@@ -11,7 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-func init() { //nolint:gochecknoinits // required for extension self-registration
+func init() {
 	sdk.RegisterExtension("tui", func(cfg sdk.Config) (sdk.Extension, error) {
 		t, err := NewTUI(cfg)
 		if err != nil {

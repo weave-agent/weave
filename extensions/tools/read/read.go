@@ -3,6 +3,7 @@ package read
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -24,6 +25,7 @@ type tool struct{}
 // truncated is true.
 func readLine(r *bufio.Reader, maxBytes int) (line string, truncated bool, err error) {
 	var buf strings.Builder
+
 	for {
 		chunk, sliceErr := r.ReadSlice('\n')
 		if !truncated && len(chunk) > 0 {
@@ -32,17 +34,21 @@ func readLine(r *bufio.Reader, maxBytes int) (line string, truncated bool, err e
 				if n > 0 {
 					buf.Write(chunk[:n])
 				}
+
 				truncated = true
 			} else {
 				buf.Write(chunk)
 			}
 		}
+
 		if sliceErr == nil {
 			return buf.String(), truncated, nil
 		}
-		if sliceErr == bufio.ErrBufferFull {
+
+		if errors.Is(sliceErr, bufio.ErrBufferFull) {
 			continue
 		}
+
 		return buf.String(), truncated, sliceErr
 	}
 }
@@ -80,6 +86,24 @@ func (t *tool) Definition() sdk.ToolDef {
 	}
 }
 
+func parsePagination(args map[string]any) (offset, limit int) {
+	offset = 1
+
+	if v, ok := args["offset"]; ok {
+		if val, ok := v.(float64); ok && val >= 1 {
+			offset = int(val)
+		}
+	}
+
+	if v, ok := args["limit"]; ok {
+		if val, ok := v.(float64); ok && val > 0 {
+			limit = int(val)
+		}
+	}
+
+	return offset, limit
+}
+
 func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, error) {
 	path, _ := args["path"].(string)
 	if path == "" {
@@ -90,6 +114,7 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 	if err != nil {
 		return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
 	}
+
 	if info.IsDir() {
 		return sdk.ToolResult{Content: fmt.Sprintf("error: %s is a directory", path), IsError: true}, nil
 	}
@@ -100,32 +125,23 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 	}
 	defer f.Close()
 
-	offset := 1
-	if v, ok := args["offset"]; ok {
-		if offsetVal, ok := v.(float64); ok && offsetVal >= 1 {
-			offset = int(offsetVal)
-		}
-	}
-
-	limit := 0
-	if v, ok := args["limit"]; ok {
-		if limitVal, ok := v.(float64); ok && limitVal > 0 {
-			limit = int(limitVal)
-		}
-	}
+	offset, limit := parsePagination(args)
 
 	reader := bufio.NewReader(f)
+
 	var lines []string
+
 	lineNum := 0
 	collected := 0
 
 	for {
 		line, lineTruncated, readErr := readLine(reader, maxLineContentBytes)
 
-		if readErr == io.EOF && line == "" {
+		if errors.Is(readErr, io.EOF) && line == "" {
 			break
 		}
-		if readErr != nil && readErr != io.EOF {
+
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
 			return sdk.ToolResult{Content: fmt.Sprintf("error: %s", readErr), IsError: true}, nil
 		}
 
@@ -133,16 +149,18 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		if lineNum >= offset {
 			line = strings.TrimRight(line, "\r\n")
 			if lineTruncated {
-				line = line + "\n[... line truncated]"
+				line += "\n[... line truncated]"
 			}
+
 			lines = append(lines, strconv.Itoa(lineNum)+"\t"+line)
+
 			collected++
 			if limit > 0 && collected >= limit {
 				break
 			}
 		}
 
-		if readErr == io.EOF {
+		if errors.Is(readErr, io.EOF) {
 			break
 		}
 	}

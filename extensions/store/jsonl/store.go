@@ -66,7 +66,7 @@ type Store struct {
 	done      chan struct{}
 }
 
-func init() { //nolint:gochecknoinits // required for extension self-registration
+func init() {
 	sdk.RegisterExtension("jsonl", func(cfg sdk.Config) (sdk.Extension, error) {
 		return NewStore(cfg)
 	})
