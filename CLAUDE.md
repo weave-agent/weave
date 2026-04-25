@@ -14,6 +14,7 @@ make fmt           # Format code (gofumpt, goimports, go fix) ALWAYS use make fi
 make fix           # Auto-fix linter issues
 make gen           # Regenerate mocks (moq)
 make tools         # Install dev tools (moq, golangci-lint)
+make bench         # Run build benchmarks (cold/warm/partial, with and without TUI)
 go test ./...      # Run all tests
 go test ./launcher/...  # Run tests for a single package
 ```

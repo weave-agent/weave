@@ -3,7 +3,7 @@ GOLANGCI_LINT ?= golangci-lint
 EXT_DIRS := $(sort $(dir $(wildcard extensions/*/*/go.mod extensions/*/go.mod)))
 
 .DEFAULT_GOAL := help
-.PHONY: help tools gen fmt lint fix test
+.PHONY: help tools gen fmt lint fix test bench
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | sort | \
@@ -51,3 +51,7 @@ fix: ## Auto-fix linter issues
 		echo "fix $$dir"; \
 		(cd $$dir && $(GOLANGCI_LINT) run --fix --config $(CURDIR)/.golangci.yml ./...) || exit 1; \
 	done
+
+##@ Benchmarking
+bench: ## Run build benchmarks (cold/warm/partial, with and without TUI)
+	go test -bench=. -benchmem -run='^$' -timeout 600s ./launcher/
