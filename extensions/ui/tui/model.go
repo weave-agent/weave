@@ -128,7 +128,7 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 	editor = editor.SetSlashCommands(commands.Names())
 
 	models := listModels()
-	cur := currentModel(models)
+	cur := initialModel(models)
 
 	bindings := NewBindingRegistry()
 
@@ -1072,13 +1072,33 @@ func parseToolEntry(raw json.RawMessage) (name, content string, isError bool) {
 	return name, toolData.Result.Content, toolData.Result.IsError
 }
 
-// cycleThinkingLevel returns the next thinking level.
+// cycleThinkingLevel returns the next distinct thinking level, skipping
+// levels that would clamp to the same effective value as the current one.
 func (m Model) cycleThinkingLevel() (tea.Model, tea.Cmd) {
+	cur := m.thinkingLevel
+	if modelDef, ok := sdk.GetModel(m.currentModel.Model); ok && modelDef.Reasoning {
+		cur = sdk.ClampForModel(cur, modelDef)
+	}
+
 	for i, lvl := range sdk.AllThinkingLevels {
-		if lvl == m.thinkingLevel {
-			next := sdk.AllThinkingLevels[(i+1)%len(sdk.AllThinkingLevels)]
-			return m.applyThinkingLevel(next)
+		if lvl != cur {
+			continue
 		}
+
+		for j := 1; j <= len(sdk.AllThinkingLevels); j++ {
+			candidate := sdk.AllThinkingLevels[(i+j)%len(sdk.AllThinkingLevels)]
+			var effective sdk.ThinkingLevel
+			if modelDef, ok := sdk.GetModel(m.currentModel.Model); ok && modelDef.Reasoning {
+				effective = sdk.ClampForModel(candidate, modelDef)
+			} else {
+				effective = sdk.ThinkingOff
+			}
+			if effective != cur {
+				return m.applyThinkingLevel(candidate)
+			}
+		}
+
+		return m, nil
 	}
 
 	return m, nil

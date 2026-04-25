@@ -45,7 +45,7 @@ type Loop struct {
 	done   chan struct{}
 }
 
-func init() { //nolint:gochecknoinits // required for extension self-registration
+func init() {
 	sdk.RegisterExtension("loop", func(cfg sdk.Config) (sdk.Extension, error) {
 		provider := os.Getenv("WEAVE_PROVIDER")
 		if provider == "" {
@@ -135,6 +135,8 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 	case <-ctx.Done():
 		return
 	}
+
+	provider = l.drainChanges(modelChangeCh, thinkingCh, bus, provider)
 
 	turn := 1
 
