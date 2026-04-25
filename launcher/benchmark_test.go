@@ -141,32 +141,63 @@ func BenchmarkColdBuild_NoTUI(b *testing.B) {
 	}
 }
 
-// Warm builds: Go package cache populated from same build. Recompile reusing cached packages.
+// warmPipeline runs the full launcher build pipeline (discover → hash → cache miss →
+// build → cache store) using a fresh cache each iteration. This matches the real
+// `go run` path: hash always changes (fresh cache), Go build cache is whatever the
+// system has.
+func warmPipeline(b *testing.B, moduleRoot string, extNames []string) {
+	b.Helper()
+
+	for b.Loop() {
+		cacheDir := b.TempDir()
+		cache := NewCache(cacheDir)
+
+		projectDir := b.TempDir()
+		homeDir := b.TempDir()
+
+		exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, extNames)
+		if err != nil {
+			b.Fatalf("DiscoverCustomHomeWithBuiltins: %v", err)
+		}
+
+		hash, err := ComputeHash(exts, moduleRoot)
+		if err != nil {
+			b.Fatalf("ComputeHash: %v", err)
+		}
+
+		// Cache miss (fresh cache) → buildAndCache
+		buildDir := b.TempDir()
+
+		binPath, buildErr := Build(buildDir, moduleRoot, "loop", []string{"anthropic"}, exts)
+		if buildErr != nil {
+			b.Fatalf("Build: %v", buildErr)
+		}
+
+		if storeErr := cache.Store(hash, binPath); storeErr != nil {
+			b.Fatalf("Cache.Store: %v", storeErr)
+		}
+
+		cached, found := cache.Lookup(hash)
+		if !found {
+			b.Fatal("cache miss after store")
+		}
+
+		reportBinarySize(b, cached)
+	}
+}
+
+// Warm builds: full launcher pipeline (discover → hash → build → cache store).
+// System Go build cache reflects real usage. Fresh launcher cache each iteration
+// simulates a hash change from extension modification.
 
 func BenchmarkWarmBuild_TUI(b *testing.B) {
 	moduleRoot := findModuleRootB(b)
-
-	exts := discoverExtensions(b, moduleRoot, extsWithTUI)
-	buildExtensions(b, moduleRoot, exts)
-
-	for b.Loop() {
-		exts := discoverExtensions(b, moduleRoot, extsWithTUI)
-		binPath := buildExtensions(b, moduleRoot, exts)
-		reportBinarySize(b, binPath)
-	}
+	warmPipeline(b, moduleRoot, extsWithTUI)
 }
 
 func BenchmarkWarmBuild_NoTUI(b *testing.B) {
 	moduleRoot := findModuleRootB(b)
-
-	exts := discoverExtensions(b, moduleRoot, extsWithoutTUI)
-	buildExtensions(b, moduleRoot, exts)
-
-	for b.Loop() {
-		exts := discoverExtensions(b, moduleRoot, extsWithoutTUI)
-		binPath := buildExtensions(b, moduleRoot, exts)
-		reportBinarySize(b, binPath)
-	}
+	warmPipeline(b, moduleRoot, extsWithoutTUI)
 }
 
 // Partial builds: Go cache primed with full build, but one extension source changed.
