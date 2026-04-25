@@ -1088,10 +1088,14 @@ func (m Model) cycleThinkingLevel() (tea.Model, tea.Cmd) {
 		for j := 1; j <= len(sdk.AllThinkingLevels); j++ {
 			candidate := sdk.AllThinkingLevels[(i+j)%len(sdk.AllThinkingLevels)]
 			var effective sdk.ThinkingLevel
-			if modelDef, ok := sdk.GetModel(m.currentModel.Model); ok && modelDef.Reasoning {
-				effective = sdk.ClampForModel(candidate, modelDef)
+			if modelDef, ok := sdk.GetModel(m.currentModel.Model); ok {
+				if modelDef.Reasoning {
+					effective = sdk.ClampForModel(candidate, modelDef)
+				} else {
+					effective = sdk.ThinkingOff
+				}
 			} else {
-				effective = sdk.ThinkingOff
+				effective = candidate
 			}
 			if effective != cur {
 				return m.applyThinkingLevel(candidate)

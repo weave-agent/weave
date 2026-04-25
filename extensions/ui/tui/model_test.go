@@ -1072,6 +1072,7 @@ func TestModel_CycleThinkingLevel(t *testing.T) {
 	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
+	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-20250514"}
 
 	assert.Equal(t, sdk.ThinkingMedium, m.thinkingLevel)
 
