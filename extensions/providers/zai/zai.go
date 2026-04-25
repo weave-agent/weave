@@ -22,6 +22,8 @@ type provider struct {
 }
 
 func init() {
+	sdk.RegisterProviderEnvVar("zai", "ZAI_API_KEY")
+
 	sdk.RegisterProvider("zai", func(cfg sdk.Config) (sdk.Provider, error) {
 		apiKey, err := cfg.ResolveKey("zai", "ZAI_API_KEY")
 		if err != nil {

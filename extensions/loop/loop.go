@@ -115,16 +115,13 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 
 	defer func() { bus.Publish(sdk.NewEvent(TopicEnd, endPayload)) }()
 
-	provider, err := sdk.GetProvider(l.providerName, l.cfg)
-	if err != nil {
-		endPayload = fmt.Sprintf("provider error: %v", err)
-		return
-	}
-
 	toolDefs := collectToolDefs(l.cfg)
 
 	var messages []sdk.Message
 
+	// Wait for the first prompt before instantiating the provider.
+	// This gives the TUI time to show "No providers configured" and let the
+	// user set an API key via /providers before we try to connect.
 	select {
 	case evt, ok := <-promptCh:
 		if !ok {
@@ -133,6 +130,19 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 
 		messages = append(messages, sdk.NewUserMessage(evt.Payload))
 	case <-ctx.Done():
+		return
+	}
+
+	provider, err := sdk.GetProvider(l.providerName, l.cfg)
+	if err != nil {
+		msg := err.Error()
+
+		if !anyProviderHasKey(l.cfg) {
+			msg = "No providers configured. Set an API key via /providers or the environment variable."
+		}
+
+		endPayload = msg
+
 		return
 	}
 
@@ -479,4 +489,17 @@ func collectToolDefs(cfg sdk.Config) []sdk.ToolDef {
 	}
 
 	return defs
+}
+
+// anyProviderHasKey returns true if at least one registered provider has
+// an API key set via environment variable.
+func anyProviderHasKey(_ sdk.Config) bool {
+	for _, name := range sdk.ListProviders() {
+		envVar := sdk.ProviderEnvVar(name)
+		if envVar != "" && os.Getenv(envVar) != "" {
+			return true
+		}
+	}
+
+	return false
 }

@@ -22,6 +22,8 @@ type provider struct {
 }
 
 func init() {
+	sdk.RegisterProviderEnvVar("openai", "OPENAI_API_KEY")
+
 	sdk.RegisterProvider("openai", func(cfg sdk.Config) (sdk.Provider, error) {
 		apiKey, err := cfg.ResolveKey("openai", "OPENAI_API_KEY")
 		if err != nil {

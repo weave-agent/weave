@@ -80,6 +80,9 @@ type Model struct {
 	// thinking level state
 	thinkingLevel sdk.ThinkingLevel
 
+	// noConfigured is true when no provider has an API key set.
+	noConfigured bool
+
 	// startup hints banner
 	showHints bool
 
@@ -159,13 +162,18 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 		ui:            ui,
 		currentModel:  cur,
 		sessionDir:    sdir,
-		thinkingLevel: sdk.DefaultThinkingLevel(),
+		thinkingLevel: initialThinkingLevel(),
+		noConfigured:  len(models) == 0,
 		showHints:     true,
 	}
 	m.footer = m.footer.SetModel(cur.Model, cur.Provider)
 	m.footer = m.footer.SetReasoning(modelReasoning(cur.Model))
 	m.footer = m.footer.SetThinkingLevel(string(m.thinkingLevel))
 	m.editor = m.editor.SetBorderColor(palette.ThinkingBorderColor(m.thinkingLevel))
+
+	if m.noConfigured {
+		m.statusMsg = "No providers configured. Use /providers to set an API key."
+	}
 
 	return m
 }
@@ -835,6 +843,10 @@ func (m Model) onModelChanged(msg ModelChangedMsg) (tea.Model, tea.Cmd) {
 	displayName := msg.Entry.DisplayName()
 	m.showStatus(fmt.Sprintf("Switched to %s (thinking: %s)", displayName, m.thinkingLevel))
 
+	if m.bus != nil && m.cfg != nil {
+		go saveSettings(m.currentModel, m.thinkingLevel)
+	}
+
 	if m.bus != nil {
 		var cmds []tea.Cmd
 
@@ -953,11 +965,25 @@ func (m Model) onKeyInputResult(msg overlays.InputResultMsg) (tea.Model, tea.Cmd
 	am := messages.NewAssistantMessage()
 	if err != nil {
 		am.Finalize(fmt.Sprintf("Failed to save API key for %s: %v", providerName, err))
-	} else {
-		am.Finalize(fmt.Sprintf("API key saved for %s.", providerName))
+		m.chat = m.chat.AddItem(am)
+
+		return m, nil
 	}
 
+	am.Finalize(fmt.Sprintf("API key saved for %s.", providerName))
 	m.chat = m.chat.AddItem(am)
+
+	// If we were in noConfigured state, re-evaluate now that a key exists.
+	if m.noConfigured {
+		models := listModels()
+		if len(models) > 0 {
+			m.noConfigured = false
+			cur := initialModel(models)
+			m.currentModel = cur
+			m.footer = m.footer.SetModel(cur.Model, cur.Provider)
+			m.footer = m.footer.SetReasoning(modelReasoning(cur.Model))
+		}
+	}
 
 	return m, nil
 }
@@ -1126,6 +1152,10 @@ func (m Model) applyThinkingLevel(level sdk.ThinkingLevel) (tea.Model, tea.Cmd) 
 	m.thinkingLevel = level
 	m.footer = m.footer.SetThinkingLevel(string(level))
 	m.editor = m.editor.SetBorderColor(palette.ThinkingBorderColor(level))
+
+	if m.bus != nil && m.cfg != nil {
+		go saveSettings(m.currentModel, level)
+	}
 
 	m.showStatus(fmt.Sprintf("Thinking level: %s", level))
 

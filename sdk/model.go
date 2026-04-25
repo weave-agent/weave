@@ -76,6 +76,37 @@ func ParseThinkingLevel(s string) (ThinkingLevel, error) {
 	return "", fmt.Errorf("invalid thinking level %q (valid: off, minimal, low, medium, high, xhigh)", s)
 }
 
+// provider env var registry — maps provider names to their API key env vars.
+
+var (
+	providerEnvMu  sync.RWMutex
+	providerEnvMap = make(map[string]string)
+)
+
+// RegisterProviderEnvVar registers the environment variable name for a provider's API key.
+func RegisterProviderEnvVar(providerName, envVar string) {
+	providerEnvMu.Lock()
+	defer providerEnvMu.Unlock()
+
+	providerEnvMap[providerName] = envVar
+}
+
+// ProviderEnvVar returns the environment variable name for a provider's API key.
+func ProviderEnvVar(providerName string) string {
+	providerEnvMu.RLock()
+	defer providerEnvMu.RUnlock()
+
+	return providerEnvMap[providerName]
+}
+
+// ResetProviderEnvVarRegistry clears all registered env var mappings. For testing only.
+func ResetProviderEnvVarRegistry() {
+	providerEnvMu.Lock()
+	defer providerEnvMu.Unlock()
+
+	providerEnvMap = make(map[string]string)
+}
+
 // model registry
 
 var (

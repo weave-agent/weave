@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"weave/config"
 	"weave/sdk"
 )
 
@@ -35,8 +36,8 @@ var providerModelEnv = map[string]string{
 	"zai":       "ZAI_MODEL",
 }
 
-// listModels returns model entries for providers that are actually registered
-// (i.e. compiled into the binary).
+// listModels returns model entries for providers that are registered and have
+// an API key configured.
 func listModels() []ModelEntry {
 	registered := sdk.ListProviders()
 
@@ -45,10 +46,16 @@ func listModels() []ModelEntry {
 		regSet[p] = true
 	}
 
+	auth, _ := config.LoadAuth()
+
 	var entries []ModelEntry
 
 	for _, md := range sdk.ListAllModels() {
 		if !regSet[md.Provider] {
+			continue
+		}
+
+		if !providerHasKey(md.Provider, auth) {
 			continue
 		}
 
@@ -58,10 +65,39 @@ func listModels() []ModelEntry {
 	return entries
 }
 
-// currentModel returns the default model entry for the configured provider
-// (from WEAVE_PROVIDER env var, defaulting to "anthropic"), falling back to
-// the first registry entry, or an anthropic default if no providers are registered.
+// providerHasKey checks whether a provider has an API key configured
+// via environment variable or auth file.
+func providerHasKey(providerName string, auth *config.AuthFile) bool {
+	envVar := sdk.ProviderEnvVar(providerName)
+	if envVar == "" {
+		return false
+	}
+
+	if os.Getenv(envVar) != "" {
+		return true
+	}
+
+	if auth != nil && auth.GetProviderKey(providerName) != "" {
+		return true
+	}
+
+	return false
+}
+
+// currentModel returns the startup model entry. It tries persisted settings
+// first, then the WEAVE_PROVIDER env var, then falls back to the first
+// available entry.
 func currentModel(entries []ModelEntry) ModelEntry {
+	if prefs, err := config.LoadSettings(); err == nil {
+		if prefs.Provider != "" && prefs.Model != "" {
+			for _, e := range entries {
+				if e.Provider == prefs.Provider && e.Model == prefs.Model {
+					return e
+				}
+			}
+		}
+	}
+
 	provider := os.Getenv("WEAVE_PROVIDER")
 	if provider == "" {
 		provider = "anthropic"
@@ -126,4 +162,26 @@ func modelReasoning(modelID string) bool {
 	}
 
 	return false
+}
+
+// initialThinkingLevel returns the startup thinking level. Tries persisted
+// settings first, then the WEAVE_THINKING_LEVEL env var, then medium.
+func initialThinkingLevel() sdk.ThinkingLevel {
+	if prefs, err := config.LoadSettings(); err == nil && prefs.ThinkingLevel != "" {
+		if lvl, err := sdk.ParseThinkingLevel(prefs.ThinkingLevel); err == nil {
+			return lvl
+		}
+	}
+
+	return sdk.DefaultThinkingLevel()
+}
+
+// saveSettings persists the current model and thinking level to disk.
+// Best-effort — errors are silently ignored.
+func saveSettings(entry ModelEntry, level sdk.ThinkingLevel) {
+	_ = config.SaveSettings(&config.Settings{
+		Provider:      entry.Provider,
+		Model:         entry.Model,
+		ThinkingLevel: string(level),
+	})
 }
