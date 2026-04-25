@@ -16,7 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func strPtr(s string) *string { return &s }
+//go:fix inline
+func strPtr(s string) *string { return new(s) }
 
 func TestConvertMessages(t *testing.T) {
 	tests := []struct {
@@ -107,12 +108,14 @@ func TestConvertMessages(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := ConvertMessages(tt.msgs)
-			require.Equal(t, len(tt.want), len(got))
+			require.Len(t, got, len(tt.want))
+
 			for i, w := range tt.want {
 				assert.Equal(t, w.Role, got[i].Role)
 				assert.Equal(t, w.Content, got[i].Content)
 				assert.Equal(t, w.ToolCallID, got[i].ToolCallID)
-				assert.Equal(t, len(w.ToolCalls), len(got[i].ToolCalls))
+				assert.Len(t, got[i].ToolCalls, len(w.ToolCalls))
+
 				for j, tc := range w.ToolCalls {
 					assert.Equal(t, tc.ID, got[i].ToolCalls[j].ID)
 					assert.Equal(t, tc.Type, got[i].ToolCalls[j].Type)
@@ -165,6 +168,7 @@ func sseChunk(delta ChunkDelta, finish *string) string {
 		},
 	}
 	data, _ := json.Marshal(chunk)
+
 	return "data: " + string(data) + "\n"
 }
 
@@ -189,6 +193,7 @@ func collectEvents(ch <-chan sdk.ProviderEvent) []sdk.ProviderEvent {
 	for e := range ch {
 		events = append(events, e)
 	}
+
 	return events
 }
 
@@ -197,7 +202,7 @@ func TestStream_TextOnly(t *testing.T) {
 		sseChunk(ChunkDelta{Role: "assistant"}, nil),
 		sseChunk(ChunkDelta{Content: "Hello"}, nil),
 		sseChunk(ChunkDelta{Content: " world"}, nil),
-		sseChunk(ChunkDelta{}, strPtr("stop")),
+		sseChunk(ChunkDelta{}, new("stop")),
 		sseDone(),
 	)
 
@@ -216,11 +221,13 @@ func TestStream_TextOnly(t *testing.T) {
 	events := collectEvents(ch)
 
 	var textParts []string
+
 	for _, e := range events {
 		if e.Type == sdk.ProviderEventTextDelta {
 			textParts = append(textParts, e.Content.(string))
 		}
 	}
+
 	assert.Equal(t, []string{"Hello", " world"}, textParts)
 	assert.Equal(t, sdk.ProviderEventTextDelta, events[len(events)-1].Type)
 }
@@ -238,7 +245,7 @@ func TestStream_ToolCall(t *testing.T) {
 				{Index: 0, Function: &FunctionCallDelta{Arguments: `{"command":"ls"}`}},
 			},
 		}, nil),
-		sseChunk(ChunkDelta{}, strPtr("tool_calls")),
+		sseChunk(ChunkDelta{}, new("tool_calls")),
 		sseDone(),
 	)
 
@@ -257,11 +264,13 @@ func TestStream_ToolCall(t *testing.T) {
 	events := collectEvents(ch)
 
 	var toolCalls []sdk.ToolCall
+
 	for _, e := range events {
 		if e.Type == sdk.ProviderEventToolCall {
 			toolCalls = append(toolCalls, e.Content.(sdk.ToolCall))
 		}
 	}
+
 	require.Len(t, toolCalls, 1)
 	assert.Equal(t, "call_abc", toolCalls[0].ID)
 	assert.Equal(t, "bash", toolCalls[0].Name)
@@ -283,7 +292,7 @@ func TestStream_MultipleToolCalls(t *testing.T) {
 				{Index: 1, Function: &FunctionCallDelta{Arguments: `{"path":"/tmp/file"}`}},
 			},
 		}, nil),
-		sseChunk(ChunkDelta{}, strPtr("tool_calls")),
+		sseChunk(ChunkDelta{}, new("tool_calls")),
 		sseDone(),
 	)
 
@@ -301,11 +310,13 @@ func TestStream_MultipleToolCalls(t *testing.T) {
 	events := collectEvents(ch)
 
 	var toolCalls []sdk.ToolCall
+
 	for _, e := range events {
 		if e.Type == sdk.ProviderEventToolCall {
 			toolCalls = append(toolCalls, e.Content.(sdk.ToolCall))
 		}
 	}
+
 	require.Len(t, toolCalls, 2)
 	names := []string{toolCalls[0].Name, toolCalls[1].Name}
 	assert.Contains(t, names, "bash")
@@ -320,7 +331,7 @@ func TestStream_WithSystemPrompt(t *testing.T) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		fmt.Fprint(w, sseStream(
 			sseChunk(ChunkDelta{Content: "ok"}, nil),
-			sseChunk(ChunkDelta{}, strPtr("stop")),
+			sseChunk(ChunkDelta{}, new("stop")),
 			sseDone(),
 		))
 	}))
@@ -350,7 +361,7 @@ func TestStream_WithTools(t *testing.T) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		fmt.Fprint(w, sseStream(
 			sseChunk(ChunkDelta{Content: "ok"}, nil),
-			sseChunk(ChunkDelta{}, strPtr("stop")),
+			sseChunk(ChunkDelta{}, new("stop")),
 			sseDone(),
 		))
 	}))
@@ -419,18 +430,22 @@ func TestStream_ContextCancellation(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		// Slowly drip data so the stream stays open
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			fmt.Fprint(w, sseChunk(ChunkDelta{Content: "x"}, nil))
+
 			if f, ok := w.(http.Flusher); ok {
 				f.Flush()
 			}
+
 			time.Sleep(10 * time.Millisecond)
 		}
+
 		sseDone()
 	}))
 	defer server.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
+
 	go func() {
 		time.Sleep(30 * time.Millisecond)
 		cancel()
@@ -446,7 +461,7 @@ func TestStream_ContextCancellation(t *testing.T) {
 
 	events := collectEvents(ch)
 	// Verify the channel closed and we got at least some events before cancellation.
-	assert.True(t, len(events) > 0, "expected at least one event before cancellation")
+	assert.Positive(t, len(events), "expected at least one event before cancellation")
 }
 
 func TestStream_MixedTextAndToolCalls(t *testing.T) {
@@ -463,7 +478,7 @@ func TestStream_MixedTextAndToolCalls(t *testing.T) {
 				{Index: 0, Function: &FunctionCallDelta{Arguments: `{"command":"ls"}`}},
 			},
 		}, nil),
-		sseChunk(ChunkDelta{}, strPtr("tool_calls")),
+		sseChunk(ChunkDelta{}, new("tool_calls")),
 		sseDone(),
 	)
 
@@ -480,8 +495,11 @@ func TestStream_MixedTextAndToolCalls(t *testing.T) {
 
 	events := collectEvents(ch)
 
-	var textParts []string
-	var toolCalls []sdk.ToolCall
+	var (
+		textParts []string
+		toolCalls []sdk.ToolCall
+	)
+
 	for _, e := range events {
 		switch e.Type {
 		case sdk.ProviderEventTextDelta:
@@ -490,6 +508,7 @@ func TestStream_MixedTextAndToolCalls(t *testing.T) {
 			toolCalls = append(toolCalls, e.Content.(sdk.ToolCall))
 		}
 	}
+
 	assert.Equal(t, []string{"Let me check"}, textParts)
 	require.Len(t, toolCalls, 1)
 	assert.Equal(t, "bash", toolCalls[0].Name)
@@ -503,7 +522,7 @@ func TestStream_DefaultModel(t *testing.T) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		fmt.Fprint(w, sseStream(
 			sseChunk(ChunkDelta{Content: "ok"}, nil),
-			sseChunk(ChunkDelta{}, strPtr("stop")),
+			sseChunk(ChunkDelta{}, new("stop")),
 			sseDone(),
 		))
 	}))
@@ -541,7 +560,7 @@ func TestStream_PartialJSONArguments(t *testing.T) {
 				{Index: 0, Function: &FunctionCallDelta{Arguments: `mand":"ls -la"}`}},
 			},
 		}, nil),
-		sseChunk(ChunkDelta{}, strPtr("tool_calls")),
+		sseChunk(ChunkDelta{}, new("tool_calls")),
 		sseDone(),
 	)
 
@@ -559,11 +578,13 @@ func TestStream_PartialJSONArguments(t *testing.T) {
 	events := collectEvents(ch)
 
 	var toolCalls []sdk.ToolCall
+
 	for _, e := range events {
 		if e.Type == sdk.ProviderEventToolCall {
 			toolCalls = append(toolCalls, e.Content.(sdk.ToolCall))
 		}
 	}
+
 	require.Len(t, toolCalls, 1)
 	assert.Equal(t, "bash", toolCalls[0].Name)
 	assert.Equal(t, map[string]any{"command": "ls -la"}, toolCalls[0].Arguments)
@@ -586,7 +607,7 @@ func TestStream_ToolCallOrdering(t *testing.T) {
 				{Index: 2, Function: &FunctionCallDelta{Arguments: `{"path":"b"}`}},
 			},
 		}, nil),
-		sseChunk(ChunkDelta{}, strPtr("tool_calls")),
+		sseChunk(ChunkDelta{}, new("tool_calls")),
 		sseDone(),
 	)
 
@@ -604,11 +625,13 @@ func TestStream_ToolCallOrdering(t *testing.T) {
 	events := collectEvents(ch)
 
 	var toolCalls []sdk.ToolCall
+
 	for _, e := range events {
 		if e.Type == sdk.ProviderEventToolCall {
 			toolCalls = append(toolCalls, e.Content.(sdk.ToolCall))
 		}
 	}
+
 	require.Len(t, toolCalls, 3)
 	// Tool calls should be emitted in index order, not arrival order
 	assert.Equal(t, "bash", toolCalls[0].Name)
@@ -624,7 +647,7 @@ func TestStream_WithModelOverride(t *testing.T) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		fmt.Fprint(w, sseStream(
 			sseChunk(ChunkDelta{Content: "ok"}, nil),
-			sseChunk(ChunkDelta{}, strPtr("stop")),
+			sseChunk(ChunkDelta{}, new("stop")),
 			sseDone(),
 		))
 	}))
@@ -666,7 +689,7 @@ func TestStream_WithThinkingLevel_SetsReasoningEffort(t *testing.T) {
 				w.Header().Set("Content-Type", "text/event-stream")
 				fmt.Fprint(w, sseStream(
 					sseChunk(ChunkDelta{Content: "ok"}, nil),
-					sseChunk(ChunkDelta{}, strPtr("stop")),
+					sseChunk(ChunkDelta{}, new("stop")),
 					sseDone(),
 				))
 			}))
@@ -688,6 +711,7 @@ func TestStream_WithThinkingLevel_SetsReasoningEffort(t *testing.T) {
 			collectEvents(ch)
 
 			assert.Equal(t, tt.want, receivedBody.ReasoningEffort)
+
 			if tt.wantNot != "" {
 				raw, _ := json.Marshal(receivedBody)
 				assert.NotContains(t, string(raw), tt.wantNot)
@@ -713,7 +737,7 @@ func TestStream_ReasoningContentEmitted(t *testing.T) {
 		sseChunk(ChunkDelta{Role: "assistant"}, nil),
 		"data: "+string(data)+"\n",
 		sseChunk(ChunkDelta{Content: "answer"}, nil),
-		sseChunk(ChunkDelta{}, strPtr("stop")),
+		sseChunk(ChunkDelta{}, new("stop")),
 		sseDone(),
 	)
 
@@ -730,8 +754,11 @@ func TestStream_ReasoningContentEmitted(t *testing.T) {
 
 	events := collectEvents(ch)
 
-	var thinking []string
-	var text []string
+	var (
+		thinking []string
+		text     []string
+	)
+
 	for _, e := range events {
 		switch e.Type {
 		case sdk.ProviderEventThinking:

@@ -32,7 +32,8 @@ func writeSSE(w http.ResponseWriter, events []sseEvent) {
 	w.Header().Set("Cache-Control", "no-cache")
 
 	for _, evt := range events {
-		fmt.Fprintf(w, "event: %s\ndata: %s\n\n", evt.EventType, evt.Data)
+		_, _ = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", evt.EventType, evt.Data)
+
 		flusher.Flush()
 	}
 }
@@ -78,18 +79,22 @@ func newTestProvider(server *httptest.Server) sdk.Provider {
 		option.WithAPIKey("test-key"),
 		option.WithBaseURL(server.URL),
 	)
+
 	return NewProviderWithClient(client, "claude-sonnet-4-20250514")
 }
 
 func collectEvents(t *testing.T, ch <-chan sdk.ProviderEvent) []sdk.ProviderEvent {
 	t.Helper()
+
 	var events []sdk.ProviderEvent
+
 	for {
 		select {
 		case evt, ok := <-ch:
 			if !ok {
 				return events
 			}
+
 			events = append(events, evt)
 		case <-time.After(5 * time.Second):
 			t.Fatal("timed out waiting for events")
@@ -114,6 +119,7 @@ func TestStream_TextResponse(t *testing.T) {
 	events := collectEvents(t, ch)
 
 	var textDeltas []string
+
 	for _, evt := range events {
 		if evt.Type == sdk.ProviderEventTextDelta {
 			textDeltas = append(textDeltas, evt.Content.(string))
@@ -154,6 +160,7 @@ func TestStream_ToolCall(t *testing.T) {
 	events := collectEvents(t, ch)
 
 	var toolCalls []sdk.ToolCall
+
 	for _, evt := range events {
 		if evt.Type == sdk.ProviderEventToolCall {
 			toolCalls = append(toolCalls, evt.Content.(sdk.ToolCall))
@@ -182,8 +189,11 @@ func TestStream_TextAndToolCall(t *testing.T) {
 
 	events := collectEvents(t, ch)
 
-	var textDeltas []string
-	var toolCalls []sdk.ToolCall
+	var (
+		textDeltas []string
+		toolCalls  []sdk.ToolCall
+	)
+
 	for _, evt := range events {
 		switch evt.Type {
 		case sdk.ProviderEventTextDelta:
@@ -200,10 +210,12 @@ func TestStream_TextAndToolCall(t *testing.T) {
 
 func TestStream_WithSystemPrompt(t *testing.T) {
 	var receivedBody string
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		buf := make([]byte, r.ContentLength)
-		r.Body.Read(buf)
+		_, _ = r.Body.Read(buf)
 		receivedBody = string(buf)
+
 		writeSSE(w, textStreamEvents("response"))
 	}))
 	defer server.Close()
@@ -224,7 +236,7 @@ func TestStream_WithSystemPrompt(t *testing.T) {
 func TestStream_ServerError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprint(w, `{"type":"error","error":{"type":"invalid_request_error","message":"invalid model"}}`)
+		_, _ = fmt.Fprint(w, `{"type":"error","error":{"type":"invalid_request_error","message":"invalid model"}}`)
 	}))
 	defer server.Close()
 
@@ -239,6 +251,7 @@ func TestStream_ServerError(t *testing.T) {
 	events := collectEvents(t, ch)
 
 	var errorMsgs []string
+
 	for _, evt := range events {
 		if evt.Type == sdk.ProviderEventError {
 			errorMsgs = append(errorMsgs, evt.Content.(string))
@@ -293,6 +306,7 @@ func TestStream_MultipleToolCalls(t *testing.T) {
 	collected := collectEvents(t, ch)
 
 	var toolCalls []sdk.ToolCall
+
 	for _, evt := range collected {
 		if evt.Type == sdk.ProviderEventToolCall {
 			toolCalls = append(toolCalls, evt.Content.(sdk.ToolCall))
@@ -426,6 +440,7 @@ func TestStream_SplitToolInputJSON(t *testing.T) {
 	collected := collectEvents(t, ch)
 
 	var toolCalls []sdk.ToolCall
+
 	for _, evt := range collected {
 		if evt.Type == sdk.ProviderEventToolCall {
 			toolCalls = append(toolCalls, evt.Content.(sdk.ToolCall))
@@ -444,13 +459,16 @@ func TestRegister(t *testing.T) {
 func TestStream_WithThinkingLevel(t *testing.T) {
 	sdk.ResetModelRegistry()
 	defer sdk.ResetModelRegistry()
+
 	sdk.RegisterBuiltinModels()
 
 	var receivedBody string
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		buf := make([]byte, r.ContentLength)
-		r.Body.Read(buf)
+		_, _ = r.Body.Read(buf)
 		receivedBody = string(buf)
+
 		writeSSE(w, textStreamEvents("thinking response"))
 	}))
 	defer server.Close()
@@ -471,10 +489,12 @@ func TestStream_WithThinkingLevel(t *testing.T) {
 
 func TestStream_ThinkingOff_NoThinkingParam(t *testing.T) {
 	var receivedBody string
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		buf := make([]byte, r.ContentLength)
-		r.Body.Read(buf)
+		_, _ = r.Body.Read(buf)
 		receivedBody = string(buf)
+
 		writeSSE(w, textStreamEvents("no thinking"))
 	}))
 	defer server.Close()
@@ -491,10 +511,12 @@ func TestStream_ThinkingOff_NoThinkingParam(t *testing.T) {
 
 func TestStream_WithModelOverride(t *testing.T) {
 	var receivedBody string
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		buf := make([]byte, r.ContentLength)
-		r.Body.Read(buf)
+		_, _ = r.Body.Read(buf)
 		receivedBody = string(buf)
+
 		writeSSE(w, textStreamEvents("response"))
 	}))
 	defer server.Close()
@@ -535,8 +557,11 @@ func TestStream_ThinkingContentEmitted(t *testing.T) {
 
 	evts := collectEvents(t, ch)
 
-	var thinkingDeltas []string
-	var textDeltas []string
+	var (
+		thinkingDeltas []string
+		textDeltas     []string
+	)
+
 	for _, evt := range evts {
 		switch evt.Type {
 		case sdk.ProviderEventThinking:

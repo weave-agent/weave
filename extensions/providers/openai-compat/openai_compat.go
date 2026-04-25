@@ -115,6 +115,7 @@ func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sd
 	if model == "" {
 		model = cfg.Model
 	}
+
 	if model == "" {
 		model = defaultModel
 	}
@@ -171,11 +172,14 @@ func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sd
 
 	if resp.StatusCode != http.StatusOK {
 		defer resp.Body.Close()
+
 		errBody, _ := io.ReadAll(resp.Body)
+
 		var errResp ErrorResponse
 		if json.Unmarshal(errBody, &errResp) == nil && errResp.Error.Message != "" {
 			return nil, fmt.Errorf("openai-compat: API error (%d): %s", resp.StatusCode, errResp.Error.Message)
 		}
+
 		return nil, fmt.Errorf("openai-compat: unexpected status %d: %s", resp.StatusCode, string(errBody))
 	}
 
@@ -184,6 +188,7 @@ func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sd
 	go func() {
 		defer resp.Body.Close()
 		defer close(ch)
+
 		parseSSE(ctx, resp.Body, ch)
 	}()
 
@@ -276,6 +281,7 @@ func parseSSE(ctx context.Context, reader io.Reader, ch chan<- sdk.ProviderEvent
 		if data == "[DONE]" {
 			break
 		}
+
 		if data == "" {
 			continue
 		}
@@ -286,6 +292,7 @@ func parseSSE(ctx context.Context, reader io.Reader, ch chan<- sdk.ProviderEvent
 				Type:    sdk.ProviderEventError,
 				Content: fmt.Sprintf("openai-compat: parse chunk: %v", err),
 			})
+
 			return
 		}
 
@@ -303,6 +310,7 @@ func parseSSE(ctx context.Context, reader io.Reader, ch chan<- sdk.ProviderEvent
 			if reasoning == "" {
 				reasoning = choice.Delta.Reasoning
 			}
+
 			if reasoning != "" {
 				if !send(sdk.ProviderEvent{
 					Type:    sdk.ProviderEventThinking,
@@ -319,15 +327,18 @@ func parseSSE(ctx context.Context, reader io.Reader, ch chan<- sdk.ProviderEvent
 					if tc.Function != nil {
 						name = tc.Function.Name
 					}
+
 					accumulated = &toolCallAccum{id: tc.ID, name: name}
 					if accumulated.id == "" {
 						accumulated.id = "call_" + strconv.Itoa(tc.Index)
 					}
+
 					toolCalls[tc.Index] = accumulated
 				} else {
 					if tc.ID != "" {
 						accumulated.id = tc.ID
 					}
+
 					if tc.Function != nil && tc.Function.Name != "" {
 						accumulated.name = tc.Function.Name
 					}
@@ -350,6 +361,7 @@ func parseSSE(ctx context.Context, reader io.Reader, ch chan<- sdk.ProviderEvent
 			Type:    sdk.ProviderEventError,
 			Content: fmt.Sprintf("openai-compat: read stream: %v", err),
 		})
+
 		return
 	}
 
@@ -374,15 +386,19 @@ func ConvertMessages(msgs []sdk.Message) []ChatMessage {
 			if text, ok := msg.Content.(string); ok && text != "" {
 				cm.Content = text
 			}
+
 			for _, tc := range msg.ToolCalls {
 				argsJSON, _ := json.Marshal(tc.Arguments)
+
 				var st StreamTool
+
 				st.ID = tc.ID
 				st.Type = "function"
 				st.Function.Name = tc.Name
 				st.Function.Arguments = string(argsJSON)
 				cm.ToolCalls = append(cm.ToolCalls, st)
 			}
+
 			result = append(result, cm)
 		case sdk.RoleToolResult:
 			cm := ChatMessage{
@@ -409,6 +425,7 @@ func ConvertTools(tools []sdk.ToolDef) []Tool {
 		if p, ok := t.Parameters.(map[string]any); ok {
 			params = p
 		}
+
 		result[i] = Tool{
 			Type: "function",
 			Function: Function{
@@ -418,5 +435,6 @@ func ConvertTools(tools []sdk.ToolDef) []Tool {
 			},
 		}
 	}
+
 	return result
 }
