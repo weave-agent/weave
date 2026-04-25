@@ -19,15 +19,15 @@ func splitLines(s string) []string {
 }
 
 func TestModelEntry_Display(t *testing.T) {
-	e := ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-20250514"}
-	assert.Equal(t, "anthropic/claude-sonnet-4-20250514", e.Display())
+	e := ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-6"}
+	assert.Equal(t, "anthropic/claude-sonnet-4-6", e.Display())
 }
 
 func TestCycleModel(t *testing.T) {
 	entries := []ModelEntry{
-		{Provider: "anthropic", Model: "claude-sonnet-4-20250514"},
-		{Provider: "openai", Model: "gpt-4o"},
-		{Provider: "zai", Model: "glm-4"},
+		{Provider: "anthropic", Model: "claude-sonnet-4-6"},
+		{Provider: "openai", Model: "gpt-5.5"},
+		{Provider: "zai", Model: "glm-5.1"},
 	}
 
 	// Cycle forward
@@ -44,22 +44,22 @@ func TestCycleModel(t *testing.T) {
 
 func TestCycleModel_SingleEntry(t *testing.T) {
 	entries := []ModelEntry{
-		{Provider: "anthropic", Model: "claude-sonnet-4-20250514"},
+		{Provider: "anthropic", Model: "claude-sonnet-4-6"},
 	}
 	next := cycleModel(entries, entries[0])
 	assert.Equal(t, "anthropic", next.Provider)
 }
 
 func TestCycleModel_Empty(t *testing.T) {
-	cur := ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-20250514"}
+	cur := ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-6"}
 	next := cycleModel(nil, cur)
 	assert.Equal(t, cur, next)
 }
 
 func TestCurrentModel(t *testing.T) {
 	entries := []ModelEntry{
-		{Provider: "openai", Model: "gpt-4o"},
-		{Provider: "zai", Model: "glm-4"},
+		{Provider: "openai", Model: "gpt-5.5"},
+		{Provider: "zai", Model: "glm-5.1"},
 	}
 	cur := currentModel(entries)
 	assert.Equal(t, "openai", cur.Provider)
@@ -70,20 +70,20 @@ func TestCurrentModel(t *testing.T) {
 
 func TestCurrentModel_EnvProvider(t *testing.T) {
 	entries := []ModelEntry{
-		{Provider: "anthropic", Model: "claude-sonnet-4-20250514"},
-		{Provider: "openai", Model: "gpt-4o"},
+		{Provider: "anthropic", Model: "claude-sonnet-4-6"},
+		{Provider: "openai", Model: "gpt-5.5"},
 	}
 
 	t.Setenv("WEAVE_PROVIDER", "openai")
 
 	cur := currentModel(entries)
 	assert.Equal(t, "openai", cur.Provider)
-	assert.Equal(t, "gpt-4o", cur.Model)
+	assert.Equal(t, "gpt-5.5", cur.Model)
 }
 
 func TestCurrentModel_EnvProviderNotInEntries(t *testing.T) {
 	entries := []ModelEntry{
-		{Provider: "openai", Model: "gpt-4o"},
+		{Provider: "openai", Model: "gpt-5.5"},
 	}
 
 	t.Setenv("WEAVE_PROVIDER", "anthropic")
@@ -113,8 +113,8 @@ func TestModel_ModelListResultShowsOverlay(t *testing.T) {
 	m.chat = m.chat.SetSize(80, 10)
 
 	models := []ModelEntry{
-		{Provider: "anthropic", Model: "claude-sonnet-4-20250514"},
-		{Provider: "openai", Model: "gpt-4o"},
+		{Provider: "anthropic", Model: "claude-sonnet-4-6"},
+		{Provider: "openai", Model: "gpt-5.5"},
 	}
 
 	model, _ := m.Update(ModelListResultMsg{Models: models})
@@ -153,7 +153,7 @@ func TestModel_ModelListResultSingle(t *testing.T) {
 	m.chat = m.chat.SetSize(80, 10)
 
 	models := []ModelEntry{
-		{Provider: "anthropic", Model: "claude-sonnet-4-20250514"},
+		{Provider: "anthropic", Model: "claude-sonnet-4-6"},
 	}
 
 	model, _ := m.Update(ModelListResultMsg{Models: models})
@@ -176,8 +176,8 @@ func TestModel_ModelSelectorSelect(t *testing.T) {
 	m.chat = m.chat.SetSize(80, 10)
 
 	models := []ModelEntry{
-		{Provider: "anthropic", Model: "claude-sonnet-4-20250514"},
-		{Provider: "openai", Model: "gpt-4o"},
+		{Provider: "anthropic", Model: "claude-sonnet-4-6"},
+		{Provider: "openai", Model: "gpt-5.5"},
 	}
 
 	model, _ := m.Update(ModelListResultMsg{Models: models})
@@ -186,14 +186,14 @@ func TestModel_ModelSelectorSelect(t *testing.T) {
 
 	// Select the second model
 	model, _ = m.Update(overlays.SelectorSelectedMsg{Index: 1, Item: overlays.SelectorItem{
-		Title: "openai/gpt-4o", Subtitle: "openai",
+		Title: "openai/gpt-5.5", Subtitle: "openai",
 	}})
 	m = model.(Model)
 
 	assert.Equal(t, overlayNone, m.activeOverlay)
 	assert.Equal(t, "openai", m.currentModel.Provider)
-	assert.Equal(t, "gpt-4o", m.currentModel.Model)
-	assert.Equal(t, "gpt-4o", m.footer.ModelName())
+	assert.Equal(t, "gpt-5.5", m.currentModel.Model)
+	assert.Equal(t, "gpt-5.5", m.footer.ModelName())
 	assert.Equal(t, "openai", m.footer.ProviderName())
 }
 
@@ -203,8 +203,8 @@ func TestModel_ModelSelectorCancel(t *testing.T) {
 	m.height = 24
 
 	models := []ModelEntry{
-		{Provider: "anthropic", Model: "claude-sonnet-4-20250514"},
-		{Provider: "openai", Model: "gpt-4o"},
+		{Provider: "anthropic", Model: "claude-sonnet-4-6"},
+		{Provider: "openai", Model: "gpt-5.5"},
 	}
 
 	model, _ := m.Update(ModelListResultMsg{Models: models})
@@ -224,8 +224,8 @@ func TestModel_ModelSelectorCancelClearsPendingModels(t *testing.T) {
 	m.height = 24
 
 	models := []ModelEntry{
-		{Provider: "anthropic", Model: "claude-sonnet-4-20250514"},
-		{Provider: "openai", Model: "gpt-4o"},
+		{Provider: "anthropic", Model: "claude-sonnet-4-6"},
+		{Provider: "openai", Model: "gpt-5.5"},
 	}
 
 	model, _ := m.Update(ModelListResultMsg{Models: models})
@@ -278,13 +278,13 @@ func TestModel_ModelChangedUpdatesFooter(t *testing.T) {
 	m.width = 80
 	m.height = 24
 
-	entry := ModelEntry{Provider: "openai", Model: "gpt-4o"}
+	entry := ModelEntry{Provider: "openai", Model: "gpt-5.5"}
 	model, _ := m.Update(ModelChangedMsg{Entry: entry})
 	m = model.(Model)
 
-	assert.Equal(t, "gpt-4o", m.currentModel.Model)
+	assert.Equal(t, "gpt-5.5", m.currentModel.Model)
 	assert.Equal(t, "openai", m.currentModel.Provider)
-	assert.Equal(t, "gpt-4o", m.footer.ModelName())
+	assert.Equal(t, "gpt-5.5", m.footer.ModelName())
 	assert.Equal(t, "openai", m.footer.ProviderName())
 }
 
@@ -300,7 +300,7 @@ func TestModel_ModelChangedToNonReasoningForcesThinkingOff(t *testing.T) {
 	assert.Equal(t, sdk.ThinkingMedium, m.thinkingLevel)
 
 	// Switch to non-reasoning model
-	entry := ModelEntry{Provider: "openai", Model: "gpt-4o"}
+	entry := ModelEntry{Provider: "openai", Model: "gpt-4.1"}
 	model, _ := m.Update(ModelChangedMsg{Entry: entry})
 	m = model.(Model)
 
@@ -319,7 +319,7 @@ func TestModel_ModelChangedPublishesEvent(t *testing.T) {
 	m.width = 80
 	m.height = 24
 
-	entry := ModelEntry{Provider: "openai", Model: "gpt-4o"}
+	entry := ModelEntry{Provider: "openai", Model: "gpt-5.5"}
 	model, cmd := m.Update(ModelChangedMsg{Entry: entry})
 	_ = model.(Model)
 
@@ -328,7 +328,7 @@ func TestModel_ModelChangedPublishesEvent(t *testing.T) {
 
 	evt := <-ch
 	assert.Equal(t, topicModelChange, evt.Topic)
-	assert.Equal(t, map[string]string{"provider": "openai", "model": "gpt-4o"}, evt.Payload)
+	assert.Equal(t, map[string]string{"provider": "openai", "model": "gpt-5.5"}, evt.Payload)
 }
 
 func TestModel_ModelSlashCommandDispatches(t *testing.T) {
@@ -352,8 +352,8 @@ func TestModel_ModelOverlayInterceptsKeys(t *testing.T) {
 	m.height = 24
 
 	models := []ModelEntry{
-		{Provider: "anthropic", Model: "claude-sonnet-4-20250514"},
-		{Provider: "openai", Model: "gpt-4o"},
+		{Provider: "anthropic", Model: "claude-sonnet-4-6"},
+		{Provider: "openai", Model: "gpt-5.5"},
 	}
 
 	model, _ := m.Update(ModelListResultMsg{Models: models})
@@ -377,8 +377,8 @@ func TestModel_ModelSelectorViewShowsOverlay(t *testing.T) {
 	assert.NotContains(t, normalView, "Select Model")
 
 	models := []ModelEntry{
-		{Provider: "anthropic", Model: "claude-sonnet-4-20250514"},
-		{Provider: "openai", Model: "gpt-4o"},
+		{Provider: "anthropic", Model: "claude-sonnet-4-6"},
+		{Provider: "openai", Model: "gpt-5.5"},
 	}
 
 	model, _ := m.Update(ModelListResultMsg{Models: models})
@@ -394,7 +394,7 @@ func TestModel_ModelSelectedInvalidIndex(t *testing.T) {
 	m.height = 24
 	m.activeOverlay = overlayModel
 	m.pendingModels = []ModelEntry{
-		{Provider: "anthropic", Model: "claude-sonnet-4-20250514"},
+		{Provider: "anthropic", Model: "claude-sonnet-4-6"},
 	}
 
 	model, _ := m.Update(overlays.SelectorSelectedMsg{Index: -1, Item: overlays.SelectorItem{}})
@@ -468,8 +468,8 @@ func TestListModelsIgnoresEnvOverrides(t *testing.T) {
 		}
 	}
 
-	assert.Equal(t, 2, anthropicCount,
-		"should show both anthropic models, not collapsed by env override")
+	assert.Equal(t, 5, anthropicCount,
+		"should show all anthropic models, not collapsed by env override")
 }
 
 func TestModelEntryDisplayName(t *testing.T) {
@@ -478,8 +478,8 @@ func TestModelEntryDisplayName(t *testing.T) {
 
 	defer sdk.ResetModelRegistry()
 
-	e := ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-20250514"}
-	assert.Equal(t, "Claude Sonnet 4", e.DisplayName())
+	e := ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-6"}
+	assert.Equal(t, "Claude Sonnet 4.6", e.DisplayName())
 
 	e = ModelEntry{Provider: "unknown", Model: "custom-model"}
 	assert.Equal(t, "unknown/custom-model", e.DisplayName())
@@ -497,8 +497,8 @@ func TestModelSelectorEntryBadges(t *testing.T) {
 	m.chat = m.chat.SetSize(80, 10)
 
 	models := []ModelEntry{
-		{Provider: "anthropic", Model: "claude-sonnet-4-20250514"},
-		{Provider: "openai", Model: "gpt-4o"},
+		{Provider: "anthropic", Model: "claude-sonnet-4-6"},
+		{Provider: "openai", Model: "gpt-5.5"},
 	}
 
 	model, _ := m.Update(ModelListResultMsg{Models: models})
@@ -522,11 +522,11 @@ func TestModelSelectorCurrentModelMarker(t *testing.T) {
 	m.chat = m.chat.SetSize(80, 10)
 
 	// Current model is the default (anthropic/claude-sonnet)
-	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-20250514"}
+	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-6"}
 
 	models := []ModelEntry{
-		{Provider: "anthropic", Model: "claude-sonnet-4-20250514"},
-		{Provider: "openai", Model: "gpt-4o"},
+		{Provider: "anthropic", Model: "claude-sonnet-4-6"},
+		{Provider: "openai", Model: "gpt-5.5"},
 	}
 
 	model, _ := m.Update(ModelListResultMsg{Models: models})
@@ -549,7 +549,7 @@ func TestStatusMessageOnModelCycle(t *testing.T) {
 	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
-	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-20250514"}
+	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-6"}
 
 	// Cycle produces a ModelChangedMsg cmd — execute it and process the result
 	model, cmd := m.dispatchBinding(ActionModelCycle)
@@ -578,7 +578,7 @@ func TestStatusMessageOnModelChanged(t *testing.T) {
 	m.width = 80
 	m.height = 24
 
-	entry := ModelEntry{Provider: "openai", Model: "gpt-4o"}
+	entry := ModelEntry{Provider: "openai", Model: "gpt-5.5"}
 	model, _ := m.Update(ModelChangedMsg{Entry: entry})
 	m = model.(Model)
 

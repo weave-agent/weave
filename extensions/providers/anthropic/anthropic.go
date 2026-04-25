@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	defaultModel     = "claude-sonnet-4-20250514"
-	defaultMaxTokens = 8192
+	defaultModel     = "claude-sonnet-4-6"
+	defaultMaxTokens = 16384
 )
 
 type provider struct {

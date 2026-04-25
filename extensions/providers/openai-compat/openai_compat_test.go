@@ -209,7 +209,7 @@ func TestStream_TextOnly(t *testing.T) {
 	ch, err := Stream(context.Background(), server.Client(), ProviderConfig{
 		BaseURL: server.URL,
 		APIKey:  "test-key",
-		Model:   "gpt-4o",
+		Model:   "gpt-5.5",
 	}, sdk.ProviderRequest{
 		Messages: []sdk.Message{sdk.NewUserMessage("hi")},
 	})
@@ -252,7 +252,7 @@ func TestStream_ToolCall(t *testing.T) {
 	ch, err := Stream(context.Background(), server.Client(), ProviderConfig{
 		BaseURL: server.URL,
 		APIKey:  "test-key",
-		Model:   "gpt-4o",
+		Model:   "gpt-5.5",
 	}, sdk.ProviderRequest{
 		Messages: []sdk.Message{sdk.NewUserMessage("run ls")},
 	})
@@ -538,7 +538,7 @@ func TestStream_DefaultModel(t *testing.T) {
 	require.NoError(t, err)
 	collectEvents(ch)
 
-	assert.Equal(t, "gpt-4o", receivedBody.Model)
+	assert.Equal(t, "gpt-5.5", receivedBody.Model)
 }
 
 func TestStream_PartialJSONArguments(t *testing.T) {
@@ -657,14 +657,14 @@ func TestStream_WithModelOverride(t *testing.T) {
 	ch, err := Stream(context.Background(), server.Client(), ProviderConfig{
 		BaseURL: server.URL,
 		APIKey:  "test-key",
-		Model:   "gpt-4o",
+		Model:   "gpt-5.5",
 	}, sdk.ProviderRequest{
 		Messages: []sdk.Message{sdk.NewUserMessage("hi")},
-	}, sdk.WithModel("gpt-4o-mini"))
+	}, sdk.WithModel("gpt-4.1"))
 	require.NoError(t, err)
 	collectEvents(ch)
 
-	assert.Equal(t, "gpt-4o-mini", receivedBody.Model)
+	assert.Equal(t, "gpt-4.1", receivedBody.Model)
 }
 
 func TestStream_WithThinkingLevel_SetsReasoningEffort(t *testing.T) {

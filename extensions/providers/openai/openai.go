@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	defaultModel   = "gpt-4o"
+	defaultModel   = "gpt-5.5"
 	defaultBaseURL = "https://api.openai.com/v1"
 )
 

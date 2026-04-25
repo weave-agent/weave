@@ -19,7 +19,7 @@ import (
 
 func newTestProvider(server *httptest.Server, model string) sdk.Provider {
 	if model == "" {
-		model = "glm-4"
+		model = "glm-5.1"
 	}
 
 	return &provider{
@@ -94,7 +94,7 @@ func TestStream_TextResponse(t *testing.T) {
 	server := setupServer(stream)
 	defer server.Close()
 
-	p := newTestProvider(server, "glm-4")
+	p := newTestProvider(server, "glm-5.1")
 	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
 		Messages: []sdk.Message{sdk.NewUserMessage("hi")},
 	})
@@ -133,7 +133,7 @@ func TestStream_ToolCall(t *testing.T) {
 	server := setupServer(stream)
 	defer server.Close()
 
-	p := newTestProvider(server, "glm-4")
+	p := newTestProvider(server, "glm-5.1")
 	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
 		Messages: []sdk.Message{sdk.NewUserMessage("run ls")},
 	})
@@ -170,7 +170,7 @@ func TestStream_WithSystemPrompt(t *testing.T) {
 	}))
 	defer server.Close()
 
-	p := newTestProvider(server, "glm-4")
+	p := newTestProvider(server, "glm-5.1")
 	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
 		SystemPrompt: "You are helpful.",
 		Messages:     []sdk.Message{sdk.NewUserMessage("hi")},
@@ -190,7 +190,7 @@ func TestStream_APIError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	p := newTestProvider(server, "glm-4")
+	p := newTestProvider(server, "glm-5.1")
 	_, err := p.Stream(context.Background(), sdk.ProviderRequest{
 		Messages: []sdk.Message{sdk.NewUserMessage("hi")},
 	})
@@ -213,7 +213,7 @@ func TestStream_WithTools(t *testing.T) {
 	}))
 	defer server.Close()
 
-	p := newTestProvider(server, "glm-4")
+	p := newTestProvider(server, "glm-5.1")
 	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
 		Messages: []sdk.Message{sdk.NewUserMessage("hi")},
 		Tools: []sdk.ToolDef{
@@ -258,7 +258,7 @@ func TestStream_MultipleToolCalls(t *testing.T) {
 	server := setupServer(stream)
 	defer server.Close()
 
-	p := newTestProvider(server, "glm-4")
+	p := newTestProvider(server, "glm-5.1")
 	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
 		Messages: []sdk.Message{sdk.NewUserMessage("do stuff")},
 	})
@@ -302,7 +302,7 @@ func TestStream_DefaultModel(t *testing.T) {
 	require.NoError(t, err)
 	collectEvents(t, ch)
 
-	assert.Equal(t, "glm-4", receivedBody.Model)
+	assert.Equal(t, "glm-5.1", receivedBody.Model)
 }
 
 func TestStream_SendsCorrectBaseURL(t *testing.T) {
@@ -320,7 +320,7 @@ func TestStream_SendsCorrectBaseURL(t *testing.T) {
 	}))
 	defer server.Close()
 
-	p := newTestProvider(server, "glm-4")
+	p := newTestProvider(server, "glm-5.1")
 	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
 		Messages: []sdk.Message{sdk.NewUserMessage("hi")},
 	})

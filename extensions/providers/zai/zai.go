@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	defaultModel   = "glm-4"
+	defaultModel   = "glm-5.1"
 	defaultBaseURL = "https://open.bigmodel.cn/api/paas/v4"
 )
 

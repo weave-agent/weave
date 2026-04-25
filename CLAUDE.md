@@ -81,9 +81,9 @@ Built-in bindings: Escape=interrupt, Ctrl+C=clear, Ctrl+D=exit, Ctrl+L=model sel
 **StreamOptions** (`sdk/provider.go`) passes per-request options (model, thinking level, max tokens) to providers via functional options: `WithModel(model)`, `WithThinkingLevel(level)`, `WithMaxTokens(n)`. Providers read these instead of re-creating on model switch.
 
 **Provider environment variables:**
-- `ANTHROPIC_API_KEY` — required for Anthropic provider (default model: `claude-sonnet-4-20250514`, override with `ANTHROPIC_MODEL`)
-- `OPENAI_API_KEY` — required for OpenAI provider (default model: `gpt-4o`, override with `OPENAI_MODEL`)
-- `ZAI_API_KEY` — required for Z.ai provider (default model: `glm-4`, override with `ZAI_MODEL`)
+- `ANTHROPIC_API_KEY` — required for Anthropic provider (default model: `claude-sonnet-4-6`, override with `ANTHROPIC_MODEL`)
+- `OPENAI_API_KEY` — required for OpenAI provider (default model: `gpt-5.5`, override with `OPENAI_MODEL`)
+- `ZAI_API_KEY` — required for Z.ai provider (default model: `glm-5.1`, override with `ZAI_MODEL`)
 - `WEAVE_THINKING_LEVEL` — initial thinking level (default: `medium`)
 
 ## Design Reference

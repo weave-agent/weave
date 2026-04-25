@@ -1072,7 +1072,7 @@ func TestModel_CycleThinkingLevel(t *testing.T) {
 	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
-	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-20250514"}
+	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-6"}
 
 	assert.Equal(t, sdk.ThinkingMedium, m.thinkingLevel)
 
@@ -1102,7 +1102,7 @@ func TestModel_CycleThinkingLevelWraps(t *testing.T) {
 	defer sdk.ResetModelRegistry()
 
 	// Set current model to one that supports xhigh (opus)
-	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-opus-4-20250514"}
+	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-opus-4-7"}
 
 	model, _ := m.dispatchBinding(ActionThinkingCycle)
 	m = model.(Model)
@@ -1120,7 +1120,7 @@ func TestModel_CycleThinkingLevelSkipsClampedForSonnet(t *testing.T) {
 	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
-	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-20250514"}
+	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-6"}
 
 	// Sonnet doesn't support xhigh, so the cycle skips it:
 	// medium -> high -> off -> minimal -> low -> medium (wraps)
@@ -1149,7 +1149,7 @@ func TestModel_CycleThinkingLevelAllLevels(t *testing.T) {
 	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
-	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-opus-4-20250514"}
+	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-opus-4-7"}
 
 	expected := []sdk.ThinkingLevel{
 		sdk.ThinkingMedium, // start
@@ -1207,7 +1207,7 @@ func TestModel_ThinkingLevelUpdatesEditorBorder(t *testing.T) {
 	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
-	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-opus-4-20250514"}
+	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-opus-4-7"}
 
 	// medium -> high
 	model, _ := m.dispatchBinding(ActionThinkingCycle)
@@ -1318,7 +1318,7 @@ func TestModel_ThinkingCommandXHighClamped(t *testing.T) {
 	m.chat = m.chat.SetSize(80, 10)
 
 	// Set to Sonnet (no xhigh support)
-	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-20250514"}
+	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-6"}
 
 	model, cmd := m.onSubmit("/thinking xhigh")
 	m = model.(Model)
@@ -1345,7 +1345,7 @@ func TestModel_ThinkingCommandAllLevels(t *testing.T) {
 	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
-	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-opus-4-20250514"}
+	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-opus-4-7"}
 
 	for _, level := range sdk.AllThinkingLevels {
 		m.chat = components.NewChatModel().SetSize(80, 10)

@@ -110,32 +110,32 @@ func TestRegisterBuiltinModels(t *testing.T) {
 	RegisterBuiltinModels()
 
 	all := ListAllModels()
-	assert.Len(t, all, 6)
+	assert.Len(t, all, 17)
 
 	// Anthropic
-	m, ok := GetModel("claude-opus-4-20250514")
+	m, ok := GetModel("claude-opus-4-7")
 	require.True(t, ok)
 	assert.True(t, m.Reasoning)
 	assert.True(t, m.SupportsXHigh)
 	assert.Equal(t, "anthropic", m.Provider)
 
-	m, ok = GetModel("claude-sonnet-4-20250514")
+	m, ok = GetModel("claude-sonnet-4-6")
 	require.True(t, ok)
 	assert.True(t, m.Reasoning)
 	assert.False(t, m.SupportsXHigh)
 
 	// OpenAI
 	models := ListModelsForProvider("openai")
-	assert.Len(t, models, 2)
+	assert.Len(t, models, 6)
 
 	// ZAI
 	models = ListModelsForProvider("zai")
-	assert.Len(t, models, 2)
+	assert.Len(t, models, 6)
 
-	// Default for anthropic is Sonnet (marked Default: true)
+	// Default for anthropic is Sonnet 4.6 (marked Default: true)
 	def, ok := DefaultModelForProvider("anthropic")
 	require.True(t, ok)
-	assert.Equal(t, "claude-sonnet-4-20250514", def.ID)
+	assert.Equal(t, "claude-sonnet-4-6", def.ID)
 }
 
 func TestNewStreamOptions_Defaults(t *testing.T) {
@@ -147,11 +147,11 @@ func TestNewStreamOptions_Defaults(t *testing.T) {
 
 func TestNewStreamOptions_FunctionalOptions(t *testing.T) {
 	opts := NewStreamOptions(
-		WithModel("claude-opus-4-20250514"),
+		WithModel("claude-opus-4-7"),
 		WithThinkingLevel(ThinkingHigh),
 		WithMaxTokens(8192),
 	)
-	assert.Equal(t, "claude-opus-4-20250514", opts.Model)
+	assert.Equal(t, "claude-opus-4-7", opts.Model)
 	assert.Equal(t, ThinkingHigh, opts.ThinkingLevel)
 	assert.Equal(t, int64(8192), opts.MaxTokens)
 }

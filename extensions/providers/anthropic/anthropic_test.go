@@ -80,7 +80,7 @@ func newTestProvider(server *httptest.Server) sdk.Provider {
 		option.WithBaseURL(server.URL),
 	)
 
-	return NewProviderWithClient(client, "claude-sonnet-4-20250514")
+	return NewProviderWithClient(client, "claude-sonnet-4-6")
 }
 
 func collectEvents(t *testing.T, ch <-chan sdk.ProviderEvent) []sdk.ProviderEvent {
@@ -524,11 +524,11 @@ func TestStream_WithModelOverride(t *testing.T) {
 	p := newTestProvider(server)
 	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
 		Messages: []sdk.Message{sdk.NewUserMessage("hello")},
-	}, sdk.WithModel("claude-opus-4-20250514"))
+	}, sdk.WithModel("claude-opus-4-7"))
 	require.NoError(t, err)
 	collectEvents(t, ch)
 
-	assert.Contains(t, receivedBody, "claude-opus-4-20250514")
+	assert.Contains(t, receivedBody, "claude-opus-4-7")
 }
 
 func TestStream_ThinkingContentEmitted(t *testing.T) {

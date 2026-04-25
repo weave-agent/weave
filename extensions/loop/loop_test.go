@@ -919,7 +919,7 @@ func TestLoop_ModelChangeWithModelKey(t *testing.T) {
 	// Model change should NOT trigger a spurious streamTurn — it applies on the next user input.
 	b.Publish(sdk.NewEvent(TopicModelChange, map[string]string{
 		"provider": "anthropic",
-		"model":    "claude-opus-4-20250514",
+		"model":    "claude-opus-4-7",
 	}))
 
 	// Send a follow-up to trigger a stream call with the updated model.
@@ -932,7 +932,7 @@ func TestLoop_ModelChangeWithModelKey(t *testing.T) {
 	require.Len(t, capturedOpts, 2)
 	so = sdk.NewStreamOptions(capturedOpts...)
 	mu.Unlock()
-	assert.Equal(t, "claude-opus-4-20250514", so.Model, "model should be passed via StreamOptions")
+	assert.Equal(t, "claude-opus-4-7", so.Model, "model should be passed via StreamOptions")
 
 	require.NoError(t, l.Close())
 }
@@ -974,7 +974,7 @@ func TestLoop_ModelChangeDifferentProvider(t *testing.T) {
 	// Switch to openai provider — model change applies on next user input
 	b.Publish(sdk.NewEvent(TopicModelChange, map[string]string{
 		"provider": "openai",
-		"model":    "gpt-4o",
+		"model":    "gpt-5.5",
 	}))
 
 	// Send a follow-up to trigger a turn with the new provider
@@ -992,7 +992,7 @@ func TestLoop_ModelChangeDifferentProvider(t *testing.T) {
 	require.Len(t, openaiMock.StreamCalls(), 1)
 	openaiOpts := openaiMock.StreamCalls()[0].Opts
 	so := sdk.NewStreamOptions(openaiOpts...)
-	assert.Equal(t, "gpt-4o", so.Model)
+	assert.Equal(t, "gpt-5.5", so.Model)
 }
 
 func TestLoop_InvalidThinkingLevelIgnored(t *testing.T) {

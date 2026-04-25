@@ -192,15 +192,15 @@ func TestFooterView_ThinkingLevelEmpty(t *testing.T) {
 }
 
 func TestFooterView_ThinkingLevelOff(t *testing.T) {
-	f := NewFooterModel().SetSize(80).SetModel("gpt-4o", "openai").SetReasoning(true).SetThinkingLevel("off")
+	f := NewFooterModel().SetSize(80).SetModel("gpt-5.5", "openai").SetReasoning(true).SetThinkingLevel("off")
 	view := f.View()
-	assert.Contains(t, view, "openai/gpt-4o · off")
+	assert.Contains(t, view, "openai/gpt-5.5 · off")
 }
 
 func TestFooterView_ThinkingLevelHiddenForNonReasoning(t *testing.T) {
-	f := NewFooterModel().SetSize(80).SetModel("gpt-4o", "openai").SetReasoning(false).SetThinkingLevel("high")
+	f := NewFooterModel().SetSize(80).SetModel("gpt-5.5", "openai").SetReasoning(false).SetThinkingLevel("high")
 	view := f.View()
-	assert.Contains(t, view, "openai/gpt-4o")
+	assert.Contains(t, view, "openai/gpt-5.5")
 	assert.NotContains(t, view, " · high")
 }
 

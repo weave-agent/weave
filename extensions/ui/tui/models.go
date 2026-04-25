@@ -85,7 +85,7 @@ func currentModel(entries []ModelEntry) ModelEntry {
 		return entries[0]
 	}
 
-	return ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-20250514"}
+	return ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-6"}
 }
 
 // initialModel returns the model entry to use at TUI startup. It applies

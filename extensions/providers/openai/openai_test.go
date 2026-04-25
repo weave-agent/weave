@@ -19,7 +19,7 @@ import (
 
 func newTestProvider(server *httptest.Server, model string) sdk.Provider {
 	if model == "" {
-		model = "gpt-4o"
+		model = "gpt-5.5"
 	}
 
 	return &provider{
@@ -94,7 +94,7 @@ func TestStream_TextResponse(t *testing.T) {
 	server := setupServer(stream)
 	defer server.Close()
 
-	p := newTestProvider(server, "gpt-4o")
+	p := newTestProvider(server, "gpt-5.5")
 	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
 		Messages: []sdk.Message{sdk.NewUserMessage("hi")},
 	})
@@ -133,7 +133,7 @@ func TestStream_ToolCall(t *testing.T) {
 	server := setupServer(stream)
 	defer server.Close()
 
-	p := newTestProvider(server, "gpt-4o")
+	p := newTestProvider(server, "gpt-5.5")
 	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
 		Messages: []sdk.Message{sdk.NewUserMessage("run ls")},
 	})
@@ -171,7 +171,7 @@ func TestStream_WithSystemPrompt(t *testing.T) {
 	}))
 	defer server.Close()
 
-	p := newTestProvider(server, "gpt-4o")
+	p := newTestProvider(server, "gpt-5.5")
 	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
 		SystemPrompt: "You are helpful.",
 		Messages:     []sdk.Message{sdk.NewUserMessage("hi")},
@@ -191,7 +191,7 @@ func TestStream_APIError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	p := newTestProvider(server, "gpt-4o")
+	p := newTestProvider(server, "gpt-5.5")
 	_, err := p.Stream(context.Background(), sdk.ProviderRequest{
 		Messages: []sdk.Message{sdk.NewUserMessage("hi")},
 	})
@@ -215,7 +215,7 @@ func TestStream_WithTools(t *testing.T) {
 	}))
 	defer server.Close()
 
-	p := newTestProvider(server, "gpt-4o")
+	p := newTestProvider(server, "gpt-5.5")
 	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
 		Messages: []sdk.Message{sdk.NewUserMessage("hi")},
 		Tools: []sdk.ToolDef{
@@ -260,7 +260,7 @@ func TestStream_MultipleToolCalls(t *testing.T) {
 	server := setupServer(stream)
 	defer server.Close()
 
-	p := newTestProvider(server, "gpt-4o")
+	p := newTestProvider(server, "gpt-5.5")
 	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
 		Messages: []sdk.Message{sdk.NewUserMessage("do stuff")},
 	})
@@ -305,7 +305,7 @@ func TestStream_DefaultModel(t *testing.T) {
 	require.NoError(t, err)
 	collectEvents(t, ch)
 
-	assert.Equal(t, "gpt-4o", receivedBody.Model)
+	assert.Equal(t, "gpt-5.5", receivedBody.Model)
 }
 
 func TestStream_SendsCorrectBaseURL(t *testing.T) {
@@ -323,7 +323,7 @@ func TestStream_SendsCorrectBaseURL(t *testing.T) {
 	}))
 	defer server.Close()
 
-	p := newTestProvider(server, "gpt-4o")
+	p := newTestProvider(server, "gpt-5.5")
 	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
 		Messages: []sdk.Message{sdk.NewUserMessage("hi")},
 	})

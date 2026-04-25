@@ -15,7 +15,7 @@ import (
 	"weave/sdk"
 )
 
-const defaultModel = "gpt-4o"
+const defaultModel = "gpt-5.5"
 
 // ProviderConfig holds the configuration for an OpenAI-compatible provider.
 type ProviderConfig struct {
