@@ -1,5 +1,6 @@
 GO_FILES ?= ./bus/... ./cmd/... ./config/... ./launcher/... ./sdk/...
 GOLANGCI_LINT ?= golangci-lint
+EXT_DIRS := $(sort $(dir $(wildcard extensions/*/*/go.mod extensions/*/go.mod)))
 
 .DEFAULT_GOAL := help
 .PHONY: help tools gen fmt lint fix test
@@ -25,6 +26,9 @@ gen: ## Regenerate mocks, generated code
 fmt: ## Format code (gofumpt, goimports, go fix)
 	@echo "Running golangci-lint formatters (gofumpt, goimports, swaggo)..."
 	$(GOLANGCI_LINT) fmt --config .golangci.yml ./...
+	@for dir in $(EXT_DIRS); do \
+		(cd $$dir && $(GOLANGCI_LINT) fmt --config $(CURDIR)/.golangci.yml ./...) || exit 1; \
+	done
 	@echo "Running modernize..."
 	go fix ./...
 
@@ -34,8 +38,16 @@ lint: ## Run golangci-lint
 	$(GOLANGCI_LINT) run \
 		--config .golangci.yml \
 		$(GO_FILES)
+	@for dir in $(EXT_DIRS); do \
+		echo "lint $$dir"; \
+		(cd $$dir && $(GOLANGCI_LINT) run --config $(CURDIR)/.golangci.yml ./...) || exit 1; \
+	done
 
 ##@ Fix (format + auto-fix linter issues)
 fix: ## Auto-fix linter issues
 	@echo "Running golangci-lint with --fix..."
 	$(GOLANGCI_LINT) run --fix --config .golangci.yml $(GO_FILES)
+	@for dir in $(EXT_DIRS); do \
+		echo "fix $$dir"; \
+		(cd $$dir && $(GOLANGCI_LINT) run --fix --config $(CURDIR)/.golangci.yml ./...) || exit 1; \
+	done
