@@ -3,6 +3,7 @@ package anthropic
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -32,7 +33,7 @@ func init() {
 		}
 
 		if apiKey == "" {
-			return nil, fmt.Errorf("anthropic: API key required (set ANTHROPIC_API_KEY, add to ~/.weave/auth.json, or configure in .weave.yaml)")
+			return nil, errors.New("anthropic: API key required (set ANTHROPIC_API_KEY, add to ~/.weave/auth.json, or configure in .weave.yaml)")
 		}
 
 		model := defaultModel
@@ -81,58 +82,18 @@ func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest, opts ...
 	ch := make(chan sdk.ProviderEvent, 64)
 
 	so := sdk.NewStreamOptions(opts...)
+
 	model := so.Model
 	if model == "" {
 		model = p.model
 	}
+
 	maxTokens := so.MaxTokens
 	if maxTokens == 0 {
 		maxTokens = p.maxTokens
 	}
 
-	params := anthropic.MessageNewParams{
-		Model:     model,
-		MaxTokens: maxTokens,
-		Messages:  convertMessages(req.Messages),
-	}
-
-	if req.SystemPrompt != "" {
-		params.System = []anthropic.TextBlockParam{
-			{Text: req.SystemPrompt},
-		}
-	}
-
-	if len(req.Tools) > 0 {
-		params.Tools = convertTools(req.Tools)
-	}
-
-	thinkingLevel := so.ThinkingLevel
-	if thinkingLevel != sdk.ThinkingOff {
-		if m, ok := sdk.GetModel(model); ok && !m.Reasoning {
-			thinkingLevel = sdk.ThinkingOff
-		} else if thinkingLevel == sdk.ThinkingXHigh {
-			if m, ok := sdk.GetModel(model); ok && !m.SupportsXHigh {
-				thinkingLevel = sdk.ThinkingHigh
-			}
-		}
-	}
-
-	if thinkingLevel != sdk.ThinkingOff {
-		params.Thinking = anthropic.ThinkingConfigParamUnion{
-			OfAdaptive: &anthropic.ThinkingConfigAdaptiveParam{},
-		}
-
-		effortMap := map[sdk.ThinkingLevel]anthropic.OutputConfigEffort{
-			sdk.ThinkingMinimal: anthropic.OutputConfigEffortLow,
-			sdk.ThinkingLow:     anthropic.OutputConfigEffortLow,
-			sdk.ThinkingMedium:  anthropic.OutputConfigEffortMedium,
-			sdk.ThinkingHigh:    anthropic.OutputConfigEffortHigh,
-			sdk.ThinkingXHigh:   anthropic.OutputConfigEffortXhigh,
-		}
-		if effort, ok := effortMap[thinkingLevel]; ok {
-			params.OutputConfig = anthropic.OutputConfigParam{Effort: effort}
-		}
-	}
+	params := p.buildParams(req, model, maxTokens, so.ThinkingLevel)
 
 	send := func(evt sdk.ProviderEvent) bool {
 		select {
@@ -154,23 +115,26 @@ func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest, opts ...
 			event := stream.Current()
 			_ = message.Accumulate(event)
 
-			switch e := event.AsAny().(type) {
-			case anthropic.ContentBlockDeltaEvent:
-				if e.Delta.Text != "" {
-					if !send(sdk.ProviderEvent{
-						Type:    sdk.ProviderEventTextDelta,
-						Content: e.Delta.Text,
-					}) {
-						return
-					}
+			e, ok := event.AsAny().(anthropic.ContentBlockDeltaEvent)
+			if !ok {
+				continue
+			}
+
+			if e.Delta.Text != "" {
+				if !send(sdk.ProviderEvent{
+					Type:    sdk.ProviderEventTextDelta,
+					Content: e.Delta.Text,
+				}) {
+					return
 				}
-				if e.Delta.Thinking != "" {
-					if !send(sdk.ProviderEvent{
-						Type:    sdk.ProviderEventThinking,
-						Content: e.Delta.Thinking,
-					}) {
-						return
-					}
+			}
+
+			if e.Delta.Thinking != "" {
+				if !send(sdk.ProviderEvent{
+					Type:    sdk.ProviderEventThinking,
+					Content: e.Delta.Thinking,
+				}) {
+					return
 				}
 			}
 		}
@@ -184,63 +148,139 @@ func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest, opts ...
 			return
 		}
 
-		for _, block := range message.Content {
-			switch b := block.AsAny().(type) {
-			case anthropic.ThinkingBlock:
-				if !send(sdk.ProviderEvent{
-					Type: sdk.ProviderEventThinkingDone,
-					Content: sdk.SignedThinking{
-						Signature: b.Signature,
-						Thinking:  b.Thinking,
-					},
-				}) {
-					return
-				}
-			case anthropic.RedactedThinkingBlock:
-				if !send(sdk.ProviderEvent{
-					Type: sdk.ProviderEventRedactedThinkingDone,
-					Content: sdk.RedactedThinking{
-						Data: b.Data,
-					},
-				}) {
-					return
-				}
-			case anthropic.ToolUseBlock:
-				var args map[string]any
-
-				if raw := b.JSON.Input.Raw(); raw != "" {
-					if err := json.Unmarshal([]byte(raw), &args); err != nil {
-						send(sdk.ProviderEvent{
-							Type:    sdk.ProviderEventError,
-							Content: fmt.Sprintf("anthropic: parse tool call arguments for %s: %v", b.Name, err),
-						})
-
-						return
-					}
-				} else {
-					args = make(map[string]any)
-				}
-
-				if !send(sdk.ProviderEvent{
-					Type: sdk.ProviderEventToolCall,
-					Content: sdk.ToolCall{
-						ID:        b.ID,
-						Name:      b.Name,
-						Arguments: args,
-					},
-				}) {
-					return
-				}
-			}
-		}
+		emitContentBlocks(message.Content, send)
 	}()
 
 	return ch, nil
 }
 
+func (p *provider) buildParams(req sdk.ProviderRequest, model string, maxTokens int64, thinkingLevel sdk.ThinkingLevel) anthropic.MessageNewParams {
+	params := anthropic.MessageNewParams{
+		Model:     model,
+		MaxTokens: maxTokens,
+		Messages:  convertMessages(req.Messages),
+	}
+
+	if req.SystemPrompt != "" {
+		params.System = []anthropic.TextBlockParam{
+			{Text: req.SystemPrompt},
+		}
+	}
+
+	if len(req.Tools) > 0 {
+		params.Tools = convertTools(req.Tools)
+	}
+
+	thinkingLevel = resolveThinkingLevel(model, thinkingLevel)
+
+	if thinkingLevel != sdk.ThinkingOff {
+		params.Thinking = anthropic.ThinkingConfigParamUnion{
+			OfAdaptive: &anthropic.ThinkingConfigAdaptiveParam{},
+		}
+
+		effortMap := map[sdk.ThinkingLevel]anthropic.OutputConfigEffort{
+			sdk.ThinkingMinimal: anthropic.OutputConfigEffortLow,
+			sdk.ThinkingLow:     anthropic.OutputConfigEffortLow,
+			sdk.ThinkingMedium:  anthropic.OutputConfigEffortMedium,
+			sdk.ThinkingHigh:    anthropic.OutputConfigEffortHigh,
+			sdk.ThinkingXHigh:   anthropic.OutputConfigEffortXhigh,
+		}
+
+		if effort, ok := effortMap[thinkingLevel]; ok {
+			params.OutputConfig = anthropic.OutputConfigParam{Effort: effort}
+		}
+	}
+
+	return params
+}
+
+func resolveThinkingLevel(model string, level sdk.ThinkingLevel) sdk.ThinkingLevel {
+	if level == sdk.ThinkingOff {
+		return sdk.ThinkingOff
+	}
+
+	m, ok := sdk.GetModel(model)
+	if !ok {
+		return level
+	}
+
+	if !m.Reasoning {
+		return sdk.ThinkingOff
+	}
+
+	if level == sdk.ThinkingXHigh && !m.SupportsXHigh {
+		return sdk.ThinkingHigh
+	}
+
+	return level
+}
+
+func emitContentBlocks(blocks []anthropic.ContentBlockUnion, send func(sdk.ProviderEvent) bool) {
+	for _, block := range blocks {
+		switch b := block.AsAny().(type) {
+		case anthropic.ThinkingBlock:
+			if !send(sdk.ProviderEvent{
+				Type: sdk.ProviderEventThinkingDone,
+				Content: sdk.SignedThinking{
+					Signature: b.Signature,
+					Thinking:  b.Thinking,
+				},
+			}) {
+				return
+			}
+		case anthropic.RedactedThinkingBlock:
+			if !send(sdk.ProviderEvent{
+				Type: sdk.ProviderEventRedactedThinkingDone,
+				Content: sdk.RedactedThinking{
+					Data: b.Data,
+				},
+			}) {
+				return
+			}
+		case anthropic.ToolUseBlock:
+			args := parseToolArgs(b.Name, b.JSON.Input.Raw(), send)
+			if args == nil {
+				return
+			}
+
+			if !send(sdk.ProviderEvent{
+				Type: sdk.ProviderEventToolCall,
+				Content: sdk.ToolCall{
+					ID:        b.ID,
+					Name:      b.Name,
+					Arguments: args,
+				},
+			}) {
+				return
+			}
+		}
+	}
+}
+
+func parseToolArgs(toolName, raw string, send func(sdk.ProviderEvent) bool) map[string]any {
+	if raw == "" {
+		return make(map[string]any)
+	}
+
+	var args map[string]any
+
+	if err := json.Unmarshal([]byte(raw), &args); err != nil {
+		send(sdk.ProviderEvent{
+			Type:    sdk.ProviderEventError,
+			Content: fmt.Sprintf("anthropic: parse tool call arguments for %s: %v", toolName, err),
+		})
+
+		return nil
+	}
+
+	return args
+}
+
 func convertMessages(msgs []sdk.Message) []anthropic.MessageParam {
-	var params []anthropic.MessageParam
-	var pendingToolResults []anthropic.ContentBlockParamUnion
+	var (
+		params             []anthropic.MessageParam
+		pendingToolResults []anthropic.ContentBlockParamUnion
+	)
 
 	flush := func() {
 		if len(pendingToolResults) > 0 {
@@ -253,6 +293,7 @@ func convertMessages(msgs []sdk.Message) []anthropic.MessageParam {
 		switch msg.Role {
 		case sdk.RoleUser:
 			flush()
+
 			params = append(params, anthropic.NewUserMessage(
 				anthropic.NewTextBlock(fmt.Sprint(msg.Content)),
 			))
@@ -303,8 +344,10 @@ func convertTools(tools []sdk.ToolDef) []anthropic.ToolUnionParam {
 	result := make([]anthropic.ToolUnionParam, len(tools))
 
 	for i, t := range tools {
-		var properties map[string]any
-		var required []string
+		var (
+			properties map[string]any
+			required   []string
+		)
 
 		if params, ok := t.Parameters.(map[string]any); ok {
 			if p, ok := params["properties"].(map[string]any); ok {
