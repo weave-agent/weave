@@ -13,7 +13,7 @@ import (
 
 const (
 	defaultModel   = "glm-5.1"
-	defaultBaseURL = "https://api.z.ai/api/paas/v4"
+	defaultBaseURL = "https://api.z.ai/api/coding/paas/v4"
 )
 
 type provider struct {
