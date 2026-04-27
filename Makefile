@@ -52,6 +52,14 @@ fix: ## Auto-fix linter issues
 		(cd $$dir && $(GOLANGCI_LINT) run --fix --config $(CURDIR)/.golangci.yml ./...) || exit 1; \
 	done
 
+##@ Testing
+test: ## Run all tests (root + extension modules)
+	go test ./...
+	@for dir in $(EXT_DIRS); do \
+		echo "test $$dir"; \
+		(cd $$dir && go test ./...) || exit 1; \
+	done
+
 ##@ Benchmarking
 bench: ## Run build benchmarks (cold/warm/partial, with and without TUI)
 	go test -bench=. -benchmem -run=NONE -timeout 600s ./launcher/

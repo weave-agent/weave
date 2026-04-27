@@ -15,8 +15,9 @@ make fix           # Auto-fix linter issues
 make gen           # Regenerate mocks (moq)
 make tools         # Install dev tools (moq, golangci-lint)
 make bench         # Run build benchmarks (cold/warm/partial, with and without TUI)
-go test ./...      # Run all tests
+make test          # Run all tests (root + all extension modules)
 go test ./launcher/...  # Run tests for a single package
+cd extensions/loop && go test ./...  # Run tests for a single extension module (must cd first)
 ```
 
 ## Testing
@@ -28,7 +29,7 @@ go test ./launcher/...  # Run tests for a single package
 
 ## Architecture
 
-Standard library as much as possible. Every replaceable component is an extension (runner, provider, tools, store, hooks). Extensions are independent Go modules that self-register via `init()`.
+Standard library as much as possible. Every replaceable component is an extension (runner, provider, tools, store, hooks). Extensions are independent Go modules that self-register via `init()`. Extension modules have their own `go.mod` — test/lint them by `cd`ing into the directory, not via path from root (e.g. `go test ./extensions/loop/...` won't work).
 
 **Launcher pattern:** resolve config → pick extensions → build a custom binary (cached per hash) → exec it. The `cmd/weave/main.go` entry point orchestrates this pipeline.
 
