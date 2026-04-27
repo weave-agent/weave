@@ -54,4 +54,4 @@ fix: ## Auto-fix linter issues
 
 ##@ Benchmarking
 bench: ## Run build benchmarks (cold/warm/partial, with and without TUI)
-	go test -bench=. -benchmem -run='^$' -timeout 600s ./launcher/
+	go test -bench=. -benchmem -run=NONE -timeout 600s ./launcher/
