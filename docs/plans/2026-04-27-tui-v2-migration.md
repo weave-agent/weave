@@ -76,15 +76,15 @@ The core migration from v1 string-based rendering to v2 + ultraviolet screen buf
 
 ### Task 1: Update go.mod to v2 dependencies
 
-- [ ] Update `extensions/ui/tui/go.mod` — replace v1 imports with v2 equivalents:
+- [x] Update `extensions/ui/tui/go.mod` — replace v1 imports with v2 equivalents:
   - `charm.land/bubbletea/v2`
   - `charm.land/bubbles/v2`
   - `charm.land/lipgloss/v2`
   - `charm.land/glamour/v2`
   - `github.com/charmbracelet/ultraviolet` (new)
   - `github.com/alecthomas/chroma/v2` (promote from indirect to direct)
-- [ ] Run `cd extensions/ui/tui && go mod tidy` to resolve transitive deps
-- [ ] Verify compilation succeeds (expect import errors — that's fine, just confirm deps resolve)
+- [x] Run `cd extensions/ui/tui && go mod tidy` to resolve transitive deps
+- [x] Verify compilation succeeds (expect import errors — that's fine, just confirm deps resolve)
 
 ---
 
