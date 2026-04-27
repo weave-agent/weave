@@ -68,6 +68,10 @@ type notifyMsg struct {
 	message string
 }
 
+// slashCommandsUpdatedMsg is sent when commands are dynamically registered,
+// so the editor can refresh its autocomplete list.
+type slashCommandsUpdatedMsg struct{}
+
 // checkNextPopupCmd returns a tea.Cmd that sends popupPendingMsg
 // if there are more queued popups.
 func checkNextPopupCmd(ui *TUIImpl) tea.Cmd {

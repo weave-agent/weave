@@ -61,6 +61,71 @@ func TestTUIImpl_Notify_NoProgram(t *testing.T) {
 	ui.Notify("hello world")
 }
 
+func TestTUIImpl_RegisterCommand_SendsSlashCommandsUpdated(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	commands := NewCommandRegistry(b, "")
+	sender := &mockSender{}
+	ui := NewTUIImpl(commands, nil)
+	ui.SetProgram(sender)
+
+	ui.RegisterCommand("/dynamic-cmd", func(_ string) error {
+		return nil
+	})
+
+	// Should have sent a slashCommandsUpdatedMsg
+	found := false
+
+	for _, msg := range sender.msgs {
+		if _, ok := msg.(slashCommandsUpdatedMsg); ok {
+			found = true
+		}
+	}
+
+	assert.True(t, found, "expected slashCommandsUpdatedMsg to be sent after RegisterCommand")
+}
+
+func TestTUIImpl_RegisterCommand_NoSendWithoutProgram(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	commands := NewCommandRegistry(b, "")
+	ui := NewTUIImpl(commands, nil)
+	// No program set — should not panic
+
+	ui.RegisterCommand("/no-program-cmd", func(_ string) error {
+		return nil
+	})
+}
+
+func TestModel_SlashCommandsUpdatedMsg_RefreshesEditor(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	m := newModel(b, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	// Count initial slash commands
+	initialNames := m.commands.Names()
+	initialCount := len(initialNames)
+
+	// Register a new command on the model's registry
+	m.commands.Register("/dynamic-test", "dynamic test command", func(_ string) CommandResult {
+		return CommandResult{}
+	})
+
+	// Send the update message
+	updated, _ := m.Update(slashCommandsUpdatedMsg{})
+	m = updated.(Model)
+
+	// Verify command list grew
+	newNames := m.commands.Names()
+	assert.Greater(t, len(newNames), initialCount, "expected more commands after registration")
+	assert.Contains(t, newNames, "/dynamic-test")
+}
+
 func TestTUIImpl_RegisterCommand(t *testing.T) {
 	b := bus.New()
 	defer b.Close()

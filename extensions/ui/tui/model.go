@@ -389,6 +389,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.chat = m.chat.AddItem(newNotifyAssistantMsg(msg.message))
 		return m, nil
 
+	case slashCommandsUpdatedMsg:
+		m.editor = m.editor.SetSlashCommands(m.commands.Names())
+		return m, nil
+
 	case overlays.ConfirmResultMsg:
 		return m, nil
 

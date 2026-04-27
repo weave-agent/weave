@@ -83,11 +83,11 @@ Loop subscribes to `skills.loaded` and injects skills XML into the system prompt
 ### Task 4: TUI autocomplete refresh
 Make dynamically registered skill commands appear in the editor autocomplete.
 
-- [ ] add `slashCommandsUpdatedMsg` message type to `extensions/ui/tui/model.go`
-- [ ] in `TUIImpl.RegisterCommand()`, after registering the command, send `slashCommandsUpdatedMsg` to the tea.Program
-- [ ] in `Model.Update()`, handle `slashCommandsUpdatedMsg` by calling `m.editor = m.editor.SetSlashCommands(m.commands.Names())`
-- [ ] write tests for autocomplete refresh — verify slashCmds list grows after RegisterCommand
-- [ ] run `cd extensions/ui/tui && go test ./...` — must pass before next task
+- [x] add `slashCommandsUpdatedMsg` message type to `extensions/ui/tui/model.go`
+- [x] in `TUIImpl.RegisterCommand()`, after registering the command, send `slashCommandsUpdatedMsg` to the tea.Program
+- [x] in `Model.Update()`, handle `slashCommandsUpdatedMsg` by calling `m.editor = m.editor.SetSlashCommands(m.commands.Names())`
+- [x] write tests for autocomplete refresh — verify slashCmds list grows after RegisterCommand
+- [x] run `cd extensions/ui/tui && go test ./...` — must pass before next task
 
 ### Task 5: TUI rendering of skill invocations
 Render skill command invocations with `[skill]` prefix in the chat view.

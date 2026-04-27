@@ -165,6 +165,14 @@ func (u *TUIImpl) RegisterCommand(name string, handler func(args string) error) 
 
 		return CommandResult{Notify: "/" + name + ": " + msg}
 	})
+
+	u.mu.Lock()
+	p := u.program
+	u.mu.Unlock()
+
+	if p != nil {
+		p.Send(slashCommandsUpdatedMsg{})
+	}
 }
 
 // RegisterRenderer stores a tool renderer for use by tool panels.
