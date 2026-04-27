@@ -776,7 +776,4 @@ func joinLines(lines []string) string {
 }
 
 // compile-time interface checks
-var (
-	_ components.ChatItem = stubItem{}
-	_ Drawable            = DrawableFunc(nil)
-)
+var _ components.ChatItem = stubItem{}

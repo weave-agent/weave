@@ -608,6 +608,8 @@ func (m Model) openExternalEditor() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	_ = tmpFile.Chmod(0o600)
+
 	tmpPath := tmpFile.Name()
 
 	if _, err := tmpFile.WriteString(text); err != nil {

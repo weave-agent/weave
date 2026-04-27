@@ -120,18 +120,5 @@ func (m *AssistantMessage) progressiveRender() string {
 
 // Draw renders the assistant message into a screen buffer region.
 func (m *AssistantMessage) Draw(scr uv.Screen, area uv.Rectangle) {
-	if area.Dx() <= 0 || area.Dy() <= 0 {
-		return
-	}
-
-	text := m.View(area.Dx())
-
-	for i, line := range strings.Split(text, "\n") {
-		if i >= area.Dy() {
-			break
-		}
-
-		lineRect := uv.Rect(area.Min.X, area.Min.Y+i, area.Dx(), 1)
-		uv.NewStyledString(line).Draw(scr, lineRect)
-	}
+	drawView(scr, area, m.View(area.Dx()))
 }

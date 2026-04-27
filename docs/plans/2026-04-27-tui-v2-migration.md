@@ -2,7 +2,7 @@
 
 ## Overview
 
-Migrate the weave TUI from Bubbletea v1 (string-based rendering) to Bubbletea v2 + Ultraviolet (screen buffer rendering), and add core feature improvements.
+Migrate the weave TUI to screen buffer rendering using Ultraviolet, and add core feature improvements. Uses a hybrid approach: Bubbletea v1 retained for program loop and messages, Ultraviolet added for `Draw()` screen buffer rendering.
 
 **Key benefits:**
 - Screen buffer rendering enables precise rectangle-based layout composition
@@ -74,33 +74,31 @@ The core migration from v1 string-based rendering to v2 + ultraviolet screen buf
 
 ---
 
-### Task 1: Update go.mod to v2 dependencies
+### Task 1: Update go.mod with ultraviolet and screen buffer deps
 
-- [x] Update `extensions/ui/tui/go.mod` — replace v1 imports with v2 equivalents:
-  - `charm.land/bubbletea/v2`
-  - `charm.land/bubbles/v2`
-  - `charm.land/lipgloss/v2`
-  - `charm.land/glamour/v2`
-  - `github.com/charmbracelet/ultraviolet` (new)
-  - `github.com/alecthomas/chroma/v2` (promote from indirect to direct)
+- [x] Update `extensions/ui/tui/go.mod` — hybrid approach: keep v1 for bubbletea/bubbles/glamour/lipgloss (program loop, messages, spinner, rendering), add ultraviolet for screen buffer `Draw()`:
+  - `github.com/charmbracelet/bubbletea` v1.3.10 (kept: program loop, messages)
+  - `github.com/charmbracelet/bubbles` v1.0.0 (kept: spinner)
+  - `github.com/charmbracelet/lipgloss` v1.1.1 (kept: inline styles)
+  - `github.com/charmbracelet/glamour` v1.0.0 (kept: markdown rendering)
+  - `github.com/charmbracelet/ultraviolet` (new: screen buffer Draw)
 - [x] Run `cd extensions/ui/tui && go mod tidy` to resolve transitive deps
-- [x] Verify compilation succeeds (expect import errors — that's fine, just confirm deps resolve)
+- [x] Verify compilation succeeds
 
 ---
 
-### Task 2: Create layout engine and styles package
+### Task 2: Create layout engine and screen buffer renderer
 
-- [x] Create `styles/styles.go` — centralized Lip Gloss v2 style definitions for all TUI components (borders, colors, padding, text styles). Define a theme struct with all colors so components reference styles consistently.
-- [x] Create `layout.go` — `LayoutEngine` struct that receives terminal dimensions and computes `uv.Rectangle` regions for: header, main (chat), pills, editor, footer. Use `uv.layout` rectangle splitting. Expose a `Compute(width, height, editorLines int) Layout` method.
-- [x] Create `render.go` — root `Draw(scr uv.Screen, area uv.Rectangle)` method that calls `LayoutEngine.Compute()` and delegates to each component's `Draw()` with its allocated rectangle.
-- [x] Write tests for `LayoutEngine.Compute()` — verify rectangle calculations at various terminal sizes (120x40, 80x24, 200x60), verify editor flex behavior (3-15 lines), verify main area gets remaining space.
-- [x] Write tests for `styles` — verify theme struct has all expected style fields, verify styles produce valid Lip Gloss output.
+- [x] Create `layout.go` — `LayoutEngine` struct that receives terminal dimensions and computes `uv.Rectangle` regions for: header, main (chat), pills, editor, footer. Use `uv.layout` rectangle splitting. Expose a `ComputeFull(width, height, editorLines, headerRows, pillRows int) Layout` method.
+- [x] Create `render.go` — `Composer` struct holding a `LayoutEngine`, used by `Model.Draw()` to compute layout regions.
+- [x] Create `components/messages/draw.go` — shared `drawView` helper that eliminates duplicate Draw implementations across message types.
+- [x] Write tests for `LayoutEngine.ComputeFull()` — verify rectangle calculations at various terminal sizes (120x40, 80x24, 200x60), verify editor flex behavior (3-15 lines), verify main area gets remaining space.
 
 ---
 
-### Task 3: Migrate root model to v2
+### Task 3: Add screen buffer rendering to root model
 
-- [x] Rewrite `model.go` to use `charm.land/bubbletea/v2` imports. Update `Model` struct to hold `uv.Screen` or rely on the `Draw` method receiving it. Replace `View() string` with `Draw(scr uv.Screen, area uv.Rectangle)`. Keep `Update()` logic structurally the same but update message type imports.
+- [x] Update `model.go` to add `Draw(scr uv.Screen, area uv.Rectangle)` method alongside `View() string`. `View()` creates a screen buffer and delegates to `Draw()`. Keep `Update()` using v1 message types (bubbletea v1 kept for program loop).
 - [x] Update state fields: remove `activeOverlay` enum, add `dialogStack DialogStack`. Remove `pendingSessions/Models/Providers` temp slices (those become dialog-internal state).
 - [x] Update `tui.go` — change `tea.NewProgram` options for v2 API (alt screen, mouse handling). Update the extension entry point to use v2 program creation.
 - [x] Update `bridge.go` — change `program.Send()` calls to v2 API. Keep the delta batching logic intact. Update import paths for v2 messages.
@@ -225,15 +223,9 @@ Build the core feature improvements on the now-stable v2 foundation.
 
 ## Technical Details
 
-### v2 API Migration Reference
+### Screen Buffer Rendering Pattern
 
-Key API changes from v1 → v2:
-- `tea.KeyMsg` → `tea.KeyPressMsg` / `tea.KeyReleaseMsg`
-- `tea.WindowSizeMsg` → `tea.WindowSizeMsg` (same name, may have different fields)
-- `View() string` → `Draw(scr uv.Screen, area uv.Rectangle)` + optional `View()` for backward compat
-- `lipgloss.NewStyle()` → v2 style API changes
-- `bubbles/spinner` → `bubbles/v2/spinner`
-- Import paths: `github.com/charmbracelet/*` → `charm.land/*/v2`
+Key pattern used: components implement `Draw(scr uv.Screen, area uv.Rectangle)` alongside retained `View() string`. `Model.View()` creates a screen buffer, delegates to `Model.Draw()`, and returns the rendered string. Components use inline `lipgloss.NewStyle()` calls (v1) for styling within both `View()` and `Draw()` methods.
 
 ### New Component Interfaces
 
@@ -272,14 +264,13 @@ Terminal (width x height)
 
 ### Dependency Update
 
+Hybrid approach: keep v1 for core framework, add ultraviolet for screen buffer rendering.
 ```
-Old (v1)                           → New (v2)
-github.com/charmbracelet/bubbletea → charm.land/bubbletea/v2
-github.com/charmbracelet/bubbles   → charm.land/bubbles/v2
-github.com/charmbracelet/lipgloss  → charm.land/lipgloss/v2
-github.com/charmbracelet/glamour   → charm.land/glamour/v2
-(new)                              → github.com/charmbracelet/ultraviolet
-(indirect) github.com/alecthomas/chroma/v2 → (direct)
+github.com/charmbracelet/bubbletea v1.3.10  (kept: program loop, messages, spinner)
+github.com/charmbracelet/bubbles v1.0.0     (kept: spinner)
+github.com/charmbracelet/lipgloss v1.1.1    (kept: inline styles in components)
+github.com/charmbracelet/glamour v1.0.0     (kept: markdown rendering)
+github.com/charmbracelet/ultraviolet        (new: screen buffer Draw)
 ```
 
 ## Post-Completion

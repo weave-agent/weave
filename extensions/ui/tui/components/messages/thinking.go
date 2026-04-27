@@ -67,20 +67,7 @@ func (b *ThinkingBlock) View(width int) string {
 
 // Draw renders the thinking block into a screen buffer region.
 func (b *ThinkingBlock) Draw(scr uv.Screen, area uv.Rectangle) {
-	if area.Dx() <= 0 || area.Dy() <= 0 {
-		return
-	}
-
-	text := b.View(area.Dx())
-
-	for i, line := range strings.Split(text, "\n") {
-		if i >= area.Dy() {
-			break
-		}
-
-		lineRect := uv.Rect(area.Min.X, area.Min.Y+i, area.Dx(), 1)
-		uv.NewStyledString(line).Draw(scr, lineRect)
-	}
+	drawView(scr, area, b.View(area.Dx()))
 }
 
 // SetExpanded sets the expanded state directly.

@@ -110,20 +110,7 @@ func (p *ToolPanel) View(width int) string {
 
 // Draw renders the tool panel into a screen buffer region.
 func (p *ToolPanel) Draw(scr uv.Screen, area uv.Rectangle) {
-	if area.Dx() <= 0 || area.Dy() <= 0 {
-		return
-	}
-
-	text := p.View(area.Dx())
-
-	for i, line := range strings.Split(text, "\n") {
-		if i >= area.Dy() {
-			break
-		}
-
-		lineRect := uv.Rect(area.Min.X, area.Min.Y+i, area.Dx(), 1)
-		uv.NewStyledString(line).Draw(scr, lineRect)
-	}
+	drawView(scr, area, p.View(area.Dx()))
 }
 
 func (p *ToolPanel) renderHeader() string {
