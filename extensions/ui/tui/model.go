@@ -15,18 +15,9 @@ import (
 	"weave/ext/ui/tui/palette"
 	"weave/sdk"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-)
-
-type overlayKind int
-
-const (
-	overlayNone overlayKind = iota
-	overlaySession
-	overlayModel
-	overlayProvider
-	overlayKeyInput
 )
 
 const doublePressWindow = 500 * time.Millisecond
@@ -39,6 +30,17 @@ const statusMessageTimeout = 2 * time.Second
 type statusTimeoutMsg struct {
 	gen int
 }
+
+// doublePressTimeoutMsg is sent when the double-press window expires.
+type doublePressTimeoutMsg struct {
+	kind int // 0 = ctrl+c, 1 = escape
+	gen  int // generation counter to ignore stale timers
+}
+
+const (
+	doublePressCtrlC  = 0
+	doublePressEscape = 1
+)
 
 // Model is the root Bubble Tea model for the TUI.
 type Model struct {
@@ -74,8 +76,9 @@ type Model struct {
 	popup *popupState
 
 	// double-press tracking
-	lastCtrlC  time.Time
-	lastEscape time.Time
+	ctrlCPressed   bool
+	escapePressed  bool
+	doublePressGen int
 
 	// thinking level state
 	thinkingLevel sdk.ThinkingLevel
@@ -191,13 +194,17 @@ func (m Model) Init() tea.Cmd {
 //
 //nolint:gocyclo // central message dispatch for the TUI
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// Handle spinner control messages
-	if components.IsSpinnerMsg(msg) {
-		var cmd tea.Cmd
-
-		m.spinner, cmd = m.spinner.SpinnerUpdate(msg)
-
-		return m, cmd
+	// Filter terminal OSC responses that leak through as KeyRunes.
+	// Terminals send "\x1b]<N>;<data>\x07" for queries like background color.
+	// If Bubbletea doesn't parse the full sequence, the printable portion
+	// (e.g. "]11;rgb:0000/0000/0000") arrives as KeyRunes with Alt=true.
+	// In split-read edge cases, it arrives without Alt. We filter both paths
+	// but only block Alt=false input when it matches a known terminal response
+	// pattern (rgb: color data) — users never type that as a leading prefix.
+	if km, ok := msg.(tea.KeyMsg); ok && km.Type == tea.KeyRunes && isOSCEscape(km.Runes) {
+		if km.Alt || isTerminalColorResponse(km.Runes) {
+			return m, nil
+		}
 	}
 
 	// Handle popup overlay messages first
@@ -288,6 +295,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case components.SubmitMsg:
 		return m.onSubmit(msg.Text)
 
+	case components.SpinnerShowMsg:
+		var cmd tea.Cmd
+
+		m.spinner, cmd = m.spinner.SpinnerUpdate(msg)
+
+		return m, cmd
+
+	case components.SpinnerHideMsg:
+		m.spinner, _ = m.spinner.SpinnerUpdate(msg)
+
+		return m, nil
+
 	case TurnStartMsg:
 		var cmd tea.Cmd
 
@@ -298,17 +317,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case MessageStartMsg:
 		m.chat = m.chat.AddItem(messages.NewAssistantMessage())
 
+		return m, nil
+
 	case MessageUpdateMsg:
 		m.onMessageUpdate(msg.Content)
+
+		return m, nil
 
 	case MessageEndMsg:
 		m.onMessageEnd(msg)
 
+		return m, nil
+
 	case ToolResultMsg:
 		m.onToolResult(msg)
 
+		return m, nil
+
 	case TurnEndMsg:
 		m.spinner = m.spinner.Hide()
+
+		return m, nil
 
 	case AgentEndMsg:
 		m.spinner = m.spinner.Hide()
@@ -320,6 +349,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.chat = m.chat.AddItem(am)
 			}
 		}
+
+		return m, nil
 
 	case SessionListResultMsg:
 		return m.onSessionListResult(msg)
@@ -376,12 +407,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, nil
 
+	case doublePressTimeoutMsg:
+		if msg.gen == m.doublePressGen {
+			switch msg.kind {
+			case doublePressCtrlC:
+				m.ctrlCPressed = false
+			case doublePressEscape:
+				m.escapePressed = false
+			}
+		}
+
+		return m, nil
+
 	case ThinkingLevelSetMsg:
 		return m.applyThinkingLevel(msg.Level)
 	}
 
-	// Forward spinner ticks
-	if m.spinner.Visible() {
+	// Forward spinner ticks to advance animation.
+	if _, ok := msg.(spinner.TickMsg); ok && m.spinner.Visible() {
 		var cmd tea.Cmd
 
 		m.spinner, cmd = m.spinner.Update(msg)
@@ -395,42 +438,49 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // handleCtrlC implements double-press ctrl+c: first press clears editor,
 // second press within the window quits.
 func (m Model) handleCtrlC() (tea.Model, tea.Cmd) {
-	now := time.Now()
-
 	if m.editor.Value() != "" {
 		m.editor = m.editor.SetValue("")
-		m.lastCtrlC = now
+		m.doublePressGen++
+		m.ctrlCPressed = true
 
-		return m, nil
+		return m, tea.Tick(doublePressWindow, func(_ time.Time) tea.Msg {
+			return doublePressTimeoutMsg{kind: doublePressCtrlC, gen: m.doublePressGen}
+		})
 	}
 
 	// Editor is empty — check for double press
-	if now.Sub(m.lastCtrlC) < doublePressWindow {
+	if m.ctrlCPressed {
 		return m, tea.Quit
 	}
 
-	m.lastCtrlC = now
+	m.doublePressGen++
+	m.ctrlCPressed = true
 
-	return m, nil
+	return m, tea.Tick(doublePressWindow, func(_ time.Time) tea.Msg {
+		return doublePressTimeoutMsg{kind: doublePressCtrlC, gen: m.doublePressGen}
+	})
 }
 
 // handleEscape implements double-press escape: first press interrupts streaming,
 // second press within the window clears the editor.
 func (m Model) handleEscape() (tea.Model, tea.Cmd) {
-	now := time.Now()
-
 	// Check for double press — clear editor
-	if now.Sub(m.lastEscape) < doublePressWindow {
+	if m.escapePressed {
 		m.editor = m.editor.SetValue("")
-		m.lastEscape = time.Time{}
+		m.escapePressed = false
 
 		return m, nil
 	}
 
-	m.lastEscape = now
+	m.doublePressGen++
+	m.escapePressed = true
 
-	// First press — interrupt streaming if active
-	return m.interruptStreaming()
+	// First press — interrupt streaming if active, start timeout
+	model, cmd := m.interruptStreaming()
+
+	return model, tea.Batch(cmd, tea.Tick(doublePressWindow, func(_ time.Time) tea.Msg {
+		return doublePressTimeoutMsg{kind: doublePressEscape, gen: m.doublePressGen}
+	}))
 }
 
 // dispatchBinding handles a resolved keybinding action.
@@ -847,10 +897,6 @@ func (m Model) onModelChanged(msg ModelChangedMsg) (tea.Model, tea.Cmd) {
 	displayName := msg.Entry.DisplayName()
 	m.showStatus(fmt.Sprintf("Switched to %s (thinking: %s)", displayName, m.thinkingLevel))
 
-	if m.bus != nil && m.cfg != nil {
-		go saveSettings(m.currentModel, m.thinkingLevel)
-	}
-
 	if m.bus != nil {
 		var cmds []tea.Cmd
 
@@ -858,6 +904,10 @@ func (m Model) onModelChanged(msg ModelChangedMsg) (tea.Model, tea.Cmd) {
 
 		if thinkingChanged {
 			cmds = append(cmds, PublishThinkingChange(m.bus, m.thinkingLevel))
+		}
+
+		if m.cfg != nil {
+			cmds = append(cmds, saveSettingsCmd(m.currentModel, m.thinkingLevel))
 		}
 
 		cmds = append(cmds, m.statusTimer)
@@ -1157,16 +1207,16 @@ func (m Model) applyThinkingLevel(level sdk.ThinkingLevel) (tea.Model, tea.Cmd) 
 	m.footer = m.footer.SetThinkingLevel(string(level))
 	m.editor = m.editor.SetBorderColor(palette.ThinkingBorderColor(level))
 
-	if m.bus != nil && m.cfg != nil {
-		go saveSettings(m.currentModel, level)
-	}
-
 	m.showStatus(fmt.Sprintf("Thinking level: %s", level))
 
 	var cmds []tea.Cmd
 
 	if m.bus != nil {
 		cmds = append(cmds, PublishThinkingChange(m.bus, level))
+
+		if m.cfg != nil {
+			cmds = append(cmds, saveSettingsCmd(m.currentModel, level))
+		}
 	}
 
 	if m.statusTimer != nil {
@@ -1256,4 +1306,50 @@ func (m Model) View() string {
 	sections = append(sections, m.editor.View(), m.footer.View())
 
 	return strings.Join(sections, "\n")
+}
+
+// isOSCEscape checks whether a KeyRunes payload looks like a terminal OSC
+// response that leaked through the input parser. Terminals send these as
+// "\x1b]<number>;<data>\x07" — if Bubbletea fails to parse the full sequence,
+// the printable portion (e.g. "]11;rgb:...") arrives as a KeyRunes event.
+func isOSCEscape(runes []rune) bool {
+	if len(runes) < 3 || runes[0] != ']' {
+		return false
+	}
+
+	i := 1
+	for i < len(runes) && runes[i] >= '0' && runes[i] <= '9' {
+		i++
+	}
+
+	return i > 1 && i < len(runes) && runes[i] == ';'
+}
+
+// isTerminalColorResponse checks if OSC data after the semicolon looks like
+// a terminal color response (rgb:RRRR/GGGG/BBBB or #RRGGBB). These patterns
+// are never legitimate user input when starting with the ] prefix.
+func isTerminalColorResponse(runes []rune) bool {
+	// Skip past "]digits;" to the data portion
+	i := 1
+	for i < len(runes) && runes[i] >= '0' && runes[i] <= '9' {
+		i++
+	}
+
+	if i >= len(runes) || runes[i] != ';' {
+		return false
+	}
+
+	i++ // skip ';'
+
+	// Check for "rgb:" prefix
+	if i+4 <= len(runes) && runes[i] == 'r' && runes[i+1] == 'g' && runes[i+2] == 'b' && runes[i+3] == ':' {
+		return true
+	}
+
+	// Check for "#" hex color prefix
+	if i < len(runes) && runes[i] == '#' {
+		return true
+	}
+
+	return false
 }

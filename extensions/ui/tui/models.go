@@ -6,6 +6,8 @@ import (
 
 	"weave/config"
 	"weave/sdk"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // ModelEntry describes a provider + model combination.
@@ -184,4 +186,12 @@ func saveSettings(entry ModelEntry, level sdk.ThinkingLevel) {
 		Model:         entry.Model,
 		ThinkingLevel: string(level),
 	})
+}
+
+// saveSettingsCmd returns a tea.Cmd that persists settings asynchronously.
+func saveSettingsCmd(entry ModelEntry, level sdk.ThinkingLevel) tea.Cmd {
+	return func() tea.Msg {
+		saveSettings(entry, level)
+		return nil
+	}
 }

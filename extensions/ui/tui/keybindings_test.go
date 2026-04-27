@@ -266,7 +266,7 @@ func TestModel_CtrlCClearsEditorOnFirstPress(t *testing.T) {
 	m = model.(Model)
 
 	// First ctrl+c clears editor, doesn't quit
-	assert.Nil(t, cmd)
+	assert.NotNil(t, cmd) // timeout cmd for double-press window
 	assert.Empty(t, m.editor.Value())
 }
 
@@ -276,7 +276,7 @@ func TestModel_EscapeNoOpViaBinding(t *testing.T) {
 	m.height = 24
 
 	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	assert.Nil(t, cmd)
+	assert.NotNil(t, cmd) // timeout cmd for double-press window
 
 	_ = model
 }

@@ -13,9 +13,9 @@ type SubmitMsg struct {
 	Text string
 }
 
-// SlashCommands lists available slash commands for autocomplete.
-// This is set externally before the editor is used.
-var SlashCommands = []string{"/clear", "/compact", "/help", "/model", "/name", "/new", "/quit", "/resume"}
+// slashCommands is the default list of slash commands for autocomplete.
+// Override via SetSlashCommands.
+var slashCommands = []string{"/clear", "/compact", "/help", "/model", "/name", "/new", "/quit", "/resume"}
 
 // EditorModel is a multi-line input with history and autocomplete.
 type EditorModel struct {
@@ -50,7 +50,7 @@ func NewEditorModel() EditorModel {
 	return EditorModel{
 		height:      3,
 		dirty:       true,
-		slashCmds:   SlashCommands,
+		slashCmds:   slashCommands,
 		BorderColor: "63",
 	}
 }
