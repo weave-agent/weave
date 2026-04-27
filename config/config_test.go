@@ -272,6 +272,45 @@ func TestDefaultConfigJSON(t *testing.T) {
 	assert.Contains(t, j, `"write"`)
 }
 
+func TestLoad_SkillsField(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".weave.yaml", "extensions: []\nskills:\n  my-skill:\n    enabled: true\n    timeout: 30\n")
+
+	_, cf, _, err := LoadFromDir(dir, nil)
+	require.NoError(t, err)
+
+	require.NotNil(t, cf.Skills)
+	require.Contains(t, cf.Skills, "my-skill")
+
+	skillConfig, ok := cf.Skills["my-skill"].(map[string]any)
+	require.True(t, ok, "skill config should be a map")
+	assert.Equal(t, true, skillConfig["enabled"])
+	assert.Equal(t, 30, skillConfig["timeout"])
+}
+
+func TestLoad_SkillsEmpty(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".weave.yaml", "extensions: []\n")
+
+	_, cf, _, err := LoadFromDir(dir, nil)
+	require.NoError(t, err)
+
+	assert.Nil(t, cf.Skills, "skills should be nil when not specified in config")
+}
+
+func TestLoad_SkillsMultiple(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".weave.yaml", "extensions: []\nskills:\n  skill-a:\n    opt: val\n  skill-b:\n    flag: true\n")
+
+	_, cf, _, err := LoadFromDir(dir, nil)
+	require.NoError(t, err)
+
+	require.NotNil(t, cf.Skills)
+	assert.Len(t, cf.Skills, 2)
+	assert.Contains(t, cf.Skills, "skill-a")
+	assert.Contains(t, cf.Skills, "skill-b")
+}
+
 func writeFile(t *testing.T, dir, name, content string) {
 	t.Helper()
 

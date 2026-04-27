@@ -223,3 +223,54 @@ func TestTUIExtensionExcludedWhenUINone(t *testing.T) {
 
 	assert.NotContains(t, allExts, "tui", "tui should not be included when ui is 'none'")
 }
+
+func TestSkillsAlwaysIncluded(t *testing.T) {
+	cf := &config.File{
+		Core:       config.CoreConfig{AgentLoop: "loop", Providers: []string{"anthropic"}},
+		Extensions: []string{"bash"},
+		UI:         "tui",
+	}
+
+	coreExts, optExts := cf.CoreExts()
+	allExts := mergeUnique(append(coreExts, optExts...))
+	allExts = ensurePresent(allExts, "skills")
+
+	assert.Contains(t, allExts, "skills", "skills should always be in extension list")
+}
+
+func TestSkillsIncludedInHeadlessMode(t *testing.T) {
+	cf := &config.File{
+		Core:       config.CoreConfig{AgentLoop: "loop", Providers: []string{"anthropic"}},
+		Extensions: []string{"bash"},
+		Prompt:     "do something",
+		UI:         "none",
+	}
+
+	coreExts, optExts := cf.CoreExts()
+	allExts := mergeUnique(append(coreExts, optExts...))
+	allExts = ensurePresent(allExts, "skills")
+
+	assert.Contains(t, allExts, "skills", "skills should be included even in headless mode")
+	assert.NotContains(t, allExts, "tui", "tui should not be included in headless mode")
+}
+
+func TestSkillsNotDuplicated(t *testing.T) {
+	cf := &config.File{
+		Core:       config.CoreConfig{AgentLoop: "loop", Providers: []string{"anthropic"}},
+		Extensions: []string{"skills", "bash"},
+		UI:         "tui",
+	}
+
+	coreExts, optExts := cf.CoreExts()
+	allExts := mergeUnique(append(coreExts, optExts...))
+	allExts = ensurePresent(allExts, "skills")
+
+	skillsCount := 0
+	for _, ext := range allExts {
+		if ext == "skills" {
+			skillsCount++
+		}
+	}
+
+	assert.Equal(t, 1, skillsCount, "skills should appear exactly once even if already in extensions list")
+}

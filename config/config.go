@@ -32,6 +32,7 @@ type File struct {
 	UI         string         `default:"tui" description:"UI extension name (tui for interactive, none for headless)"`
 	Core       CoreConfig     `description:"Core agent configuration"`
 	Providers  map[string]any `description:"Per-provider configuration"`
+	Skills     map[string]any `description:"Per-skill configuration overrides"`
 }
 
 // CoreExts returns (coreExts, optionalExts) where coreExts contains the agent-loop

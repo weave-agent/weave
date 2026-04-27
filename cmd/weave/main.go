@@ -69,6 +69,10 @@ func run(args ...string) (exitCode int) {
 	coreExts, optExts := cf.CoreExts()
 	allExts := mergeUnique(append(coreExts, optExts...))
 
+	// Skills extension is always included — it discovers skill directories
+	// and injects descriptions into the system prompt even in headless mode.
+	allExts = ensurePresent(allExts, "skills")
+
 	// Add UI extension when no prompt is provided (interactive mode).
 	// When a prompt is set (-p flag), the agent runs in print mode without TUI.
 	if cf.Prompt == "" && cf.UI != "" && cf.UI != "none" {

@@ -100,10 +100,10 @@ Render skill command invocations with `[skill]` prefix in the chat view.
 ### Task 6: Config integration
 Add skills to config file format and auto-include the skills extension.
 
-- [ ] add `Skills map[string]any` field to `config.File` struct (optional, for per-skill config overrides)
-- [ ] in `cmd/weave/main.go`, auto-include `"skills"` in the extension list (always loaded, like loop)
-- [ ] write tests for config parsing with skills section
-- [ ] run tests — must pass before next task
+- [x] add `Skills map[string]any` field to `config.File` struct (optional, for per-skill config overrides)
+- [x] in `cmd/weave/main.go`, auto-include `"skills"` in the extension list (always loaded, like loop)
+- [x] write tests for config parsing with skills section
+- [x] run tests — must pass before next task
 
 ### Task 7: Verify acceptance criteria
 - [ ] verify all requirements from Overview are implemented
