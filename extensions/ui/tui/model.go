@@ -1370,7 +1370,7 @@ func (m Model) Draw(scr uv.Screen, area uv.Rectangle) {
 	}
 
 	// Render editor
-	uv.NewStyledString(m.editor.View()).Draw(scr, lt.Editor)
+	m.editor.Draw(scr, lt.Editor)
 
 	// Render footer
 	uv.NewStyledString(m.footer.View()).Draw(scr, lt.Footer)

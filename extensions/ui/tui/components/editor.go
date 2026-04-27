@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	uv "github.com/charmbracelet/ultraviolet"
 )
 
 // SubmitMsg is emitted when the user submits the editor content.
@@ -496,6 +497,15 @@ func (m EditorModel) View() string {
 	}
 
 	return result
+}
+
+// Draw renders the editor into an ultraviolet screen buffer region.
+func (m EditorModel) Draw(scr uv.Screen, area uv.Rectangle) {
+	if area.Dx() <= 0 || area.Dy() <= 0 || m.width <= 0 {
+		return
+	}
+
+	uv.NewStyledString(m.View()).Draw(scr, area)
 }
 
 // wrapText splits text into lines, wrapping at width.

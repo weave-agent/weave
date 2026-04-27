@@ -121,11 +121,11 @@ The core migration from v1 string-based rendering to v2 + ultraviolet screen buf
 
 ### Task 5: Migrate editor component to v2
 
-- [ ] Rewrite `components/editor.go` to use v2 API. Keep the hand-rolled approach (needed for @-completions in the rich features plan).
-- [ ] Update rune-based cursor, word wrap, and history to work with v2 key event types.
-- [ ] Replace `View() string` with `Draw(scr uv.Screen, area uv.Rectangle)`.
-- [ ] Write tests for editor Draw, cursor movement, text insertion, deletion, undo stack, history navigation — all adapted for v2.
-- [ ] Run tests — must pass before Task 6.
+- [x] Rewrite `components/editor.go` to use v2 API. Keep the hand-rolled approach (needed for @-completions in the rich features plan).
+- [x] Update rune-based cursor, word wrap, and history to work with v2 key event types.
+- [x] Replace `View() string` with `Draw(scr uv.Screen, area uv.Rectangle)`.
+- [x] Write tests for editor Draw, cursor movement, text insertion, deletion, undo stack, history navigation — all adapted for v2.
+- [x] Run tests — must pass before Task 6.
 
 ---
 
