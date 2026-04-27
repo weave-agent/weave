@@ -180,7 +180,8 @@ func (m SelectorModel) handleKey(msg tea.KeyMsg) (SelectorModel, tea.Cmd) {
 
 	case tea.KeyBackspace:
 		if m.filter != "" {
-			m.filter = m.filter[:len(m.filter)-1]
+			runes := []rune(m.filter)
+			m.filter = string(runes[:len(runes)-1])
 			m.cursor = 0
 		}
 

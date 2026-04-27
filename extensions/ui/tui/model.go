@@ -278,7 +278,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case externalEditorMsg:
-		if msg.err == nil && msg.text != "" {
+		if msg.err != nil {
+			m.statusMsg = "Editor error: " + msg.err.Error()
+			m.statusGen++
+			gen := m.statusGen
+			m.statusTimer = tea.Tick(statusMessageTimeout, func(_ time.Time) tea.Msg {
+				return statusTimeoutMsg{gen: gen}
+			})
+
+			return m, m.statusTimer
+		}
+
+		if msg.text != "" {
 			m.editor = m.editor.SetValue(msg.text)
 		}
 
@@ -605,7 +616,14 @@ func (m Model) openExternalEditor() (tea.Model, tea.Cmd) {
 
 	tmpFile, err := os.CreateTemp("", "weave-editor-*.md")
 	if err != nil {
-		return m, nil
+		m.statusMsg = "Failed to create temp file: " + err.Error()
+		m.statusGen++
+		gen := m.statusGen
+		m.statusTimer = tea.Tick(statusMessageTimeout, func(_ time.Time) tea.Msg {
+			return statusTimeoutMsg{gen: gen}
+		})
+
+		return m, m.statusTimer
 	}
 
 	_ = tmpFile.Chmod(0o600)
@@ -616,7 +634,14 @@ func (m Model) openExternalEditor() (tea.Model, tea.Cmd) {
 		_ = tmpFile.Close()
 		_ = os.Remove(tmpPath)
 
-		return m, nil
+		m.statusMsg = "Failed to write temp file: " + err.Error()
+		m.statusGen++
+		gen := m.statusGen
+		m.statusTimer = tea.Tick(statusMessageTimeout, func(_ time.Time) tea.Msg {
+			return statusTimeoutMsg{gen: gen}
+		})
+
+		return m, m.statusTimer
 	}
 
 	_ = tmpFile.Close()
