@@ -203,15 +203,15 @@ Build the core feature improvements on the now-stable v2 foundation.
 
 ### Task 11: Final integration and polish
 
-- [ ] Verify all features work together — landing state, progressive markdown, overlay stack, token rate, auto-scroll, screen buffer layout.
-- [ ] Test keybinding system still works with v2 — verify three-layer priority (user config > extension > built-in).
-- [ ] Test `sdk.UI` interface — verify all cross-extension methods (Select, Confirm, Input, SetStatus, Notify) work through the new overlay stack.
-- [ ] Test session resume — verify session selector works through new dialog stack.
-- [ ] Test model cycling/selection — verify through new dialog stack.
-- [ ] Run full test suite — all tests must pass.
-- [ ] Run `make lint` and fix any issues.
-- [ ] Run `make fix` for formatting.
-- [ ] Verify test coverage meets project standard.
+- [x] Verify all features work together — landing state, progressive markdown, overlay stack, token rate, auto-scroll, screen buffer layout.
+- [x] Test keybinding system still works with v2 — verify three-layer priority (user config > extension > built-in).
+- [x] Test `sdk.UI` interface — verify all cross-extension methods (Select, Confirm, Input, SetStatus, Notify) work through the new overlay stack.
+- [x] Test session resume — verify session selector works through new dialog stack.
+- [x] Test model cycling/selection — verify through new dialog stack.
+- [x] Run full test suite — all tests must pass.
+- [x] Run `make lint` and fix any issues.
+- [x] Run `make fix` for formatting.
+- [x] Verify test coverage meets project standard.
 
 ---
 
