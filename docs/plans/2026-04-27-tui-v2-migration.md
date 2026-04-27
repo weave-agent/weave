@@ -217,9 +217,9 @@ Build the core feature improvements on the now-stable v2 foundation.
 
 ### Task 12: Update documentation
 
-- [ ] Update `CLAUDE.md` — update Architecture section to reflect v2 + ultraviolet stack, new package structure, new components.
-- [ ] Update `CLAUDE.md` — update keybindings section if any changed during migration.
-- [ ] Update `CLAUDE.md` — add documentation for new features (landing state, overlay stack, progressive markdown, token rate, auto-scroll).
+- [x] Update `CLAUDE.md` — update Architecture section to reflect v2 + ultraviolet stack, new package structure, new components.
+- [x] Update `CLAUDE.md` — update keybindings section if any changed during migration.
+- [x] Update `CLAUDE.md` — add documentation for new features (landing state, overlay stack, progressive markdown, token rate, auto-scroll).
 
 ---
 

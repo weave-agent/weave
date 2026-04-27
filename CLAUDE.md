@@ -43,7 +43,19 @@ Standard library as much as possible. Every replaceable component is an extensio
 - `extensions/providers/openai-compat/` — shared library for OpenAI-compatible providers (SSE parsing, message/tool conversion); reused by `openai` and `zai` providers; import as `openaicompat` package
 - `extensions/providers/{anthropic,openai,zai}/` — provider extension modules; Anthropic uses official SDK, OpenAI and Z.ai delegate to `openai-compat`
 - `extensions/store/jsonl/` — session persistence extension; subscribes to bus events and writes JSONL files to `~/.weave/sessions/`; implements Create, Append, Load, History, List, Compact internally with no SDK interface
-- `extensions/ui/tui/` — interactive terminal UI extension built with Bubble Tea; self-registers via `sdk.RegisterExtension("tui", ...)` and `sdk.RegisterUI("tui", ...)`; implements `sdk.UI` interface for cross-extension integration (popups, status bar, slash commands, keybindings); bridge goroutine translates bus events to Bubble Tea messages; includes streaming chat, markdown rendering, tool output panels, thinking blocks, diff highlighting, multi-line editor with history, footer with git/token stats, slash commands, session/model selectors, and configurable keybindings
+- `extensions/ui/tui/` — interactive terminal UI extension built with Bubble Tea v1 + Ultraviolet screen buffers; self-registers via `sdk.RegisterExtension("tui", ...)` and `sdk.RegisterUI("tui", ...)`; implements `sdk.UI` interface for cross-extension integration (popups, status bar, slash commands, keybindings); bridge goroutine translates bus events to Bubble Tea messages; components render via `Draw(scr uv.Screen, area uv.Rectangle)` into screen buffer regions allocated by `LayoutEngine`; includes: streaming chat with progressive markdown rendering (Glamour with ~100ms debounce), dialog stack for layered overlays, landing state before first prompt, smart auto-scroll with new-content indicator, token rate display in footer, tool output panels, thinking blocks, diff highlighting, multi-line editor with history, slash commands, session/model selectors, and configurable keybindings
+  - `styles/` — centralized Lip Gloss v2 style definitions and theme struct
+  - `components/chat.go` — chat viewport with auto-scroll tracking and scroll indicator
+  - `components/editor.go` — hand-rolled multi-line editor (needed for @-completions)
+  - `components/footer.go` — two-line status bar with CWD, git, tokens, model, thinking level, token rate
+  - `components/spinner.go` — streaming activity indicator
+  - `components/messages/` — message renderers (assistant with progressive markdown, user, tool, thinking, diff, markdown)
+  - `components/overlays/` — dialog components (selector, confirm, input) and `DialogStack` for layered overlay management
+  - `layout.go` — `LayoutEngine` computes `uv.Rectangle` regions (header, main, pills, editor, footer) via `uv.layout` splitting
+  - `render.go` — root `Draw()` composes all components into screen buffer via `Composer`
+  - `landing.go` — landing screen with ASCII logo, model info, keybinding hints (shown before first prompt, re-shown on `/clear`/`/new`)
+  - `overlays.go` — overlay request routing, dialog stack integration for `sdk.UI` methods
+  - `bridge.go` — bus-to-Tea message translation with delta batching and token rate calculation
 - `launcher/` — full pipeline: `Discover` extensions (project-local `.weave/extensions/{name}/`, global `~/.weave/extensions/{name}/`, then built-in under `extensions/{category}/{name}/` with nested lookup), `ComputeHash` of .go files, `Cache` in `~/.weave/bin/{hash}/`, `Build` by generating go.mod+main.go with blank imports, then `syscall.Exec`
 
 **Extension lifecycle:** Extension packages call `sdk.RegisterExtension(name, factory)` in `init()`. Provider, tool, and UI extensions similarly call `sdk.RegisterProvider`, `sdk.RegisterTool`, and `sdk.RegisterUI`. The built binary blank-imports selected extensions, triggering registration. `sdk.Wire()` or `sdk.WireWithCore()` resolves names from registries and subscribes each to the bus. When no prompt is provided (`-p` flag unset), the TUI extension is included in the build for interactive mode; with `-p`, weave runs in print mode without TUI.
@@ -70,7 +82,7 @@ keybindings:
   app.model.cycle: ["ctrl+p"]
   app.model.select: ["ctrl+l"]
 ```
-Built-in bindings: Escape=interrupt, Ctrl+C=clear, Ctrl+D=exit, Ctrl+L=model selector, Ctrl+P=model cycle, Shift+Tab=cycle thinking level, Ctrl+T=toggle thinking blocks, Ctrl+O=expand tool output.
+Built-in bindings: Escape=interrupt, Ctrl+C=double-press (first clears editor, second exits), Ctrl+D=exit, Ctrl+L=model selector, Ctrl+P=model cycle, Ctrl+N=new session, Shift+Tab=cycle thinking level, Ctrl+T=toggle thinking blocks, Ctrl+O=expand tool output, Ctrl+G=open external editor, Ctrl+Z=suspend, Shift+G=scroll to bottom.
 
 **Thinking levels** control reasoning depth for providers that support it. Six levels: off, minimal, low, medium (default), high, xhigh. Configured via:
 - Shift+Tab cycles through levels (editor border color changes with level)
