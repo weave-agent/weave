@@ -5,7 +5,19 @@ import (
 	"weave/ext/ui/tui/components/overlays"
 
 	tea "github.com/charmbracelet/bubbletea"
+	uv "github.com/charmbracelet/ultraviolet"
 )
+
+// DialogStack manages a stack of dialog overlays.
+// Full implementation lives in Task 7 (overlay stack).
+type DialogStack struct{}
+
+// Dialog is the interface for overlay dialogs rendered into screen buffers.
+// Full implementation lives in Task 7 (overlay stack).
+type Dialog interface {
+	ID() string
+	Draw(scr uv.Screen, area uv.Rectangle)
+}
 
 // overlayKind identifies which inline overlay is active.
 type overlayKind int

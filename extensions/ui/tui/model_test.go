@@ -15,6 +15,7 @@ import (
 	"weave/sdk"
 
 	tea "github.com/charmbracelet/bubbletea"
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -141,8 +142,8 @@ func TestModel_FullStreamingFlow(t *testing.T) {
 func TestModel_ViewShowsChatContent(t *testing.T) {
 	m := newModel(nil, nil, nil)
 	m.width = 80
-	m.height = 10
-	m.chat = m.chat.SetSize(80, 10)
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
 
 	m.AddUserMessage("hello")
 
@@ -1374,10 +1375,10 @@ func TestModel_StartupHintsShownInitially(t *testing.T) {
 	assert.True(t, m.showHints)
 
 	view := m.View()
-	assert.Contains(t, view, "ctrl+p cycle model")
-	assert.Contains(t, view, "ctrl+l select model")
-	assert.Contains(t, view, "shift+tab cycle thinking")
-	assert.Contains(t, view, "ctrl+t toggle thinking")
+	assert.Contains(t, view, "ctrl+p model")
+	assert.Contains(t, view, "ctrl+l select")
+	assert.Contains(t, view, "shift+tab thinking")
+	assert.Contains(t, view, "ctrl+t toggle")
 }
 
 func TestModel_StartupHintsDismissOnKeypress(t *testing.T) {
@@ -1596,4 +1597,179 @@ func TestModel_OSCRawPayloadFiltered(t *testing.T) {
 
 	assert.Nil(t, cmd)
 	assert.Empty(t, updated.(Model).editor.Value())
+}
+
+// --- Draw tests (screen buffer rendering) ---
+
+func TestModel_Draw_RendersAllSections(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 120
+	m.height = 40
+
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvas, canvas.Bounds())
+	rendered := canvas.Render()
+
+	// Footer should contain model info (at minimum the provider name)
+	assert.NotEmpty(t, m.footer.View())
+	// Editor border should be present
+	assert.Contains(t, rendered, "│")
+}
+
+func TestModel_Draw_ShowsChatContent(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 120
+	m.height = 30
+	m.chat = m.chat.SetSize(120, m.chatHeight(30))
+
+	m.AddUserMessage("hello world")
+
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvas, canvas.Bounds())
+	rendered := canvas.Render()
+
+	assert.Contains(t, rendered, "hello world")
+}
+
+func TestModel_Draw_HintsInHeader(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 120
+	m.height = 30
+
+	require.True(t, m.showHints)
+	require.Empty(t, m.chat.Items())
+
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvas, canvas.Bounds())
+	rendered := canvas.Render()
+
+	assert.Contains(t, rendered, "ctrl+p model")
+	assert.Contains(t, rendered, "ctrl+t toggle")
+}
+
+func TestModel_Draw_NoHintsAfterFirstPrompt(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 120
+	m.height = 30
+
+	require.True(t, m.showHints)
+	m.AddUserMessage("first message")
+
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvas, canvas.Bounds())
+	rendered := canvas.Render()
+
+	assert.NotContains(t, rendered, "ctrl+p model")
+}
+
+func TestModel_Draw_SpinnerInPills(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 120
+	m.height = 30
+
+	// Start streaming to show spinner
+	model, _ := m.Update(MessageStartMsg{})
+	m = model.(Model)
+	model, cmd := m.Update(components.SpinnerShowMsg{})
+	m = model.(Model)
+
+	if cmd != nil {
+		cmd()
+	}
+
+	require.True(t, m.spinner.Visible())
+
+	assert.NotPanics(t, func() {
+		canvas := uv.NewScreenBuffer(m.width, m.height)
+		m.Draw(canvas, canvas.Bounds())
+	})
+}
+
+func TestModel_Draw_StatusInPills(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 120
+	m.height = 30
+
+	m.showStatus("test status message")
+
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvas, canvas.Bounds())
+	rendered := canvas.Render()
+
+	assert.Contains(t, rendered, "test status message")
+}
+
+func TestModel_Draw_OverlayFillsScreen(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	// Activate model overlay
+	models := listModels()
+	if len(models) > 1 {
+		items := make([]overlays.SelectorItem, len(models))
+		for i, model := range models {
+			items[i] = overlays.SelectorItem{Title: model.DisplayName()}
+		}
+
+		m.overlay = overlays.NewSelectorModel("Select Model", items)
+		m.overlay = m.overlay.SetSize(80, 24)
+		m.overlay = m.overlay.Show()
+		m.activeOverlay = overlayModel
+
+		canvas := uv.NewScreenBuffer(m.width, m.height)
+		m.Draw(canvas, canvas.Bounds())
+		rendered := canvas.Render()
+
+		assert.Contains(t, rendered, "Select Model")
+	}
+}
+
+func TestModel_Draw_SmallTerminal(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 40
+	m.height = 8
+
+	assert.NotPanics(t, func() {
+		canvas := uv.NewScreenBuffer(m.width, m.height)
+		m.Draw(canvas, canvas.Bounds())
+	})
+}
+
+func TestModel_Draw_StreamingFlow(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 120
+	m.height = 30
+	m.chat = m.chat.SetSize(120, m.chatHeight(30))
+
+	m.AddUserMessage("question")
+
+	model, _ := m.Update(MessageStartMsg{})
+	m = model.(Model)
+
+	model, _ = m.Update(MessageUpdateMsg{Content: "answer"})
+	m = model.(Model)
+
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvas, canvas.Bounds())
+	rendered := canvas.Render()
+
+	assert.Contains(t, rendered, "question")
+	assert.Contains(t, rendered, "answer")
+}
+
+func TestModel_Draw_ComposerSyncsChatSize(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 100
+	m.height = 20
+	m.chat = m.chat.SetSize(100, 20) // oversized on purpose
+
+	m.AddUserMessage("test")
+
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvas, canvas.Bounds())
+
+	// Verify rendering produced content despite chat being oversized
+	rendered := canvas.Render()
+	assert.Contains(t, rendered, "test")
 }

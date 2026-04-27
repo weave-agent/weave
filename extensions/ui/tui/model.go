@@ -18,6 +18,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	uv "github.com/charmbracelet/ultraviolet"
 )
 
 const doublePressWindow = 500 * time.Millisecond
@@ -58,6 +59,7 @@ type Model struct {
 	commands   *CommandRegistry
 	bindings   *BindingRegistry
 	ui         *TUIImpl
+	composer   Composer
 
 	overlay           overlays.SelectorModel
 	activeOverlay     overlayKind
@@ -67,6 +69,7 @@ type Model struct {
 	currentModel      ModelEntry
 	prevModel         ModelEntry
 	prevThinkingLevel sdk.ThinkingLevel
+	dialogStack       DialogStack //nolint:unused // placeholder for overlay stack (Task 7)
 
 	keyInput       overlays.InputModel
 	providerTarget string
@@ -166,6 +169,7 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 		commands:      commands,
 		bindings:      bindings,
 		ui:            ui,
+		composer:      NewComposer(),
 		currentModel:  cur,
 		sessionDir:    sdir,
 		thinkingLevel: initialThinkingLevel(),
@@ -1283,48 +1287,101 @@ func (m Model) chatHeight(totalHeight int) int {
 	return 1
 }
 
-// View renders the TUI.
-func (m Model) View() string {
-	// Popup overlay takes highest priority
+// Draw renders the TUI into an ultraviolet screen buffer.
+// It computes layout regions and delegates to each component.
+func (m Model) Draw(scr uv.Screen, area uv.Rectangle) {
+	// Popup overlay takes highest priority — fills the entire screen
 	if m.popup != nil {
 		if view := m.popupView(); view != "" {
-			return view
+			uv.NewStyledString(view).Draw(scr, area)
+
+			return
 		}
 	}
 
+	// Built-in overlay (selector, key input)
 	if m.activeOverlay != overlayNone {
 		if m.activeOverlay == overlayKeyInput && m.keyInput.Visible() {
-			return m.keyInput.View()
+			uv.NewStyledString(m.keyInput.View()).Draw(scr, area)
+
+			return
 		}
 
 		if m.overlay.Visible() {
-			return m.overlay.View()
+			uv.NewStyledString(m.overlay.View()).Draw(scr, area)
+
+			return
 		}
 	}
 
-	var sections []string
-
+	// Compute dynamic layout parameters
+	headerRows := 0
 	if m.showHints && !m.prompted && len(m.chat.Items()) == 0 {
-		hintsStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("242"))
-		sections = append(sections, hintsStyle.Render(
-			"ctrl+p cycle model · ctrl+l select model · shift+tab cycle thinking · ctrl+t toggle thinking",
-		))
+		headerRows = 1
 	}
 
-	sections = append(sections, m.chat.View())
-
+	pillRows := 0
 	if m.spinner.Visible() {
-		sections = append(sections, m.spinner.View())
+		pillRows++
 	}
 
 	if m.statusMsg != "" {
-		statusStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-		sections = append(sections, statusStyle.Render(m.statusMsg))
+		pillRows++
 	}
 
-	sections = append(sections, m.editor.View(), m.footer.View())
+	// Compute layout to determine actual component sizes
+	lt := m.composer.Engine.ComputeFull(
+		area.Dx(), area.Dy(),
+		defaultEditorHeight, headerRows, pillRows,
+	)
 
-	return strings.Join(sections, "\n")
+	// Sync chat size to allocated main area so it renders only visible content
+	if lt.Main.Dy() > 0 {
+		m.chat = m.chat.SetSize(lt.Main.Dx(), lt.Main.Dy())
+	}
+
+	// Render header
+	if headerRows > 0 {
+		hintsStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("242"))
+		uv.NewStyledString(hintsStyle.Render(
+			"ctrl+p model · ctrl+l select · shift+tab thinking · ctrl+t toggle",
+		)).Draw(scr, lt.Header)
+	}
+
+	// Render main (chat)
+	uv.NewStyledString(m.chat.View()).Draw(scr, lt.Main)
+
+	// Render pills (spinner + status)
+	if pillRows > 0 && lt.Pills.Dy() > 0 {
+		y := lt.Pills.Min.Y
+
+		if m.spinner.Visible() {
+			spArea := uv.Rect(lt.Pills.Min.X, y, lt.Pills.Dx(), 1)
+			uv.NewStyledString(m.spinner.View()).Draw(scr, spArea)
+
+			y++
+		}
+
+		if m.statusMsg != "" {
+			statusStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+			stArea := uv.Rect(lt.Pills.Min.X, y, lt.Pills.Dx(), 1)
+			uv.NewStyledString(statusStyle.Render(m.statusMsg)).Draw(scr, stArea)
+		}
+	}
+
+	// Render editor
+	uv.NewStyledString(m.editor.View()).Draw(scr, lt.Editor)
+
+	// Render footer
+	uv.NewStyledString(m.footer.View()).Draw(scr, lt.Footer)
+}
+
+// View renders the TUI using ultraviolet screen buffers.
+func (m Model) View() string {
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvas, canvas.Bounds())
+
+	return uv.TrimSpace(canvas.Render())
 }
 
 // isOSCEscape checks whether a KeyRunes payload looks like a terminal OSC

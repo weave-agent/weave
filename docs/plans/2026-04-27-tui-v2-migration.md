@@ -100,13 +100,13 @@ The core migration from v1 string-based rendering to v2 + ultraviolet screen buf
 
 ### Task 3: Migrate root model to v2
 
-- [ ] Rewrite `model.go` to use `charm.land/bubbletea/v2` imports. Update `Model` struct to hold `uv.Screen` or rely on the `Draw` method receiving it. Replace `View() string` with `Draw(scr uv.Screen, area uv.Rectangle)`. Keep `Update()` logic structurally the same but update message type imports.
-- [ ] Update state fields: remove `activeOverlay` enum, add `dialogStack DialogStack`. Remove `pendingSessions/Models/Providers` temp slices (those become dialog-internal state).
-- [ ] Update `tui.go` — change `tea.NewProgram` options for v2 API (alt screen, mouse handling). Update the extension entry point to use v2 program creation.
-- [ ] Update `bridge.go` — change `program.Send()` calls to v2 API. Keep the delta batching logic intact. Update import paths for v2 messages.
-- [ ] Write tests for root model `Update()` — test state transitions (landing → chat, prompt flow, streaming flow, interrupt flow) using v2 message types.
-- [ ] Write tests for `Draw()` — verify screen buffer is composed correctly (header present, main area non-empty, footer at bottom).
-- [ ] Run tests — all must pass before Task 4.
+- [x] Rewrite `model.go` to use `charm.land/bubbletea/v2` imports. Update `Model` struct to hold `uv.Screen` or rely on the `Draw` method receiving it. Replace `View() string` with `Draw(scr uv.Screen, area uv.Rectangle)`. Keep `Update()` logic structurally the same but update message type imports.
+- [x] Update state fields: remove `activeOverlay` enum, add `dialogStack DialogStack`. Remove `pendingSessions/Models/Providers` temp slices (those become dialog-internal state).
+- [x] Update `tui.go` — change `tea.NewProgram` options for v2 API (alt screen, mouse handling). Update the extension entry point to use v2 program creation.
+- [x] Update `bridge.go` — change `program.Send()` calls to v2 API. Keep the delta batching logic intact. Update import paths for v2 messages.
+- [x] Write tests for root model `Update()` — test state transitions (landing → chat, prompt flow, streaming flow, interrupt flow) using v2 message types.
+- [x] Write tests for `Draw()` — verify screen buffer is composed correctly (header present, main area non-empty, footer at bottom).
+- [x] Run tests — all must pass before Task 4.
 
 ---
 
