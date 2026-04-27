@@ -1349,7 +1349,7 @@ func (m Model) Draw(scr uv.Screen, area uv.Rectangle) {
 	}
 
 	// Render main (chat)
-	uv.NewStyledString(m.chat.View()).Draw(scr, lt.Main)
+	m.chat.Draw(scr, lt.Main)
 
 	// Render pills (spinner + status)
 	if pillRows > 0 && lt.Pills.Dy() > 0 {

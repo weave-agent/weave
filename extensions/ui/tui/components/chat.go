@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	uv "github.com/charmbracelet/ultraviolet"
 )
 
 // ChatItem is an interface for items rendered in the chat view.
@@ -203,7 +204,7 @@ func (m ChatModel) Update(msg tea.Msg) (ChatModel, tea.Cmd) {
 	return m, nil
 }
 
-// View renders the visible portion of the chat.
+// View renders the visible portion of the chat as a string.
 func (m ChatModel) View() string {
 	if m.width <= 0 || m.height <= 0 {
 		return ""
@@ -231,6 +232,36 @@ func (m ChatModel) View() string {
 	}
 
 	return strings.Join(visible, "\n")
+}
+
+// Draw renders the visible portion of the chat into a screen buffer region.
+// Uses the width set via SetSize for item rendering and derives the viewport
+// height from the area rectangle.
+func (m ChatModel) Draw(scr uv.Screen, area uv.Rectangle) {
+	if m.width <= 0 || area.Dx() <= 0 || area.Dy() <= 0 {
+		return
+	}
+
+	m.ensureCache()
+
+	var allLines []string
+
+	for i := range m.items {
+		allLines = append(allLines, (*m.cache)[i].lines...)
+	}
+
+	viewportHeight := area.Dy()
+	total := len(allLines)
+	maxScroll := max(0, total-viewportHeight)
+	m.scroll = min(m.scroll, maxScroll)
+
+	end := min(m.scroll+viewportHeight, total)
+	visible := allLines[m.scroll:end]
+
+	for i, line := range visible {
+		lineRect := uv.Rect(area.Min.X, area.Min.Y+i, area.Dx(), 1)
+		uv.NewStyledString(line).Draw(scr, lineRect)
+	}
 }
 
 // FormatUserMessage creates a formatted string for a user message.

@@ -5,6 +5,7 @@ import (
 
 	"weave/ext/ui/tui/components/messages"
 
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -284,4 +285,161 @@ func splitLines(s string) []string {
 	result = append(result, s[start:])
 
 	return result
+}
+
+// --- Draw tests (screen buffer rendering) ---
+
+func TestChatModel_Draw_NoSize(t *testing.T) {
+	m := NewChatModel()
+	scr := uv.NewScreenBuffer(80, 10)
+	// Should not panic with zero dimensions
+	m.Draw(scr, uv.Rect(0, 0, 80, 10))
+}
+
+func TestChatModel_Draw_SingleItem(t *testing.T) {
+	m := NewChatModel().SetSize(80, 5)
+	m = m.AddItem(stubItem{text: "hello"})
+
+	scr := uv.NewScreenBuffer(80, 5)
+	m.Draw(scr, uv.Rect(0, 0, 80, 5))
+	rendered := scr.Render()
+
+	assert.Contains(t, rendered, "hello")
+}
+
+func TestChatModel_Draw_ScrollsToBottom(t *testing.T) {
+	m := NewChatModel().SetSize(80, 3)
+	m = m.AddItem(stubItem{text: "line1\nline2\nline3\nline4\nline5"})
+
+	scr := uv.NewScreenBuffer(80, 3)
+	m.Draw(scr, uv.Rect(0, 0, 80, 3))
+	rendered := scr.Render()
+
+	assert.Contains(t, rendered, "line3")
+	assert.Contains(t, rendered, "line4")
+	assert.Contains(t, rendered, "line5")
+	assert.NotContains(t, rendered, "line1")
+	assert.NotContains(t, rendered, "line2")
+}
+
+func TestChatModel_Draw_EmptyArea(t *testing.T) {
+	m := NewChatModel().SetSize(80, 5)
+	m = m.AddItem(stubItem{text: "hello"})
+
+	scr := uv.NewScreenBuffer(80, 5)
+	// Zero-size area should not panic
+	m.Draw(scr, uv.Rect(0, 0, 0, 0))
+	m.Draw(scr, uv.Rect(0, 0, 80, 0))
+	m.Draw(scr, uv.Rect(0, 0, 0, 5))
+}
+
+func TestChatModel_Draw_CacheInvalidatedOnWidthChange(t *testing.T) {
+	m := NewChatModel().SetSize(80, 5)
+
+	item := &countingItem{text: "hello world"}
+	m = m.AddItem(item)
+
+	// First Draw renders the item
+	scr := uv.NewScreenBuffer(80, 5)
+	m.Draw(scr, uv.Rect(0, 0, 80, 5))
+	assert.Equal(t, 1, item.views)
+
+	// Second Draw uses cache
+	scr2 := uv.NewScreenBuffer(80, 5)
+	m.Draw(scr2, uv.Rect(0, 0, 80, 5))
+	assert.Equal(t, 1, item.views)
+
+	// Width change invalidates cache
+	m = m.SetSize(60, 5)
+	scr3 := uv.NewScreenBuffer(60, 5)
+	m.Draw(scr3, uv.Rect(0, 0, 60, 5))
+	assert.Equal(t, 2, item.views)
+}
+
+func TestChatModel_Draw_OffsetArea(t *testing.T) {
+	m := NewChatModel().SetSize(40, 3)
+	m = m.AddItem(stubItem{text: "line1\nline2\nline3"})
+
+	scr := uv.NewScreenBuffer(80, 24)
+	m.Draw(scr, uv.Rect(20, 10, 40, 3))
+	rendered := scr.Render()
+
+	assert.Contains(t, rendered, "line1")
+	assert.Contains(t, rendered, "line2")
+	assert.Contains(t, rendered, "line3")
+}
+
+func TestChatModel_Draw_ScrollUpAndDown(t *testing.T) {
+	m := NewChatModel().SetSize(80, 3)
+	m = m.AddItem(stubItem{text: "line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8\nline9\nline10"})
+
+	// Auto-scrolled to bottom
+	scr := uv.NewScreenBuffer(80, 3)
+	m.Draw(scr, uv.Rect(0, 0, 80, 3))
+	rendered := scr.Render()
+	assert.Contains(t, rendered, "line8")
+	assert.Contains(t, rendered, "line10")
+
+	// Scroll up
+	m = m.ScrollUp(3)
+	scr2 := uv.NewScreenBuffer(80, 3)
+	m.Draw(scr2, uv.Rect(0, 0, 80, 3))
+	rendered2 := scr2.Render()
+	assert.Contains(t, rendered2, "line5")
+	assert.NotContains(t, rendered2, "line10")
+
+	// Scroll down
+	m = m.ScrollDown(2)
+	scr3 := uv.NewScreenBuffer(80, 3)
+	m.Draw(scr3, uv.Rect(0, 0, 80, 3))
+	rendered3 := scr3.Render()
+	assert.Contains(t, rendered3, "line7")
+}
+
+func TestChatModel_Draw_IntegrationWithAssistantMessage(t *testing.T) {
+	m := NewChatModel().SetSize(80, 10)
+
+	m = m.AddItem(messages.NewUserMessage("hello"))
+
+	am := messages.NewAssistantMessage()
+	am.Append("hello ")
+	am.Append("world")
+	m = m.AddItem(am)
+
+	scr := uv.NewScreenBuffer(80, 10)
+	m.Draw(scr, uv.Rect(0, 0, 80, 10))
+	rendered := scr.Render()
+
+	assert.Contains(t, rendered, "hello world")
+}
+
+func TestChatModel_Draw_MatchesView(t *testing.T) {
+	// Draw and View should produce the same visible content
+	m := NewChatModel().SetSize(80, 5)
+	m = m.AddItem(stubItem{text: "alpha\nbeta\ngamma\ndelta\nepsilon"})
+
+	scr := uv.NewScreenBuffer(80, 5)
+	m.Draw(scr, uv.Rect(0, 0, 80, 5))
+	drawRendered := scr.Render()
+
+	viewRendered := m.View()
+
+	// Both should contain the same lines (last 5 since auto-scroll)
+	assert.Contains(t, drawRendered, "alpha")
+	assert.Contains(t, drawRendered, "epsilon")
+	assert.Contains(t, viewRendered, "alpha")
+	assert.Contains(t, viewRendered, "epsilon")
+}
+
+func TestChatModel_Draw_SmallViewport(t *testing.T) {
+	m := NewChatModel().SetSize(40, 2)
+	m = m.AddItem(stubItem{text: "short"})
+	m = m.AddItem(stubItem{text: "tiny"})
+
+	scr := uv.NewScreenBuffer(40, 2)
+	m.Draw(scr, uv.Rect(0, 0, 40, 2))
+	rendered := scr.Render()
+
+	assert.Contains(t, rendered, "short")
+	assert.Contains(t, rendered, "tiny")
 }

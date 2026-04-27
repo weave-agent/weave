@@ -112,10 +112,10 @@ The core migration from v1 string-based rendering to v2 + ultraviolet screen buf
 
 ### Task 4: Migrate chat component to screen buffers
 
-- [ ] Rewrite `components/chat.go` `ChatModel` — replace `View() string` with `Draw(scr uv.Screen, area uv.Rectangle)`. Render chat items into the screen buffer within the allocated rectangle. Keep the cache invalidation logic but adapt it for screen buffer output.
-- [ ] Update scroll tracking to work with rectangle-based viewport instead of string line counting.
-- [ ] Write tests for `ChatModel.Draw()` — verify items render into buffer, verify scroll offset works, verify cache invalidation on width change.
-- [ ] Run tests — must pass before Task 5.
+- [x] Rewrite `components/chat.go` `ChatModel` — replace `View() string` with `Draw(scr uv.Screen, area uv.Rectangle)`. Render chat items into the screen buffer within the allocated rectangle. Keep the cache invalidation logic but adapt it for screen buffer output.
+- [x] Update scroll tracking to work with rectangle-based viewport instead of string line counting.
+- [x] Write tests for `ChatModel.Draw()` — verify items render into buffer, verify scroll offset works, verify cache invalidation on width change.
+- [x] Run tests — must pass before Task 5.
 
 ---
 
