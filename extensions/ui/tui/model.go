@@ -80,6 +80,9 @@ type Model struct {
 	escapePressed  bool
 	doublePressGen int
 
+	// OSC escape filter state machine
+	oscFilter oscFilter
+
 	// thinking level state
 	thinkingLevel sdk.ThinkingLevel
 
@@ -195,16 +198,9 @@ func (m Model) Init() tea.Cmd {
 //nolint:gocyclo // central message dispatch for the TUI
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Filter terminal OSC responses that leak through as KeyRunes.
-	// Terminals send "\x1b]<N>;<data>\x07" for queries like background color.
-	// If Bubbletea doesn't parse the full sequence, the printable portion
-	// (e.g. "]11;rgb:0000/0000/0000") arrives as KeyRunes with Alt=true.
-	// In split-read edge cases, it arrives without Alt. We filter both paths
-	// but only block Alt=false input when it matches a known terminal response
-	// pattern (rgb: color data) — users never type that as a leading prefix.
-	if km, ok := msg.(tea.KeyMsg); ok && km.Type == tea.KeyRunes && isOSCEscape(km.Runes) {
-		if km.Alt || isTerminalColorResponse(km.Runes) {
-			return m, nil
-		}
+	// Uses a state machine to handle both whole-payload and fragmented delivery.
+	if km, ok := msg.(tea.KeyMsg); ok && m.oscFilter.feed(km) {
+		return m, nil
 	}
 
 	// Handle popup overlay messages first
@@ -1350,6 +1346,124 @@ func isTerminalColorResponse(runes []rune) bool {
 	if i < len(runes) && runes[i] == '#' {
 		return true
 	}
+
+	return false
+}
+
+// isRawOSCPayload matches OSC data fragments that arrive without the leading ].
+// The parser consumes \x1b] but the data portion (e.g. "11;rgb:0000/0000/0000")
+// leaks through as KeyRunes. Pattern: digits;rgb:... or digits;#...
+func isRawOSCPayload(runes []rune) bool {
+	if len(runes) < 5 {
+		return false
+	}
+
+	i := 0
+	for i < len(runes) && runes[i] >= '0' && runes[i] <= '9' {
+		i++
+	}
+
+	if i == 0 || i >= len(runes) || runes[i] != ';' {
+		return false
+	}
+
+	i++ // skip ';'
+
+	if i+4 <= len(runes) && runes[i] == 'r' && runes[i+1] == 'g' && runes[i+2] == 'b' && runes[i+3] == ':' {
+		return true
+	}
+
+	return i < len(runes) && runes[i] == '#'
+}
+
+// oscState tracks the state of the OSC fragment filter state machine.
+type oscState int
+
+const (
+	oscIdle       oscState = iota // normal operation
+	oscPayload                    // saw alt+], consuming payload
+	oscTerminator                 // payload done, watching for split terminator
+)
+
+// oscFilter swallows fragmented OSC escape sequences that leak through
+// Bubble Tea's input parser across multiple Update calls.
+type oscFilter struct {
+	state oscState
+}
+
+// feed processes a tea.KeyMsg through the OSC filter state machine.
+// Returns true if the message was swallowed (OSC fragment), false otherwise.
+func (f *oscFilter) feed(msg tea.KeyMsg) bool {
+	switch f.state {
+	case oscIdle:
+		return f.feedIdle(msg)
+	case oscPayload:
+		return f.feedPayload(msg)
+	case oscTerminator:
+		return f.feedTerminator(msg)
+	}
+
+	f.state = oscIdle
+
+	return false
+}
+
+func (f *oscFilter) feedIdle(km tea.KeyMsg) bool {
+	if km.Type != tea.KeyRunes {
+		return false
+	}
+	// Whole-payload match: ]NN;rgb:... or ]NN;#... (Alt or color-data path)
+	if isOSCEscape(km.Runes) && (km.Alt || isTerminalColorResponse(km.Runes)) {
+		return true
+	}
+	// Raw payload: NN;rgb:... or NN;#... without leading ] — the parser consumed
+	// the \x1b] prefix, leaving just the data portion to leak as KeyRunes.
+	if isRawOSCPayload(km.Runes) {
+		return true
+	}
+	// Split start: alt+] (single ] with Alt flag) → enter payload state
+	if km.Alt && len(km.Runes) == 1 && km.Runes[0] == ']' {
+		f.state = oscPayload
+
+		return true
+	}
+
+	return false
+}
+
+func (f *oscFilter) feedPayload(km tea.KeyMsg) bool {
+	if km.Type != tea.KeyRunes {
+		f.state = oscIdle
+		return false
+	}
+	// alt+\ terminator → move to terminator state
+	if km.Alt && len(km.Runes) == 1 && km.Runes[0] == '\\' {
+		f.state = oscTerminator
+		return true
+	}
+	// BEL terminator
+	if len(km.Runes) == 1 && km.Runes[0] == '\x07' {
+		f.state = oscIdle
+		return true
+	}
+	// Payload must start with a digit (OSC command number)
+	if len(km.Runes) > 0 && km.Runes[0] >= '0' && km.Runes[0] <= '9' {
+		return true
+	}
+	// Unexpected message → reset, let it pass through
+	f.state = oscIdle
+
+	return false
+}
+
+func (f *oscFilter) feedTerminator(km tea.KeyMsg) bool {
+	// alt+\ → already terminated, swallow
+	if km.Type == tea.KeyRunes && km.Alt && len(km.Runes) == 1 && km.Runes[0] == '\\' {
+		f.state = oscIdle
+		return true
+	}
+	// Unexpected message → reset, let it pass through
+	f.state = oscIdle
 
 	return false
 }

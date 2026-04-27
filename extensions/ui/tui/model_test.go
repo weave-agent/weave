@@ -1526,3 +1526,74 @@ func TestIsTerminalColorResponse(t *testing.T) {
 		})
 	}
 }
+
+func TestModel_OSCSplitPayload(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.editor = m.editor.Focus()
+
+	// Simulate fragmented OSC: alt+] then payload then alt+\
+	part1 := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{']'}, Alt: true}
+	part2 := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("11;rgb:0000/0000/0000")}
+	part3 := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'\\'}, Alt: true}
+
+	updated, _ := m.Update(part1)
+	updated, _ = updated.(Model).Update(part2)
+	updated, _ = updated.(Model).Update(part3)
+
+	assert.Empty(t, updated.(Model).editor.Value())
+}
+
+func TestModel_OSCSplitTerminator(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.editor = m.editor.Focus()
+
+	// Feed alt+] + payload + alt+\ to reach terminator state,
+	// then verify a trailing alt+\ is also swallowed.
+	part1 := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{']'}, Alt: true}
+	part2 := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("11;rgb:0000/0000/0000")}
+	part3 := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'\\'}, Alt: true}
+	trailing := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'\\'}, Alt: true}
+
+	updated, _ := m.Update(part1)
+	updated, _ = updated.(Model).Update(part2)
+	updated, _ = updated.(Model).Update(part3)
+	updated, _ = updated.(Model).Update(trailing)
+
+	assert.Empty(t, updated.(Model).editor.Value())
+}
+
+func TestModel_OSCFalseRecovery(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.editor = m.editor.Focus()
+
+	// alt+] starts OSC state, but a normal key ('a') resets and passes through.
+	part1 := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{']'}, Alt: true}
+	normalKey := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")}
+
+	updated, _ := m.Update(part1)
+	updated, _ = updated.(Model).Update(normalKey)
+
+	assert.Contains(t, updated.(Model).editor.Value(), "a")
+}
+
+func TestModel_OSCRawPayloadFiltered(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.editor = m.editor.Focus()
+
+	// Raw OSC payload without leading ] — the parser consumed \x1b] but the
+	// data portion "11;rgb:0000/0000/0000" leaks as KeyRunes with no Alt.
+	rawPayload := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("11;rgb:0000/0000/0000")}
+
+	updated, cmd := m.Update(rawPayload)
+
+	assert.Nil(t, cmd)
+	assert.Empty(t, updated.(Model).editor.Value())
+}
