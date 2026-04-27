@@ -8,7 +8,7 @@ import (
 	"os"
 
 	"weave/sdk"
-	"weave/utils/openaicompat"
+	openaicompat "weave/utils/openaicompat"
 )
 
 const (
