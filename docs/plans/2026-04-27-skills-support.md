@@ -74,11 +74,11 @@ Extension self-registration, bus integration, command registration.
 ### Task 3: System prompt injection in loop
 Loop subscribes to `skills.loaded` and injects skills XML into the system prompt.
 
-- [ ] add `availableSkills string` field to `Loop` struct in `extensions/loop/loop.go`
-- [ ] subscribe to `skills.loaded` topic in `Subscribe()` — store formatted skills prompt
-- [ ] modify `streamTurn` to populate `ProviderRequest.SystemPrompt` with the skills prompt when non-empty
-- [ ] write tests for system prompt injection — with skills (prompt contains XML), without skills (empty string), skills update via bus event
-- [ ] run `cd extensions/loop && go test ./...` — must pass before next task
+- [x] add `availableSkills string` field to `Loop` struct in `extensions/loop/loop.go`
+- [x] subscribe to `skills.loaded` topic in `Subscribe()` — store formatted skills prompt
+- [x] modify `streamTurn` to populate `ProviderRequest.SystemPrompt` with the skills prompt when non-empty
+- [x] write tests for system prompt injection — with skills (prompt contains XML), without skills (empty string), skills update via bus event
+- [x] run `cd extensions/loop && go test ./...` — must pass before next task
 
 ### Task 4: TUI autocomplete refresh
 Make dynamically registered skill commands appear in the editor autocomplete.

@@ -1045,3 +1045,149 @@ func TestLoop_InvalidThinkingLevelIgnored(t *testing.T) {
 
 	require.NoError(t, l.Close())
 }
+
+func TestLoop_SystemPromptEmpty(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	var capturedReq sdk.ProviderRequest
+
+	var mu sync.Mutex
+
+	mp := &ProviderMock{
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, _ ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+			mu.Lock()
+			capturedReq = req
+			mu.Unlock()
+
+			ch := make(chan sdk.ProviderEvent, 1)
+			ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "ok"}
+			close(ch)
+
+			return ch, nil
+		},
+	}
+	registerMockProvider("anthropic", mp)
+
+	l, b, cleanup := setupLoop(t, "anthropic")
+	defer cleanup()
+
+	allCh := b.SubscribeAll()
+	l.Subscribe(b)
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "test"))
+
+	_, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for msg_end")
+
+	mu.Lock()
+	assert.Empty(t, capturedReq.SystemPrompt, "system prompt should be empty when no skills loaded")
+	mu.Unlock()
+
+	require.NoError(t, l.Close())
+}
+
+func TestLoop_SystemPromptWithSkills(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	var capturedReq sdk.ProviderRequest
+
+	var mu sync.Mutex
+
+	mp := &ProviderMock{
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, _ ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+			mu.Lock()
+			capturedReq = req
+			mu.Unlock()
+
+			ch := make(chan sdk.ProviderEvent, 1)
+			ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "ok"}
+			close(ch)
+
+			return ch, nil
+		},
+	}
+	registerMockProvider("anthropic", mp)
+
+	l, b, cleanup := setupLoop(t, "anthropic")
+	defer cleanup()
+
+	allCh := b.SubscribeAll()
+	l.Subscribe(b)
+
+	skillsXML := "<available_skills>\n<skill>\n<name>test-skill</name>\n<description>A test skill</description>\n<location>/path/to/test-skill/SKILL.md</location>\n</skill>\n</available_skills>"
+	b.Publish(sdk.NewEvent(TopicSkillsLoaded, skillsXML))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "test"))
+
+	_, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for msg_end")
+
+	mu.Lock()
+	assert.Equal(t, skillsXML, capturedReq.SystemPrompt, "system prompt should contain skills XML")
+	mu.Unlock()
+
+	require.NoError(t, l.Close())
+}
+
+func TestLoop_SkillsUpdateViaBus(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	var capturedReqs []sdk.ProviderRequest
+
+	var mu sync.Mutex
+
+	mp := newMockProvider([]providerResponse{
+		{textDeltas: []string{"first"}},
+		{textDeltas: []string{"second"}},
+	})
+	originalStreamFunc := mp.StreamFunc
+	mp.StreamFunc = func(ctx context.Context, req sdk.ProviderRequest, opts ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+		mu.Lock()
+		capturedReqs = append(capturedReqs, req)
+		mu.Unlock()
+
+		return originalStreamFunc(ctx, req, opts...)
+	}
+	registerMockProvider("anthropic", mp)
+
+	l, b, cleanup := setupLoop(t, "anthropic")
+	defer cleanup()
+
+	allCh := b.SubscribeAll()
+	l.Subscribe(b)
+
+	// First turn with initial skills
+	skillsV1 := "<available_skills><skill><name>v1</name></skill></available_skills>"
+	b.Publish(sdk.NewEvent(TopicSkillsLoaded, skillsV1))
+
+	// Give the goroutine time to process the skills event before sending prompt
+	time.Sleep(50 * time.Millisecond)
+	b.Publish(sdk.NewEvent(TopicPrompt, "first turn"))
+
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for first turn_end")
+
+	mu.Lock()
+	require.Len(t, capturedReqs, 1)
+	assert.Equal(t, skillsV1, capturedReqs[0].SystemPrompt)
+	mu.Unlock()
+
+	// Update skills before second turn
+	skillsV2 := "<available_skills><skill><name>v2</name></skill></available_skills>"
+	b.Publish(sdk.NewEvent(TopicSkillsLoaded, skillsV2))
+
+	b.Publish(sdk.NewEvent(TopicFollowup, "second turn"))
+
+	_, ok = waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for second turn_end")
+
+	mu.Lock()
+	require.Len(t, capturedReqs, 2)
+	assert.Equal(t, skillsV2, capturedReqs[1].SystemPrompt, "system prompt should reflect updated skills")
+	mu.Unlock()
+
+	require.NoError(t, l.Close())
+}

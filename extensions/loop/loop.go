@@ -29,6 +29,7 @@ const (
 	TopicModelChange       = "model.change"
 	TopicModelChangeFailed = "model.change_failed"
 	TopicThinkingChange    = "thinking.change"
+	TopicSkillsLoaded      = "skills.loaded"
 )
 
 // Loop is the agent-loop extension that drives the LLM conversation cycle.
@@ -38,7 +39,8 @@ type Loop struct {
 	modelName    string
 	singleTurn   bool
 
-	thinkingLevel sdk.ThinkingLevel
+	thinkingLevel  sdk.ThinkingLevel
+	availableSkills string
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
@@ -80,6 +82,7 @@ func (l *Loop) Subscribe(bus sdk.Bus) {
 	interruptCh := bus.Subscribe(TopicInterrupt)
 	modelChangeCh := bus.Subscribe(TopicModelChange)
 	thinkingCh := bus.Subscribe(TopicThinkingChange)
+	skillsCh := bus.Subscribe(TopicSkillsLoaded)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -87,7 +90,7 @@ func (l *Loop) Subscribe(bus sdk.Bus) {
 	l.done = make(chan struct{})
 	l.mu.Unlock()
 
-	go l.run(ctx, bus, promptCh, steerCh, followupCh, interruptCh, modelChangeCh, thinkingCh)
+	go l.run(ctx, bus, promptCh, steerCh, followupCh, interruptCh, modelChangeCh, thinkingCh, skillsCh)
 }
 
 func (l *Loop) Close() error {
@@ -108,7 +111,7 @@ func (l *Loop) Close() error {
 }
 
 //nolint:gocyclo // central event loop with multiple channel selects
-func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followupCh, interruptCh, modelChangeCh, thinkingCh <-chan sdk.Event) {
+func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followupCh, interruptCh, modelChangeCh, thinkingCh, skillsCh <-chan sdk.Event) {
 	defer close(l.done)
 
 	var endPayload any
@@ -145,6 +148,12 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 				if lvl, err := sdk.ParseThinkingLevel(m); err == nil {
 					l.thinkingLevel = lvl
 				}
+			}
+
+			continue
+		case evt := <-skillsCh:
+			if s, ok := evt.Payload.(string); ok {
+				l.availableSkills = s
 			}
 
 			continue
@@ -201,7 +210,7 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 
 			opts := l.streamOpts()
 
-			resp, toolCalls, err := streamTurn(turnCtx, bus, provider, messages, toolDefs, opts...)
+			resp, toolCalls, err := streamTurn(turnCtx, bus, provider, messages, toolDefs, l.availableSkills, opts...)
 			if err != nil {
 				bus.Publish(sdk.NewEvent(TopicTurnEnd, nil))
 
@@ -290,6 +299,16 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 
 			l.applyThinkingChange(evt)
 			provider = l.drainChanges(modelChangeCh, thinkingCh, bus, provider)
+
+			goto waitForInput
+		case evt, ok := <-skillsCh:
+			if !ok {
+				return
+			}
+
+			if s, ok := evt.Payload.(string); ok {
+				l.availableSkills = s
+			}
 
 			goto waitForInput
 		case <-ctx.Done():
@@ -415,10 +434,11 @@ func drainSteering(steerCh <-chan sdk.Event, messages []sdk.Message) ([]sdk.Mess
 	}
 }
 
-func streamTurn(ctx context.Context, bus sdk.Bus, provider sdk.Provider, messages []sdk.Message, tools []sdk.ToolDef, opts ...sdk.StreamOption) (sdk.Message, []sdk.ToolCall, error) {
+func streamTurn(ctx context.Context, bus sdk.Bus, provider sdk.Provider, messages []sdk.Message, tools []sdk.ToolDef, systemPrompt string, opts ...sdk.StreamOption) (sdk.Message, []sdk.ToolCall, error) {
 	req := sdk.ProviderRequest{
-		Messages: messages,
-		Tools:    tools,
+		SystemPrompt: systemPrompt,
+		Messages:     messages,
+		Tools:        tools,
 	}
 
 	ch, err := provider.Stream(ctx, req, opts...)
