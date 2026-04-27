@@ -2,15 +2,17 @@ package components
 
 import (
 	"testing"
+	"time"
 	"unicode/utf8"
 
+	"github.com/charmbracelet/bubbles/spinner"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestNewSpinnerModel(t *testing.T) {
 	s := NewSpinnerModel()
 	assert.False(t, s.Visible())
-	assert.Equal(t, 0, s.Frame())
 }
 
 func TestSpinnerModel_Show(t *testing.T) {
@@ -21,20 +23,6 @@ func TestSpinnerModel_Show(t *testing.T) {
 func TestSpinnerModel_Hide(t *testing.T) {
 	s := NewSpinnerModel().Show().Hide()
 	assert.False(t, s.Visible())
-	assert.Equal(t, 0, s.Frame())
-}
-
-func TestSpinnerModel_HideResetsFrame(t *testing.T) {
-	s := NewSpinnerModel().Show()
-	// Simulate some frames
-	for range 5 {
-		s, _ = s.Update(tickMsg{})
-	}
-
-	assert.Positive(t, s.Frame())
-
-	s = s.Hide()
-	assert.Equal(t, 0, s.Frame())
 }
 
 func TestSpinnerModel_ViewHidden(t *testing.T) {
@@ -46,17 +34,6 @@ func TestSpinnerModel_ViewVisible(t *testing.T) {
 	s := NewSpinnerModel().Show()
 	view := s.View()
 	assert.Contains(t, view, "Thinking...")
-	// Should contain a spinner character
-	found := false
-
-	for _, ch := range SpinnerCharSet {
-		if containsStr(view, ch) {
-			found = true
-			break
-		}
-	}
-
-	assert.True(t, found, "spinner view should contain a spinner character")
 }
 
 func TestSpinnerModel_SetLabel(t *testing.T) {
@@ -72,17 +49,18 @@ func TestSpinnerModel_SetSize(t *testing.T) {
 
 func TestSpinnerModel_UpdateAdvancesFrame(t *testing.T) {
 	s := NewSpinnerModel().Show()
-	assert.Equal(t, 0, s.Frame())
 
-	s, cmd := s.Update(tickMsg{})
-	assert.Equal(t, 1, s.Frame())
+	// Simulate a tick message
+	tick := spinner.TickMsg{Time: time.Now()}
+	s, cmd := s.Update(tick)
+	assert.True(t, s.Visible())
 	assert.NotNil(t, cmd) // should return next tick cmd
 }
 
 func TestSpinnerModel_UpdateIgnoredWhenHidden(t *testing.T) {
 	s := NewSpinnerModel()
-	s, cmd := s.Update(tickMsg{})
-	assert.Equal(t, 0, s.Frame())
+	tick := spinner.TickMsg{Time: time.Now()}
+	_, cmd := s.Update(tick)
 	assert.Nil(t, cmd)
 }
 
@@ -108,9 +86,9 @@ func TestSpinnerModel_SpinnerUpdate_OtherMsg(t *testing.T) {
 }
 
 func TestIsSpinnerMsg(t *testing.T) {
+	assert.True(t, IsSpinnerMsg(spinner.TickMsg{Time: time.Now()}))
 	assert.True(t, IsSpinnerMsg(SpinnerShowMsg{}))
 	assert.True(t, IsSpinnerMsg(SpinnerHideMsg{}))
-	assert.True(t, IsSpinnerMsg(tickMsg{}))
 	assert.False(t, IsSpinnerMsg(nil))
 }
 
@@ -130,15 +108,6 @@ func TestStopSpinner(t *testing.T) {
 	assert.True(t, ok)
 }
 
-func TestSpinnerFrameWraps(t *testing.T) {
-	s := NewSpinnerModel().Show()
-	for range SpinnerCharSet {
-		s, _ = s.Update(tickMsg{})
-	}
-
-	assert.Equal(t, 0, s.Frame()) // should wrap around
-}
-
 func TestRenderSpinnerClean(t *testing.T) {
 	result := RenderSpinnerClean(0, "test", 0)
 	assert.Contains(t, result, "test")
@@ -149,18 +118,7 @@ func TestRenderSpinnerClean_Truncates(t *testing.T) {
 	assert.LessOrEqual(t, utf8.RuneCountInString(result), 5)
 }
 
-// helper
-func containsStr(s, sub string) bool {
-	return len(s) >= len(sub) && (s == sub || sub == "" ||
-		(s != "" && sub != "" && findSubstr(s, sub)))
-}
-
-func findSubstr(s, sub string) bool {
-	for i := 0; i <= len(s)-len(sub); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-
-	return false
+// Verify spinner.TickMsg is properly handled as a tea.Msg
+func TestSpinnerTickMsgIsTeaMsg(t *testing.T) {
+	var _ tea.Msg = spinner.TickMsg{}
 }

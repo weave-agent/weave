@@ -5,38 +5,11 @@ import (
 	"fmt"
 	"sync"
 
-	"weave/ext/ui/tui/components/messages"
 	"weave/ext/ui/tui/components/overlays"
 	"weave/sdk"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
-
-// overlayRequest is an internal message sent to the Bubble Tea program
-// to trigger an overlay (Select, Confirm, or Input).
-type overlayRequest struct {
-	kind    overlayRequestKind
-	title   string
-	message string
-	items   []string
-	result  chan overlayResponse
-}
-
-type overlayRequestKind int
-
-const (
-	requestSelect overlayRequestKind = iota
-	requestConfirm
-	requestInput
-)
-
-// overlayResponse carries the result back to the blocking caller.
-type overlayResponse struct {
-	index     int
-	value     string
-	confirmed bool
-	err       error
-}
 
 // TUIImpl implements sdk.UI by delegating to the TUI's internal registries
 // and overlay components.
@@ -274,30 +247,6 @@ func (u *TUIImpl) hasPendingPopups() bool {
 	return len(u.popupQ) > 0
 }
 
-// extStatusMsg is an internal tea.Msg to update footer extension status.
-type extStatusMsg struct {
-	key  string
-	text string
-}
-
-// notifyMsg is an internal tea.Msg to show a notification in chat.
-type notifyMsg struct {
-	message string
-}
-
-// popupPendingMsg signals that a popup request is queued.
-type popupPendingMsg struct{}
-
-// popupState tracks the active cross-extension popup and its response channel.
-type popupState struct {
-	kind    overlayRequestKind
-	confirm overlays.ConfirmModel
-	input   overlays.InputModel
-	select_ overlays.SelectorModel
-	items   []string
-	result  chan overlayResponse
-}
-
 // handlePopupPending processes queued popup requests.
 // Returns a tea.Cmd if an overlay was activated.
 //
@@ -433,22 +382,4 @@ func (m Model) popupView() string {
 	}
 
 	return ""
-}
-
-// checkNextPopupCmd returns a tea.Cmd that sends popupPendingMsg
-// if there are more queued popups.
-func checkNextPopupCmd(ui *TUIImpl) tea.Cmd {
-	if ui != nil && ui.hasPendingPopups() {
-		return func() tea.Msg { return popupPendingMsg{} }
-	}
-
-	return nil
-}
-
-// newNotifyAssistantMsg creates a finalized assistant message for notifications.
-func newNotifyAssistantMsg(text string) *messages.AssistantMessage {
-	am := messages.NewAssistantMessage()
-	am.Finalize(text)
-
-	return am
 }
