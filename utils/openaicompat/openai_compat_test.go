@@ -405,7 +405,12 @@ func TestStream_APIError(t *testing.T) {
 		Messages: []sdk.Message{sdk.NewUserMessage("hi")},
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "Invalid API key")
+
+	var apiErr *Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, ErrorTypeAuth, apiErr.Type)
+	assert.Equal(t, 401, apiErr.StatusCode)
+	assert.Equal(t, "Invalid API key", apiErr.Message)
 }
 
 func TestStream_UnexpectedStatus(t *testing.T) {
@@ -422,7 +427,12 @@ func TestStream_UnexpectedStatus(t *testing.T) {
 		Messages: []sdk.Message{sdk.NewUserMessage("hi")},
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "500")
+
+	var apiErr *Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, ErrorTypeServer, apiErr.Type)
+	assert.Equal(t, 500, apiErr.StatusCode)
+	assert.Contains(t, apiErr.Body, "internal server error")
 }
 
 func TestStream_ContextCancellation(t *testing.T) {
@@ -772,4 +782,151 @@ func TestStream_ReasoningContentEmitted(t *testing.T) {
 
 	assert.Equal(t, []string{"thinking step"}, thinking)
 	assert.Equal(t, []string{"answer"}, text)
+}
+
+func TestError_ErrorMethod(t *testing.T) {
+	err := &Error{Type: ErrorTypeAuth, Message: "bad key"}
+	assert.Equal(t, "openai-compat: auth: bad key", err.Error())
+}
+
+func TestError_Classification(t *testing.T) {
+	tests := []struct {
+		code int
+		want ErrorType
+	}{
+		{401, ErrorTypeAuth},
+		{403, ErrorTypeAuth},
+		{429, ErrorTypeRateLimit},
+		{500, ErrorTypeServer},
+		{502, ErrorTypeServer},
+		{503, ErrorTypeServer},
+		{400, ErrorTypeClient},
+		{404, ErrorTypeClient},
+		{418, ErrorTypeClient},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("status_%d", tt.code), func(t *testing.T) {
+			assert.Equal(t, tt.want, classifyStatus(tt.code))
+		})
+	}
+}
+
+func TestStream_ExtraHeaders(t *testing.T) {
+	var receivedHeaders http.Header
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedHeaders = r.Header.Clone()
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = fmt.Fprint(w, sseStream(
+			sseChunk(ChunkDelta{Content: "ok"}, nil),
+			sseChunk(ChunkDelta{}, new("stop")),
+			sseDone(),
+		))
+	}))
+	defer server.Close()
+
+	ch, err := Stream(context.Background(), server.Client(), ProviderConfig{
+		BaseURL: server.URL,
+		APIKey:  "test-key",
+		ExtraHeaders: map[string]string{
+			"X-Custom-Auth": "token-123",
+			"X-Request-ID":  "req-abc",
+		},
+	}, sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("hi")},
+	})
+	require.NoError(t, err)
+	collectEvents(ch)
+
+	assert.Equal(t, "token-123", receivedHeaders.Get("X-Custom-Auth"))
+	assert.Equal(t, "req-abc", receivedHeaders.Get("X-Request-ID"))
+	assert.Equal(t, "Bearer test-key", receivedHeaders.Get("Authorization"))
+}
+
+func TestStream_ExtraBody(t *testing.T) {
+	var receivedBody map[string]any
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&receivedBody))
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = fmt.Fprint(w, sseStream(
+			sseChunk(ChunkDelta{Content: "ok"}, nil),
+			sseChunk(ChunkDelta{}, new("stop")),
+			sseDone(),
+		))
+	}))
+	defer server.Close()
+
+	ch, err := Stream(context.Background(), server.Client(), ProviderConfig{
+		BaseURL: server.URL,
+		APIKey:  "test-key",
+		Model:   "gpt-5.5",
+		ExtraBody: map[string]any{
+			"temperature": 0.7,
+			"seed":        float64(42),
+		},
+	}, sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("hi")},
+	})
+	require.NoError(t, err)
+	collectEvents(ch)
+
+	assert.InDelta(t, 0.7, receivedBody["temperature"], 0.001)
+	assert.InDelta(t, float64(42), receivedBody["seed"], 0.001)
+	assert.Equal(t, "gpt-5.5", receivedBody["model"])
+}
+
+func TestStream_ExtraBody_NoOverrideCoreFields(t *testing.T) {
+	var receivedBody map[string]any
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&receivedBody))
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = fmt.Fprint(w, sseStream(
+			sseChunk(ChunkDelta{Content: "ok"}, nil),
+			sseChunk(ChunkDelta{}, new("stop")),
+			sseDone(),
+		))
+	}))
+	defer server.Close()
+
+	ch, err := Stream(context.Background(), server.Client(), ProviderConfig{
+		BaseURL: server.URL,
+		APIKey:  "test-key",
+		Model:   "gpt-5.5",
+		ExtraBody: map[string]any{
+			"model": "should-be-ignored",
+		},
+	}, sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("hi")},
+	})
+	require.NoError(t, err)
+	collectEvents(ch)
+
+	assert.Equal(t, "gpt-5.5", receivedBody["model"])
+}
+
+func TestStream_RateLimitError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = fmt.Fprint(w, `{"error":{"message":"Rate limit exceeded","type":"rate_limit_error"}}`)
+	}))
+	defer server.Close()
+
+	_, err := Stream(context.Background(), server.Client(), ProviderConfig{
+		BaseURL: server.URL,
+		APIKey:  "test-key",
+	}, sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("hi")},
+	})
+	require.Error(t, err)
+
+	var apiErr *Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, ErrorTypeRateLimit, apiErr.Type)
+	assert.Equal(t, 429, apiErr.StatusCode)
 }

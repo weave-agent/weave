@@ -17,11 +17,48 @@ import (
 
 const defaultModel = "gpt-5.5"
 
+// ErrorType categorizes an error from the OpenAI-compatible API.
+type ErrorType string
+
+const (
+	ErrorTypeAuth      ErrorType = "auth"
+	ErrorTypeRateLimit ErrorType = "rate_limit"
+	ErrorTypeServer    ErrorType = "server"
+	ErrorTypeClient    ErrorType = "client"
+	ErrorTypeTransport ErrorType = "transport"
+	ErrorTypeParse     ErrorType = "parse"
+)
+
+// Error represents a structured error from the OpenAI-compatible API.
+type Error struct {
+	StatusCode int
+	Type       ErrorType
+	Message    string
+	Body       string
+}
+
+func (e *Error) Error() string { return fmt.Sprintf("openai-compat: %s: %s", e.Type, e.Message) }
+
+func classifyStatus(code int) ErrorType {
+	switch {
+	case code == 401 || code == 403:
+		return ErrorTypeAuth
+	case code == 429:
+		return ErrorTypeRateLimit
+	case code >= 500:
+		return ErrorTypeServer
+	default:
+		return ErrorTypeClient
+	}
+}
+
 // ProviderConfig holds the configuration for an OpenAI-compatible provider.
 type ProviderConfig struct {
-	BaseURL string
-	APIKey  string
-	Model   string
+	BaseURL      string
+	APIKey       string
+	Model        string
+	ExtraHeaders map[string]string
+	ExtraBody    map[string]any
 }
 
 // ChatRequest is the request body sent to the chat completions endpoint.
@@ -157,6 +194,24 @@ func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sd
 		return nil, fmt.Errorf("openai-compat: marshal request: %w", err)
 	}
 
+	if len(cfg.ExtraBody) > 0 {
+		var bodyMap map[string]any
+		if unmarshalErr := json.Unmarshal(reqBody, &bodyMap); unmarshalErr != nil {
+			return nil, fmt.Errorf("openai-compat: unmarshal for extra body: %w", unmarshalErr)
+		}
+
+		for k, v := range cfg.ExtraBody {
+			if _, exists := bodyMap[k]; !exists {
+				bodyMap[k] = v
+			}
+		}
+
+		reqBody, err = json.Marshal(bodyMap)
+		if err != nil {
+			return nil, fmt.Errorf("openai-compat: marshal extra body: %w", err)
+		}
+	}
+
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.BaseURL+"/chat/completions", bytes.NewReader(reqBody))
 	if err != nil {
 		return nil, fmt.Errorf("openai-compat: create request: %w", err)
@@ -164,6 +219,10 @@ func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sd
 
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+cfg.APIKey)
+
+	for k, v := range cfg.ExtraHeaders {
+		httpReq.Header.Set(k, v)
+	}
 
 	respBody, err := doStreamRequest(client, httpReq)
 	if err != nil {
@@ -187,20 +246,31 @@ func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sd
 func doStreamRequest(client *http.Client, req *http.Request) (io.ReadCloser, error) {
 	resp, err := client.Do(req) //nolint:gosec // G704: URL is constructed from config, not user input
 	if err != nil {
-		return nil, fmt.Errorf("openai-compat: send request: %w", err)
+		return nil, &Error{Type: ErrorTypeTransport, Message: err.Error()}
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		defer resp.Body.Close()
 
 		errBody, _ := io.ReadAll(resp.Body)
+		bodyStr := string(errBody)
 
 		var errResp ErrorResponse
 		if json.Unmarshal(errBody, &errResp) == nil && errResp.Error.Message != "" {
-			return nil, fmt.Errorf("openai-compat: API error (%d): %s", resp.StatusCode, errResp.Error.Message)
+			return nil, &Error{
+				StatusCode: resp.StatusCode,
+				Type:       classifyStatus(resp.StatusCode),
+				Message:    errResp.Error.Message,
+				Body:       bodyStr,
+			}
 		}
 
-		return nil, fmt.Errorf("openai-compat: unexpected status %d: %s", resp.StatusCode, string(errBody))
+		return nil, &Error{
+			StatusCode: resp.StatusCode,
+			Type:       classifyStatus(resp.StatusCode),
+			Message:    bodyStr,
+			Body:       bodyStr,
+		}
 	}
 
 	return resp.Body, nil
@@ -272,7 +342,7 @@ func emitToolCalls(toolCalls map[int]*toolCallAccum, send func(sdk.ProviderEvent
 			if err := json.Unmarshal([]byte(tc.argsBuffer), &args); err != nil {
 				send(sdk.ProviderEvent{
 					Type:    sdk.ProviderEventError,
-					Content: fmt.Sprintf("openai-compat: parse tool call arguments for %s: %v", tc.name, err),
+					Content: &Error{Type: ErrorTypeParse, Message: fmt.Sprintf("parse tool call arguments for %s: %v", tc.name, err)},
 				})
 
 				continue
@@ -337,7 +407,7 @@ func parseSSE(ctx context.Context, reader io.Reader, ch chan<- sdk.ProviderEvent
 		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
 			send(sdk.ProviderEvent{
 				Type:    sdk.ProviderEventError,
-				Content: fmt.Sprintf("openai-compat: parse chunk: %v", err),
+				Content: &Error{Type: ErrorTypeParse, Message: fmt.Sprintf("parse chunk: %v", err)},
 			})
 
 			return
@@ -381,7 +451,7 @@ func parseSSE(ctx context.Context, reader io.Reader, ch chan<- sdk.ProviderEvent
 	if err := scanner.Err(); err != nil {
 		send(sdk.ProviderEvent{
 			Type:    sdk.ProviderEventError,
-			Content: fmt.Sprintf("openai-compat: read stream: %v", err),
+			Content: &Error{Type: ErrorTypeTransport, Message: fmt.Sprintf("read stream: %v", err)},
 		})
 
 		return
