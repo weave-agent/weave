@@ -27,20 +27,7 @@ func NewSkillsExtension(cfg sdk.Config) (*SkillsExtension, error) {
 func (e *SkillsExtension) Name() string { return "skills" }
 
 func (e *SkillsExtension) Subscribe(bus sdk.Bus) {
-	var paths []string
-	if len(e.discoveryPaths) > 0 {
-		paths = e.discoveryPaths
-	} else {
-		home, _ := os.UserHomeDir()
-		if home != "" {
-			paths = append(paths, filepath.Join(home, ".weave", "skills"))
-		}
-
-		if e.cfg.FilePath() != "" {
-			projectRoot := filepath.Dir(e.cfg.FilePath())
-			paths = append(paths, filepath.Join(projectRoot, ".weave", "skills"))
-		}
-	}
+	paths := e.resolvePaths()
 
 	skills, err := discoverSkills(paths...)
 	if err != nil {
@@ -63,6 +50,31 @@ func (e *SkillsExtension) Subscribe(bus sdk.Bus) {
 
 func (e *SkillsExtension) Close() error {
 	return nil
+}
+
+func (e *SkillsExtension) resolvePaths() []string {
+	if len(e.discoveryPaths) > 0 {
+		return e.discoveryPaths
+	}
+
+	var paths []string
+
+	home, _ := os.UserHomeDir()
+	if home != "" {
+		paths = append(paths, filepath.Join(home, ".weave", "skills"))
+	}
+
+	if e.cfg.FilePath() != "" {
+		projectRoot := filepath.Dir(e.cfg.FilePath())
+
+		if filepath.Base(projectRoot) == ".weave" {
+			projectRoot = filepath.Dir(projectRoot)
+		}
+
+		paths = append(paths, filepath.Join(projectRoot, ".weave", "skills"))
+	}
+
+	return paths
 }
 
 func makeSkillHandler(skill Skill, bus sdk.Bus) func(args string) error {

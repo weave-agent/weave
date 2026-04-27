@@ -52,8 +52,8 @@ func validateName(name string) error {
 
 	lower := strings.ToLower(name)
 	for _, reserved := range reservedNames {
-		if strings.Contains(lower, reserved) {
-			return fmt.Errorf("skill name cannot contain %q", reserved)
+		if lower == reserved {
+			return fmt.Errorf("skill name cannot be %q", reserved)
 		}
 	}
 

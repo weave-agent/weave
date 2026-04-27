@@ -12,6 +12,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// pendingCommand holds a command registered before the registry was set.
+type pendingCommand struct {
+	name    string
+	handler func(args string) error
+}
+
 // TUIImpl implements sdk.UI by delegating to the TUI's internal registries
 // and overlay components.
 type TUIImpl struct {
@@ -20,9 +26,10 @@ type TUIImpl struct {
 	bindings  *BindingRegistry
 	renderers map[string]sdk.ToolRenderer
 
-	mu     sync.Mutex
-	popupQ []*overlayRequest
-	done   chan struct{}
+	mu      sync.Mutex
+	popupQ  []*overlayRequest
+	pending []pendingCommand
+	done    chan struct{}
 }
 
 // NewTUIImpl creates a UI implementation backed by the given registries.
@@ -45,12 +52,18 @@ func (u *TUIImpl) SetProgram(p Sender) {
 }
 
 // SetRegistries sets the command and binding registries under lock.
+// Any commands registered before the registry was available are flushed.
 func (u *TUIImpl) SetRegistries(commands *CommandRegistry, bindings *BindingRegistry) {
 	u.mu.Lock()
-	defer u.mu.Unlock()
-
+	pending := u.pending
+	u.pending = nil
 	u.commands = commands
 	u.bindings = bindings
+	u.mu.Unlock()
+
+	for _, pc := range pending {
+		u.registerCommand(commands, pc.name, pc.handler)
+	}
 }
 
 // Close signals that the TUI is shutting down, unblocking any pending overlay calls.
@@ -147,26 +160,38 @@ func (u *TUIImpl) Notify(message string) {
 }
 
 // RegisterCommand adds a command to the slash command registry.
+// If the registry is not yet set, the command is buffered and applied
+// when SetRegistries is called.
 func (u *TUIImpl) RegisterCommand(name string, handler func(args string) error) {
 	u.mu.Lock()
+
+	if u.commands == nil {
+		u.pending = append(u.pending, pendingCommand{name: name, handler: handler})
+		u.mu.Unlock()
+
+		return
+	}
+
 	commands := u.commands
 	u.mu.Unlock()
 
-	if commands == nil {
-		return
-	}
+	u.registerCommand(commands, name, handler)
+}
+
+func (u *TUIImpl) registerCommand(commands *CommandRegistry, name string, handler func(args string) error) {
+	displayName := strings.TrimPrefix(name, "/")
 
 	commands.Register(name, "", func(args string) CommandResult {
 		err := handler(args)
 		if err != nil {
-			return CommandResult{Notify: fmt.Sprintf("/%s: error: %v", name, err)}
+			return CommandResult{Notify: fmt.Sprintf("/%s: error: %v", displayName, err)}
 		}
 
 		if strings.HasPrefix(name, "/skill:") {
 			return CommandResult{}
 		}
 
-		return CommandResult{Notify: "/" + name + ": ok"}
+		return CommandResult{Notify: "/" + displayName + ": ok"}
 	})
 
 	u.mu.Lock()
