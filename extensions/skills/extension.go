@@ -42,7 +42,10 @@ func (e *SkillsExtension) Subscribe(bus sdk.Bus) {
 		}
 	}
 
-	skills, _ := discoverSkills(paths...)
+	skills, err := discoverSkills(paths...)
+	if err != nil {
+		bus.Publish(sdk.NewEvent("skills.error", err.Error()))
+	}
 
 	bus.Publish(sdk.NewEvent(sdk.TopicSkillsLoaded, formatSkillsPrompt(skills)))
 

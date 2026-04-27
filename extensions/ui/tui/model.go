@@ -771,7 +771,12 @@ func (m Model) onSubmit(text string) (tea.Model, tea.Cmd) {
 	if handled, result := m.commands.Dispatch(text); handled { //nolint:nestif // command dispatch has multiple optional outcomes
 		cmdName, cmdArgs := parseCommand(text)
 		if skillName, ok := strings.CutPrefix(cmdName, "/skill:"); ok {
-			xmlContent := fmt.Sprintf("<skill name=%q>\n%s\n</skill>", skillName, cmdArgs)
+			xmlContent := fmt.Sprintf("<skill name=%q>\n</skill>", skillName)
+
+			if cmdArgs != "" {
+				xmlContent += "\n\n" + cmdArgs
+			}
+
 			m.chat = m.chat.AddItem(messages.NewUserMessage(xmlContent))
 		}
 

@@ -27,6 +27,11 @@ func discoverSkills(paths ...string) ([]Skill, error) {
 				continue
 			}
 
+			info, err := entry.Info()
+			if err != nil || info.Mode()&os.ModeSymlink != 0 {
+				continue
+			}
+
 			name := entry.Name()
 			if seen[name] {
 				continue

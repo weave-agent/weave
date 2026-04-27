@@ -162,7 +162,7 @@ func (u *TUIImpl) RegisterCommand(name string, handler func(args string) error) 
 			return CommandResult{Notify: fmt.Sprintf("/%s: error: %v", name, err)}
 		}
 
-		if strings.HasPrefix(name, "skill:") {
+		if strings.HasPrefix(name, "/skill:") {
 			return CommandResult{}
 		}
 
