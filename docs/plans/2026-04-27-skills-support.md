@@ -47,16 +47,16 @@ Add Agent Skills support following the [Agent Skills specification](https://agen
 ### Task 1: Skill types and discovery
 Core skill loading logic — types, filesystem walker, YAML frontmatter parser.
 
-- [ ] create `extensions/skills/` Go module with `go.mod`
-- [ ] define `Skill` struct with fields: `Name`, `Description`, `FilePath`, `BaseDir`, `DisableModelInvocation`, `License`, `Compatibility`, `Metadata`, `AllowedTools`
-- [ ] define `SkillFrontmatter` struct for YAML parsing
-- [ ] implement `loadSkillFromDir(dir string) (Skill, error)` — reads `SKILL.md`, parses frontmatter, validates name matches directory, validates description presence
-- [ ] implement `discoverSkills(paths ...string) ([]Skill, error)` — walks `~/.weave/skills/` and `.weave/skills/`, deduplicates by name (first found wins), returns sorted list
-- [ ] implement `formatSkillsPrompt(skills []Skill) string` — generates `<available_skills>` XML block with name, description, location per skill
-- [ ] write tests for `loadSkillFromDir` — valid skill, missing SKILL.md, invalid frontmatter, name/directory mismatch
-- [ ] write tests for `discoverSkills` — multiple paths, deduplication, empty directories
-- [ ] write tests for `formatSkillsPrompt` — XML structure, empty skills list, special chars in description
-- [ ] run `cd extensions/skills && go test ./...` — must pass before next task
+- [x] create `extensions/skills/` Go module with `go.mod`
+- [x] define `Skill` struct with fields: `Name`, `Description`, `FilePath`, `BaseDir`, `DisableModelInvocation`, `License`, `Compatibility`, `Metadata`, `AllowedTools`
+- [x] define `SkillFrontmatter` struct for YAML parsing
+- [x] implement `loadSkillFromDir(dir string) (Skill, error)` — reads `SKILL.md`, parses frontmatter, validates name matches directory, validates description presence
+- [x] implement `discoverSkills(paths ...string) ([]Skill, error)` — walks `~/.weave/skills/` and `.weave/skills/`, deduplicates by name (first found wins), returns sorted list
+- [x] implement `formatSkillsPrompt(skills []Skill) string` — generates `<available_skills>` XML block with name, description, location per skill
+- [x] write tests for `loadSkillFromDir` — valid skill, missing SKILL.md, invalid frontmatter, name/directory mismatch
+- [x] write tests for `discoverSkills` — multiple paths, deduplication, empty directories
+- [x] write tests for `formatSkillsPrompt` — XML structure, empty skills list, special chars in description
+- [x] run `cd extensions/skills && go test ./...` — must pass before next task
 
 ### Task 2: Skills extension module
 Extension self-registration, bus integration, command registration.
