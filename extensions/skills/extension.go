@@ -82,8 +82,8 @@ func makeSkillHandler(skill Skill, bus sdk.Bus) func(args string) error {
 		body := skill.Body()
 
 		var msg strings.Builder
-		fmt.Fprintf(&msg, "<skill name=%q location=%q>\n", skill.Name, skill.FilePath)
-		fmt.Fprintf(&msg, "References are relative to %s.\n\n", skill.BaseDir)
+		fmt.Fprintf(&msg, "<skill name=\"%s\" location=\"%s\">\n", escapeXML(skill.Name), escapeXML(skill.FilePath))
+		fmt.Fprintf(&msg, "References are relative to %s.\n\n", escapeXML(skill.BaseDir))
 		msg.WriteString(escapeXML(body))
 		msg.WriteString("\n</skill>")
 

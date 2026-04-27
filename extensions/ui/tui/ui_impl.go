@@ -49,6 +49,11 @@ func (u *TUIImpl) SetProgram(p Sender) {
 	defer u.mu.Unlock()
 
 	u.program = p
+
+	// Refresh autocomplete with any commands registered before the program was set.
+	if p != nil {
+		p.Send(slashCommandsUpdatedMsg{})
+	}
 }
 
 // SetRegistries sets the command and binding registries under lock.

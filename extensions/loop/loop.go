@@ -176,6 +176,7 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 		return
 	}
 
+	l.drainSkills(skillsCh)
 	provider = l.drainChanges(modelChangeCh, thinkingCh, bus, provider)
 
 	turn := 1
@@ -366,6 +367,23 @@ func (l *Loop) applyThinkingChange(evt sdk.Event) {
 	if level, ok := m["level"]; ok {
 		if parsed, err := sdk.ParseThinkingLevel(level); err == nil {
 			l.thinkingLevel = parsed
+		}
+	}
+}
+
+func (l *Loop) drainSkills(ch <-chan sdk.Event) {
+	for {
+		select {
+		case evt, ok := <-ch:
+			if !ok {
+				return
+			}
+
+			if s, ok := evt.Payload.(string); ok {
+				l.availableSkills = s
+			}
+		default:
+			return
 		}
 	}
 }

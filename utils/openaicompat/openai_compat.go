@@ -54,12 +54,12 @@ func classifyStatus(code int) ErrorType {
 
 // ProviderConfig holds the configuration for an OpenAI-compatible provider.
 type ProviderConfig struct {
-	BaseURL        string
-	APIKey         string
-	Model          string
-	ExtraHeaders   map[string]string
-	ExtraBody      map[string]any
-	ModifyRequest  func(body map[string]any, so *sdk.StreamOptions)
+	BaseURL       string
+	APIKey        string
+	Model         string
+	ExtraHeaders  map[string]string
+	ExtraBody     map[string]any
+	ModifyRequest func(body map[string]any, so *sdk.StreamOptions)
 }
 
 // ChatRequest is the request body sent to the chat completions endpoint.

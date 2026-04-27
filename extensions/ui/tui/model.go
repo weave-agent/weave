@@ -778,6 +778,7 @@ func (m Model) onSubmit(text string) (tea.Model, tea.Cmd) {
 			}
 
 			m.chat = m.chat.AddItem(messages.NewUserMessage(xmlContent))
+			m.prompted = true
 		}
 
 		if result.Quit {
