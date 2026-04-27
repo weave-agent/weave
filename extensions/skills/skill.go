@@ -1,5 +1,7 @@
 package skills
 
+//go:generate moq -fmt goimports -skip-ensure -pkg skills -out mock_test.go ../../sdk Bus UI
+
 import (
 	"fmt"
 	"os"

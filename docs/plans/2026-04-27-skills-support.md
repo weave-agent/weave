@@ -61,15 +61,15 @@ Core skill loading logic — types, filesystem walker, YAML frontmatter parser.
 ### Task 2: Skills extension module
 Extension self-registration, bus integration, command registration.
 
-- [ ] implement `init()` with `sdk.RegisterExtension("skills", factory)`
-- [ ] implement `SkillsExtension` struct with `Name()`, `Subscribe(bus)`, `Close()` methods
-- [ ] in `Subscribe`: discover skills, publish `skills.loaded` event with skill list on bus
-- [ ] in `Subscribe`: get UI via `sdk.GetUI("tui")`, register `/skill:name` command for each discovered skill that reads full SKILL.md and publishes as `agent.prompt` with expanded content
-- [ ] implement skill command handler — reads SKILL.md body (strips frontmatter), wraps in `<skill name="..." location="...">` XML, appends user args
-- [ ] handle missing UI gracefully (headless mode — no commands registered, only bus events)
-- [ ] write tests for extension factory, Subscribe lifecycle, command handler with mocked UI and bus
-- [ ] write tests for skill command expansion — frontmatter stripping, XML wrapping, args appending
-- [ ] run tests — must pass before next task
+- [x] implement `init()` with `sdk.RegisterExtension("skills", factory)`
+- [x] implement `SkillsExtension` struct with `Name()`, `Subscribe(bus)`, `Close()` methods
+- [x] in `Subscribe`: discover skills, publish `skills.loaded` event with skill list on bus
+- [x] in `Subscribe`: get UI via `sdk.GetUI("tui")`, register `/skill:name` command for each discovered skill that reads full SKILL.md and publishes as `agent.prompt` with expanded content
+- [x] implement skill command handler — reads SKILL.md body (strips frontmatter), wraps in `<skill name="..." location="...">` XML, appends user args
+- [x] handle missing UI gracefully (headless mode — no commands registered, only bus events)
+- [x] write tests for extension factory, Subscribe lifecycle, command handler with mocked UI and bus
+- [x] write tests for skill command expansion — frontmatter stripping, XML wrapping, args appending
+- [x] run tests — must pass before next task
 
 ### Task 3: System prompt injection in loop
 Loop subscribes to `skills.loaded` and injects skills XML into the system prompt.
