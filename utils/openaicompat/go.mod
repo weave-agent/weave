@@ -1,4 +1,4 @@
-module weave/ext/providers/openaicompat
+module weave/utils/openaicompat
 
 go 1.26.2
 
@@ -13,4 +13,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace weave => ../../..
+replace weave => ../..

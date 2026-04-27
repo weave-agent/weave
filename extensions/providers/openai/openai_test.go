@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	openaicompat "weave/ext/providers/openaicompat"
 	"weave/sdk"
+	openaicompat "weave/utils/openaicompat"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

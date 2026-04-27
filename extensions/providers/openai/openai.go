@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"os"
 
-	openaicompat "weave/ext/providers/openaicompat"
 	"weave/sdk"
+	openaicompat "weave/utils/openaicompat"
 )
 
 const (

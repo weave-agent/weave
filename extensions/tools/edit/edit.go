@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"weave/internal/truncate"
 	"weave/sdk"
+	"weave/utils/truncate"
 
 	"github.com/pmezard/go-difflib/difflib"
 )

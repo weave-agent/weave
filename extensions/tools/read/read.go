@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	"weave/internal/truncate"
 	"weave/sdk"
+	"weave/utils/truncate"
 )
 
 // maxLineContentBytes caps raw line content so the formatted line (with line

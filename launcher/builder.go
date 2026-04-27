@@ -76,7 +76,7 @@ func ComputeHash(exts []ExtensionInfo, moduleRoot string, coreDirs ...string) (s
 	}
 
 	// Hash transitive local dependencies discovered from extension go.mod files.
-	// These are shared libraries (e.g. openai-compat) that extensions depend on
+	// These are shared libraries (e.g. openaicompat) that extensions depend on
 	// via replace directives. Without this, changes to shared libs don't
 	// invalidate the cache.
 	absModuleRoot, _ := filepath.Abs(moduleRoot)

@@ -5,7 +5,7 @@ go 1.26.2
 require (
 	github.com/stretchr/testify v1.11.1
 	weave v0.0.0
-	weave/ext/providers/openaicompat v0.0.0
+	weave/utils/openaicompat v0.0.0
 )
 
 require (
@@ -16,5 +16,5 @@ require (
 
 replace (
 	weave => ../../..
-	weave/ext/providers/openaicompat => ../openai-compat
+	weave/utils/openaicompat => ../../../utils/openaicompat
 )

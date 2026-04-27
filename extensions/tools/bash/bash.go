@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"weave/internal/truncate"
 	"weave/sdk"
+	"weave/utils/truncate"
 )
 
 const defaultTimeout = 120 * time.Second
