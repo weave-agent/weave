@@ -5,7 +5,6 @@ go 1.26.2
 require (
 	github.com/stretchr/testify v1.11.1
 	weave v0.0.0
-	weave/utils/openaicompat v0.0.0
 )
 
 require (
@@ -14,7 +13,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace (
-	weave => ../../..
-	weave/utils/openaicompat => ../../../utils/openaicompat
-)
+replace weave => ../../..
