@@ -266,6 +266,7 @@ func TestSkillsNotDuplicated(t *testing.T) {
 	allExts = ensurePresent(allExts, "skills")
 
 	skillsCount := 0
+
 	for _, ext := range allExts {
 		if ext == "skills" {
 			skillsCount++

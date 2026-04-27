@@ -106,12 +106,12 @@ Add skills to config file format and auto-include the skills extension.
 - [x] run tests — must pass before next task
 
 ### Task 7: Verify acceptance criteria
-- [ ] verify all requirements from Overview are implemented
-- [ ] verify progressive disclosure works — descriptions in system prompt, full content loaded on demand
-- [ ] verify `/skill:name` commands work in TUI with autocomplete
-- [ ] verify skill invocation rendering in chat
-- [ ] run full test suite (`make test`) — all must pass
-- [ ] run linter (`make lint`) — all issues must be fixed
+- [x] verify all requirements from Overview are implemented
+- [x] verify progressive disclosure works — descriptions in system prompt, full content loaded on demand
+- [x] verify `/skill:name` commands work in TUI with autocomplete
+- [x] verify skill invocation rendering in chat
+- [x] run full test suite (`make test`) — all must pass
+- [x] run linter (`make lint`) — all issues must be fixed
 
 ## Technical Details
 

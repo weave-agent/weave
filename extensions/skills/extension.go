@@ -40,6 +40,7 @@ func (e *SkillsExtension) Subscribe(bus sdk.Bus) {
 		if home != "" {
 			paths = append(paths, filepath.Join(home, ".weave", "skills"))
 		}
+
 		if e.cfg.FilePath() != "" {
 			projectRoot := filepath.Dir(e.cfg.FilePath())
 			paths = append(paths, filepath.Join(projectRoot, ".weave", "skills"))
@@ -73,6 +74,7 @@ func (e *SkillsExtension) Close() error {
 func makeSkillHandler(skill Skill, bus sdk.Bus) func(args string) error {
 	return func(args string) error {
 		body := skill.Body()
+
 		var msg strings.Builder
 		fmt.Fprintf(&msg, "<skill name=\"%s\" location=\"%s\">\n", skill.Name, skill.FilePath)
 		fmt.Fprintf(&msg, "References are relative to %s.\n\n", skill.BaseDir)
@@ -85,6 +87,7 @@ func makeSkillHandler(skill Skill, bus sdk.Bus) func(args string) error {
 		}
 
 		bus.Publish(sdk.NewEvent("agent.prompt", msg.String()))
+
 		return nil
 	}
 }

@@ -1062,6 +1062,7 @@ func TestLoop_SystemPromptEmpty(t *testing.T) {
 
 			ch := make(chan sdk.ProviderEvent, 1)
 			ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "ok"}
+
 			close(ch)
 
 			return ch, nil
@@ -1103,6 +1104,7 @@ func TestLoop_SystemPromptWithSkills(t *testing.T) {
 
 			ch := make(chan sdk.ProviderEvent, 1)
 			ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "ok"}
+
 			close(ch)
 
 			return ch, nil
@@ -1119,6 +1121,8 @@ func TestLoop_SystemPromptWithSkills(t *testing.T) {
 	skillsXML := "<available_skills>\n<skill>\n<name>test-skill</name>\n<description>A test skill</description>\n<location>/path/to/test-skill/SKILL.md</location>\n</skill>\n</available_skills>"
 	b.Publish(sdk.NewEvent(TopicSkillsLoaded, skillsXML))
 
+	// Give the goroutine time to process the skills event before sending prompt
+	time.Sleep(50 * time.Millisecond)
 	b.Publish(sdk.NewEvent(TopicPrompt, "test"))
 
 	_, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
@@ -1146,6 +1150,7 @@ func TestLoop_SkillsUpdateViaBus(t *testing.T) {
 	originalStreamFunc := mp.StreamFunc
 	mp.StreamFunc = func(ctx context.Context, req sdk.ProviderRequest, opts ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
 		mu.Lock()
+
 		capturedReqs = append(capturedReqs, req)
 		mu.Unlock()
 

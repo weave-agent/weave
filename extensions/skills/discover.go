@@ -1,6 +1,7 @@
 package skills
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -8,6 +9,7 @@ import (
 
 func discoverSkills(paths ...string) ([]Skill, error) {
 	seen := make(map[string]bool)
+
 	var skills []Skill
 
 	for _, root := range paths {
@@ -16,7 +18,8 @@ func discoverSkills(paths ...string) ([]Skill, error) {
 			if os.IsNotExist(err) {
 				continue
 			}
-			return nil, err
+
+			return nil, fmt.Errorf("read skills dir %s: %w", root, err)
 		}
 
 		for _, entry := range entries {
@@ -30,12 +33,14 @@ func discoverSkills(paths ...string) ([]Skill, error) {
 			}
 
 			dir := filepath.Join(root, name)
+
 			skill, err := loadSkillFromDir(dir)
 			if err != nil {
 				continue
 			}
 
 			seen[name] = true
+
 			skills = append(skills, skill)
 		}
 	}

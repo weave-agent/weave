@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"weave/sdk"
 )
 
@@ -33,6 +34,7 @@ func TestSkillsExtension_Subscribe_DiscoversSkills(t *testing.T) {
 
 	ext, err := NewSkillsExtension(sdk.FilePathConfig(""))
 	require.NoError(t, err)
+
 	ext.discoveryPaths = []string{root}
 
 	ext.Subscribe(bus)
@@ -48,6 +50,7 @@ func TestSkillsExtension_Subscribe_RegistersCommands(t *testing.T) {
 	writeSkillMD(t, filepath.Join(root, "my-skill"), "my-skill", "Does things", "# Instructions")
 
 	var registeredCmds []string
+
 	ui := &UIMock{
 		RegisterCommandFunc: func(name string, handler func(args string) error) {
 			registeredCmds = append(registeredCmds, name)
@@ -63,6 +66,7 @@ func TestSkillsExtension_Subscribe_RegistersCommands(t *testing.T) {
 
 	ext, err := NewSkillsExtension(sdk.FilePathConfig(""))
 	require.NoError(t, err)
+
 	ext.discoveryPaths = []string{root}
 
 	ext.Subscribe(bus)
@@ -119,6 +123,7 @@ func TestMakeSkillHandler_Expansion(t *testing.T) {
 	skill.body = "# Instructions\nDo the thing."
 
 	var published []sdk.Event
+
 	bus := &BusMock{
 		PublishFunc: func(event sdk.Event) bool {
 			published = append(published, event)
@@ -130,6 +135,7 @@ func TestMakeSkillHandler_Expansion(t *testing.T) {
 
 	t.Run("with args", func(t *testing.T) {
 		published = nil
+
 		require.NoError(t, handler("do something extra"))
 
 		require.Len(t, published, 1)
@@ -144,6 +150,7 @@ func TestMakeSkillHandler_Expansion(t *testing.T) {
 
 	t.Run("without args", func(t *testing.T) {
 		published = nil
+
 		require.NoError(t, handler(""))
 
 		require.Len(t, published, 1)
@@ -162,6 +169,7 @@ func TestMakeSkillHandler_FrontmatterStripped(t *testing.T) {
 	require.NoError(t, err)
 
 	var published []sdk.Event
+
 	bus := &BusMock{
 		PublishFunc: func(event sdk.Event) bool {
 			published = append(published, event)

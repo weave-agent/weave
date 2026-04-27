@@ -19,5 +19,6 @@ func formatSkillsPrompt(skills []Skill) string {
 	}
 
 	b.WriteString("</available_skills>")
+
 	return b.String()
 }

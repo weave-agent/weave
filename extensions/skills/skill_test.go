@@ -12,6 +12,7 @@ import (
 func writeSkillMD(t *testing.T, dir, name, desc, body string) {
 	t.Helper()
 	require.NoError(t, os.MkdirAll(dir, 0o755))
+
 	content := "---\nname: " + name + "\ndescription: " + desc + "\n---\n\n" + body
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(content), 0o644))
 }
@@ -67,18 +68,19 @@ func TestLoadSkillFromDir(t *testing.T) {
 	t.Run("missing SKILL.md", func(t *testing.T) {
 		dir := t.TempDir()
 		_, err := loadSkillFromDir(dir)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "reading SKILL.md")
 	})
 
 	t.Run("invalid frontmatter", func(t *testing.T) {
 		dir := filepath.Join(t.TempDir(), "bad-skill")
 		require.NoError(t, os.MkdirAll(dir, 0o755))
+
 		content := "not frontmatter at all"
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(content), 0o644))
 
 		_, err := loadSkillFromDir(dir)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "frontmatter")
 	})
 
@@ -87,46 +89,50 @@ func TestLoadSkillFromDir(t *testing.T) {
 		writeSkillMD(t, dir, "wrong-name", "A skill", "body")
 
 		_, err := loadSkillFromDir(dir)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "does not match directory")
 	})
 
 	t.Run("missing description", func(t *testing.T) {
 		dir := filepath.Join(t.TempDir(), "nodesc")
 		require.NoError(t, os.MkdirAll(dir, 0o755))
+
 		content := "---\nname: nodesc\n---\nbody"
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(content), 0o644))
 
 		_, err := loadSkillFromDir(dir)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "description is required")
 	})
 
 	t.Run("missing name", func(t *testing.T) {
 		dir := filepath.Join(t.TempDir(), "noname")
 		require.NoError(t, os.MkdirAll(dir, 0o755))
+
 		content := "---\ndescription: has desc\n---\nbody"
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(content), 0o644))
 
 		_, err := loadSkillFromDir(dir)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "name is required")
 	})
 
 	t.Run("invalid name in frontmatter", func(t *testing.T) {
 		dir := filepath.Join(t.TempDir(), "BAD")
 		require.NoError(t, os.MkdirAll(dir, 0o755))
+
 		content := "---\nname: BAD\ndescription: desc\n---\nbody"
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(content), 0o644))
 
 		_, err := loadSkillFromDir(dir)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid skill name")
 	})
 
 	t.Run("full frontmatter fields", func(t *testing.T) {
 		dir := filepath.Join(t.TempDir(), "full-skill")
 		require.NoError(t, os.MkdirAll(dir, 0o755))
+
 		content := `---
 name: full-skill
 description: Full skill test
@@ -152,11 +158,12 @@ Full instructions here.`
 	t.Run("unclosed frontmatter", func(t *testing.T) {
 		dir := filepath.Join(t.TempDir(), "unclosed")
 		require.NoError(t, os.MkdirAll(dir, 0o755))
+
 		content := "---\nname: unclosed\ndescription: test\n"
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(content), 0o644))
 
 		_, err := loadSkillFromDir(dir)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not closed")
 	})
 }

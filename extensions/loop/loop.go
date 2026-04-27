@@ -39,7 +39,7 @@ type Loop struct {
 	modelName    string
 	singleTurn   bool
 
-	thinkingLevel  sdk.ThinkingLevel
+	thinkingLevel   sdk.ThinkingLevel
 	availableSkills string
 
 	mu     sync.Mutex

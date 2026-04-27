@@ -84,6 +84,7 @@ func (m *UserMessage) View(width int) string {
 	}
 
 	var bldr strings.Builder
+
 	header := fmt.Sprintf("  [skill %s] ▼", block.name)
 	bldr.WriteString(dimStyle.Render(header))
 	bldr.WriteString("\n")
@@ -97,6 +98,7 @@ func (m *UserMessage) View(width int) string {
 
 	if block.trailing != "" {
 		bldr.WriteString("\n")
+
 		for line := range strings.SplitSeq(block.trailing, "\n") {
 			bldr.WriteString(dimStyle.Render("  " + line))
 			bldr.WriteString("\n")
