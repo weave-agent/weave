@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -121,4 +122,26 @@ func TestRenderSpinnerClean_Truncates(t *testing.T) {
 // Verify spinner.TickMsg is properly handled as a tea.Msg
 func TestSpinnerTickMsgIsTeaMsg(t *testing.T) {
 	var _ tea.Msg = spinner.TickMsg{}
+}
+
+func TestSpinnerModel_Draw_Hidden(t *testing.T) {
+	s := NewSpinnerModel()
+	canvas := uv.NewScreenBuffer(80, 1)
+	s.Draw(canvas, canvas.Bounds())
+	output := uv.TrimSpace(canvas.Render())
+	assert.Empty(t, output)
+}
+
+func TestSpinnerModel_Draw_Visible(t *testing.T) {
+	s := NewSpinnerModel().Show()
+	canvas := uv.NewScreenBuffer(80, 1)
+	s.Draw(canvas, canvas.Bounds())
+	output := uv.TrimSpace(canvas.Render())
+	assert.Contains(t, output, "Thinking...")
+}
+
+func TestSpinnerModel_Draw_ZeroArea(t *testing.T) {
+	s := NewSpinnerModel().Show()
+	canvas := uv.NewScreenBuffer(80, 1)
+	s.Draw(canvas, uv.Rect(0, 0, 0, 0))
 }

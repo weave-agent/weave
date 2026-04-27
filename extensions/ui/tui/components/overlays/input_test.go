@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -157,4 +158,35 @@ func TestInputViewShowsCursor(t *testing.T) {
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a', 'b'}})
 	view := m.View()
 	assert.Contains(t, view, "ab")
+}
+
+func TestInputDraw_Visible(t *testing.T) {
+	m := NewInputModel("Enter name:").Show().SetSize(60, 20)
+	canvas := uv.NewScreenBuffer(60, 20)
+	m.Draw(canvas, canvas.Bounds())
+	output := uv.TrimSpace(canvas.Render())
+	assert.Contains(t, output, "Enter name:")
+	assert.Contains(t, output, "confirm")
+}
+
+func TestInputDraw_WithText(t *testing.T) {
+	m := NewInputModel("Name:").Show().SetSize(60, 20)
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h', 'e', 'l', 'l', 'o'}})
+	canvas := uv.NewScreenBuffer(60, 20)
+	m.Draw(canvas, canvas.Bounds())
+	output := uv.TrimSpace(canvas.Render())
+	assert.Contains(t, output, "hello")
+}
+
+func TestInputDraw_Invisible(t *testing.T) {
+	m := NewInputModel("Test")
+	canvas := uv.NewScreenBuffer(60, 20)
+	m.Draw(canvas, canvas.Bounds())
+	// Draw is a no-op when invisible — screen buffer stays blank
+}
+
+func TestInputDraw_ZeroArea(t *testing.T) {
+	m := NewInputModel("Test").Show().SetSize(60, 20)
+	canvas := uv.NewScreenBuffer(60, 20)
+	m.Draw(canvas, uv.Rect(0, 0, 0, 0))
 }

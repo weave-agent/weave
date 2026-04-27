@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -134,4 +135,30 @@ func TestFormatThinkingLabel(t *testing.T) {
 			assert.Equal(t, tt.expect, FormatThinkingLabel(tt.lineCount))
 		})
 	}
+}
+
+func TestThinkingBlock_Draw_Collapsed(t *testing.T) {
+	b := NewThinkingBlock("secret thoughts")
+	canvas := uv.NewScreenBuffer(80, 5)
+	b.Draw(canvas, canvas.Bounds())
+	output := uv.TrimSpace(canvas.Render())
+	assert.Contains(t, output, "[thinking]")
+	assert.NotContains(t, output, "secret thoughts")
+}
+
+func TestThinkingBlock_Draw_Expanded(t *testing.T) {
+	b := NewThinkingBlock("deep thoughts\nmore thoughts")
+	b.ToggleExpanded()
+
+	canvas := uv.NewScreenBuffer(80, 10)
+	b.Draw(canvas, canvas.Bounds())
+	output := uv.TrimSpace(canvas.Render())
+	assert.Contains(t, output, "deep thoughts")
+	assert.Contains(t, output, "more thoughts")
+}
+
+func TestThinkingBlock_Draw_ZeroArea(t *testing.T) {
+	b := NewThinkingBlock("thinking content")
+	canvas := uv.NewScreenBuffer(80, 5)
+	b.Draw(canvas, uv.Rect(0, 0, 0, 0))
 }

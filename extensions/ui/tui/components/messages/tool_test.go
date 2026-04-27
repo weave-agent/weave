@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -156,4 +157,39 @@ func TestToolPanel_StateTransitions(t *testing.T) {
 	// Success -> error (reused panel)
 	p.SetResult("fail", true)
 	assert.Equal(t, ToolError, p.State())
+}
+
+func TestToolPanel_Draw_Pending(t *testing.T) {
+	p := NewToolPanel("tc1", "bash", "ls -la")
+	canvas := uv.NewScreenBuffer(80, 10)
+	p.Draw(canvas, canvas.Bounds())
+	output := uv.TrimSpace(canvas.Render())
+	assert.Contains(t, output, "bash")
+	assert.Contains(t, output, "running...")
+}
+
+func TestToolPanel_Draw_Success(t *testing.T) {
+	p := NewToolPanel("tc1", "bash", "ls")
+	p.SetResult("file1.txt\nfile2.txt", false)
+
+	canvas := uv.NewScreenBuffer(80, 10)
+	p.Draw(canvas, canvas.Bounds())
+	output := uv.TrimSpace(canvas.Render())
+	assert.Contains(t, output, "file1.txt")
+}
+
+func TestToolPanel_Draw_Error(t *testing.T) {
+	p := NewToolPanel("tc1", "bash", "ls")
+	p.SetResult("permission denied", true)
+
+	canvas := uv.NewScreenBuffer(80, 10)
+	p.Draw(canvas, canvas.Bounds())
+	output := uv.TrimSpace(canvas.Render())
+	assert.Contains(t, output, "permission denied")
+}
+
+func TestToolPanel_Draw_ZeroArea(t *testing.T) {
+	p := NewToolPanel("tc1", "bash", "ls")
+	canvas := uv.NewScreenBuffer(80, 10)
+	p.Draw(canvas, uv.Rect(0, 0, 0, 0))
 }

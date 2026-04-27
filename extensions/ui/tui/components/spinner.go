@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	uv "github.com/charmbracelet/ultraviolet"
 )
 
 // SpinnerModel displays an animated spinner with a "Thinking..." label during streaming.
@@ -83,6 +84,15 @@ func (m SpinnerModel) View() string {
 	}
 
 	return fmt.Sprintf("%s %s", m.sp.View(), m.label)
+}
+
+// Draw renders the spinner into a screen buffer region.
+func (m SpinnerModel) Draw(scr uv.Screen, area uv.Rectangle) {
+	if !m.visible || area.Dx() <= 0 || area.Dy() <= 0 {
+		return
+	}
+
+	uv.NewStyledString(m.View()).Draw(scr, area)
 }
 
 // SpinnerUpdate returns the updated model and cmd for spinner show/hide messages.

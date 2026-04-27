@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -133,4 +134,27 @@ func TestConfirmViewVisible(t *testing.T) {
 func TestConfirmViewZeroWidth(t *testing.T) {
 	m := NewConfirmModel("Test").Show()
 	assert.Empty(t, m.View())
+}
+
+func TestConfirmDraw_Visible(t *testing.T) {
+	m := NewConfirmModel("Are you sure?").Show().SetSize(60, 20)
+	canvas := uv.NewScreenBuffer(60, 20)
+	m.Draw(canvas, canvas.Bounds())
+	output := uv.TrimSpace(canvas.Render())
+	assert.Contains(t, output, "Are you sure?")
+	assert.Contains(t, output, "Yes")
+	assert.Contains(t, output, "No")
+}
+
+func TestConfirmDraw_Invisible(t *testing.T) {
+	m := NewConfirmModel("Test")
+	canvas := uv.NewScreenBuffer(60, 20)
+	m.Draw(canvas, canvas.Bounds())
+	// Draw is a no-op when invisible — screen buffer stays blank
+}
+
+func TestConfirmDraw_ZeroArea(t *testing.T) {
+	m := NewConfirmModel("Test").Show().SetSize(60, 20)
+	canvas := uv.NewScreenBuffer(60, 20)
+	m.Draw(canvas, uv.Rect(0, 0, 0, 0))
 }

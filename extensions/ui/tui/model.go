@@ -1302,13 +1302,13 @@ func (m Model) Draw(scr uv.Screen, area uv.Rectangle) {
 	// Built-in overlay (selector, key input)
 	if m.activeOverlay != overlayNone {
 		if m.activeOverlay == overlayKeyInput && m.keyInput.Visible() {
-			uv.NewStyledString(m.keyInput.View()).Draw(scr, area)
+			m.keyInput.Draw(scr, area)
 
 			return
 		}
 
 		if m.overlay.Visible() {
-			uv.NewStyledString(m.overlay.View()).Draw(scr, area)
+			m.overlay.Draw(scr, area)
 
 			return
 		}
@@ -1357,7 +1357,7 @@ func (m Model) Draw(scr uv.Screen, area uv.Rectangle) {
 
 		if m.spinner.Visible() {
 			spArea := uv.Rect(lt.Pills.Min.X, y, lt.Pills.Dx(), 1)
-			uv.NewStyledString(m.spinner.View()).Draw(scr, spArea)
+			m.spinner.Draw(scr, spArea)
 
 			y++
 		}
@@ -1373,7 +1373,7 @@ func (m Model) Draw(scr uv.Screen, area uv.Rectangle) {
 	m.editor.Draw(scr, lt.Editor)
 
 	// Render footer
-	uv.NewStyledString(m.footer.View()).Draw(scr, lt.Footer)
+	m.footer.Draw(scr, lt.Footer)
 }
 
 // View renders the TUI using ultraviolet screen buffers.

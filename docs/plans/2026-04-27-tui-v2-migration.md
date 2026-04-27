@@ -131,20 +131,20 @@ The core migration from v1 string-based rendering to v2 + ultraviolet screen buf
 
 ### Task 6: Migrate remaining components to v2
 
-- [ ] Rewrite `components/footer.go` — `Draw(scr, area)` with two-line status bar layout (CWD, git, tokens, model, thinking). Prepare the footer to also display token rate (placeholder for Phase 2).
-- [ ] Rewrite `components/spinner.go` — use v2 animation API. `Draw(scr, area)` with the Charm bubbles spinner.
-- [ ] Rewrite `components/messages/` — all message types:
+- [x] Rewrite `components/footer.go` — `Draw(scr, area)` with two-line status bar layout (CWD, git, tokens, model, thinking). Prepare the footer to also display token rate (placeholder for Phase 2).
+- [x] Rewrite `components/spinner.go` — use v2 animation API. `Draw(scr, area)` with the Charm bubbles spinner.
+- [x] Rewrite `components/messages/` — all message types:
   - `assistant.go` — `Draw(scr, area)` with streaming/finalized states
   - `user.go` — `Draw(scr, area)` for user prompt
   - `tool.go` — `Draw(scr, area)` for generic tool panel
   - `thinking.go` — `Draw(scr, area)` for collapsible thinking block
   - `markdown.go` — update Glamour to v2, keep renderer wrapper pattern
   - `diff.go` — keep unified diff parser logic, adapt output to screen buffer
-- [ ] Rewrite `components/overlays/` — all overlay components to `Draw(scr, area)`:
+- [x] Rewrite `components/overlays/` — all overlay components to `Draw(scr, area)`:
   - `selector.go`, `confirm.go`, `input.go`
-- [ ] Update `palette/thinking.go` — Lip Gloss v2 color API changes.
-- [ ] Write tests for each migrated component — verify Draw produces expected output in screen buffer at various widths.
-- [ ] Run full TUI test suite — all must pass before Phase 2.
+- [x] Update `palette/thinking.go` — Lip Gloss v2 color API changes.
+- [x] Write tests for each migrated component — verify Draw produces expected output in screen buffer at various widths.
+- [x] Run full TUI test suite — all must pass before Phase 2.
 
 ---
 

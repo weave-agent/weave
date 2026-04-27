@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	uv "github.com/charmbracelet/ultraviolet"
 )
 
 var skillXMLRe = regexp.MustCompile(`(?s)<skill\s+name="([^"]+)"[^>]*>(.*?)</skill>(.*)`)
@@ -106,4 +107,22 @@ func (m *UserMessage) View(width int) string {
 	}
 
 	return strings.TrimRight(bldr.String(), "\n")
+}
+
+// Draw renders the user message into a screen buffer region.
+func (m *UserMessage) Draw(scr uv.Screen, area uv.Rectangle) {
+	if area.Dx() <= 0 || area.Dy() <= 0 {
+		return
+	}
+
+	text := m.View(area.Dx())
+
+	for i, line := range strings.Split(text, "\n") {
+		if i >= area.Dy() {
+			break
+		}
+
+		lineRect := uv.Rect(area.Min.X, area.Min.Y+i, area.Dx(), 1)
+		uv.NewStyledString(line).Draw(scr, lineRect)
+	}
 }

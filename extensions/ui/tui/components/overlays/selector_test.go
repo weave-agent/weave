@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -251,4 +252,31 @@ func TestSelectorDuplicateItemsReturnsCorrectIndex(t *testing.T) {
 	selected := msg.(SelectorSelectedMsg)
 	assert.Equal(t, 1, selected.Index, "should return original index 1, not 0")
 	assert.Equal(t, "second", selected.Item.Subtitle)
+}
+
+func TestSelectorDraw_Visible(t *testing.T) {
+	items := []SelectorItem{
+		{Title: "Item 1", Subtitle: "sub1"},
+		{Title: "Item 2", Subtitle: "sub2"},
+	}
+	m := NewSelectorModel("Choose", items).Show().SetSize(60, 20)
+	canvas := uv.NewScreenBuffer(60, 20)
+	m.Draw(canvas, canvas.Bounds())
+	output := uv.TrimSpace(canvas.Render())
+	assert.Contains(t, output, "Choose")
+	assert.Contains(t, output, "Item 1")
+}
+
+func TestSelectorDraw_Invisible(t *testing.T) {
+	m := NewSelectorModel("Test", nil)
+	canvas := uv.NewScreenBuffer(60, 20)
+	m.Draw(canvas, canvas.Bounds())
+	// Draw is a no-op when invisible — screen buffer stays blank
+}
+
+func TestSelectorDraw_ZeroArea(t *testing.T) {
+	items := []SelectorItem{{Title: "A"}}
+	m := NewSelectorModel("Test", items).Show().SetSize(60, 20)
+	canvas := uv.NewScreenBuffer(60, 20)
+	m.Draw(canvas, uv.Rect(0, 0, 0, 0))
 }

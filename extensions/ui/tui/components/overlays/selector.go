@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	uv "github.com/charmbracelet/ultraviolet"
 )
 
 // SelectorItem is an item in the selector list.
@@ -289,4 +290,13 @@ func (m SelectorModel) View() string {
 		MarginTop(max(0, (m.height-len(lines))/2)).
 		MarginLeft(max(0, (m.width-boxWidth)/2)).
 		Render(strings.Join(lines, "\n"))
+}
+
+// Draw renders the selector overlay into a screen buffer region.
+func (m SelectorModel) Draw(scr uv.Screen, area uv.Rectangle) {
+	if !m.visible || area.Dx() <= 0 || area.Dy() <= 0 {
+		return
+	}
+
+	uv.NewStyledString(m.View()).Draw(scr, area)
 }

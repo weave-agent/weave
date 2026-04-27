@@ -1,6 +1,10 @@
 package messages
 
-import "strings"
+import (
+	"strings"
+
+	uv "github.com/charmbracelet/ultraviolet"
+)
 
 // AssistantMessage accumulates streaming text deltas into a single message.
 type AssistantMessage struct {
@@ -76,4 +80,22 @@ func (m *AssistantMessage) View(width int) string {
 	}
 
 	return m.renderer.Render(m.Content())
+}
+
+// Draw renders the assistant message into a screen buffer region.
+func (m *AssistantMessage) Draw(scr uv.Screen, area uv.Rectangle) {
+	if area.Dx() <= 0 || area.Dy() <= 0 {
+		return
+	}
+
+	text := m.View(area.Dx())
+
+	for i, line := range strings.Split(text, "\n") {
+		if i >= area.Dy() {
+			break
+		}
+
+		lineRect := uv.Rect(area.Min.X, area.Min.Y+i, area.Dx(), 1)
+		uv.NewStyledString(line).Draw(scr, lineRect)
+	}
 }

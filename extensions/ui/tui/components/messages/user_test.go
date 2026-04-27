@@ -1,8 +1,10 @@
 package messages
 
 import (
+	"strings"
 	"testing"
 
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -141,4 +143,46 @@ func TestUserMessage_View_PlainTextNotAffected(t *testing.T) {
 	m := NewUserMessage("regular message without xml")
 	view := m.View(80)
 	assert.Equal(t, "regular message without xml", view)
+}
+
+func TestUserMessage_Draw_PlainText(t *testing.T) {
+	m := NewUserMessage("hello world")
+	canvas := uv.NewScreenBuffer(80, 5)
+	m.Draw(canvas, canvas.Bounds())
+	output := uv.TrimSpace(canvas.Render())
+	assert.Contains(t, output, "hello world")
+}
+
+func TestUserMessage_Draw_SkillCollapsed(t *testing.T) {
+	m := NewUserMessage("<skill name=\"my-skill\">\nbody\n</skill>\n\ntrailing")
+	canvas := uv.NewScreenBuffer(80, 5)
+	m.Draw(canvas, canvas.Bounds())
+	output := uv.TrimSpace(canvas.Render())
+	assert.Contains(t, output, "[skill my-skill]")
+	assert.NotContains(t, output, "body")
+}
+
+func TestUserMessage_Draw_SkillExpanded(t *testing.T) {
+	m := NewUserMessage("<skill name=\"my-skill\">\nfull instructions\n</skill>")
+	m.ToggleExpanded()
+
+	canvas := uv.NewScreenBuffer(80, 10)
+	m.Draw(canvas, canvas.Bounds())
+	output := uv.TrimSpace(canvas.Render())
+	assert.Contains(t, output, "full instructions")
+}
+
+func TestUserMessage_Draw_MultilineClips(t *testing.T) {
+	m := NewUserMessage("line1\nline2\nline3\nline4\nline5")
+	canvas := uv.NewScreenBuffer(80, 2)
+	m.Draw(canvas, canvas.Bounds())
+	output := uv.TrimSpace(canvas.Render())
+	lines := strings.Split(output, "\n")
+	assert.LessOrEqual(t, len(lines), 2)
+}
+
+func TestUserMessage_Draw_ZeroArea(t *testing.T) {
+	m := NewUserMessage("hello")
+	canvas := uv.NewScreenBuffer(80, 5)
+	m.Draw(canvas, uv.Rect(0, 0, 0, 0))
 }

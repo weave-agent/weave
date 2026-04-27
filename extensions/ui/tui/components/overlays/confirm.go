@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	uv "github.com/charmbracelet/ultraviolet"
 )
 
 // ConfirmResultMsg is emitted when the user responds to a confirm dialog.
@@ -153,4 +154,13 @@ func (m ConfirmModel) View() string {
 		MarginTop(max(0, (m.height-len(lines))/2)).
 		MarginLeft(max(0, (m.width-boxWidth)/2)).
 		Render(strings.Join(lines, "\n"))
+}
+
+// Draw renders the confirm dialog overlay into a screen buffer region.
+func (m ConfirmModel) Draw(scr uv.Screen, area uv.Rectangle) {
+	if !m.visible || area.Dx() <= 0 || area.Dy() <= 0 {
+		return
+	}
+
+	uv.NewStyledString(m.View()).Draw(scr, area)
 }

@@ -1,8 +1,10 @@
 package messages
 
 import (
+	"strings"
 	"testing"
 
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -96,4 +98,54 @@ func TestAssistantMessage_Interrupt_NotStreaming(t *testing.T) {
 	m.Interrupt() // no-op on finalized message
 	assert.False(t, m.Interrupted())
 	assert.Equal(t, "done", m.Content())
+}
+
+func TestAssistantMessage_Draw_Streaming(t *testing.T) {
+	m := NewAssistantMessage()
+	m.Append("hello world")
+
+	canvas := uv.NewScreenBuffer(80, 5)
+	m.Draw(canvas, canvas.Bounds())
+	output := uv.TrimSpace(canvas.Render())
+	assert.Contains(t, output, "hello world")
+}
+
+func TestAssistantMessage_Draw_Finalized(t *testing.T) {
+	m := NewAssistantMessage()
+	m.Finalize("# Hello\n\nSome **bold** text.")
+
+	canvas := uv.NewScreenBuffer(80, 10)
+	m.Draw(canvas, canvas.Bounds())
+	output := uv.TrimSpace(canvas.Render())
+	assert.Contains(t, output, "Hello")
+}
+
+func TestAssistantMessage_Draw_Multiline(t *testing.T) {
+	m := NewAssistantMessage()
+	m.Append("line1\nline2\nline3")
+
+	canvas := uv.NewScreenBuffer(80, 5)
+	m.Draw(canvas, canvas.Bounds())
+	output := uv.TrimSpace(canvas.Render())
+	lines := strings.Split(output, "\n")
+	assert.GreaterOrEqual(t, len(lines), 3)
+}
+
+func TestAssistantMessage_Draw_ClipsToArea(t *testing.T) {
+	m := NewAssistantMessage()
+	m.Append("line1\nline2\nline3\nline4\nline5")
+
+	canvas := uv.NewScreenBuffer(80, 2)
+	m.Draw(canvas, canvas.Bounds())
+	output := uv.TrimSpace(canvas.Render())
+	lines := strings.Split(output, "\n")
+	assert.LessOrEqual(t, len(lines), 2)
+}
+
+func TestAssistantMessage_Draw_ZeroArea(t *testing.T) {
+	m := NewAssistantMessage()
+	m.Append("hello")
+
+	canvas := uv.NewScreenBuffer(80, 5)
+	m.Draw(canvas, uv.Rect(0, 0, 0, 0))
 }

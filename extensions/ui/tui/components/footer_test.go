@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -208,4 +209,42 @@ func TestFooterView_ThinkingLevelShownForReasoning(t *testing.T) {
 	f := NewFooterModel().SetSize(80).SetModel("claude-sonnet-4", "anthropic").SetReasoning(true).SetThinkingLevel("medium")
 	view := f.View()
 	assert.Contains(t, view, "anthropic/claude-sonnet-4 · medium")
+}
+
+func TestFooterModel_Draw(t *testing.T) {
+	f := NewFooterModel().SetSize(80).SetModel("claude-sonnet-4", "anthropic")
+	canvas := uv.NewScreenBuffer(80, 2)
+	f.Draw(canvas, canvas.Bounds())
+	output := uv.TrimSpace(canvas.Render())
+	assert.Contains(t, output, "anthropic/claude-sonnet-4")
+}
+
+func TestFooterModel_Draw_TwoLines(t *testing.T) {
+	f := NewFooterModel().SetSize(80).SetTokenUsage(100, 50, 0.01)
+	canvas := uv.NewScreenBuffer(80, 2)
+	f.Draw(canvas, canvas.Bounds())
+	output := uv.TrimSpace(canvas.Render())
+	lines := strings.Split(output, "\n")
+	assert.Len(t, lines, 2)
+	assert.Contains(t, lines[1], "in:100")
+	assert.Contains(t, lines[1], "out:50")
+}
+
+func TestFooterModel_Draw_ZeroArea(t *testing.T) {
+	f := NewFooterModel().SetSize(80)
+	canvas := uv.NewScreenBuffer(80, 2)
+	f.Draw(canvas, uv.Rect(0, 0, 0, 0))
+}
+
+func TestFooterModel_Draw_SingleRow(t *testing.T) {
+	f := NewFooterModel().SetSize(80)
+	canvas := uv.NewScreenBuffer(80, 1)
+	f.Draw(canvas, canvas.Bounds())
+	output := uv.TrimSpace(canvas.Render())
+	assert.Contains(t, output, "weave")
+}
+
+func TestFooterModel_SetTokenRate(t *testing.T) {
+	f := NewFooterModel().SetTokenRate(42.5)
+	assert.InDelta(t, 42.5, f.TokenRate(), 0.01)
 }

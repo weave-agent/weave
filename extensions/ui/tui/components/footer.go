@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
+	uv "github.com/charmbracelet/ultraviolet"
 )
 
 // FooterModel renders a two-line status bar with context information.
@@ -30,6 +31,9 @@ type FooterModel struct {
 	providerName  string
 	thinkingLevel string
 	reasoning     bool
+
+	// Token rate (placeholder for Phase 2 streaming enhancements)
+	tokenRate float64
 
 	// Extension status entries (set by cross-extension UI)
 	extStatus map[string]string
@@ -103,6 +107,15 @@ func (m FooterModel) SetThinkingLevel(level string) FooterModel {
 // ThinkingLevel returns the current thinking level.
 func (m FooterModel) ThinkingLevel() string { return m.thinkingLevel }
 
+// SetTokenRate updates the token rate display (placeholder for Phase 2).
+func (m FooterModel) SetTokenRate(rate float64) FooterModel {
+	m.tokenRate = rate
+	return m
+}
+
+// TokenRate returns the current token rate.
+func (m FooterModel) TokenRate() float64 { return m.tokenRate }
+
 // SetExtStatus sets an extension status entry.
 func (m FooterModel) SetExtStatus(key, text string) FooterModel {
 	m.extStatus[key] = text
@@ -145,6 +158,24 @@ func (m FooterModel) View() string {
 	line2 := m.renderLine2()
 
 	return line1 + "\n" + line2
+}
+
+// Draw renders the footer into a screen buffer region.
+// Line 1 (CWD + git) goes into the first row, line 2 (tokens + model) into the second.
+func (m FooterModel) Draw(scr uv.Screen, area uv.Rectangle) {
+	if area.Dx() <= 0 || area.Dy() <= 0 || m.width <= 0 {
+		return
+	}
+
+	if area.Dy() >= 1 {
+		line1Rect := uv.Rect(area.Min.X, area.Min.Y, area.Dx(), 1)
+		uv.NewStyledString(m.renderLine1()).Draw(scr, line1Rect)
+	}
+
+	if area.Dy() >= 2 {
+		line2Rect := uv.Rect(area.Min.X, area.Min.Y+1, area.Dx(), 1)
+		uv.NewStyledString(m.renderLine2()).Draw(scr, line2Rect)
+	}
 }
 
 func (m FooterModel) renderLine1() string {
