@@ -176,6 +176,66 @@ func TestFormatUserMessage(t *testing.T) {
 	assert.Equal(t, "> fix the bug", FormatUserMessage("fix the bug"))
 }
 
+// countingItem tracks how many times View is called.
+type countingItem struct {
+	text  string
+	views int
+}
+
+func (c *countingItem) View(width int) string {
+	c.views++
+	return c.text
+}
+
+func TestChatModel_CacheAvoidsRedundantRenders(t *testing.T) {
+	m := NewChatModel().SetSize(80, 10)
+
+	item := &countingItem{text: "hello world"}
+	m = m.AddItem(item)
+
+	// First View renders the item
+	_ = m.View()
+
+	assert.Equal(t, 1, item.views)
+
+	// Second View uses cache — no additional render
+	_ = m.View()
+
+	assert.Equal(t, 1, item.views)
+
+	// Changing size invalidates cache
+	m = m.SetSize(80, 10) // same size — no invalidation
+	_ = m.View()
+
+	assert.Equal(t, 1, item.views)
+
+	m = m.SetSize(100, 10) // different size — invalidation
+	_ = m.View()
+
+	assert.Equal(t, 2, item.views)
+
+	// UpdateItem invalidates the entry
+	m = m.UpdateItem(&countingItem{text: "updated"})
+	_ = m.View()
+	// New item was rendered once by View (the replaced item doesn't get re-rendered)
+}
+
+func TestChatModel_CacheInvalidatedOnSetSizeWidthChange(t *testing.T) {
+	m := NewChatModel().SetSize(80, 10)
+
+	item := &countingItem{text: "hello"}
+	m = m.AddItem(item)
+
+	_ = m.View()
+
+	assert.Equal(t, 1, item.views)
+
+	m = m.SetSize(60, 10)
+	_ = m.View()
+
+	assert.Equal(t, 2, item.views) // re-rendered because width changed
+}
+
 // splitLines splits a string by newlines.
 func splitLines(s string) []string {
 	if s == "" {

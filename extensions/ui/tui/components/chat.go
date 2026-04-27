@@ -18,12 +18,19 @@ type ChatItemIdentity interface {
 	ItemID() string
 }
 
+// cacheEntry stores the rendered output for a chat item at a given width.
+type cacheEntry struct {
+	width int
+	lines []string
+}
+
 // ChatModel manages a scrollable list of chat items.
 type ChatModel struct {
 	items  []ChatItem
 	width  int
 	height int
 	scroll int
+	cache  *[]cacheEntry // pointer so value copies share state
 }
 
 // NewChatModel creates a new chat model.
@@ -31,8 +38,16 @@ func NewChatModel() ChatModel {
 	return ChatModel{}
 }
 
-// SetSize updates the chat dimensions.
+// SetSize updates the chat dimensions and invalidates the entire cache.
 func (m ChatModel) SetSize(width, height int) ChatModel {
+	if m.width != width {
+		m.cache = nil
+	} else if m.cache == nil {
+		// Ensure cache pointer is initialized for value-copy sharing.
+		c := make([]cacheEntry, len(m.items))
+		m.cache = &c
+	}
+
 	m.width = width
 	m.height = height
 
@@ -77,6 +92,11 @@ func (m ChatModel) ScrollDown(n int) ChatModel {
 // AddItem appends a chat item and auto-scrolls to bottom.
 func (m ChatModel) AddItem(item ChatItem) ChatModel {
 	m.items = append(m.items, item)
+
+	if m.cache != nil {
+		*m.cache = append(*m.cache, cacheEntry{})
+	}
+
 	m.scrollToBottom()
 
 	return m
@@ -87,8 +107,13 @@ func (m ChatModel) AddItem(item ChatItem) ChatModel {
 func (m ChatModel) UpdateItem(item ChatItem) ChatModel {
 	if len(m.items) > 0 {
 		m.items[len(m.items)-1] = item
+		m.invalidate(len(m.items) - 1)
 	} else {
 		m.items = append(m.items, item)
+
+		if m.cache != nil {
+			*m.cache = append(*m.cache, cacheEntry{})
+		}
 	}
 
 	return m
@@ -106,11 +131,20 @@ func (m ChatModel) UpdateItemByID(item ChatItem) ChatModel {
 	for i, existing := range m.items {
 		if eid, ok := existing.(ChatItemIdentity); ok && eid.ItemID() == targetID {
 			m.items[i] = item
+			m.invalidate(i)
+
 			return m
 		}
 	}
 
 	return m.AddItem(item)
+}
+
+// invalidate marks a single cache entry as stale.
+func (m *ChatModel) invalidate(index int) {
+	if m.cache != nil && index >= 0 && index < len(*m.cache) {
+		(*m.cache)[index] = cacheEntry{}
+	}
 }
 
 // scrollToBottom adjusts scroll to show the last line.
@@ -119,25 +153,37 @@ func (m *ChatModel) scrollToBottom() {
 	m.scroll = max(0, totalLines-m.height)
 }
 
-// totalLines counts the total rendered lines across all items.
-func (m ChatModel) totalLines() int {
+// totalLines counts the total rendered lines across all items, using cache where possible.
+func (m *ChatModel) totalLines() int {
+	m.ensureCache()
+
 	total := 0
-	for _, item := range m.items {
-		total += m.itemLines(item)
+	for i := range m.items {
+		total += len((*m.cache)[i].lines)
 	}
 
 	return total
 }
 
-// itemLines counts lines for a single item at the current width.
-func (m ChatModel) itemLines(item ChatItem) int {
-	if m.width <= 0 {
-		return 1
+// ensureCache guarantees the cache slice is aligned with items and renders any missing entries.
+func (m *ChatModel) ensureCache() {
+	if m.cache == nil {
+		c := make([]cacheEntry, len(m.items))
+		m.cache = &c
+	} else if len(*m.cache) != len(m.items) {
+		c := make([]cacheEntry, len(m.items))
+		m.cache = &c
 	}
 
-	text := item.View(m.width)
-
-	return len(strings.Split(text, "\n"))
+	for i, item := range m.items {
+		if (*m.cache)[i].width != m.width || (*m.cache)[i].lines == nil {
+			text := item.View(m.width)
+			(*m.cache)[i] = cacheEntry{
+				width: m.width,
+				lines: strings.Split(text, "\n"),
+			}
+		}
+	}
 }
 
 // Update handles messages for the chat model.
@@ -153,11 +199,12 @@ func (m ChatModel) View() string {
 		return ""
 	}
 
+	m.ensureCache()
+
 	var allLines []string
 
-	for _, item := range m.items {
-		text := item.View(m.width)
-		allLines = append(allLines, strings.Split(text, "\n")...)
+	for i := range m.items {
+		allLines = append(allLines, (*m.cache)[i].lines...)
 	}
 
 	total := len(allLines)
