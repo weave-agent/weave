@@ -33,6 +33,15 @@ func executeBatchCmd(t *testing.T, cmd tea.Cmd) {
 	}
 }
 
+// newModelNoLanding creates a model with landing screen disabled.
+// Use in tests that check chat view content.
+func newModelNoLanding() Model {
+	m := newModel(nil, nil, nil)
+	m.showLanding = false
+
+	return m
+}
+
 func TestModel_HandlesMessageStart(t *testing.T) {
 	m := newModel(nil, nil, nil)
 	m.width = 80
@@ -140,7 +149,7 @@ func TestModel_FullStreamingFlow(t *testing.T) {
 }
 
 func TestModel_ViewShowsChatContent(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModelNoLanding()
 	m.width = 80
 	m.height = 24
 	m.chat = m.chat.SetSize(80, m.chatHeight(24))
@@ -418,7 +427,7 @@ func TestModel_ToolResultUnknownID(t *testing.T) {
 }
 
 func TestModel_ToolPanelInlineInChat(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModelNoLanding()
 	m.width = 80
 	m.height = 30
 	m.chat = m.chat.SetSize(80, 30)
@@ -527,7 +536,7 @@ func TestModel_MessageEndWithoutThinking(t *testing.T) {
 }
 
 func TestModel_ThinkingBlockInChatView(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModelNoLanding()
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -1616,7 +1625,7 @@ func TestModel_Draw_RendersAllSections(t *testing.T) {
 }
 
 func TestModel_Draw_ShowsChatContent(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModelNoLanding()
 	m.width = 120
 	m.height = 30
 	m.chat = m.chat.SetSize(120, m.chatHeight(30))
@@ -1647,7 +1656,7 @@ func TestModel_Draw_HintsInHeader(t *testing.T) {
 }
 
 func TestModel_Draw_NoHintsAfterFirstPrompt(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModelNoLanding()
 	m.width = 120
 	m.height = 30
 
@@ -1735,7 +1744,7 @@ func TestModel_Draw_SmallTerminal(t *testing.T) {
 }
 
 func TestModel_Draw_StreamingFlow(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModelNoLanding()
 	m.width = 120
 	m.height = 30
 	m.chat = m.chat.SetSize(120, m.chatHeight(30))
@@ -1757,7 +1766,7 @@ func TestModel_Draw_StreamingFlow(t *testing.T) {
 }
 
 func TestModel_Draw_ComposerSyncsChatSize(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModelNoLanding()
 	m.width = 100
 	m.height = 20
 	m.chat = m.chat.SetSize(100, 20) // oversized on purpose

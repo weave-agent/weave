@@ -168,11 +168,11 @@ Build the core feature improvements on the now-stable v2 foundation.
 
 ### Task 8: Add landing state
 
-- [ ] Create `landing.go` — `LandingModel` with `Draw(scr, area)` rendering: ASCII logo, current model/provider name, 3-4 keybinding hints, placeholder text. Simple boolean flag `showLanding` in root model.
-- [ ] Update root model — show landing before first prompt, hide on `onSubmit`. Re-show on `/clear` or `/new`. When landing is active, editor is still visible below it.
-- [ ] Update `Draw()` in root — if `showLanding`, render landing into the main area rectangle instead of chat.
-- [ ] Write tests for landing visibility — shown initially, hidden after first submit, re-shown on clear.
-- [ ] Run tests — must pass before Task 9.
+- [x] Create `landing.go` — `LandingModel` with `Draw(scr, area)` rendering: ASCII logo, current model/provider name, 3-4 keybinding hints, placeholder text. Simple boolean flag `showLanding` in root model.
+- [x] Update root model — show landing before first prompt, hide on `onSubmit`. Re-show on `/clear` or `/new`. When landing is active, editor is still visible below it.
+- [x] Update `Draw()` in root — if `showLanding`, render landing into the main area rectangle instead of chat.
+- [x] Write tests for landing visibility — shown initially, hidden after first submit, re-shown on clear.
+- [x] Run tests — must pass before Task 9.
 
 ---
 

@@ -93,6 +93,10 @@ type Model struct {
 	// startup hints banner
 	showHints bool
 
+	// landing screen shown before first prompt
+	showLanding bool
+	landing     LandingModel
+
 	// transient status message
 	statusMsg   string
 	statusTimer tea.Cmd
@@ -173,6 +177,8 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 		thinkingLevel: initialThinkingLevel(),
 		noConfigured:  len(models) == 0,
 		showHints:     true,
+		showLanding:   true,
+		landing:       NewLandingModel(cur.Model, cur.Provider),
 		dialogStack:   overlays.NewDialogStack(),
 		popupChans:    make(map[string]chan overlayResponse),
 	}
@@ -538,6 +544,7 @@ func (m Model) dispatchBinding(action BindingAction) (tea.Model, tea.Cmd) {
 		m.chat = components.NewChatModel().SetSize(m.width, m.chatHeight(m.height))
 		m.toolPanels = make(map[string]*messages.ToolPanel)
 		m.prompted = false
+		m.showLanding = true
 
 		return m, nil
 
@@ -751,6 +758,7 @@ func (m Model) onSubmit(text string) (tea.Model, tea.Cmd) {
 
 			m.chat = m.chat.AddItem(messages.NewUserMessage(xmlContent))
 			m.prompted = true
+			m.showLanding = false
 		}
 
 		if result.Quit {
@@ -760,6 +768,7 @@ func (m Model) onSubmit(text string) (tea.Model, tea.Cmd) {
 		if result.ClearChat {
 			m.chat = components.NewChatModel().SetSize(m.width, m.chatHeight(m.height))
 			m.toolPanels = make(map[string]*messages.ToolPanel)
+			m.showLanding = true
 		}
 
 		if result.ResetPrompt {
@@ -783,6 +792,8 @@ func (m Model) onSubmit(text string) (tea.Model, tea.Cmd) {
 
 	if !m.prompted {
 		m.prompted = true
+		m.showLanding = false
+
 		return m, PublishPrompt(m.bus, text)
 	}
 
@@ -1266,7 +1277,7 @@ func (m Model) chatHeight(totalHeight int) int {
 	}
 
 	hintsLines := 0
-	if m.showHints && !m.prompted && len(m.chat.Items()) == 0 {
+	if !m.showLanding && m.showHints && !m.prompted && len(m.chat.Items()) == 0 {
 		hintsLines = 1
 	}
 
@@ -1290,7 +1301,7 @@ func (m Model) Draw(scr uv.Screen, area uv.Rectangle) {
 
 	// Compute dynamic layout parameters
 	headerRows := 0
-	if m.showHints && !m.prompted && len(m.chat.Items()) == 0 {
+	if !m.showLanding && m.showHints && !m.prompted && len(m.chat.Items()) == 0 {
 		headerRows = 1
 	}
 
@@ -1322,8 +1333,13 @@ func (m Model) Draw(scr uv.Screen, area uv.Rectangle) {
 		)).Draw(scr, lt.Header)
 	}
 
-	// Render main (chat)
-	m.chat.Draw(scr, lt.Main)
+	// Render main (chat or landing)
+	if m.showLanding {
+		m.landing = m.landing.SetSize(lt.Main.Dx(), lt.Main.Dy())
+		m.landing.Draw(scr, lt.Main)
+	} else {
+		m.chat.Draw(scr, lt.Main)
+	}
 
 	// Render pills (spinner + status)
 	if pillRows > 0 && lt.Pills.Dy() > 0 {

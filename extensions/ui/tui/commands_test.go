@@ -297,7 +297,7 @@ func TestModel_SlashCommandClear(t *testing.T) {
 }
 
 func TestModel_SlashCommandHelpShowsMessage(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModelNoLanding()
 	m.width = 80
 	m.height = 10
 	m.chat = m.chat.SetSize(80, 10)
@@ -365,7 +365,7 @@ func TestModel_RegularSubmitFollowup(t *testing.T) {
 }
 
 func TestModel_UnknownCommandShowsError(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModelNoLanding()
 	m.width = 80
 	m.height = 10
 	m.chat = m.chat.SetSize(80, 10)
