@@ -57,6 +57,15 @@ func init() {
 				BaseURL: baseURL,
 				APIKey:  apiKey,
 				Model:   model,
+				ExtraBody: map[string]any{
+					"tool_stream": true,
+				},
+				ModifyRequest: func(body map[string]any, so *sdk.StreamOptions) {
+					if so.ThinkingLevel != sdk.ThinkingOff {
+						body["enable_thinking"] = true
+						delete(body, "reasoning_effort")
+					}
+				},
 			},
 		}, nil
 	})
