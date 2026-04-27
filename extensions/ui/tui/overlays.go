@@ -1,33 +1,20 @@
 package tui
 
 import (
+	"fmt"
+
 	"weave/ext/ui/tui/components/messages"
 	"weave/ext/ui/tui/components/overlays"
 
 	tea "github.com/charmbracelet/bubbletea"
-	uv "github.com/charmbracelet/ultraviolet"
 )
 
-// DialogStack manages a stack of dialog overlays.
-// Full implementation lives in Task 7 (overlay stack).
-type DialogStack struct{}
-
-// Dialog is the interface for overlay dialogs rendered into screen buffers.
-// Full implementation lives in Task 7 (overlay stack).
-type Dialog interface {
-	ID() string
-	Draw(scr uv.Screen, area uv.Rectangle)
-}
-
-// overlayKind identifies which inline overlay is active.
-type overlayKind int
-
+// Dialog IDs for built-in overlays.
 const (
-	overlayNone overlayKind = iota
-	overlaySession
-	overlayModel
-	overlayProvider
-	overlayKeyInput
+	dialogSessionSelect  = "session-select"
+	dialogModelSelect    = "model-select"
+	dialogProviderSelect = "provider-select"
+	dialogKeyInput       = "key-input"
 )
 
 // overlayRequestKind identifies the type of cross-extension popup request.
@@ -55,16 +42,6 @@ type overlayResponse struct {
 	value     string
 	confirmed bool
 	err       error
-}
-
-// popupState tracks the active cross-extension popup and its response channel.
-type popupState struct {
-	kind    overlayRequestKind
-	confirm overlays.ConfirmModel
-	input   overlays.InputModel
-	select_ overlays.SelectorModel
-	items   []string
-	result  chan overlayResponse
 }
 
 // Internal tea.Msg types.
@@ -100,4 +77,58 @@ func newNotifyAssistantMsg(text string) *messages.AssistantMessage {
 	am.Finalize(text)
 
 	return am
+}
+
+// nextPopupDialogID generates a unique ID for popup dialog instances.
+func nextPopupDialogID(kind overlayRequestKind, seq *int) string {
+	*seq++
+
+	var prefix string
+
+	switch kind {
+	case requestSelect:
+		prefix = "popup-select"
+	case requestConfirm:
+		prefix = "popup-confirm"
+	case requestInput:
+		prefix = "popup-input"
+	}
+
+	return fmt.Sprintf("%s-%d", prefix, *seq)
+}
+
+// pushPopupDialog creates a dialog for a popup request and pushes it onto the stack.
+func pushPopupDialog(m Model, req *overlayRequest) (Model, tea.Cmd) {
+	id := nextPopupDialogID(req.kind, &m.popupSeq)
+	m.popupChans[id] = req.result
+
+	switch req.kind {
+	case requestSelect:
+		items := make([]overlays.SelectorItem, len(req.items))
+		for i, title := range req.items {
+			items[i] = overlays.SelectorItem{Title: title}
+		}
+
+		sel := overlays.NewSelectorModel(req.title, items)
+		sel = sel.SetSize(m.width, m.height)
+		sel = sel.Show()
+
+		m.dialogStack = m.dialogStack.Push(overlays.NewSelectorDialog(id, sel))
+
+	case requestConfirm:
+		conf := overlays.NewConfirmModel(req.message)
+		conf = conf.SetSize(m.width, m.height)
+		conf = conf.Show()
+
+		m.dialogStack = m.dialogStack.Push(overlays.NewConfirmDialog(id, conf))
+
+	case requestInput:
+		input := overlays.NewInputModel(req.message)
+		input = input.SetSize(m.width, m.height)
+		input = input.Show()
+
+		m.dialogStack = m.dialogStack.Push(overlays.NewInputDialog(id, input))
+	}
+
+	return m, nil
 }

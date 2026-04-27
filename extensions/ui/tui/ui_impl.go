@@ -6,7 +6,6 @@ import (
 	"strings"
 	"sync"
 
-	"weave/ext/ui/tui/components/overlays"
 	"weave/sdk"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -288,12 +287,9 @@ func (u *TUIImpl) hasPendingPopups() bool {
 	return len(u.popupQ) > 0
 }
 
-// handlePopupPending processes queued popup requests.
-// Returns a tea.Cmd if an overlay was activated.
-//
-//nolint:unparam // tea.Cmd return matches Bubble Tea Update pattern
+// handlePopupPending processes queued popup requests by pushing them onto the dialog stack.
 func (m Model) handlePopupPending() (Model, tea.Cmd) {
-	if m.ui == nil || m.popup != nil {
+	if m.ui == nil {
 		return m, nil
 	}
 
@@ -302,125 +298,5 @@ func (m Model) handlePopupPending() (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	m.popup = &popupState{
-		kind:   req.kind,
-		result: req.result,
-	}
-
-	switch req.kind {
-	case requestSelect:
-		items := make([]overlays.SelectorItem, len(req.items))
-		for i, title := range req.items {
-			items[i] = overlays.SelectorItem{Title: title}
-		}
-
-		m.popup.select_ = overlays.NewSelectorModel(req.title, items)
-		m.popup.select_ = m.popup.select_.SetSize(m.width, m.height)
-		m.popup.select_ = m.popup.select_.Show()
-		m.popup.items = req.items
-
-	case requestConfirm:
-		m.popup.confirm = overlays.NewConfirmModel(req.message)
-		m.popup.confirm = m.popup.confirm.SetSize(m.width, m.height)
-		m.popup.confirm = m.popup.confirm.Show()
-
-	case requestInput:
-		m.popup.input = overlays.NewInputModel(req.message)
-		m.popup.input = m.popup.input.SetSize(m.width, m.height)
-		m.popup.input = m.popup.input.Show()
-	}
-
-	return m, nil
-}
-
-// handlePopupUpdate routes messages to the active popup overlay.
-func (m Model) handlePopupUpdate(msg tea.Msg) (Model, tea.Cmd) {
-	if m.popup == nil {
-		return m, nil
-	}
-
-	switch msg := msg.(type) {
-	case overlays.SelectorSelectedMsg:
-		if m.popup.kind == requestSelect {
-			idx := msg.Index
-			m.popup.result <- overlayResponse{index: idx}
-
-			m.popup = nil
-
-			return m, checkNextPopupCmd(m.ui)
-		}
-
-	case overlays.SelectorCancelledMsg:
-		if m.popup.kind == requestSelect {
-			m.popup.result <- overlayResponse{index: -1, err: errors.New("canceled")}
-
-			m.popup = nil
-
-			return m, checkNextPopupCmd(m.ui)
-		}
-
-	case overlays.ConfirmResultMsg:
-		if m.popup.kind == requestConfirm {
-			m.popup.result <- overlayResponse{confirmed: msg.Confirmed}
-
-			m.popup = nil
-
-			return m, checkNextPopupCmd(m.ui)
-		}
-
-	case overlays.InputResultMsg:
-		if m.popup.kind == requestInput {
-			if msg.Ok {
-				m.popup.result <- overlayResponse{value: msg.Value}
-			} else {
-				m.popup.result <- overlayResponse{err: errors.New("canceled")}
-			}
-
-			m.popup = nil
-
-			return m, checkNextPopupCmd(m.ui)
-		}
-
-	case tea.KeyMsg:
-		switch m.popup.kind {
-		case requestSelect:
-			var cmd tea.Cmd
-
-			m.popup.select_, cmd = m.popup.select_.Update(msg)
-
-			return m, cmd
-		case requestConfirm:
-			var cmd tea.Cmd
-
-			m.popup.confirm, cmd = m.popup.confirm.Update(msg)
-
-			return m, cmd
-		case requestInput:
-			var cmd tea.Cmd
-
-			m.popup.input, cmd = m.popup.input.Update(msg)
-
-			return m, cmd
-		}
-	}
-
-	return m, nil
-}
-
-// popupView returns the view for the active popup overlay.
-func (m Model) popupView() string {
-	if m.popup == nil {
-		return ""
-	}
-
-	switch m.popup.kind {
-	case requestSelect:
-		return m.popup.select_.View()
-	case requestConfirm:
-		return m.popup.confirm.View()
-	case requestInput:
-		return m.popup.input.View()
-	}
-
-	return ""
+	return pushPopupDialog(m, req)
 }

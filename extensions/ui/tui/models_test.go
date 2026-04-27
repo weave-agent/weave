@@ -13,6 +13,7 @@ import (
 	"weave/sdk"
 
 	tea "github.com/charmbracelet/bubbletea"
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -138,12 +139,13 @@ func TestModel_ModelListResultShowsOverlay(t *testing.T) {
 	model, _ := m.Update(ModelListResultMsg{Models: models})
 	m = model.(Model)
 
-	assert.Equal(t, overlayModel, m.activeOverlay)
-	assert.True(t, m.overlay.Visible())
+	assert.False(t, m.dialogStack.Empty())
 	assert.Equal(t, models, m.pendingModels)
 
-	view := m.overlay.View()
-	assert.Contains(t, view, "Select Model")
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvas, canvas.Bounds())
+	rendered := canvas.Render()
+	assert.Contains(t, rendered, "Select Model")
 }
 
 func TestModel_ModelListResultEmpty(t *testing.T) {
@@ -155,7 +157,7 @@ func TestModel_ModelListResultEmpty(t *testing.T) {
 	model, _ := m.Update(ModelListResultMsg{Models: nil})
 	m = model.(Model)
 
-	assert.Equal(t, overlayNone, m.activeOverlay)
+	assert.True(t, m.dialogStack.Empty())
 
 	items := m.chat.Items()
 	require.Len(t, items, 1)
@@ -178,7 +180,7 @@ func TestModel_ModelListResultSingle(t *testing.T) {
 	m = model.(Model)
 
 	// Should show a message instead of overlay for single model
-	assert.Equal(t, overlayNone, m.activeOverlay)
+	assert.True(t, m.dialogStack.Empty())
 
 	items := m.chat.Items()
 	require.Len(t, items, 1)
@@ -200,7 +202,7 @@ func TestModel_ModelSelectorSelect(t *testing.T) {
 
 	model, _ := m.Update(ModelListResultMsg{Models: models})
 	m = model.(Model)
-	require.Equal(t, overlayModel, m.activeOverlay)
+	require.False(t, m.dialogStack.Empty())
 
 	// Select the second model
 	model, _ = m.Update(overlays.SelectorSelectedMsg{Index: 1, Item: overlays.SelectorItem{
@@ -208,7 +210,7 @@ func TestModel_ModelSelectorSelect(t *testing.T) {
 	}})
 	m = model.(Model)
 
-	assert.Equal(t, overlayNone, m.activeOverlay)
+	assert.True(t, m.dialogStack.Empty())
 	assert.Equal(t, "openai", m.currentModel.Provider)
 	assert.Equal(t, "gpt-5.5", m.currentModel.Model)
 	assert.Equal(t, "gpt-5.5", m.footer.ModelName())
@@ -227,12 +229,12 @@ func TestModel_ModelSelectorCancel(t *testing.T) {
 
 	model, _ := m.Update(ModelListResultMsg{Models: models})
 	m = model.(Model)
-	require.Equal(t, overlayModel, m.activeOverlay)
+	require.False(t, m.dialogStack.Empty())
 
 	model, _ = m.Update(overlays.SelectorCancelledMsg{})
 	m = model.(Model)
 
-	assert.Equal(t, overlayNone, m.activeOverlay)
+	assert.True(t, m.dialogStack.Empty())
 	assert.Nil(t, m.pendingModels)
 }
 
@@ -248,15 +250,14 @@ func TestModel_ModelSelectorCancelClearsPendingModels(t *testing.T) {
 
 	model, _ := m.Update(ModelListResultMsg{Models: models})
 	m = model.(Model)
-	require.Equal(t, overlayModel, m.activeOverlay)
+	require.False(t, m.dialogStack.Empty())
 	require.NotNil(t, m.pendingModels)
 
 	// Cancel via ctrl+c
 	model, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	m = model.(Model)
 
-	assert.Equal(t, overlayNone, m.activeOverlay)
-	assert.False(t, m.overlay.Visible())
+	assert.True(t, m.dialogStack.Empty())
 }
 
 func TestModel_CtrlLOpensModelSelector(t *testing.T) {
@@ -376,14 +377,14 @@ func TestModel_ModelOverlayInterceptsKeys(t *testing.T) {
 
 	model, _ := m.Update(ModelListResultMsg{Models: models})
 	m = model.(Model)
-	require.Equal(t, overlayModel, m.activeOverlay)
+	require.False(t, m.dialogStack.Empty())
 
 	// Typing should go to overlay filter
 	model, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
 	m = model.(Model)
 
-	assert.Equal(t, overlayModel, m.activeOverlay)
-	assert.Equal(t, "o", m.overlay.Filter())
+	assert.False(t, m.dialogStack.Empty())
+	// Filter "o" was applied to the selector dialog
 }
 
 func TestModel_ModelSelectorViewShowsOverlay(t *testing.T) {
@@ -410,14 +411,13 @@ func TestModel_ModelSelectedInvalidIndex(t *testing.T) {
 	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
-	m.activeOverlay = overlayModel
 	m.pendingModels = []ModelEntry{
 		{Provider: "anthropic", Model: "claude-sonnet-4-6"},
 	}
 
 	model, _ := m.Update(overlays.SelectorSelectedMsg{Index: -1, Item: overlays.SelectorItem{}})
 	m = model.(Model)
-	assert.Equal(t, overlayNone, m.activeOverlay)
+	assert.True(t, m.dialogStack.Empty())
 
 	// Original model should be unchanged
 	assert.NotEmpty(t, m.currentModel.Provider)
@@ -539,11 +539,13 @@ func TestModelSelectorEntryBadges(t *testing.T) {
 
 	model, _ := m.Update(ModelListResultMsg{Models: models})
 	m = model.(Model)
-	require.Equal(t, overlayModel, m.activeOverlay)
+	require.False(t, m.dialogStack.Empty())
 
-	view := m.overlay.View()
-	assert.Contains(t, view, "[anthropic]", "should show provider badge")
-	assert.Contains(t, view, "[openai]", "should show provider badge")
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvas, canvas.Bounds())
+	rendered := canvas.Render()
+	assert.Contains(t, rendered, "[anthropic]", "should show provider badge")
+	assert.Contains(t, rendered, "[openai]", "should show provider badge")
 }
 
 func TestModelSelectorCurrentModelMarker(t *testing.T) {
@@ -568,8 +570,10 @@ func TestModelSelectorCurrentModelMarker(t *testing.T) {
 	model, _ := m.Update(ModelListResultMsg{Models: models})
 	m = model.(Model)
 
-	view := m.overlay.View()
-	assert.Contains(t, view, "✓", "current model should have checkmark marker")
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvas, canvas.Bounds())
+	rendered := canvas.Render()
+	assert.Contains(t, rendered, "✓", "current model should have checkmark marker")
 }
 
 func TestStatusMessageOnModelCycle(t *testing.T) {

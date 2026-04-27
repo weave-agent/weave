@@ -323,11 +323,11 @@ func TestModel_OverlayDismissStillWorks(t *testing.T) {
 	}
 	model, _ := m.Update(SessionListResultMsg{Sessions: sessions})
 	m = model.(Model)
-	require.Equal(t, overlaySession, m.activeOverlay)
+	assert.False(t, m.dialogStack.Empty())
 
 	// ctrl+c should dismiss overlay, not quit
 	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	m = model.(Model)
-	assert.Equal(t, overlayNone, m.activeOverlay)
+	assert.True(t, m.dialogStack.Empty())
 	assert.Nil(t, cmd, "overlay dismiss should not quit")
 }

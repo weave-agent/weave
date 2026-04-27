@@ -602,13 +602,14 @@ func TestModel_SessionListResultShowsOverlay(t *testing.T) {
 	model, _ := m.Update(SessionListResultMsg{Sessions: sessions})
 	m = model.(Model)
 
-	assert.Equal(t, overlaySession, m.activeOverlay)
-	assert.True(t, m.overlay.Visible())
+	assert.False(t, m.dialogStack.Empty())
 	assert.Equal(t, sessions, m.pendingSessions)
 
-	// Verify overlay items have CWD and timestamp
-	view := m.overlay.View()
-	assert.Contains(t, view, "Resume Session")
+	// Verify dialog renders session selector content
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvas, canvas.Bounds())
+	rendered := canvas.Render()
+	assert.Contains(t, rendered, "Resume Session")
 }
 
 func TestModel_SessionListEmpty(t *testing.T) {
@@ -620,7 +621,7 @@ func TestModel_SessionListEmpty(t *testing.T) {
 	model, _ := m.Update(SessionListResultMsg{Sessions: nil})
 	m = model.(Model)
 
-	assert.Equal(t, overlayNone, m.activeOverlay)
+	assert.True(t, m.dialogStack.Empty())
 
 	items := m.chat.Items()
 	require.Len(t, items, 1)
@@ -638,7 +639,7 @@ func TestModel_SessionListError(t *testing.T) {
 	model, _ := m.Update(SessionListResultMsg{Err: errors.New("disk error")})
 	m = model.(Model)
 
-	assert.Equal(t, overlayNone, m.activeOverlay)
+	assert.True(t, m.dialogStack.Empty())
 
 	items := m.chat.Items()
 	require.Len(t, items, 1)
@@ -658,14 +659,13 @@ func TestModel_SessionSelectorCancel(t *testing.T) {
 
 	model, _ := m.Update(SessionListResultMsg{Sessions: sessions})
 	m = model.(Model)
-	require.Equal(t, overlaySession, m.activeOverlay)
+	require.False(t, m.dialogStack.Empty())
 
 	// Cancel via ctrl+c
 	model, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	m = model.(Model)
 
-	assert.Equal(t, overlayNone, m.activeOverlay)
-	assert.False(t, m.overlay.Visible())
+	assert.True(t, m.dialogStack.Empty())
 }
 
 func TestModel_SessionSelectorEscape(t *testing.T) {
@@ -679,7 +679,7 @@ func TestModel_SessionSelectorEscape(t *testing.T) {
 
 	model, _ := m.Update(SessionListResultMsg{Sessions: sessions})
 	m = model.(Model)
-	require.Equal(t, overlaySession, m.activeOverlay)
+	require.False(t, m.dialogStack.Empty())
 
 	// Escape cancels the selector overlay
 	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
@@ -696,7 +696,7 @@ func TestModel_SessionSelectorEscape(t *testing.T) {
 	model, _ = m.Update(overlays.SelectorCancelledMsg{})
 	m = model.(Model)
 
-	assert.Equal(t, overlayNone, m.activeOverlay)
+	assert.True(t, m.dialogStack.Empty())
 	assert.Nil(t, m.pendingSessions)
 }
 
@@ -736,7 +736,7 @@ func TestModel_SessionSelectorSelect(t *testing.T) {
 	// Show selector
 	model, _ := m.Update(SessionListResultMsg{Sessions: sessions})
 	m = model.(Model)
-	require.Equal(t, overlaySession, m.activeOverlay)
+	require.False(t, m.dialogStack.Empty())
 
 	// Select first item
 	model, cmd := m.Update(overlays.SelectorSelectedMsg{Index: 0, Item: overlays.SelectorItem{
@@ -744,7 +744,7 @@ func TestModel_SessionSelectorSelect(t *testing.T) {
 	}})
 	m = model.(Model)
 
-	assert.Equal(t, overlayNone, m.activeOverlay)
+	assert.True(t, m.dialogStack.Empty())
 	assert.Nil(t, m.pendingSessions)
 	assert.False(t, m.prompted)
 
@@ -776,15 +776,14 @@ func TestModel_OverlayInterceptsKeys(t *testing.T) {
 
 	model, _ := m.Update(SessionListResultMsg{Sessions: sessions})
 	m = model.(Model)
-	require.Equal(t, overlaySession, m.activeOverlay)
+	require.False(t, m.dialogStack.Empty())
 
 	// Regular key press should go to overlay, not editor
 	model, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
 	m = model.(Model)
 
-	// Overlay should still be active (key was a filter char)
-	assert.Equal(t, overlaySession, m.activeOverlay)
-	assert.Equal(t, "a", m.overlay.Filter())
+	// Dialog should still be active (key was a filter char)
+	assert.False(t, m.dialogStack.Empty())
 }
 
 func TestModel_OverlayCtrlCDoesNotQuit(t *testing.T) {
@@ -798,13 +797,13 @@ func TestModel_OverlayCtrlCDoesNotQuit(t *testing.T) {
 
 	model, _ := m.Update(SessionListResultMsg{Sessions: sessions})
 	m = model.(Model)
-	require.Equal(t, overlaySession, m.activeOverlay)
+	require.False(t, m.dialogStack.Empty())
 
 	// ctrl+c should cancel overlay, not quit
 	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	m = model.(Model)
 
-	assert.Equal(t, overlayNone, m.activeOverlay)
+	assert.True(t, m.dialogStack.Empty())
 	assert.Nil(t, cmd) // no quit command
 }
 
@@ -881,8 +880,8 @@ func TestModel_ViewShowsOverlayWhenActive(t *testing.T) {
 	model, _ := m.Update(SessionListResultMsg{Sessions: sessions})
 	m = model.(Model)
 
-	overlayView := m.View()
-	assert.Contains(t, overlayView, "Resume Session")
+	dialogView := m.View()
+	assert.Contains(t, dialogView, "Resume Session")
 }
 
 func TestModel_ResumeSlashCommandIntegration(t *testing.T) {
@@ -915,7 +914,7 @@ func TestModel_ResumeSlashCommandIntegration(t *testing.T) {
 	m = model.(Model)
 
 	// Should show "No sessions found" message, not overlay
-	assert.Equal(t, overlayNone, m.activeOverlay)
+	assert.True(t, m.dialogStack.Empty())
 }
 
 func TestModel_InterruptStreaming(t *testing.T) {
@@ -1704,7 +1703,7 @@ func TestModel_Draw_OverlayFillsScreen(t *testing.T) {
 	m.width = 80
 	m.height = 24
 
-	// Activate model overlay
+	// Activate model selector dialog
 	models := listModels()
 	if len(models) > 1 {
 		items := make([]overlays.SelectorItem, len(models))
@@ -1712,10 +1711,9 @@ func TestModel_Draw_OverlayFillsScreen(t *testing.T) {
 			items[i] = overlays.SelectorItem{Title: model.DisplayName()}
 		}
 
-		m.overlay = overlays.NewSelectorModel("Select Model", items)
-		m.overlay = m.overlay.SetSize(80, 24)
-		m.overlay = m.overlay.Show()
-		m.activeOverlay = overlayModel
+		sel := overlays.NewSelectorModel("Select Model", items)
+		sel = sel.SetSize(80, 24).Show()
+		m.dialogStack = m.dialogStack.Push(overlays.NewSelectorDialog(dialogModelSelect, sel))
 
 		canvas := uv.NewScreenBuffer(m.width, m.height)
 		m.Draw(canvas, canvas.Bounds())

@@ -156,13 +156,13 @@ Build the core feature improvements on the now-stable v2 foundation.
 
 ### Task 7: Implement overlay stack
 
-- [ ] Create `components/overlays/stack.go` — `DialogStack` struct with push/pop/peek methods. `Dialog` interface with `ID()`, `Update(msg)`, `Draw(scr, area)`, `Handles(msg)` methods. Stack renders all dialogs bottom-to-top, routes key events top-to-bottom with fall-through.
-- [ ] Update root model — remove `activeOverlay` enum, integrate `dialogStack`. Update `Update()` to route messages through the stack first, then to root model if unhandled.
-- [ ] Update `ui_impl.go` — `sdk.UI` methods (`Select`, `Confirm`, `Input`) push their respective dialogs onto the stack and block on response channels. Remove the old `activeOverlay` dispatch logic.
-- [ ] Update `overlays.go` — remove old overlay type definitions, replace with dialog stack integration.
-- [ ] Write tests for `DialogStack` — push/pop ordering, fall-through key routing, Escape pops top dialog, empty stack passes all keys through.
-- [ ] Write tests for `sdk.UI` integration — verify Select/Confirm/Input push dialogs and return results.
-- [ ] Run tests — must pass before Task 8.
+- [x] Create `components/overlays/stack.go` — `DialogStack` struct with push/pop/peek methods. `Dialog` interface with `ID()`, `Update(msg)`, `Draw(scr, area)`, `Handles(msg)` methods. Stack renders all dialogs bottom-to-top, routes key events top-to-bottom with fall-through.
+- [x] Update root model — remove `activeOverlay` enum, integrate `dialogStack`. Update `Update()` to route messages through the stack first, then to root model if unhandled.
+- [x] Update `ui_impl.go` — `sdk.UI` methods (`Select`, `Confirm`, `Input`) push their respective dialogs onto the stack and block on response channels. Remove the old `activeOverlay` dispatch logic.
+- [x] Update `overlays.go` — remove old overlay type definitions, replace with dialog stack integration.
+- [x] Write tests for `DialogStack` — push/pop ordering, fall-through key routing, Escape pops top dialog, empty stack passes all keys through.
+- [x] Write tests for `sdk.UI` integration — verify Select/Confirm/Input push dialogs and return results.
+- [x] Run tests — must pass before Task 8.
 
 ---
 

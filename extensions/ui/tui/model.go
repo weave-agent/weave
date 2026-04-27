@@ -2,6 +2,7 @@ package tui
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -61,22 +62,19 @@ type Model struct {
 	ui         *TUIImpl
 	composer   Composer
 
-	overlay           overlays.SelectorModel
-	activeOverlay     overlayKind
 	pendingSessions   []SessionEntry
 	pendingModels     []ModelEntry
 	pendingProviders  []ProviderEntry
 	currentModel      ModelEntry
 	prevModel         ModelEntry
 	prevThinkingLevel sdk.ThinkingLevel
-	dialogStack       DialogStack //nolint:unused // placeholder for overlay stack (Task 7)
+	dialogStack       overlays.DialogStack
 
-	keyInput       overlays.InputModel
 	providerTarget string
+	popupChans     map[string]chan overlayResponse
+	popupSeq       int
 
 	sessionDir string
-
-	popup *popupState
 
 	// double-press tracking
 	ctrlCPressed   bool
@@ -175,6 +173,8 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 		thinkingLevel: initialThinkingLevel(),
 		noConfigured:  len(models) == 0,
 		showHints:     true,
+		dialogStack:   overlays.NewDialogStack(),
+		popupChans:    make(map[string]chan overlayResponse),
 	}
 	m.footer = m.footer.SetModel(cur.Model, cur.Provider)
 	m.footer = m.footer.SetReasoning(modelReasoning(cur.Model))
@@ -207,20 +207,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// Handle popup overlay messages first
-	if m.popup != nil {
-		switch msg.(type) {
-		case tea.KeyMsg:
-			return m.handlePopupUpdate(msg)
-		case overlays.SelectorSelectedMsg:
-			return m.handlePopupUpdate(msg)
-		case overlays.SelectorCancelledMsg:
-			return m.handlePopupUpdate(msg)
-		case overlays.ConfirmResultMsg:
-			return m.handlePopupUpdate(msg)
-		case overlays.InputResultMsg:
-			return m.handlePopupUpdate(msg)
+	// Dialog stack gets priority when non-empty.
+	if !m.dialogStack.Empty() {
+		// Ctrl+C force-dismisses the top dialog.
+		if km, ok := msg.(tea.KeyMsg); ok && km.Type == tea.KeyCtrlC {
+			var d overlays.Dialog
+
+			m.dialogStack, d = m.dialogStack.Pop()
+
+			return m.handleDialogForceCancel(d)
 		}
+
+		newStack, cmd := m.dialogStack.Update(msg)
+		m.dialogStack = newStack
+
+		// Check if the top dialog completed.
+		if top := m.dialogStack.Peek(); top != nil && top.Done() {
+			var d overlays.Dialog
+
+			m.dialogStack, d = m.dialogStack.Pop()
+
+			return m.handleDialogDone(d, cmd)
+		}
+
+		return m, cmd
 	}
 
 	switch msg := msg.(type) {
@@ -231,35 +241,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.editor = m.editor.SetSize(m.width, defaultEditorHeight)
 		m.footer = m.footer.SetSize(m.width)
 		m.spinner = m.spinner.SetSize(m.width)
-		m.overlay = m.overlay.SetSize(m.width, m.height)
-		m.keyInput = m.keyInput.SetSize(m.width, m.height)
+		m.dialogStack = m.dialogStack.Resize(m.width, m.height)
 
 		return m, nil
 
 	case tea.KeyMsg:
-		// Overlay gets priority when active (ctrl+c dismisses it)
-		if m.activeOverlay != overlayNone {
-			if msg.String() == "ctrl+c" {
-				m.activeOverlay = overlayNone
-				m.overlay = m.overlay.Hide()
-				m.keyInput = m.keyInput.Hide()
-				m.pendingProviders = nil
-				m.providerTarget = ""
-
-				return m, nil
-			}
-
-			var cmd tea.Cmd
-
-			if m.activeOverlay == overlayKeyInput {
-				m.keyInput, cmd = m.keyInput.Update(msg)
-			} else {
-				m.overlay, cmd = m.overlay.Update(msg)
-			}
-
-			return m, cmd
-		}
-
 		// Dismiss startup hints on first keypress
 		m.showHints = false
 
@@ -367,18 +353,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ProviderListResultMsg:
 		return m.onProviderListResult(msg)
 
-	case overlays.SelectorSelectedMsg:
-		return m.onOverlaySelected(msg)
-
-	case overlays.SelectorCancelledMsg:
-		m.activeOverlay = overlayNone
-		m.overlay = m.overlay.Hide()
-		m.pendingSessions = nil
-		m.pendingModels = nil
-		m.pendingProviders = nil
-
-		return m, nil
-
 	case ShutdownMsg:
 		return m, tea.Quit
 
@@ -396,12 +370,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case slashCommandsUpdatedMsg:
 		m.editor = m.editor.SetSlashCommands(m.commands.Names())
 		return m, nil
-
-	case overlays.ConfirmResultMsg:
-		return m, nil
-
-	case overlays.InputResultMsg:
-		return m.onKeyInputResult(msg)
 
 	case statusTimeoutMsg:
 		if msg.gen == m.statusGen {
@@ -847,10 +815,9 @@ func (m Model) onSessionListResult(msg SessionListResultMsg) (tea.Model, tea.Cmd
 	}
 
 	m.pendingSessions = msg.Sessions
-	m.overlay = overlays.NewSelectorModel("Resume Session", items)
-	m.overlay = m.overlay.SetSize(m.width, m.height)
-	m.overlay = m.overlay.Show()
-	m.activeOverlay = overlaySession
+	sel := overlays.NewSelectorModel("Resume Session", items)
+	sel = sel.SetSize(m.width, m.height).Show()
+	m.dialogStack = m.dialogStack.Push(overlays.NewSelectorDialog(dialogSessionSelect, sel))
 
 	return m, nil
 }
@@ -886,10 +853,9 @@ func (m Model) onModelListResult(msg ModelListResultMsg) (tea.Model, tea.Cmd) {
 	}
 
 	m.pendingModels = msg.Models
-	m.overlay = overlays.NewSelectorModel("Select Model", items)
-	m.overlay = m.overlay.SetSize(m.width, m.height)
-	m.overlay = m.overlay.Show()
-	m.activeOverlay = overlayModel
+	sel := overlays.NewSelectorModel("Select Model", items)
+	sel = sel.SetSize(m.width, m.height).Show()
+	m.dialogStack = m.dialogStack.Push(overlays.NewSelectorDialog(dialogModelSelect, sel))
 
 	return m, nil
 }
@@ -984,67 +950,52 @@ func (m Model) onProviderListResult(msg ProviderListResultMsg) (tea.Model, tea.C
 	}
 
 	m.pendingProviders = msg.Providers
-	m.overlay = overlays.NewSelectorModel("Manage Provider Keys", items)
-	m.overlay = m.overlay.SetSize(m.width, m.height)
-	m.overlay = m.overlay.Show()
-	m.activeOverlay = overlayProvider
+	sel := overlays.NewSelectorModel("Manage Provider Keys", items)
+	sel = sel.SetSize(m.width, m.height).Show()
+	m.dialogStack = m.dialogStack.Push(overlays.NewSelectorDialog(dialogProviderSelect, sel))
 
 	return m, nil
 }
 
-func (m Model) onProviderSelected(msg overlays.SelectorSelectedMsg) (tea.Model, tea.Cmd) {
-	if msg.Index < 0 || msg.Index >= len(m.pendingProviders) {
-		m.activeOverlay = overlayNone
-		m.overlay = m.overlay.Hide()
+func (m Model) onProviderDialogDone(result overlays.DialogResult, pendingCmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if result.Err != nil || result.Index < 0 || result.Index >= len(m.pendingProviders) {
 		m.pendingProviders = nil
-
-		return m, nil
+		return m, pendingCmd
 	}
 
-	selected := m.pendingProviders[msg.Index]
+	selected := m.pendingProviders[result.Index]
 	m.providerTarget = selected.Name
 
-	m.overlay = m.overlay.Hide()
-	m.activeOverlay = overlayKeyInput
+	// Push key input dialog for entering the API key.
+	input := overlays.NewInputModel("Enter API key for " + selected.Name)
+	input = input.SetSize(m.width, m.height).Show()
+	m.dialogStack = m.dialogStack.Push(overlays.NewInputDialog(dialogKeyInput, input))
 
-	m.keyInput = overlays.NewInputModel("Enter API key for " + selected.Name)
-	m.keyInput = m.keyInput.SetSize(m.width, m.height)
-	m.keyInput = m.keyInput.Show()
-
-	return m, nil
+	return m, pendingCmd
 }
 
-func (m Model) onKeyInputResult(msg overlays.InputResultMsg) (tea.Model, tea.Cmd) {
-	m.activeOverlay = overlayNone
-	m.keyInput = m.keyInput.Hide()
-
-	if !msg.Ok || m.providerTarget == "" {
-		m.pendingProviders = nil
-		m.providerTarget = ""
-
-		return m, nil
-	}
-
-	apiKey := strings.TrimSpace(msg.Value)
-	if apiKey == "" {
-		m.pendingProviders = nil
-		m.providerTarget = ""
-
-		return m, nil
-	}
-
-	providerName := m.providerTarget
-	err := config.SetProviderKey(providerName, apiKey)
-
+func (m Model) onKeyInputDialogDone(result overlays.DialogResult, pendingCmd tea.Cmd) (tea.Model, tea.Cmd) {
 	m.pendingProviders = nil
+	providerName := m.providerTarget
 	m.providerTarget = ""
+
+	if result.Err != nil || providerName == "" {
+		return m, pendingCmd
+	}
+
+	apiKey := strings.TrimSpace(result.Value)
+	if apiKey == "" {
+		return m, pendingCmd
+	}
+
+	err := config.SetProviderKey(providerName, apiKey)
 
 	am := messages.NewAssistantMessage()
 	if err != nil {
 		am.Finalize(fmt.Sprintf("Failed to save API key for %s: %v", providerName, err))
 		m.chat = m.chat.AddItem(am)
 
-		return m, nil
+		return m, pendingCmd
 	}
 
 	am.Finalize(fmt.Sprintf("API key saved for %s.", providerName))
@@ -1062,60 +1013,100 @@ func (m Model) onKeyInputResult(msg overlays.InputResultMsg) (tea.Model, tea.Cmd
 		}
 	}
 
-	return m, nil
+	return m, pendingCmd
 }
 
-func (m Model) onOverlaySelected(msg overlays.SelectorSelectedMsg) (tea.Model, tea.Cmd) {
-	switch m.activeOverlay {
-	case overlaySession:
-		return m.onSessionSelected(msg)
-	case overlayModel:
-		return m.onModelSelected(msg)
-	case overlayProvider:
-		return m.onProviderSelected(msg)
+// handleDialogDone processes a completed dialog from the stack.
+func (m Model) handleDialogDone(d overlays.Dialog, pendingCmd tea.Cmd) (tea.Model, tea.Cmd) {
+	id := d.ID()
+	result := d.Result()
+
+	switch id {
+	case dialogSessionSelect:
+		return m.onSessionDialogDone(result, pendingCmd)
+	case dialogModelSelect:
+		return m.onModelDialogDone(result, pendingCmd)
+	case dialogProviderSelect:
+		return m.onProviderDialogDone(result, pendingCmd)
+	case dialogKeyInput:
+		return m.onKeyInputDialogDone(result, pendingCmd)
 	default:
-		m.activeOverlay = overlayNone
-		m.overlay = m.overlay.Hide()
+		// Popup dialogs: send result on channel.
+		if ch, ok := m.popupChans[id]; ok {
+			resp := overlayResponse{
+				index:     result.Index,
+				value:     result.Value,
+				confirmed: result.Confirmed,
+				err:       result.Err,
+			}
+			ch <- resp
 
-		return m, nil
+			delete(m.popupChans, id)
+		}
+
+		return m, tea.Batch(pendingCmd, checkNextPopupCmd(m.ui))
 	}
 }
 
-func (m Model) onSessionSelected(msg overlays.SelectorSelectedMsg) (tea.Model, tea.Cmd) {
-	m.activeOverlay = overlayNone
-	m.overlay = m.overlay.Hide()
+// handleDialogForceCancel handles ctrl+c dismissal of the top dialog.
+func (m Model) handleDialogForceCancel(d overlays.Dialog) (tea.Model, tea.Cmd) {
+	id := d.ID()
 
-	if msg.Index < 0 || msg.Index >= len(m.pendingSessions) {
+	// Clean up pending data based on dialog purpose.
+	switch id {
+	case dialogSessionSelect:
 		m.pendingSessions = nil
-		return m, nil
+	case dialogModelSelect:
+		m.pendingModels = nil
+	case dialogProviderSelect:
+		m.pendingProviders = nil
+		m.providerTarget = ""
+	case dialogKeyInput:
+		m.pendingProviders = nil
+		m.providerTarget = ""
+	default:
+		// Popup dialog cancellation.
+		if ch, ok := m.popupChans[id]; ok {
+			ch <- overlayResponse{err: errors.New("canceled")}
+
+			delete(m.popupChans, id)
+		}
 	}
 
-	session := m.pendingSessions[msg.Index]
+	return m, checkNextPopupCmd(m.ui)
+}
+
+func (m Model) onSessionDialogDone(result overlays.DialogResult, pendingCmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if result.Err != nil || result.Index < 0 || result.Index >= len(m.pendingSessions) {
+		m.pendingSessions = nil
+		return m, pendingCmd
+	}
+
+	session := m.pendingSessions[result.Index]
 	m.pendingSessions = nil
 
 	m.rebuildChatFromSession(session.ID)
 	m.prompted = false
 
 	if m.bus != nil {
-		return m, PublishSessionResume(m.bus, session.ID)
+		return m, tea.Batch(pendingCmd, PublishSessionResume(m.bus, session.ID))
 	}
 
-	return m, nil
+	return m, pendingCmd
 }
 
-func (m Model) onModelSelected(msg overlays.SelectorSelectedMsg) (tea.Model, tea.Cmd) {
-	m.activeOverlay = overlayNone
-	m.overlay = m.overlay.Hide()
-
-	if msg.Index < 0 || msg.Index >= len(m.pendingModels) {
+func (m Model) onModelDialogDone(result overlays.DialogResult, pendingCmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if result.Err != nil || result.Index < 0 || result.Index >= len(m.pendingModels) {
 		m.pendingModels = nil
-		return m, nil
+		return m, pendingCmd
 	}
 
-	selected := m.pendingModels[msg.Index]
+	selected := m.pendingModels[result.Index]
 	m.pendingModels = nil
 
-	return m.onModelChanged(ModelChangedMsg{Entry: selected})
+	model, cmd := m.onModelChanged(ModelChangedMsg{Entry: selected})
+
+	return model, tea.Batch(pendingCmd, cmd)
 }
 
 func (m *Model) rebuildChatFromSession(sessionID string) {
@@ -1290,28 +1281,11 @@ func (m Model) chatHeight(totalHeight int) int {
 // Draw renders the TUI into an ultraviolet screen buffer.
 // It computes layout regions and delegates to each component.
 func (m Model) Draw(scr uv.Screen, area uv.Rectangle) {
-	// Popup overlay takes highest priority — fills the entire screen
-	if m.popup != nil {
-		if view := m.popupView(); view != "" {
-			uv.NewStyledString(view).Draw(scr, area)
+	// Dialog stack takes highest priority — renders all dialogs bottom-to-top.
+	if !m.dialogStack.Empty() {
+		m.dialogStack.Draw(scr, area)
 
-			return
-		}
-	}
-
-	// Built-in overlay (selector, key input)
-	if m.activeOverlay != overlayNone {
-		if m.activeOverlay == overlayKeyInput && m.keyInput.Visible() {
-			m.keyInput.Draw(scr, area)
-
-			return
-		}
-
-		if m.overlay.Visible() {
-			m.overlay.Draw(scr, area)
-
-			return
-		}
+		return
 	}
 
 	// Compute dynamic layout parameters

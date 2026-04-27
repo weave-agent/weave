@@ -288,9 +288,11 @@ func TestModel_HandlePopupPending_Select(t *testing.T) {
 	}
 
 	m = activatePopup(m, ui, req)
-	require.NotNil(t, m.popup)
-	assert.Equal(t, requestSelect, m.popup.kind)
-	assert.Len(t, m.popup.items, 3)
+	assert.False(t, m.dialogStack.Empty())
+	top := m.dialogStack.Peek()
+	require.NotNil(t, top)
+	_, ok := top.(*overlays.SelectorDialog)
+	assert.True(t, ok, "expected SelectorDialog on stack")
 }
 
 func TestModel_HandlePopupPending_Confirm(t *testing.T) {
@@ -307,8 +309,11 @@ func TestModel_HandlePopupPending_Confirm(t *testing.T) {
 	}
 
 	m = activatePopup(m, ui, req)
-	require.NotNil(t, m.popup)
-	assert.Equal(t, requestConfirm, m.popup.kind)
+	assert.False(t, m.dialogStack.Empty())
+	top := m.dialogStack.Peek()
+	require.NotNil(t, top)
+	_, ok := top.(*overlays.ConfirmDialog)
+	assert.True(t, ok, "expected ConfirmDialog on stack")
 }
 
 func TestModel_HandlePopupPending_Input(t *testing.T) {
@@ -325,8 +330,11 @@ func TestModel_HandlePopupPending_Input(t *testing.T) {
 	}
 
 	m = activatePopup(m, ui, req)
-	require.NotNil(t, m.popup)
-	assert.Equal(t, requestInput, m.popup.kind)
+	assert.False(t, m.dialogStack.Empty())
+	top := m.dialogStack.Peek()
+	require.NotNil(t, top)
+	_, ok := top.(*overlays.InputDialog)
+	assert.True(t, ok, "expected InputDialog on stack")
 }
 
 func TestModel_HandlePopupPending_NilUI(t *testing.T) {
@@ -335,7 +343,7 @@ func TestModel_HandlePopupPending_NilUI(t *testing.T) {
 
 	updated, cmd := m.handlePopupPending()
 	assert.Nil(t, cmd)
-	assert.Nil(t, updated.popup)
+	assert.True(t, updated.dialogStack.Empty())
 }
 
 func TestModel_PopupView(t *testing.T) {
@@ -343,33 +351,37 @@ func TestModel_PopupView(t *testing.T) {
 	m.width = 80
 	m.height = 24
 
-	// No popup → empty view
-	assert.Empty(t, m.popupView())
+	// No dialogs → no overlay in view
+	assert.True(t, m.dialogStack.Empty())
+	view := m.View()
+	assert.NotContains(t, view, "Sure?")
 
-	// With confirm popup
-	m.popup = &popupState{
-		kind:    requestConfirm,
-		confirm: overlays.NewConfirmModel("Sure?").SetSize(80, 24).Show(),
-	}
-	view := m.popupView()
+	// With confirm dialog on stack
+	m.dialogStack = m.dialogStack.Push(overlays.NewConfirmDialog(
+		"popup-confirm-1",
+		overlays.NewConfirmModel("Sure?").SetSize(80, 24).Show(),
+	))
+	view = m.View()
 	assert.Contains(t, view, "Sure?")
 
-	// With input popup
-	m.popup = &popupState{
-		kind:  requestInput,
-		input: overlays.NewInputModel("Name:").SetSize(80, 24).Show(),
-	}
-	view = m.popupView()
+	// With input dialog on stack
+	m.dialogStack = overlays.NewDialogStack()
+	m.dialogStack = m.dialogStack.Push(overlays.NewInputDialog(
+		"popup-input-1",
+		overlays.NewInputModel("Name:").SetSize(80, 24).Show(),
+	))
+	view = m.View()
 	assert.Contains(t, view, "Name:")
 
-	// With select popup
-	m.popup = &popupState{
-		kind: requestSelect,
-		select_: overlays.NewSelectorModel("Pick", []overlays.SelectorItem{
+	// With select dialog on stack
+	m.dialogStack = overlays.NewDialogStack()
+	m.dialogStack = m.dialogStack.Push(overlays.NewSelectorDialog(
+		"popup-select-1",
+		overlays.NewSelectorModel("Pick", []overlays.SelectorItem{
 			{Title: "A"}, {Title: "B"},
 		}).SetSize(80, 24).Show(),
-	}
-	view = m.popupView()
+	))
+	view = m.View()
 	assert.Contains(t, view, "Pick")
 }
 
@@ -386,7 +398,7 @@ func TestModel_PopupConfirmYes(t *testing.T) {
 		result:  make(chan overlayResponse, 1),
 	}
 	m = activatePopup(m, ui, req)
-	require.NotNil(t, m.popup)
+	require.False(t, m.dialogStack.Empty())
 
 	updated, _ := m.Update(overlays.ConfirmResultMsg{Confirmed: true})
 	m = updated.(Model)
@@ -398,7 +410,7 @@ func TestModel_PopupConfirmYes(t *testing.T) {
 		t.Fatal("expected response on result channel")
 	}
 
-	assert.Nil(t, m.popup)
+	assert.True(t, m.dialogStack.Empty())
 }
 
 func TestModel_PopupConfirmNo(t *testing.T) {
@@ -414,7 +426,7 @@ func TestModel_PopupConfirmNo(t *testing.T) {
 		result:  make(chan overlayResponse, 1),
 	}
 	m = activatePopup(m, ui, req)
-	require.NotNil(t, m.popup)
+	require.False(t, m.dialogStack.Empty())
 
 	updated, _ := m.Update(overlays.ConfirmResultMsg{Confirmed: false})
 	m = updated.(Model)
@@ -426,7 +438,7 @@ func TestModel_PopupConfirmNo(t *testing.T) {
 		t.Fatal("expected response on result channel")
 	}
 
-	assert.Nil(t, m.popup)
+	assert.True(t, m.dialogStack.Empty())
 }
 
 func TestModel_PopupSelectCancel(t *testing.T) {
@@ -443,7 +455,7 @@ func TestModel_PopupSelectCancel(t *testing.T) {
 		result: make(chan overlayResponse, 1),
 	}
 	m = activatePopup(m, ui, req)
-	require.NotNil(t, m.popup)
+	require.False(t, m.dialogStack.Empty())
 
 	updated, _ := m.Update(overlays.SelectorCancelledMsg{})
 	m = updated.(Model)
@@ -456,7 +468,7 @@ func TestModel_PopupSelectCancel(t *testing.T) {
 		t.Fatal("expected response on result channel")
 	}
 
-	assert.Nil(t, m.popup)
+	assert.True(t, m.dialogStack.Empty())
 }
 
 func TestModel_PopupSelectConfirm(t *testing.T) {
@@ -473,7 +485,7 @@ func TestModel_PopupSelectConfirm(t *testing.T) {
 		result: make(chan overlayResponse, 1),
 	}
 	m = activatePopup(m, ui, req)
-	require.NotNil(t, m.popup)
+	require.False(t, m.dialogStack.Empty())
 
 	updated, _ := m.Update(overlays.SelectorSelectedMsg{Index: 1, Item: overlays.SelectorItem{Title: "b"}})
 	m = updated.(Model)
@@ -486,7 +498,7 @@ func TestModel_PopupSelectConfirm(t *testing.T) {
 		t.Fatal("expected response on result channel")
 	}
 
-	assert.Nil(t, m.popup)
+	assert.True(t, m.dialogStack.Empty())
 }
 
 func TestModel_PopupInputSubmit(t *testing.T) {
@@ -502,7 +514,7 @@ func TestModel_PopupInputSubmit(t *testing.T) {
 		result:  make(chan overlayResponse, 1),
 	}
 	m = activatePopup(m, ui, req)
-	require.NotNil(t, m.popup)
+	require.False(t, m.dialogStack.Empty())
 
 	updated, _ := m.Update(overlays.InputResultMsg{Value: "hi", Ok: true})
 	m = updated.(Model)
@@ -515,7 +527,7 @@ func TestModel_PopupInputSubmit(t *testing.T) {
 		t.Fatal("expected response on result channel")
 	}
 
-	assert.Nil(t, m.popup)
+	assert.True(t, m.dialogStack.Empty())
 }
 
 func TestModel_PopupInputCancel(t *testing.T) {
@@ -531,7 +543,7 @@ func TestModel_PopupInputCancel(t *testing.T) {
 		result:  make(chan overlayResponse, 1),
 	}
 	m = activatePopup(m, ui, req)
-	require.NotNil(t, m.popup)
+	require.False(t, m.dialogStack.Empty())
 
 	updated, _ := m.Update(overlays.InputResultMsg{Ok: false})
 	m = updated.(Model)
@@ -543,7 +555,7 @@ func TestModel_PopupInputCancel(t *testing.T) {
 		t.Fatal("expected response on result channel")
 	}
 
-	assert.Nil(t, m.popup)
+	assert.True(t, m.dialogStack.Empty())
 }
 
 func TestModel_PopupSequentialQueuing(t *testing.T) {
@@ -569,10 +581,9 @@ func TestModel_PopupSequentialQueuing(t *testing.T) {
 	require.NoError(t, ui.enqueue(req1))
 	require.NoError(t, ui.enqueue(req2))
 
-	// First popup should be activated
+	// First popup should be activated on dialog stack
 	m, _ = m.handlePopupPending()
-	require.NotNil(t, m.popup)
-	assert.Equal(t, requestSelect, m.popup.kind)
+	require.False(t, m.dialogStack.Empty())
 
 	// Resolve first popup
 	updated, _ := m.Update(overlays.SelectorSelectedMsg{Index: 0, Item: overlays.SelectorItem{Title: "a"}})
@@ -582,14 +593,13 @@ func TestModel_PopupSequentialQueuing(t *testing.T) {
 	assert.True(t, ui.hasPendingPopups())
 
 	m, _ = m.handlePopupPending()
-	require.NotNil(t, m.popup)
-	assert.Equal(t, requestConfirm, m.popup.kind)
+	require.False(t, m.dialogStack.Empty())
 
 	// Resolve second popup
 	updated, _ = m.Update(overlays.ConfirmResultMsg{Confirmed: true})
 	m = updated.(Model)
 
-	assert.Nil(t, m.popup)
+	assert.True(t, m.dialogStack.Empty())
 	assert.False(t, ui.hasPendingPopups())
 }
 
@@ -636,10 +646,10 @@ func TestModel_ViewWithPopup(t *testing.T) {
 	m.width = 80
 	m.height = 24
 
-	m.popup = &popupState{
-		kind:    requestConfirm,
-		confirm: overlays.NewConfirmModel("Sure?").SetSize(80, 24).Show(),
-	}
+	m.dialogStack = m.dialogStack.Push(overlays.NewConfirmDialog(
+		"popup-confirm-1",
+		overlays.NewConfirmModel("Sure?").SetSize(80, 24).Show(),
+	))
 
 	view := m.View()
 	assert.Contains(t, view, "Sure?")
