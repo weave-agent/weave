@@ -166,6 +166,19 @@ Full instructions here.`
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not closed")
 	})
+
+	t.Run("windows line endings", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "crlf-skill")
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+
+		content := "---\r\nname: crlf-skill\r\ndescription: CRLF test\r\n---\r\n\r\nBody here."
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(content), 0o644))
+
+		skill, err := loadSkillFromDir(dir)
+		require.NoError(t, err)
+		assert.Equal(t, "crlf-skill", skill.Name)
+		assert.Equal(t, "CRLF test", skill.Description)
+	})
 }
 
 func TestDiscoverSkills(t *testing.T) {
@@ -255,11 +268,11 @@ func TestFormatSkillsPrompt(t *testing.T) {
 		assert.Contains(t, result, "<name>beta</name>")
 	})
 
-	t.Run("special chars in description", func(t *testing.T) {
+	t.Run("special chars escaped", func(t *testing.T) {
 		skills := []Skill{
 			{Name: "xml-skill", Description: "Uses <tags> & \"quotes\"", FilePath: "/path"},
 		}
 		result := formatSkillsPrompt(skills)
-		assert.Contains(t, result, "Uses <tags> & \"quotes\"")
+		assert.Contains(t, result, "Uses &lt;tags&gt; &amp; &quot;quotes&quot;")
 	})
 }

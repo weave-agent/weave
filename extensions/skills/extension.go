@@ -5,17 +5,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"weave/sdk"
 )
 
-const TopicSkillsLoaded = "skills.loaded"
-
 type SkillsExtension struct {
 	cfg            sdk.Config
-	mu             sync.Mutex
-	skills         []Skill
 	discoveryPaths []string
 }
 
@@ -49,11 +44,7 @@ func (e *SkillsExtension) Subscribe(bus sdk.Bus) {
 
 	skills, _ := discoverSkills(paths...)
 
-	e.mu.Lock()
-	e.skills = skills
-	e.mu.Unlock()
-
-	bus.Publish(sdk.NewEvent(TopicSkillsLoaded, formatSkillsPrompt(skills)))
+	bus.Publish(sdk.NewEvent(sdk.TopicSkillsLoaded, formatSkillsPrompt(skills)))
 
 	ui, err := sdk.GetUI("tui")
 	if err != nil {
@@ -76,7 +67,7 @@ func makeSkillHandler(skill Skill, bus sdk.Bus) func(args string) error {
 		body := skill.Body()
 
 		var msg strings.Builder
-		fmt.Fprintf(&msg, "<skill name=\"%s\" location=\"%s\">\n", skill.Name, skill.FilePath)
+		fmt.Fprintf(&msg, "<skill name=%q location=%q>\n", skill.Name, skill.FilePath)
 		fmt.Fprintf(&msg, "References are relative to %s.\n\n", skill.BaseDir)
 		msg.WriteString(body)
 		msg.WriteString("\n</skill>")

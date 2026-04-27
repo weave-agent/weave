@@ -29,7 +29,6 @@ const (
 	TopicModelChange       = "model.change"
 	TopicModelChangeFailed = "model.change_failed"
 	TopicThinkingChange    = "thinking.change"
-	TopicSkillsLoaded      = "skills.loaded"
 )
 
 // Loop is the agent-loop extension that drives the LLM conversation cycle.
@@ -82,7 +81,7 @@ func (l *Loop) Subscribe(bus sdk.Bus) {
 	interruptCh := bus.Subscribe(TopicInterrupt)
 	modelChangeCh := bus.Subscribe(TopicModelChange)
 	thinkingCh := bus.Subscribe(TopicThinkingChange)
-	skillsCh := bus.Subscribe(TopicSkillsLoaded)
+	skillsCh := bus.Subscribe(sdk.TopicSkillsLoaded)
 
 	ctx, cancel := context.WithCancel(context.Background())
 

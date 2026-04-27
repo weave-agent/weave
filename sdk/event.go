@@ -2,6 +2,11 @@ package sdk
 
 import "time"
 
+// Shared bus topic constants for cross-extension communication.
+const (
+	TopicSkillsLoaded = "skills.loaded"
+)
+
 type Event struct {
 	Topic     string
 	Payload   any

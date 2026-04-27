@@ -143,6 +143,34 @@ func TestChatModel_UpdateItemByID_NotFound_Appends(t *testing.T) {
 	require.Len(t, m.Items(), 2) // appended because not found
 }
 
+func TestChatModel_UpdateItemAt(t *testing.T) {
+	m := NewChatModel().SetSize(80, 10)
+	m = m.AddItem(messages.NewUserMessage("first"))
+	m = m.AddItem(messages.NewUserMessage("second"))
+	m = m.AddItem(messages.NewUserMessage("third"))
+
+	require.Len(t, m.Items(), 3)
+
+	m = m.UpdateItemAt(1, messages.NewUserMessage("replaced"))
+
+	items := m.Items()
+	require.Len(t, items, 3)
+	assert.Equal(t, "first", items[0].(*messages.UserMessage).Content())
+	assert.Equal(t, "replaced", items[1].(*messages.UserMessage).Content())
+	assert.Equal(t, "third", items[2].(*messages.UserMessage).Content())
+}
+
+func TestChatModel_UpdateItemAt_OutOfBounds(t *testing.T) {
+	m := NewChatModel().SetSize(80, 10)
+	m = m.AddItem(messages.NewUserMessage("only"))
+
+	m = m.UpdateItemAt(5, messages.NewUserMessage("nope"))
+
+	items := m.Items()
+	require.Len(t, items, 1)
+	assert.Equal(t, "only", items[0].(*messages.UserMessage).Content())
+}
+
 func TestChatModel_IntegrationWithToolPanel(t *testing.T) {
 	m := NewChatModel().SetSize(80, 10)
 

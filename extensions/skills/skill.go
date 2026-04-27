@@ -110,7 +110,7 @@ func loadSkillFromDir(dir string) (Skill, error) {
 }
 
 func parseFrontmatter(data []byte) (string, SkillFrontmatter, error) {
-	content := string(data)
+	content := strings.ReplaceAll(string(data), "\r\n", "\n")
 
 	var fm SkillFrontmatter
 

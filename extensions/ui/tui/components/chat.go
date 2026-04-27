@@ -140,6 +140,16 @@ func (m ChatModel) UpdateItemByID(item ChatItem) ChatModel {
 	return m.AddItem(item)
 }
 
+// UpdateItemAt replaces the item at the given index.
+func (m ChatModel) UpdateItemAt(index int, item ChatItem) ChatModel {
+	if index >= 0 && index < len(m.items) {
+		m.items[index] = item
+		m.invalidate(index)
+	}
+
+	return m
+}
+
 // invalidate marks a single cache entry as stale.
 func (m *ChatModel) invalidate(index int) {
 	if m.cache != nil && index >= 0 && index < len(*m.cache) {

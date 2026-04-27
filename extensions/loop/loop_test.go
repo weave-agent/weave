@@ -1119,7 +1119,7 @@ func TestLoop_SystemPromptWithSkills(t *testing.T) {
 	l.Subscribe(b)
 
 	skillsXML := "<available_skills>\n<skill>\n<name>test-skill</name>\n<description>A test skill</description>\n<location>/path/to/test-skill/SKILL.md</location>\n</skill>\n</available_skills>"
-	b.Publish(sdk.NewEvent(TopicSkillsLoaded, skillsXML))
+	b.Publish(sdk.NewEvent(sdk.TopicSkillsLoaded, skillsXML))
 
 	// Give the goroutine time to process the skills event before sending prompt
 	time.Sleep(50 * time.Millisecond)
@@ -1166,7 +1166,7 @@ func TestLoop_SkillsUpdateViaBus(t *testing.T) {
 
 	// First turn with initial skills
 	skillsV1 := "<available_skills><skill><name>v1</name></skill></available_skills>"
-	b.Publish(sdk.NewEvent(TopicSkillsLoaded, skillsV1))
+	b.Publish(sdk.NewEvent(sdk.TopicSkillsLoaded, skillsV1))
 
 	// Give the goroutine time to process the skills event before sending prompt
 	time.Sleep(50 * time.Millisecond)
@@ -1182,7 +1182,7 @@ func TestLoop_SkillsUpdateViaBus(t *testing.T) {
 
 	// Update skills before second turn
 	skillsV2 := "<available_skills><skill><name>v2</name></skill></available_skills>"
-	b.Publish(sdk.NewEvent(TopicSkillsLoaded, skillsV2))
+	b.Publish(sdk.NewEvent(sdk.TopicSkillsLoaded, skillsV2))
 
 	b.Publish(sdk.NewEvent(TopicFollowup, "second turn"))
 

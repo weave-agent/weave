@@ -587,7 +587,7 @@ func (m *Model) toggleLastToolOutput() {
 
 		if um, ok := items[i].(*messages.UserMessage); ok && um.IsSkillInvocation() {
 			um.ToggleExpanded()
-			m.chat = m.chat.UpdateItemByID(um)
+			m.chat = m.chat.UpdateItemAt(i, um)
 
 			return
 		}
