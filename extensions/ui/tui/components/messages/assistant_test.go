@@ -3,6 +3,7 @@ package messages
 import (
 	"strings"
 	"testing"
+	"time"
 
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/stretchr/testify/assert"
@@ -22,6 +23,14 @@ func TestAssistantMessage_Append(t *testing.T) {
 	assert.True(t, m.IsStreaming())
 }
 
+func TestAssistantMessage_AppendSetsDirty(t *testing.T) {
+	m := NewAssistantMessage()
+	assert.False(t, m.dirty, "new message should not be dirty")
+
+	m.Append("text")
+	assert.True(t, m.dirty, "Append should set dirty flag")
+}
+
 func TestAssistantMessage_Finalize(t *testing.T) {
 	m := NewAssistantMessage()
 	m.Append("streaming text")
@@ -38,22 +47,90 @@ func TestAssistantMessage_FinalizeOverwritesStreamed(t *testing.T) {
 	assert.False(t, m.IsStreaming())
 }
 
-func TestAssistantMessage_View_Streaming_PlainText(t *testing.T) {
+func TestAssistantMessage_FinalizeClearsRenderState(t *testing.T) {
 	m := NewAssistantMessage()
-	m.Append("hello")
-	// Streaming messages return plain text without markdown processing
-	assert.Equal(t, "hello", m.View(80))
+	m.Append("# Hello")
+	_ = m.View(80) // trigger a render
+	m.Finalize("final")
+
+	assert.False(t, m.dirty)
+	assert.Empty(t, m.cachedRender)
+}
+
+func TestAssistantMessage_View_Streaming_FirstRenderIsMarkdown(t *testing.T) {
+	m := NewAssistantMessage()
+	m.Append("# Hello World\n\nSome **bold** text.")
+
+	// First View() call should immediately render through Glamour
+	view := m.View(80)
+	assert.Contains(t, view, "Hello World")
+	assert.Contains(t, view, "bold")
+	// Markdown output should be longer than plain text due to ANSI codes
+	assert.Greater(t, len(view), len("# Hello World\n\nSome **bold** text."))
+}
+
+func TestAssistantMessage_View_Streaming_DebouncedWithinInterval(t *testing.T) {
+	m := NewAssistantMessage()
+
+	// First render
+	m.Append("line one")
+	view1 := m.View(80)
+	assert.Contains(t, view1, "line one")
+
+	// Rapid Append within debounce interval
+	m.Append(" line two")
+	// Without sleeping, the debounce should prevent re-render
+	// but return the cached render from the first call
+	view2 := m.View(80)
+	assert.Equal(t, view1, view2, "should return cached render within debounce interval")
+}
+
+func TestAssistantMessage_View_Streaming_DebounceExpired(t *testing.T) {
+	m := NewAssistantMessage()
+
+	m.Append("first")
+	view1 := m.View(80)
+	assert.Contains(t, view1, "first")
+
+	// Wait for debounce to expire
+	time.Sleep(renderDebounce + 10*time.Millisecond)
+
+	m.Append(" second")
+	view2 := m.View(80)
+	assert.Contains(t, view2, "second", "after debounce expires, new content should be rendered")
+	assert.NotEqual(t, view1, view2, "rendered output should change after debounce")
+}
+
+func TestAssistantMessage_View_Streaming_MultipleAppendsWithinDebounce(t *testing.T) {
+	m := NewAssistantMessage()
+
+	m.Append("a")
+	_ = m.View(80)
+
+	// Multiple appends within debounce window
+	m.Append(" b")
+	m.Append(" c")
+	m.Append(" d")
+
+	view := m.View(80)
+	// Should still be the cached render, not including b, c, d
+	assert.Contains(t, view, "a")
+	// The cached render doesn't include the later appends
+	assert.NotContains(t, view, "b c d")
+
+	// After debounce expires, all content should appear
+	time.Sleep(renderDebounce + 10*time.Millisecond)
+
+	view = m.View(80)
+	assert.Contains(t, view, "a b c d")
 }
 
 func TestAssistantMessage_View_Finalized_Markdown(t *testing.T) {
 	m := NewAssistantMessage()
 	m.Finalize("# Hello World\n\nSome **bold** text.")
 	view := m.View(80)
-	// Finalized messages go through markdown renderer
-	// The output should contain the text but with styling applied
 	assert.Contains(t, view, "Hello World")
 	assert.Contains(t, view, "bold")
-	// Markdown output is typically longer due to ANSI codes
 	assert.Greater(t, len(view), len("Hello World"))
 }
 
@@ -67,7 +144,6 @@ func TestAssistantMessage_View_Finalized_CodeBlock(t *testing.T) {
 func TestAssistantMessage_SetWidth(t *testing.T) {
 	m := NewAssistantMessage()
 	m.Finalize("# Title")
-	// Should not panic when setting width
 	m.SetWidth(120)
 	view := m.View(80)
 	assert.Contains(t, view, "Title")
@@ -83,21 +159,59 @@ func TestAssistantMessage_Interrupt(t *testing.T) {
 	assert.Contains(t, m.Content(), "[interrupted]")
 }
 
+func TestAssistantMessage_Interrupt_ClearsRenderState(t *testing.T) {
+	m := NewAssistantMessage()
+	m.Append("partial")
+	_ = m.View(80) // trigger render
+	m.Interrupt()
+
+	assert.False(t, m.dirty)
+	assert.Empty(t, m.cachedRender)
+}
+
 func TestAssistantMessage_Interrupt_Idempotent(t *testing.T) {
 	m := NewAssistantMessage()
 	m.Append("partial")
 	m.Interrupt()
 	content1 := m.Content()
-	m.Interrupt() // second call should be no-op
+	m.Interrupt()
 	assert.Equal(t, content1, m.Content())
 }
 
 func TestAssistantMessage_Interrupt_NotStreaming(t *testing.T) {
 	m := NewAssistantMessage()
 	m.Finalize("done")
-	m.Interrupt() // no-op on finalized message
+	m.Interrupt()
 	assert.False(t, m.Interrupted())
 	assert.Equal(t, "done", m.Content())
+}
+
+func TestAssistantMessage_ProgressiveRender_PartialMarkdown(t *testing.T) {
+	m := NewAssistantMessage()
+
+	// Simulate streaming partial markdown (unclosed code fence)
+	m.Append("```go\nfmt.Println(")
+	view := m.View(80)
+	// Glamour handles unclosed fences gracefully — should still render visible text
+	assert.Contains(t, view, "fmt.Println")
+}
+
+func TestAssistantMessage_ProgressiveRender_UnclosedBold(t *testing.T) {
+	m := NewAssistantMessage()
+
+	// Unclosed bold markup
+	m.Append("This is **bold")
+	view := m.View(80)
+	assert.Contains(t, view, "bold")
+}
+
+func TestAssistantMessage_ProgressiveRender_FencedCodeComplete(t *testing.T) {
+	m := NewAssistantMessage()
+
+	// Complete code fence
+	m.Append("```go\nfmt.Println(\"hello\")\n```")
+	view := m.View(80)
+	assert.Contains(t, view, "fmt.Println")
 }
 
 func TestAssistantMessage_Draw_Streaming(t *testing.T) {
@@ -148,4 +262,30 @@ func TestAssistantMessage_Draw_ZeroArea(t *testing.T) {
 
 	canvas := uv.NewScreenBuffer(80, 5)
 	m.Draw(canvas, uv.Rect(0, 0, 0, 0))
+}
+
+func TestAssistantMessage_Draw_StreamingProgressive(t *testing.T) {
+	m := NewAssistantMessage()
+	m.Append("# Hello")
+
+	canvas1 := uv.NewScreenBuffer(80, 5)
+	m.Draw(canvas1, canvas1.Bounds())
+	out1 := uv.TrimSpace(canvas1.Render())
+	assert.Contains(t, out1, "Hello")
+
+	// Append more within debounce — same cached render
+	m.Append(" World")
+
+	canvas2 := uv.NewScreenBuffer(80, 5)
+	m.Draw(canvas2, canvas2.Bounds())
+	out2 := uv.TrimSpace(canvas2.Render())
+	assert.Equal(t, out1, out2, "within debounce, Draw should use cached render")
+
+	// Wait for debounce to expire
+	time.Sleep(renderDebounce + 10*time.Millisecond)
+
+	canvas3 := uv.NewScreenBuffer(80, 5)
+	m.Draw(canvas3, canvas3.Bounds())
+	out3 := uv.TrimSpace(canvas3.Render())
+	assert.Contains(t, out3, "World", "after debounce, Draw should include new content")
 }

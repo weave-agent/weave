@@ -178,11 +178,11 @@ Build the core feature improvements on the now-stable v2 foundation.
 
 ### Task 9: Progressive markdown rendering during streaming
 
-- [ ] Update `components/messages/assistant.go` — during streaming, debounce Glamour re-renders at ~100ms intervals instead of showing plain text. Buffer incoming text, re-render through Glamour on each debounce tick. On finalize, do a final full render (same as current behavior).
-- [ ] Add a `lastRender` timestamp and `dirty` flag to `AssistantMessage`. On `Append(delta)`, set dirty=true. The `Draw()` method checks if dirty and enough time has passed, re-renders through Glamour.
-- [ ] Handle partial markdown gracefully — Glamour already handles unclosed fences by rendering as plain text, so this should work naturally.
-- [ ] Write tests for progressive rendering — verify plain text during fast streaming, verify markdown appears within ~100ms of content stabilizing, verify final render is full markdown.
-- [ ] Run tests — must pass before Task 10.
+- [x] Update `components/messages/assistant.go` — during streaming, debounce Glamour re-renders at ~100ms intervals instead of showing plain text. Buffer incoming text, re-render through Glamour on each debounce tick. On finalize, do a final full render (same as current behavior).
+- [x] Add a `lastRender` timestamp and `dirty` flag to `AssistantMessage`. On `Append(delta)`, set dirty=true. The `Draw()` method checks if dirty and enough time has passed, re-renders through Glamour.
+- [x] Handle partial markdown gracefully — Glamour already handles unclosed fences by rendering as plain text, so this should work naturally.
+- [x] Write tests for progressive rendering — verify plain text during fast streaming, verify markdown appears within ~100ms of content stabilizing, verify final render is full markdown.
+- [x] Run tests — must pass before Task 10.
 
 ---
 
