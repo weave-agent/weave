@@ -90,11 +90,11 @@ The core migration from v1 string-based rendering to v2 + ultraviolet screen buf
 
 ### Task 2: Create layout engine and styles package
 
-- [ ] Create `styles/styles.go` — centralized Lip Gloss v2 style definitions for all TUI components (borders, colors, padding, text styles). Define a theme struct with all colors so components reference styles consistently.
-- [ ] Create `layout.go` — `LayoutEngine` struct that receives terminal dimensions and computes `uv.Rectangle` regions for: header, main (chat), pills, editor, footer. Use `uv.layout` rectangle splitting. Expose a `Compute(width, height, editorLines int) Layout` method.
-- [ ] Create `render.go` — root `Draw(scr uv.Screen, area uv.Rectangle)` method that calls `LayoutEngine.Compute()` and delegates to each component's `Draw()` with its allocated rectangle.
-- [ ] Write tests for `LayoutEngine.Compute()` — verify rectangle calculations at various terminal sizes (120x40, 80x24, 200x60), verify editor flex behavior (3-15 lines), verify main area gets remaining space.
-- [ ] Write tests for `styles` — verify theme struct has all expected style fields, verify styles produce valid Lip Gloss output.
+- [x] Create `styles/styles.go` — centralized Lip Gloss v2 style definitions for all TUI components (borders, colors, padding, text styles). Define a theme struct with all colors so components reference styles consistently.
+- [x] Create `layout.go` — `LayoutEngine` struct that receives terminal dimensions and computes `uv.Rectangle` regions for: header, main (chat), pills, editor, footer. Use `uv.layout` rectangle splitting. Expose a `Compute(width, height, editorLines int) Layout` method.
+- [x] Create `render.go` — root `Draw(scr uv.Screen, area uv.Rectangle)` method that calls `LayoutEngine.Compute()` and delegates to each component's `Draw()` with its allocated rectangle.
+- [x] Write tests for `LayoutEngine.Compute()` — verify rectangle calculations at various terminal sizes (120x40, 80x24, 200x60), verify editor flex behavior (3-15 lines), verify main area gets remaining space.
+- [x] Write tests for `styles` — verify theme struct has all expected style fields, verify styles produce valid Lip Gloss output.
 
 ---
 
