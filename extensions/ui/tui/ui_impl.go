@@ -3,6 +3,7 @@ package tui
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"weave/ext/ui/tui/components/overlays"
@@ -158,12 +159,15 @@ func (u *TUIImpl) RegisterCommand(name string, handler func(args string) error) 
 	commands.Register(name, "", func(args string) CommandResult {
 		err := handler(args)
 
-		msg := "ok"
 		if err != nil {
-			msg = fmt.Sprintf("error: %v", err)
+			return CommandResult{Notify: fmt.Sprintf("/%s: error: %v", name, err)}
 		}
 
-		return CommandResult{Notify: "/" + name + ": " + msg}
+		if strings.HasPrefix(name, "skill:") {
+			return CommandResult{}
+		}
+
+		return CommandResult{Notify: "/" + name + ": ok"}
 	})
 
 	u.mu.Lock()

@@ -11,7 +11,7 @@ func TestUserMessage_Content(t *testing.T) {
 	assert.Equal(t, "hello agent", m.Content())
 }
 
-func TestUserMessage_View(t *testing.T) {
+func TestUserMessage_View_PlainText(t *testing.T) {
 	m := NewUserMessage("fix the bug")
 	assert.Equal(t, "fix the bug", m.View(80))
 }
@@ -20,4 +20,125 @@ func TestUserMessage_EmptyContent(t *testing.T) {
 	m := NewUserMessage("")
 	assert.Empty(t, m.Content())
 	assert.Empty(t, m.View(80))
+}
+
+func TestUserMessage_View_ZeroWidth(t *testing.T) {
+	m := NewUserMessage("<skill name=\"test\">\nbody\n</skill>")
+	view := m.View(0)
+	assert.Contains(t, view, "[skill test]")
+}
+
+func TestParseSkillXML_Valid(t *testing.T) {
+	content := "<skill name=\"my-skill\">\ninstructions here\n</skill>\n\ndo something"
+	block, ok := parseSkillXML(content)
+	assert.True(t, ok)
+	assert.Equal(t, "my-skill", block.name)
+	assert.Equal(t, "instructions here", block.body)
+	assert.Equal(t, "do something", block.trailing)
+}
+
+func TestParseSkillXML_WithLocation(t *testing.T) {
+	content := "<skill name=\"analyze\" location=\"/path/to/skill/SKILL.md\">\nbody\n</skill>"
+	block, ok := parseSkillXML(content)
+	assert.True(t, ok)
+	assert.Equal(t, "analyze", block.name)
+	assert.Equal(t, "body", block.body)
+}
+
+func TestParseSkillXML_NoTrailing(t *testing.T) {
+	content := "<skill name=\"test\">\nbody\n</skill>"
+	block, ok := parseSkillXML(content)
+	assert.True(t, ok)
+	assert.Equal(t, "test", block.name)
+	assert.Empty(t, block.trailing)
+}
+
+func TestParseSkillXML_NoMatch(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+	}{
+		{"plain text", "just a regular message"},
+		{"empty", ""},
+		{"malformed xml", "<skill>no name attr</skill>"},
+		{"unclosed", "<skill name=\"test\">\nbody"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, ok := parseSkillXML(tt.content)
+			assert.False(t, ok)
+		})
+	}
+}
+
+func TestUserMessage_IsSkillInvocation(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		expected bool
+	}{
+		{"skill xml", "<skill name=\"test\">\nbody\n</skill>", true},
+		{"plain text", "regular message", false},
+		{"empty", "", false},
+		{"malformed", "<skill>no name</skill>", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := NewUserMessage(tt.content)
+			assert.Equal(t, tt.expected, m.IsSkillInvocation())
+		})
+	}
+}
+
+func TestUserMessage_View_SkillCollapsed(t *testing.T) {
+	m := NewUserMessage("<skill name=\"my-skill\">\nfull instructions here\n</skill>\n\ndo something")
+	view := m.View(80)
+	assert.Contains(t, view, "[skill my-skill]")
+	assert.Contains(t, view, "do something")
+	assert.NotContains(t, view, "full instructions")
+}
+
+func TestUserMessage_View_SkillCollapsed_NoArgs(t *testing.T) {
+	m := NewUserMessage("<skill name=\"my-skill\">\nfull instructions\n</skill>")
+	view := m.View(80)
+	assert.Contains(t, view, "[skill my-skill]")
+	assert.NotContains(t, view, "full instructions")
+}
+
+func TestUserMessage_View_SkillExpanded(t *testing.T) {
+	m := NewUserMessage("<skill name=\"my-skill\">\nfull instructions here\n</skill>\n\ndo something")
+	m.ToggleExpanded()
+	view := m.View(80)
+	assert.Contains(t, view, "[skill my-skill]")
+	assert.Contains(t, view, "full instructions here")
+	assert.Contains(t, view, "do something")
+}
+
+func TestUserMessage_View_SkillExpanded_NoBody(t *testing.T) {
+	m := NewUserMessage("<skill name=\"test\">\n</skill>\n\nargs here")
+	m.ToggleExpanded()
+	view := m.View(80)
+	assert.Contains(t, view, "[skill test]")
+	assert.Contains(t, view, "args here")
+}
+
+func TestUserMessage_ToggleExpanded(t *testing.T) {
+	m := NewUserMessage("<skill name=\"test\">\nbody\n</skill>")
+	assert.False(t, m.Expanded())
+	m.ToggleExpanded()
+	assert.True(t, m.Expanded())
+	m.ToggleExpanded()
+	assert.False(t, m.Expanded())
+}
+
+func TestUserMessage_View_SkillSpecialCharsInName(t *testing.T) {
+	m := NewUserMessage("<skill name=\"my-cool-skill\">\nbody\n</skill>\n\nargs")
+	view := m.View(80)
+	assert.Contains(t, view, "[skill my-cool-skill]")
+}
+
+func TestUserMessage_View_PlainTextNotAffected(t *testing.T) {
+	m := NewUserMessage("regular message without xml")
+	view := m.View(80)
+	assert.Equal(t, "regular message without xml", view)
 }

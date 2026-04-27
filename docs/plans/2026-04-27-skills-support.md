@@ -92,10 +92,10 @@ Make dynamically registered skill commands appear in the editor autocomplete.
 ### Task 5: TUI rendering of skill invocations
 Render skill command invocations with `[skill]` prefix in the chat view.
 
-- [ ] detect skill blocks in user messages (XML pattern `<skill name="..."`)
-- [ ] render matched messages with `[skill]` prefix and skill name, collapsible to show full content
-- [ ] write tests for skill block detection and rendering
-- [ ] run tests — must pass before next task
+- [x] detect skill blocks in user messages (XML pattern `<skill name="..."`)
+- [x] render matched messages with `[skill]` prefix and skill name, collapsible to show full content
+- [x] write tests for skill block detection and rendering
+- [x] run tests — must pass before next task
 
 ### Task 6: Config integration
 Add skills to config file format and auto-include the skills extension.
