@@ -2,6 +2,8 @@ package tui
 
 import (
 	"strings"
+	"time"
+	"unicode/utf8"
 
 	"weave/sdk"
 
@@ -46,7 +48,8 @@ type TurnEndMsg struct{}
 type MessageStartMsg struct{}
 
 type MessageUpdateMsg struct {
-	Content string
+	Content   string
+	TokenRate float64
 }
 
 type MessageEndMsg struct {
@@ -186,17 +189,35 @@ func translateModelChangeFailed(payload any) ModelChangeFailedMsg {
 // them into a single concatenated message to reduce UI update pressure.
 // Blocks until the event channel is closed.
 func Bridge(sender Sender, events <-chan sdk.Event) {
+	var (
+		streamStart time.Time
+		streamRunes int
+	)
+
 	for evt := range events {
 		msg := translateEvent(evt)
 		if msg == nil {
 			continue
 		}
 
+		// Reset rate tracking at message boundaries
+		switch msg.(type) {
+		case MessageStartMsg, MessageEndMsg:
+			streamStart = time.Time{}
+			streamRunes = 0
+		}
+
 		// Batch consecutive MessageUpdateMsg deltas
-		if _, ok := msg.(MessageUpdateMsg); ok { //nolint:nestif // batching requires nested select/drain
+		if mu, ok := msg.(MessageUpdateMsg); ok { //nolint:nestif // batching requires nested select/drain
+			// Track rate
+			if streamStart.IsZero() {
+				streamStart = time.Now()
+			}
+
+			streamRunes += utf8.RuneCountInString(mu.Content)
+
 			var batch strings.Builder
 
-			mu, _ := msg.(MessageUpdateMsg)
 			batch.WriteString(mu.Content)
 
 			// Drain any queued deltas
@@ -207,7 +228,10 @@ func Bridge(sender Sender, events <-chan sdk.Event) {
 					if !ok {
 						// Channel closed while batching — flush and exit
 						if batch.Len() > 0 {
-							sender.Send(MessageUpdateMsg{Content: batch.String()})
+							sender.Send(MessageUpdateMsg{
+								Content:   batch.String(),
+								TokenRate: calcTokenRate(streamStart, streamRunes),
+							})
 						}
 
 						sender.Send(ShutdownMsg{})
@@ -217,12 +241,23 @@ func Bridge(sender Sender, events <-chan sdk.Event) {
 
 					nextMsg := translateEvent(next)
 					if nextMu, ok := nextMsg.(MessageUpdateMsg); ok {
+						streamRunes += utf8.RuneCountInString(nextMu.Content)
 						batch.WriteString(nextMu.Content)
 					} else {
 						// Non-delta message — flush the batch, then handle this message
 						if batch.Len() > 0 {
-							sender.Send(MessageUpdateMsg{Content: batch.String()})
+							sender.Send(MessageUpdateMsg{
+								Content:   batch.String(),
+								TokenRate: calcTokenRate(streamStart, streamRunes),
+							})
 							batch.Reset()
+						}
+
+						// Reset rate at message boundaries found during drain
+						switch nextMsg.(type) {
+						case MessageStartMsg, MessageEndMsg:
+							streamStart = time.Time{}
+							streamRunes = 0
 						}
 
 						if nextMsg != nil {
@@ -237,7 +272,10 @@ func Bridge(sender Sender, events <-chan sdk.Event) {
 			}
 
 			if batch.Len() > 0 {
-				sender.Send(MessageUpdateMsg{Content: batch.String()})
+				sender.Send(MessageUpdateMsg{
+					Content:   batch.String(),
+					TokenRate: calcTokenRate(streamStart, streamRunes),
+				})
 			}
 
 			continue
@@ -247,6 +285,21 @@ func Bridge(sender Sender, events <-chan sdk.Event) {
 	}
 
 	sender.Send(ShutdownMsg{})
+}
+
+// calcTokenRate estimates token rate from accumulated rune count and elapsed time.
+// Uses the standard heuristic of 1 token ≈ 4 characters.
+func calcTokenRate(start time.Time, totalRunes int) float64 {
+	if start.IsZero() {
+		return 0
+	}
+
+	elapsed := time.Since(start).Seconds()
+	if elapsed <= 0 {
+		return 0
+	}
+
+	return float64(totalRunes) / 4.0 / elapsed
 }
 
 // PublishPrompt returns a tea.Cmd that publishes an agent.prompt event.

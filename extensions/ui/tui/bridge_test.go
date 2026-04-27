@@ -3,6 +3,7 @@ package tui
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"weave/bus"
 	"weave/sdk"
@@ -434,4 +435,113 @@ func TestPublishInterrupt(t *testing.T) {
 	evt := <-ch
 	assert.Equal(t, topicInterrupt, evt.Topic)
 	assert.Equal(t, "user interrupt", evt.Payload)
+}
+
+func TestBridge_TokenRateTracking(t *testing.T) {
+	sender := &collectingSender{}
+	events := make(chan sdk.Event, 20)
+
+	done := make(chan struct{})
+
+	go func() {
+		Bridge(sender, events)
+		close(done)
+	}()
+
+	// Start streaming
+	events <- sdk.NewEvent(topicMsgStart, nil)
+
+	// Send a delta with known content (enough runes for a measurable rate)
+	events <- sdk.NewEvent(topicMsgUpdate, "hello world test data here")
+
+	close(events)
+
+	<-done
+
+	// Should have: MessageStartMsg, MessageUpdateMsg(with rate), ShutdownMsg
+	require.GreaterOrEqual(t, len(sender.msgs), 2, "expected at least 2 messages")
+
+	// Find the MessageUpdateMsg
+	var updateMsg MessageUpdateMsg
+
+	found := false
+
+	for _, msg := range sender.msgs {
+		if mu, ok := msg.(MessageUpdateMsg); ok {
+			updateMsg = mu
+			found = true
+		}
+	}
+
+	require.True(t, found, "expected a MessageUpdateMsg")
+	assert.Equal(t, "hello world test data here", updateMsg.Content)
+	assert.Greater(t, updateMsg.TokenRate, float64(0), "token rate should be > 0")
+}
+
+func TestBridge_TokenRateResetsOnMessageEnd(t *testing.T) {
+	sender := &collectingSender{}
+	events := make(chan sdk.Event, 20)
+
+	done := make(chan struct{})
+
+	go func() {
+		Bridge(sender, events)
+		close(done)
+	}()
+
+	// First message: start, update, end
+	events <- sdk.NewEvent(topicMsgStart, nil)
+
+	events <- sdk.NewEvent(topicMsgUpdate, "first message")
+
+	events <- sdk.NewEvent(topicMsgEnd, map[string]any{"content": "first message", "tool_calls": []sdk.ToolCall{}})
+
+	// Second message: start, update
+	events <- sdk.NewEvent(topicMsgStart, nil)
+
+	events <- sdk.NewEvent(topicMsgUpdate, "second message")
+
+	close(events)
+
+	<-done
+
+	// Find the two update messages and verify rates are independent
+	var rates []float64
+
+	for _, msg := range sender.msgs {
+		if mu, ok := msg.(MessageUpdateMsg); ok {
+			rates = append(rates, mu.TokenRate)
+		}
+	}
+
+	require.Len(t, rates, 2)
+	assert.Greater(t, rates[0], float64(0), "first message rate should be > 0")
+	assert.Greater(t, rates[1], float64(0), "second message rate should be > 0 (independent)")
+}
+
+func TestCalcTokenRate(t *testing.T) {
+	tests := []struct {
+		name       string
+		runes      int
+		elapsedSec float64
+		wantRate   float64
+	}{
+		{name: "100 runes in 1s = 25 tok/s", runes: 100, elapsedSec: 1, wantRate: 25},
+		{name: "400 runes in 1s = 100 tok/s", runes: 400, elapsedSec: 1, wantRate: 100},
+		{name: "80 runes in 0.1s = 200 tok/s", runes: 80, elapsedSec: 0.1, wantRate: 200},
+		{name: "zero runes", runes: 0, elapsedSec: 1, wantRate: 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			start := time.Now().Add(-time.Duration(tt.elapsedSec * float64(time.Second)))
+			rate := calcTokenRate(start, tt.runes)
+			assert.InDelta(t, tt.wantRate, rate, 0.5)
+		})
+	}
+
+	t.Run("zero time returns zero", func(t *testing.T) {
+		rate := calcTokenRate(time.Time{}, 100)
+		assert.InDelta(t, float64(0), rate, 0.001)
+	})
 }

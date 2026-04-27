@@ -28,6 +28,7 @@ const (
 	ActionCursorWordRight    BindingAction = "tui.editor.cursorWordRight"
 	ActionScrollUp           BindingAction = "tui.editor.scrollUp"
 	ActionScrollDown         BindingAction = "tui.editor.scrollDown"
+	ActionScrollToBottom     BindingAction = "tui.editor.scrollToBottom"
 	ActionDeleteWordBackward BindingAction = "tui.editor.deleteWordBackward"
 	ActionDeleteWordForward  BindingAction = "tui.editor.deleteWordForward"
 	ActionDeleteToLineStart  BindingAction = "tui.editor.deleteToLineStart"
@@ -62,6 +63,7 @@ var defaultBindings = []Binding{
 	{Action: ActionCursorWordRight, Keys: []string{"alt+right", "ctrl+right"}, Description: "Cursor word right"},
 	{Action: ActionScrollUp, Keys: []string{"pgup"}, Description: "Scroll chat up"},
 	{Action: ActionScrollDown, Keys: []string{"pgdown"}, Description: "Scroll chat down"},
+	{Action: ActionScrollToBottom, Keys: []string{"shift+g"}, Description: "Scroll chat to bottom"},
 
 	// Editor deletion
 	{Action: ActionDeleteWordBackward, Keys: []string{"ctrl+w"}, Description: "Delete word backward"},

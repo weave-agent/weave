@@ -248,3 +248,23 @@ func TestFooterModel_SetTokenRate(t *testing.T) {
 	f := NewFooterModel().SetTokenRate(42.5)
 	assert.InDelta(t, 42.5, f.TokenRate(), 0.01)
 }
+
+func TestFooterView_TokenRateDisplayed(t *testing.T) {
+	f := NewFooterModel().SetSize(80).SetModel("claude-sonnet-4", "anthropic").SetTokenRate(42.5)
+	view := f.View()
+	assert.Contains(t, view, "42.5 tok/s")
+}
+
+func TestFooterView_TokenRateClearedWhenZero(t *testing.T) {
+	f := NewFooterModel().SetSize(80).SetModel("claude-sonnet-4", "anthropic").SetTokenRate(0)
+	view := f.View()
+	assert.NotContains(t, view, "tok/s")
+}
+
+func TestFooterView_TokenRateInDraw(t *testing.T) {
+	f := NewFooterModel().SetSize(80).SetModel("claude-sonnet-4", "anthropic").SetTokenRate(123.4)
+	canvas := uv.NewScreenBuffer(80, 2)
+	f.Draw(canvas, canvas.Bounds())
+	output := uv.TrimSpace(canvas.Render())
+	assert.Contains(t, output, "123.4 tok/s")
+}

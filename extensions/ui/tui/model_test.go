@@ -3,6 +3,7 @@ package tui
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -1780,3 +1781,85 @@ func TestModel_Draw_ComposerSyncsChatSize(t *testing.T) {
 	rendered := canvas.Render()
 	assert.Contains(t, rendered, "test")
 }
+
+func TestModel_TokenRatePassedToFooter(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 20
+	m.chat = m.chat.SetSize(80, 20)
+
+	model, _ := m.Update(MessageStartMsg{})
+	m = model.(Model)
+
+	model, _ = m.Update(MessageUpdateMsg{Content: "hello", TokenRate: 42.5})
+	m = model.(Model)
+
+	assert.InDelta(t, 42.5, m.footer.TokenRate(), 0.01)
+}
+
+func TestModel_TokenRateClearedOnMessageEnd(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 20
+	m.chat = m.chat.SetSize(80, 20)
+
+	model, _ := m.Update(MessageStartMsg{})
+	m = model.(Model)
+
+	model, _ = m.Update(MessageUpdateMsg{Content: "hello", TokenRate: 42.5})
+	m = model.(Model)
+	assert.InDelta(t, 42.5, m.footer.TokenRate(), 0.01)
+
+	model, _ = m.Update(MessageEndMsg{Content: "hello"})
+	m = model.(Model)
+	assert.InDelta(t, 0.0, m.footer.TokenRate(), 0.001)
+}
+
+func TestModel_TurnEndSetsScrollIndicator(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 10
+	m.chat = m.chat.SetSize(80, 5) // small viewport
+
+	// Add enough items to make chat scrollable
+	for i := range 10 {
+		m.chat = m.chat.AddItem(stubItem{text: fmt.Sprintf("line%d", i)})
+	}
+
+	// Scroll up so we're not at bottom
+	m.chat = m.chat.ScrollUp(3)
+	require.False(t, m.chat.AtBottom())
+
+	// TurnEndMsg should set the indicator
+	model, _ := m.Update(TurnEndMsg{})
+	m = model.(Model)
+
+	assert.True(t, m.chat.TurnEndPending())
+}
+
+func TestModel_ScrollToBottomClearsIndicator(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 10
+	m.chat = m.chat.SetSize(80, 5)
+
+	for i := range 10 {
+		m.chat = m.chat.AddItem(stubItem{text: fmt.Sprintf("line%d", i)})
+	}
+
+	m.chat = m.chat.ScrollUp(3).SetTurnEndPending(true)
+	require.True(t, m.chat.TurnEndPending())
+
+	model, _ := m.dispatchBinding(ActionScrollToBottom)
+	m = model.(Model)
+
+	assert.False(t, m.chat.TurnEndPending())
+	assert.True(t, m.chat.AtBottom())
+}
+
+// stubItem is a simple ChatItem for tests in the tui package.
+type stubItem struct {
+	text string
+}
+
+func (s stubItem) View(width int) string { return s.text }

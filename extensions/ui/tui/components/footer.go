@@ -253,6 +253,11 @@ func (m FooterModel) renderLine2() string {
 		parts = append(parts, modelDisplay)
 	}
 
+	// Token rate during streaming
+	if m.tokenRate > 0 {
+		parts = append(parts, fmt.Sprintf("%.1f tok/s", m.tokenRate))
+	}
+
 	if len(parts) == 0 {
 		dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 		return dimStyle.Render("weave")

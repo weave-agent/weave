@@ -312,7 +312,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case MessageUpdateMsg:
-		m.onMessageUpdate(msg.Content)
+		m.onMessageUpdate(msg)
 
 		return m, nil
 
@@ -328,6 +328,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case TurnEndMsg:
 		m.spinner = m.spinner.Hide()
+
+		if !m.chat.AtBottom() {
+			m.chat = m.chat.SetTurnEndPending(true)
+		}
 
 		return m, nil
 
@@ -502,6 +506,9 @@ func (m Model) dispatchBinding(action BindingAction) (tea.Model, tea.Cmd) {
 	case ActionScrollDown:
 		m.chat = m.chat.ScrollDown(m.chatHeight(m.height))
 		return m, nil
+	case ActionScrollToBottom:
+		m.chat = m.chat.JumpToBottom()
+		return m, nil
 
 	// Editor deletion
 	case ActionDeleteWordBackward:
@@ -641,8 +648,12 @@ func (m Model) openExternalEditor() (tea.Model, tea.Cmd) {
 	})
 }
 
-// onMessageUpdate appends a delta to the current assistant message.
-func (m *Model) onMessageUpdate(delta string) {
+// onMessageUpdate appends a delta to the current assistant message and updates token rate.
+func (m *Model) onMessageUpdate(msg MessageUpdateMsg) {
+	if msg.TokenRate > 0 {
+		m.footer = m.footer.SetTokenRate(msg.TokenRate)
+	}
+
 	items := m.chat.Items()
 	if len(items) == 0 {
 		return
@@ -653,12 +664,14 @@ func (m *Model) onMessageUpdate(delta string) {
 		return
 	}
 
-	am.Append(delta)
+	am.Append(msg.Content)
 	m.chat = m.chat.UpdateItem(am)
 }
 
 // onMessageEnd finalizes the current assistant message and creates pending tool panels.
 func (m *Model) onMessageEnd(msg MessageEndMsg) {
+	m.footer = m.footer.SetTokenRate(0)
+
 	items := m.chat.Items()
 	if len(items) == 0 {
 		return

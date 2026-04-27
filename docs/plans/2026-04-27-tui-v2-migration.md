@@ -188,12 +188,12 @@ Build the core feature improvements on the now-stable v2 foundation.
 
 ### Task 10: Token rate display and smart auto-scroll
 
-- [ ] Add token rate tracking to `bridge.go` — on first `MessageUpdateMsg` delta, record start time. On each subsequent delta, estimate tokens (rune count / 4) and calculate rate. Include rate in a new field on `MessageUpdateMsg`.
-- [ ] Update `components/footer.go` — during streaming, display `XX.X tok/s` next to model name. Clear when `MessageEndMsg` arrives.
-- [ ] Update `components/chat.go` — implement smart auto-scroll: if user is within 3 lines of bottom, auto-scroll on new content. If scrolled up, show a `↓ new content` indicator at the bottom of the viewport. On `TurnEndMsg`, show persistent scroll-to-bottom indicator (dismissed by `G` key or click).
-- [ ] Write tests for token rate calculation — verify rate accuracy with known input, verify resets on message end.
-- [ ] Write tests for auto-scroll — verify scrolls when at bottom, verify indicator appears when scrolled up, verify indicator dismissed on jump.
-- [ ] Run tests — must pass before Phase 3.
+- [x] Add token rate tracking to `bridge.go` — on first `MessageUpdateMsg` delta, record start time. On each subsequent delta, estimate tokens (rune count / 4) and calculate rate. Include rate in a new field on `MessageUpdateMsg`.
+- [x] Update `components/footer.go` — during streaming, display `XX.X tok/s` next to model name. Clear when `MessageEndMsg` arrives.
+- [x] Update `components/chat.go` — implement smart auto-scroll: if user is within 3 lines of bottom, auto-scroll on new content. If scrolled up, show a `↓ new content` indicator at the bottom of the viewport. On `TurnEndMsg`, show persistent scroll-to-bottom indicator (dismissed by `G` key or click).
+- [x] Write tests for token rate calculation — verify rate accuracy with known input, verify resets on message end.
+- [x] Write tests for auto-scroll — verify scrolls when at bottom, verify indicator appears when scrolled up, verify indicator dismissed on jump.
+- [x] Run tests — must pass before Phase 3.
 
 ---
 
