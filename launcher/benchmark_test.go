@@ -3,6 +3,7 @@ package launcher
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 )
@@ -198,6 +199,66 @@ func BenchmarkWarmBuild_TUI(b *testing.B) {
 func BenchmarkWarmBuild_NoTUI(b *testing.B) {
 	moduleRoot := findModuleRootB(b)
 	warmPipeline(b, moduleRoot, extsWithoutTUI)
+}
+
+// End-to-end: measures the full `go run ./cmd/weave/ -p "hello"` path.
+// Includes go run compilation + launcher pipeline (discover → hash → build → cache).
+// Uses a project-local .weave/config.yaml to control extensions.
+// This is what you actually experience at the terminal.
+
+func goRunEndToEnd(b *testing.B, extYAML string) {
+	b.Helper()
+
+	moduleRoot := findModuleRootB(b)
+
+	cacheDir, err := DefaultCacheDir()
+	if err != nil {
+		b.Fatalf("DefaultCacheDir: %v", err)
+	}
+
+	// Create a project-local config to control which extensions are built.
+	configDir := filepath.Join(moduleRoot, ".weave")
+
+	if err := os.MkdirAll(configDir, 0o750); err != nil {
+		b.Fatalf("mkdir .weave: %v", err)
+	}
+
+	configPath := filepath.Join(configDir, "config.yaml")
+
+	if err := os.WriteFile(configPath, []byte(extYAML), 0o600); err != nil {
+		b.Fatalf("write config: %v", err)
+	}
+
+	defer func() {
+		_ = os.Remove(configPath)
+		_ = os.Remove(configDir)
+	}()
+
+	for b.Loop() {
+		// Clear launcher cache to force a full build each iteration.
+		_ = os.RemoveAll(cacheDir)
+
+		cmd := exec.Command("go", "run", "./cmd/weave/", "-p", "hello")
+		cmd.Dir = moduleRoot
+
+		output, err := cmd.CombinedOutput()
+		if err == nil {
+			continue
+		}
+
+		// Accept exit code 1 (provider error, stdin error) but not other failures.
+		if cmd.ProcessState.ExitCode() != 1 {
+			b.Fatalf("go run failed: %v\n%s", err, output)
+		}
+	}
+}
+
+func BenchmarkGoRun_NoTUI(b *testing.B) {
+	goRunEndToEnd(b, "core:\n  agent_loop: loop\n  providers:\n    - anthropic\nui: none\n")
+}
+
+func BenchmarkGoRun_TUI(b *testing.B) {
+	goRunEndToEnd(b, "core:\n  agent_loop: loop\n  providers:\n    - anthropic\nui: none\nextensions:\n  - bash\n  - read\n  - edit\n  - write\n  - grep\n  - find\n  - ls\n  - jsonl\n  - tui\n")
 }
 
 // Partial builds: Go cache primed with full build, but one extension source changed.
