@@ -71,7 +71,7 @@ func TestSkillsExtension_Subscribe_RegistersCommands(t *testing.T) {
 
 	ext.Subscribe(bus)
 
-	assert.Contains(t, registeredCmds, "skill:my-skill")
+	assert.Contains(t, registeredCmds, "/skill:my-skill")
 }
 
 func TestSkillsExtension_Subscribe_HeadlessMode(t *testing.T) {

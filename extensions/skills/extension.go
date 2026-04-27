@@ -53,7 +53,7 @@ func (e *SkillsExtension) Subscribe(bus sdk.Bus) {
 
 	for i := range skills {
 		skill := skills[i]
-		cmdName := "skill:" + skill.Name
+		cmdName := "/skill:" + skill.Name
 		ui.RegisterCommand(cmdName, makeSkillHandler(skill, bus))
 	}
 }
