@@ -54,11 +54,12 @@ func classifyStatus(code int) ErrorType {
 
 // ProviderConfig holds the configuration for an OpenAI-compatible provider.
 type ProviderConfig struct {
-	BaseURL      string
-	APIKey       string
-	Model        string
-	ExtraHeaders map[string]string
-	ExtraBody    map[string]any
+	BaseURL        string
+	APIKey         string
+	Model          string
+	ExtraHeaders   map[string]string
+	ExtraBody      map[string]any
+	ModifyRequest  func(body map[string]any, so *sdk.StreamOptions)
 }
 
 // ChatRequest is the request body sent to the chat completions endpoint.
@@ -209,6 +210,20 @@ func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sd
 		reqBody, err = json.Marshal(bodyMap)
 		if err != nil {
 			return nil, fmt.Errorf("openai-compat: marshal extra body: %w", err)
+		}
+	}
+
+	if cfg.ModifyRequest != nil {
+		var bodyMap map[string]any
+		if unmarshalErr := json.Unmarshal(reqBody, &bodyMap); unmarshalErr != nil {
+			return nil, fmt.Errorf("openai-compat: unmarshal for modify request: %w", unmarshalErr)
+		}
+
+		cfg.ModifyRequest(bodyMap, so)
+
+		reqBody, err = json.Marshal(bodyMap)
+		if err != nil {
+			return nil, fmt.Errorf("openai-compat: marshal modified body: %w", err)
 		}
 	}
 
