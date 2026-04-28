@@ -85,9 +85,11 @@ func (s DialogStack) Len() int {
 // Update routes messages through the dialog stack.
 // Key events are routed top-to-bottom with fall-through.
 // Non-key messages are only sent to the top dialog.
-func (s DialogStack) Update(msg tea.Msg) (DialogStack, tea.Cmd) {
+// Returns the updated stack, a command, and any dialogs that completed
+// during fall-through (so the caller can process their results).
+func (s DialogStack) Update(msg tea.Msg) (DialogStack, tea.Cmd, []Dialog) {
 	if s.Empty() {
-		return s, nil
+		return s, nil, nil
 	}
 
 	// Route to top dialog first.
@@ -96,7 +98,7 @@ func (s DialogStack) Update(msg tea.Msg) (DialogStack, tea.Cmd) {
 		newDialog, cmd := top.Update(msg)
 		s.dialogs[len(s.dialogs)-1] = newDialog
 
-		return s, cmd
+		return s, cmd, nil
 	}
 
 	// Fall-through for key events to lower dialogs.
@@ -106,16 +108,19 @@ func (s DialogStack) Update(msg tea.Msg) (DialogStack, tea.Cmd) {
 				newDialog, cmd := s.dialogs[i].Update(msg)
 				s.dialogs[i] = newDialog
 
+				var completed []Dialog
+
 				if newDialog.Done() {
+					completed = append(completed, newDialog)
 					s.dialogs = append(s.dialogs[:i], s.dialogs[i+1:]...)
 				}
 
-				return s, cmd
+				return s, cmd, completed
 			}
 		}
 	}
 
-	return s, nil
+	return s, nil, nil
 }
 
 // Draw renders all dialogs bottom-to-top into the screen buffer.

@@ -224,8 +224,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleDialogForceCancel(d)
 		}
 
-		newStack, cmd := m.dialogStack.Update(msg)
+		newStack, cmd, completed := m.dialogStack.Update(msg)
 		m.dialogStack = newStack
+
+		// Handle dialogs that completed during fall-through.
+		for _, d := range completed {
+			return m.handleDialogDone(d, cmd)
+		}
 
 		// Check if the top dialog completed.
 		if top := m.dialogStack.Peek(); top != nil && top.Done() {

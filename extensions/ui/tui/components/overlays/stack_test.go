@@ -90,9 +90,10 @@ func TestDialogStack_PopEmpty(t *testing.T) {
 
 func TestDialogStack_Update_EmptyStack(t *testing.T) {
 	s := NewDialogStack()
-	newS, cmd := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	newS, cmd, completed := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
 	assert.Equal(t, s, newS)
 	assert.Nil(t, cmd)
+	assert.Nil(t, completed)
 }
 
 func TestDialogStack_Update_RoutesToTop(t *testing.T) {
@@ -111,7 +112,7 @@ func TestDialogStack_Update_RoutesToTop(t *testing.T) {
 	s = s.Push(top)
 
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}}
-	_, _ = s.Update(msg)
+	_, _, _ = s.Update(msg)
 
 	// Top dialog should have received the message
 	assert.Equal(t, msg, top.lastMsg)
@@ -136,7 +137,7 @@ func TestDialogStack_Update_FallThrough(t *testing.T) {
 
 	// KeyMsg not handled by top → falls through to bottom
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}}
-	_, _ = s.Update(msg)
+	_, _, _ = s.Update(msg)
 
 	assert.Equal(t, msg, bottom.lastMsg)
 	assert.Nil(t, top.lastMsg) // top Handles returned false, Update not called
@@ -157,7 +158,7 @@ func TestDialogStack_Update_NoFallThroughForNonKeyMsg(t *testing.T) {
 
 	// Non-key message should NOT fall through, even if top doesn't handle it
 	msg := SelectorSelectedMsg{Index: 0}
-	_, _ = s.Update(msg)
+	_, _, _ = s.Update(msg)
 
 	assert.Nil(t, bottom.lastMsg)
 }
@@ -331,7 +332,7 @@ func TestDialogStack_SelectorFlow(t *testing.T) {
 	s = s.Push(NewSelectorDialog("test", model))
 
 	// Simulate pressing Enter (selects first item)
-	newS, cmd := s.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	newS, cmd, _ := s.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	s = newS
 
 	require.NotNil(t, cmd)
@@ -343,7 +344,7 @@ func TestDialogStack_SelectorFlow(t *testing.T) {
 	assert.Equal(t, 0, selMsg.Index)
 
 	// Feed the result back
-	newS, _ = s.Update(selMsg)
+	newS, _, _ = s.Update(selMsg)
 	s = newS
 
 	// Dialog should be done now

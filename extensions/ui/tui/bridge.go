@@ -305,7 +305,9 @@ func calcTokenRate(start time.Time, totalRunes int) float64 {
 // PublishPrompt returns a tea.Cmd that publishes an agent.prompt event.
 func PublishPrompt(bus sdk.Bus, text string) tea.Cmd {
 	return func() tea.Msg {
-		bus.Publish(sdk.NewEvent(topicPrompt, text))
+		if bus != nil {
+			bus.Publish(sdk.NewEvent(topicPrompt, text))
+		}
 		return nil
 	}
 }
@@ -313,7 +315,9 @@ func PublishPrompt(bus sdk.Bus, text string) tea.Cmd {
 // PublishFollowup returns a tea.Cmd that publishes an agent.followup event.
 func PublishFollowup(bus sdk.Bus, text string) tea.Cmd {
 	return func() tea.Msg {
-		bus.Publish(sdk.NewEvent(topicFollowup, text))
+		if bus != nil {
+			bus.Publish(sdk.NewEvent(topicFollowup, text))
+		}
 		return nil
 	}
 }
