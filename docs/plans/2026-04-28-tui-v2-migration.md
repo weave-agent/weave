@@ -171,9 +171,9 @@ Reference: crush `internal/ui/model/ui.go` textarea setup at line ~270.
 
 ### Task 9: Update documentation
 
-- [ ] Update `CLAUDE.md` — document Bubble Tea v2 migration, new import paths, textarea component
-- [ ] Update `CLAUDE.md` — add new TUI components (attachments, pills, xchroma)
-- [ ] Update `CLAUDE.md` — update component descriptions for v2 API changes
+- [x] Update `CLAUDE.md` — document Bubble Tea v2 migration, new import paths, textarea component
+- [x] Update `CLAUDE.md` — add new TUI components (attachments, pills, xchroma)
+- [x] Update `CLAUDE.md` — update component descriptions for v2 API changes
 
 ---
 
