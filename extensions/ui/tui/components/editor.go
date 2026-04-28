@@ -97,12 +97,16 @@ func (m EditorModel) Focused() bool { return m.focused }
 // Focus gives the editor focus.
 func (m EditorModel) Focus() EditorModel {
 	m.focused = true
+	m.ta.Focus()
+
 	return m
 }
 
 // Blur removes focus from the editor.
 func (m EditorModel) Blur() EditorModel {
 	m.focused = false
+	m.ta.Blur()
+
 	return m
 }
 
@@ -242,13 +246,21 @@ func (m EditorModel) historyDown() EditorModel {
 
 // CursorLineStart moves the cursor to the beginning of the current line.
 func (m EditorModel) CursorLineStart() EditorModel {
-	m.ta.CursorStart()
+	var cmd tea.Cmd
+
+	m.ta, cmd = m.ta.Update(tea.KeyPressMsg{Code: tea.KeyHome})
+	_ = cmd
+
 	return m
 }
 
 // CursorLineEnd moves the cursor to the end of the current line.
 func (m EditorModel) CursorLineEnd() EditorModel {
-	m.ta.CursorEnd()
+	var cmd tea.Cmd
+
+	m.ta, cmd = m.ta.Update(tea.KeyPressMsg{Code: tea.KeyEnd})
+	_ = cmd
+
 	return m
 }
 
