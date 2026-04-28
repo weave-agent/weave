@@ -106,6 +106,10 @@ func (s DialogStack) Update(msg tea.Msg) (DialogStack, tea.Cmd) {
 				newDialog, cmd := s.dialogs[i].Update(msg)
 				s.dialogs[i] = newDialog
 
+				if newDialog.Done() {
+					s.dialogs = append(s.dialogs[:i], s.dialogs[i+1:]...)
+				}
+
 				return s, cmd
 			}
 		}

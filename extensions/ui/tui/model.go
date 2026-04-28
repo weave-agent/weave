@@ -655,7 +655,8 @@ func (m Model) openExternalEditor() (tea.Model, tea.Cmd) {
 		editor = "vi"
 	}
 
-	cmd := exec.Command(editor, tmpPath) //nolint:gosec,noctx // editor path comes from env
+	parts := strings.Fields(editor)
+	cmd := exec.Command(parts[0], append(parts[1:], tmpPath)...) //nolint:gosec,noctx // editor path comes from env
 
 	return m, tea.ExecProcess(cmd, func(procErr error) tea.Msg {
 		if procErr != nil {
