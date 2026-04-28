@@ -203,8 +203,8 @@ func TestIntegration_TokenRateDisplayAndAutoScroll(t *testing.T) {
 		m.chat = m.chat.AddItem(stubItem{text: fmt.Sprintf("line %d content here", i)})
 	}
 
-	// Scroll up so we're not at bottom
-	m.chat = m.chat.ScrollUp(3)
+	// Scroll up so we're not near bottom (beyond 3-line threshold)
+	m.chat = m.chat.ScrollUp(8)
 	require.False(t, m.chat.AtBottom())
 
 	// Start streaming with token rate

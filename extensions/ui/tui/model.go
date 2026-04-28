@@ -136,7 +136,6 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 	})
 
 	editor := components.NewEditorModel().Focus()
-	editor = editor.SetSlashCommands(commands.Names())
 
 	models := listModels()
 	cur := initialModel(models)
@@ -154,6 +153,9 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 	} else {
 		ui.SetRegistries(commands, bindings)
 	}
+
+	// Set slash commands after registries are wired so pending commands are included.
+	editor = editor.SetSlashCommands(commands.Names())
 
 	m := Model{
 		width:         80,
@@ -382,7 +384,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case notifyMsg:
+		m.showLanding = false
 		m.chat = m.chat.AddItem(newNotifyAssistantMsg(msg.message))
+
 		return m, nil
 
 	case slashCommandsUpdatedMsg:

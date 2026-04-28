@@ -118,6 +118,14 @@ func (m *AssistantMessage) progressiveRender() string {
 	return m.Content()
 }
 
+// NeedsRender returns true when the message is streaming with pending content
+// that hasn't been re-rendered through Glamour yet. This signals to the chat
+// cache that the item should be re-rendered even if width hasn't changed,
+// allowing spinner ticks to trigger debounce-based re-renders.
+func (m *AssistantMessage) NeedsRender() bool {
+	return m.streaming && m.dirty
+}
+
 // Draw renders the assistant message into a screen buffer region.
 func (m *AssistantMessage) Draw(scr uv.Screen, area uv.Rectangle) {
 	drawView(scr, area, m.View(area.Dx()))

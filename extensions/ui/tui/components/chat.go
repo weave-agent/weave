@@ -14,6 +14,12 @@ type ChatItem interface {
 	View(width int) string
 }
 
+// NeedsRenderer is an optional interface for items that may need re-rendering
+// even when width hasn't changed (e.g., streaming messages with debounce).
+type NeedsRenderer interface {
+	NeedsRender() bool
+}
+
 // ChatItemIdentity is an optional interface for items that have a unique ID.
 // Used for in-place updates of non-last items (e.g., tool panels).
 type ChatItemIdentity interface {
@@ -268,7 +274,15 @@ func (m *ChatModel) ensureCache() {
 	}
 
 	for i, item := range m.items {
-		if (*m.cache)[i].width != m.width || (*m.cache)[i].lines == nil {
+		stale := (*m.cache)[i].width != m.width || (*m.cache)[i].lines == nil
+
+		if !stale {
+			if nr, ok := item.(NeedsRenderer); ok && nr.NeedsRender() {
+				stale = true
+			}
+		}
+
+		if stale {
 			text := item.View(m.width)
 			(*m.cache)[i] = cacheEntry{
 				width: m.width,

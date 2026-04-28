@@ -29,10 +29,8 @@ func TestTUIImpl_SetStatus(t *testing.T) {
 
 	ui.SetStatus("build", "compiling...")
 
-	require.Len(t, sender.msgs, 2)
-	_, ok := sender.msgs[0].(slashCommandsUpdatedMsg)
-	require.True(t, ok)
-	msg, ok := sender.msgs[1].(extStatusMsg)
+	require.Len(t, sender.msgs, 1)
+	msg, ok := sender.msgs[0].(extStatusMsg)
 	require.True(t, ok)
 	assert.Equal(t, "build", msg.key)
 	assert.Equal(t, "compiling...", msg.text)
@@ -51,10 +49,8 @@ func TestTUIImpl_Notify(t *testing.T) {
 
 	ui.Notify("hello world")
 
-	require.Len(t, sender.msgs, 2)
-	_, ok := sender.msgs[0].(slashCommandsUpdatedMsg)
-	require.True(t, ok)
-	msg, ok := sender.msgs[1].(notifyMsg)
+	require.Len(t, sender.msgs, 1)
+	msg, ok := sender.msgs[0].(notifyMsg)
 	require.True(t, ok)
 	assert.Equal(t, "hello world", msg.message)
 }
@@ -256,10 +252,8 @@ func TestTUIImpl_EnqueueSendsPopupPendingMsg(t *testing.T) {
 	}
 	ui.enqueue(req) //nolint:errcheck,gosec // test
 
-	require.Len(t, sender.msgs, 2)
-	_, ok := sender.msgs[0].(slashCommandsUpdatedMsg)
-	require.True(t, ok)
-	_, ok = sender.msgs[1].(popupPendingMsg)
+	require.Len(t, sender.msgs, 1)
+	_, ok := sender.msgs[0].(popupPendingMsg)
 	assert.True(t, ok)
 }
 
