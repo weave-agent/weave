@@ -327,7 +327,10 @@ func PublishFollowup(bus sdk.Bus, text string) tea.Cmd {
 // PublishSteer returns a tea.Cmd that publishes an agent.steer event.
 func PublishSteer(bus sdk.Bus, text string) tea.Cmd {
 	return func() tea.Msg {
-		bus.Publish(sdk.NewEvent(topicSteer, text))
+		if bus != nil {
+			bus.Publish(sdk.NewEvent(topicSteer, text))
+		}
+
 		return nil
 	}
 }
@@ -335,7 +338,10 @@ func PublishSteer(bus sdk.Bus, text string) tea.Cmd {
 // PublishInterrupt returns a tea.Cmd that publishes an agent.interrupt event.
 func PublishInterrupt(bus sdk.Bus) tea.Cmd {
 	return func() tea.Msg {
-		bus.Publish(sdk.NewEvent(topicInterrupt, "user interrupt"))
+		if bus != nil {
+			bus.Publish(sdk.NewEvent(topicInterrupt, "user interrupt"))
+		}
+
 		return nil
 	}
 }
@@ -343,7 +349,10 @@ func PublishInterrupt(bus sdk.Bus) tea.Cmd {
 // PublishSessionResume returns a tea.Cmd that publishes a session.resume event.
 func PublishSessionResume(bus sdk.Bus, sessionID string) tea.Cmd {
 	return func() tea.Msg {
-		bus.Publish(sdk.NewEvent(topicSessionResume, sessionID))
+		if bus != nil {
+			bus.Publish(sdk.NewEvent(topicSessionResume, sessionID))
+		}
+
 		return nil
 	}
 }
@@ -351,10 +360,12 @@ func PublishSessionResume(bus sdk.Bus, sessionID string) tea.Cmd {
 // PublishModelChange returns a tea.Cmd that publishes a model.change event.
 func PublishModelChange(bus sdk.Bus, entry ModelEntry) tea.Cmd {
 	return func() tea.Msg {
-		bus.Publish(sdk.NewEvent(topicModelChange, map[string]string{
-			"provider": entry.Provider,
-			"model":    entry.Model,
-		}))
+		if bus != nil {
+			bus.Publish(sdk.NewEvent(topicModelChange, map[string]string{
+				"provider": entry.Provider,
+				"model":    entry.Model,
+			}))
+		}
 
 		return nil
 	}
@@ -363,9 +374,11 @@ func PublishModelChange(bus sdk.Bus, entry ModelEntry) tea.Cmd {
 // PublishThinkingChange returns a tea.Cmd that publishes a thinking.change event.
 func PublishThinkingChange(bus sdk.Bus, level sdk.ThinkingLevel) tea.Cmd {
 	return func() tea.Msg {
-		bus.Publish(sdk.NewEvent(topicThinkingChange, map[string]string{
-			"level": string(level),
-		}))
+		if bus != nil {
+			bus.Publish(sdk.NewEvent(topicThinkingChange, map[string]string{
+				"level": string(level),
+			}))
+		}
 
 		return nil
 	}
