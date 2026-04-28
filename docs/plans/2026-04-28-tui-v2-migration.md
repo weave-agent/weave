@@ -139,10 +139,10 @@ Reference: crush `internal/ui/model/ui.go` textarea setup at line ~270.
 
 ### Task 6: Custom Chroma formatter (xchroma)
 
-- [ ] Create `extensions/ui/tui/xchroma/formatter.go` — register a "weave" Chroma formatter in `init()`. Map Chroma token types (Keyword, String, Comment, Number, Operator, etc.) to Lip Gloss v2 styles. Force background color to match chat bubble background.
-- [ ] Update `components/messages/markdown.go` — configure Glamour renderer to use the "weave" Chroma formatter for code block syntax highlighting
-- [ ] Write tests for formatter — verify token type → style mapping, verify forced background, verify integration with Glamour rendering
-- [ ] Run tests — must pass before Task 7
+- [x] Create `extensions/ui/tui/xchroma/formatter.go` — register a "weave" Chroma formatter in `init()`. Map Chroma token types (Keyword, String, Comment, Number, Operator, etc.) to Lip Gloss v2 styles. Force background color to match chat bubble background.
+- [x] Update `components/messages/markdown.go` — configure Glamour renderer to use the "weave" Chroma formatter for code block syntax highlighting
+- [x] Write tests for formatter — verify token type → style mapping, verify forced background, verify integration with Glamour rendering
+- [x] Run tests — must pass before Task 7
 
 ---
 

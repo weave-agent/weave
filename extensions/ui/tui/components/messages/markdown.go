@@ -4,8 +4,17 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/alecthomas/chroma/v2/formatters"
 	"github.com/charmbracelet/glamour"
+	"weave/ext/ui/tui/xchroma"
 )
+
+const chromaFormatterName = "weave"
+
+// init registers the custom Chroma formatter so glamour can use it by name.
+func init() {
+	formatters.Register(chromaFormatterName, xchroma.NewFormatter(nil))
+}
 
 // MarkdownRenderer wraps a glamour renderer for terminal-aware markdown rendering.
 type MarkdownRenderer struct {
@@ -56,6 +65,7 @@ func (r *MarkdownRenderer) Render(text string) string {
 func (r *MarkdownRenderer) rebuild() {
 	opts := []glamour.TermRendererOption{
 		glamour.WithAutoStyle(),
+		glamour.WithChromaFormatter(chromaFormatterName),
 	}
 	if r.width > 0 {
 		opts = append(opts, glamour.WithWordWrap(r.width))

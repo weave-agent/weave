@@ -6,6 +6,7 @@ require (
 	charm.land/bubbles/v2 v2.1.0
 	charm.land/bubbletea/v2 v2.0.6
 	charm.land/lipgloss/v2 v2.0.3
+	github.com/alecthomas/chroma/v2 v2.20.0
 	github.com/charmbracelet/glamour v1.0.0
 	github.com/charmbracelet/ultraviolet v0.0.0-20260422141423-a0f1f21775f7
 	github.com/nniel-ape/gonfig v1.3.0
@@ -16,7 +17,6 @@ require (
 
 require (
 	github.com/BurntSushi/toml v1.6.0 // indirect
-	github.com/alecthomas/chroma/v2 v2.20.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
