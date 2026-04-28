@@ -663,29 +663,29 @@ func TestIntegration_InterruptDuringStreaming(t *testing.T) {
 	m = model.(Model)
 
 	// First escape — interrupts
-	model, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	m = model.(Model)
 
-	// Wait for the timeout + cancel msg to process
-	model, cmd := m.Update(overlays.SelectorCancelledMsg{})
-	_ = model.(Model)
-	_ = cmd
-
-	// The interruptStreaming should have been called by the escape handler.
-	// Verify message was interrupted
-	items := m.chat.Items()
-	if len(items) > 0 {
-		if am, ok := items[0].(*messages.AssistantMessage); ok {
-			assert.Contains(t, am.Content(), "partial response")
-		}
+	// Execute the batched commands so side effects (bus publishes) run
+	if cmd != nil {
+		executeBatchCmd(t, cmd)
 	}
 
-	// Verify interrupt was published
+	// Verify message was interrupted — the assistant message should contain the partial content
+	items := m.chat.Items()
+	require.Len(t, items, 1)
+
+	am, ok := items[0].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Contains(t, am.Content(), "partial response")
+	assert.False(t, am.IsStreaming(), "message should no longer be streaming")
+
+	// Verify interrupt was published on the bus
 	select {
 	case evt := <-ch:
 		assert.Equal(t, topicInterrupt, evt.Topic)
-	default:
-		// May have already been consumed — that's OK
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for interrupt event on bus")
 	}
 }
 

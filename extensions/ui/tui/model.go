@@ -60,7 +60,7 @@ type Model struct {
 	commands   *CommandRegistry
 	bindings   *BindingRegistry
 	ui         *TUIImpl
-	composer   Composer
+	layout     LayoutEngine
 
 	pendingSessions   []SessionEntry
 	pendingModels     []ModelEntry
@@ -171,7 +171,7 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 		commands:      commands,
 		bindings:      bindings,
 		ui:            ui,
-		composer:      NewComposer(),
+		layout:        NewLayoutEngine(),
 		currentModel:  cur,
 		sessionDir:    sdir,
 		thinkingLevel: initialThinkingLevel(),
@@ -1303,30 +1303,23 @@ func (m *Model) showStatus(msg string) {
 
 // chatHeight returns the height allocated to the chat area.
 func (m Model) chatHeight(totalHeight int) int {
-	editorLines := defaultEditorHeight + 2 // editor height + border
-	footerLines := 2
-
-	spinnerLines := 0
-	if m.spinner.Visible() {
-		spinnerLines = 1
-	}
-
-	statusLines := 0
-	if m.statusMsg != "" {
-		statusLines = 1
-	}
-
-	hintsLines := 0
+	headerRows := 0
 	if !m.showLanding && m.showHints && !m.prompted && len(m.chat.Items()) == 0 {
-		hintsLines = 1
+		headerRows = 1
 	}
 
-	reserved := editorLines + footerLines + spinnerLines + statusLines + hintsLines
-	if totalHeight > reserved+1 {
-		return totalHeight - reserved
+	pillRows := 0
+	if m.spinner.Visible() {
+		pillRows++
 	}
 
-	return 1
+	if m.statusMsg != "" {
+		pillRows++
+	}
+
+	lt := m.layout.ComputeFull(m.width, totalHeight, defaultEditorHeight, headerRows, pillRows)
+
+	return max(lt.Main.Dy(), 1)
 }
 
 // Draw renders the TUI into an ultraviolet screen buffer.
@@ -1355,7 +1348,7 @@ func (m Model) Draw(scr uv.Screen, area uv.Rectangle) {
 	}
 
 	// Compute layout to determine actual component sizes
-	lt := m.composer.Engine.ComputeFull(
+	lt := m.layout.ComputeFull(
 		area.Dx(), area.Dy(),
 		defaultEditorHeight, headerRows, pillRows,
 	)

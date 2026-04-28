@@ -89,8 +89,7 @@ The core migration from v1 string-based rendering to v2 + ultraviolet screen buf
 
 ### Task 2: Create layout engine and screen buffer renderer
 
-- [x] Create `layout.go` — `LayoutEngine` struct that receives terminal dimensions and computes `uv.Rectangle` regions for: header, main (chat), pills, editor, footer. Use `uv.layout` rectangle splitting. Expose a `ComputeFull(width, height, editorLines, headerRows, pillRows int) Layout` method.
-- [x] Create `render.go` — `Composer` struct holding a `LayoutEngine`, used by `Model.Draw()` to compute layout regions.
+- [x] Create `layout.go` — `LayoutEngine` struct that receives terminal dimensions and computes `uv.Rectangle` regions for: header, main (chat), pills, editor, footer. Use `uv.layout` rectangle splitting. Expose a `ComputeFull(width, height, editorLines, headerRows, pillRows int) Layout` method. LayoutEngine is stored directly on Model.
 - [x] Create `components/messages/draw.go` — shared `drawView` helper that eliminates duplicate Draw implementations across message types.
 - [x] Write tests for `LayoutEngine.ComputeFull()` — verify rectangle calculations at various terminal sizes (120x40, 80x24, 200x60), verify editor flex behavior (3-15 lines), verify main area gets remaining space.
 
@@ -140,7 +139,6 @@ The core migration from v1 string-based rendering to v2 + ultraviolet screen buf
   - `diff.go` — keep unified diff parser logic, adapt output to screen buffer
 - [x] Rewrite `components/overlays/` — all overlay components to `Draw(scr, area)`:
   - `selector.go`, `confirm.go`, `input.go`
-- [x] Update `palette/thinking.go` — Lip Gloss v2 color API changes.
 - [x] Write tests for each migrated component — verify Draw produces expected output in screen buffer at various widths.
 - [x] Run full TUI test suite — all must pass before Phase 2.
 

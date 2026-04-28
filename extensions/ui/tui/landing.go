@@ -41,7 +41,7 @@ func (m LandingModel) Draw(scr uv.Screen, area uv.Rectangle) {
 	}
 
 	w := area.Dx()
-	lines := m.buildLines(w)
+	lines := m.buildLines()
 
 	// Vertically center if there's room
 	y := area.Min.Y
@@ -76,7 +76,7 @@ func (m LandingModel) Draw(scr uv.Screen, area uv.Rectangle) {
 	}
 }
 
-func (m LandingModel) buildLines(_ int) []string {
+func (m LandingModel) buildLines() []string {
 	lines := append([]string{}, m.logo()...)
 
 	if m.model != "" {

@@ -3,8 +3,8 @@ package components
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	uv "github.com/charmbracelet/ultraviolet"
 )
@@ -278,13 +278,6 @@ func (m *ChatModel) ensureCache() {
 	}
 }
 
-// Update handles messages for the chat model.
-func (m ChatModel) Update(msg tea.Msg) (ChatModel, tea.Cmd) {
-	_ = msg
-
-	return m, nil
-}
-
 // View renders the visible portion of the chat as a string.
 func (m ChatModel) View() string {
 	if m.width <= 0 || m.height <= 0 {
@@ -354,7 +347,7 @@ func (m ChatModel) Draw(scr uv.Screen, area uv.Rectangle) {
 		indStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("220"))
 		lastRow := area.Min.Y + viewportHeight - 1
 		indRect := uv.Rect(area.Min.X, lastRow, area.Dx(), 1)
-		uv.NewStyledString(fmt.Sprintf("%s%s", strings.Repeat(" ", max(0, area.Dx()-len(indicator)-2)), indStyle.Render(indicator))).Draw(scr, indRect)
+		uv.NewStyledString(fmt.Sprintf("%s%s", strings.Repeat(" ", max(0, area.Dx()-utf8.RuneCountInString(indicator)-2)), indStyle.Render(indicator))).Draw(scr, indRect)
 	}
 }
 

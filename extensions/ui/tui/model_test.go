@@ -1766,7 +1766,7 @@ func TestModel_Draw_StreamingFlow(t *testing.T) {
 	assert.Contains(t, rendered, "answer")
 }
 
-func TestModel_Draw_ComposerSyncsChatSize(t *testing.T) {
+func TestModel_Draw_LayoutSyncsChatSize(t *testing.T) {
 	m := newModelNoLanding()
 	m.width = 100
 	m.height = 20

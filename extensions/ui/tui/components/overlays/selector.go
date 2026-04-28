@@ -160,7 +160,11 @@ func (m SelectorModel) handleKey(msg tea.KeyMsg) (SelectorModel, tea.Cmd) {
 
 	case tea.KeyDown:
 		filtered := m.filteredItems()
-		m.cursor = max(0, min(len(filtered)-1, m.cursor+1))
+		if len(filtered) == 0 {
+			return m, nil
+		}
+
+		m.cursor = min(len(filtered)-1, m.cursor+1)
 
 		return m, nil
 
