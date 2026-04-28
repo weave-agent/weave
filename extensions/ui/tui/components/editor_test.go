@@ -66,6 +66,16 @@ func TestEditorEnterSubmits(t *testing.T) {
 	assert.Equal(t, "hello world", submit.Text)
 }
 
+func TestEditorAltEnterInsertsNewline(t *testing.T) {
+	m := NewEditorModel()
+	m = m.SetValue("hello")
+
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModAlt})
+	assert.Contains(t, m.Value(), "hello")
+	assert.Contains(t, m.Value(), "\n")
+	assert.Nil(t, cmd) // no submit
+}
+
 func TestEditorEnterEmptyEmitsSubmit(t *testing.T) {
 	m := NewEditorModel()
 	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})

@@ -57,6 +57,19 @@ func NewEditorModel() EditorModel {
 	styles.Focused.Text = lipgloss.NewStyle()
 	styles.Blurred.Text = lipgloss.NewStyle()
 	styles.Focused.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+
+	// Override light-mode defaults that cause white background on cursor line
+	// and visible end-of-buffer characters.
+	base := lipgloss.NewStyle()
+	styles.Focused.CursorLine = base
+	styles.Focused.CursorLineNumber = base
+	styles.Focused.EndOfBuffer = base
+	styles.Focused.LineNumber = base
+	styles.Blurred.CursorLine = base
+	styles.Blurred.CursorLineNumber = base
+	styles.Blurred.EndOfBuffer = base
+	styles.Blurred.LineNumber = base
+
 	ta.SetStyles(styles)
 
 	return EditorModel{
@@ -167,8 +180,18 @@ func (m EditorModel) Update(msg tea.Msg) (EditorModel, tea.Cmd) {
 // handleKey processes key-specific shortcuts (enter, up/down history).
 // Returns true if the key was fully handled and should not be forwarded.
 func (m EditorModel) handleKey(msg tea.KeyPressMsg) (bool, EditorModel, tea.Cmd) {
-	// Enter submits (unless alt+enter for newline)
-	if msg.Code == tea.KeyEnter && msg.Mod&tea.ModAlt == 0 {
+	// Alt+Enter inserts a newline (plain Enter is bound to submit)
+	if msg.Code == tea.KeyEnter && msg.Mod&tea.ModAlt != 0 {
+		plain := msg
+		plain.Mod &^= tea.ModAlt
+		var cmd tea.Cmd
+		m.ta, cmd = m.ta.Update(plain)
+
+		return true, m, cmd
+	}
+
+	// Enter submits
+	if msg.Code == tea.KeyEnter {
 		model, cmd := m.handleEnter()
 
 		return true, model, cmd

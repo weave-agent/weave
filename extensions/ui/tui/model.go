@@ -355,6 +355,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case MessageStartMsg:
 		m.chat = m.chat.AddItem(messages.NewAssistantMessage())
 
+		// Keep render loop active so progressive renders show through
+		if m.spinner.Visible() {
+			return m, components.StartSpinner()
+		}
+
 		return m, nil
 
 	case MessageUpdateMsg:
@@ -889,10 +894,26 @@ func (m Model) onSubmit(text string) (tea.Model, tea.Cmd) {
 		m.prompted = true
 		m.showLanding = false
 
-		return m, PublishPrompt(m.bus, promptText)
+		cmds := []tea.Cmd{PublishPrompt(m.bus, promptText)}
+		if !m.spinner.Visible() {
+			var tickCmd tea.Cmd
+
+			m.spinner, tickCmd = m.spinner.SpinnerUpdate(components.SpinnerShowMsg{})
+			cmds = append(cmds, tickCmd)
+		}
+
+		return m, tea.Batch(cmds...)
 	}
 
-	return m, PublishFollowup(m.bus, promptText)
+	cmds := []tea.Cmd{PublishFollowup(m.bus, promptText)}
+	if !m.spinner.Visible() {
+		var tickCmd tea.Cmd
+
+		m.spinner, tickCmd = m.spinner.SpinnerUpdate(components.SpinnerShowMsg{})
+		cmds = append(cmds, tickCmd)
+	}
+
+	return m, tea.Batch(cmds...)
 }
 
 func (m Model) onSessionListResult(msg SessionListResultMsg) (tea.Model, tea.Cmd) {
