@@ -40,6 +40,7 @@ const (
 	ActionToggleThinking     BindingAction = "app.thinking.toggle"
 	ActionThinkingCycle      BindingAction = "app.thinking.cycle"
 	ActionNewSession         BindingAction = "app.session.new"
+	ActionAttachDelete       BindingAction = "app.attachments.delete"
 )
 
 // Binding maps a key sequence to a named action with a description.
@@ -85,6 +86,9 @@ var defaultBindings = []Binding{
 
 	// Session
 	{Action: ActionNewSession, Keys: []string{"ctrl+n"}, Description: "New session"},
+
+	// Attachments
+	{Action: ActionAttachDelete, Keys: []string{"ctrl+r"}, Description: "Toggle attachment delete mode"},
 }
 
 // BindingRegistry manages keybindings with priority resolution:

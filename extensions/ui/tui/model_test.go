@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"weave/bus"
 	"weave/ext/ui/tui/components"
+	"weave/ext/ui/tui/components/attachments"
 	"weave/ext/ui/tui/components/messages"
 	"weave/ext/ui/tui/components/overlays"
 	"weave/sdk"
@@ -1700,3 +1702,190 @@ type stubItem struct {
 }
 
 func (s stubItem) View(width int) string { return s.text }
+
+// --- Attachment integration tests ---
+
+func TestModel_PasteDetection_ConvertsToAttachment(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	// Simulate a large paste (>10 newlines)
+	lines := make([]string, 12)
+	for i := range lines {
+		lines[i] = "line of content"
+	}
+	longPaste := strings.Join(lines, "\n")
+
+	model, cmd := m.Update(tea.KeyPressMsg{Text: longPaste, Code: tea.KeyExtended})
+	m = model.(Model)
+
+	assert.Len(t, m.attach.Items(), 1)
+	assert.Equal(t, 12, m.attach.Items()[0].Lines)
+	assert.True(t, m.attach.Items()[0].IsPasted)
+	// Status message should be set
+	assert.Contains(t, m.statusMsg, "attachment")
+	// cmd should be a timer (status timeout)
+	assert.NotNil(t, cmd)
+}
+
+func TestModel_PasteDetection_ShortPastePassesThrough(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	// Short paste — goes to editor
+	model, _ := m.Update(tea.KeyPressMsg{Text: "short text", Code: 's'})
+	m = model.(Model)
+
+	assert.Empty(t, m.attach.Items())
+	assert.Contains(t, m.editor.Value(), "short text")
+}
+
+func TestModel_PasteDetection_CharThreshold(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	// Long text without newlines (>1000 chars)
+	longText := strings.Repeat("x", 1001)
+
+	model, _ := m.Update(tea.KeyPressMsg{Text: longText, Code: tea.KeyExtended})
+	m = model.(Model)
+
+	assert.Len(t, m.attach.Items(), 1)
+}
+
+func TestModel_AttachmentDeleteMode_Toggle(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m = addTestAttachment(m, "a.go", "content a", 1)
+
+	// ctrl+r toggles delete mode
+	action, ok := m.bindings.Resolve("ctrl+r")
+	require.True(t, ok)
+	assert.Equal(t, ActionAttachDelete, action)
+
+	model, _ := m.dispatchBinding(ActionAttachDelete)
+	m = model.(Model)
+	assert.True(t, m.attach.InDeleteMode())
+	assert.Equal(t, 0, m.attach.DeleteIdx())
+}
+
+func TestModel_AttachmentDeleteMode_NavigateAndDelete(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m = addTestAttachment(m, "a.go", "aaa", 1)
+	m = addTestAttachment(m, "b.go", "bbb", 2)
+
+	// Enter delete mode
+	m.attach = m.attach.ToggleDeleteMode()
+	assert.True(t, m.attach.InDeleteMode())
+
+	// Navigate down to second attachment
+	model, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	m = model.(Model)
+	assert.Equal(t, 1, m.attach.DeleteIdx())
+
+	// ctrl+r (dispatch) deletes highlighted
+	model, _ = m.dispatchBinding(ActionAttachDelete)
+	m = model.(Model)
+	assert.Len(t, m.attach.Items(), 1)
+	assert.Equal(t, "a.go", m.attach.Items()[0].Path)
+}
+
+func TestModel_AttachmentDeleteMode_EscapeExits(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m = addTestAttachment(m, "a.go", "aaa", 1)
+	m.attach = m.attach.ToggleDeleteMode()
+
+	model, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	m = model.(Model)
+	assert.False(t, m.attach.InDeleteMode())
+}
+
+func TestModel_AttachmentDeleteMode_UpNav(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m = addTestAttachment(m, "a.go", "aaa", 1)
+	m = addTestAttachment(m, "b.go", "bbb", 2)
+	m.attach = m.attach.ToggleDeleteMode()
+
+	model, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	m = model.(Model)
+	// Up should wrap to last
+	assert.Equal(t, 1, m.attach.DeleteIdx())
+}
+
+func TestModel_SubmitWithAttachments(t *testing.T) {
+	bus := bus.New()
+	m := newModel(bus, nil, nil)
+	m.width = 80
+	m.height = 24
+	m = addTestAttachment(m, "test.go", "package main", 1)
+	m.prompted = true // followup mode
+
+	text := "review this"
+	model, cmd := m.onSubmit(text)
+	m = model.(Model)
+
+	// Attachments should be cleared after submit
+	assert.Empty(t, m.attach.Items())
+
+	// Chat should have the combined text
+	items := m.chat.Items()
+	require.Len(t, items, 1)
+	um, ok := items[0].(*messages.UserMessage)
+	require.True(t, ok)
+	content := um.Content()
+	assert.Contains(t, content, "review this")
+	assert.Contains(t, content, `<file name="test.go">`)
+	assert.Contains(t, content, "package main")
+
+	// Followup should be published
+	require.NotNil(t, cmd)
+}
+
+func TestModel_SubmitNoAttachments(t *testing.T) {
+	bus := bus.New()
+	m := newModel(bus, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.prompted = true
+
+	text := "hello"
+	model, cmd := m.onSubmit(text)
+	m = model.(Model)
+
+	assert.Empty(t, m.attach.Items())
+
+	items := m.chat.Items()
+	require.Len(t, items, 1)
+	um, ok := items[0].(*messages.UserMessage)
+	require.True(t, ok)
+	assert.Equal(t, "hello", um.Content())
+	require.NotNil(t, cmd)
+}
+
+func TestModel_NewSessionClearsAttachments(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m = addTestAttachment(m, "a.go", "aaa", 1)
+
+	model, _ := m.dispatchBinding(ActionNewSession)
+	m = model.(Model)
+	assert.Empty(t, m.attach.Items())
+}
+
+// addTestAttachment is a helper to add a test attachment to the model.
+func addTestAttachment(m Model, path, content string, lines int) Model {
+	m.attach = m.attach.Add(attachments.Attachment{Path: path, Content: content, Lines: lines})
+	return m
+}
+

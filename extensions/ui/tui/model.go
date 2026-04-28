@@ -11,6 +11,7 @@ import (
 
 	"weave/config"
 	"weave/ext/ui/tui/components"
+	"weave/ext/ui/tui/components/attachments"
 	"weave/ext/ui/tui/components/messages"
 	"weave/ext/ui/tui/components/overlays"
 	"weave/ext/ui/tui/palette"
@@ -67,6 +68,7 @@ type Model struct {
 	prevModel         ModelEntry
 	prevThinkingLevel sdk.ThinkingLevel
 	dialogStack       overlays.DialogStack
+	attach            attachments.Model
 
 	providerTarget string
 	popupChans     map[string]chan overlayResponse
@@ -251,6 +253,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Dismiss startup hints on first keypress
 		m.showHints = false
 
+		// Attachment delete mode: intercept navigation keys
+		if m.attach.InDeleteMode() {
+			switch msg.String() {
+			case "esc", "ctrl+c":
+				m.attach = m.attach.ToggleDeleteMode()
+				return m, nil
+			case "up", "left":
+				m.attach = m.attach.DeleteModePrev()
+				return m, nil
+			case "down", "right":
+				m.attach = m.attach.DeleteModeNext()
+				return m, nil
+			}
+			// Fall through to binding resolver (enter/ctrl+r handled there)
+		}
+
 		// Handle ctrl+c with double-press: first clears editor, second quits
 		if msg.String() == "ctrl+c" {
 			return m.handleCtrlC()
@@ -264,6 +282,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Try keybinding resolver
 		if action, ok := m.bindings.Resolve(keyString(msg)); ok {
 			return m.dispatchBinding(action)
+		}
+
+		// Paste detection: auto-convert large text input to attachment
+		if msg.Text != "" && attachments.IsPastedContent(msg.Text) {
+			m.attach = m.attach.AddPaste(msg.Text)
+			m.showStatus(fmt.Sprintf("Pasted content added as attachment (%d lines)", m.attach.Items()[len(m.attach.Items())-1].Lines))
+			return m, m.statusTimer
 		}
 
 		// Fall through to editor
@@ -562,7 +587,18 @@ func (m Model) dispatchBinding(action BindingAction) (tea.Model, tea.Cmd) {
 		m.toolPanels = make(map[string]*messages.ToolPanel)
 		m.prompted = false
 		m.showLanding = true
+		m.attach = m.attach.Clear()
 
+		return m, nil
+
+	// Attachments
+	case ActionAttachDelete:
+		if m.attach.InDeleteMode() {
+			// Enter pressed — delete highlighted attachment
+			m.attach = m.attach.Remove(m.attach.DeleteIdx())
+		} else {
+			m.attach = m.attach.ToggleDeleteMode()
+		}
 		return m, nil
 
 	default:
@@ -831,16 +867,20 @@ func (m Model) onSubmit(text string) (tea.Model, tea.Cmd) {
 		return m, result.Command
 	}
 
-	m.AddUserMessage(text)
+	// Merge attachments into prompt text and clear them
+	promptText := m.attach.RenderPrompt(text)
+	m.attach = m.attach.Clear()
+
+	m.AddUserMessage(promptText)
 
 	if !m.prompted {
 		m.prompted = true
 		m.showLanding = false
 
-		return m, PublishPrompt(m.bus, text)
+		return m, PublishPrompt(m.bus, promptText)
 	}
 
-	return m, PublishFollowup(m.bus, text)
+	return m, PublishFollowup(m.bus, promptText)
 }
 
 func (m Model) onSessionListResult(msg SessionListResultMsg) (tea.Model, tea.Cmd) {
@@ -1321,7 +1361,8 @@ func (m Model) chatHeight(totalHeight int) int {
 		pillRows++
 	}
 
-	lt := m.layout.ComputeFull(m.width, totalHeight, m.editor.Height(), headerRows, pillRows)
+	editorH := m.editor.Height() + m.attach.Height()
+	lt := m.layout.ComputeFull(m.width, totalHeight, editorH, headerRows, pillRows)
 
 	return max(lt.Main.Dy(), 1)
 }
@@ -1352,9 +1393,10 @@ func (m Model) Draw(scr uv.Screen, area uv.Rectangle) {
 	}
 
 	// Compute layout to determine actual component sizes
+	editorH := m.editor.Height() + m.attach.Height()
 	lt := m.layout.ComputeFull(
 		area.Dx(), area.Dy(),
-		m.editor.Height(), headerRows, pillRows,
+		editorH, headerRows, pillRows,
 	)
 
 	// Sync chat size to allocated main area so it renders only visible content
@@ -1396,8 +1438,16 @@ func (m Model) Draw(scr uv.Screen, area uv.Rectangle) {
 		}
 	}
 
-	// Render editor
-	m.editor.Draw(scr, lt.Editor)
+	// Render attachments + editor
+	attachH := m.attach.Height()
+	if attachH > 0 && lt.Editor.Dy() > attachH {
+		attachArea := uv.Rect(lt.Editor.Min.X, lt.Editor.Min.Y, lt.Editor.Dx(), attachH)
+		editorArea := uv.Rect(lt.Editor.Min.X, lt.Editor.Min.Y+attachH, lt.Editor.Dx(), lt.Editor.Dy()-attachH)
+		m.attach.Draw(scr, attachArea)
+		m.editor.Draw(scr, editorArea)
+	} else {
+		m.editor.Draw(scr, lt.Editor)
+	}
 
 	// Render footer
 	m.footer.Draw(scr, lt.Footer)

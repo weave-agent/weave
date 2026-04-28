@@ -148,13 +148,13 @@ Reference: crush `internal/ui/model/ui.go` textarea setup at line ~270.
 
 ### Task 7: File attachments
 
-- [ ] Create `components/attachments/attachments.go` — `AttachmentsModel` tracking `[]Attachment` with file path, line count, content preview. `Draw(scr, area)` renders inline indicators (`file.py (42 lines)`) above the editor.
-- [ ] Add paste detection in editor — if paste exceeds threshold (>10 newlines or >1000 chars), auto-convert to temp file attachment. Show indicator in editor area.
-- [ ] Add `ctrl+r` attachment delete mode — when attachments exist, `ctrl+r` toggles delete mode (highlight first attachment, press enter to remove).
-- [ ] Update `onSubmit` — include attachment contents in the submitted message alongside text.
-- [ ] Write tests for attachment model — add, remove, display indicators.
-- [ ] Write tests for paste detection — verify short paste passes through, verify long paste converts to attachment.
-- [ ] Run tests — must pass before Task 8
+- [x] Create `components/attachments/attachments.go` — `AttachmentsModel` tracking `[]Attachment` with file path, line count, content preview. `Draw(scr, area)` renders inline indicators (`file.py (42 lines)`) above the editor.
+- [x] Add paste detection in editor — if paste exceeds threshold (>10 newlines or >1000 chars), auto-convert to temp file attachment. Show indicator in editor area.
+- [x] Add `ctrl+r` attachment delete mode — when attachments exist, `ctrl+r` toggles delete mode (highlight first attachment, press enter to remove).
+- [x] Update `onSubmit` — include attachment contents in the submitted message alongside text.
+- [x] Write tests for attachment model — add, remove, display indicators.
+- [x] Write tests for paste detection — verify short paste passes through, verify long paste converts to attachment.
+- [x] Run tests — must pass before Task 8
 
 ---
 
