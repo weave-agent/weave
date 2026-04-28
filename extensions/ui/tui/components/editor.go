@@ -190,6 +190,8 @@ func (m EditorModel) handleKey(msg tea.KeyPressMsg) (bool, EditorModel, tea.Cmd)
 			m.navigating = false
 			m.ta.SetValue(m.savedLine)
 			m.savedLine = ""
+
+			return true, m, nil
 		}
 	}
 

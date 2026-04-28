@@ -234,9 +234,11 @@ func (r *BindingRegistry) AllBindings() []Binding {
 	return result
 }
 
-// keyString converts a tea.KeyPressMsg to the string representation used in bindings.
+// keyString converts a tea.KeyPressMsg to the keystroke representation used in bindings.
+// Uses Keystroke() rather than String() so that modifier+printable combos like
+// alt+d and shift+g produce "alt+d" and "shift+g" instead of just "d" or "G".
 func keyString(msg tea.KeyPressMsg) string {
-	return msg.String()
+	return msg.Keystroke()
 }
 
 // loadKeybindings finds and loads the user keybindings config.

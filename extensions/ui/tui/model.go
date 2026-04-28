@@ -843,6 +843,7 @@ func (m Model) onSubmit(text string) (tea.Model, tea.Cmd) {
 		if result.ClearChat {
 			m.chat = components.NewChatModel().SetSize(m.width, m.chatHeight(m.height))
 			m.toolPanels = make(map[string]*messages.ToolPanel)
+			m.attach = m.attach.Clear()
 			m.showLanding = true
 		}
 

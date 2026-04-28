@@ -192,7 +192,10 @@ func TestKeyString(t *testing.T) {
 		{tea.KeyPressMsg{Code: 'l', Mod: tea.ModCtrl}, "ctrl+l"},
 		{tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl}, "ctrl+p"},
 		{tea.KeyPressMsg{Code: tea.KeyEsc}, "esc"},
-		{tea.KeyPressMsg{Text: "a", Code: 'a'}, "a"},
+		// Keystroke() includes modifier prefix even when Text is set
+		{tea.KeyPressMsg{Code: 'a', Mod: tea.ModAlt, Text: "a"}, "alt+a"},
+		{tea.KeyPressMsg{Code: 'g', Mod: tea.ModShift, Text: "G"}, "shift+g"},
+		{tea.KeyPressMsg{Code: 'd', Mod: tea.ModAlt, Text: "d"}, "alt+d"},
 	}
 
 	for _, tt := range tests {
@@ -340,9 +343,8 @@ func TestKeyString_V2ModifierCombinations(t *testing.T) {
 		// Ctrl keys
 		{tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}, "ctrl+c"},
 		{tea.KeyPressMsg{Code: 'z', Mod: tea.ModCtrl}, "ctrl+z"},
-		// Alt modifier (Text field takes precedence in String())
-		{tea.KeyPressMsg{Code: 'a', Mod: tea.ModAlt, Text: "a"}, "a"},
-		// Alt modifier without Text uses Keystroke()
+		// Alt modifier always produces keystroke form with Keystroke()
+		{tea.KeyPressMsg{Code: 'a', Mod: tea.ModAlt, Text: "a"}, "alt+a"},
 		{tea.KeyPressMsg{Code: 'a', Mod: tea.ModAlt}, "alt+a"},
 		// Shift modifier with special keys
 		{tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift}, "shift+tab"},
