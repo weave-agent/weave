@@ -227,9 +227,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		newStack, cmd, completed := m.dialogStack.Update(msg)
 		m.dialogStack = newStack
 
-		// Handle dialogs that completed during fall-through.
-		for _, d := range completed {
-			return m.handleDialogDone(d, cmd)
+		// Handle dialogs that completed during fall-through (at most one).
+		if len(completed) > 0 {
+			return m.handleDialogDone(completed[0], cmd)
 		}
 
 		// Check if the top dialog completed.

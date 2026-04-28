@@ -308,6 +308,7 @@ func PublishPrompt(bus sdk.Bus, text string) tea.Cmd {
 		if bus != nil {
 			bus.Publish(sdk.NewEvent(topicPrompt, text))
 		}
+
 		return nil
 	}
 }
@@ -318,6 +319,7 @@ func PublishFollowup(bus sdk.Bus, text string) tea.Cmd {
 		if bus != nil {
 			bus.Publish(sdk.NewEvent(topicFollowup, text))
 		}
+
 		return nil
 	}
 }

@@ -104,19 +104,21 @@ func (s DialogStack) Update(msg tea.Msg) (DialogStack, tea.Cmd, []Dialog) {
 	// Fall-through for key events to lower dialogs.
 	if _, ok := msg.(tea.KeyMsg); ok {
 		for i := len(s.dialogs) - 2; i >= 0; i-- {
-			if s.dialogs[i].Handles(msg) {
-				newDialog, cmd := s.dialogs[i].Update(msg)
-				s.dialogs[i] = newDialog
-
-				var completed []Dialog
-
-				if newDialog.Done() {
-					completed = append(completed, newDialog)
-					s.dialogs = append(s.dialogs[:i], s.dialogs[i+1:]...)
-				}
-
-				return s, cmd, completed
+			if !s.dialogs[i].Handles(msg) {
+				continue
 			}
+
+			newDialog, cmd := s.dialogs[i].Update(msg)
+			s.dialogs[i] = newDialog
+
+			var completed []Dialog
+
+			if newDialog.Done() {
+				completed = append(completed, newDialog)
+				s.dialogs = append(s.dialogs[:i], s.dialogs[i+1:]...)
+			}
+
+			return s, cmd, completed
 		}
 	}
 
