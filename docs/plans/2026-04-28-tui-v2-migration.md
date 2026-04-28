@@ -120,20 +120,20 @@ Key changes: `tea.KeyMsg` → `tea.KeyPressMsg`, `msg.String()` → `msg.Key.Str
 
 Reference: crush `internal/ui/model/ui.go` textarea setup at line ~270.
 
-- [ ] Remove `components/editor.go` (hand-rolled `EditorModel`) — delete the file
-- [ ] Add `textarea` field to `Model` struct in `model.go` — type `textarea.Model` from `charm.land/bubbles/v2/textarea`
-- [ ] Initialize textarea in `NewModel()` or equivalent constructor — configure: `DynamicHeight(true)`, `MinHeight(3)`, `MaxHeight(15)`, `CharLimit(-1)`, `ShowLineNumbers(false)`, `SetVirtualCursor(false)`, `Focus()`
-- [ ] Implement textarea styling — create focused/blurred styles using lipgloss v2, match existing editor border colors
-- [ ] Forward `tea.KeyPressMsg` and `tea.WindowSizeMsg` to textarea in Update() — `ta, cmd := m.textarea.Update(msg)` with height change tracking (see crush `updateTextareaWithPrevHeight`)
-- [ ] Implement submit — `m.textarea.Value()` on enter, `m.textarea.Reset()` after send
-- [ ] Implement command history — maintain `[]string` history slice, navigate on up/down when textarea is at first/last line
-- [ ] Implement external editor (`ctrl+g`) — write textarea value to temp file, open `$EDITOR`, read back
-- [ ] Update `LayoutEngine.Compute()` — textarea height drives editor region size (dynamic, not fixed)
-- [ ] Update `Draw()` — render textarea into the editor region using textarea's `Draw()` or `View()` via screen buffer
-- [ ] Write tests for textarea submit — verify value retrieval and reset
-- [ ] Write tests for history — verify up/down navigation cycles through entries
-- [ ] Write tests for dynamic height — verify layout adjusts when textarea grows/shrinks
-- [ ] Run tests — must pass before Task 6
+- [x] Remove `components/editor.go` (hand-rolled `EditorModel`) — replaced with textarea wrapper
+- [x] Add `textarea` field to `Model` struct in `model.go` — type `textarea.Model` from `charm.land/bubbles/v2/textarea`
+- [x] Initialize textarea in `NewModel()` or equivalent constructor — configure: `DynamicHeight(true)`, `MinHeight(3)`, `MaxHeight(15)`, `CharLimit(-1)`, `ShowLineNumbers(false)`, `SetVirtualCursor(false)`, `Focus()`
+- [x] Implement textarea styling — create focused/blurred styles using lipgloss v2, match existing editor border colors
+- [x] Forward `tea.KeyPressMsg` and `tea.WindowSizeMsg` to textarea in Update() — `ta, cmd := m.textarea.Update(msg)` with height change tracking (see crush `updateTextareaWithPrevHeight`)
+- [x] Implement submit — `m.textarea.Value()` on enter, `m.textarea.Reset()` after send
+- [x] Implement command history — maintain `[]string` history slice, navigate on up/down when textarea is at first/last line
+- [x] Implement external editor (`ctrl+g`) — write textarea value to temp file, open `$EDITOR`, read back
+- [x] Update `LayoutEngine.Compute()` — textarea height drives editor region size (dynamic, not fixed)
+- [x] Update `Draw()` — render textarea into the editor region using textarea's `Draw()` or `View()` via screen buffer
+- [x] Write tests for textarea submit — verify value retrieval and reset
+- [x] Write tests for history — verify up/down navigation cycles through entries
+- [x] Write tests for dynamic height — verify layout adjusts when textarea grows/shrinks
+- [x] Run tests — must pass before Task 6
 
 ---
 

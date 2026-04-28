@@ -24,8 +24,6 @@ import (
 
 const doublePressWindow = 500 * time.Millisecond
 
-const defaultEditorHeight = 3
-
 const statusMessageTimeout = 2 * time.Second
 
 // statusTimeoutMsg is sent when the transient status message should be cleared.
@@ -135,7 +133,7 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 		}}
 	})
 
-	editor := components.NewEditorModel().Focus()
+	editor := components.NewEditorModel()
 
 	models := listModels()
 	cur := initialModel(models)
@@ -242,7 +240,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.chat = m.chat.SetSize(m.width, m.chatHeight(m.height))
-		m.editor = m.editor.SetSize(m.width, defaultEditorHeight)
+		m.editor = m.editor.SetSize(m.width, m.editor.Height())
 		m.footer = m.footer.SetSize(m.width)
 		m.spinner = m.spinner.SetSize(m.width)
 		m.dialogStack = m.dialogStack.Resize(m.width, m.height)
@@ -1323,7 +1321,7 @@ func (m Model) chatHeight(totalHeight int) int {
 		pillRows++
 	}
 
-	lt := m.layout.ComputeFull(m.width, totalHeight, defaultEditorHeight, headerRows, pillRows)
+	lt := m.layout.ComputeFull(m.width, totalHeight, m.editor.Height(), headerRows, pillRows)
 
 	return max(lt.Main.Dy(), 1)
 }
@@ -1356,7 +1354,7 @@ func (m Model) Draw(scr uv.Screen, area uv.Rectangle) {
 	// Compute layout to determine actual component sizes
 	lt := m.layout.ComputeFull(
 		area.Dx(), area.Dy(),
-		defaultEditorHeight, headerRows, pillRows,
+		m.editor.Height(), headerRows, pillRows,
 	)
 
 	// Sync chat size to allocated main area so it renders only visible content
