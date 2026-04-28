@@ -1718,7 +1718,7 @@ func TestModel_PasteDetection_ConvertsToAttachment(t *testing.T) {
 
 	longPaste := strings.Join(lines, "\n")
 
-	model, cmd := m.Update(tea.KeyPressMsg{Text: longPaste, Code: tea.KeyExtended})
+	model, cmd := m.Update(tea.PasteMsg{Content: longPaste})
 	m = model.(Model)
 
 	assert.Len(t, m.attach.Items(), 1)
@@ -1735,7 +1735,7 @@ func TestModel_PasteDetection_ShortPastePassesThrough(t *testing.T) {
 	m.height = 24
 
 	// Short paste — goes to editor
-	model, _ := m.Update(tea.KeyPressMsg{Text: "short text", Code: 's'})
+	model, _ := m.Update(tea.PasteMsg{Content: "short text"})
 	m = model.(Model)
 
 	assert.Empty(t, m.attach.Items())
@@ -1750,7 +1750,7 @@ func TestModel_PasteDetection_CharThreshold(t *testing.T) {
 	// Long text without newlines (>1000 chars)
 	longText := strings.Repeat("x", 1001)
 
-	model, _ := m.Update(tea.KeyPressMsg{Text: longText, Code: tea.KeyExtended})
+	model, _ := m.Update(tea.PasteMsg{Content: longText})
 	m = model.(Model)
 
 	assert.Len(t, m.attach.Items(), 1)

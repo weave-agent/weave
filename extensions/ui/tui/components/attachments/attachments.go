@@ -136,6 +136,7 @@ func (m Model) Clear() Model {
 	m.items = nil
 	m.deleteMode = false
 	m.deleteIdx = 0
+	m.pasteCount = 0
 
 	return m
 }

@@ -176,7 +176,7 @@ func (m EditorModel) handleKey(msg tea.KeyPressMsg) (bool, EditorModel, tea.Cmd)
 
 	// History navigation on up/down when textarea is single-line
 	if msg.Code == tea.KeyUp {
-		if m.navigating || m.ta.Line() == 0 {
+		if (m.navigating || m.ta.Line() == 0) && len(m.history) > 0 {
 			return true, m.historyUp(), nil
 		}
 	}

@@ -289,15 +289,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.dispatchBinding(action)
 		}
 
-		// Paste detection: auto-convert large text input to attachment
-		if msg.Text != "" && attachments.IsPastedContent(msg.Text) {
-			m.attach = m.attach.AddPaste(msg.Text)
+		// Fall through to editor
+		var cmd tea.Cmd
+
+		m.editor, cmd = m.editor.Update(msg)
+
+		return m, cmd
+
+	case tea.PasteMsg:
+		// Paste detection: auto-convert large pastes to file attachments
+		if attachments.IsPastedContent(msg.Content) {
+			m.attach = m.attach.AddPaste(msg.Content)
 			m.showStatus(fmt.Sprintf("Pasted content added as attachment (%d lines)", m.attach.Items()[len(m.attach.Items())-1].Lines))
 
 			return m, m.statusTimer
 		}
 
-		// Fall through to editor
+		// Short paste: forward to editor
 		var cmd tea.Cmd
 
 		m.editor, cmd = m.editor.Update(msg)
