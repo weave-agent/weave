@@ -35,7 +35,7 @@ func TestIntegration_FullStreamingFlow(t *testing.T) {
 	// 1. Landing state is shown initially
 	require.True(t, m.showLanding, "landing should be shown initially")
 	view := m.View()
-	assert.Contains(t, view, "╭──╮", "landing logo should be visible")
+	assert.Contains(t, view.Content, "╭──╮", "landing logo should be visible")
 
 	// 2. Submit prompt — hides landing, publishes prompt event
 	model, _ := m.onSubmit("explain Go")
@@ -137,7 +137,7 @@ func TestIntegration_OverlayStackWithStreaming(t *testing.T) {
 	assert.Contains(t, rendered, "Resume Session")
 
 	// Ctrl+C should dismiss dialog (not quit)
-	model, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	model, _ = m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 	m = model.(Model)
 	assert.True(t, m.dialogStack.Empty())
 
@@ -535,8 +535,8 @@ func TestIntegration_LandingToChatAndBack(t *testing.T) {
 	// Landing shown initially
 	require.True(t, m.showLanding)
 	view := m.View()
-	assert.Contains(t, view, "╭──╮")
-	assert.Contains(t, view, "Type a message")
+	assert.Contains(t, view.Content, "╭──╮")
+	assert.Contains(t, view.Content, "Type a message")
 
 	// Submit hides landing
 	model, _ := m.onSubmit("hello")
@@ -548,7 +548,7 @@ func TestIntegration_LandingToChatAndBack(t *testing.T) {
 	m = model.(Model)
 	assert.True(t, m.showLanding)
 	view = m.View()
-	assert.Contains(t, view, "╭──╮")
+	assert.Contains(t, view.Content, "╭──╮")
 
 	// Submit again
 	model, _ = m.onSubmit("second message")
@@ -663,7 +663,7 @@ func TestIntegration_InterruptDuringStreaming(t *testing.T) {
 	m = model.(Model)
 
 	// First escape — interrupts
-	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	model, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	m = model.(Model)
 
 	// Execute the batched commands so side effects (bus publishes) run

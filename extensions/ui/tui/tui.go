@@ -75,7 +75,7 @@ func (t *TUI) Subscribe(bus sdk.Bus) {
 	model := newModel(bus, t.cfg, t.ui)
 
 	t.mu.Lock()
-	t.program = tea.NewProgram(model, tea.WithAltScreen())
+	t.program = tea.NewProgram(model)
 	t.mu.Unlock()
 
 	// Wire the UI implementation to the program.

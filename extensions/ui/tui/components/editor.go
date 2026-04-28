@@ -142,7 +142,7 @@ func (m EditorModel) Update(msg tea.Msg) (EditorModel, tea.Cmd) {
 		return m, nil
 	}
 
-	if msg, ok := msg.(tea.KeyMsg); ok {
+	if msg, ok := msg.(tea.KeyPressMsg); ok {
 		return m.handleKey(msg)
 	}
 
@@ -150,10 +150,10 @@ func (m EditorModel) Update(msg tea.Msg) (EditorModel, tea.Cmd) {
 }
 
 //nolint:gocyclo // key dispatch naturally has many branches
-func (m EditorModel) handleKey(msg tea.KeyMsg) (EditorModel, tea.Cmd) {
-	switch msg.Type {
+func (m EditorModel) handleKey(msg tea.KeyPressMsg) (EditorModel, tea.Cmd) {
+	switch msg.Code {
 	case tea.KeyEnter:
-		if msg.Alt {
+		if msg.Mod&tea.ModAlt != 0 {
 			// alt+enter inserts newline
 			return m.insertRune('\n'), nil
 		}
@@ -221,13 +221,12 @@ func (m EditorModel) handleKey(msg tea.KeyMsg) (EditorModel, tea.Cmd) {
 	case tea.KeyEnd:
 		return m.CursorLineEnd(), nil
 
-	case tea.KeyRunes:
-		m = m.insertRune(msg.Runes...)
-		m = m.updateAutocomplete()
-
-		return m, nil
-
 	default:
+		if msg.Text != "" {
+			m = m.insertRune([]rune(msg.Text)...)
+			m = m.updateAutocomplete()
+			return m, nil
+		}
 		m.showAC = false
 		return m, nil
 	}

@@ -67,15 +67,15 @@ func (m ConfirmModel) Cursor() int { return m.cursor }
 
 // Update handles messages for the confirm dialog.
 func (m ConfirmModel) Update(msg tea.Msg) (ConfirmModel, tea.Cmd) {
-	if key, ok := msg.(tea.KeyMsg); ok {
+	if key, ok := msg.(tea.KeyPressMsg); ok {
 		return m.handleKey(key)
 	}
 
 	return m, nil
 }
 
-func (m ConfirmModel) handleKey(msg tea.KeyMsg) (ConfirmModel, tea.Cmd) {
-	switch msg.Type {
+func (m ConfirmModel) handleKey(msg tea.KeyPressMsg) (ConfirmModel, tea.Cmd) {
+	switch msg.Code {
 	case tea.KeyEsc:
 		m.visible = false
 		return m, func() tea.Msg { return ConfirmResultMsg{Confirmed: false} }
@@ -92,18 +92,17 @@ func (m ConfirmModel) handleKey(msg tea.KeyMsg) (ConfirmModel, tea.Cmd) {
 		m.visible = false
 		return m, func() tea.Msg { return ConfirmResultMsg{Confirmed: m.cursor == 0} }
 
-	case tea.KeyRunes:
-		switch strings.ToLower(string(msg.Runes)) {
-		case "y":
-			m.visible = false
-			return m, func() tea.Msg { return ConfirmResultMsg{Confirmed: true} }
-		case "n":
-			m.visible = false
-			return m, func() tea.Msg { return ConfirmResultMsg{Confirmed: false} }
-		}
-
 	default:
-		// Ignore unhandled keys
+		if msg.Text != "" {
+			switch strings.ToLower(msg.Text) {
+			case "y":
+				m.visible = false
+				return m, func() tea.Msg { return ConfirmResultMsg{Confirmed: true} }
+			case "n":
+				m.visible = false
+				return m, func() tea.Msg { return ConfirmResultMsg{Confirmed: false} }
+			}
+		}
 	}
 
 	return m, nil

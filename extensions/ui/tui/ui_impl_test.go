@@ -348,7 +348,7 @@ func TestModel_PopupView(t *testing.T) {
 	// No dialogs → no overlay in view
 	assert.True(t, m.dialogStack.Empty())
 	view := m.View()
-	assert.NotContains(t, view, "Sure?")
+	assert.NotContains(t, view.Content, "Sure?")
 
 	// With confirm dialog on stack
 	m.dialogStack = m.dialogStack.Push(overlays.NewConfirmDialog(
@@ -356,7 +356,7 @@ func TestModel_PopupView(t *testing.T) {
 		overlays.NewConfirmModel("Sure?").SetSize(80, 24).Show(),
 	))
 	view = m.View()
-	assert.Contains(t, view, "Sure?")
+	assert.Contains(t, view.Content, "Sure?")
 
 	// With input dialog on stack
 	m.dialogStack = overlays.NewDialogStack()
@@ -365,7 +365,7 @@ func TestModel_PopupView(t *testing.T) {
 		overlays.NewInputModel("Name:").SetSize(80, 24).Show(),
 	))
 	view = m.View()
-	assert.Contains(t, view, "Name:")
+	assert.Contains(t, view.Content, "Name:")
 
 	// With select dialog on stack
 	m.dialogStack = overlays.NewDialogStack()
@@ -376,7 +376,7 @@ func TestModel_PopupView(t *testing.T) {
 		}).SetSize(80, 24).Show(),
 	))
 	view = m.View()
-	assert.Contains(t, view, "Pick")
+	assert.Contains(t, view.Content, "Pick")
 }
 
 func TestModel_PopupConfirmYes(t *testing.T) {
@@ -646,7 +646,7 @@ func TestModel_ViewWithPopup(t *testing.T) {
 	))
 
 	view := m.View()
-	assert.Contains(t, view, "Sure?")
+	assert.Contains(t, view.Content, "Sure?")
 }
 
 // mockRenderer implements sdk.ToolRenderer for testing.

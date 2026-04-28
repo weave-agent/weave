@@ -40,67 +40,67 @@ func TestInputSetSize(t *testing.T) {
 func TestInputTyping(t *testing.T) {
 	m := NewInputModel("Name:").Show()
 
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h', 'i'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "hi", Code: tea.KeyExtended})
 	assert.Equal(t, "hi", m.Value())
 	assert.Equal(t, 2, m.Cursor())
 }
 
 func TestInputBackspace(t *testing.T) {
 	m := NewInputModel("Name:").Show()
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a', 'b', 'c'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "abc", Code: tea.KeyExtended})
 	assert.Equal(t, "abc", m.Value())
 
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
 	assert.Equal(t, "ab", m.Value())
 	assert.Equal(t, 2, m.Cursor())
 }
 
 func TestInputBackspaceAtStart(t *testing.T) {
 	m := NewInputModel("Name:").Show()
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
 	assert.Empty(t, m.Value())
 	assert.Equal(t, 0, m.Cursor())
 }
 
 func TestInputDeleteForward(t *testing.T) {
 	m := NewInputModel("Name:").Show()
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a', 'b', 'c'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "abc", Code: tea.KeyExtended})
 	m.cursor = 1
 
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDelete})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDelete})
 	assert.Equal(t, "ac", m.Value())
 	assert.Equal(t, 1, m.Cursor())
 }
 
 func TestInputCursorMovement(t *testing.T) {
 	m := NewInputModel("Name:").Show()
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a', 'b', 'c'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "abc", Code: tea.KeyExtended})
 
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
 	assert.Equal(t, 2, m.Cursor())
 
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
 	assert.Equal(t, 1, m.Cursor())
 
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyRight})
 	assert.Equal(t, 2, m.Cursor())
 
 	// left at start
 	m.cursor = 0
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
 	assert.Equal(t, 0, m.Cursor())
 
 	// right at end
 	m.cursor = 3
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyRight})
 	assert.Equal(t, 3, m.Cursor())
 }
 
 func TestInputEnterSubmits(t *testing.T) {
 	m := NewInputModel("Name:").Show()
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'t', 'e', 's', 't'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "test", Code: tea.KeyExtended})
 
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	require.NotNil(t, cmd)
 	assert.False(t, m.Visible())
 
@@ -113,9 +113,9 @@ func TestInputEnterSubmits(t *testing.T) {
 
 func TestInputEscapeCancels(t *testing.T) {
 	m := NewInputModel("Name:").Show()
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "x", Code: 'x'})
 
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	require.NotNil(t, cmd)
 	assert.False(t, m.Visible())
 
@@ -128,10 +128,10 @@ func TestInputEscapeCancels(t *testing.T) {
 
 func TestInputInsertMidText(t *testing.T) {
 	m := NewInputModel("Name:").Show()
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a', 'c'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "ac", Code: tea.KeyExtended})
 	m.cursor = 1
 
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "b", Code: 'b'})
 	assert.Equal(t, "abc", m.Value())
 	assert.Equal(t, 2, m.Cursor())
 }
@@ -155,7 +155,7 @@ func TestInputViewZeroWidth(t *testing.T) {
 
 func TestInputViewShowsCursor(t *testing.T) {
 	m := NewInputModel("Name:").Show().SetSize(60, 20)
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a', 'b'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "ab", Code: tea.KeyExtended})
 	view := m.View()
 	assert.Contains(t, view, "ab")
 }
@@ -171,7 +171,7 @@ func TestInputDraw_Visible(t *testing.T) {
 
 func TestInputDraw_WithText(t *testing.T) {
 	m := NewInputModel("Name:").Show().SetSize(60, 20)
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h', 'e', 'l', 'l', 'o'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "hello", Code: tea.KeyExtended})
 	canvas := uv.NewScreenBuffer(60, 20)
 	m.Draw(canvas, canvas.Bounds())
 	output := uv.TrimSpace(canvas.Render())

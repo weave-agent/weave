@@ -184,15 +184,15 @@ func TestBindingRegistry_AllBindingsSorted(t *testing.T) {
 
 func TestKeyString(t *testing.T) {
 	tests := []struct {
-		key  tea.KeyMsg
+		key  tea.KeyPressMsg
 		want string
 	}{
-		{tea.KeyMsg{Type: tea.KeyCtrlC}, "ctrl+c"},
-		{tea.KeyMsg{Type: tea.KeyCtrlD}, "ctrl+d"},
-		{tea.KeyMsg{Type: tea.KeyCtrlL}, "ctrl+l"},
-		{tea.KeyMsg{Type: tea.KeyCtrlP}, "ctrl+p"},
-		{tea.KeyMsg{Type: tea.KeyEsc}, "escape"},
-		{tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}}, "a"},
+		{tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}, "ctrl+c"},
+		{tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl}, "ctrl+d"},
+		{tea.KeyPressMsg{Code: 'l', Mod: tea.ModCtrl}, "ctrl+l"},
+		{tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl}, "ctrl+p"},
+		{tea.KeyPressMsg{Code: tea.KeyEsc}, "escape"},
+		{tea.KeyPressMsg{Text: "a", Code: 'a'}, "a"},
 	}
 
 	for _, tt := range tests {
@@ -201,7 +201,7 @@ func TestKeyString(t *testing.T) {
 }
 
 func TestKeyString_EscapeNormalization(t *testing.T) {
-	msg := tea.KeyMsg{Type: tea.KeyEsc}
+	msg := tea.KeyPressMsg{Code: tea.KeyEsc}
 	assert.Equal(t, "escape", keyString(msg))
 }
 
@@ -246,7 +246,7 @@ func TestModel_CtrlDExitsViaBinding(t *testing.T) {
 	m.width = 80
 	m.height = 24
 
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlD})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})
 	require.NotNil(t, cmd)
 
 	msg := cmd()
@@ -262,7 +262,7 @@ func TestModel_CtrlCClearsEditorOnFirstPress(t *testing.T) {
 	// Add text to editor
 	m.editor = m.editor.SetValue("some text")
 
-	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	model, cmd := m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 	m = model.(Model)
 
 	// First ctrl+c clears editor, doesn't quit
@@ -275,7 +275,7 @@ func TestModel_EscapeNoOpViaBinding(t *testing.T) {
 	m.width = 80
 	m.height = 24
 
-	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	model, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	assert.NotNil(t, cmd) // timeout cmd for double-press window
 
 	_ = model
@@ -286,7 +286,7 @@ func TestModel_CtrlLOpensModelSelectorViaBinding(t *testing.T) {
 	m.width = 80
 	m.height = 24
 
-	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlL})
+	model, cmd := m.Update(tea.KeyPressMsg{Code: 'l', Mod: tea.ModCtrl})
 	require.NotNil(t, cmd)
 
 	_ = model
@@ -306,7 +306,7 @@ func TestModel_ExtensionKeybinding(t *testing.T) {
 	assert.Equal(t, customAction, action)
 
 	// Ctrl+f should not reach editor since it's bound
-	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlF})
+	model, cmd := m.Update(tea.KeyPressMsg{Code: 'f', Mod: tea.ModCtrl})
 	assert.Nil(t, cmd, "unhandled action should return nil cmd")
 
 	_ = model
@@ -326,8 +326,104 @@ func TestModel_OverlayDismissStillWorks(t *testing.T) {
 	assert.False(t, m.dialogStack.Empty())
 
 	// ctrl+c should dismiss overlay, not quit
-	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	model, cmd := m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 	m = model.(Model)
 	assert.True(t, m.dialogStack.Empty())
 	assert.Nil(t, cmd, "overlay dismiss should not quit")
+}
+
+func TestKeyString_V2ModifierCombinations(t *testing.T) {
+	tests := []struct {
+		key  tea.KeyPressMsg
+		want string
+	}{
+		// Ctrl keys
+		{tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}, "ctrl+c"},
+		{tea.KeyPressMsg{Code: 'z', Mod: tea.ModCtrl}, "ctrl+z"},
+		// Alt modifier (Text field takes precedence in String())
+		{tea.KeyPressMsg{Code: 'a', Mod: tea.ModAlt, Text: "a"}, "a"},
+		// Alt modifier without Text uses Keystroke()
+		{tea.KeyPressMsg{Code: 'a', Mod: tea.ModAlt}, "alt+a"},
+		// Shift modifier with special keys
+		{tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift}, "shift+tab"},
+		// Plain printable chars
+		{tea.KeyPressMsg{Code: 'x', Text: "x"}, "x"},
+		// Special keys
+		{tea.KeyPressMsg{Code: tea.KeyEnter}, "enter"},
+		{tea.KeyPressMsg{Code: tea.KeyBackspace}, "backspace"},
+		{tea.KeyPressMsg{Code: tea.KeyUp}, "up"},
+		{tea.KeyPressMsg{Code: tea.KeyDown}, "down"},
+		{tea.KeyPressMsg{Code: tea.KeyPgUp}, "pgup"},
+		{tea.KeyPressMsg{Code: tea.KeyHome}, "home"},
+	}
+
+	for _, tt := range tests {
+		assert.Equal(t, tt.want, keyString(tt.key), "keyString(%+v)", tt.key)
+	}
+}
+
+func TestModel_V2KeyDispatch_CtrlD(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	// Ctrl+D via v2 KeyPressMsg should quit
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})
+	require.NotNil(t, cmd)
+
+	msg := cmd()
+	_, ok := msg.(tea.QuitMsg)
+	assert.True(t, ok, "ctrl+d should quit via keybinding")
+}
+
+func TestModel_V2KeyDispatch_CtrlCClearsEditor(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.editor = m.editor.SetValue("some text")
+
+	// Ctrl+C via v2 KeyPressMsg should clear editor
+	model, cmd := m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
+	m = model.(Model)
+
+	assert.NotNil(t, cmd) // timeout cmd for double-press window
+	assert.Empty(t, m.editor.Value())
+}
+
+func TestModel_V2KeyDispatch_EscapeInterrupts(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	// Escape via v2 KeyPressMsg (Code = KeyEsc)
+	model, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	assert.NotNil(t, cmd) // timeout cmd for double-press window
+
+	_ = model
+}
+
+func TestModel_V2KeyDispatch_PrintableChars(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	// Printable char via v2 KeyPressMsg should go to editor
+	model, cmd := m.Update(tea.KeyPressMsg{Code: 'h', Text: "h"})
+	m = model.(Model)
+
+	assert.Nil(t, cmd)
+	assert.Equal(t, "h", m.editor.Value())
+}
+
+func TestModel_V2KeyDispatch_MultiRuneText(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	// Multi-rune text via v2 KeyPressMsg (e.g., paste)
+	model, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyExtended, Text: "abc"})
+	m = model.(Model)
+
+	assert.Nil(t, cmd)
+	assert.Equal(t, "abc", m.editor.Value())
 }

@@ -312,7 +312,7 @@ func TestModel_SlashCommandHelpShowsMessage(t *testing.T) {
 	assert.True(t, ok)
 
 	view := m2.View()
-	assert.Contains(t, view, "Available commands")
+	assert.Contains(t, view.Content, "Available commands")
 }
 
 func TestModel_RegularSubmitPublishesPrompt(t *testing.T) {
@@ -374,7 +374,7 @@ func TestModel_UnknownCommandShowsError(t *testing.T) {
 	m2 := model.(Model)
 
 	view := m2.View()
-	assert.Contains(t, view, "unknown command: /bogus")
+	assert.Contains(t, view.Content, "unknown command: /bogus")
 }
 
 func TestModel_ThinkingCommandRegistered(t *testing.T) {

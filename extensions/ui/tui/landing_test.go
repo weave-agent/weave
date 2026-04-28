@@ -81,8 +81,8 @@ func TestLanding_ShownInitially(t *testing.T) {
 	require.True(t, m.showLanding, "landing should be shown initially")
 
 	view := m.View()
-	assert.Contains(t, view, "╭──╮", "view should contain landing logo")
-	assert.Contains(t, view, "Type a message", "view should contain placeholder")
+	assert.Contains(t, view.Content, "╭──╮", "view should contain landing logo")
+	assert.Contains(t, view.Content, "Type a message", "view should contain placeholder")
 }
 
 func TestLanding_HiddenAfterFirstSubmit(t *testing.T) {
@@ -99,7 +99,7 @@ func TestLanding_HiddenAfterFirstSubmit(t *testing.T) {
 	assert.False(t, m.showLanding, "landing should be hidden after first submit")
 
 	view := m.View()
-	assert.NotContains(t, view, "╭──╮", "view should not contain landing logo after submit")
+	assert.NotContains(t, view.Content, "╭──╮", "view should not contain landing logo after submit")
 }
 
 func TestLanding_ReShownOnClear(t *testing.T) {
@@ -119,7 +119,7 @@ func TestLanding_ReShownOnClear(t *testing.T) {
 
 	assert.True(t, m.showLanding, "landing should re-show after /clear")
 	view := m.View()
-	assert.Contains(t, view, "╭──╮")
+	assert.Contains(t, view.Content, "╭──╮")
 }
 
 func TestLanding_ReShownOnNew(t *testing.T) {
@@ -150,7 +150,7 @@ func TestLanding_HidesHintsWhenActive(t *testing.T) {
 	view := m.View()
 	// The old hints line should NOT appear when landing is active
 	// (landing has its own hints embedded)
-	assert.NotContains(t, view, "ctrl+p model · ctrl+l select · shift+tab thinking · ctrl+t toggle")
+	assert.NotContains(t, view.Content, "ctrl+p model · ctrl+l select · shift+tab thinking · ctrl+t toggle")
 }
 
 func TestLanding_EditorStillAccessibleWhenLandingActive(t *testing.T) {

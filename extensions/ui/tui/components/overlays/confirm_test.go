@@ -38,7 +38,7 @@ func TestConfirmSetSize(t *testing.T) {
 func TestConfirmEscapeReturnsFalse(t *testing.T) {
 	m := NewConfirmModel("Continue?").Show()
 
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	require.NotNil(t, cmd)
 	assert.False(t, m.Visible())
 
@@ -52,7 +52,7 @@ func TestConfirmEnterYesSelected(t *testing.T) {
 	m := NewConfirmModel("Continue?").Show()
 	assert.Equal(t, 0, m.Cursor()) // yes is selected by default
 
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	require.NotNil(t, cmd)
 
 	msg := cmd()
@@ -64,10 +64,10 @@ func TestConfirmEnterNoSelected(t *testing.T) {
 	m := NewConfirmModel("Continue?").Show()
 
 	// move to No
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyRight})
 	assert.Equal(t, 1, m.Cursor())
 
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	require.NotNil(t, cmd)
 
 	msg := cmd()
@@ -79,17 +79,17 @@ func TestConfirmArrowNavigation(t *testing.T) {
 	m := NewConfirmModel("Test").Show()
 	assert.Equal(t, 0, m.Cursor())
 
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyRight})
 	assert.Equal(t, 1, m.Cursor())
 
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
 	assert.Equal(t, 0, m.Cursor())
 }
 
 func TestConfirmYKey(t *testing.T) {
 	m := NewConfirmModel("Continue?").Show()
 
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+	m, cmd := m.Update(tea.KeyPressMsg{Text: "y", Code: 'y'})
 	require.NotNil(t, cmd)
 
 	msg := cmd()
@@ -101,7 +101,7 @@ func TestConfirmYKey(t *testing.T) {
 func TestConfirmNKey(t *testing.T) {
 	m := NewConfirmModel("Continue?").Show()
 
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	m, cmd := m.Update(tea.KeyPressMsg{Text: "n", Code: 'n'})
 	require.NotNil(t, cmd)
 
 	msg := cmd()
@@ -113,7 +113,7 @@ func TestConfirmNKey(t *testing.T) {
 func TestConfirmOtherKeyIgnored(t *testing.T) {
 	m := NewConfirmModel("Continue?").Show()
 
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	m, cmd := m.Update(tea.KeyPressMsg{Text: "x", Code: 'x'})
 	assert.Nil(t, cmd)
 	assert.True(t, m.Visible())
 }

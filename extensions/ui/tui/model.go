@@ -209,7 +209,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Dialog stack gets priority when non-empty.
 	if !m.dialogStack.Empty() {
 		// Ctrl+C force-dismisses the top dialog.
-		if km, ok := msg.(tea.KeyMsg); ok && km.Type == tea.KeyCtrlC {
+		if km, ok := msg.(tea.KeyPressMsg); ok && km.String() == "ctrl+c" {
 			var d overlays.Dialog
 
 			m.dialogStack, d = m.dialogStack.Pop()
@@ -249,17 +249,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		// Dismiss startup hints on first keypress
 		m.showHints = false
 
 		// Handle ctrl+c with double-press: first clears editor, second quits
-		if msg.Type == tea.KeyCtrlC {
+		if msg.String() == "ctrl+c" {
 			return m.handleCtrlC()
 		}
 
 		// Handle escape with double-press: first interrupts, second clears editor
-		if msg.Type == tea.KeyEsc {
+		if msg.Code == tea.KeyEsc {
 			return m.handleEscape()
 		}
 
@@ -1406,9 +1406,12 @@ func (m Model) Draw(scr uv.Screen, area uv.Rectangle) {
 }
 
 // View renders the TUI using ultraviolet screen buffers.
-func (m Model) View() string {
+func (m Model) View() tea.View {
 	canvas := uv.NewScreenBuffer(m.width, m.height)
 	m.Draw(canvas, canvas.Bounds())
 
-	return uv.TrimSpace(canvas.Render())
+	v := tea.NewView(uv.TrimSpace(canvas.Render()))
+	v.AltScreen = true
+
+	return v
 }

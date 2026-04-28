@@ -72,15 +72,15 @@ func (m InputModel) Value() string { return string(m.value) }
 
 // Update handles messages for the input modal.
 func (m InputModel) Update(msg tea.Msg) (InputModel, tea.Cmd) {
-	if key, ok := msg.(tea.KeyMsg); ok {
+	if key, ok := msg.(tea.KeyPressMsg); ok {
 		return m.handleKey(key)
 	}
 
 	return m, nil
 }
 
-func (m InputModel) handleKey(msg tea.KeyMsg) (InputModel, tea.Cmd) {
-	switch msg.Type {
+func (m InputModel) handleKey(msg tea.KeyPressMsg) (InputModel, tea.Cmd) {
+	switch msg.Code {
 	case tea.KeyEsc:
 		m.visible = false
 		return m, func() tea.Msg { return InputResultMsg{Ok: false} }
@@ -120,17 +120,16 @@ func (m InputModel) handleKey(msg tea.KeyMsg) (InputModel, tea.Cmd) {
 
 		return m, nil
 
-	case tea.KeyRunes:
-		tail := make([]rune, len(m.value[m.cursor:]))
-		copy(tail, m.value[m.cursor:])
-		m.value = append(m.value[:m.cursor], msg.Runes...)
-		m.value = append(m.value, tail...)
-		m.cursor += len(msg.Runes)
-
-		return m, nil
-
 	default:
-		// Ignore unhandled keys
+		if msg.Text != "" {
+			runes := []rune(msg.Text)
+			tail := make([]rune, len(m.value[m.cursor:]))
+			copy(tail, m.value[m.cursor:])
+			m.value = append(m.value[:m.cursor], runes...)
+			m.value = append(m.value, tail...)
+			m.cursor += len(runes)
+			return m, nil
+		}
 	}
 
 	return m, nil

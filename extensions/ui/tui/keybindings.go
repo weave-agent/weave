@@ -234,8 +234,8 @@ func (r *BindingRegistry) AllBindings() []Binding {
 	return result
 }
 
-// keyString converts a tea.KeyMsg to the string representation used in bindings.
-func keyString(msg tea.KeyMsg) string {
+// keyString converts a tea.KeyPressMsg to the string representation used in bindings.
+func keyString(msg tea.KeyPressMsg) string {
 	s := msg.String()
 	if s == "esc" {
 		return "escape"

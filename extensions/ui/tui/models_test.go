@@ -254,7 +254,7 @@ func TestModel_ModelSelectorCancelClearsPendingModels(t *testing.T) {
 	require.NotNil(t, m.pendingModels)
 
 	// Cancel via ctrl+c
-	model, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	model, _ = m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 	m = model.(Model)
 
 	assert.True(t, m.dialogStack.Empty())
@@ -265,7 +265,7 @@ func TestModel_CtrlLOpensModelSelector(t *testing.T) {
 	m.width = 80
 	m.height = 24
 
-	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlL})
+	model, cmd := m.Update(tea.KeyPressMsg{Code: 'l', Mod: tea.ModCtrl})
 	_ = model.(Model)
 
 	// Ctrl+L should trigger listModelsCmd
@@ -284,7 +284,7 @@ func TestModel_CtrlPWhenSingleModel(t *testing.T) {
 	m.height = 24
 
 	// With no providers registered, cycle shows status message
-	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
+	model, cmd := m.Update(tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl})
 	m = model.(Model)
 
 	assert.Equal(t, "Only one model available", m.statusMsg)
@@ -380,7 +380,7 @@ func TestModel_ModelOverlayInterceptsKeys(t *testing.T) {
 	require.False(t, m.dialogStack.Empty())
 
 	// Typing should go to overlay filter
-	model, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
+	model, _ = m.Update(tea.KeyPressMsg{Text: "o", Code: 'o'})
 	m = model.(Model)
 
 	assert.False(t, m.dialogStack.Empty())
@@ -393,7 +393,7 @@ func TestModel_ModelSelectorViewShowsOverlay(t *testing.T) {
 	m.height = 24
 
 	normalView := m.View()
-	assert.NotContains(t, normalView, "Select Model")
+	assert.NotContains(t, normalView.Content, "Select Model")
 
 	models := []ModelEntry{
 		{Provider: "anthropic", Model: "claude-sonnet-4-6"},
@@ -404,7 +404,7 @@ func TestModel_ModelSelectorViewShowsOverlay(t *testing.T) {
 	m = model.(Model)
 
 	overlayView := m.View()
-	assert.Contains(t, overlayView, "Select Model")
+	assert.Contains(t, overlayView.Content, "Select Model")
 }
 
 func TestModel_ModelSelectedInvalidIndex(t *testing.T) {
@@ -666,7 +666,7 @@ func TestStatusMessageRenderedInVIew(t *testing.T) {
 	m.statusMsg = "test status message"
 
 	view := m.View()
-	assert.Contains(t, view, "test status message")
+	assert.Contains(t, view.Content, "test status message")
 }
 
 func TestStatusMessageNotRenderedWhenEmpty(t *testing.T) {
@@ -677,7 +677,7 @@ func TestStatusMessageNotRenderedWhenEmpty(t *testing.T) {
 
 	view := m.View()
 	// Should not contain any status-related artifacts
-	lines := splitLines(view)
+	lines := splitLines(view.Content)
 	// Count sections: chat + editor + footer = 3 lines minimum (no spinner, no status)
 	assert.GreaterOrEqual(t, len(lines), 3)
 }

@@ -167,8 +167,8 @@ func TestModel_ViewShowsChatContent(t *testing.T) {
 	m = model.(Model)
 
 	view := m.View()
-	assert.Contains(t, view, "hello")
-	assert.Contains(t, view, "hi there")
+	assert.Contains(t, view.Content, "hello")
+	assert.Contains(t, view.Content, "hi there")
 }
 
 func TestModel_UpdateWithoutStartIgnored(t *testing.T) {
@@ -481,7 +481,7 @@ func TestModel_ToolPanelInlineInChat(t *testing.T) {
 
 	// Verify the view contains tool output
 	view := m.View()
-	assert.Contains(t, view, "file1.txt")
+	assert.Contains(t, view.Content, "file1.txt")
 }
 
 func TestModel_MessageEndWithThinking(t *testing.T) {
@@ -552,7 +552,7 @@ func TestModel_ThinkingBlockInChatView(t *testing.T) {
 	m = model.(Model)
 
 	view := m.View()
-	assert.Contains(t, view, "[thinking]")
+	assert.Contains(t, view.Content, "[thinking]")
 }
 
 func TestModel_ThinkingBlockWithToolCalls(t *testing.T) {
@@ -672,7 +672,7 @@ func TestModel_SessionSelectorCancel(t *testing.T) {
 	require.False(t, m.dialogStack.Empty())
 
 	// Cancel via ctrl+c
-	model, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	model, _ = m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 	m = model.(Model)
 
 	assert.True(t, m.dialogStack.Empty())
@@ -692,7 +692,7 @@ func TestModel_SessionSelectorEscape(t *testing.T) {
 	require.False(t, m.dialogStack.Empty())
 
 	// Escape cancels the selector overlay
-	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	model, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	m = model.(Model)
 
 	// The overlay's Update produces SelectorCancelledMsg via cmd
@@ -789,7 +789,7 @@ func TestModel_OverlayInterceptsKeys(t *testing.T) {
 	require.False(t, m.dialogStack.Empty())
 
 	// Regular key press should go to overlay, not editor
-	model, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	model, _ = m.Update(tea.KeyPressMsg{Text: "a", Code: 'a'})
 	m = model.(Model)
 
 	// Dialog should still be active (key was a filter char)
@@ -810,7 +810,7 @@ func TestModel_OverlayCtrlCDoesNotQuit(t *testing.T) {
 	require.False(t, m.dialogStack.Empty())
 
 	// ctrl+c should cancel overlay, not quit
-	model, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	model, cmd := m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 	m = model.(Model)
 
 	assert.True(t, m.dialogStack.Empty())
@@ -885,13 +885,13 @@ func TestModel_ViewShowsOverlayWhenActive(t *testing.T) {
 	}
 
 	normalView := m.View()
-	assert.NotContains(t, normalView, "Resume Session")
+	assert.NotContains(t, normalView.Content, "Resume Session")
 
 	model, _ := m.Update(SessionListResultMsg{Sessions: sessions})
 	m = model.(Model)
 
 	dialogView := m.View()
-	assert.Contains(t, dialogView, "Resume Session")
+	assert.Contains(t, dialogView.Content, "Resume Session")
 }
 
 func TestModel_ResumeSlashCommandIntegration(t *testing.T) {
@@ -1384,10 +1384,10 @@ func TestModel_StartupHintsShownInitially(t *testing.T) {
 	assert.True(t, m.showHints)
 
 	view := m.View()
-	assert.Contains(t, view, "ctrl+p model")
-	assert.Contains(t, view, "ctrl+l select")
-	assert.Contains(t, view, "shift+tab thinking")
-	assert.Contains(t, view, "ctrl+t toggle")
+	assert.Contains(t, view.Content, "ctrl+p model")
+	assert.Contains(t, view.Content, "ctrl+l select")
+	assert.Contains(t, view.Content, "shift+tab thinking")
+	assert.Contains(t, view.Content, "ctrl+t toggle")
 }
 
 func TestModel_StartupHintsDismissOnKeypress(t *testing.T) {
@@ -1398,13 +1398,13 @@ func TestModel_StartupHintsDismissOnKeypress(t *testing.T) {
 	assert.True(t, m.showHints)
 
 	// Any keypress dismisses hints
-	model, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	model, _ := m.Update(tea.KeyPressMsg{Text: "a", Code: 'a'})
 	m = model.(Model)
 
 	assert.False(t, m.showHints)
 
 	view := m.View()
-	assert.NotContains(t, view, "ctrl+p cycle model")
+	assert.NotContains(t, view.Content, "ctrl+p cycle model")
 }
 
 func TestModel_StartupHintsHiddenAfterPrompt(t *testing.T) {
@@ -1428,7 +1428,7 @@ func TestModel_StartupHintsHiddenAfterPrompt(t *testing.T) {
 	assert.True(t, m.prompted)
 
 	view := m.View()
-	assert.NotContains(t, view, "ctrl+p cycle model")
+	assert.NotContains(t, view.Content, "ctrl+p cycle model")
 }
 
 func TestModel_StartupHintsHiddenAfterChat(t *testing.T) {
@@ -1442,7 +1442,7 @@ func TestModel_StartupHintsHiddenAfterChat(t *testing.T) {
 	assert.True(t, m.showHints)
 
 	view := m.View()
-	assert.NotContains(t, view, "ctrl+p cycle model")
+	assert.NotContains(t, view.Content, "ctrl+p cycle model")
 }
 
 // --- Draw tests (screen buffer rendering) ---

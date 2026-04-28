@@ -141,15 +141,15 @@ func fuzzyMatch(target, query string) bool {
 
 // Update handles messages for the selector.
 func (m SelectorModel) Update(msg tea.Msg) (SelectorModel, tea.Cmd) {
-	if key, ok := msg.(tea.KeyMsg); ok {
+	if key, ok := msg.(tea.KeyPressMsg); ok {
 		return m.handleKey(key)
 	}
 
 	return m, nil
 }
 
-func (m SelectorModel) handleKey(msg tea.KeyMsg) (SelectorModel, tea.Cmd) {
-	switch msg.Type {
+func (m SelectorModel) handleKey(msg tea.KeyPressMsg) (SelectorModel, tea.Cmd) {
+	switch msg.Code {
 	case tea.KeyEsc:
 		m.visible = false
 		return m, func() tea.Msg { return SelectorCancelledMsg{} }
@@ -191,14 +191,12 @@ func (m SelectorModel) handleKey(msg tea.KeyMsg) (SelectorModel, tea.Cmd) {
 
 		return m, nil
 
-	case tea.KeyRunes:
-		m.filter += string(msg.Runes)
-		m.cursor = 0
-
-		return m, nil
-
 	default:
-		// Ignore unhandled keys
+		if msg.Text != "" {
+			m.filter += msg.Text
+			m.cursor = 0
+			return m, nil
+		}
 	}
 
 	return m, nil

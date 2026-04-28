@@ -91,16 +91,16 @@ Migrate the weave TUI from Bubble Tea v1 to v2 (`charm.land/bubbletea/v2`), repl
 
 Key changes: `tea.KeyMsg` → `tea.KeyPressMsg`, `msg.String()` → `msg.Key.String()`, `msg.Type == tea.KeyCtrlX` → `key.Matches(msg, ...)`.
 
-- [ ] Add `charm.land/bubbles/v2/key` import where needed
-- [ ] Update `keybindings.go` — change `keyString(msg tea.KeyMsg)` to `keyString(msg tea.KeyPressMsg)`, update `msg.String()` to `msg.Key.String()` (or appropriate v2 string representation)
-- [ ] Update `model.go` Update() — change `case tea.KeyMsg:` to `case tea.KeyPressMsg:`, update all key type checks (`tea.KeyCtrlC`, `tea.KeyEsc`, etc.) to use `key.Matches()` or `msg.Key.String()` comparisons
-- [ ] Update `model.go` Init() — remove or update any v1-specific key commands
-- [ ] Update `components/overlays/selector.go` — change `tea.KeyMsg` to `tea.KeyPressMsg`, update all key matching
-- [ ] Update `components/overlays/confirm.go` — change `tea.KeyMsg` to `tea.KeyPressMsg`, update all key matching
-- [ ] Update `components/overlays/input.go` — change `tea.KeyMsg` to `tea.KeyPressMsg`, update all key matching
-- [ ] Run `go build ./...` to verify compilation
-- [ ] Write tests for key dispatch — verify correct actions returned for key presses via v2 API
-- [ ] Run tests — must pass before Task 4
+- [x] Add `charm.land/bubbles/v2/key` import where needed
+- [x] Update `keybindings.go` — change `keyString(msg tea.KeyMsg)` to `keyString(msg tea.KeyPressMsg)`, update `msg.String()` to `msg.Key.String()` (or appropriate v2 string representation)
+- [x] Update `model.go` Update() — change `case tea.KeyMsg:` to `case tea.KeyPressMsg:`, update all key type checks (`tea.KeyCtrlC`, `tea.KeyEsc`, etc.) to use `key.Matches()` or `msg.Key.String()` comparisons
+- [x] Update `model.go` Init() — remove or update any v1-specific key commands
+- [x] Update `components/overlays/selector.go` — change `tea.KeyMsg` to `tea.KeyPressMsg`, update all key matching
+- [x] Update `components/overlays/confirm.go` — change `tea.KeyMsg` to `tea.KeyPressMsg`, update all key matching
+- [x] Update `components/overlays/input.go` — change `tea.KeyMsg` to `tea.KeyPressMsg`, update all key matching
+- [x] Run `go build ./...` to verify compilation
+- [x] Write tests for key dispatch — verify correct actions returned for key presses via v2 API
+- [x] Run tests — must pass before Task 4
 
 ---
 
@@ -158,17 +158,7 @@ Reference: crush `internal/ui/model/ui.go` textarea setup at line ~270.
 
 ---
 
-### Task 8: Wire up pills bar for tool progress
-
-- [ ] Add pills rendering to `render.go` — when tools are executing, show compact progress indicators in the pills row (between main and editor). Each pill shows tool name + spinner icon. Completed pills show checkmark/X briefly then fade.
-- [ ] Update `model.go` — track active tool pills from `ToolResultMsg` events. Pills row height is 0 (hidden) when no tools are active, 1 when tools are running.
-- [ ] Update `LayoutEngine.Compute()` — account for pills row (0 or 1 row).
-- [ ] Write tests for pills bar — verify shows during tool execution, verify hides when complete, verify layout adjustment.
-- [ ] Run tests — must pass before Task 9
-
----
-
-### Task 9: Final integration and verification
+### Task 8: Final integration and verification
 
 - [ ] Verify all features work together — v2 APIs, textarea, attachments, pills, custom Chroma
 - [ ] Verify `sdk.UI` interface still works — Select, Confirm, Input through overlay stack
@@ -179,7 +169,7 @@ Reference: crush `internal/ui/model/ui.go` textarea setup at line ~270.
 
 ---
 
-### Task 10: Update documentation
+### Task 9: Update documentation
 
 - [ ] Update `CLAUDE.md` — document Bubble Tea v2 migration, new import paths, textarea component
 - [ ] Update `CLAUDE.md` — add new TUI components (attachments, pills, xchroma)

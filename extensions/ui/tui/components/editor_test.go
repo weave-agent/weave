@@ -36,15 +36,15 @@ func TestEditorTyping(t *testing.T) {
 	m := NewEditorModel().Focus()
 
 	// type "hi"
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'i'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "h", Code: 'h'})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "i", Code: 'i'})
 	assert.Equal(t, "hi", m.Value())
 	assert.Equal(t, 2, m.cursor)
 }
 
 func TestEditorTypingMultipleRunes(t *testing.T) {
 	m := NewEditorModel().Focus()
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a', 'b', 'c'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "abc", Code: tea.KeyExtended})
 	assert.Equal(t, "abc", m.Value())
 	assert.Equal(t, 3, m.cursor)
 }
@@ -54,13 +54,13 @@ func TestEditorBackspace(t *testing.T) {
 	m = m.SetValue("hello")
 	m.cursor = 5
 
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
 	assert.Equal(t, "hell", m.Value())
 	assert.Equal(t, 4, m.cursor)
 
 	// backspace at start does nothing
 	m.cursor = 0
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
 	assert.Equal(t, "hell", m.Value())
 	assert.Equal(t, 0, m.cursor)
 }
@@ -70,13 +70,13 @@ func TestEditorDeleteForward(t *testing.T) {
 	m = m.SetValue("hello")
 	m.cursor = 2
 
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDelete})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDelete})
 	assert.Equal(t, "helo", m.Value())
 	assert.Equal(t, 2, m.cursor)
 
 	// delete at end does nothing
 	m.cursor = 4
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDelete})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDelete})
 	assert.Equal(t, "helo", m.Value())
 }
 
@@ -85,32 +85,32 @@ func TestEditorCursorMovement(t *testing.T) {
 	m = m.SetValue("hello")
 
 	// move left
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
 	assert.Equal(t, 4, m.cursor)
 
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
 	assert.Equal(t, 3, m.cursor)
 
 	// move right
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyRight})
 	assert.Equal(t, 4, m.cursor)
 
 	// home
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyHome})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyHome})
 	assert.Equal(t, 0, m.cursor)
 
 	// end
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnd})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnd})
 	assert.Equal(t, 5, m.cursor)
 
 	// left at start stays at 0
 	m.cursor = 0
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
 	assert.Equal(t, 0, m.cursor)
 
 	// right at end stays at end
 	m.cursor = 5
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyRight})
 	assert.Equal(t, 5, m.cursor)
 }
 
@@ -118,7 +118,7 @@ func TestEditorEnterSubmits(t *testing.T) {
 	m := NewEditorModel().Focus()
 	m = m.SetValue("hello world")
 
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	assert.Empty(t, m.Value())
 	assert.Equal(t, 0, m.cursor)
 	require.NotNil(t, cmd)
@@ -131,7 +131,7 @@ func TestEditorEnterSubmits(t *testing.T) {
 
 func TestEditorEnterEmptyDoesNothing(t *testing.T) {
 	m := NewEditorModel().Focus()
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	assert.Empty(t, m.Value())
 	assert.Nil(t, cmd)
 }
@@ -140,27 +140,27 @@ func TestEditorAltEnterInsertsNewline(t *testing.T) {
 	m := NewEditorModel().Focus()
 	m = m.SetValue("hello")
 
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter, Alt: true})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModAlt})
 	assert.Equal(t, "hello\n", m.Value())
 }
 
 func TestEditorSubmitAddsToHistory(t *testing.T) {
 	m := NewEditorModel().Focus()
 	m = m.SetValue("first")
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	assert.Equal(t, []string{"first"}, m.History())
 
 	m = m.SetValue("second")
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	assert.Equal(t, []string{"second", "first"}, m.History())
 }
 
 func TestEditorSubmitNoDuplicateHistory(t *testing.T) {
 	m := NewEditorModel().Focus()
 	m = m.SetValue("same")
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = m.SetValue("same")
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	assert.Equal(t, []string{"same"}, m.History())
 }
 
@@ -173,48 +173,48 @@ func TestEditorSubmitEmptyNotInHistory(t *testing.T) {
 func TestEditorHistoryNavigation(t *testing.T) {
 	m := NewEditorModel().Focus()
 	m = m.SetValue("first")
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = m.SetValue("second")
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	// history: ["second", "first"], histIdx=0 (no selection)
 	assert.Empty(t, m.Value())
 	assert.Equal(t, 0, m.histIdx)
 
 	// up once → newest = "second"
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyUp})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
 	assert.Equal(t, "second", m.Value())
 	assert.Equal(t, 1, m.histIdx)
 
 	// up again → older = "first"
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyUp})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
 	assert.Equal(t, "first", m.Value())
 	assert.Equal(t, 2, m.histIdx)
 
 	// up at top stays
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyUp})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
 	assert.Equal(t, "first", m.Value())
 	assert.Equal(t, 2, m.histIdx)
 
 	// down → "second"
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	assert.Equal(t, "second", m.Value())
 	assert.Equal(t, 1, m.histIdx)
 
 	// down → empty (current)
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	assert.Empty(t, m.Value())
 	assert.Equal(t, 0, m.histIdx)
 
 	// down at bottom stays
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	assert.Empty(t, m.Value())
 	assert.Equal(t, 0, m.histIdx)
 }
 
 func TestEditorHistoryEmpty(t *testing.T) {
 	m := NewEditorModel().Focus()
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyUp})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
 	assert.Empty(t, m.Value())
 }
 
@@ -223,7 +223,7 @@ func TestEditorInsertMidText(t *testing.T) {
 	m = m.SetValue("helo")
 	m.cursor = 2
 
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "l", Code: 'l'})
 	assert.Equal(t, "hello", m.Value())
 	assert.Equal(t, 3, m.cursor)
 }
@@ -232,7 +232,7 @@ func TestEditorUnfocusedIgnoresInput(t *testing.T) {
 	m := NewEditorModel() // not focused
 	assert.False(t, m.Focused())
 
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	m, cmd := m.Update(tea.KeyPressMsg{Text: "a", Code: 'a'})
 	assert.Empty(t, m.Value())
 	assert.Nil(t, cmd)
 }
@@ -242,67 +242,67 @@ func TestEditorSlashCommandAutocomplete(t *testing.T) {
 	m = m.SetSize(40, 3)
 
 	// type "/" triggers autocomplete
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "/", Code: '/'})
 	assert.True(t, m.showAC)
 	assert.NotEmpty(t, m.acItems)
 
 	// type "he" → narrows to /help
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h', 'e'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "he", Code: tea.KeyExtended})
 	assert.True(t, m.showAC)
 	assert.Contains(t, m.acItems, "/help")
 
 	// tab accepts
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	assert.False(t, m.showAC)
 	assert.Equal(t, "/help", m.Value())
 }
 
 func TestEditorAutocompleteEscapeDismisses(t *testing.T) {
 	m := NewEditorModel().Focus()
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "/", Code: '/'})
 	assert.True(t, m.showAC)
 
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	assert.False(t, m.showAC)
 }
 
 func TestEditorAutocompleteNavigatesWithArrows(t *testing.T) {
 	m := NewEditorModel().Focus()
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "/", Code: '/'})
 	assert.True(t, m.showAC)
 	initial := m.acIndex
 
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	assert.Equal(t, initial+1, m.acIndex)
 
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyUp})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
 	assert.Equal(t, initial, m.acIndex)
 }
 
 func TestEditorAutocompleteNoMatch(t *testing.T) {
 	m := NewEditorModel().Focus()
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/', 'z', 'z', 'z'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "/zzz", Code: tea.KeyExtended})
 	assert.False(t, m.showAC)
 }
 
 func TestEditorAutocompleteEnterAccepts(t *testing.T) {
 	m := NewEditorModel().Focus()
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "/", Code: '/'})
 	assert.True(t, m.showAC)
 
 	// enter with AC visible accepts the selection (doesn't submit)
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	assert.False(t, m.showAC)
 	assert.NotEmpty(t, m.Value())
 }
 
 func TestEditorAutocompleteSpaceDisables(t *testing.T) {
 	m := NewEditorModel().Focus()
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "/", Code: '/'})
 	assert.True(t, m.showAC)
 
 	// typing a space after "/" disables autocomplete
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: " ", Code: ' '})
 	assert.False(t, m.showAC)
 }
 
@@ -444,7 +444,7 @@ func TestEditorDraw_WrapsText(t *testing.T) {
 
 func TestEditorDraw_AutocompleteOverlay(t *testing.T) {
 	m := NewEditorModel().Focus().SetSize(40, 3)
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "/", Code: '/'})
 	require.True(t, m.AutocompleteVisible())
 
 	scr := uv.NewScreenBuffer(40, 10)
@@ -518,7 +518,7 @@ func TestEditorDraw_BorderColorApplied(t *testing.T) {
 
 func TestEditorDraw_AfterTyping(t *testing.T) {
 	m := NewEditorModel().Focus().SetSize(40, 3)
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a', 'b', 'c'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "abc", Code: tea.KeyExtended})
 
 	scr := uv.NewScreenBuffer(40, 5)
 	m.Draw(scr, uv.Rect(0, 0, 40, 5))
@@ -531,7 +531,7 @@ func TestEditorDraw_AfterBackspace(t *testing.T) {
 	m := NewEditorModel().Focus().SetSize(40, 3)
 	m = m.SetValue("hello")
 	m.cursor = 5
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
 
 	scr := uv.NewScreenBuffer(40, 5)
 	m.Draw(scr, uv.Rect(0, 0, 40, 5))
@@ -546,7 +546,7 @@ func TestEditorDraw_AfterUndo(t *testing.T) {
 	m = m.SetValue("hello")
 	m.cursor = 5
 	// Delete 'o' (saves undo state)
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
 	assert.Equal(t, "hell", m.Value())
 
 	// Undo restores previous state
@@ -563,12 +563,12 @@ func TestEditorDraw_AfterUndo(t *testing.T) {
 func TestEditorDraw_AfterHistoryNavigation(t *testing.T) {
 	m := NewEditorModel().Focus().SetSize(40, 3)
 	m = m.SetValue("first")
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = m.SetValue("second")
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	// Navigate to "second" (most recent)
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyUp})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
 
 	scr := uv.NewScreenBuffer(40, 5)
 	m.Draw(scr, uv.Rect(0, 0, 40, 5))
@@ -582,7 +582,7 @@ func TestEditorDraw_CursorMovementUpdates(t *testing.T) {
 	m = m.SetValue("hello")
 
 	// Move cursor to start
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyHome})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyHome})
 	assert.Equal(t, 0, m.cursor)
 
 	scr := uv.NewScreenBuffer(40, 5)
@@ -599,7 +599,7 @@ func TestEditorDraw_InsertMidText(t *testing.T) {
 	m = m.SetValue("helo")
 	m.cursor = 2
 
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "l", Code: 'l'})
 	assert.Equal(t, "hello", m.Value())
 
 	scr := uv.NewScreenBuffer(40, 5)
@@ -696,7 +696,7 @@ func TestEditorDraw_DeleteToLineEnd(t *testing.T) {
 func TestEditorDraw_AltEnterNewline(t *testing.T) {
 	m := NewEditorModel().Focus().SetSize(40, 5)
 	m = m.SetValue("hello")
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter, Alt: true})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModAlt})
 
 	scr := uv.NewScreenBuffer(40, 8)
 	m.Draw(scr, uv.Rect(0, 0, 40, 8))
@@ -708,7 +708,7 @@ func TestEditorDraw_AltEnterNewline(t *testing.T) {
 func TestEditorDraw_SubmitClearsContent(t *testing.T) {
 	m := NewEditorModel().Focus().SetSize(40, 3)
 	m = m.SetValue("submit me")
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	scr := uv.NewScreenBuffer(40, 5)
 	m.Draw(scr, uv.Rect(0, 0, 40, 5))

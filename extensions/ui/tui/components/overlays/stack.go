@@ -102,7 +102,7 @@ func (s DialogStack) Update(msg tea.Msg) (DialogStack, tea.Cmd, []Dialog) {
 	}
 
 	// Fall-through for key events to lower dialogs.
-	if _, ok := msg.(tea.KeyMsg); ok {
+	if _, ok := msg.(tea.KeyPressMsg); ok {
 		for i := len(s.dialogs) - 2; i >= 0; i-- {
 			if !s.dialogs[i].Handles(msg) {
 				continue
@@ -195,7 +195,7 @@ func (d *SelectorDialog) Draw(scr uv.Screen, area uv.Rectangle) {
 
 func (d *SelectorDialog) Handles(msg tea.Msg) bool {
 	switch msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return true
 	case SelectorSelectedMsg, SelectorCancelledMsg:
 		return true
@@ -252,7 +252,7 @@ func (d *ConfirmDialog) Draw(scr uv.Screen, area uv.Rectangle) {
 
 func (d *ConfirmDialog) Handles(msg tea.Msg) bool {
 	switch msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return true
 	case ConfirmResultMsg:
 		return true
@@ -314,7 +314,7 @@ func (d *InputDialog) Draw(scr uv.Screen, area uv.Rectangle) {
 
 func (d *InputDialog) Handles(msg tea.Msg) bool {
 	switch msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return true
 	case InputResultMsg:
 		return true

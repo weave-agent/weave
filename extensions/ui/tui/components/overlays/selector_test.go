@@ -61,7 +61,7 @@ func TestSelectorFilterOnTyping(t *testing.T) {
 	m := NewSelectorModel("Fruit", items).Show()
 
 	// type "ap" should match apple and apricot
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a', 'p'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "ap", Code: tea.KeyExtended})
 	assert.Equal(t, "ap", m.Filter())
 	filtered := m.filteredItems()
 	assert.Len(t, filtered, 2)
@@ -76,10 +76,10 @@ func TestSelectorFilterBackspace(t *testing.T) {
 	}
 	m := NewSelectorModel("Test", items).Show()
 
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a', 'p'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "ap", Code: tea.KeyExtended})
 	assert.Equal(t, "ap", m.Filter())
 
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
 	assert.Equal(t, "a", m.Filter())
 }
 
@@ -92,22 +92,22 @@ func TestSelectorNavigation(t *testing.T) {
 	m := NewSelectorModel("Test", items).Show()
 	assert.Equal(t, 0, m.Cursor())
 
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	assert.Equal(t, 1, m.Cursor())
 
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	assert.Equal(t, 2, m.Cursor())
 
 	// down at bottom stays
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	assert.Equal(t, 2, m.Cursor())
 
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyUp})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
 	assert.Equal(t, 1, m.Cursor())
 
 	// up at top stays
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyUp})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyUp})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
 	assert.Equal(t, 0, m.Cursor())
 }
 
@@ -119,8 +119,8 @@ func TestSelectorEnterSelects(t *testing.T) {
 	m := NewSelectorModel("Test", items).Show()
 
 	// select second item
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	require.NotNil(t, cmd)
 
 	msg := cmd()
@@ -135,7 +135,7 @@ func TestSelectorEscapeCancels(t *testing.T) {
 	items := []SelectorItem{{Title: "A"}}
 	m := NewSelectorModel("Test", items).Show()
 
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	require.NotNil(t, cmd)
 	assert.False(t, m.Visible())
 
@@ -149,10 +149,10 @@ func TestSelectorEnterWithNoMatchesDoesNothing(t *testing.T) {
 	m := NewSelectorModel("Test", items).Show()
 
 	// type filter that matches nothing
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'z', 'z'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "zz", Code: tea.KeyExtended})
 	assert.Empty(t, m.filteredItems())
 
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	assert.Nil(t, cmd)
 	assert.True(t, m.Visible())
 }
@@ -165,12 +165,12 @@ func TestSelectorFilterResetsCursor(t *testing.T) {
 	}
 	m := NewSelectorModel("Test", items).Show()
 
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	assert.Equal(t, 2, m.Cursor())
 
 	// typing resets cursor to 0
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "a", Code: 'a'})
 	assert.Equal(t, 0, m.Cursor())
 }
 
@@ -210,7 +210,7 @@ func TestSelectorFilterMatchesSubtitle(t *testing.T) {
 	}
 	m := NewSelectorModel("Model", items).Show()
 
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c', 'l'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "cl", Code: tea.KeyExtended})
 	filtered := m.filteredItems()
 	assert.Len(t, filtered, 1)
 	assert.Equal(t, "model-a", filtered[0].Item.Title)
@@ -225,8 +225,8 @@ func TestSelectorSelectedMsgIndexMatchesOriginal(t *testing.T) {
 	m := NewSelectorModel("Test", items).Show()
 
 	// filter to only match B
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}})
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "b", Code: 'b'})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	require.NotNil(t, cmd)
 
 	msg := cmd()
@@ -244,8 +244,8 @@ func TestSelectorDuplicateItemsReturnsCorrectIndex(t *testing.T) {
 	m := NewSelectorModel("Test", items).Show()
 
 	// Go to second item (index 1 in filtered = "same/second")
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyDown})
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	require.NotNil(t, cmd)
 
 	msg := cmd()

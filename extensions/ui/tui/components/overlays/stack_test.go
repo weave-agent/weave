@@ -90,7 +90,7 @@ func TestDialogStack_PopEmpty(t *testing.T) {
 
 func TestDialogStack_Update_EmptyStack(t *testing.T) {
 	s := NewDialogStack()
-	newS, cmd, completed := s.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	newS, cmd, completed := s.Update(tea.KeyPressMsg{Text: "a", Code: 'a'})
 	assert.Equal(t, s, newS)
 	assert.Nil(t, cmd)
 	assert.Nil(t, completed)
@@ -100,18 +100,18 @@ func TestDialogStack_Update_RoutesToTop(t *testing.T) {
 	s := NewDialogStack()
 
 	bottom := &mockDialog{id: "bottom", handles: func(msg tea.Msg) bool {
-		_, ok := msg.(tea.KeyMsg)
+		_, ok := msg.(tea.KeyPressMsg)
 		return ok
 	}}
 	top := &mockDialog{id: "top", handles: func(msg tea.Msg) bool {
-		_, ok := msg.(tea.KeyMsg)
+		_, ok := msg.(tea.KeyPressMsg)
 		return ok
 	}}
 
 	s = s.Push(bottom)
 	s = s.Push(top)
 
-	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}}
+	msg := tea.KeyPressMsg{Text: "a", Code: 'a'}
 	_, _, _ = s.Update(msg)
 
 	// Top dialog should have received the message
@@ -136,7 +136,7 @@ func TestDialogStack_Update_FallThrough(t *testing.T) {
 	s = s.Push(top)
 
 	// KeyMsg not handled by top → falls through to bottom
-	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}}
+	msg := tea.KeyPressMsg{Text: "a", Code: 'a'}
 	_, _, _ = s.Update(msg)
 
 	assert.Equal(t, msg, bottom.lastMsg)
@@ -202,7 +202,7 @@ func TestSelectorDialog_HandlesKeyAndResult(t *testing.T) {
 	d := NewSelectorDialog("test-select", model)
 
 	// Handles KeyMsg
-	assert.True(t, d.Handles(tea.KeyMsg{Type: tea.KeyUp}))
+	assert.True(t, d.Handles(tea.KeyPressMsg{Code: tea.KeyUp}))
 	// Handles SelectorSelectedMsg
 	assert.True(t, d.Handles(SelectorSelectedMsg{Index: 0}))
 	// Handles SelectorCancelledMsg
@@ -247,7 +247,7 @@ func TestSelectorDialog_KeyEventUpdatesModel(t *testing.T) {
 	d := NewSelectorDialog("test-select", model)
 
 	// Press 'a' to add to filter
-	newD, _ := d.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+	newD, _ := d.Update(tea.KeyPressMsg{Text: "a", Code: 'a'})
 	d = newD.(*SelectorDialog)
 
 	assert.False(t, d.Done())
@@ -332,7 +332,7 @@ func TestDialogStack_SelectorFlow(t *testing.T) {
 	s = s.Push(NewSelectorDialog("test", model))
 
 	// Simulate pressing Enter (selects first item)
-	newS, cmd, _ := s.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	newS, cmd, _ := s.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	s = newS
 
 	require.NotNil(t, cmd)

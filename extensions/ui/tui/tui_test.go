@@ -45,9 +45,9 @@ func TestModel_View(t *testing.T) {
 	// With no size set, chat="" and editor="" and footer renders "weave" label
 	view := m.View()
 	// Should contain the footer's "weave" fallback
-	assert.Contains(t, view, "weave")
+	assert.Contains(t, view.Content, "weave")
 	// Should contain newlines separating sections
-	assert.Contains(t, view, "\n")
+	assert.Contains(t, view.Content, "\n")
 }
 
 func TestModel_Init(t *testing.T) {
