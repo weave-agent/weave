@@ -6,6 +6,7 @@ import (
 
 	"github.com/alecthomas/chroma/v2/formatters"
 	"github.com/charmbracelet/glamour"
+
 	"weave/ext/ui/tui/xchroma"
 )
 

@@ -84,6 +84,7 @@ func (m EditorModel) Value() string {
 func (m EditorModel) SetSize(width, height int) EditorModel {
 	m.ta.SetWidth(max(minEditorWidth, width))
 	m.ta.SetHeight(max(1, height))
+
 	return m
 }
 
@@ -134,11 +135,14 @@ func (m EditorModel) PushHistory(s string) EditorModel {
 	if s == "" {
 		return m
 	}
+
 	if len(m.history) > 0 && m.history[0] == s {
 		return m
 	}
+
 	m.history = append([]string{s}, m.history...)
 	m.histIdx = 0
+
 	return m
 }
 
@@ -154,36 +158,50 @@ func (m EditorModel) Update(msg tea.Msg) (EditorModel, tea.Cmd) {
 		return m, nil
 	}
 
-	switch msg := msg.(type) {
-	case tea.KeyPressMsg:
-		// Enter submits (unless alt+enter for newline)
-		if msg.Code == tea.KeyEnter && msg.Mod&tea.ModAlt == 0 {
-			return m.handleEnter()
-		}
-
-		// History navigation on up/down when textarea is single-line
-		if msg.Code == tea.KeyUp {
-			if m.navigating || m.ta.Line() == 0 {
-				return m.historyUp()
-			}
-		}
-
-		if msg.Code == tea.KeyDown {
-			if m.navigating && m.histIdx > 0 {
-				return m.historyDown()
-			}
-			if m.navigating && m.histIdx == 0 {
-				m.navigating = false
-				m.ta.SetValue(m.savedLine)
-				m.savedLine = ""
-			}
+	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
+		if handled, model, cmd := m.handleKey(keyMsg); handled {
+			return model, cmd
 		}
 	}
 
 	// Forward to textarea
 	var cmd tea.Cmd
+
 	m.ta, cmd = m.ta.Update(msg)
+
 	return m, cmd
+}
+
+// handleKey processes key-specific shortcuts (enter, up/down history).
+// Returns true if the key was fully handled and should not be forwarded.
+func (m EditorModel) handleKey(msg tea.KeyPressMsg) (bool, EditorModel, tea.Cmd) {
+	// Enter submits (unless alt+enter for newline)
+	if msg.Code == tea.KeyEnter && msg.Mod&tea.ModAlt == 0 {
+		model, cmd := m.handleEnter()
+
+		return true, model, cmd
+	}
+
+	// History navigation on up/down when textarea is single-line
+	if msg.Code == tea.KeyUp {
+		if m.navigating || m.ta.Line() == 0 {
+			return true, m.historyUp(), nil
+		}
+	}
+
+	if msg.Code == tea.KeyDown {
+		if m.navigating && m.histIdx > 0 {
+			return true, m.historyDown(), nil
+		}
+
+		if m.navigating && m.histIdx == 0 {
+			m.navigating = false
+			m.ta.SetValue(m.savedLine)
+			m.savedLine = ""
+		}
+	}
+
+	return false, m, nil
 }
 
 func (m EditorModel) handleEnter() (EditorModel, tea.Cmd) {
@@ -202,9 +220,9 @@ func (m EditorModel) handleEnter() (EditorModel, tea.Cmd) {
 	}
 }
 
-func (m EditorModel) historyUp() (EditorModel, tea.Cmd) {
+func (m EditorModel) historyUp() EditorModel {
 	if len(m.history) == 0 {
-		return m, nil
+		return m
 	}
 
 	if !m.navigating {
@@ -217,10 +235,10 @@ func (m EditorModel) historyUp() (EditorModel, tea.Cmd) {
 		m.ta.SetValue(m.history[m.histIdx-1])
 	}
 
-	return m, nil
+	return m
 }
 
-func (m EditorModel) historyDown() (EditorModel, tea.Cmd) {
+func (m EditorModel) historyDown() EditorModel {
 	if m.histIdx > 1 {
 		m.histIdx--
 		m.ta.SetValue(m.history[m.histIdx-1])
@@ -231,7 +249,7 @@ func (m EditorModel) historyDown() (EditorModel, tea.Cmd) {
 		m.navigating = false
 	}
 
-	return m, nil
+	return m
 }
 
 // CursorLineStart moves the cursor to the beginning of the current line.
@@ -250,48 +268,60 @@ func (m EditorModel) CursorLineEnd() EditorModel {
 func (m EditorModel) CursorWordLeft() EditorModel {
 	// textarea handles this via key bindings, but for explicit dispatch:
 	var cmd tea.Cmd
+
 	m.ta, cmd = m.ta.Update(tea.KeyPressMsg{Code: tea.KeyLeft, Mod: tea.ModAlt})
 	_ = cmd
+
 	return m
 }
 
 // CursorWordRight moves the cursor one word forward.
 func (m EditorModel) CursorWordRight() EditorModel {
 	var cmd tea.Cmd
+
 	m.ta, cmd = m.ta.Update(tea.KeyPressMsg{Code: tea.KeyRight, Mod: tea.ModAlt})
 	_ = cmd
+
 	return m
 }
 
 // DeleteWordBackward deletes the word before the cursor.
 func (m EditorModel) DeleteWordBackward() EditorModel {
 	var cmd tea.Cmd
+
 	m.ta, cmd = m.ta.Update(tea.KeyPressMsg{Code: tea.KeyBackspace, Mod: tea.ModAlt})
 	_ = cmd
+
 	return m
 }
 
 // DeleteWordForward deletes the word after the cursor.
 func (m EditorModel) DeleteWordForward() EditorModel {
 	var cmd tea.Cmd
+
 	m.ta, cmd = m.ta.Update(tea.KeyPressMsg{Code: tea.KeyDelete, Mod: tea.ModAlt})
 	_ = cmd
+
 	return m
 }
 
 // DeleteToLineStart deletes from cursor to the start of the current line.
 func (m EditorModel) DeleteToLineStart() EditorModel {
 	var cmd tea.Cmd
+
 	m.ta, cmd = m.ta.Update(tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
 	_ = cmd
+
 	return m
 }
 
 // DeleteToLineEnd deletes from cursor to the end of the current line.
 func (m EditorModel) DeleteToLineEnd() EditorModel {
 	var cmd tea.Cmd
+
 	m.ta, cmd = m.ta.Update(tea.KeyPressMsg{Code: 'k', Mod: tea.ModCtrl})
 	_ = cmd
+
 	return m
 }
 
@@ -310,5 +340,6 @@ func (m EditorModel) Draw(scr uv.Screen, area uv.Rectangle) {
 	if area.Dx() <= 0 || area.Dy() <= 0 {
 		return
 	}
+
 	uv.NewStyledString(m.View()).Draw(scr, area)
 }

@@ -25,9 +25,9 @@ type Attachment struct {
 
 // Model tracks attachments above the editor and handles paste detection.
 type Model struct {
-	items       []Attachment
-	deleteIdx   int
-	deleteMode  bool
+	items      []Attachment
+	deleteIdx  int
+	deleteMode bool
 }
 
 // New creates an empty attachments model.
@@ -49,6 +49,7 @@ func (m Model) AddFile(path string) (Model, error) {
 	}
 
 	content := string(data)
+
 	lines := strings.Count(content, "\n")
 	if !strings.HasSuffix(content, "\n") && content != "" {
 		lines++
@@ -81,14 +82,17 @@ func (m Model) Remove(idx int) Model {
 	if idx < 0 || idx >= len(m.items) {
 		return m
 	}
+
 	m.items = append(m.items[:idx], m.items[idx+1:]...)
 	if m.deleteIdx >= len(m.items) {
 		m.deleteIdx = max(0, len(m.items)-1)
 	}
+
 	if len(m.items) == 0 {
 		m.deleteMode = false
 		m.deleteIdx = 0
 	}
+
 	return m
 }
 
@@ -109,8 +113,10 @@ func (m Model) ToggleDeleteMode() Model {
 		m.deleteMode = false
 		return m
 	}
+
 	m.deleteMode = !m.deleteMode
 	m.deleteIdx = 0
+
 	return m
 }
 
@@ -119,7 +125,9 @@ func (m Model) DeleteModeNext() Model {
 	if len(m.items) == 0 {
 		return m
 	}
+
 	m.deleteIdx = (m.deleteIdx + 1) % len(m.items)
+
 	return m
 }
 
@@ -128,7 +136,9 @@ func (m Model) DeleteModePrev() Model {
 	if len(m.items) == 0 {
 		return m
 	}
+
 	m.deleteIdx = (m.deleteIdx - 1 + len(m.items)) % len(m.items)
+
 	return m
 }
 
@@ -147,6 +157,7 @@ func (m Model) Clear() Model {
 	m.items = nil
 	m.deleteMode = false
 	m.deleteIdx = 0
+
 	return m
 }
 
@@ -166,6 +177,7 @@ func (m Model) RenderPrompt(editorText string) string {
 		if i > 0 {
 			sb.WriteString("\n")
 		}
+
 		name := filepath.Base(a.Path)
 		fmt.Fprintf(&sb, "<file name=%q>\n%s\n</file>", name, a.Content)
 	}

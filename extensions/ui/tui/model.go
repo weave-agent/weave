@@ -288,6 +288,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Text != "" && attachments.IsPastedContent(msg.Text) {
 			m.attach = m.attach.AddPaste(msg.Text)
 			m.showStatus(fmt.Sprintf("Pasted content added as attachment (%d lines)", m.attach.Items()[len(m.attach.Items())-1].Lines))
+
 			return m, m.statusTimer
 		}
 
@@ -599,6 +600,7 @@ func (m Model) dispatchBinding(action BindingAction) (tea.Model, tea.Cmd) {
 		} else {
 			m.attach = m.attach.ToggleDeleteMode()
 		}
+
 		return m, nil
 
 	default:
@@ -1443,6 +1445,7 @@ func (m Model) Draw(scr uv.Screen, area uv.Rectangle) {
 	if attachH > 0 && lt.Editor.Dy() > attachH {
 		attachArea := uv.Rect(lt.Editor.Min.X, lt.Editor.Min.Y, lt.Editor.Dx(), attachH)
 		editorArea := uv.Rect(lt.Editor.Min.X, lt.Editor.Min.Y+attachH, lt.Editor.Dx(), lt.Editor.Dy()-attachH)
+
 		m.attach.Draw(scr, attachArea)
 		m.editor.Draw(scr, editorArea)
 	} else {

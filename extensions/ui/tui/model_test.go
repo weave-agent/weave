@@ -1715,6 +1715,7 @@ func TestModel_PasteDetection_ConvertsToAttachment(t *testing.T) {
 	for i := range lines {
 		lines[i] = "line of content"
 	}
+
 	longPaste := strings.Join(lines, "\n")
 
 	model, cmd := m.Update(tea.KeyPressMsg{Text: longPaste, Code: tea.KeyExtended})
@@ -1823,8 +1824,8 @@ func TestModel_AttachmentDeleteMode_UpNav(t *testing.T) {
 }
 
 func TestModel_SubmitWithAttachments(t *testing.T) {
-	bus := bus.New()
-	m := newModel(bus, nil, nil)
+	b := bus.New()
+	m := newModel(b, nil, nil)
 	m.width = 80
 	m.height = 24
 	m = addTestAttachment(m, "test.go", "package main", 1)
@@ -1842,6 +1843,7 @@ func TestModel_SubmitWithAttachments(t *testing.T) {
 	require.Len(t, items, 1)
 	um, ok := items[0].(*messages.UserMessage)
 	require.True(t, ok)
+
 	content := um.Content()
 	assert.Contains(t, content, "review this")
 	assert.Contains(t, content, `<file name="test.go">`)
@@ -1852,8 +1854,8 @@ func TestModel_SubmitWithAttachments(t *testing.T) {
 }
 
 func TestModel_SubmitNoAttachments(t *testing.T) {
-	bus := bus.New()
-	m := newModel(bus, nil, nil)
+	b := bus.New()
+	m := newModel(b, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.prompted = true
@@ -1888,4 +1890,3 @@ func addTestAttachment(m Model, path, content string, lines int) Model {
 	m.attach = m.attach.Add(attachments.Attachment{Path: path, Content: content, Lines: lines})
 	return m
 }
-

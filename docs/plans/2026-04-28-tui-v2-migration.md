@@ -160,12 +160,12 @@ Reference: crush `internal/ui/model/ui.go` textarea setup at line ~270.
 
 ### Task 8: Final integration and verification
 
-- [ ] Verify all features work together — v2 APIs, textarea, attachments, pills, custom Chroma
-- [ ] Verify `sdk.UI` interface still works — Select, Confirm, Input through overlay stack
-- [ ] Verify headless mode still works — tool results render as formatted text
-- [ ] Run full test suite — all tests must pass
-- [ ] Run `make lint` and fix any issues
-- [ ] Run `make fix` for formatting
+- [x] Verify all features work together — v2 APIs, textarea, attachments, pills, custom Chroma
+- [x] Verify `sdk.UI` interface still works — Select, Confirm, Input through overlay stack
+- [x] Verify headless mode still works — tool results render as formatted text
+- [x] Run full test suite — all tests must pass
+- [x] Run `make lint` and fix any issues
+- [x] Run `make fix` for formatting
 
 ---
 

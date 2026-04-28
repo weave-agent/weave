@@ -7,9 +7,10 @@ import (
 	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 
-	"weave/ext/ui/tui/components"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"weave/ext/ui/tui/components"
 )
 
 // TestLipglossV2_NewStyleRendering verifies that basic lipgloss v2 style

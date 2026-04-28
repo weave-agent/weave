@@ -20,8 +20,9 @@ func NewFormatter(bgColor color.Color) chroma.Formatter {
 
 			if entry.IsZero() {
 				if _, err := fmt.Fprint(w, value); err != nil {
-					return err
+					return fmt.Errorf("xchroma write: %w", err)
 				}
+
 				continue
 			}
 
@@ -33,20 +34,24 @@ func NewFormatter(bgColor color.Color) chroma.Formatter {
 			if entry.Bold == chroma.Yes {
 				s = s.Bold(true)
 			}
+
 			if entry.Underline == chroma.Yes {
 				s = s.Underline(true)
 			}
+
 			if entry.Italic == chroma.Yes {
 				s = s.Italic(true)
 			}
-			if entry.Colour.IsSet() {
-				s = s.Foreground(lipgloss.Color(entry.Colour.String()))
+
+			if entry.Colour.IsSet() { //nolint:misspell // Chroma uses British English
+				s = s.Foreground(lipgloss.Color(entry.Colour.String())) //nolint:misspell // Chroma uses British English
 			}
 
 			if _, err := fmt.Fprint(w, s.Render(value)); err != nil {
-				return err
+				return fmt.Errorf("xchroma write: %w", err)
 			}
 		}
+
 		return nil
 	})
 }

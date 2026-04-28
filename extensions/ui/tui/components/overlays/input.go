@@ -128,6 +128,7 @@ func (m InputModel) handleKey(msg tea.KeyPressMsg) (InputModel, tea.Cmd) {
 			m.value = append(m.value[:m.cursor], runes...)
 			m.value = append(m.value, tail...)
 			m.cursor += len(runes)
+
 			return m, nil
 		}
 	}

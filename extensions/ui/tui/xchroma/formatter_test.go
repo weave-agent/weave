@@ -3,7 +3,6 @@ package xchroma
 import (
 	"bytes"
 	"image/color"
-	"strings"
 	"testing"
 
 	"github.com/alecthomas/chroma/v2"
@@ -25,6 +24,7 @@ func TestNewFormatter_NilBackground(t *testing.T) {
 	require.NoError(t, err)
 
 	var buf bytes.Buffer
+
 	err = f.Format(&buf, style, it)
 	require.NoError(t, err)
 
@@ -47,6 +47,7 @@ func TestNewFormatter_WithBackground(t *testing.T) {
 	require.NoError(t, err)
 
 	var buf bytes.Buffer
+
 	err = f.Format(&buf, style, it)
 	require.NoError(t, err)
 
@@ -62,6 +63,7 @@ func TestNewFormatter_EmptyInput(t *testing.T) {
 	it := func() chroma.Token { return chroma.EOF }
 
 	var buf bytes.Buffer
+
 	err := f.Format(&buf, style, it)
 	require.NoError(t, err)
 	assert.Empty(t, buf.String())
@@ -77,6 +79,7 @@ func TestNewFormatter_PlainText(t *testing.T) {
 	it := tokenIterator(tokens)
 
 	var buf bytes.Buffer
+
 	err := f.Format(&buf, style, it)
 	require.NoError(t, err)
 	// Text tokens get styled by the fallback style, so just check the value is present
@@ -99,6 +102,7 @@ func TestNewFormatter_BoldToken(t *testing.T) {
 	it := tokenIterator(tokens)
 
 	var buf bytes.Buffer
+
 	err = f.Format(&buf, style, it)
 	require.NoError(t, err)
 
@@ -132,6 +136,7 @@ func TestNewFormatter_MultipleTokenTypes(t *testing.T) {
 	it := tokenIterator(tokens)
 
 	var buf bytes.Buffer
+
 	err = f.Format(&buf, style, it)
 	require.NoError(t, err)
 
@@ -142,7 +147,7 @@ func TestNewFormatter_MultipleTokenTypes(t *testing.T) {
 	assert.Contains(t, out, "42")
 
 	// Output should have ANSI escape sequences for styling
-	assert.True(t, strings.Contains(out, "\x1b["), "expected ANSI escape codes in output")
+	assert.Contains(t, out, "\x1b[", "expected ANSI escape codes in output")
 }
 
 func TestNewFormatter_ZeroEntryPassthrough(t *testing.T) {
@@ -160,6 +165,7 @@ func TestNewFormatter_ZeroEntryPassthrough(t *testing.T) {
 	it := tokenIterator(tokens)
 
 	var buf bytes.Buffer
+
 	err = f.Format(&buf, style, it)
 	require.NoError(t, err)
 
@@ -170,12 +176,15 @@ func TestNewFormatter_ZeroEntryPassthrough(t *testing.T) {
 
 func tokenIterator(tokens []chroma.Token) func() chroma.Token {
 	i := 0
+
 	return func() chroma.Token {
 		if i >= len(tokens) {
 			return chroma.EOF
 		}
+
 		t := tokens[i]
 		i++
+
 		return t
 	}
 }

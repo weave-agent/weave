@@ -195,6 +195,7 @@ func (m SelectorModel) handleKey(msg tea.KeyPressMsg) (SelectorModel, tea.Cmd) {
 		if msg.Text != "" {
 			m.filter += msg.Text
 			m.cursor = 0
+
 			return m, nil
 		}
 	}
