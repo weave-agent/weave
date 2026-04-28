@@ -138,7 +138,7 @@ func (m InputModel) handleKey(msg tea.KeyPressMsg) (InputModel, tea.Cmd) {
 
 // View renders the input modal overlay.
 func (m InputModel) View() string {
-	if !m.visible || m.width <= 0 {
+	if !m.visible || m.width < 4 {
 		return ""
 	}
 

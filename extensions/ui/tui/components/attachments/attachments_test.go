@@ -1,14 +1,11 @@
 package attachments
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNew(t *testing.T) {
@@ -34,34 +31,22 @@ func TestAddMultiple(t *testing.T) {
 	assert.Equal(t, 2, m.Height())
 }
 
-func TestAddFile(t *testing.T) {
-	tmpDir := t.TempDir()
-	p := filepath.Join(tmpDir, "test.txt")
-	require.NoError(t, os.WriteFile(p, []byte("line1\nline2\nline3"), 0o644))
-
-	m := New()
-	m, err := m.AddFile(p)
-	require.NoError(t, err)
-	assert.Len(t, m.Items(), 1)
-	assert.Equal(t, p, m.Items()[0].Path)
-	assert.Equal(t, 3, m.Items()[0].Lines)
-	assert.Equal(t, "line1\nline2\nline3", m.Items()[0].Content)
-}
-
-func TestAddFile_NotFound(t *testing.T) {
-	m := New()
-	_, err := m.AddFile("/nonexistent/file.txt")
-	assert.Error(t, err)
-}
-
 func TestAddPaste(t *testing.T) {
 	content := "line1\nline2\nline3"
 	m := New()
 	m = m.AddPaste(content)
 	assert.Len(t, m.Items(), 1)
-	assert.Equal(t, "paste.txt", m.Items()[0].Path)
-	assert.True(t, m.Items()[0].IsPasted)
+	assert.Equal(t, "paste-1.txt", m.Items()[0].Path)
 	assert.Equal(t, 3, m.Items()[0].Lines)
+}
+
+func TestAddPaste_UniqueNames(t *testing.T) {
+	m := New()
+	m = m.AddPaste("content1\nline2")
+	m = m.AddPaste("content2\nline2")
+	assert.Len(t, m.Items(), 2)
+	assert.Equal(t, "paste-1.txt", m.Items()[0].Path)
+	assert.Equal(t, "paste-2.txt", m.Items()[1].Path)
 }
 
 func TestRemove(t *testing.T) {

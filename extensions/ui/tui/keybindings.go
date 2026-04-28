@@ -33,7 +33,6 @@ const (
 	ActionDeleteWordForward  BindingAction = "tui.editor.deleteWordForward"
 	ActionDeleteToLineStart  BindingAction = "tui.editor.deleteToLineStart"
 	ActionDeleteToLineEnd    BindingAction = "tui.editor.deleteToLineEnd"
-	ActionUndo               BindingAction = "tui.editor.undo"
 	ActionSuspend            BindingAction = "app.suspend"
 	ActionExternalEditor     BindingAction = "app.editor.external"
 	ActionToggleToolOutput   BindingAction = "app.tools.expand"
@@ -53,7 +52,7 @@ type Binding struct {
 // defaultBindings is the built-in keybinding set.
 var defaultBindings = []Binding{
 	{Action: ActionExit, Keys: []string{"ctrl+d"}, Description: "Exit weave"},
-	{Action: ActionInterrupt, Keys: []string{"escape"}, Description: "Interrupt current operation"},
+	{Action: ActionInterrupt, Keys: []string{"esc"}, Description: "Interrupt current operation"},
 	{Action: ActionModelSelect, Keys: []string{"ctrl+l"}, Description: "Open model selector"},
 	{Action: ActionModelCycle, Keys: []string{"ctrl+p"}, Description: "Cycle to next model"},
 
@@ -71,9 +70,6 @@ var defaultBindings = []Binding{
 	{Action: ActionDeleteWordForward, Keys: []string{"alt+d"}, Description: "Delete word forward"},
 	{Action: ActionDeleteToLineStart, Keys: []string{"ctrl+u"}, Description: "Delete to line start"},
 	{Action: ActionDeleteToLineEnd, Keys: []string{"ctrl+k"}, Description: "Delete to line end"},
-
-	// Undo
-	{Action: ActionUndo, Keys: []string{"ctrl+_"}, Description: "Undo"},
 
 	// App control
 	{Action: ActionSuspend, Keys: []string{"ctrl+z"}, Description: "Suspend weave"},
@@ -240,12 +236,7 @@ func (r *BindingRegistry) AllBindings() []Binding {
 
 // keyString converts a tea.KeyPressMsg to the string representation used in bindings.
 func keyString(msg tea.KeyPressMsg) string {
-	s := msg.String()
-	if s == "esc" {
-		return "escape"
-	}
-
-	return s
+	return msg.String()
 }
 
 // loadKeybindings finds and loads the user keybindings config.

@@ -110,7 +110,7 @@ func (m ConfirmModel) handleKey(msg tea.KeyPressMsg) (ConfirmModel, tea.Cmd) {
 
 // View renders the confirm dialog overlay.
 func (m ConfirmModel) View() string {
-	if !m.visible || m.width <= 0 {
+	if !m.visible || m.width < 4 {
 		return ""
 	}
 

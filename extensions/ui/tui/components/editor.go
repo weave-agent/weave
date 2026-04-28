@@ -31,6 +31,14 @@ type EditorModel struct {
 
 const minEditorWidth = 20
 
+// borderStyle creates a border style with the given foreground color.
+func borderStyle(fg string) lipgloss.Style {
+	return lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color(fg)).
+		PaddingLeft(1)
+}
+
 // NewEditorModel creates a new editor model backed by bubbles/v2 textarea.
 func NewEditorModel() EditorModel {
 	ta := textarea.New()
@@ -44,14 +52,8 @@ func NewEditorModel() EditorModel {
 	ta.Focus()
 
 	styles := textarea.DefaultStyles(false)
-	styles.Focused.Base = lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("63")).
-		PaddingLeft(1)
-	styles.Blurred.Base = lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("240")).
-		PaddingLeft(1)
+	styles.Focused.Base = borderStyle("63")
+	styles.Blurred.Base = borderStyle("240")
 	styles.Focused.Text = lipgloss.NewStyle()
 	styles.Blurred.Text = lipgloss.NewStyle()
 	styles.Focused.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
@@ -62,11 +64,6 @@ func NewEditorModel() EditorModel {
 		focused:     true,
 		BorderColor: "63",
 	}
-}
-
-// SetSlashCommands is a no-op kept for API compatibility.
-func (m EditorModel) SetSlashCommands(_ []string) EditorModel {
-	return m
 }
 
 // SetValue replaces the editor content.
@@ -97,9 +94,6 @@ func (m EditorModel) Height() int { return m.ta.Height() }
 // Focused returns whether the editor has focus.
 func (m EditorModel) Focused() bool { return m.focused }
 
-// AutocompleteVisible returns false (kept for API compatibility).
-func (m EditorModel) AutocompleteVisible() bool { return false }
-
 // Focus gives the editor focus.
 func (m EditorModel) Focus() EditorModel {
 	m.focused = true
@@ -117,14 +111,8 @@ func (m EditorModel) SetBorderColor(color string) EditorModel {
 	m.BorderColor = color
 
 	styles := m.ta.Styles()
-	styles.Focused.Base = lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color(color)).
-		PaddingLeft(1)
-	styles.Blurred.Base = lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color(color)).
-		PaddingLeft(1)
+	styles.Focused.Base = borderStyle(color)
+	styles.Blurred.Base = borderStyle(color)
 	m.ta.SetStyles(styles)
 
 	return m
@@ -322,11 +310,6 @@ func (m EditorModel) DeleteToLineEnd() EditorModel {
 	m.ta, cmd = m.ta.Update(tea.KeyPressMsg{Code: 'k', Mod: tea.ModCtrl})
 	_ = cmd
 
-	return m
-}
-
-// Undo is a no-op placeholder (textarea has built-in undo).
-func (m EditorModel) Undo() EditorModel {
 	return m
 }
 

@@ -154,9 +154,6 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 		ui.SetRegistries(commands, bindings)
 	}
 
-	// Set slash commands after registries are wired so pending commands are included.
-	editor = editor.SetSlashCommands(commands.Names())
-
 	m := Model{
 		width:         80,
 		height:        24,
@@ -265,8 +262,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "down", "right":
 				m.attach = m.attach.DeleteModeNext()
 				return m, nil
+			case "enter":
+				m.attach = m.attach.Remove(m.attach.DeleteIdx())
+
+				if len(m.attach.Items()) == 0 {
+					m.attach = m.attach.ToggleDeleteMode()
+				}
+
+				return m, nil
 			}
-			// Fall through to binding resolver (enter/ctrl+r handled there)
+			// Fall through to binding resolver (ctrl+r handled there)
 		}
 
 		// Handle ctrl+c with double-press: first clears editor, second quits
@@ -413,10 +418,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, nil
 
-	case slashCommandsUpdatedMsg:
-		m.editor = m.editor.SetSlashCommands(m.commands.Names())
-		return m, nil
-
 	case statusTimeoutMsg:
 		if msg.gen == m.statusGen {
 			m.statusMsg = ""
@@ -560,11 +561,6 @@ func (m Model) dispatchBinding(action BindingAction) (tea.Model, tea.Cmd) {
 		m.editor = m.editor.DeleteToLineEnd()
 		return m, nil
 
-	// Undo
-	case ActionUndo:
-		m.editor = m.editor.Undo()
-		return m, nil
-
 	// App control
 	case ActionSuspend:
 		return m, func() tea.Msg { return tea.SuspendMsg{} }
@@ -595,7 +591,7 @@ func (m Model) dispatchBinding(action BindingAction) (tea.Model, tea.Cmd) {
 	// Attachments
 	case ActionAttachDelete:
 		if m.attach.InDeleteMode() {
-			// Enter pressed — delete highlighted attachment
+			// ctrl+r while in delete mode: delete highlighted attachment
 			m.attach = m.attach.Remove(m.attach.DeleteIdx())
 		} else {
 			m.attach = m.attach.ToggleDeleteMode()

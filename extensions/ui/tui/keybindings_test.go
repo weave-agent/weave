@@ -16,7 +16,7 @@ func TestBindingRegistry_Defaults(t *testing.T) {
 
 	actions := map[string]BindingAction{
 		"ctrl+d":    ActionExit,
-		"escape":    ActionInterrupt,
+		"esc":       ActionInterrupt,
 		"ctrl+l":    ActionModelSelect,
 		"ctrl+p":    ActionModelCycle,
 		"shift+tab": ActionThinkingCycle,
@@ -191,7 +191,7 @@ func TestKeyString(t *testing.T) {
 		{tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl}, "ctrl+d"},
 		{tea.KeyPressMsg{Code: 'l', Mod: tea.ModCtrl}, "ctrl+l"},
 		{tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl}, "ctrl+p"},
-		{tea.KeyPressMsg{Code: tea.KeyEsc}, "escape"},
+		{tea.KeyPressMsg{Code: tea.KeyEsc}, "esc"},
 		{tea.KeyPressMsg{Text: "a", Code: 'a'}, "a"},
 	}
 
@@ -200,9 +200,9 @@ func TestKeyString(t *testing.T) {
 	}
 }
 
-func TestKeyString_EscapeNormalization(t *testing.T) {
+func TestKeyString_EscapePassthrough(t *testing.T) {
 	msg := tea.KeyPressMsg{Code: tea.KeyEsc}
-	assert.Equal(t, "escape", keyString(msg))
+	assert.Equal(t, "esc", keyString(msg))
 }
 
 func TestLoadKeybindings_ProjectConfig(t *testing.T) {

@@ -205,7 +205,7 @@ func (m SelectorModel) handleKey(msg tea.KeyPressMsg) (SelectorModel, tea.Cmd) {
 
 // View renders the selector overlay.
 func (m SelectorModel) View() string {
-	if !m.visible || m.width <= 0 {
+	if !m.visible || m.width < 4 {
 		return ""
 	}
 

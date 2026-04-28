@@ -1723,7 +1723,6 @@ func TestModel_PasteDetection_ConvertsToAttachment(t *testing.T) {
 
 	assert.Len(t, m.attach.Items(), 1)
 	assert.Equal(t, 12, m.attach.Items()[0].Lines)
-	assert.True(t, m.attach.Items()[0].IsPasted)
 	// Status message should be set
 	assert.Contains(t, m.statusMsg, "attachment")
 	// cmd should be a timer (status timeout)

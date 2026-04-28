@@ -2,7 +2,6 @@ package xchroma
 
 import (
 	"fmt"
-	"image/color"
 	"io"
 
 	"charm.land/lipgloss/v2"
@@ -10,9 +9,8 @@ import (
 )
 
 // NewFormatter returns a Chroma formatter that uses Lip Gloss v2 styles for
-// syntax highlighting. If bgColor is non-nil, every token's background is
-// forced to that color so code blocks blend with the surrounding UI.
-func NewFormatter(bgColor color.Color) chroma.Formatter {
+// syntax highlighting.
+func NewFormatter() chroma.Formatter {
 	return chroma.FormatterFunc(func(w io.Writer, style *chroma.Style, it chroma.Iterator) error {
 		for token := it(); token != chroma.EOF; token = it() {
 			entry := style.Get(token.Type)
@@ -27,9 +25,6 @@ func NewFormatter(bgColor color.Color) chroma.Formatter {
 			}
 
 			s := lipgloss.NewStyle()
-			if bgColor != nil {
-				s = s.Background(bgColor)
-			}
 
 			if entry.Bold == chroma.Yes {
 				s = s.Bold(true)

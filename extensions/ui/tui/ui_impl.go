@@ -43,8 +43,6 @@ func NewTUIImpl(commands *CommandRegistry, bindings *BindingRegistry) *TUIImpl {
 }
 
 // SetProgram sets the Bubble Tea program for sending overlay requests.
-// Slash command autocomplete is already populated during newModel() via
-// SetSlashCommands, so no refresh is needed here.
 func (u *TUIImpl) SetProgram(p Sender) {
 	u.mu.Lock()
 	defer u.mu.Unlock()

@@ -2,7 +2,6 @@ package attachments
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -17,10 +16,9 @@ const (
 
 // Attachment holds a file attached to the current prompt.
 type Attachment struct {
-	Path     string
-	Content  string
-	Lines    int
-	IsPasted bool
+	Path    string
+	Content string
+	Lines   int
 }
 
 // Model tracks attachments above the editor and handles paste detection.
@@ -28,6 +26,7 @@ type Model struct {
 	items      []Attachment
 	deleteIdx  int
 	deleteMode bool
+	pasteCount int
 }
 
 // New creates an empty attachments model.
@@ -41,27 +40,6 @@ func (m Model) Add(a Attachment) Model {
 	return m
 }
 
-// AddFile reads a file and adds it as an attachment.
-func (m Model) AddFile(path string) (Model, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return m, fmt.Errorf("read %s: %w", path, err)
-	}
-
-	content := string(data)
-
-	lines := strings.Count(content, "\n")
-	if !strings.HasSuffix(content, "\n") && content != "" {
-		lines++
-	}
-
-	return m.Add(Attachment{
-		Path:    path,
-		Content: content,
-		Lines:   lines,
-	}), nil
-}
-
 // AddPaste creates an attachment from pasted content.
 func (m Model) AddPaste(content string) Model {
 	lines := strings.Count(content, "\n")
@@ -69,11 +47,12 @@ func (m Model) AddPaste(content string) Model {
 		lines++
 	}
 
+	m.pasteCount++
+
 	return m.Add(Attachment{
-		Path:     "paste.txt",
-		Content:  content,
-		Lines:    lines,
-		IsPasted: true,
+		Path:    fmt.Sprintf("paste-%d.txt", m.pasteCount),
+		Content: content,
+		Lines:   lines,
 	})
 }
 
