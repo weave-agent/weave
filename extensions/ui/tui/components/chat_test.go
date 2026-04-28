@@ -493,9 +493,9 @@ func TestChatModel_ScrollUpDisablesAutoScroll(t *testing.T) {
 
 func TestChatModel_ScrollDownToBottomReEnablesAutoScroll(t *testing.T) {
 	m := NewChatModel().SetSize(80, 3)
-	m = m.AddItem(stubItem{text: "line1\nline2\nline3\nline4\nline5"})
-	m = m.ScrollUp(3)
-	m = m.AddItem(stubItem{text: "line6"}) // newContent = true
+	m = m.AddItem(stubItem{text: "line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8\nline9\nline10"})
+	m = m.ScrollUp(5)
+	m = m.AddItem(stubItem{text: "line11"}) // newContent = true (scrolled up > 3 lines from bottom)
 
 	require.False(t, m.AutoScroll())
 	require.True(t, m.NewContent())
