@@ -200,11 +200,13 @@ func (m EditorModel) handleKey(msg tea.KeyPressMsg) (bool, EditorModel, tea.Cmd)
 
 func (m EditorModel) handleEnter() (EditorModel, tea.Cmd) {
 	text := strings.TrimSpace(m.ta.Value())
-	if text == "" {
-		return m, nil
+
+	// Always emit SubmitMsg — the model decides whether to act on empty text
+	// (it checks for attachments before rejecting).
+	if text != "" {
+		m = m.PushHistory(text)
 	}
 
-	m = m.PushHistory(text)
 	m.ta.Reset()
 	m.navigating = false
 	m.savedLine = ""

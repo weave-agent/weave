@@ -821,6 +821,11 @@ func (m *Model) AddUserMessage(content string) {
 
 // onSubmit handles editor submit — routes slash commands or publishes prompt/followup.
 func (m Model) onSubmit(text string) (tea.Model, tea.Cmd) {
+	// Reject empty submissions without attachments.
+	if text == "" && len(m.attach.Items()) == 0 {
+		return m, nil
+	}
+
 	// Try slash command dispatch first.
 	if handled, result := m.commands.Dispatch(text); handled { //nolint:nestif // command dispatch has multiple optional outcomes
 		cmdName, cmdArgs := parseCommand(text)

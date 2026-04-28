@@ -191,6 +191,11 @@ func (r *BindingRegistry) LoadUserConfig(path string) error {
 
 	for action, keys := range cfg.Keybindings {
 		a := BindingAction(action)
+
+		if _, ok := r.actions[a]; !ok {
+			return fmt.Errorf("unknown keybinding action %q in config %s", action, path)
+		}
+
 		for _, k := range keys {
 			r.user[k] = a
 		}

@@ -66,11 +66,16 @@ func TestEditorEnterSubmits(t *testing.T) {
 	assert.Equal(t, "hello world", submit.Text)
 }
 
-func TestEditorEnterEmptyDoesNothing(t *testing.T) {
+func TestEditorEnterEmptyEmitsSubmit(t *testing.T) {
 	m := NewEditorModel()
 	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	assert.Empty(t, m.Value())
-	assert.Nil(t, cmd)
+	require.NotNil(t, cmd)
+
+	msg := cmd()
+	submit, ok := msg.(SubmitMsg)
+	require.True(t, ok)
+	assert.Empty(t, submit.Text)
 }
 
 func TestEditorSubmitAddsToHistory(t *testing.T) {
