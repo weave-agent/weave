@@ -651,9 +651,9 @@ func (m Model) openExternalEditor() (tea.Model, tea.Cmd) {
 
 	_ = tmpFile.Close()
 
-	editor := os.Getenv("VISUAL")
+	editor := strings.TrimSpace(os.Getenv("VISUAL"))
 	if editor == "" {
-		editor = os.Getenv("EDITOR")
+		editor = strings.TrimSpace(os.Getenv("EDITOR"))
 	}
 
 	if editor == "" {
