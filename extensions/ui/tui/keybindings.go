@@ -184,10 +184,9 @@ func (r *BindingRegistry) LoadUserConfig(path string) error {
 		return fmt.Errorf("parse keybindings config: %w", err)
 	}
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	r.user = make(map[string]BindingAction)
+	// Build new map in local variable so a validation error doesn't
+	// wipe out the previous user bindings.
+	newUser := make(map[string]BindingAction)
 
 	for action, keys := range cfg.Keybindings {
 		a := BindingAction(action)
@@ -197,9 +196,14 @@ func (r *BindingRegistry) LoadUserConfig(path string) error {
 		}
 
 		for _, k := range keys {
-			r.user[k] = a
+			newUser[k] = a
 		}
 	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.user = newUser
 
 	return nil
 }
