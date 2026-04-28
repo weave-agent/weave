@@ -98,10 +98,8 @@ func (m LandingModel) buildLines() []string {
 func (m LandingModel) logo() []string {
 	return []string{
 		"",
-		"          ╭──╮",
-		"          │╲ ╱│",
-		"          │ ╳ │",
-		"          │╱ ╲│",
-		"          ╰──╯",
+		" `)    (   .-. .-.  )   .-.-. ",
+		" /  .   )./.-'(  | (   /./.-'_",
+		"(_.' `-' (__.' `-'-'\\_/ (__.'",
 	}
 }
