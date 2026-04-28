@@ -21,12 +21,13 @@ type SpinnerModel struct {
 
 // NewSpinnerModel creates a new spinner model.
 func NewSpinnerModel() SpinnerModel {
-	sp := spinner.New()
-	sp.Spinner = spinner.Spinner{
-		Frames: []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"},
-		FPS:    time.Second / 10,
-	}
-	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("99"))
+	sp := spinner.New(
+		spinner.WithSpinner(spinner.Spinner{
+			Frames: []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"},
+			FPS:    time.Second / 10,
+		}),
+		spinner.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("99"))),
+	)
 
 	return SpinnerModel{
 		sp:    sp,

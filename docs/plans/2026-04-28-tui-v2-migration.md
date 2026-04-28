@@ -106,13 +106,13 @@ Key changes: `tea.KeyMsg` → `tea.KeyPressMsg`, `msg.String()` → `msg.Key.Str
 
 ### Task 4: Migrate lipgloss and bubbles API changes
 
-- [ ] Update all `lipgloss.Place()` calls — v2 signature changed (check crush for new signature). Files: `landing.go`, `model.go`, `components/footer.go`
-- [ ] Update spinner initialization in `components/spinner.go` — v2 bubbles spinner API may differ (check constructor options)
-- [ ] Update any `lipgloss.NewStyle()` calls that use v1-only methods — scan all files for deprecated API
-- [ ] Verify all `View()` string rendering still works — lipgloss v2 style rendering should be compatible but verify
-- [ ] Run `go build ./...` and `go vet ./...` to verify compilation
-- [ ] Write tests for lipgloss style rendering — verify Place output, style composition
-- [ ] Run tests — must pass before Task 5
+- [x] Update all `lipgloss.Place()` calls — v2 signature changed (check crush for new signature). Files: `landing.go`, `model.go`, `components/footer.go`
+- [x] Update spinner initialization in `components/spinner.go` — v2 bubbles spinner API may differ (check constructor options)
+- [x] Update any `lipgloss.NewStyle()` calls that use v1-only methods — scan all files for deprecated API
+- [x] Verify all `View()` string rendering still works — lipgloss v2 style rendering should be compatible but verify
+- [x] Run `go build ./...` and `go vet ./...` to verify compilation
+- [x] Write tests for lipgloss style rendering — verify Place output, style composition
+- [x] Run tests — must pass before Task 5
 
 ---
 
