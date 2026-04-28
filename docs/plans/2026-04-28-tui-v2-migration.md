@@ -69,10 +69,10 @@ Migrate the weave TUI from Bubble Tea v1 to v2 (`charm.land/bubbletea/v2`), repl
 
 ### Task 1: Upgrade go.mod dependencies to v2
 
-- [ ] Update `extensions/ui/tui/go.mod` — replace bubbletea v1 with `charm.land/bubbletea/v2 v2.0.6`, lipgloss v1 with `charm.land/lipgloss/v2 v2.0.3`, bubbles v1 with `charm.land/bubbles/v2 v2.1.0`
-- [ ] Run `go mod tidy` to resolve transitive deps — fix any version conflicts
-- [ ] Verify `go build ./...` compiles (will fail on import paths, that's expected — just verify go.mod is consistent)
-- [ ] Run tests — must pass before Task 2
+- [x] Update `extensions/ui/tui/go.mod` — replace bubbletea v1 with `charm.land/bubbletea/v2 v2.0.6`, lipgloss v1 with `charm.land/lipgloss/v2 v2.0.3`, bubbles v1 with `charm.land/bubbles/v2 v2.1.0`
+- [x] Run `go mod tidy` to resolve transitive deps — fix any version conflicts
+- [x] Verify `go build ./...` compiles (will fail on import paths, that's expected — just verify go.mod is consistent)
+- [x] Run tests — must pass before Task 2
 
 ---
 
