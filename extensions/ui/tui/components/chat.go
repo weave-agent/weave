@@ -161,7 +161,7 @@ func (m ChatModel) JumpToBottom() ChatModel {
 
 // AddItem appends a chat item and auto-scrolls if near the bottom.
 func (m ChatModel) AddItem(item ChatItem) ChatModel {
-	atBottom := m.AtBottom()
+	nearBottom := m.NearBottom()
 
 	m.items = append(m.items, item)
 
@@ -169,7 +169,7 @@ func (m ChatModel) AddItem(item ChatItem) ChatModel {
 		*m.cache = append(*m.cache, cacheEntry{})
 	}
 
-	if m.autoScroll || atBottom {
+	if m.autoScroll || nearBottom {
 		m.scrollToBottom()
 		m.autoScroll = true
 	} else {
