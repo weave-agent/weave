@@ -7,7 +7,7 @@ import (
 
 	"weave/sdk"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // Bus event topics (matching agent-loop topics).

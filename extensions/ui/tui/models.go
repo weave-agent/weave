@@ -7,7 +7,7 @@ import (
 	"weave/config"
 	"weave/sdk"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // ModelEntry describes a provider + model combination.

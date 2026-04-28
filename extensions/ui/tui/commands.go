@@ -8,7 +8,7 @@ import (
 
 	"weave/sdk"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // CommandResult is returned by a command handler to signal side effects.

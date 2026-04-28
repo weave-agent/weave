@@ -8,7 +8,7 @@ import (
 
 	"weave/sdk"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // pendingCommand holds a command registered before the registry was set.

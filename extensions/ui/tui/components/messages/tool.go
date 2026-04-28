@@ -7,7 +7,7 @@ import (
 
 	"weave/sdk"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 )
 

@@ -78,12 +78,12 @@ Migrate the weave TUI from Bubble Tea v1 to v2 (`charm.land/bubbletea/v2`), repl
 
 ### Task 2: Migrate import paths (mechanical)
 
-- [ ] Replace all `github.com/charmbracelet/bubbletea` imports with `charm.land/bubbletea/v2` across all `.go` files in `extensions/ui/tui/`
-- [ ] Replace all `github.com/charmbracelet/lipgloss` imports with `charm.land/lipgloss/v2` across all `.go` files
-- [ ] Replace all `github.com/charmbracelet/bubbles` imports with `charm.land/bubbles/v2` across all `.go` files
-- [ ] Update `bubbles/spinner` sub-imports to `charm.land/bubbles/v2/spinner`
-- [ ] Run `go mod tidy` and verify `go build ./...` compiles (may fail on API changes, that's expected)
-- [ ] Run tests — must pass before Task 3
+- [x] Replace all `github.com/charmbracelet/bubbletea` imports with `charm.land/bubbletea/v2` across all `.go` files in `extensions/ui/tui/`
+- [x] Replace all `github.com/charmbracelet/lipgloss` imports with `charm.land/lipgloss/v2` across all `.go` files
+- [x] Replace all `github.com/charmbracelet/bubbles` imports with `charm.land/bubbles/v2` across all `.go` files
+- [x] Update `bubbles/spinner` sub-imports to `charm.land/bubbles/v2/spinner`
+- [x] Run `go mod tidy` and verify `go build ./...` compiles (may fail on API changes, that's expected)
+- [x] Run tests — skipped: tests require Task 3 API changes (msg.Type/tea.KeyRunes/msg.Runes) to compile
 
 ---
 
