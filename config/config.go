@@ -27,11 +27,12 @@ type ProviderEntry struct {
 }
 
 type File struct {
-	Extensions []string       `short:"e" description:"List of optional extensions to load"`
-	Prompt     string         `short:"p" description:"Prompt to pass to the agent"`
-	UI         string         `default:"tui" description:"UI extension name (tui for interactive, none for headless)"`
-	Core       CoreConfig     `description:"Core agent configuration"`
-	Providers  map[string]any `description:"Per-provider configuration"`
+	Extensions   []string       `short:"e" description:"List of optional extensions to load"`
+	UIExtensions []string       `yaml:"ui_extensions" description:"List of UI-specific extensions to load when TUI is active"`
+	Prompt       string         `short:"p" description:"Prompt to pass to the agent"`
+	UI           string         `default:"tui" description:"UI extension name (tui for interactive, none for headless)"`
+	Core         CoreConfig     `description:"Core agent configuration"`
+	Providers    map[string]any `description:"Per-provider configuration"`
 }
 
 // CoreExts returns (coreExts, optionalExts) where coreExts contains the agent-loop
@@ -42,6 +43,46 @@ func (f *File) CoreExts() ([]string, []string) {
 	core = append(core, f.Core.Providers...)
 
 	return core, f.Extensions
+}
+
+// AllExtensions returns the complete merged list of all extensions: core
+// (agent-loop + providers), optional extensions, and UI extensions (only
+// when UI is "tui"). Duplicates are removed.
+func (f *File) AllExtensions() []string {
+	core, opt := f.CoreExts()
+
+	totalLen := len(core) + len(opt)
+	if f.UI == "tui" {
+		totalLen += len(f.UIExtensions)
+	}
+
+	seen := make(map[string]bool, totalLen)
+	result := make([]string, 0, totalLen)
+
+	for _, e := range core {
+		if !seen[e] {
+			seen[e] = true
+			result = append(result, e)
+		}
+	}
+
+	for _, e := range opt {
+		if !seen[e] {
+			seen[e] = true
+			result = append(result, e)
+		}
+	}
+
+	if f.UI == "tui" {
+		for _, e := range f.UIExtensions {
+			if !seen[e] {
+				seen[e] = true
+				result = append(result, e)
+			}
+		}
+	}
+
+	return result
 }
 
 // TypedProviders converts the Providers map[string]any to map[string]ProviderEntry

@@ -8,11 +8,11 @@ import (
 )
 
 type stubUIExtension struct {
-	name      string
+	name       string
 	registered bool
 }
 
-func (e *stubUIExtension) Name() string       { return e.name }
+func (e *stubUIExtension) Name() string  { return e.name }
 func (e *stubUIExtension) Register(_ UI) { e.registered = true }
 
 func TestRegisterUIExtension(t *testing.T) {

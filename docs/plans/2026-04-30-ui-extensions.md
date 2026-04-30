@@ -55,10 +55,10 @@ Add a UI extension category for TUI-specific plugins (custom overlays, tool rend
 - [x] run `go test ./sdk/...` — must pass before task 2
 
 ### Task 2: Add ui_extensions config field and merge logic
-- [ ] add `UIExtensions []string` field to `File` struct in `config/config.go` with `yaml:"ui_extensions"` tag
-- [ ] add `AllExtensions()` method to `File` that merges `Extensions` + `UIExtensions` (only when `UI == "tui"`)
-- [ ] write tests for `AllExtensions()` — empty slices, tui mode includes ui extensions, non-tui mode excludes ui extensions
-- [ ] run `go test ./config/...` — must pass before task 3
+- [x] add `UIExtensions []string` field to `File` struct in `config/config.go` with `yaml:"ui_extensions"` tag
+- [x] add `AllExtensions()` method to `File` that merges `Extensions` + `UIExtensions` (only when `UI == "tui"`)
+- [x] write tests for `AllExtensions()` — empty slices, tui mode includes ui extensions, non-tui mode excludes ui extensions
+- [x] run `go test ./config/...` — must pass before task 3
 
 ### Task 3: Update entry point to use AllExtensions
 - [ ] replace `coreExts, optExts := cf.CoreExts()` usage in `cmd/weave/main.go` with `cf.AllExtensions()` merge

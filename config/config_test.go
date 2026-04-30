@@ -153,6 +153,78 @@ func TestLoad_CoreExtsDefaults(t *testing.T) {
 	assert.Empty(t, optExts)
 }
 
+func TestAllExtensions_Empty(t *testing.T) {
+	f := &File{
+		UI: "tui",
+		Core: CoreConfig{
+			AgentLoop: "loop",
+			Providers: []string{"anthropic"},
+		},
+	}
+
+	got := f.AllExtensions()
+	assert.Equal(t, []string{"loop", "anthropic"}, got)
+}
+
+func TestAllExtensions_WithOptional(t *testing.T) {
+	f := &File{
+		UI:         "tui",
+		Extensions: []string{"bash", "edit"},
+		Core: CoreConfig{
+			AgentLoop: "loop",
+			Providers: []string{"anthropic"},
+		},
+	}
+
+	got := f.AllExtensions()
+	assert.Equal(t, []string{"loop", "anthropic", "bash", "edit"}, got)
+}
+
+func TestAllExtensions_TUIIncludesUIExts(t *testing.T) {
+	f := &File{
+		UI:           "tui",
+		Extensions:   []string{"bash"},
+		UIExtensions: []string{"diff-viewer", "theme"},
+		Core: CoreConfig{
+			AgentLoop: "loop",
+			Providers: []string{"anthropic"},
+		},
+	}
+
+	got := f.AllExtensions()
+	assert.Equal(t, []string{"loop", "anthropic", "bash", "diff-viewer", "theme"}, got)
+}
+
+func TestAllExtensions_NonTUIExcludesUIExts(t *testing.T) {
+	f := &File{
+		UI:           "none",
+		Extensions:   []string{"bash"},
+		UIExtensions: []string{"diff-viewer"},
+		Core: CoreConfig{
+			AgentLoop: "loop",
+			Providers: []string{"anthropic"},
+		},
+	}
+
+	got := f.AllExtensions()
+	assert.Equal(t, []string{"loop", "anthropic", "bash"}, got)
+}
+
+func TestAllExtensions_Deduplicates(t *testing.T) {
+	f := &File{
+		UI:           "tui",
+		Extensions:   []string{"loop", "bash"},
+		UIExtensions: []string{"bash", "theme"},
+		Core: CoreConfig{
+			AgentLoop: "loop",
+			Providers: []string{"anthropic"},
+		},
+	}
+
+	got := f.AllExtensions()
+	assert.Equal(t, []string{"loop", "anthropic", "bash", "theme"}, got)
+}
+
 func TestLoad_MissingFile(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
