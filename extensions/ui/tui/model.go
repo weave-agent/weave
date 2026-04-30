@@ -1432,7 +1432,8 @@ func (m Model) handleCompletionKey(msg tea.KeyPressMsg) (bool, Model, tea.Cmd) {
 }
 
 // refreshEditorCompletion reads the editor value and shows/hides the
-// completion popup based on the current context.
+// completion popup based on the current context. Uses the cursor's current
+// line for multiline-aware completion.
 func (m Model) refreshEditorCompletion() Model {
 	value := m.editor.Value()
 
@@ -1443,7 +1444,17 @@ func (m Model) refreshEditorCompletion() Model {
 		return m
 	}
 
-	line := lines[0]
+	lineIdx := m.editor.CursorLine()
+	if lineIdx >= len(lines) {
+		lineIdx = len(lines) - 1
+	}
+
+	if lineIdx < 0 {
+		lineIdx = 0
+	}
+
+	line := lines[lineIdx]
+	lineStart := lineStartByteOffset(value, lineIdx)
 
 	// Slash command completion: "/" at start, no space yet
 	if strings.HasPrefix(line, "/") {
@@ -1462,7 +1473,8 @@ func (m Model) refreshEditorCompletion() Model {
 				})
 			}
 
-			m.editor = m.editor.ShowCompletion(components.CompletionSlash, items, filter)
+			triggerOffset := lineStart // "/" is at the start of the line
+			m.editor = m.editor.ShowCompletion(components.CompletionSlash, items, filter, triggerOffset)
 
 			return m
 		}
@@ -1470,7 +1482,8 @@ func (m Model) refreshEditorCompletion() Model {
 		// Has space — check if command accepts files
 		if info, ok := m.commands.Lookup(cmdName); ok && info.AcceptsFiles {
 			items := components.PathCompletions(".", afterSpace)
-			m.editor = m.editor.ShowCompletion(components.CompletionFile, items, afterSpace)
+			triggerOffset := lineStart + len(cmdName) + 1 // after the space
+			m.editor = m.editor.ShowCompletion(components.CompletionFile, items, afterSpace, triggerOffset)
 
 			return m
 		}
@@ -1482,7 +1495,8 @@ func (m Model) refreshEditorCompletion() Model {
 		if atIdx == 0 || isWhitespace(line[atIdx-1]) {
 			filter := line[atIdx+1:]
 			items := components.PathCompletions(".", filter)
-			m.editor = m.editor.ShowCompletion(components.CompletionFile, items, filter)
+			triggerOffset := lineStart + atIdx
+			m.editor = m.editor.ShowCompletion(components.CompletionFile, items, filter, triggerOffset)
 
 			return m
 		}
@@ -1496,6 +1510,19 @@ func (m Model) refreshEditorCompletion() Model {
 
 func isWhitespace(c byte) bool {
 	return c == ' ' || c == '\t'
+}
+
+// lineStartByteOffset returns the byte offset of the start of the given line
+// index within the full value.
+func lineStartByteOffset(value string, lineIdx int) int {
+	lines := strings.Split(value, "\n")
+
+	offset := 0
+	for i := 0; i < lineIdx && i < len(lines); i++ {
+		offset += len(lines[i]) + 1 // +1 for '\n'
+	}
+
+	return offset
 }
 
 // chatHeight returns the height allocated to the chat area.

@@ -2194,6 +2194,26 @@ func TestModel_Draw_CompletionWithAttachments(t *testing.T) {
 	})
 }
 
+func TestModel_RefreshEditorCompletion_MultilineAtTrigger(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.editor = m.editor.SetValue("line one\nline two @")
+	// Position cursor on second line, after @
+	m.editor, _ = m.editor.Update(tea.KeyPressMsg{Code: tea.KeyEnd})
+	m = m.refreshEditorCompletion()
+	assert.True(t, m.editor.CompletionActive())
+	assert.Equal(t, components.CompletionFile, m.editor.Completion().Kind())
+}
+
+func TestModel_RefreshEditorCompletion_MultilineSlashCommand(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.editor = m.editor.SetValue("line one\n/help")
+	// Position cursor on second line, at end
+	m.editor, _ = m.editor.Update(tea.KeyPressMsg{Code: tea.KeyEnd})
+	m = m.refreshEditorCompletion()
+	assert.True(t, m.editor.CompletionActive())
+	assert.Equal(t, components.CompletionSlash, m.editor.Completion().Kind())
+}
+
 // addTestAttachment is a helper to add a test attachment to the model.
 func addTestAttachment(m Model, path, content string, lines int) Model {
 	m.attach = m.attach.Add(attachments.Attachment{Path: path, Content: content, Lines: lines})

@@ -430,14 +430,11 @@ func (m EditorModel) Completion() CompletionModel {
 }
 
 // ShowCompletion shows the completion popup with the given items and filter.
-func (m EditorModel) ShowCompletion(kind CompletionKind, items []CompletionItem, filter string) EditorModel {
+// triggerOffset is the byte position of the trigger character in the full value.
+func (m EditorModel) ShowCompletion(kind CompletionKind, items []CompletionItem, filter string, triggerOffset int) EditorModel {
 	m.completion = m.completion.Show(kind, items)
 	m.completion = m.completion.SetFilter(filter)
-
-	value := m.ta.Value()
-	if len(value) >= len(filter)+1 {
-		m.triggerOffset = len(value) - len(filter) - 1
-	}
+	m.triggerOffset = triggerOffset
 
 	return m
 }
@@ -456,7 +453,8 @@ func (m EditorModel) CompletionActive() bool {
 }
 
 // applyCompletion replaces the trigger portion of the textarea value with the
-// selected completion item and hides the popup.
+// selected completion item and hides the popup. Replaces from triggerOffset to
+// the current cursor position, preserving any text after the cursor.
 func (m EditorModel) applyCompletion() EditorModel {
 	item, ok := m.completion.SelectedItem()
 	if !ok {
@@ -464,17 +462,42 @@ func (m EditorModel) applyCompletion() EditorModel {
 	}
 
 	value := m.ta.Value()
+	cursorOffset := cursorByteOffset(value, m.ta.Line(), m.ta.Column())
 
 	offset := m.triggerOffset
 	if offset >= 0 && offset < len(value) && value[offset] == ' ' {
 		offset++ // keep the space as a separator
 	}
 
-	if offset >= 0 && offset <= len(value) {
-		m.ta.SetValue(value[:offset] + item.Value)
+	if offset >= 0 && offset <= cursorOffset && cursorOffset <= len(value) {
+		m.ta.SetValue(value[:offset] + item.Value + value[cursorOffset:])
 	}
 
 	return m.HideCompletion()
+}
+
+// cursorByteOffset returns the byte offset in value for the given rune-based
+// line and column position.
+func cursorByteOffset(value string, lineIdx, column int) int {
+	lines := strings.Split(value, "\n")
+
+	offset := 0
+	for i := 0; i < lineIdx && i < len(lines); i++ {
+		offset += len(lines[i]) + 1 // +1 for '\n'
+	}
+
+	if lineIdx < len(lines) {
+		line := lines[lineIdx]
+
+		runes := []rune(line)
+		if column > len(runes) {
+			column = len(runes)
+		}
+
+		offset += len(string(runes[:column]))
+	}
+
+	return offset
 }
 
 // View renders the editor.

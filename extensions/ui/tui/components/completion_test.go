@@ -356,3 +356,81 @@ func TestCompletionRenderLineTruncation(t *testing.T) {
 	// Should contain label start
 	assert.Contains(t, line, "/very")
 }
+
+func TestCompletionCursorDownScrollsViewport(t *testing.T) {
+	m := NewCompletionModel()
+	m.maxVisible = 3
+
+	items := make([]CompletionItem, 10)
+	for i := range 10 {
+		items[i] = CompletionItem{Label: string(rune('a' + i)), Value: string(rune('a' + i))}
+	}
+
+	m = m.Show(CompletionSlash, items)
+
+	// Cursor down past visible window
+	for range 4 {
+		m = m.CursorDown()
+	}
+
+	assert.Equal(t, 4, m.cursor)
+	assert.Equal(t, 2, m.scrollOffset) // items 2,3,4 visible
+
+	// View should only contain visible items
+	view := m.View()
+	assert.Contains(t, view, "e")    // item 4 is selected
+	assert.NotContains(t, view, "a") // item 0 is scrolled out
+}
+
+func TestCompletionCursorUpScrollsViewport(t *testing.T) {
+	m := NewCompletionModel()
+	m.maxVisible = 3
+
+	items := make([]CompletionItem, 10)
+	for i := range 10 {
+		items[i] = CompletionItem{Label: string(rune('a' + i)), Value: string(rune('a' + i))}
+	}
+
+	m = m.Show(CompletionSlash, items)
+
+	// Scroll down to bottom
+	for range 9 {
+		m = m.CursorDown()
+	}
+
+	assert.Equal(t, 9, m.cursor)
+	assert.Equal(t, 7, m.scrollOffset)
+
+	// Scroll back up
+	for range 3 {
+		m = m.CursorUp()
+	}
+
+	assert.Equal(t, 6, m.cursor)
+	assert.Equal(t, 6, m.scrollOffset) // cursor at bottom of visible window
+
+	view := m.View()
+	assert.Contains(t, view, "g")
+	assert.Contains(t, view, "h")
+	assert.Contains(t, view, "i")
+}
+
+func TestCompletionWrapResetsScroll(t *testing.T) {
+	m := NewCompletionModel()
+	m.maxVisible = 3
+
+	items := make([]CompletionItem, 5)
+	for i := range 5 {
+		items[i] = CompletionItem{Label: string(rune('a' + i)), Value: string(rune('a' + i))}
+	}
+
+	m = m.Show(CompletionSlash, items)
+
+	// Navigate past end to wrap to start
+	for range 5 {
+		m = m.CursorDown()
+	}
+
+	assert.Equal(t, 0, m.cursor)
+	assert.Equal(t, 0, m.scrollOffset)
+}

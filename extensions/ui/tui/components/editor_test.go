@@ -324,7 +324,7 @@ func TestEditorShowCompletion(t *testing.T) {
 		{Label: "quit", Value: "/quit "},
 	}
 
-	m = m.ShowCompletion(CompletionSlash, items, "he")
+	m = m.ShowCompletion(CompletionSlash, items, "he", 0)
 	assert.True(t, m.CompletionActive())
 	assert.Equal(t, 1, m.Completion().FilteredCount())
 	assert.Equal(t, "help", m.Completion().filtered[0].Label)
@@ -334,7 +334,7 @@ func TestEditorHideCompletion(t *testing.T) {
 	m := NewEditorModel()
 	m = m.ShowCompletion(CompletionSlash, []CompletionItem{
 		{Label: "help", Value: "/help "},
-	}, "")
+	}, "", 0)
 	assert.True(t, m.CompletionActive())
 
 	m = m.HideCompletion()
@@ -347,7 +347,7 @@ func TestEditorCompletionActive(t *testing.T) {
 
 	m = m.ShowCompletion(CompletionSlash, []CompletionItem{
 		{Label: "help", Value: "/help "},
-	}, "")
+	}, "", 0)
 	assert.True(t, m.CompletionActive())
 }
 
@@ -357,7 +357,7 @@ func TestEditorCompletionTabCyclesDown(t *testing.T) {
 		{Label: "a", Value: "a"},
 		{Label: "b", Value: "b"},
 		{Label: "c", Value: "c"},
-	}, "")
+	}, "", 0)
 
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	assert.Equal(t, 1, m.Completion().Cursor())
@@ -372,7 +372,7 @@ func TestEditorCompletionUpNavigates(t *testing.T) {
 		{Label: "a", Value: "a"},
 		{Label: "b", Value: "b"},
 		{Label: "c", Value: "c"},
-	}, "")
+	}, "", 0)
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyTab}) // cursor at 1
 
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
@@ -384,7 +384,7 @@ func TestEditorCompletionDownNavigates(t *testing.T) {
 	m = m.ShowCompletion(CompletionSlash, []CompletionItem{
 		{Label: "a", Value: "a"},
 		{Label: "b", Value: "b"},
-	}, "")
+	}, "", 0)
 
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	assert.Equal(t, 1, m.Completion().Cursor())
@@ -395,7 +395,7 @@ func TestEditorCompletionEnterAppliesAndSubmits(t *testing.T) {
 	m = m.SetValue("/he")
 	m = m.ShowCompletion(CompletionSlash, []CompletionItem{
 		{Label: "help", Value: "/help "},
-	}, "he")
+	}, "he", 0)
 
 	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	assert.False(t, m.CompletionActive())
@@ -411,7 +411,7 @@ func TestEditorCompletionEnterAppliesAndSubmits(t *testing.T) {
 func TestEditorCompletionEnterEmptyItemsSubmitsRaw(t *testing.T) {
 	m := NewEditorModel()
 	m = m.SetValue("/xyz")
-	m = m.ShowCompletion(CompletionSlash, []CompletionItem{}, "xyz")
+	m = m.ShowCompletion(CompletionSlash, []CompletionItem{}, "xyz", 0)
 
 	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	assert.False(t, m.CompletionActive())
@@ -427,7 +427,7 @@ func TestEditorCompletionEscDismisses(t *testing.T) {
 	m := NewEditorModel()
 	m = m.ShowCompletion(CompletionSlash, []CompletionItem{
 		{Label: "help", Value: "/help "},
-	}, "")
+	}, "", 0)
 	assert.True(t, m.CompletionActive())
 
 	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
@@ -458,7 +458,7 @@ func TestEditorCompletionHidesOnHistoryUp(t *testing.T) {
 	// Now show completion while navigating history
 	m = m.ShowCompletion(CompletionSlash, []CompletionItem{
 		{Label: "help", Value: "/help "},
-	}, "")
+	}, "", 0)
 	assert.True(t, m.CompletionActive())
 
 	// Up should hide completion and continue history navigation
@@ -476,7 +476,7 @@ func TestEditorCompletionHidesOnHistoryDown(t *testing.T) {
 
 	m = m.ShowCompletion(CompletionSlash, []CompletionItem{
 		{Label: "help", Value: "/help "},
-	}, "")
+	}, "", 0)
 	assert.True(t, m.CompletionActive())
 
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
@@ -488,7 +488,7 @@ func TestEditorApplyCompletionSlash(t *testing.T) {
 	m = m.SetValue("/he")
 	m = m.ShowCompletion(CompletionSlash, []CompletionItem{
 		{Label: "help", Value: "/help "},
-	}, "he")
+	}, "he", 0)
 
 	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	assert.False(t, m.CompletionActive())
@@ -506,7 +506,7 @@ func TestEditorApplyCompletionAtTrigger(t *testing.T) {
 	m = m.SetValue("text @sr")
 	m = m.ShowCompletion(CompletionFile, []CompletionItem{
 		{Label: "src/", Value: "src/"},
-	}, "sr")
+	}, "sr", 5) // @ is at byte offset 5
 
 	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	assert.False(t, m.CompletionActive())
@@ -524,7 +524,7 @@ func TestEditorApplyCompletionSpaceTrigger(t *testing.T) {
 	m = m.SetValue("/help arg")
 	m = m.ShowCompletion(CompletionFile, []CompletionItem{
 		{Label: "argfile", Value: "argfile"},
-	}, "arg")
+	}, "arg", 6) // after the space at byte offset 6
 
 	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	assert.False(t, m.CompletionActive())
@@ -552,9 +552,61 @@ func TestEditorShowCompletionFileKind(t *testing.T) {
 	m = m.SetValue("@fi")
 	m = m.ShowCompletion(CompletionFile, []CompletionItem{
 		{Label: "file.go", Value: "file.go"},
-	}, "fi")
+	}, "fi", 0)
 
 	assert.True(t, m.CompletionActive())
 	assert.Equal(t, CompletionFile, m.Completion().Kind())
 	assert.Equal(t, 1, m.Completion().FilteredCount())
+}
+
+func TestEditorApplyCompletionPreservesTrailingText(t *testing.T) {
+	m := NewEditorModel()
+	// Type text so cursor is at end
+	for _, ch := range "text @sr more" {
+		m, _ = m.Update(tea.KeyPressMsg{Text: string(ch), Code: ch})
+	}
+	// Move cursor left 5 times (before " more")
+	for range 5 {
+		m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
+	}
+
+	m = m.ShowCompletion(CompletionFile, []CompletionItem{
+		{Label: "src/", Value: "src/"},
+	}, "sr", 5) // @ is at byte offset 5
+
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	assert.False(t, m.CompletionActive())
+	assert.Empty(t, m.Value()) // submitted and cleared
+	require.NotNil(t, cmd)
+
+	msg := cmd()
+	submit, ok := msg.(SubmitMsg)
+	require.True(t, ok)
+	assert.Equal(t, "text src/ more", submit.Text)
+}
+
+func TestEditorApplyCompletionWithCorrectTriggerOffset(t *testing.T) {
+	m := NewEditorModel()
+	m = m.SetValue("prefix @sr")
+	m = m.ShowCompletion(CompletionFile, []CompletionItem{
+		{Label: "src/", Value: "src/"},
+	}, "sr", 7) // @ is at byte offset 7
+
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	assert.False(t, m.CompletionActive())
+	assert.Empty(t, m.Value()) // submitted and cleared
+	require.NotNil(t, cmd)
+
+	msg := cmd()
+	submit, ok := msg.(SubmitMsg)
+	require.True(t, ok)
+	assert.Equal(t, "prefix src/", submit.Text)
+}
+
+func TestCursorByteOffset(t *testing.T) {
+	assert.Equal(t, 0, cursorByteOffset("hello", 0, 0))
+	assert.Equal(t, 5, cursorByteOffset("hello", 0, 5))
+	assert.Equal(t, 6, cursorByteOffset("hello\nworld", 1, 0))
+	assert.Equal(t, 8, cursorByteOffset("hello\nworld", 1, 2))
+	assert.Equal(t, 3, cursorByteOffset("héllo", 0, 2)) // é is 2 bytes
 }

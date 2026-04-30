@@ -26,14 +26,15 @@ type CompletionItem struct {
 
 // CompletionModel is a popup that shows a filtered list of completion items.
 type CompletionModel struct {
-	visible    bool
-	items      []CompletionItem
-	filtered   []CompletionItem
-	cursor     int
-	filter     string
-	width      int
-	maxVisible int
-	kind       CompletionKind
+	visible      bool
+	items        []CompletionItem
+	filtered     []CompletionItem
+	cursor       int
+	scrollOffset int
+	filter       string
+	width        int
+	maxVisible   int
+	kind         CompletionKind
 }
 
 // NewCompletionModel creates a new completion model with sensible defaults.
@@ -52,6 +53,7 @@ func (m CompletionModel) Show(kind CompletionKind, items []CompletionItem) Compl
 	m.items = append([]CompletionItem(nil), items...)
 	m.filtered = append([]CompletionItem(nil), items...)
 	m.cursor = 0
+	m.scrollOffset = 0
 	m.filter = ""
 
 	return m
@@ -102,6 +104,8 @@ func (m CompletionModel) CursorUp() CompletionModel {
 		m.cursor = len(m.filtered) - 1
 	}
 
+	m.adjustScroll()
+
 	return m
 }
 
@@ -116,7 +120,18 @@ func (m CompletionModel) CursorDown() CompletionModel {
 		m.cursor = 0
 	}
 
+	m.adjustScroll()
+
 	return m
+}
+
+// adjustScroll ensures the cursor is within the visible window.
+func (m *CompletionModel) adjustScroll() {
+	if m.cursor >= m.scrollOffset+m.maxVisible {
+		m.scrollOffset = m.cursor - m.maxVisible + 1
+	} else if m.cursor < m.scrollOffset {
+		m.scrollOffset = m.cursor
+	}
 }
 
 // SelectedItem returns the currently selected item, if any.
@@ -149,13 +164,13 @@ func (m CompletionModel) View() string {
 		BorderForeground(lipgloss.Color("240"))
 
 	innerWidth := m.width - 2 // account for left/right border
-	visibleCount := min(len(m.filtered), m.maxVisible)
+	visibleCount := min(len(m.filtered)-m.scrollOffset, m.maxVisible)
 
 	var lines []string
 
 	for i := range visibleCount {
-		item := m.filtered[i]
-		line := m.renderLine(item, i == m.cursor, innerWidth)
+		item := m.filtered[m.scrollOffset+i]
+		line := m.renderLine(item, m.scrollOffset+i == m.cursor, innerWidth)
 		lines = append(lines, line)
 	}
 
