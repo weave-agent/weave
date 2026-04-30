@@ -1593,18 +1593,67 @@ func (m Model) Draw(scr uv.Screen, area uv.Rectangle) {
 
 	// Render attachments + editor
 	attachH := m.attach.Height()
+
+	var editorArea uv.Rectangle
+
 	if attachH > 0 && lt.Editor.Dy() > attachH {
 		attachArea := uv.Rect(lt.Editor.Min.X, lt.Editor.Min.Y, lt.Editor.Dx(), attachH)
-		editorArea := uv.Rect(lt.Editor.Min.X, lt.Editor.Min.Y+attachH, lt.Editor.Dx(), lt.Editor.Dy()-attachH)
+		editorArea = uv.Rect(lt.Editor.Min.X, lt.Editor.Min.Y+attachH, lt.Editor.Dx(), lt.Editor.Dy()-attachH)
 
 		m.attach.Draw(scr, attachArea)
 		m.editor.Draw(scr, editorArea)
 	} else {
-		m.editor.Draw(scr, lt.Editor)
+		editorArea = lt.Editor
+		m.editor.Draw(scr, editorArea)
+	}
+
+	// Render completion popup above cursor
+	if m.editor.CompletionActive() {
+		comp := m.editor.Completion()
+		if comp.FilteredCount() > 0 {
+			m.drawCompletionPopup(scr, editorArea)
+		}
 	}
 
 	// Render footer
 	m.footer.Draw(scr, lt.Footer)
+}
+
+// drawCompletionPopup renders the completion popup positioned relative to the
+// editor cursor. It renders above the cursor when there's enough space,
+// otherwise below.
+func (m Model) drawCompletionPopup(scr uv.Screen, editorArea uv.Rectangle) {
+	comp := m.editor.Completion()
+
+	popupW := min(50, editorArea.Dx())
+	visibleItems := min(comp.FilteredCount(), 8) // maxVisible default is 8
+	popupH := visibleItems + 2                   // content rows + top/bottom border
+
+	// Cursor position within editor content area.
+	// Account for left border (1) + left padding (1).
+	cursorX := editorArea.Min.X + 2 + m.editor.CursorColumn()
+	cursorY := editorArea.Min.Y + 1 + m.editor.CursorLine()
+
+	// Default: render above cursor
+	popupX := cursorX
+	popupY := cursorY - popupH
+
+	// If not enough space above, render below
+	if popupY < 0 {
+		popupY = cursorY + 1
+	}
+
+	// Clamp X so popup doesn't overflow right edge
+	if popupX+popupW > m.width {
+		popupX = m.width - popupW
+	}
+
+	if popupX < 0 {
+		popupX = 0
+	}
+
+	popupArea := uv.Rect(popupX, popupY, popupW, popupH)
+	comp.Draw(scr, popupArea)
 }
 
 // View renders the TUI using ultraviolet screen buffers.

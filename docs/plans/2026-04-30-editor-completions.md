@@ -85,13 +85,13 @@ Tab/Enter selects, arrows navigate, Esc dismisses. Popup renders above the edito
 - [x] run `cd extensions/ui/tui && go test ./...` — must pass before task 6
 
 ### Task 6: Render completion popup in Model.Draw
-- [ ] in `extensions/ui/tui/model.go` `Draw()`: after editor rendering, before footer, add completion popup rendering
-- [ ] compute popup position: above cursor in editor region (match Crush's approach — render above, not below)
-- [ ] clamp popup to screen bounds (don't overflow left/top)
-- [ ] popup width = `min(50, editorWidth)`, height = `min(filteredCount, maxVisible)`
-- [ ] if not enough space above editor, render below instead
-- [ ] write test verifying Draw doesn't panic with completion visible
-- [ ] run `cd extensions/ui/tui && go test ./...` — must pass before task 7
+- [x] in `extensions/ui/tui/model.go` `Draw()`: after editor rendering, before footer, add completion popup rendering
+- [x] compute popup position: above cursor in editor region (match Crush's approach — render above, not below)
+- [x] clamp popup to screen bounds (don't overflow left/top)
+- [x] popup width = `min(50, editorWidth)`, height = `min(filteredCount, maxVisible)`
+- [x] if not enough space above editor, render below instead
+- [x] write test verifying Draw doesn't panic with completion visible
+- [x] run `cd extensions/ui/tui && go test ./...` — must pass before task 7
 
 ### Task 7: Verify acceptance criteria
 - [ ] run `make lint` from project root — all issues fixed

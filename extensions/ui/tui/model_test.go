@@ -2108,6 +2108,92 @@ func TestModel_CompletionKeyFlow_AtTrigger(t *testing.T) {
 	assert.Equal(t, components.CompletionFile, m.editor.Completion().Kind())
 }
 
+func TestModel_Draw_CompletionVisible(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	m.editor = m.editor.SetValue("/he")
+	m = m.refreshEditorCompletion()
+	require.True(t, m.editor.CompletionActive())
+
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+
+	assert.NotPanics(t, func() {
+		m.Draw(canvas, canvas.Bounds())
+	})
+
+	rendered := canvas.Render()
+	// Completion popup should contain the matching command
+	assert.Contains(t, rendered, "help")
+}
+
+func TestModel_Draw_CompletionVisibleAtTrigger(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	m.editor = m.editor.SetValue("text @")
+	m = m.refreshEditorCompletion()
+	require.True(t, m.editor.CompletionActive())
+
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+
+	assert.NotPanics(t, func() {
+		m.Draw(canvas, canvas.Bounds())
+	})
+}
+
+func TestModel_Draw_CompletionNotVisible(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	m.editor = m.editor.SetValue("plain text")
+	m = m.refreshEditorCompletion()
+	require.False(t, m.editor.CompletionActive())
+
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+
+	assert.NotPanics(t, func() {
+		m.Draw(canvas, canvas.Bounds())
+	})
+}
+
+func TestModel_Draw_CompletionPopupPosition(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	m.editor = m.editor.SetValue("/he")
+	m = m.refreshEditorCompletion()
+	require.True(t, m.editor.CompletionActive())
+
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvas, canvas.Bounds())
+
+	// Popup should render without panic and contain filtered content
+	rendered := canvas.Render()
+	assert.Contains(t, rendered, "help")
+}
+
+func TestModel_Draw_CompletionWithAttachments(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m = addTestAttachment(m, "test.go", "package main", 1)
+
+	m.editor = m.editor.SetValue("/he")
+	m = m.refreshEditorCompletion()
+	require.True(t, m.editor.CompletionActive())
+
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+
+	assert.NotPanics(t, func() {
+		m.Draw(canvas, canvas.Bounds())
+	})
+}
+
 // addTestAttachment is a helper to add a test attachment to the model.
 func addTestAttachment(m Model, path, content string, lines int) Model {
 	m.attach = m.attach.Add(attachments.Attachment{Path: path, Content: content, Lines: lines})

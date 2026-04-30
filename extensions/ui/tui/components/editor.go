@@ -80,6 +80,7 @@ func NewEditorModel() EditorModel {
 		ta:          ta,
 		focused:     true,
 		BorderColor: "63",
+		completion:  NewCompletionModel(),
 	}
 }
 
@@ -411,6 +412,16 @@ func (m EditorModel) DeleteToLineEnd() EditorModel {
 	_ = cmd
 
 	return m
+}
+
+// CursorLine returns the current cursor line (0-indexed from content start).
+func (m EditorModel) CursorLine() int {
+	return m.ta.Line()
+}
+
+// CursorColumn returns the current cursor column (0-indexed from line start).
+func (m EditorModel) CursorColumn() int {
+	return m.ta.Column()
 }
 
 // Completion returns the editor's completion model.
