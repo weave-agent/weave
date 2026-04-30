@@ -292,6 +292,7 @@ func TestUIExtensionsNotDuplicated(t *testing.T) {
 	allExts := cf.AllExtensions()
 
 	count := 0
+
 	for _, ext := range allExts {
 		if ext == "diff-viewer" {
 			count++

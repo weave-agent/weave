@@ -243,3 +243,93 @@ func TestDiscoverWithBuiltins_LocalOverridesNestedBuiltin(t *testing.T) {
 	require.Len(t, exts, 1)
 	assert.Equal(t, localDir, exts[0].Dir, "local should override nested builtin")
 }
+
+func TestDiscoverWithBuiltins_TUIExtension(t *testing.T) {
+	moduleRoot := t.TempDir()
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+
+	// TUI extension at extensions/ui/tui/extensions/diff-viewer/
+	tuiExtDir := filepath.Join(moduleRoot, "extensions", "ui", "tui", "extensions", "diff-viewer")
+	createGoFile(t, tuiExtDir, "diff.go", "package diffviewer")
+
+	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"diff-viewer"})
+	require.NoError(t, err, "DiscoverCustomHomeWithBuiltins")
+
+	require.Len(t, exts, 1)
+	assert.Equal(t, "diff-viewer", exts[0].Name)
+	assert.Equal(t, tuiExtDir, exts[0].Dir)
+	assert.Len(t, exts[0].GoFiles, 1)
+}
+
+func TestDiscoverWithBuiltins_TUIExtensionWithModulePath(t *testing.T) {
+	moduleRoot := t.TempDir()
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+
+	// TUI extension with its own go.mod
+	tuiExtDir := filepath.Join(moduleRoot, "extensions", "ui", "tui", "extensions", "my-ui-ext")
+	createGoFile(t, tuiExtDir, "ext.go", "package myuiext")
+
+	goModContent := "module weave/ext/my-ui-ext\n\ngo 1.22\n"
+	require.NoError(t, os.WriteFile(filepath.Join(tuiExtDir, "go.mod"), []byte(goModContent), 0o600))
+
+	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"my-ui-ext"})
+	require.NoError(t, err, "DiscoverCustomHomeWithBuiltins")
+
+	require.Len(t, exts, 1)
+	assert.Equal(t, "my-ui-ext", exts[0].Name)
+	assert.Equal(t, tuiExtDir, exts[0].Dir)
+
+	// Verify the module path is read from the extension's go.mod by the builder
+	modPath := readModulePath(exts[0].Dir)
+	assert.Equal(t, "weave/ext/my-ui-ext", modPath)
+}
+
+func TestDiscoverWithBuiltins_TUIExtensionNotFound(t *testing.T) {
+	moduleRoot := t.TempDir()
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+
+	// No extensions created
+	_, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"nonexistent-ui-ext"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "nonexistent-ui-ext")
+}
+
+func TestDiscoverWithBuiltins_StandardExtensionFound(t *testing.T) {
+	moduleRoot := t.TempDir()
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+
+	// Standard nested extension at extensions/tools/bash/
+	bashDir := filepath.Join(moduleRoot, "extensions", "tools", "bash")
+	createGoFile(t, bashDir, "bash.go", "package bash")
+
+	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"bash"})
+	require.NoError(t, err, "DiscoverCustomHomeWithBuiltins")
+
+	require.Len(t, exts, 1)
+	assert.Equal(t, "bash", exts[0].Name)
+	assert.Equal(t, bashDir, exts[0].Dir)
+}
+
+func TestDiscoverWithBuiltins_TUIExtensionFallbackAfterStandard(t *testing.T) {
+	moduleRoot := t.TempDir()
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+
+	// Create both a standard nested extension and a TUI extension with the same name
+	// The standard one should be found first (one level deep vs TUI-specific three levels)
+	standardDir := filepath.Join(moduleRoot, "extensions", "tools", "mytool")
+	createGoFile(t, standardDir, "mytool.go", "package mytool")
+
+	tuiExtDir := filepath.Join(moduleRoot, "extensions", "ui", "tui", "extensions", "mytool")
+	createGoFile(t, tuiExtDir, "mytool.go", "package mytool")
+
+	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"mytool"})
+	require.NoError(t, err)
+
+	require.Len(t, exts, 1)
+	assert.Equal(t, standardDir, exts[0].Dir, "standard nested path should be found before TUI-specific fallback")
+}

@@ -176,7 +176,8 @@ func findExtensionWithBuiltins(projectDir, homeDir, moduleRoot, name string) (*E
 
 // findBuiltin searches for a built-in extension first at
 // moduleRoot/extensions/{name}/ then one level deeper at
-// moduleRoot/extensions/*/{name}/.
+// moduleRoot/extensions/*/{name}/, then in TUI-specific extensions at
+// moduleRoot/extensions/ui/tui/extensions/{name}/.
 func findBuiltin(moduleRoot, name string) (*ExtensionInfo, error) {
 	builtinDir := filepath.Join(moduleRoot, "extensions", name)
 
@@ -202,6 +203,13 @@ func findBuiltin(moduleRoot, name string) (*ExtensionInfo, error) {
 		if goFiles, goErr := collectGoFiles(nestedDir); goErr == nil && len(goFiles) > 0 {
 			return &ExtensionInfo{Name: name, Dir: nestedDir, GoFiles: goFiles}, nil
 		}
+	}
+
+	// Fallback: search TUI-specific extensions at extensions/ui/tui/extensions/{name}/
+	tuiExtDir := filepath.Join(moduleRoot, "extensions", "ui", "tui", "extensions", name)
+
+	if goFiles, err := collectGoFiles(tuiExtDir); err == nil && len(goFiles) > 0 {
+		return &ExtensionInfo{Name: name, Dir: tuiExtDir, GoFiles: goFiles}, nil
 	}
 
 	return nil, fmt.Errorf("extension %q not found in built-ins", name)

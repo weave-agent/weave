@@ -66,10 +66,10 @@ Add a UI extension category for TUI-specific plugins (custom overlays, tool rend
 - [x] run `go build ./cmd/weave/...` — must compile before task 4
 
 ### Task 4: Add TUI extensions discovery path to launcher
-- [ ] in `launcher/discovery.go`, add fallback search in `extensions/ui/tui/extensions/{name}/` for names not found in standard built-in locations
-- [ ] verify module path is resolved correctly for TUI extension subdirectory
-- [ ] write tests for discovery — standard extension found, TUI extension found, unknown extension error
-- [ ] run `cd launcher && go test ./...` — must pass before task 5
+- [x] in `launcher/discovery.go`, add fallback search in `extensions/ui/tui/extensions/{name}/` for names not found in standard built-in locations
+- [x] verify module path is resolved correctly for TUI extension subdirectory
+- [x] write tests for discovery — standard extension found, TUI extension found, unknown extension error
+- [x] run `cd launcher && go test ./...` — must pass before task 5
 
 ### Task 5: Wire UI extensions in TUI Subscribe
 - [ ] in `extensions/ui/tui/tui.go` `Subscribe()` method, add `for _, ext := range sdk.GetUIExtensions() { ext.Register(t.ui) }` after `t.ui` initialization
