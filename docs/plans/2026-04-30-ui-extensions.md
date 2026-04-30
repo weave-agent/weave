@@ -72,9 +72,9 @@ Add a UI extension category for TUI-specific plugins (custom overlays, tool rend
 - [x] run `cd launcher && go test ./...` — must pass before task 5
 
 ### Task 5: Wire UI extensions in TUI Subscribe
-- [ ] in `extensions/ui/tui/tui.go` `Subscribe()` method, add `for _, ext := range sdk.GetUIExtensions() { ext.Register(t.ui) }` after `t.ui` initialization
-- [ ] write tests verifying UI extensions are called during Subscribe (mock UIExtension that records Register call)
-- [ ] run `cd extensions/ui/tui && go test ./...` — must pass before task 6
+- [x] in `extensions/ui/tui/tui.go` `Subscribe()` method, add `for _, ext := range sdk.GetUIExtensions() { ext.Register(t.ui) }` after `t.ui` initialization
+- [x] write tests verifying UI extensions are called during Subscribe (mock UIExtension that records Register call)
+- [x] run `cd extensions/ui/tui && go test ./...` — must pass before task 6
 
 ### Task 6: Create example UI extension (diff-viewer)
 - [ ] create directory `extensions/ui/tui/extensions/diff-viewer/`

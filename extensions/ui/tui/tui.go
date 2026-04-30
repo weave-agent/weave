@@ -81,6 +81,9 @@ func (t *TUI) Subscribe(bus sdk.Bus) {
 	// Wire the UI implementation to the program.
 	t.ui.SetProgram(t.program)
 
+	// Register UI extensions.
+	t.wireUIExtensions()
+
 	go Bridge(t.program, events)
 
 	_, err := t.program.Run()
@@ -98,6 +101,13 @@ func (t *TUI) Subscribe(bus sdk.Bus) {
 	bus.Publish(sdk.NewEvent(topicEnd, endPayload))
 
 	close(t.done)
+}
+
+// wireUIExtensions registers all UI extensions with the TUI's UI implementation.
+func (t *TUI) wireUIExtensions() {
+	for _, ext := range sdk.GetUIExtensions() {
+		ext.Register(t.ui)
+	}
 }
 
 // Close sends a quit message to the Bubble Tea program and waits for it to finish.

@@ -61,3 +61,65 @@ func TestTUI_NoTTYError(t *testing.T) {
 	require.Error(t, ErrNoTTY)
 	assert.Contains(t, ErrNoTTY.Error(), "stdin")
 }
+
+// mockUIExtension records whether Register was called and with what UI.
+type mockUIExtension struct {
+	name           string
+	registerCalled bool
+	registeredUI   sdk.UI
+}
+
+func (m *mockUIExtension) Name() string { return m.name }
+func (m *mockUIExtension) Register(ui sdk.UI) {
+	m.registerCalled = true
+	m.registeredUI = ui
+}
+
+func TestTUI_WireUIExtensions(t *testing.T) {
+	sdk.ResetUIExtensionRegistry()
+	defer sdk.ResetUIExtensionRegistry()
+
+	ext := &mockUIExtension{name: "test-ext"}
+	sdk.RegisterUIExtension(ext)
+
+	tui, err := NewTUI(nil)
+	require.NoError(t, err)
+
+	tui.wireUIExtensions()
+
+	assert.True(t, ext.registerCalled, "expected Register to be called on UI extension")
+	assert.Equal(t, tui.ui, ext.registeredUI, "expected UI extension to receive TUI's UI implementation")
+}
+
+func TestTUI_WireUIExtensions_Multiple(t *testing.T) {
+	sdk.ResetUIExtensionRegistry()
+	defer sdk.ResetUIExtensionRegistry()
+
+	ext1 := &mockUIExtension{name: "ext-one"}
+	ext2 := &mockUIExtension{name: "ext-two"}
+	sdk.RegisterUIExtension(ext1)
+	sdk.RegisterUIExtension(ext2)
+
+	tui, err := NewTUI(nil)
+	require.NoError(t, err)
+
+	tui.wireUIExtensions()
+
+	assert.True(t, ext1.registerCalled, "expected Register to be called on ext-one")
+	assert.True(t, ext2.registerCalled, "expected Register to be called on ext-two")
+	assert.Equal(t, tui.ui, ext1.registeredUI)
+	assert.Equal(t, tui.ui, ext2.registeredUI)
+}
+
+func TestTUI_WireUIExtensions_EmptyRegistry(t *testing.T) {
+	sdk.ResetUIExtensionRegistry()
+	defer sdk.ResetUIExtensionRegistry()
+
+	tui, err := NewTUI(nil)
+	require.NoError(t, err)
+
+	// Should not panic with empty registry
+	assert.NotPanics(t, func() {
+		tui.wireUIExtensions()
+	})
+}
