@@ -91,8 +91,8 @@ Add a UI extension category for TUI-specific plugins (custom overlays, tool rend
 - [x] run linter (`make lint`) — passes clean
 
 ### Task 8: Update documentation
-- [ ] update `CLAUDE.md` Architecture section with UI extensions description
-- [ ] add UI extension directory convention to project structure docs
+- [x] update `CLAUDE.md` Architecture section with UI extensions description
+- [x] add UI extension directory convention to project structure docs
 
 ## Technical Details
 
