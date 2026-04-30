@@ -48,11 +48,11 @@ Add a UI extension category for TUI-specific plugins (custom overlays, tool rend
 ## Implementation Steps
 
 ### Task 1: Add UIExtension interface and registry to SDK
-- [ ] create `sdk/ui_ext.go` with `UIExtension` interface (`Name() string`, `Register(ui UI)`)
-- [ ] implement `RegisterUIExtension(ext UIExtension)` and `GetUIExtensions() []UIExtension` using existing registry pattern (sync.RWMutex, panic on dup, sorted listing)
-- [ ] write tests for `RegisterUIExtension` — success case and duplicate panic case
-- [ ] write tests for `GetUIExtensions` — empty registry, multiple extensions, sorted order
-- [ ] run `go test ./sdk/...` — must pass before task 2
+- [x] create `sdk/ui_ext.go` with `UIExtension` interface (`Name() string`, `Register(ui UI)`)
+- [x] implement `RegisterUIExtension(ext UIExtension)` and `GetUIExtensions() []UIExtension` using existing registry pattern (sync.RWMutex, panic on dup, sorted listing)
+- [x] write tests for `RegisterUIExtension` — success case and duplicate panic case
+- [x] write tests for `GetUIExtensions` — empty registry, multiple extensions, sorted order
+- [x] run `go test ./sdk/...` — must pass before task 2
 
 ### Task 2: Add ui_extensions config field and merge logic
 - [ ] add `UIExtensions []string` field to `File` struct in `config/config.go` with `yaml:"ui_extensions"` tag
