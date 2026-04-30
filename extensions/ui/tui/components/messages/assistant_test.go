@@ -6,8 +6,14 @@ import (
 	"time"
 
 	uv "github.com/charmbracelet/ultraviolet"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/assert"
 )
+
+// stripANSI removes ANSI escape sequences from a string for test assertions.
+func stripANSI(s string) string {
+	return ansi.Strip(s)
+}
 
 func TestAssistantMessage_Streaming(t *testing.T) {
 	m := NewAssistantMessage()
@@ -62,7 +68,7 @@ func TestAssistantMessage_View_Streaming_FirstRenderIsMarkdown(t *testing.T) {
 	m.Append("# Hello World\n\nSome **bold** text.")
 
 	// First View() call should immediately render through Glamour
-	view := m.View(80)
+	view := stripANSI(m.View(80))
 	assert.Contains(t, view, "Hello World")
 	assert.Contains(t, view, "bold")
 	// Markdown output should be longer than plain text due to ANSI codes
@@ -75,7 +81,7 @@ func TestAssistantMessage_View_Streaming_DebouncedWithinInterval(t *testing.T) {
 	// First render
 	m.Append("line one")
 	view1 := m.View(80)
-	assert.Contains(t, view1, "line one")
+	assert.Contains(t, stripANSI(view1), "line one")
 
 	// Rapid Append within debounce interval
 	m.Append(" line two")
@@ -90,14 +96,14 @@ func TestAssistantMessage_View_Streaming_DebounceExpired(t *testing.T) {
 
 	m.Append("first")
 	view1 := m.View(80)
-	assert.Contains(t, view1, "first")
+	assert.Contains(t, stripANSI(view1), "first")
 
 	// Wait for debounce to expire
 	time.Sleep(renderDebounce + 10*time.Millisecond)
 
 	m.Append(" second")
 	view2 := m.View(80)
-	assert.Contains(t, view2, "second", "after debounce expires, new content should be rendered")
+	assert.Contains(t, stripANSI(view2), "second", "after debounce expires, new content should be rendered")
 	assert.NotEqual(t, view1, view2, "rendered output should change after debounce")
 }
 
@@ -114,21 +120,21 @@ func TestAssistantMessage_View_Streaming_MultipleAppendsWithinDebounce(t *testin
 
 	view := m.View(80)
 	// Should still be the cached render, not including b, c, d
-	assert.Contains(t, view, "a")
+	assert.Contains(t, stripANSI(view), "a")
 	// The cached render doesn't include the later appends
-	assert.NotContains(t, view, "b c d")
+	assert.NotContains(t, stripANSI(view), "b c d")
 
 	// After debounce expires, all content should appear
 	time.Sleep(renderDebounce + 10*time.Millisecond)
 
 	view = m.View(80)
-	assert.Contains(t, view, "a b c d")
+	assert.Contains(t, stripANSI(view), "a b c d")
 }
 
 func TestAssistantMessage_View_Finalized_Markdown(t *testing.T) {
 	m := NewAssistantMessage()
 	m.Finalize("# Hello World\n\nSome **bold** text.")
-	view := m.View(80)
+	view := stripANSI(m.View(80))
 	assert.Contains(t, view, "Hello World")
 	assert.Contains(t, view, "bold")
 	assert.Greater(t, len(view), len("Hello World"))
@@ -137,7 +143,7 @@ func TestAssistantMessage_View_Finalized_Markdown(t *testing.T) {
 func TestAssistantMessage_View_Finalized_CodeBlock(t *testing.T) {
 	m := NewAssistantMessage()
 	m.Finalize("```go\nfmt.Println(\"hi\")\n```")
-	view := m.View(80)
+	view := stripANSI(m.View(80))
 	assert.Contains(t, view, "fmt.Println")
 }
 
@@ -191,7 +197,7 @@ func TestAssistantMessage_ProgressiveRender_PartialMarkdown(t *testing.T) {
 
 	// Simulate streaming partial markdown (unclosed code fence)
 	m.Append("```go\nfmt.Println(")
-	view := m.View(80)
+	view := stripANSI(m.View(80))
 	// Glamour handles unclosed fences gracefully — should still render visible text
 	assert.Contains(t, view, "fmt.Println")
 }
@@ -201,7 +207,7 @@ func TestAssistantMessage_ProgressiveRender_UnclosedBold(t *testing.T) {
 
 	// Unclosed bold markup
 	m.Append("This is **bold")
-	view := m.View(80)
+	view := stripANSI(m.View(80))
 	assert.Contains(t, view, "bold")
 }
 
@@ -210,7 +216,7 @@ func TestAssistantMessage_ProgressiveRender_FencedCodeComplete(t *testing.T) {
 
 	// Complete code fence
 	m.Append("```go\nfmt.Println(\"hello\")\n```")
-	view := m.View(80)
+	view := stripANSI(m.View(80))
 	assert.Contains(t, view, "fmt.Println")
 }
 
@@ -220,7 +226,7 @@ func TestAssistantMessage_Draw_Streaming(t *testing.T) {
 
 	canvas := uv.NewScreenBuffer(80, 5)
 	m.Draw(canvas, canvas.Bounds())
-	output := uv.TrimSpace(canvas.Render())
+	output := stripANSI(uv.TrimSpace(canvas.Render()))
 	assert.Contains(t, output, "hello world")
 }
 
@@ -230,7 +236,7 @@ func TestAssistantMessage_Draw_Finalized(t *testing.T) {
 
 	canvas := uv.NewScreenBuffer(80, 10)
 	m.Draw(canvas, canvas.Bounds())
-	output := uv.TrimSpace(canvas.Render())
+	output := stripANSI(uv.TrimSpace(canvas.Render()))
 	assert.Contains(t, output, "Hello")
 }
 
@@ -271,7 +277,7 @@ func TestAssistantMessage_Draw_StreamingProgressive(t *testing.T) {
 	canvas1 := uv.NewScreenBuffer(80, 5)
 	m.Draw(canvas1, canvas1.Bounds())
 	out1 := uv.TrimSpace(canvas1.Render())
-	assert.Contains(t, out1, "Hello")
+	assert.Contains(t, stripANSI(out1), "Hello")
 
 	// Append more within debounce — same cached render
 	m.Append(" World")
@@ -287,5 +293,5 @@ func TestAssistantMessage_Draw_StreamingProgressive(t *testing.T) {
 	canvas3 := uv.NewScreenBuffer(80, 5)
 	m.Draw(canvas3, canvas3.Bounds())
 	out3 := uv.TrimSpace(canvas3.Render())
-	assert.Contains(t, out3, "World", "after debounce, Draw should include new content")
+	assert.Contains(t, stripANSI(out3), "World", "after debounce, Draw should include new content")
 }

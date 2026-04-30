@@ -17,6 +17,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	uv "github.com/charmbracelet/ultraviolet"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -186,7 +187,7 @@ func TestIntegration_ProgressiveMarkdownStreaming(t *testing.T) {
 	// Render into screen buffer
 	canvas := uv.NewScreenBuffer(m.width, m.height)
 	m.Draw(canvas, canvas.Bounds())
-	rendered := canvas.Render()
+	rendered := ansi.Strip(canvas.Render())
 	assert.Contains(t, rendered, "func main()")
 }
 

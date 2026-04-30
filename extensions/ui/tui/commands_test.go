@@ -329,8 +329,9 @@ func TestModel_RegularSubmitPublishesPrompt(t *testing.T) {
 	model, cmd := m.onSubmit("hello world")
 	require.NotNil(t, cmd)
 
+	// onSubmit returns a spinner tick cmd to start the render loop
 	msg := cmd()
-	assert.Nil(t, msg)
+	assert.NotNil(t, msg)
 
 	evt := <-ch
 	assert.Equal(t, "hello world", evt.Payload)
@@ -354,8 +355,9 @@ func TestModel_RegularSubmitFollowup(t *testing.T) {
 	model, cmd := m.onSubmit("follow up text")
 	require.NotNil(t, cmd)
 
+	// onSubmit returns a spinner tick cmd to start the render loop
 	msg := cmd()
-	assert.Nil(t, msg)
+	assert.NotNil(t, msg)
 
 	evt := <-ch
 	assert.Equal(t, "follow up text", evt.Payload)

@@ -6,6 +6,7 @@ import (
 	"weave/ext/ui/tui/components/messages"
 
 	uv "github.com/charmbracelet/ultraviolet"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -106,7 +107,7 @@ func TestChatModel_IntegrationWithAssistantMessage(t *testing.T) {
 	require.Len(t, items, 2)
 
 	view := m.View()
-	assert.Contains(t, view, "hello world")
+	assert.Contains(t, ansi.Strip(view), "hello world")
 }
 
 func TestChatModel_UpdateItemByID(t *testing.T) {

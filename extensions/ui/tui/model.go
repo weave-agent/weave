@@ -894,26 +894,34 @@ func (m Model) onSubmit(text string) (tea.Model, tea.Cmd) {
 		m.prompted = true
 		m.showLanding = false
 
-		cmds := []tea.Cmd{PublishPrompt(m.bus, promptText)}
+		if m.bus != nil {
+			m.bus.Publish(sdk.NewEvent(topicPrompt, promptText))
+		}
+
 		if !m.spinner.Visible() {
 			var tickCmd tea.Cmd
 
 			m.spinner, tickCmd = m.spinner.SpinnerUpdate(components.SpinnerShowMsg{})
-			cmds = append(cmds, tickCmd)
+
+			return m, tickCmd
 		}
 
-		return m, tea.Batch(cmds...)
+		return m, nil
 	}
 
-	cmds := []tea.Cmd{PublishFollowup(m.bus, promptText)}
+	if m.bus != nil {
+		m.bus.Publish(sdk.NewEvent(topicFollowup, promptText))
+	}
+
 	if !m.spinner.Visible() {
 		var tickCmd tea.Cmd
 
 		m.spinner, tickCmd = m.spinner.SpinnerUpdate(components.SpinnerShowMsg{})
-		cmds = append(cmds, tickCmd)
+
+		return m, tickCmd
 	}
 
-	return m, tea.Batch(cmds...)
+	return m, nil
 }
 
 func (m Model) onSessionListResult(msg SessionListResultMsg) (tea.Model, tea.Cmd) {

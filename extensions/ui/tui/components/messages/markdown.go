@@ -65,7 +65,7 @@ func (r *MarkdownRenderer) Render(text string) string {
 // rebuild recreates the glamour renderer with the current width.
 func (r *MarkdownRenderer) rebuild() {
 	opts := []glamour.TermRendererOption{
-		glamour.WithAutoStyle(),
+		glamour.WithStandardStyle("dark"),
 		glamour.WithChromaFormatter(chromaFormatterName),
 	}
 	if r.width > 0 {

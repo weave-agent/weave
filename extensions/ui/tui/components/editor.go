@@ -184,7 +184,9 @@ func (m EditorModel) handleKey(msg tea.KeyPressMsg) (bool, EditorModel, tea.Cmd)
 	if msg.Code == tea.KeyEnter && msg.Mod&tea.ModAlt != 0 {
 		plain := msg
 		plain.Mod &^= tea.ModAlt
+
 		var cmd tea.Cmd
+
 		m.ta, cmd = m.ta.Update(plain)
 
 		return true, m, cmd
