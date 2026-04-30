@@ -53,11 +53,11 @@ Tab/Enter selects, arrows navigate, Esc dismisses. Popup renders above the edito
 - [x] run `cd extensions/ui/tui && go test ./components/...` — must pass before task 3
 
 ### Task 3: Extend CommandInfo with file-accepting flag
-- [ ] add `AcceptsFiles bool` field to `CommandInfo` in `extensions/ui/tui/commands.go`
-- [ ] update `register()` to accept the new field (no current commands need it)
-- [ ] no existing code breaks — field defaults to false
-- [ ] write test verifying AcceptsFiles defaults to false for existing commands
-- [ ] run `cd extensions/ui/tui && go test ./...` — must pass before task 4
+- [x] add `AcceptsFiles bool` field to `CommandInfo` in `extensions/ui/tui/commands.go`
+- [x] update `register()` to accept the new field (no current commands need it)
+- [x] no existing code breaks — field defaults to false
+- [x] write test verifying AcceptsFiles defaults to false for existing commands
+- [x] run `cd extensions/ui/tui && go test ./...` — must pass before task 4
 
 ### Task 4: Add completion state to EditorModel
 - [ ] add `completion CompletionModel` field to `EditorModel` in `extensions/ui/tui/components/editor.go`

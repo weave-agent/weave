@@ -112,7 +112,7 @@ func TestModel_SlashCommandsUpdatedMsg_RefreshesEditor(t *testing.T) {
 	initialCount := len(initialNames)
 
 	// Register a new command on the model's registry
-	m.commands.Register("/dynamic-test", "dynamic test command", func(_ string) CommandResult {
+	m.commands.Register("/dynamic-test", "dynamic test command", false, func(_ string) CommandResult {
 		return CommandResult{}
 	})
 

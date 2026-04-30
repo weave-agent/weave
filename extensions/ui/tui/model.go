@@ -112,15 +112,15 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 	sdir := resolveSessionDir(cfgPath)
 
 	commands := NewCommandRegistry(bus, sdir)
-	commands.register("/model", "Select or change model", func(_ string) CommandResult {
+	commands.register("/model", "Select or change model", false, func(_ string) CommandResult {
 		return CommandResult{Command: listModelsCmd()}
 	})
 
-	commands.register("/providers", "Manage provider API keys", func(_ string) CommandResult {
+	commands.register("/providers", "Manage provider API keys", false, func(_ string) CommandResult {
 		return CommandResult{Command: listProvidersCmd()}
 	})
 
-	commands.register("/thinking", "Set thinking level (off/minimal/low/medium/high/xhigh)", func(args string) CommandResult {
+	commands.register("/thinking", "Set thinking level (off/minimal/low/medium/high/xhigh)", false, func(args string) CommandResult {
 		if args == "" {
 			return CommandResult{Notify: "Usage: /thinking <off|minimal|low|medium|high|xhigh>"}
 		}

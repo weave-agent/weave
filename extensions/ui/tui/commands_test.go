@@ -194,7 +194,7 @@ func TestCommandRegistry_Register(t *testing.T) {
 
 	called := false
 
-	r.Register("/custom", "custom command", func(args string) CommandResult {
+	r.Register("/custom", "custom command", false, func(args string) CommandResult {
 		called = true
 
 		assert.Equal(t, "arg1", args)
@@ -208,6 +208,32 @@ func TestCommandRegistry_Register(t *testing.T) {
 	handled, _ := r.Dispatch("/custom arg1")
 	require.True(t, handled)
 	assert.True(t, called)
+}
+
+func TestCommandRegistry_AcceptsFilesDefaultsToFalse(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	r := NewCommandRegistry(b, "")
+
+	// All built-in commands should have AcceptsFiles = false
+	for _, name := range r.Names() {
+		info, ok := r.Lookup(name)
+		require.True(t, ok, "should find %s", name)
+		assert.False(t, info.AcceptsFiles, "%s should not accept files by default", name)
+	}
+
+	// Register with explicit true
+	r.Register("/filecmd", "accepts files", true, func(_ string) CommandResult { return CommandResult{} })
+	info, ok := r.Lookup("/filecmd")
+	require.True(t, ok)
+	assert.True(t, info.AcceptsFiles, "/filecmd should accept files")
+
+	// Register with explicit false
+	r.Register("/nocmd", "no files", false, func(_ string) CommandResult { return CommandResult{} })
+	info, ok = r.Lookup("/nocmd")
+	require.True(t, ok)
+	assert.False(t, info.AcceptsFiles, "/nocmd should not accept files")
 }
 
 func TestParseCommand(t *testing.T) {
@@ -237,7 +263,7 @@ func TestCommandRegistry_HelpListsAll(t *testing.T) {
 
 	r := NewCommandRegistry(b, "")
 
-	r.Register("/testcmd", "a test", func(_ string) CommandResult { return CommandResult{} })
+	r.Register("/testcmd", "a test", false, func(_ string) CommandResult { return CommandResult{} })
 
 	help := r.helpText()
 	assert.Contains(t, help, "/testcmd")

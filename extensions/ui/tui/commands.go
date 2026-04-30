@@ -30,9 +30,10 @@ type CommandHandler func(args string) CommandResult
 
 // CommandInfo describes a registered slash command.
 type CommandInfo struct {
-	Name        string
-	Description string
-	Handler     CommandHandler
+	Name         string
+	Description  string
+	Handler      CommandHandler
+	AcceptsFiles bool
 }
 
 // CommandRegistry manages slash commands.
@@ -49,51 +50,52 @@ func NewCommandRegistry(bus sdk.Bus, sessionDir string) *CommandRegistry {
 		sessionDir: sessionDir,
 	}
 
-	r.register("/new", "Start a new conversation", func(_ string) CommandResult {
+	r.register("/new", "Start a new conversation", false, func(_ string) CommandResult {
 		return CommandResult{ClearChat: true, ResetPrompt: true}
 	})
 
-	r.register("/clear", "Start a new conversation (alias for /new)", func(_ string) CommandResult {
+	r.register("/clear", "Start a new conversation (alias for /new)", false, func(_ string) CommandResult {
 		return CommandResult{ClearChat: true, ResetPrompt: true}
 	})
 
-	r.register("/quit", "Exit weave", func(_ string) CommandResult {
+	r.register("/quit", "Exit weave", false, func(_ string) CommandResult {
 		return CommandResult{Quit: true}
 	})
 
-	r.register("/help", "Show available commands", func(_ string) CommandResult {
+	r.register("/help", "Show available commands", false, func(_ string) CommandResult {
 		return CommandResult{Notify: r.helpText()}
 	})
 
-	r.register("/compact", "Compact conversation history", func(_ string) CommandResult {
+	r.register("/compact", "Compact conversation history", false, func(_ string) CommandResult {
 		return CommandResult{Command: PublishSteer(bus, "compact")}
 	})
 
-	r.register("/name", "Set conversation name", func(args string) CommandResult {
+	r.register("/name", "Set conversation name", false, func(args string) CommandResult {
 		return CommandResult{Command: PublishSteer(bus, "name "+args)}
 	})
 
-	r.register("/resume", "View a previous session", func(_ string) CommandResult {
+	r.register("/resume", "View a previous session", false, func(_ string) CommandResult {
 		return CommandResult{Command: listSessionsCmd(r.sessionDir)}
 	})
 
 	return r
 }
 
-func (r *CommandRegistry) register(name, description string, handler CommandHandler) {
+func (r *CommandRegistry) register(name, description string, acceptsFiles bool, handler CommandHandler) {
 	r.commands[name] = CommandInfo{
-		Name:        name,
-		Description: description,
-		Handler:     handler,
+		Name:         name,
+		Description:  description,
+		Handler:      handler,
+		AcceptsFiles: acceptsFiles,
 	}
 }
 
 // Register adds a command to the registry. Not safe for concurrent use with Dispatch.
-func (r *CommandRegistry) Register(name, description string, handler CommandHandler) {
+func (r *CommandRegistry) Register(name, description string, acceptsFiles bool, handler CommandHandler) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.register(name, description, handler)
+	r.register(name, description, acceptsFiles, handler)
 }
 
 // Dispatch parses input and, if it starts with /, runs the matching command.

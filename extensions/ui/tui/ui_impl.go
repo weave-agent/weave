@@ -180,7 +180,7 @@ func (u *TUIImpl) RegisterCommand(name string, handler func(args string) error) 
 func (u *TUIImpl) registerCommand(commands *CommandRegistry, name string, handler func(args string) error) {
 	displayName := strings.TrimPrefix(name, "/")
 
-	commands.Register(name, "", func(args string) CommandResult {
+	commands.Register(name, "", false, func(args string) CommandResult {
 		err := handler(args)
 		if err != nil {
 			return CommandResult{Notify: fmt.Sprintf("/%s: error: %v", displayName, err)}
