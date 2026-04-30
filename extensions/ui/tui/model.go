@@ -281,6 +281,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Handle escape with double-press: first interrupts, second clears editor
 		if msg.Code == tea.KeyEsc {
+			// If completion is active, dismiss it instead
+			if m.editor.CompletionActive() {
+				m.editor = m.editor.HideCompletion()
+
+				return m, nil
+			}
+
 			return m.handleEscape()
 		}
 
@@ -289,10 +296,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.dispatchBinding(action)
 		}
 
+		// Completion key interception
+		if handled, model, cmd := m.handleCompletionKey(msg); handled {
+			return model, cmd
+		}
+
 		// Fall through to editor
+		oldValue := m.editor.Value()
+
 		var cmd tea.Cmd
 
 		m.editor, cmd = m.editor.Update(msg)
+
+		// Refresh completion state when editor content changed
+		if m.editor.Value() != oldValue {
+			m = m.refreshEditorCompletion()
+		}
 
 		return m, cmd
 
@@ -453,6 +472,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ThinkingLevelSetMsg:
 		return m.applyThinkingLevel(msg.Level)
+
+	case slashCommandsUpdatedMsg:
+		if m.editor.CompletionActive() {
+			m = m.refreshEditorCompletion()
+		}
+
+		return m, nil
 	}
 
 	// Forward spinner ticks to advance animation.
@@ -1384,6 +1410,92 @@ func (m *Model) showStatus(msg string) {
 	m.statusTimer = tea.Tick(statusMessageTimeout, func(_ time.Time) tea.Msg {
 		return statusTimeoutMsg{gen: gen}
 	})
+}
+
+// handleCompletionKey processes keys when the completion popup is active.
+// Returns true if the key was handled (intercepted for completion navigation).
+func (m Model) handleCompletionKey(msg tea.KeyPressMsg) (bool, Model, tea.Cmd) {
+	if !m.editor.CompletionActive() {
+		return false, m, nil
+	}
+
+	switch msg.Code {
+	case tea.KeyTab, tea.KeyUp, tea.KeyDown, tea.KeyEnter, tea.KeyEscape:
+		var cmd tea.Cmd
+
+		m.editor, cmd = m.editor.Update(msg)
+
+		return true, m, cmd
+	}
+
+	return false, m, nil
+}
+
+// refreshEditorCompletion reads the editor value and shows/hides the
+// completion popup based on the current context.
+func (m Model) refreshEditorCompletion() Model {
+	value := m.editor.Value()
+
+	lines := strings.Split(value, "\n")
+	if len(lines) == 0 {
+		m.editor = m.editor.HideCompletion()
+
+		return m
+	}
+
+	line := lines[0]
+
+	// Slash command completion: "/" at start, no space yet
+	if strings.HasPrefix(line, "/") {
+		cmdName, afterSpace, hasSpace := strings.Cut(line, " ")
+		if !hasSpace {
+			filter := strings.TrimPrefix(line, "/")
+			names := m.commands.Names()
+
+			items := make([]components.CompletionItem, 0, len(names))
+			for _, name := range names {
+				info, _ := m.commands.Lookup(name)
+				items = append(items, components.CompletionItem{
+					Label:       strings.TrimPrefix(name, "/"),
+					Description: info.Description,
+					Value:       name + " ",
+				})
+			}
+
+			m.editor = m.editor.ShowCompletion(components.CompletionSlash, items, filter)
+
+			return m
+		}
+
+		// Has space — check if command accepts files
+		if info, ok := m.commands.Lookup(cmdName); ok && info.AcceptsFiles {
+			items := components.PathCompletions(".", afterSpace)
+			m.editor = m.editor.ShowCompletion(components.CompletionFile, items, afterSpace)
+
+			return m
+		}
+	}
+
+	// File path completion: "@" after whitespace
+	atIdx := strings.LastIndex(line, "@")
+	if atIdx >= 0 {
+		if atIdx == 0 || isWhitespace(line[atIdx-1]) {
+			filter := line[atIdx+1:]
+			items := components.PathCompletions(".", filter)
+			m.editor = m.editor.ShowCompletion(components.CompletionFile, items, filter)
+
+			return m
+		}
+	}
+
+	// No completion context
+	m.editor = m.editor.HideCompletion()
+
+	return m
+}
+
+func isWhitespace(c byte) bool {
+	return c == ' ' || c == '\t'
 }
 
 // chatHeight returns the height allocated to the chat area.

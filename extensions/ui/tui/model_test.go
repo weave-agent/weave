@@ -1884,6 +1884,230 @@ func TestModel_NewSessionClearsAttachments(t *testing.T) {
 	assert.Empty(t, m.attach.Items())
 }
 
+// --- Completion integration tests ---
+
+func TestModel_RefreshEditorCompletion_Empty(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.editor = m.editor.SetValue("")
+	m = m.refreshEditorCompletion()
+	assert.False(t, m.editor.CompletionActive())
+}
+
+func TestModel_RefreshEditorCompletion_PlainText(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.editor = m.editor.SetValue("hello world")
+	m = m.refreshEditorCompletion()
+	assert.False(t, m.editor.CompletionActive())
+}
+
+func TestModel_RefreshEditorCompletion_SlashCommand(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.editor = m.editor.SetValue("/he")
+	m = m.refreshEditorCompletion()
+	assert.True(t, m.editor.CompletionActive())
+	assert.Equal(t, components.CompletionSlash, m.editor.Completion().Kind())
+	assert.Equal(t, 1, m.editor.Completion().FilteredCount()) // only /help matches
+}
+
+func TestModel_RefreshEditorCompletion_SlashCommandNoFilter(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.editor = m.editor.SetValue("/")
+	m = m.refreshEditorCompletion()
+	assert.True(t, m.editor.CompletionActive())
+	assert.Equal(t, components.CompletionSlash, m.editor.Completion().Kind())
+	assert.Positive(t, m.editor.Completion().FilteredCount())
+}
+
+func TestModel_RefreshEditorCompletion_SlashCommandWithSpaceNoAcceptsFiles(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.editor = m.editor.SetValue("/help ")
+	m = m.refreshEditorCompletion()
+	assert.False(t, m.editor.CompletionActive())
+}
+
+func TestModel_RefreshEditorCompletion_SlashCommandWithSpaceAcceptsFiles(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.commands.Register("/upload", "Upload files", true, func(_ string) CommandResult {
+		return CommandResult{}
+	})
+	m.editor = m.editor.SetValue("/upload ")
+	m = m.refreshEditorCompletion()
+	assert.True(t, m.editor.CompletionActive())
+	assert.Equal(t, components.CompletionFile, m.editor.Completion().Kind())
+}
+
+func TestModel_RefreshEditorCompletion_AtTrigger(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.editor = m.editor.SetValue("text @")
+	m = m.refreshEditorCompletion()
+	assert.True(t, m.editor.CompletionActive())
+	assert.Equal(t, components.CompletionFile, m.editor.Completion().Kind())
+}
+
+func TestModel_RefreshEditorCompletion_AtTriggerWithFilter(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.editor = m.editor.SetValue("text @sr")
+	m = m.refreshEditorCompletion()
+	assert.True(t, m.editor.CompletionActive())
+	assert.Equal(t, components.CompletionFile, m.editor.Completion().Kind())
+}
+
+func TestModel_RefreshEditorCompletion_AtTriggerAtStart(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.editor = m.editor.SetValue("@fi")
+	m = m.refreshEditorCompletion()
+	assert.True(t, m.editor.CompletionActive())
+	assert.Equal(t, components.CompletionFile, m.editor.Completion().Kind())
+}
+
+func TestModel_RefreshEditorCompletion_NoWhitespaceBeforeAt(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.editor = m.editor.SetValue("hello@world")
+	m = m.refreshEditorCompletion()
+	assert.False(t, m.editor.CompletionActive())
+}
+
+func TestModel_RefreshEditorCompletion_HidesWhenContextGone(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.editor = m.editor.SetValue("/he")
+	m = m.refreshEditorCompletion()
+	assert.True(t, m.editor.CompletionActive())
+
+	m.editor = m.editor.SetValue("he")
+	m = m.refreshEditorCompletion()
+	assert.False(t, m.editor.CompletionActive())
+}
+
+func TestModel_SlashCommandsUpdatedMsg_RefreshesCompletion(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.editor = m.editor.SetValue("/")
+	m = m.refreshEditorCompletion()
+	assert.True(t, m.editor.CompletionActive())
+
+	initialCount := m.editor.Completion().FilteredCount()
+
+	// Register a new command
+	m.commands.Register("/newcmd", "new command", false, func(_ string) CommandResult {
+		return CommandResult{}
+	})
+
+	// Send update message
+	updated, _ := m.Update(slashCommandsUpdatedMsg{})
+	m = updated.(Model)
+
+	assert.True(t, m.editor.CompletionActive())
+	assert.Greater(t, m.editor.Completion().FilteredCount(), initialCount)
+}
+
+func TestModel_SlashCommandsUpdatedMsg_NoCompletionInactive(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.editor = m.editor.SetValue("plain text")
+	m = m.refreshEditorCompletion()
+	assert.False(t, m.editor.CompletionActive())
+
+	m.commands.Register("/newcmd2", "new command", false, func(_ string) CommandResult {
+		return CommandResult{}
+	})
+
+	updated, _ := m.Update(slashCommandsUpdatedMsg{})
+	m = updated.(Model)
+
+	assert.False(t, m.editor.CompletionActive())
+}
+
+func TestModel_HandleCompletionKey_WhenActive(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.editor = m.editor.SetValue("/")
+	m = m.refreshEditorCompletion()
+	require.True(t, m.editor.CompletionActive())
+
+	// Tab should be intercepted
+	handled, _, _ := m.handleCompletionKey(tea.KeyPressMsg{Code: tea.KeyTab})
+	assert.True(t, handled)
+}
+
+func TestModel_HandleCompletionKey_WhenInactive(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.editor = m.editor.SetValue("plain")
+	require.False(t, m.editor.CompletionActive())
+
+	// Tab should not be intercepted
+	handled, _, _ := m.handleCompletionKey(tea.KeyPressMsg{Code: tea.KeyTab})
+	assert.False(t, handled)
+}
+
+func TestModel_HandleCompletionKey_RegularKey(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.editor = m.editor.SetValue("/he")
+	m = m.refreshEditorCompletion()
+	require.True(t, m.editor.CompletionActive())
+
+	// Regular key should not be intercepted
+	handled, _, _ := m.handleCompletionKey(tea.KeyPressMsg{Text: "a", Code: 'a'})
+	assert.False(t, handled)
+}
+
+func TestModel_CompletionKeyFlow_TabCycles(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	// Type "/" to trigger completion
+	model, _ := m.Update(tea.KeyPressMsg{Text: "/", Code: '/'})
+	m = model.(Model)
+	require.True(t, m.editor.CompletionActive())
+
+	// Tab should move cursor down
+	model, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	m = model.(Model)
+	assert.Equal(t, 1, m.editor.Completion().Cursor())
+}
+
+func TestModel_CompletionKeyFlow_EscapeDismisses(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	model, _ := m.Update(tea.KeyPressMsg{Text: "/", Code: '/'})
+	m = model.(Model)
+	require.True(t, m.editor.CompletionActive())
+
+	model, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	m = model.(Model)
+	assert.False(t, m.editor.CompletionActive())
+}
+
+func TestModel_CompletionKeyFlow_TypingUpdatesFilter(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	// Type "/h"
+	model, _ := m.Update(tea.KeyPressMsg{Text: "/", Code: '/'})
+	m = model.(Model)
+	model, _ = m.Update(tea.KeyPressMsg{Text: "h", Code: 'h'})
+	m = model.(Model)
+
+	require.True(t, m.editor.CompletionActive())
+	assert.Equal(t, components.CompletionSlash, m.editor.Completion().Kind())
+	assert.Equal(t, 1, m.editor.Completion().FilteredCount()) // "/help" matches "h"
+}
+
+func TestModel_CompletionKeyFlow_AtTrigger(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	// Type "text @"
+	for _, ch := range "text @" {
+		model, _ := m.Update(tea.KeyPressMsg{Text: string(ch), Code: ch})
+		m = model.(Model)
+	}
+
+	require.True(t, m.editor.CompletionActive())
+	assert.Equal(t, components.CompletionFile, m.editor.Completion().Kind())
+}
+
 // addTestAttachment is a helper to add a test attachment to the model.
 func addTestAttachment(m Model, path, content string, lines int) Model {
 	m.attach = m.attach.Add(attachments.Attachment{Path: path, Content: content, Lines: lines})

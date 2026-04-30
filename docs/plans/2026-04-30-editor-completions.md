@@ -72,17 +72,17 @@ Tab/Enter selects, arrows navigate, Esc dismisses. Popup renders above the edito
 - [x] run `cd extensions/ui/tui && go test ./components/...` — must pass before task 5
 
 ### Task 5: Wire completion triggers into Model.Update
-- [ ] in `extensions/ui/tui/model.go` `Update()` `tea.KeyPressMsg` case: after binding resolution, before editor forward, add completion key interception block
-- [ ] add `handleCompletionKey(msg tea.KeyPressMsg)` method on Model — delegates to editor when completion active, returns (handled, model, cmd)
-- [ ] add `refreshEditorCompletion()` method on Model that reads editor value and determines context:
+- [x] in `extensions/ui/tui/model.go` `Update()` `tea.KeyPressMsg` case: after binding resolution, before editor forward, add completion key interception block
+- [x] add `handleCompletionKey(msg tea.KeyPressMsg)` method on Model — delegates to editor when completion active, returns (handled, model, cmd)
+- [x] add `refreshEditorCompletion()` method on Model that reads editor value and determines context:
   - Line 0 starts with `/`, no space yet → CompletionSlash with `m.commands.Names()` as items, filter = text after `/`
   - Line 0 starts with `/command ` where command has AcceptsFiles → CompletionFile with PathCompletions, filter = text after space
   - Detects `@` after whitespace → CompletionFile with PathCompletions, filter = text after `@`
   - Otherwise → HideCompletion
-- [ ] after every editor key forward, call `refreshEditorCompletion()` to update popup state
-- [ ] handle `slashCommandsUpdatedMsg` to refresh cached command names (if message exists)
-- [ ] write tests for refreshEditorCompletion with various editor value patterns (empty, `/he`, `/help `, `text @`, plain text)
-- [ ] run `cd extensions/ui/tui && go test ./...` — must pass before task 6
+- [x] after every editor key forward, call `refreshEditorCompletion()` to update popup state
+- [x] handle `slashCommandsUpdatedMsg` to refresh cached command names (if message exists)
+- [x] write tests for refreshEditorCompletion with various editor value patterns (empty, `/he`, `/help `, `text @`, plain text)
+- [x] run `cd extensions/ui/tui && go test ./...` — must pass before task 6
 
 ### Task 6: Render completion popup in Model.Draw
 - [ ] in `extensions/ui/tui/model.go` `Draw()`: after editor rendering, before footer, add completion popup rendering
