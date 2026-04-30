@@ -27,6 +27,10 @@ type EditorModel struct {
 	histIdx    int
 	savedLine  string
 	navigating bool
+
+	// completion
+	completion    CompletionModel
+	triggerOffset int
 }
 
 const minEditorWidth = 20
@@ -177,9 +181,64 @@ func (m EditorModel) Update(msg tea.Msg) (EditorModel, tea.Cmd) {
 	return m, cmd
 }
 
+// handleCompletionKey processes keys when the completion popup is visible.
+// Returns true if the key was handled.
+func (m EditorModel) handleCompletionKey(msg tea.KeyPressMsg) (bool, EditorModel, tea.Cmd) {
+	switch msg.Code {
+	case tea.KeyTab:
+		m.completion = m.completion.CursorDown()
+
+		return true, m, nil
+	case tea.KeyUp:
+		// If actively navigating history, hide completion and continue history nav
+		if m.navigating {
+			return true, m.historyUp().HideCompletion(), nil
+		}
+
+		m.completion = m.completion.CursorUp()
+
+		return true, m, nil
+	case tea.KeyDown:
+		// If actively navigating history, hide completion and continue history nav
+		if m.navigating {
+			if m.histIdx > 0 {
+				return true, m.historyDown().HideCompletion(), nil
+			}
+
+			if m.histIdx == 0 {
+				m.navigating = false
+				m.ta.SetValue(m.savedLine)
+				m.savedLine = ""
+
+				return true, m.HideCompletion(), nil
+			}
+		}
+
+		m.completion = m.completion.CursorDown()
+
+		return true, m, nil
+	case tea.KeyEnter:
+		m = m.applyCompletion()
+		model, cmd := m.handleEnter()
+
+		return true, model, cmd
+	case tea.KeyEscape:
+		return true, m.HideCompletion(), nil
+	}
+
+	return false, m, nil
+}
+
 // handleKey processes key-specific shortcuts (enter, up/down history).
 // Returns true if the key was fully handled and should not be forwarded.
 func (m EditorModel) handleKey(msg tea.KeyPressMsg) (bool, EditorModel, tea.Cmd) {
+	// Completion key interception (when popup is visible)
+	if m.completion.Visible() {
+		if handled, model, cmd := m.handleCompletionKey(msg); handled {
+			return true, model, cmd
+		}
+	}
+
 	// Alt+Enter inserts a newline (plain Enter is bound to submit)
 	if msg.Code == tea.KeyEnter && msg.Mod&tea.ModAlt != 0 {
 		plain := msg
@@ -202,13 +261,13 @@ func (m EditorModel) handleKey(msg tea.KeyPressMsg) (bool, EditorModel, tea.Cmd)
 	// History navigation on up/down when textarea is single-line
 	if msg.Code == tea.KeyUp {
 		if (m.navigating || m.ta.Line() == 0) && len(m.history) > 0 {
-			return true, m.historyUp(), nil
+			return true, m.historyUp().HideCompletion(), nil
 		}
 	}
 
 	if msg.Code == tea.KeyDown {
 		if m.navigating && m.histIdx > 0 {
-			return true, m.historyDown(), nil
+			return true, m.historyDown().HideCompletion(), nil
 		}
 
 		if m.navigating && m.histIdx == 0 {
@@ -216,7 +275,7 @@ func (m EditorModel) handleKey(msg tea.KeyPressMsg) (bool, EditorModel, tea.Cmd)
 			m.ta.SetValue(m.savedLine)
 			m.savedLine = ""
 
-			return true, m, nil
+			return true, m.HideCompletion(), nil
 		}
 	}
 
@@ -352,6 +411,59 @@ func (m EditorModel) DeleteToLineEnd() EditorModel {
 	_ = cmd
 
 	return m
+}
+
+// Completion returns the editor's completion model.
+func (m EditorModel) Completion() CompletionModel {
+	return m.completion
+}
+
+// ShowCompletion shows the completion popup with the given items and filter.
+func (m EditorModel) ShowCompletion(kind CompletionKind, items []CompletionItem, filter string) EditorModel {
+	m.completion = m.completion.Show(kind, items)
+	m.completion = m.completion.SetFilter(filter)
+
+	value := m.ta.Value()
+	if len(value) >= len(filter)+1 {
+		m.triggerOffset = len(value) - len(filter) - 1
+	}
+
+	return m
+}
+
+// HideCompletion hides the completion popup.
+func (m EditorModel) HideCompletion() EditorModel {
+	m.completion = m.completion.Hide()
+	m.triggerOffset = 0
+
+	return m
+}
+
+// CompletionActive returns whether the completion popup is currently shown.
+func (m EditorModel) CompletionActive() bool {
+	return m.completion.Visible()
+}
+
+// applyCompletion replaces the trigger portion of the textarea value with the
+// selected completion item and hides the popup.
+func (m EditorModel) applyCompletion() EditorModel {
+	item, ok := m.completion.SelectedItem()
+	if !ok {
+		return m.HideCompletion()
+	}
+
+	value := m.ta.Value()
+
+	offset := m.triggerOffset
+	if offset >= 0 && offset < len(value) && value[offset] == ' ' {
+		offset++ // keep the space as a separator
+	}
+
+	if offset >= 0 && offset <= len(value) {
+		m.ta.SetValue(value[:offset] + item.Value)
+	}
+
+	return m.HideCompletion()
 }
 
 // View renders the editor.

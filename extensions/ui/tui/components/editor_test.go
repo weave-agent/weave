@@ -313,3 +313,248 @@ func TestEditorDraw_AfterHistoryNavigation(t *testing.T) {
 
 	assert.Contains(t, rendered, "second")
 }
+
+// --- Completion tests ---
+
+func TestEditorShowCompletion(t *testing.T) {
+	m := NewEditorModel()
+	m = m.SetValue("/he")
+	items := []CompletionItem{
+		{Label: "help", Description: "Show help", Value: "/help "},
+		{Label: "quit", Value: "/quit "},
+	}
+
+	m = m.ShowCompletion(CompletionSlash, items, "he")
+	assert.True(t, m.CompletionActive())
+	assert.Equal(t, 1, m.Completion().FilteredCount())
+	assert.Equal(t, "help", m.Completion().filtered[0].Label)
+}
+
+func TestEditorHideCompletion(t *testing.T) {
+	m := NewEditorModel()
+	m = m.ShowCompletion(CompletionSlash, []CompletionItem{
+		{Label: "help", Value: "/help "},
+	}, "")
+	assert.True(t, m.CompletionActive())
+
+	m = m.HideCompletion()
+	assert.False(t, m.CompletionActive())
+}
+
+func TestEditorCompletionActive(t *testing.T) {
+	m := NewEditorModel()
+	assert.False(t, m.CompletionActive())
+
+	m = m.ShowCompletion(CompletionSlash, []CompletionItem{
+		{Label: "help", Value: "/help "},
+	}, "")
+	assert.True(t, m.CompletionActive())
+}
+
+func TestEditorCompletionTabCyclesDown(t *testing.T) {
+	m := NewEditorModel()
+	m = m.ShowCompletion(CompletionSlash, []CompletionItem{
+		{Label: "a", Value: "a"},
+		{Label: "b", Value: "b"},
+		{Label: "c", Value: "c"},
+	}, "")
+
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	assert.Equal(t, 1, m.Completion().Cursor())
+
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	assert.Equal(t, 2, m.Completion().Cursor())
+}
+
+func TestEditorCompletionUpNavigates(t *testing.T) {
+	m := NewEditorModel()
+	m = m.ShowCompletion(CompletionSlash, []CompletionItem{
+		{Label: "a", Value: "a"},
+		{Label: "b", Value: "b"},
+		{Label: "c", Value: "c"},
+	}, "")
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyTab}) // cursor at 1
+
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	assert.Equal(t, 0, m.Completion().Cursor())
+}
+
+func TestEditorCompletionDownNavigates(t *testing.T) {
+	m := NewEditorModel()
+	m = m.ShowCompletion(CompletionSlash, []CompletionItem{
+		{Label: "a", Value: "a"},
+		{Label: "b", Value: "b"},
+	}, "")
+
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	assert.Equal(t, 1, m.Completion().Cursor())
+}
+
+func TestEditorCompletionEnterAppliesAndSubmits(t *testing.T) {
+	m := NewEditorModel()
+	m = m.SetValue("/he")
+	m = m.ShowCompletion(CompletionSlash, []CompletionItem{
+		{Label: "help", Value: "/help "},
+	}, "he")
+
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	assert.False(t, m.CompletionActive())
+	assert.Empty(t, m.Value()) // submitted and cleared
+	require.NotNil(t, cmd)
+
+	msg := cmd()
+	submit, ok := msg.(SubmitMsg)
+	require.True(t, ok)
+	assert.Equal(t, "/help", submit.Text)
+}
+
+func TestEditorCompletionEnterEmptyItemsSubmitsRaw(t *testing.T) {
+	m := NewEditorModel()
+	m = m.SetValue("/xyz")
+	m = m.ShowCompletion(CompletionSlash, []CompletionItem{}, "xyz")
+
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	assert.False(t, m.CompletionActive())
+	require.NotNil(t, cmd)
+
+	msg := cmd()
+	submit, ok := msg.(SubmitMsg)
+	require.True(t, ok)
+	assert.Equal(t, "/xyz", submit.Text)
+}
+
+func TestEditorCompletionEscDismisses(t *testing.T) {
+	m := NewEditorModel()
+	m = m.ShowCompletion(CompletionSlash, []CompletionItem{
+		{Label: "help", Value: "/help "},
+	}, "")
+	assert.True(t, m.CompletionActive())
+
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	assert.False(t, m.CompletionActive())
+	assert.Nil(t, cmd)
+}
+
+func TestEditorCompletionKeysPassThroughWhenNotVisible(t *testing.T) {
+	m := NewEditorModel()
+	m = m.SetValue("hello")
+
+	// Tab should NOT be intercepted when completion is not visible
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	assert.Equal(t, "hello", m.Value())
+
+	// Up/Down should work as history navigation
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	assert.Equal(t, "hello", m.Value())
+}
+
+func TestEditorCompletionHidesOnHistoryUp(t *testing.T) {
+	m := NewEditorModel()
+	m = m.PushHistory("previous")
+	// First enter history navigation mode
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	assert.Equal(t, "previous", m.Value())
+
+	// Now show completion while navigating history
+	m = m.ShowCompletion(CompletionSlash, []CompletionItem{
+		{Label: "help", Value: "/help "},
+	}, "")
+	assert.True(t, m.CompletionActive())
+
+	// Up should hide completion and continue history navigation
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	assert.False(t, m.CompletionActive())
+	assert.Equal(t, "previous", m.Value())
+}
+
+func TestEditorCompletionHidesOnHistoryDown(t *testing.T) {
+	m := NewEditorModel()
+	m = m.PushHistory("first")
+	m = m.PushHistory("second")
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyUp}) // navigating=true, histIdx=1
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyUp}) // histIdx=2
+
+	m = m.ShowCompletion(CompletionSlash, []CompletionItem{
+		{Label: "help", Value: "/help "},
+	}, "")
+	assert.True(t, m.CompletionActive())
+
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	assert.False(t, m.CompletionActive())
+}
+
+func TestEditorApplyCompletionSlash(t *testing.T) {
+	m := NewEditorModel()
+	m = m.SetValue("/he")
+	m = m.ShowCompletion(CompletionSlash, []CompletionItem{
+		{Label: "help", Value: "/help "},
+	}, "he")
+
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	assert.False(t, m.CompletionActive())
+	assert.Empty(t, m.Value()) // submitted and cleared
+	require.NotNil(t, cmd)
+
+	msg := cmd()
+	submit, ok := msg.(SubmitMsg)
+	require.True(t, ok)
+	assert.Equal(t, "/help", submit.Text)
+}
+
+func TestEditorApplyCompletionAtTrigger(t *testing.T) {
+	m := NewEditorModel()
+	m = m.SetValue("text @sr")
+	m = m.ShowCompletion(CompletionFile, []CompletionItem{
+		{Label: "src/", Value: "src/"},
+	}, "sr")
+
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	assert.False(t, m.CompletionActive())
+	assert.Empty(t, m.Value()) // submitted and cleared
+	require.NotNil(t, cmd)
+
+	msg := cmd()
+	submit, ok := msg.(SubmitMsg)
+	require.True(t, ok)
+	assert.Equal(t, "text src/", submit.Text)
+}
+
+func TestEditorApplyCompletionSpaceTrigger(t *testing.T) {
+	m := NewEditorModel()
+	m = m.SetValue("/help arg")
+	m = m.ShowCompletion(CompletionFile, []CompletionItem{
+		{Label: "argfile", Value: "argfile"},
+	}, "arg")
+
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	assert.False(t, m.CompletionActive())
+	assert.Empty(t, m.Value()) // submitted and cleared
+	require.NotNil(t, cmd)
+
+	msg := cmd()
+	submit, ok := msg.(SubmitMsg)
+	require.True(t, ok)
+	assert.Equal(t, "/help argfile", submit.Text)
+}
+
+func TestEditorCompletionNotVisibleKeysGoToTextarea(t *testing.T) {
+	m := NewEditorModel()
+	m = m.SetValue("abc")
+
+	// When completion is not visible, Tab is not intercepted
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	// Tab doesn't change value in textarea by default
+	assert.Equal(t, "abc", m.Value())
+}
+
+func TestEditorShowCompletionFileKind(t *testing.T) {
+	m := NewEditorModel()
+	m = m.SetValue("@fi")
+	m = m.ShowCompletion(CompletionFile, []CompletionItem{
+		{Label: "file.go", Value: "file.go"},
+	}, "fi")
+
+	assert.True(t, m.CompletionActive())
+	assert.Equal(t, CompletionFile, m.Completion().Kind())
+	assert.Equal(t, 1, m.Completion().FilteredCount())
+}

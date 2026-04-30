@@ -60,16 +60,16 @@ Tab/Enter selects, arrows navigate, Esc dismisses. Popup renders above the edito
 - [x] run `cd extensions/ui/tui && go test ./...` — must pass before task 4
 
 ### Task 4: Add completion state to EditorModel
-- [ ] add `completion CompletionModel` field to `EditorModel` in `extensions/ui/tui/components/editor.go`
-- [ ] add `Completion() CompletionModel` getter
-- [ ] add `ShowCompletion(kind CompletionKind, items []CompletionItem, filter string)` method
-- [ ] add `HideCompletion()` method
-- [ ] add `CompletionActive() bool` convenience method
-- [ ] in `handleKey()`: when completion is visible, intercept Tab (CursorDown), Up (CursorUp), Down (CursorDown), Enter (apply + submit), Esc (Hide). Return `handled=true` for intercepted keys.
-- [ ] implement `applyCompletion()` — replace trigger portion of textarea value with selected item Value, reposition cursor, hide popup
-- [ ] on history navigation (Up/Down when navigating history), auto-hide completion popup
-- [ ] write tests for key interception when completion visible vs not visible
-- [ ] run `cd extensions/ui/tui && go test ./components/...` — must pass before task 5
+- [x] add `completion CompletionModel` field to `EditorModel` in `extensions/ui/tui/components/editor.go`
+- [x] add `Completion() CompletionModel` getter
+- [x] add `ShowCompletion(kind CompletionKind, items []CompletionItem, filter string)` method
+- [x] add `HideCompletion()` method
+- [x] add `CompletionActive() bool` convenience method
+- [x] in `handleKey()`: when completion is visible, intercept Tab (CursorDown), Up (CursorUp), Down (CursorDown), Enter (apply + submit), Esc (Hide). Return `handled=true` for intercepted keys.
+- [x] implement `applyCompletion()` — replace trigger portion of textarea value with selected item Value, reposition cursor, hide popup
+- [x] on history navigation (Up/Down when navigating history), auto-hide completion popup
+- [x] write tests for key interception when completion visible vs not visible
+- [x] run `cd extensions/ui/tui && go test ./components/...` — must pass before task 5
 
 ### Task 5: Wire completion triggers into Model.Update
 - [ ] in `extensions/ui/tui/model.go` `Update()` `tea.KeyPressMsg` case: after binding resolution, before editor forward, add completion key interception block
