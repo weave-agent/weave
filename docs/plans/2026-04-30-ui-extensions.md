@@ -77,11 +77,11 @@ Add a UI extension category for TUI-specific plugins (custom overlays, tool rend
 - [x] run `cd extensions/ui/tui && go test ./...` — must pass before task 6
 
 ### Task 6: Create example UI extension (diff-viewer)
-- [ ] create directory `extensions/ui/tui/extensions/diff-viewer/`
-- [ ] implement `DiffViewer` struct with `Name()` and `Register(ui UI)` methods
-- [ ] register in `init()` via `sdk.RegisterUIExtension`
-- [ ] write tests for the extension — verify Name() and Register() calls UI methods
-- [ ] run `cd extensions/ui/tui/extensions/diff-viewer && go test ./...` — must pass
+- [x] create directory `extensions/ui/tui/extensions/diff-viewer/`
+- [x] implement `DiffViewer` struct with `Name()` and `Register(ui UI)` methods
+- [x] register in `init()` via `sdk.RegisterUIExtension`
+- [x] write tests for the extension — verify Name() and Register() calls UI methods
+- [x] run `cd extensions/ui/tui/extensions/diff-viewer && go test ./...` — must pass
 
 ### Task 7: Verify acceptance criteria
 - [ ] verify UI extensions are discovered from `extensions/ui/tui/extensions/{name}/`
