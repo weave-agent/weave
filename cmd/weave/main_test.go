@@ -11,29 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMergeUnique(t *testing.T) {
-	tests := []struct {
-		name string
-		in   []string
-		want []string
-	}{
-		{"empty", nil, []string{}},
-		{"single", []string{"a"}, []string{"a"}},
-		{"no dupes", []string{"a", "b", "c"}, []string{"a", "b", "c"}},
-		{"removes dupes", []string{"a", "b", "a", "c", "b"}, []string{"a", "b", "c"}},
-		{"all same", []string{"x", "x", "x"}, []string{"x"}},
-		{"preserves order", []string{"loop", "anthropic", "bash"}, []string{"loop", "anthropic", "bash"}},
-		{"core plus optional overlap", []string{"loop", "anthropic", "anthropic"}, []string{"loop", "anthropic"}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := mergeUnique(tt.in)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
 func TestRunFlagParsing(t *testing.T) {
 	dir := t.TempDir()
 

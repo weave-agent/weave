@@ -14,9 +14,8 @@ func TestLandingModel_DrawRendersLogo(t *testing.T) {
 	m.Draw(scr, scr.Bounds())
 	rendered := scr.Render()
 
-	assert.Contains(t, rendered, ".-.-.")
-	assert.Contains(t, rendered, "/./.-'_")
-	assert.Contains(t, rendered, "__.'")
+	assert.Contains(t, rendered, "█████")
+	assert.Contains(t, rendered, "░░███")
 }
 
 func TestLandingModel_DrawRendersModelInfo(t *testing.T) {
@@ -70,7 +69,7 @@ func TestLandingModel_DrawNoModel(t *testing.T) {
 	rendered := scr.Render()
 
 	// Should still render logo and hints but no model info
-	assert.Contains(t, rendered, ".-.-.")
+	assert.Contains(t, rendered, "█████")
 	assert.NotContains(t, rendered, "glm-5.1")
 }
 
@@ -81,7 +80,7 @@ func TestLanding_ShownInitially(t *testing.T) {
 	require.True(t, m.showLanding, "landing should be shown initially")
 
 	view := m.View()
-	assert.Contains(t, view.Content, ".-.-.", "view should contain landing logo")
+	assert.Contains(t, view.Content, "█████", "view should contain landing logo")
 	assert.Contains(t, view.Content, "Type a message", "view should contain placeholder")
 }
 
@@ -99,7 +98,7 @@ func TestLanding_HiddenAfterFirstSubmit(t *testing.T) {
 	assert.False(t, m.showLanding, "landing should be hidden after first submit")
 
 	view := m.View()
-	assert.NotContains(t, view.Content, ".-.-.", "view should not contain landing logo after submit")
+	assert.NotContains(t, view.Content, "█████", "view should not contain landing logo after submit")
 }
 
 func TestLanding_ReShownOnClear(t *testing.T) {
@@ -119,7 +118,7 @@ func TestLanding_ReShownOnClear(t *testing.T) {
 
 	assert.True(t, m.showLanding, "landing should re-show after /clear")
 	view := m.View()
-	assert.Contains(t, view.Content, ".-.-.")
+	assert.Contains(t, view.Content, "█████")
 }
 
 func TestLanding_ReShownOnNew(t *testing.T) {

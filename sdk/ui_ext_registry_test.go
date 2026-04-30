@@ -31,11 +31,9 @@ func TestRegisterUIExtension_DuplicatePanics(t *testing.T) {
 
 	RegisterUIExtension(&stubUIExtension{name: "dup"})
 
-	defer func() {
-		require.NotNil(t, recover(), "expected panic on duplicate UI extension registration")
-	}()
-
-	RegisterUIExtension(&stubUIExtension{name: "dup"})
+	assert.Panics(t, func() {
+		RegisterUIExtension(&stubUIExtension{name: "dup"})
+	}, "expected panic on duplicate UI extension registration")
 }
 
 func TestGetUIExtensions_Empty(t *testing.T) {

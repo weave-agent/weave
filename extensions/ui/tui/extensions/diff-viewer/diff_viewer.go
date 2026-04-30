@@ -23,9 +23,19 @@ func (d *DiffViewer) Register(ui sdk.UI) {
 	ui.RegisterRenderer("edit", &diffRenderer{})
 }
 
+var (
+	diffHeaderStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
+	diffHunkStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("5"))
+	diffAddStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
+	diffRemoveStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+	diffContextStyle = lipgloss.NewStyle().Faint(true)
+)
+
 // diffRenderer renders unified diff output with color coding.
 type diffRenderer struct{}
 
+// Render applies diff color coding to the content. The width parameter is
+// intentionally ignored; lipgloss handles terminal width automatically.
 func (r *diffRenderer) Render(content string, width int) string {
 	if content == "" {
 		return ""
@@ -43,15 +53,15 @@ func (r *diffRenderer) Render(content string, width int) string {
 
 		switch {
 		case strings.HasPrefix(line, "---") || strings.HasPrefix(line, "+++"):
-			rendered = lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Render(line)
+			rendered = diffHeaderStyle.Render(line)
 		case strings.HasPrefix(line, "@@"):
-			rendered = lipgloss.NewStyle().Foreground(lipgloss.Color("5")).Render(line)
+			rendered = diffHunkStyle.Render(line)
 		case strings.HasPrefix(line, "+"):
-			rendered = lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Render(line)
+			rendered = diffAddStyle.Render(line)
 		case strings.HasPrefix(line, "-"):
-			rendered = lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Render(line)
+			rendered = diffRemoveStyle.Render(line)
 		default:
-			rendered = lipgloss.NewStyle().Faint(true).Render(line)
+			rendered = diffContextStyle.Render(line)
 		}
 
 		bldr.WriteString(rendered)

@@ -137,6 +137,7 @@ func DefaultFile() *File {
 			"read",
 			"write",
 		},
+		UIExtensions: []string{},
 	}
 }
 
@@ -158,7 +159,8 @@ func DefaultConfigJSON() string {
     "ls",
     "read",
     "write"
-  ]
+  ],
+  "ui_extensions": []
 }`
 }
 

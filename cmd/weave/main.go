@@ -132,20 +132,6 @@ func ensurePresent(exts []string, name string) []string {
 	return append(exts, name)
 }
 
-func mergeUnique(exts []string) []string {
-	seen := make(map[string]bool, len(exts))
-	result := make([]string, 0, len(exts))
-
-	for _, e := range exts {
-		if !seen[e] {
-			seen[e] = true
-			result = append(result, e)
-		}
-	}
-
-	return result
-}
-
 func validateCoreConfig(cf *config.File) error {
 	if cf.Core.AgentLoop == "" {
 		return errAgentLoopRequired
