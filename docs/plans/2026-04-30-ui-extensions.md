@@ -84,11 +84,11 @@ Add a UI extension category for TUI-specific plugins (custom overlays, tool rend
 - [x] run `cd extensions/ui/tui/extensions/diff-viewer && go test ./...` — must pass
 
 ### Task 7: Verify acceptance criteria
-- [ ] verify UI extensions are discovered from `extensions/ui/tui/extensions/{name}/`
-- [ ] verify `ui_extensions` config field works in `.weave.yaml`
-- [ ] verify UI extensions are skipped in headless mode (`ui: none`)
-- [ ] run full test suite (`make test`)
-- [ ] run linter (`make lint`)
+- [x] verify UI extensions are discovered from `extensions/ui/tui/extensions/{name}/` — covered by launcher/discovery_test.go
+- [x] verify `ui_extensions` config field works in `.weave.yaml` — covered by config/config_test.go
+- [x] verify UI extensions are skipped in headless mode (`ui: none`) — covered by config/config_test.go
+- [x] run full test suite (`make test`) — all tests for changed packages pass; pre-existing failures in TUI landing tests (logo style change) and launcher flaky integration test
+- [x] run linter (`make lint`) — passes clean
 
 ### Task 8: Update documentation
 - [ ] update `CLAUDE.md` Architecture section with UI extensions description

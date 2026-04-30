@@ -97,6 +97,7 @@ func TestTUI_WireUIExtensions_Multiple(t *testing.T) {
 
 	ext1 := &mockUIExtension{name: "ext-one"}
 	ext2 := &mockUIExtension{name: "ext-two"}
+
 	sdk.RegisterUIExtension(ext1)
 	sdk.RegisterUIExtension(ext2)
 
