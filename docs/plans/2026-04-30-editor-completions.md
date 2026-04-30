@@ -46,11 +46,11 @@ Tab/Enter selects, arrows navigate, Esc dismisses. Popup renders above the edito
 - [x] run `cd extensions/ui/tui && go test ./components/...` — must pass before task 2
 
 ### Task 2: Add file path completion provider
-- [ ] create `extensions/ui/tui/components/path_completion.go` with `PathCompletions(baseDir, prefix string) []CompletionItem`
-- [ ] resolve prefix against baseDir, read parent directory, filter by final path component
-- [ ] directories get trailing `/` in Value, sorted alphabetically
-- [ ] write tests for: no prefix (list root files), partial match, nested paths, nonexistent dir
-- [ ] run `cd extensions/ui/tui && go test ./components/...` — must pass before task 3
+- [x] create `extensions/ui/tui/components/path_completion.go` with `PathCompletions(baseDir, prefix string) []CompletionItem`
+- [x] resolve prefix against baseDir, read parent directory, filter by final path component
+- [x] directories get trailing `/` in Value, sorted alphabetically
+- [x] write tests for: no prefix (list root files), partial match, nested paths, nonexistent dir
+- [x] run `cd extensions/ui/tui && go test ./components/...` — must pass before task 3
 
 ### Task 3: Extend CommandInfo with file-accepting flag
 - [ ] add `AcceptsFiles bool` field to `CommandInfo` in `extensions/ui/tui/commands.go`
