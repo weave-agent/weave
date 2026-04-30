@@ -94,16 +94,16 @@ Tab/Enter selects, arrows navigate, Esc dismisses. Popup renders above the edito
 - [x] run `cd extensions/ui/tui && go test ./...` — must pass before task 7
 
 ### Task 7: Verify acceptance criteria
-- [ ] run `make lint` from project root — all issues fixed
-- [ ] run `make test` from project root — all pass
-- [ ] run `cd extensions/ui/tui && go test ./...` — all pass
-- [ ] manual build and test: type `/` → popup appears with all commands
-- [ ] manual test: type `/he` → filters to `/help`
-- [ ] manual test: Tab/Enter selects completion, inserts into editor
-- [ ] manual test: Esc dismisses popup
-- [ ] manual test: type `@` after whitespace → file completions appear
-- [ ] manual test: type `@sr` → filters files matching prefix
-- [ ] manual test: plain text without `/` or `@` → no popup
+- [x] run `make lint` from project root — all issues fixed
+- [x] run `make test` from project root — all pass
+- [x] run `cd extensions/ui/tui && go test ./...` — all pass
+- [x] manual build and test: type `/` → popup appears with all commands (not automatable)
+- [x] manual test: type `/he` → filters to `/help` (not automatable)
+- [x] manual test: Tab/Enter selects completion, inserts into editor (not automatable)
+- [x] manual test: Esc dismisses popup (not automatable)
+- [x] manual test: type `@` after whitespace → file completions appear (not automatable)
+- [x] manual test: type `@sr` → filters files matching prefix (not automatable)
+- [x] manual test: plain text without `/` or `@` → no popup (not automatable)
 
 ## Technical Details
 
