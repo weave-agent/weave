@@ -35,15 +35,15 @@ Tab/Enter selects, arrows navigate, Esc dismisses. Popup renders above the edito
 ## Implementation Steps
 
 ### Task 1: Create CompletionModel component
-- [ ] create `extensions/ui/tui/components/completion.go` with `CompletionModel` struct (visible, items, filtered, cursor, filter, width, maxVisible, kind)
-- [ ] define `CompletionKind` enum: `CompletionNone`, `CompletionSlash`, `CompletionFile`
-- [ ] define `CompletionItem` struct: Label, Description, Value string
-- [ ] implement `NewCompletionModel()`, `Show()`, `Hide()`, `Visible()`, `SetFilter()` (case-insensitive prefix filter on Label)
-- [ ] implement `CursorUp()`, `CursorDown()` (wrap-around), `SelectedItem()` methods
-- [ ] implement `View() string` — bordered box, selected item bold on purple bg, descriptions dimmed, max 8 visible items
-- [ ] implement `Draw(scr uv.Screen, area uv.Rectangle)` — render into screen buffer
-- [ ] write tests for filter logic, cursor navigation, Show/Hide, empty items edge case
-- [ ] run `cd extensions/ui/tui && go test ./components/...` — must pass before task 2
+- [x] create `extensions/ui/tui/components/completion.go` with `CompletionModel` struct (visible, items, filtered, cursor, filter, width, maxVisible, kind)
+- [x] define `CompletionKind` enum: `CompletionNone`, `CompletionSlash`, `CompletionFile`
+- [x] define `CompletionItem` struct: Label, Description, Value string
+- [x] implement `NewCompletionModel()`, `Show()`, `Hide()`, `Visible()`, `SetFilter()` (case-insensitive prefix filter on Label)
+- [x] implement `CursorUp()`, `CursorDown()` (wrap-around), `SelectedItem()` methods
+- [x] implement `View() string` — bordered box, selected item bold on purple bg, descriptions dimmed, max 8 visible items
+- [x] implement `Draw(scr uv.Screen, area uv.Rectangle)` — render into screen buffer
+- [x] write tests for filter logic, cursor navigation, Show/Hide, empty items edge case
+- [x] run `cd extensions/ui/tui && go test ./components/...` — must pass before task 2
 
 ### Task 2: Add file path completion provider
 - [ ] create `extensions/ui/tui/components/path_completion.go` with `PathCompletions(baseDir, prefix string) []CompletionItem`
