@@ -176,8 +176,7 @@ func TestTUIExtensionAddedWhenNoPrompt(t *testing.T) {
 		UI:         "tui",
 	}
 
-	coreExts, optExts := cf.CoreExts()
-	allExts := mergeUnique(append(coreExts, optExts...))
+	allExts := cf.AllExtensions()
 
 	if cf.Prompt == "" && cf.UI != "" && cf.UI != "none" {
 		allExts = ensurePresent(allExts, cf.UI)
@@ -197,8 +196,7 @@ func TestTUIExtensionExcludedWhenPromptSet(t *testing.T) {
 		UI:         "tui",
 	}
 
-	coreExts, optExts := cf.CoreExts()
-	allExts := mergeUnique(append(coreExts, optExts...))
+	allExts := cf.AllExtensions()
 
 	if cf.Prompt == "" && cf.UI != "" && cf.UI != "none" {
 		allExts = ensurePresent(allExts, cf.UI)
@@ -214,8 +212,7 @@ func TestTUIExtensionExcludedWhenUINone(t *testing.T) {
 		UI:         "none",
 	}
 
-	coreExts, optExts := cf.CoreExts()
-	allExts := mergeUnique(append(coreExts, optExts...))
+	allExts := cf.AllExtensions()
 
 	if cf.Prompt == "" && cf.UI != "" && cf.UI != "none" {
 		allExts = ensurePresent(allExts, cf.UI)
@@ -231,8 +228,7 @@ func TestSkillsAlwaysIncluded(t *testing.T) {
 		UI:         "tui",
 	}
 
-	coreExts, optExts := cf.CoreExts()
-	allExts := mergeUnique(append(coreExts, optExts...))
+	allExts := cf.AllExtensions()
 	allExts = ensurePresent(allExts, "skills")
 
 	assert.Contains(t, allExts, "skills", "skills should always be in extension list")
@@ -246,12 +242,63 @@ func TestSkillsIncludedInHeadlessMode(t *testing.T) {
 		UI:         "none",
 	}
 
-	coreExts, optExts := cf.CoreExts()
-	allExts := mergeUnique(append(coreExts, optExts...))
+	allExts := cf.AllExtensions()
 	allExts = ensurePresent(allExts, "skills")
 
 	assert.Contains(t, allExts, "skills", "skills should be included even in headless mode")
 	assert.NotContains(t, allExts, "tui", "tui should not be included in headless mode")
+}
+
+func TestUIExtensionsIncludedInTUIMode(t *testing.T) {
+	cf := &config.File{
+		Core:         config.CoreConfig{AgentLoop: "loop", Providers: []string{"anthropic"}},
+		Extensions:   []string{"bash"},
+		UIExtensions: []string{"diff-viewer"},
+		UI:           "tui",
+	}
+
+	allExts := cf.AllExtensions()
+
+	assert.Contains(t, allExts, "diff-viewer", "UI extensions should be included when ui is 'tui'")
+	assert.Contains(t, allExts, "bash")
+	assert.Contains(t, allExts, "loop")
+	assert.Contains(t, allExts, "anthropic")
+}
+
+func TestUIExtensionsExcludedInHeadlessMode(t *testing.T) {
+	cf := &config.File{
+		Core:         config.CoreConfig{AgentLoop: "loop", Providers: []string{"anthropic"}},
+		Extensions:   []string{"bash"},
+		UIExtensions: []string{"diff-viewer"},
+		UI:           "none",
+	}
+
+	allExts := cf.AllExtensions()
+
+	assert.NotContains(t, allExts, "diff-viewer", "UI extensions should be excluded when ui is 'none'")
+	assert.Contains(t, allExts, "bash")
+	assert.Contains(t, allExts, "loop")
+	assert.Contains(t, allExts, "anthropic")
+}
+
+func TestUIExtensionsNotDuplicated(t *testing.T) {
+	cf := &config.File{
+		Core:         config.CoreConfig{AgentLoop: "loop", Providers: []string{"anthropic"}},
+		Extensions:   []string{"bash", "diff-viewer"},
+		UIExtensions: []string{"diff-viewer"},
+		UI:           "tui",
+	}
+
+	allExts := cf.AllExtensions()
+
+	count := 0
+	for _, ext := range allExts {
+		if ext == "diff-viewer" {
+			count++
+		}
+	}
+
+	assert.Equal(t, 1, count, "UI extension should appear exactly once even if also in extensions list")
 }
 
 func TestSkillsNotDuplicated(t *testing.T) {
@@ -261,8 +308,7 @@ func TestSkillsNotDuplicated(t *testing.T) {
 		UI:         "tui",
 	}
 
-	coreExts, optExts := cf.CoreExts()
-	allExts := mergeUnique(append(coreExts, optExts...))
+	allExts := cf.AllExtensions()
 	allExts = ensurePresent(allExts, "skills")
 
 	skillsCount := 0

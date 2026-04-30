@@ -61,9 +61,9 @@ Add a UI extension category for TUI-specific plugins (custom overlays, tool rend
 - [x] run `go test ./config/...` — must pass before task 3
 
 ### Task 3: Update entry point to use AllExtensions
-- [ ] replace `coreExts, optExts := cf.CoreExts()` usage in `cmd/weave/main.go` with `cf.AllExtensions()` merge
-- [ ] ensure skills and UI extension injection still works correctly with the new merged list
-- [ ] run `go build ./cmd/weave/...` — must compile before task 4
+- [x] replace `coreExts, optExts := cf.CoreExts()` usage in `cmd/weave/main.go` with `cf.AllExtensions()` merge
+- [x] ensure skills and UI extension injection still works correctly with the new merged list
+- [x] run `go build ./cmd/weave/...` — must compile before task 4
 
 ### Task 4: Add TUI extensions discovery path to launcher
 - [ ] in `launcher/discovery.go`, add fallback search in `extensions/ui/tui/extensions/{name}/` for names not found in standard built-in locations

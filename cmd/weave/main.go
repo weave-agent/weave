@@ -66,8 +66,7 @@ func run(args ...string) (exitCode int) {
 		}
 	}
 
-	coreExts, optExts := cf.CoreExts()
-	allExts := mergeUnique(append(coreExts, optExts...))
+	allExts := cf.AllExtensions()
 
 	// Skills extension is always included — it discovers skill directories
 	// and injects descriptions into the system prompt even in headless mode.
