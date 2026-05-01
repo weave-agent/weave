@@ -51,7 +51,8 @@ func NewEditorModel() EditorModel {
 	ta.MaxHeight = 15
 	ta.CharLimit = -1
 	ta.ShowLineNumbers = false
-	ta.SetVirtualCursor(false)
+	ta.SetVirtualCursor(true)
+	ta.Prompt = ""
 	ta.SetHeight(3)
 	ta.Focus()
 
