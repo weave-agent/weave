@@ -303,13 +303,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Fall through to editor
 		oldValue := m.editor.Value()
+		oldLine := m.editor.CursorLine()
+		oldCol := m.editor.CursorColumn()
 
 		var cmd tea.Cmd
 
 		m.editor, cmd = m.editor.Update(msg)
 
-		// Refresh completion state when editor content changed
-		if m.editor.Value() != oldValue {
+		// Refresh completion state when editor content or cursor position changed
+		if m.editor.Value() != oldValue || m.editor.CursorLine() != oldLine || m.editor.CursorColumn() != oldCol {
 			m = m.refreshEditorCompletion()
 		}
 
@@ -1491,19 +1493,42 @@ func (m Model) refreshEditorCompletion() Model {
 
 	// File path completion: "@" after whitespace
 	atIdx := strings.LastIndex(line, "@")
-	if atIdx >= 0 {
-		if atIdx == 0 || isWhitespace(line[atIdx-1]) {
-			filter := line[atIdx+1:]
-			items := components.PathCompletions(".", filter)
-			triggerOffset := lineStart + atIdx
-			m.editor = m.editor.ShowCompletion(components.CompletionFile, items, filter, triggerOffset)
+	if atIdx < 0 || (atIdx > 0 && !isWhitespace(line[atIdx-1])) {
+		m.editor = m.editor.HideCompletion()
 
-			return m
-		}
+		return m
 	}
 
-	// No completion context
-	m.editor = m.editor.HideCompletion()
+	afterAt := line[atIdx+1:]
+
+	// Stop at first whitespace — token boundary. If user typed past the
+	// token (e.g. "@foo bar"), hide completion.
+	if strings.Contains(afterAt, " ") {
+		m.editor = m.editor.HideCompletion()
+
+		return m
+	}
+
+	// Only complete text between @ and the cursor
+	cursorCol := m.editor.CursorColumn()
+	atRunePos := len([]rune(line[:atIdx]))
+
+	if cursorCol <= atRunePos {
+		m.editor = m.editor.HideCompletion()
+
+		return m
+	}
+
+	tokenLen := cursorCol - atRunePos - 1 // runes after @ up to cursor
+	filter := afterAt
+
+	if runeFilter := []rune(filter); len(runeFilter) > tokenLen {
+		filter = string(runeFilter[:tokenLen])
+	}
+
+	items := components.PathCompletions(".", filter)
+	triggerOffset := lineStart + atIdx
+	m.editor = m.editor.ShowCompletion(components.CompletionFile, items, filter, triggerOffset)
 
 	return m
 }

@@ -454,7 +454,8 @@ func (m EditorModel) CompletionActive() bool {
 
 // applyCompletion replaces the trigger portion of the textarea value with the
 // selected completion item and hides the popup. Replaces from triggerOffset to
-// the current cursor position, preserving any text after the cursor.
+// the end of the token being completed (next whitespace), so cursor position
+// within the token does not affect the result.
 func (m EditorModel) applyCompletion() EditorModel {
 	item, ok := m.completion.SelectedItem()
 	if !ok {
@@ -462,15 +463,22 @@ func (m EditorModel) applyCompletion() EditorModel {
 	}
 
 	value := m.ta.Value()
-	cursorOffset := cursorByteOffset(value, m.ta.Line(), m.ta.Column())
 
 	offset := m.triggerOffset
 	if offset >= 0 && offset < len(value) && value[offset] == ' ' {
 		offset++ // keep the space as a separator
 	}
 
-	if offset >= 0 && offset <= cursorOffset && cursorOffset <= len(value) {
-		m.ta.SetValue(value[:offset] + item.Value + value[cursorOffset:])
+	// Find end of token (next whitespace after trigger), not cursor position
+	endOffset := offset
+	if offset >= 0 {
+		for endOffset < len(value) && value[endOffset] != ' ' && value[endOffset] != '\t' {
+			endOffset++
+		}
+	}
+
+	if offset >= 0 && offset <= len(value) {
+		m.ta.SetValue(value[:offset] + item.Value + value[endOffset:])
 	}
 
 	return m.HideCompletion()
