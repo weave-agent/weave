@@ -71,11 +71,23 @@ func (t *TUI) Name() string { return "tui" }
 func (t *TUI) Subscribe(bus sdk.Bus) {
 	events := make(chan sdk.Event, 256)
 
+	var eventsMu sync.Mutex
+
+	eventsClosed := false
+
 	bus.OnAll(func(ev sdk.Event) error {
+		eventsMu.Lock()
+		if eventsClosed {
+			eventsMu.Unlock()
+			return nil
+		}
+
 		select {
 		case events <- ev:
 		default:
 		}
+
+		eventsMu.Unlock()
 
 		return nil
 	})
@@ -98,7 +110,11 @@ func (t *TUI) Subscribe(bus sdk.Bus) {
 
 	t.ui.Close()
 
+	eventsMu.Lock()
+	eventsClosed = true
+
 	close(events)
+	eventsMu.Unlock()
 
 	endPayload := any(nil)
 	if err != nil {

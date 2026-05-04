@@ -87,8 +87,8 @@ func (b *Bus) runSlot(slot *handlerSlot) {
 }
 
 func (b *Bus) Off(h sdk.Handler) {
-	b.closeMu.RLock()
-	defer b.closeMu.RUnlock()
+	b.closeMu.Lock()
+	defer b.closeMu.Unlock()
 
 	if b.closed {
 		return

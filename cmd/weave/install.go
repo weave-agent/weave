@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -107,8 +108,13 @@ func runInstall(args []string) int {
 
 // parseSource classifies and resolves an install source string.
 func parseSource(source string) (parsedSource, error) {
-	// Git URL: https://..., http://..., git://...
-	if strings.HasPrefix(source, "https://") || strings.HasPrefix(source, "http://") || strings.HasPrefix(source, "git://") {
+	// Reject insecure http:// URLs — extensions are compiled and executed.
+	if strings.HasPrefix(source, "http://") {
+		return parsedSource{}, fmt.Errorf("insecure URL %q (use https:// instead)", source)
+	}
+
+	// Git URL: https://..., git://...
+	if strings.HasPrefix(source, "https://") || strings.HasPrefix(source, "git://") {
 		return parsedSource{
 			kind:    sourceGitURL,
 			gitURL:  source,
@@ -162,9 +168,13 @@ func parseSource(source string) (parsedSource, error) {
 }
 
 // deriveNameFromURL extracts the repo name from a git URL.
-func deriveNameFromURL(url string) string {
-	// Take the last path segment, strip .git suffix.
-	base := filepath.Base(url)
+func deriveNameFromURL(rawURL string) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return filepath.Base(rawURL)
+	}
+
+	base := filepath.Base(parsed.Path)
 	base = strings.TrimSuffix(base, ".git")
 
 	return base

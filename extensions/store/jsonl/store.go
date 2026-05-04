@@ -123,14 +123,18 @@ func (s *Store) Subscribe(bus sdk.Bus) {
 	go func() {
 		defer close(s.done)
 
-		for ev := range ch {
-			s.dispatch(ev)
-		}
-	}()
+		for {
+			select {
+			case ev, ok := <-ch:
+				if !ok {
+					return
+				}
 
-	go func() {
-		<-ctx.Done()
-		close(ch)
+				s.dispatch(ev)
+			case <-ctx.Done():
+				return
+			}
+		}
 	}()
 }
 
