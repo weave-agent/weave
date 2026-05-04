@@ -17,6 +17,8 @@ type Config interface {
 	FilePath() string
 	ProviderConfig(name string) *ProviderConfigEntry
 	ResolveKey(providerName, envVar string) (string, error)
+	ToolConfig(name string, target interface{}) error
+	UIConfig(target interface{}) error
 }
 
 type noopConfig struct{}
@@ -26,6 +28,8 @@ func (noopConfig) ProviderConfig(string) *ProviderConfigEntry { return nil }
 func (noopConfig) ResolveKey(_, envVar string) (string, error) {
 	return os.Getenv(envVar), nil
 }
+func (noopConfig) ToolConfig(string, interface{}) error { return nil }
+func (noopConfig) UIConfig(interface{}) error           { return nil }
 
 // FilePathConfig is a Config that returns the given path from FilePath().
 type FilePathConfig string
@@ -35,6 +39,8 @@ func (f FilePathConfig) ProviderConfig(string) *ProviderConfigEntry { return nil
 func (f FilePathConfig) ResolveKey(_, envVar string) (string, error) {
 	return os.Getenv(envVar), nil
 }
+func (f FilePathConfig) ToolConfig(string, interface{}) error { return nil }
+func (f FilePathConfig) UIConfig(interface{}) error           { return nil }
 
 func configOrDefault(cfg Config) Config {
 	if cfg != nil {

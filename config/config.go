@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/nniel-ape/gonfig"
@@ -388,4 +390,102 @@ func (c *FullConfig) ResolveKey(providerName, envVar string) (string, error) {
 	}
 
 	return ResolveProviderKey(providerName, envVar, c.file.ProviderConfig(providerName), auth)
+}
+
+func (c *FullConfig) ToolConfig(name string, target any) error {
+	configDir := filepath.Dir(c.filePath)
+
+	settings, err := LoadLayeredSettings(configDir)
+	if err != nil {
+		return fmt.Errorf("load settings for tool config: %w", err)
+	}
+
+	applyDefaults(target)
+
+	if settings.Tools == nil {
+		return nil
+	}
+
+	raw, ok := settings.Tools[name]
+	if !ok {
+		return nil
+	}
+
+	return populateConfig(raw, target)
+}
+
+func (c *FullConfig) UIConfig(target any) error {
+	configDir := filepath.Dir(c.filePath)
+
+	settings, err := LoadLayeredSettings(configDir)
+	if err != nil {
+		return fmt.Errorf("load settings for UI config: %w", err)
+	}
+
+	applyDefaults(target)
+
+	if settings.UI == nil {
+		return nil
+	}
+
+	return populateConfig(settings.UI, target)
+}
+
+// populateConfig JSON round-trips a map/struct into target and applies default
+// struct tags for zero-value fields.
+func populateConfig(raw, target any) error {
+	jsonBytes, err := json.Marshal(raw)
+	if err != nil {
+		return fmt.Errorf("marshal config: %w", err)
+	}
+
+	if err := json.Unmarshal(jsonBytes, target); err != nil {
+		return fmt.Errorf("unmarshal config: %w", err)
+	}
+
+	return nil
+}
+
+// applyDefaults sets zero-value fields from their `default` struct tags.
+func applyDefaults(target any) {
+	v := reflect.ValueOf(target).Elem()
+
+	t := v.Type()
+
+	for i := range v.NumField() {
+		field := v.Field(i)
+		if !field.CanSet() {
+			continue
+		}
+
+		defTag := t.Field(i).Tag.Get("default")
+		if defTag == "" {
+			continue
+		}
+
+		if !field.IsZero() {
+			continue
+		}
+
+		switch field.Kind() {
+		case reflect.String:
+			field.SetString(defTag)
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			if n, err := strconv.ParseInt(defTag, 10, 64); err == nil {
+				field.SetInt(n)
+			}
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			if n, err := strconv.ParseUint(defTag, 10, 64); err == nil {
+				field.SetUint(n)
+			}
+		case reflect.Float32, reflect.Float64:
+			if f, err := strconv.ParseFloat(defTag, 64); err == nil {
+				field.SetFloat(f)
+			}
+		case reflect.Bool:
+			if b, err := strconv.ParseBool(defTag); err == nil {
+				field.SetBool(b)
+			}
+		}
+	}
 }

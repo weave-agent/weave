@@ -15,11 +15,26 @@ import (
 
 const defaultTimeout = 120 * time.Second
 
-type tool struct{}
+// BashConfig holds per-tool settings for the bash tool.
+type BashConfig struct {
+	Timeout int `json:"timeout" default:"120"`
+}
+
+type tool struct {
+	timeout time.Duration
+}
 
 func init() {
-	sdk.RegisterTool("bash", func(_ sdk.Config) (sdk.Tool, error) {
-		return &tool{}, nil
+	sdk.RegisterTool("bash", func(cfg sdk.Config) (sdk.Tool, error) {
+		var bc BashConfig
+		_ = cfg.ToolConfig("bash", &bc)
+
+		timeout := time.Duration(bc.Timeout) * time.Second
+		if timeout <= 0 {
+			timeout = defaultTimeout
+		}
+
+		return &tool{timeout: timeout}, nil
 	})
 }
 
@@ -52,7 +67,10 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 		return sdk.ToolResult{Content: "error: command is required", IsError: true}, nil
 	}
 
-	timeout := defaultTimeout
+	timeout := t.timeout
+	if timeout <= 0 {
+		timeout = defaultTimeout
+	}
 
 	if v, ok := args["timeout"]; ok {
 		if f, ok := v.(float64); ok && f > 0 {

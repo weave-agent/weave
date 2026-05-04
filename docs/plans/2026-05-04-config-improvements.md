@@ -88,17 +88,17 @@ Improve weave's configuration system with four focused changes:
 - [x] run `go test ./config/...` — must pass before next task
 
 ### Task 3: Typed tool config schemas
-- [ ] add `SettingsConfig` interface to `sdk/config.go`:
+- [x] add `SettingsConfig` interface to `sdk/config.go`:
   ```go
   type SettingsConfig interface {
       ToolConfig(name string, target interface{}) error
       UIConfig(target interface{}) error
   }
   ```
-- [ ] add `RegisterToolWithConfig` to `sdk/tool_registry.go` — factory receives config struct type, auto-populated from settings
-- [ ] implement `ToolConfig` on `FullConfig` — reads from merged settings `tools.{name}` block, JSON round-trips into target struct, applies defaults from struct tags
-- [ ] implement `UIConfig` on `FullConfig` — reads from merged settings `ui` block
-- [ ] update bash tool as reference implementation:
+- [x] add `RegisterToolWithConfig` to `sdk/tool_registry.go` — factory receives config struct type, auto-populated from settings
+- [x] implement `ToolConfig` on `FullConfig` — reads from merged settings `tools.{name}` block, JSON round-trips into target struct, applies defaults from struct tags
+- [x] implement `UIConfig` on `FullConfig` — reads from merged settings `ui` block
+- [x] update bash tool as reference implementation:
   ```go
   type BashConfig struct {
       Timeout int `json:"timeout" default:"120"`
@@ -107,10 +107,10 @@ Improve weave's configuration system with four focused changes:
   //     var bc BashConfig; cfg.ToolConfig("bash", &bc); return &tool{timeout: bc.Timeout}, nil
   // })
   ```
-- [ ] write tests for `ToolConfig` (populated struct, defaults, missing section)
-- [ ] write tests for `UIConfig` (populated struct, defaults, missing section)
-- [ ] run `go test ./config/... ./sdk/...` — must pass before next task
-- [ ] run `cd extensions/tools/bash && go test ./...` — must pass
+- [x] write tests for `ToolConfig` (populated struct, defaults, missing section)
+- [x] write tests for `UIConfig` (populated struct, defaults, missing section)
+- [x] run `go test ./config/... ./sdk/...` — must pass before next task
+- [x] run `cd extensions/tools/bash && go test ./...` — must pass
 
 ### Task 4: Config validation
 - [ ] create `config/validation.go` with `Validate(f *File) error` function
