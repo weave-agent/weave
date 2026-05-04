@@ -1479,7 +1479,11 @@ func (m Model) slashCommandCompletion(line string, lineStart int) Model {
 
 		items := make([]components.CompletionItem, 0, len(names))
 		for _, name := range names {
-			info, _ := m.commands.Lookup(name)
+			info, ok := m.commands.Lookup(name)
+			if !ok {
+				continue
+			}
+
 			items = append(items, components.CompletionItem{
 				Label:       strings.TrimPrefix(name, "/"),
 				Description: info.Description,
@@ -1500,7 +1504,15 @@ func (m Model) slashCommandCompletion(line string, lineStart int) Model {
 	if info, ok := m.commands.Lookup(cmdName); ok && info.AcceptsFiles {
 		items := components.PathCompletions(".", afterSpace)
 		triggerOffset := lineStart + len(cmdName) + 1
-		m.editor = m.editor.ShowCompletion(components.CompletionFile, items, afterSpace, triggerOffset)
+		// PathCompletions already filters by prefix, pass empty filter to avoid
+		// double-filtering: SetFilter checks HasPrefix(Label, filter) but Label
+		// is just the filename (e.g. "main.go"), not the full path.
+		comp := m.editor.ShowCompletion(components.CompletionFile, items, "", triggerOffset)
+		if comp.Completion().FilteredCount() == 0 {
+			m.editor = m.editor.HideCompletion()
+		} else {
+			m.editor = comp
+		}
 
 		return m
 	}
@@ -1545,7 +1557,15 @@ func (m Model) atFileCompletion(line string, lineStart int) Model {
 
 	items := components.PathCompletions(".", filter)
 	triggerOffset := lineStart + atIdx
-	m.editor = m.editor.ShowCompletion(components.CompletionFile, items, filter, triggerOffset)
+	// PathCompletions already filters by prefix, pass empty filter to avoid
+	// double-filtering: SetFilter checks HasPrefix(Label, filter) but Label
+	// is just the filename (e.g. "main.go"), not the full path.
+	comp := m.editor.ShowCompletion(components.CompletionFile, items, "", triggerOffset)
+	if comp.Completion().FilteredCount() == 0 {
+		m.editor = m.editor.HideCompletion()
+	} else {
+		m.editor = comp
+	}
 
 	return m
 }

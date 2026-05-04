@@ -479,7 +479,7 @@ func (m EditorModel) applyCompletion() EditorModel {
 	// Find end of token (next whitespace after trigger), not cursor position
 	endOffset := offset
 	if offset >= 0 {
-		for endOffset < len(value) && value[endOffset] != ' ' && value[endOffset] != '\t' {
+		for endOffset < len(value) && value[endOffset] != ' ' && value[endOffset] != '\t' && value[endOffset] != '\n' {
 			endOffset++
 		}
 	}

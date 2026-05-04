@@ -1946,7 +1946,7 @@ func TestModel_RefreshEditorCompletion_AtTrigger(t *testing.T) {
 
 func TestModel_RefreshEditorCompletion_AtTriggerWithFilter(t *testing.T) {
 	m := newModel(nil, nil, nil)
-	m.editor = m.editor.SetValue("text @sr")
+	m.editor = m.editor.SetValue("text @go")
 	m = m.refreshEditorCompletion()
 	assert.True(t, m.editor.CompletionActive())
 	assert.Equal(t, components.CompletionFile, m.editor.Completion().Kind())
@@ -1954,7 +1954,7 @@ func TestModel_RefreshEditorCompletion_AtTriggerWithFilter(t *testing.T) {
 
 func TestModel_RefreshEditorCompletion_AtTriggerAtStart(t *testing.T) {
 	m := newModel(nil, nil, nil)
-	m.editor = m.editor.SetValue("@fi")
+	m.editor = m.editor.SetValue("@mod")
 	m = m.refreshEditorCompletion()
 	assert.True(t, m.editor.CompletionActive())
 	assert.Equal(t, components.CompletionFile, m.editor.Completion().Kind())
