@@ -14,6 +14,13 @@ import (
 	"github.com/pmezard/go-difflib/difflib"
 )
 
+// Parameter name constants.
+const (
+	ParamEdits   = "edits"
+	ParamOldText = "oldText"
+	ParamNewText = "newText"
+)
+
 type tool struct{}
 
 func init() {
@@ -35,26 +42,26 @@ func (t *tool) Definition() sdk.ToolDef {
 					"type":        "string",
 					"description": "The absolute path to the file to edit.",
 				},
-				"edits": map[string]any{
+				ParamEdits: map[string]any{
 					"type": "array",
 					"items": map[string]any{
 						"type": "object",
 						"properties": map[string]any{
-							"oldText": map[string]any{
+							ParamOldText: map[string]any{
 								"type":        "string",
 								"description": "The text to find. Empty means create a new file.",
 							},
-							"newText": map[string]any{
+							ParamNewText: map[string]any{
 								"type":        "string",
 								"description": "The text to replace with.",
 							},
 						},
-						"required": []string{"oldText", "newText"},
+						"required": []string{ParamOldText, ParamNewText},
 					},
 					"description": "List of text replacements to apply in order.",
 				},
 			},
-			"required": []string{"path", "edits"},
+			"required": []string{"path", ParamEdits},
 		},
 	}
 }
@@ -65,7 +72,7 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		return sdk.ToolResult{Content: "error: path is required", IsError: true}, nil
 	}
 
-	editsRaw, ok := args["edits"].([]any)
+	editsRaw, ok := args[ParamEdits].([]any)
 	if !ok || len(editsRaw) == 0 {
 		return sdk.ToolResult{Content: "error: at least one edit is required", IsError: true}, nil
 	}
@@ -77,8 +84,8 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 			return sdk.ToolResult{Content: fmt.Sprintf("error: edit %d is not an object", i), IsError: true}, nil
 		}
 
-		oldText, _ := m["oldText"].(string)
-		newText, _ := m["newText"].(string)
+		oldText, _ := m[ParamOldText].(string)
+		newText, _ := m[ParamNewText].(string)
 		edits = append(edits, struct{ oldText, newText string }{oldText, newText})
 	}
 

@@ -93,7 +93,7 @@ func loadSettingsFile(path string) (*Settings, error) {
 			return &Settings{}, nil
 		}
 
-		return nil, err
+		return nil, fmt.Errorf("read settings file %s: %w", path, err)
 	}
 
 	var s Settings
@@ -140,5 +140,6 @@ func loadLocalSettings(projectDir string) (*Settings, error) {
 	}
 
 	path := filepath.Join(projectDir, ".weave", "settings.local.json")
+
 	return loadSettingsFile(path)
 }

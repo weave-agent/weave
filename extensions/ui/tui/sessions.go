@@ -14,6 +14,8 @@ import (
 	"github.com/nniel-ape/gonfig"
 )
 
+const entryTypeMessage = "message"
+
 // SessionEntry holds minimal session metadata for the selector.
 type SessionEntry struct {
 	ID        string
@@ -185,7 +187,7 @@ func loadSessionEntries(dirOverride, sessionID string) ([]sessionEntryData, erro
 			continue
 		}
 
-		if raw.Type != "message" {
+		if raw.Type != entryTypeMessage {
 			continue
 		}
 

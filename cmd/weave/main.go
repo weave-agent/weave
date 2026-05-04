@@ -74,12 +74,12 @@ func run(args ...string) (exitCode int) {
 
 	// Add UI extension when no prompt is provided (interactive mode).
 	// When a prompt is set (-p flag), the agent runs in print mode without TUI.
-	if cf.Prompt == "" && cf.UI != "" && cf.UI != "none" {
+	if cf.Prompt == "" && cf.UI != "" && cf.UI != config.UIValueNone {
 		allExts = ensurePresent(allExts, cf.UI)
 	}
 
 	// Without a prompt and without a UI, the agent has no input and will hang.
-	if cf.Prompt == "" && (cf.UI == "" || cf.UI == "none") {
+	if cf.Prompt == "" && (cf.UI == "" || cf.UI == config.UIValueNone) {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", errNoInput)
 		return 1
 	}

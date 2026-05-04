@@ -239,7 +239,7 @@ func TestApplyDefaults_SkipsNoTag(t *testing.T) {
 		Name string
 	}
 	applyDefaults(&s)
-	assert.Equal(t, "", s.Name)
+	assert.Empty(t, s.Name)
 }
 
 func TestPopulateConfig_RoundTrip(t *testing.T) {

@@ -10,6 +10,12 @@ import (
 	"weave/sdk"
 )
 
+// Parameter name constants.
+const (
+	ParamPath    = "path"
+	ParamContent = "content"
+)
+
 type tool struct{}
 
 func init() {
@@ -27,27 +33,27 @@ func (t *tool) Definition() sdk.ToolDef {
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"path": map[string]any{
+				ParamPath: map[string]any{
 					"type":        "string",
 					"description": "The file path to write to.",
 				},
-				"content": map[string]any{
+				ParamContent: map[string]any{
 					"type":        "string",
 					"description": "The content to write.",
 				},
 			},
-			"required": []string{"path", "content"},
+			"required": []string{ParamPath, ParamContent},
 		},
 	}
 }
 
 func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, error) {
-	path, _ := args["path"].(string)
+	path, _ := args[ParamPath].(string)
 	if path == "" {
 		return sdk.ToolResult{Content: "error: path is required", IsError: true}, nil
 	}
 
-	content, _ := args["content"].(string)
+	content, _ := args[ParamContent].(string)
 
 	dir := filepath.Dir(path)
 	if dir != "." {

@@ -31,11 +31,18 @@ func (e ModelEntry) DisplayName() string {
 	return e.Display()
 }
 
+const (
+	providerAnthropic = "anthropic"
+	providerOpenAI    = "openai"
+
+	defaultModelID = "claude-sonnet-4-6"
+)
+
 // providerModelEnv maps provider names to their model override env vars.
 var providerModelEnv = map[string]string{
-	"anthropic": "ANTHROPIC_MODEL",
-	"openai":    "OPENAI_MODEL",
-	"zai":       "ZAI_MODEL",
+	providerAnthropic: "ANTHROPIC_MODEL",
+	providerOpenAI:    "OPENAI_MODEL",
+	"zai":             "ZAI_MODEL",
 }
 
 // listModels returns model entries for providers that are registered and have
@@ -102,7 +109,7 @@ func currentModel(entries []ModelEntry, configDir string) ModelEntry {
 
 	provider := os.Getenv("WEAVE_PROVIDER")
 	if provider == "" {
-		provider = "anthropic"
+		provider = providerAnthropic
 	}
 
 	if def, ok := sdk.DefaultModelForProvider(provider); ok {
@@ -123,7 +130,7 @@ func currentModel(entries []ModelEntry, configDir string) ModelEntry {
 		return entries[0]
 	}
 
-	return ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-6"}
+	return ModelEntry{Provider: providerAnthropic, Model: defaultModelID}
 }
 
 // initialModel returns the model entry to use at TUI startup. It applies

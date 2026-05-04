@@ -18,6 +18,9 @@ import (
 	"weave/sdk"
 )
 
+// EventTypeMessage is the event type for message entries.
+const EventTypeMessage = "message"
+
 type SessionHeader struct {
 	Type      string    `json:"type"`
 	ID        string    `json:"id"`
@@ -181,7 +184,7 @@ func (s *Store) handlePrompt(evt sdk.Event) {
 	})
 
 	entry := Entry{
-		Type: "message",
+		Type: EventTypeMessage,
 		Turn: 1,
 		Data: data,
 	}
@@ -231,7 +234,7 @@ func (s *Store) appendUserEntry(sessionID string, turn int, parentID string, evt
 
 	entry := Entry{
 		ParentID: parentID,
-		Type:     "message",
+		Type:     EventTypeMessage,
 		Turn:     turn,
 		Data:     data,
 	}
@@ -296,7 +299,7 @@ func (s *Store) handleMsgEnd(evt sdk.Event) {
 	entry := Entry{
 		ID:       id,
 		ParentID: lastEntry,
-		Type:     "message",
+		Type:     EventTypeMessage,
 		Turn:     turn,
 		Data:     data,
 	}
@@ -335,7 +338,7 @@ func (s *Store) handleToolResult(evt sdk.Event) {
 	entry := Entry{
 		ID:       id,
 		ParentID: lastEntry,
-		Type:     "message",
+		Type:     EventTypeMessage,
 		Turn:     turn,
 		Data:     data,
 	}

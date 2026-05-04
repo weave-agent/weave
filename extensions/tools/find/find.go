@@ -12,6 +12,9 @@ import (
 	"weave/utils/truncate"
 )
 
+// ParamPattern is the tool parameter name for the glob pattern.
+const ParamPattern = "pattern"
+
 type tool struct{}
 
 func init() {
@@ -29,7 +32,7 @@ func (t *tool) Definition() sdk.ToolDef {
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"pattern": map[string]any{
+				ParamPattern: map[string]any{
 					"type":        "string",
 					"description": "Glob pattern to match against file names (e.g. \"*.go\", \"config.yaml\").",
 				},
@@ -38,7 +41,7 @@ func (t *tool) Definition() sdk.ToolDef {
 					"description": "Directory to search in. Defaults to current directory.",
 				},
 			},
-			"required": []string{"pattern"},
+			"required": []string{ParamPattern},
 		},
 	}
 }
@@ -53,7 +56,7 @@ func matchName(pattern, name, rel string) bool {
 }
 
 func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, error) {
-	pattern, _ := args["pattern"].(string)
+	pattern, _ := args[ParamPattern].(string)
 	if pattern == "" {
 		return sdk.ToolResult{Content: "error: pattern is required", IsError: true}, nil
 	}

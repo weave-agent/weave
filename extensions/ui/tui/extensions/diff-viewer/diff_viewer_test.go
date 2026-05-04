@@ -24,16 +24,18 @@ func newMockUI() *mockUI {
 }
 
 func (m *mockUI) Select(title string, items []string) (int, error) { return -1, nil }
-func (m *mockUI) Confirm(message string) (bool, error)              { return false, nil }
-func (m *mockUI) Input(prompt string) (string, error)               { return "", nil }
-func (m *mockUI) SetStatus(key, text string)                        {}
-func (m *mockUI) Notify(message string)                             {}
+func (m *mockUI) Confirm(message string) (bool, error)             { return false, nil }
+func (m *mockUI) Input(prompt string) (string, error)              { return "", nil }
+func (m *mockUI) SetStatus(key, text string)                       {}
+func (m *mockUI) Notify(message string)                            {}
 func (m *mockUI) RegisterCommand(name string, handler func(args string) error) {
 	m.commands[name] = handler
 }
+
 func (m *mockUI) RegisterRenderer(toolName string, renderer sdk.ToolRenderer) {
 	m.renderers[toolName] = renderer
 }
+
 func (m *mockUI) RegisterKeybinding(kb sdk.Keybinding) {
 	m.bindings = append(m.bindings, kb)
 }

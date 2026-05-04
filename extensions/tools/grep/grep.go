@@ -14,6 +14,9 @@ import (
 	"weave/utils/truncate"
 )
 
+// ParamPattern is the tool parameter name for the search pattern.
+const ParamPattern = "pattern"
+
 type tool struct{}
 
 func init() {
@@ -31,7 +34,7 @@ func (t *tool) Definition() sdk.ToolDef {
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"pattern": map[string]any{
+				ParamPattern: map[string]any{
 					"type":        "string",
 					"description": "The regular expression pattern to search for.",
 				},
@@ -52,13 +55,13 @@ func (t *tool) Definition() sdk.ToolDef {
 					"description": "Number of context lines before and after each match. Defaults to 0.",
 				},
 			},
-			"required": []string{"pattern"},
+			"required": []string{ParamPattern},
 		},
 	}
 }
 
 func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, error) {
-	pattern, _ := args["pattern"].(string)
+	pattern, _ := args[ParamPattern].(string)
 	if pattern == "" {
 		return sdk.ToolResult{Content: "error: pattern is required", IsError: true}, nil
 	}

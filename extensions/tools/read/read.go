@@ -18,6 +18,9 @@ import (
 // number prefix and optional truncation suffix) stays under truncate.DefaultMaxBytes.
 const maxLineContentBytes = truncate.DefaultMaxBytes - 100
 
+// ParamPath is the tool parameter name for the file path.
+const ParamPath = "path"
+
 type tool struct{}
 
 // readLine reads one line from r, returning at most maxBytes of content.
@@ -68,7 +71,7 @@ func (t *tool) Definition() sdk.ToolDef {
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"path": map[string]any{
+				ParamPath: map[string]any{
 					"type":        "string",
 					"description": "The absolute path to the file to read.",
 				},
@@ -81,7 +84,7 @@ func (t *tool) Definition() sdk.ToolDef {
 					"description": "Maximum number of lines to read. Defaults to all lines.",
 				},
 			},
-			"required": []string{"path"},
+			"required": []string{ParamPath},
 		},
 	}
 }
@@ -105,7 +108,7 @@ func parsePagination(args map[string]any) (offset, limit int) {
 }
 
 func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, error) {
-	path, _ := args["path"].(string)
+	path, _ := args[ParamPath].(string)
 	if path == "" {
 		return sdk.ToolResult{Content: "error: path is required", IsError: true}, nil
 	}

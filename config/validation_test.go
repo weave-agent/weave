@@ -1,7 +1,6 @@
 package config
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -41,7 +40,7 @@ func TestValidate_InvalidUI(t *testing.T) {
 	require.Error(t, err)
 
 	var errs ValidationErrors
-	require.True(t, errors.As(err, &errs))
+	require.ErrorAs(t, err, &errs)
 	require.Len(t, errs, 1)
 	assert.Equal(t, "ui", errs[0].Field)
 	assert.Contains(t, errs[0].Message, "web")
@@ -55,7 +54,7 @@ func TestValidate_EmptyAgentLoop(t *testing.T) {
 	require.Error(t, err)
 
 	var errs ValidationErrors
-	require.True(t, errors.As(err, &errs))
+	require.ErrorAs(t, err, &errs)
 	require.Len(t, errs, 1)
 	assert.Equal(t, "core.agent_loop", errs[0].Field)
 }
@@ -67,7 +66,7 @@ func TestValidate_EmptyProviders(t *testing.T) {
 	require.Error(t, err)
 
 	var errs ValidationErrors
-	require.True(t, errors.As(err, &errs))
+	require.ErrorAs(t, err, &errs)
 	require.Len(t, errs, 1)
 	assert.Equal(t, "core.providers", errs[0].Field)
 	assert.Contains(t, errs[0].Message, "at least one provider")
@@ -80,7 +79,7 @@ func TestValidate_InvalidProviderName(t *testing.T) {
 	require.Error(t, err)
 
 	var errs ValidationErrors
-	require.True(t, errors.As(err, &errs))
+	require.ErrorAs(t, err, &errs)
 	require.Len(t, errs, 1)
 	assert.Equal(t, "core.providers[1]", errs[0].Field)
 	assert.Contains(t, errs[0].Message, "bad name!")
@@ -93,7 +92,7 @@ func TestValidate_InvalidExtensionName(t *testing.T) {
 	require.Error(t, err)
 
 	var errs ValidationErrors
-	require.True(t, errors.As(err, &errs))
+	require.ErrorAs(t, err, &errs)
 	require.Len(t, errs, 1)
 	assert.Equal(t, "extensions[0]", errs[0].Field)
 	assert.Contains(t, errs[0].Message, "bad ext!")
@@ -106,7 +105,7 @@ func TestValidate_InvalidUIExtensionName(t *testing.T) {
 	require.Error(t, err)
 
 	var errs ValidationErrors
-	require.True(t, errors.As(err, &errs))
+	require.ErrorAs(t, err, &errs)
 	require.Len(t, errs, 1)
 	assert.Equal(t, "ui_extensions[0]", errs[0].Field)
 }
@@ -134,7 +133,7 @@ func TestValidate_PathExtensionNotExist(t *testing.T) {
 	require.Error(t, err)
 
 	var errs ValidationErrors
-	require.True(t, errors.As(err, &errs))
+	require.ErrorAs(t, err, &errs)
 	require.Len(t, errs, 1)
 	assert.Equal(t, "extensions[0]", errs[0].Field)
 	assert.Contains(t, errs[0].Message, "does not exist")
@@ -151,7 +150,7 @@ func TestValidate_PathExtensionNotDirectory(t *testing.T) {
 	require.Error(t, err)
 
 	var errs ValidationErrors
-	require.True(t, errors.As(err, &errs))
+	require.ErrorAs(t, err, &errs)
 	assert.Contains(t, errs[0].Message, "not a directory")
 }
 
@@ -168,7 +167,7 @@ func TestValidate_PathExtensionNoGoFiles(t *testing.T) {
 	require.Error(t, err)
 
 	var errs ValidationErrors
-	require.True(t, errors.As(err, &errs))
+	require.ErrorAs(t, err, &errs)
 	assert.Contains(t, errs[0].Message, "no .go files")
 }
 
@@ -203,7 +202,7 @@ func TestValidate_ProviderEntryInvalidType(t *testing.T) {
 	require.Error(t, err)
 
 	var errs ValidationErrors
-	require.True(t, errors.As(err, &errs))
+	require.ErrorAs(t, err, &errs)
 	require.Len(t, errs, 1)
 	assert.Equal(t, "providers.custom", errs[0].Field)
 	assert.Contains(t, errs[0].Message, "expected object")
@@ -223,13 +222,14 @@ func TestValidate_MultipleErrors(t *testing.T) {
 	require.Error(t, err)
 
 	var errs ValidationErrors
-	require.True(t, errors.As(err, &errs))
+	require.ErrorAs(t, err, &errs)
 	assert.Len(t, errs, 4, "should collect all validation errors")
 
 	fields := make([]string, len(errs))
 	for i, e := range errs {
 		fields[i] = e.Field
 	}
+
 	assert.Contains(t, fields, "ui")
 	assert.Contains(t, fields, "core.agent_loop")
 	assert.Contains(t, fields, "core.providers")

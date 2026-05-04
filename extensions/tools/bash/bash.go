@@ -15,6 +15,9 @@ import (
 
 const defaultTimeout = 120 * time.Second
 
+// ParamCommand is the tool parameter name for the command to execute.
+const ParamCommand = "command"
+
 // BashConfig holds per-tool settings for the bash tool.
 type BashConfig struct {
 	Timeout int `json:"timeout" default:"120"`
@@ -27,6 +30,7 @@ type tool struct {
 func init() {
 	sdk.RegisterTool("bash", func(cfg sdk.Config) (sdk.Tool, error) {
 		var bc BashConfig
+
 		_ = cfg.ToolConfig("bash", &bc)
 
 		timeout := time.Duration(bc.Timeout) * time.Second
@@ -47,7 +51,7 @@ func (t *tool) Definition() sdk.ToolDef {
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"command": map[string]any{
+				ParamCommand: map[string]any{
 					"type":        "string",
 					"description": "The bash command to execute.",
 				},
@@ -56,13 +60,13 @@ func (t *tool) Definition() sdk.ToolDef {
 					"description": "Timeout in seconds. Defaults to 120.",
 				},
 			},
-			"required": []string{"command"},
+			"required": []string{ParamCommand},
 		},
 	}
 }
 
 func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult, error) {
-	command, _ := args["command"].(string)
+	command, _ := args[ParamCommand].(string)
 	if command == "" {
 		return sdk.ToolResult{Content: "error: command is required", IsError: true}, nil
 	}

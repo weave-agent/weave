@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,11 +12,11 @@ import (
 
 // Settings holds user preferences that persist across sessions.
 type Settings struct {
-	Provider      string                 `json:"provider,omitempty"`
-	Model         string                 `json:"model,omitempty"`
-	ThinkingLevel string                 `json:"thinking_level,omitempty"`
-	UI            *UISettings            `json:"ui,omitempty"`
-	Tools         map[string]interface{} `json:"tools,omitempty"`
+	Provider      string         `json:"provider,omitempty"`
+	Model         string         `json:"model,omitempty"`
+	ThinkingLevel string         `json:"thinking_level,omitempty"`
+	UI            *UISettings    `json:"ui,omitempty"`
+	Tools         map[string]any `json:"tools,omitempty"`
 }
 
 // UISettings holds UI-specific preferences.
@@ -136,13 +137,13 @@ func settingsPathForLayer(layer SettingsLayer, projectDir string) (string, error
 		return SettingsPath()
 	case SettingsProject:
 		if projectDir == "" {
-			return "", fmt.Errorf("project settings require projectDir")
+			return "", errors.New("project settings require projectDir")
 		}
 
 		return filepath.Join(projectDir, ".weave", "settings.json"), nil
 	case SettingsLocal:
 		if projectDir == "" {
-			return "", fmt.Errorf("local settings require projectDir")
+			return "", errors.New("local settings require projectDir")
 		}
 
 		return filepath.Join(projectDir, ".weave", "settings.local.json"), nil

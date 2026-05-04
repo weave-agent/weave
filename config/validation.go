@@ -38,6 +38,7 @@ func (errs ValidationErrors) Error() string {
 	for i, e := range errs {
 		msgs[i] = e.Error()
 	}
+
 	return strings.Join(msgs, "; ")
 }
 
@@ -53,7 +54,7 @@ func Validate(f *File) error {
 func ValidateWithConfigDir(f *File, configDir string) error {
 	var errs ValidationErrors
 
-	if f.UI != "tui" && f.UI != "none" {
+	if f.UI != UIValueTUI && f.UI != UIValueNone {
 		errs = append(errs, ValidationError{
 			Field:   "ui",
 			Message: fmt.Sprintf("invalid value %q, must be \"tui\" or \"none\"", f.UI),
@@ -103,45 +104,20 @@ func ValidateWithConfigDir(f *File, configDir string) error {
 }
 
 func validateExtEntry(errs *ValidationErrors, entry, field, configDir string) {
-	if isPathEntry(entry) {
-		if configDir != "" {
-			dir, err := resolveExtPath(entry, configDir)
-			if err != nil {
-				*errs = append(*errs, ValidationError{
-					Field:   field,
-					Message: fmt.Sprintf("path %q: %s", entry, err),
-				})
-				return
-			}
-
-			stat, statErr := os.Stat(dir)
-			if statErr != nil {
-				*errs = append(*errs, ValidationError{
-					Field:   field,
-					Message: fmt.Sprintf("path %q does not exist", entry),
-				})
-				return
-			}
-
-			if !stat.IsDir() {
-				*errs = append(*errs, ValidationError{
-					Field:   field,
-					Message: fmt.Sprintf("path %q is not a directory", entry),
-				})
-				return
-			}
-
-			if !hasGoFiles(dir) {
-				*errs = append(*errs, ValidationError{
-					Field:   field,
-					Message: fmt.Sprintf("path %q contains no .go files", entry),
-				})
-			}
-		}
+	if !isPathEntry(entry) {
+		validateBareExtName(errs, entry, field)
 
 		return
 	}
 
+	if configDir == "" {
+		return
+	}
+
+	validateExtPath(errs, entry, field, configDir)
+}
+
+func validateBareExtName(errs *ValidationErrors, entry, field string) {
 	if !validName.MatchString(entry) {
 		*errs = append(*errs, ValidationError{
 			Field:   field,
@@ -150,29 +126,69 @@ func validateExtEntry(errs *ValidationErrors, entry, field, configDir string) {
 	}
 }
 
+func validateExtPath(errs *ValidationErrors, entry, field, configDir string) {
+	dir, err := resolveExtPath(entry, configDir)
+	if err != nil {
+		*errs = append(*errs, ValidationError{
+			Field:   field,
+			Message: fmt.Sprintf("path %q: %s", entry, err),
+		})
+
+		return
+	}
+
+	stat, statErr := os.Stat(dir)
+	if statErr != nil {
+		*errs = append(*errs, ValidationError{
+			Field:   field,
+			Message: fmt.Sprintf("path %q does not exist", entry),
+		})
+
+		return
+	}
+
+	if !stat.IsDir() {
+		*errs = append(*errs, ValidationError{
+			Field:   field,
+			Message: fmt.Sprintf("path %q is not a directory", entry),
+		})
+
+		return
+	}
+
+	if !hasGoFiles(dir) {
+		*errs = append(*errs, ValidationError{
+			Field:   field,
+			Message: fmt.Sprintf("path %q contains no .go files", entry),
+		})
+	}
+}
+
 func validateProviderEntry(errs *ValidationErrors, name string, raw any) {
 	m, ok := raw.(map[string]any)
 	if !ok {
 		*errs = append(*errs, ValidationError{
-			Field:   fmt.Sprintf("providers.%s", name),
+			Field:   "providers." + name,
 			Message: fmt.Sprintf("expected object, got %T", raw),
 		})
+
 		return
 	}
 
 	jsonBytes, err := json.Marshal(m)
 	if err != nil {
 		*errs = append(*errs, ValidationError{
-			Field:   fmt.Sprintf("providers.%s", name),
+			Field:   "providers." + name,
 			Message: fmt.Sprintf("invalid config: %v", err),
 		})
+
 		return
 	}
 
 	var entry ProviderEntry
 	if err := json.Unmarshal(jsonBytes, &entry); err != nil {
 		*errs = append(*errs, ValidationError{
-			Field:   fmt.Sprintf("providers.%s", name),
+			Field:   "providers." + name,
 			Message: fmt.Sprintf("invalid config: %v", err),
 		})
 	}
@@ -183,7 +199,7 @@ func resolveExtPath(entry, configDir string) (string, error) {
 	if strings.HasPrefix(entry, "~/") {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("resolve home directory: %w", err)
 		}
 
 		return filepath.Join(home, entry[2:]), nil
@@ -193,7 +209,12 @@ func resolveExtPath(entry, configDir string) (string, error) {
 		return entry, nil
 	}
 
-	return filepath.Abs(filepath.Join(configDir, entry))
+	abs, err := filepath.Abs(filepath.Join(configDir, entry))
+	if err != nil {
+		return "", fmt.Errorf("resolve absolute path: %w", err)
+	}
+
+	return abs, nil
 }
 
 // hasGoFiles reports whether a directory contains at least one .go file.
@@ -211,3 +232,6 @@ func hasGoFiles(dir string) bool {
 
 	return false
 }
+
+// IsPathEntry is the exported version of isPathEntry for use by other packages.
+var IsPathEntry = isPathEntry

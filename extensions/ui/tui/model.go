@@ -1565,6 +1565,7 @@ func (m Model) atFileCompletion(line string, lineStart int) Model {
 	}
 
 	tokenLen := cursorCol - atRunePos - 1
+
 	afterAt := []rune(line[atIdx+1:])
 	if tokenLen > len(afterAt) {
 		tokenLen = len(afterAt)

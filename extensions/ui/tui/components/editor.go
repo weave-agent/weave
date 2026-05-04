@@ -137,6 +137,7 @@ func (m EditorModel) SetMaxHeight(n int) EditorModel {
 	if n > 0 {
 		m.ta.MaxHeight = n
 	}
+
 	return m
 }
 

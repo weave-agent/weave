@@ -479,6 +479,8 @@ type mockConfig struct {
 func (m *mockConfig) FilePath() string                               { return m.path }
 func (m *mockConfig) ProviderConfig(string) *sdk.ProviderConfigEntry { return nil }
 func (m *mockConfig) ResolveKey(_, envVar string) (string, error)    { return os.Getenv(envVar), nil }
+func (m *mockConfig) ToolConfig(string, any) error                   { return nil }
+func (m *mockConfig) UIConfig(any) error                             { return nil }
 
 func TestNewStore_LoadsNestedDir(t *testing.T) {
 	dir := t.TempDir()

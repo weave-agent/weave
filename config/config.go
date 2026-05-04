@@ -15,6 +15,19 @@ import (
 	"weave/sdk"
 )
 
+// String constants used across config validation and defaults.
+const (
+	UIValueTUI  = "tui"
+	UIValueNone = "none"
+
+	// DefaultAgentLoop is the default agent loop extension name.
+	DefaultAgentLoop = "loop"
+	// DefaultProvider is the default provider name.
+	DefaultProvider = "anthropic"
+	// ExtBash is the bash tool extension name.
+	ExtBash = "bash"
+)
+
 type CoreConfig struct {
 	AgentLoop string   `default:"loop" description:"Agent loop extension name"`
 	Providers []string `default:"anthropic" description:"Provider extension names"`
@@ -54,7 +67,7 @@ func (f *File) AllExtensions() []string {
 	core, opt := f.CoreExts()
 
 	totalLen := len(core) + len(opt)
-	if f.UI == "tui" {
+	if f.UI == UIValueTUI {
 		totalLen += len(f.UIExtensions)
 	}
 
@@ -75,7 +88,7 @@ func (f *File) AllExtensions() []string {
 		}
 	}
 
-	if f.UI == "tui" {
+	if f.UI == UIValueTUI {
 		for _, e := range f.UIExtensions {
 			if !seen[e] {
 				seen[e] = true
@@ -124,14 +137,14 @@ func (f *File) ProviderConfig(name string) *ProviderEntry {
 // DefaultFile returns a File with all built-in extensions and sensible defaults.
 func DefaultFile() *File {
 	return &File{
-		UI: "tui",
+		UI: UIValueTUI,
 		Core: CoreConfig{
-			AgentLoop: "loop",
-			Providers: []string{"anthropic"},
+			AgentLoop: DefaultAgentLoop,
+			Providers: []string{DefaultProvider},
 		},
 		Extensions: []string{
 			"jsonl",
-			"bash",
+			ExtBash,
 			"edit",
 			"find",
 			"grep",
@@ -491,6 +504,8 @@ func applyDefaults(target any) {
 			if b, err := strconv.ParseBool(defTag); err == nil {
 				field.SetBool(b)
 			}
+		default:
+			// Unsupported kind for default tag; skip.
 		}
 	}
 }

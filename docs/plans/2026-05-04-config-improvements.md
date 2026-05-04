@@ -132,14 +132,14 @@ Improve weave's configuration system with four focused changes:
 - [x] run `go test ./config/... ./launcher/...` — full suite must pass
 
 ### Task 6: Verify acceptance criteria
-- [ ] verify path-based extensions work: bare names, relative paths, absolute paths, tilde
-- [ ] verify layered settings: global → project → local merge, deep merge semantics
-- [ ] verify typed tool config: bash reads timeout from settings with defaults
-- [ ] verify validation: invalid config produces clear field-level errors
-- [ ] verify backward compatibility: existing `.weave.yaml` with no settings files still works
-- [ ] run full test suite (`go test ./config/... ./launcher/... ./sdk/...`)
-- [ ] run `make lint` — all issues fixed
-- [ ] run `cd extensions/tools/bash && go test ./...`
+- [x] verify path-based extensions work: bare names, relative paths, absolute paths, tilde
+- [x] verify layered settings: global → project → local merge, deep merge semantics
+- [x] verify typed tool config: bash reads timeout from settings with defaults
+- [x] verify validation: invalid config produces clear field-level errors
+- [x] verify backward compatibility: existing `.weave.yaml` with no settings files still works
+- [x] run full test suite (`go test ./config/... ./launcher/... ./sdk/...`)
+- [x] run `make lint` — all issues fixed
+- [x] run `cd extensions/tools/bash && go test ./...`
 
 ### Task 7: Update documentation
 - [ ] update `CLAUDE.md` Configuration section with new settings format and path-based extension syntax
