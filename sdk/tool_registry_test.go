@@ -34,13 +34,15 @@ func TestDuplicateToolRegistration(t *testing.T) {
 		return &ToolMock{NameFunc: func() string { return "first" }}, nil
 	})
 
-	defer func() {
-		require.NotNil(t, recover(), "expected panic on duplicate tool registration")
-	}()
-
+	// Second registration should be a no-op with a warning (no panic).
 	RegisterTool("dup", func(Config) (Tool, error) {
 		return &ToolMock{NameFunc: func() string { return "second" }}, nil
 	})
+
+	// First registration wins.
+	got, err := GetTool("dup", nil)
+	require.NoError(t, err)
+	assert.Equal(t, "first", got.Name())
 }
 
 func TestMissingTool(t *testing.T) {

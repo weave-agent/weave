@@ -85,15 +85,15 @@ Harden weave's extension system with four pi-inspired improvements:
 - [x] run `make test` (root + all extension modules) - must pass before task 4
 
 ### Task 4: Add collision diagnostics
-- [ ] update `DiscoverCustomHomeWithBuiltins` return signature to `([]ExtensionInfo, []string, error)` — warnings as second return value
-- [ ] add `checkBuiltinShadow(moduleRoot, name)` that checks if a resolved local/global extension also exists as built-in, returns warning string
-- [ ] update `DiscoverCustomHome` to also return `[]string` (empty, for API consistency)
-- [ ] update `Discover` and `DiscoverWithBuiltins` wrappers to pass warnings through
-- [ ] update `launcher.Run` to log warnings to stderr
-- [ ] add duplicate registration warnings in `sdk.RegisterTool`, `sdk.RegisterProvider`, `sdk.RegisterUI`, `sdk.RegisterUIExtension` — log when name already exists, first registration wins
-- [ ] write tests for discovery collision detection (local shadows built-in, global shadows built-in, no shadow)
-- [ ] write tests for registration duplicate warnings (registering same tool name twice)
-- [ ] run `go test ./launcher/... ./sdk/...` - must pass before task 5
+- [x] update `DiscoverCustomHomeWithBuiltins` return signature to `([]ExtensionInfo, []string, error)` — warnings as second return value
+- [x] add `checkBuiltinShadow(moduleRoot, name)` that checks if a resolved local/global extension also exists as built-in, returns warning string
+- [x] update `DiscoverCustomHome` to also return `[]string` (empty, for API consistency)
+- [x] update `Discover` and `DiscoverWithBuiltins` wrappers to pass warnings through
+- [x] update `launcher.Run` to log warnings to stderr
+- [x] add duplicate registration warnings in `sdk.RegisterTool`, `sdk.RegisterProvider`, `sdk.RegisterUI`, `sdk.RegisterUIExtension` — log when name already exists, first registration wins
+- [x] write tests for discovery collision detection (local shadows built-in, global shadows built-in, no shadow)
+- [x] write tests for registration duplicate warnings (registering same tool name twice)
+- [x] run `go test ./launcher/... ./sdk/...` - must pass before task 5
 
 ### Task 5: Add headless mode detection
 - [ ] add `IsHeadless() bool` to `sdk.Config` interface

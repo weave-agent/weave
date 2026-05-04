@@ -28,13 +28,15 @@ func TestDuplicateProviderRegistration(t *testing.T) {
 		return &ProviderMock{}, nil
 	})
 
-	defer func() {
-		require.NotNil(t, recover(), "expected panic on duplicate provider registration")
-	}()
-
+	// Second registration should be a no-op with a warning (no panic).
 	RegisterProvider("dup", func(Config) (Provider, error) {
 		return &ProviderMock{}, nil
 	})
+
+	// First registration wins.
+	got, err := GetProvider("dup", nil)
+	require.NoError(t, err)
+	require.NotNil(t, got)
 }
 
 func TestMissingProvider(t *testing.T) {

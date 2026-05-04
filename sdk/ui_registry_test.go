@@ -23,11 +23,13 @@ func TestDuplicateUIRegistration(t *testing.T) {
 
 	RegisterUI("dup", NoopUI{})
 
-	defer func() {
-		require.NotNil(t, recover(), "expected panic on duplicate UI registration")
-	}()
-
+	// Second registration should be a no-op with a warning (no panic).
 	RegisterUI("dup", NoopUI{})
+
+	// First registration wins.
+	got, err := GetUI("dup")
+	require.NoError(t, err)
+	require.NotNil(t, got)
 }
 
 func TestMissingUI(t *testing.T) {

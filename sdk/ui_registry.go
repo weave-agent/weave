@@ -2,9 +2,13 @@ package sdk
 
 import (
 	"fmt"
+	"log"
+	"os"
 	"sort"
 	"sync"
 )
+
+var uiWarnLog = log.New(os.Stderr, "weave: ", 0)
 
 var (
 	uiMu  sync.RWMutex
@@ -16,7 +20,8 @@ func RegisterUI(name string, ui UI) {
 	defer uiMu.Unlock()
 
 	if _, dup := uiReg[name]; dup {
-		panic("sdk: RegisterUI called twice for " + name)
+		uiWarnLog.Printf("warning: ui %q already registered; first registration wins", name)
+		return
 	}
 
 	uiReg[name] = ui

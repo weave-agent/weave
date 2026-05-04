@@ -26,14 +26,19 @@ func TestRegisterUIExtension(t *testing.T) {
 	assert.Equal(t, "test-ext", exts[0].Name())
 }
 
-func TestRegisterUIExtension_DuplicatePanics(t *testing.T) {
+func TestRegisterUIExtension_DuplicateWarns(t *testing.T) {
 	ResetUIExtensionRegistry()
 
+	first := &stubUIExtension{name: "dup"}
+	RegisterUIExtension(first)
+
+	// Second registration should be a no-op with a warning (no panic).
 	RegisterUIExtension(&stubUIExtension{name: "dup"})
 
-	assert.Panics(t, func() {
-		RegisterUIExtension(&stubUIExtension{name: "dup"})
-	}, "expected panic on duplicate UI extension registration")
+	// First registration wins.
+	exts := GetUIExtensions()
+	require.Len(t, exts, 1)
+	assert.Equal(t, "dup", exts[0].Name())
 }
 
 func TestGetUIExtensions_Empty(t *testing.T) {

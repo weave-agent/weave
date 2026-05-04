@@ -28,12 +28,12 @@ func TestDuplicateRegistration(t *testing.T) {
 		return NewExtensionFunc("dup", func(bus Bus) {}), nil
 	})
 
-	defer func() {
-		require.NotNil(t, recover(), "expected panic on duplicate registration")
-	}()
-
-	RegisterExtension("dup", func(Config) (Extension, error) {
-		return NewExtensionFunc("dup-v2", func(bus Bus) {}), nil
+	// Duplicate extension registration still panics (not warnable — this is a
+	// programming error within a single binary, not a discovery collision).
+	assert.Panics(t, func() {
+		RegisterExtension("dup", func(Config) (Extension, error) {
+			return NewExtensionFunc("dup-v2", func(bus Bus) {}), nil
+		})
 	})
 }
 

@@ -1,9 +1,13 @@
 package sdk
 
 import (
+	"log"
+	"os"
 	"sort"
 	"sync"
 )
+
+var uiExtWarnLog = log.New(os.Stderr, "weave: ", 0)
 
 var (
 	uiExtMu  sync.RWMutex
@@ -17,7 +21,8 @@ func RegisterUIExtension(ext UIExtension) {
 	name := ext.Name()
 
 	if _, dup := uiExtReg[name]; dup {
-		panic("sdk: RegisterUIExtension called twice for " + name)
+		uiExtWarnLog.Printf("warning: ui extension %q already registered; first registration wins", name)
+		return
 	}
 
 	uiExtReg[name] = ext

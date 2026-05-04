@@ -2,9 +2,13 @@ package sdk
 
 import (
 	"fmt"
+	"log"
+	"os"
 	"sort"
 	"sync"
 )
+
+var providerWarnLog = log.New(os.Stderr, "weave: ", 0)
 
 var (
 	providerMu  sync.RWMutex
@@ -16,7 +20,8 @@ func RegisterProvider(name string, factory func(Config) (Provider, error)) {
 	defer providerMu.Unlock()
 
 	if _, dup := providerReg[name]; dup {
-		panic("sdk: RegisterProvider called twice for " + name)
+		providerWarnLog.Printf("warning: provider %q already registered; first registration wins", name)
+		return
 	}
 
 	providerReg[name] = factory

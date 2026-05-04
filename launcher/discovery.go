@@ -3,6 +3,7 @@ package launcher
 import (
 	"fmt"
 	"io/fs"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -26,10 +27,10 @@ type ExtensionInfo struct {
 // For each name, it checks:
 //  1. Project-local: .weave/extensions/{name}/
 //  2. Global: ~/.weave/extensions/{name}/
-func Discover(projectDir string, names []string) ([]ExtensionInfo, error) {
+func Discover(projectDir string, names []string) ([]ExtensionInfo, []string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return nil, fmt.Errorf("discover: get home dir: %w", err)
+		return nil, nil, fmt.Errorf("discover: get home dir: %w", err)
 	}
 
 	return DiscoverCustomHome(projectDir, homeDir, names)
@@ -39,40 +40,40 @@ func Discover(projectDir string, names []string) ([]ExtensionInfo, error) {
 // under moduleRoot/extensions/{name}/ as a final fallback. This allows core
 // extensions shipped with weave to be found without installing them.
 // configDir is used to resolve relative path entries; when empty, projectDir is used.
-func DiscoverWithBuiltins(projectDir, moduleRoot string, names []string, configDir ...string) ([]ExtensionInfo, error) {
+func DiscoverWithBuiltins(projectDir, moduleRoot string, names []string, configDir ...string) ([]ExtensionInfo, []string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return nil, fmt.Errorf("discover: get home dir: %w", err)
+		return nil, nil, fmt.Errorf("discover: get home dir: %w", err)
 	}
 
 	return DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, names, configDir...)
 }
 
 // DiscoverCustomHome is like Discover but accepts an explicit home directory.
-func DiscoverCustomHome(projectDir, homeDir string, names []string) ([]ExtensionInfo, error) {
+func DiscoverCustomHome(projectDir, homeDir string, names []string) ([]ExtensionInfo, []string, error) {
 	var exts []ExtensionInfo
 
 	seen := make(map[string]bool, len(names))
 
 	for _, name := range names {
 		if seen[name] {
-			return nil, fmt.Errorf("discover: duplicate extension name %q", name)
+			return nil, nil, fmt.Errorf("discover: duplicate extension name %q", name)
 		}
 
 		seen[name] = true
 		if !config.ValidExtName(name) {
-			return nil, fmt.Errorf("discover: invalid extension name %q (must match [a-zA-Z0-9_-]+)", name)
+			return nil, nil, fmt.Errorf("discover: invalid extension name %q (must match [a-zA-Z0-9_-]+)", name)
 		}
 
 		info, err := findExtension(projectDir, homeDir, name)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		exts = append(exts, *info)
 	}
 
-	return exts, nil
+	return exts, nil, nil
 }
 
 // DiscoverCustomHomeWithBuiltins is like DiscoverCustomHome but falls back to
@@ -80,8 +81,10 @@ func DiscoverCustomHome(projectDir, homeDir string, names []string) ([]Extension
 // that look like filesystem paths (prefixed with ./, ../, /, or ~/) are
 // resolved directly instead of going through the name-based discovery hierarchy.
 // configDir is used to resolve relative path entries; when empty, projectDir is used.
-func DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot string, names []string, configDir ...string) ([]ExtensionInfo, error) {
+// Returns extension infos, shadow warnings, and any error.
+func DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot string, names []string, configDir ...string) ([]ExtensionInfo, []string, error) {
 	var exts []ExtensionInfo
+	var warnings []string
 
 	resolveDir := projectDir
 	if len(configDir) > 0 && configDir[0] != "" {
@@ -94,11 +97,11 @@ func DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot string, name
 		if isPath(entry) {
 			info, err := resolvePathExtension(entry, resolveDir)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 
 			if seen[info.Name] {
-				return nil, fmt.Errorf("discover: duplicate extension name %q", info.Name)
+				return nil, nil, fmt.Errorf("discover: duplicate extension name %q", info.Name)
 			}
 
 			seen[info.Name] = true
@@ -108,23 +111,27 @@ func DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot string, name
 		}
 
 		if seen[entry] {
-			return nil, fmt.Errorf("discover: duplicate extension name %q", entry)
+			return nil, nil, fmt.Errorf("discover: duplicate extension name %q", entry)
 		}
 
 		seen[entry] = true
 		if !config.ValidExtName(entry) {
-			return nil, fmt.Errorf("discover: invalid extension name %q (must match [a-zA-Z0-9_-]+)", entry)
+			return nil, nil, fmt.Errorf("discover: invalid extension name %q (must match [a-zA-Z0-9_-]+)", entry)
 		}
 
 		info, err := findExtensionWithBuiltins(projectDir, homeDir, moduleRoot, entry)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
+		}
+
+		if w := checkBuiltinShadow(moduleRoot, entry, info.Dir); w != "" {
+			warnings = append(warnings, w)
 		}
 
 		exts = append(exts, *info)
 	}
 
-	return exts, nil
+	return exts, warnings, nil
 }
 
 // resolvePathExtension resolves a path-like extension entry to its ExtensionInfo.
@@ -302,3 +309,21 @@ func collectGoFiles(dir string) ([]string, error) {
 
 	return files, nil
 }
+
+// checkBuiltinShadow returns a warning if the resolved extension directory is
+// not a built-in path but a built-in with the same name also exists.
+func checkBuiltinShadow(moduleRoot, name, resolvedDir string) string {
+	// If resolved from built-in paths, no shadow.
+	if strings.HasPrefix(resolvedDir, filepath.Join(moduleRoot, "extensions")) {
+		return ""
+	}
+
+	// Check if a built-in exists.
+	if _, err := findBuiltin(moduleRoot, name); err != nil {
+		return ""
+	}
+
+	return fmt.Sprintf("extension %q resolved from %s but also exists as built-in; local/global takes precedence", name, resolvedDir)
+}
+
+var warnLog = log.New(os.Stderr, "weave: ", 0)

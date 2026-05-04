@@ -2,9 +2,13 @@ package sdk
 
 import (
 	"fmt"
+	"log"
+	"os"
 	"sort"
 	"sync"
 )
+
+var toolWarnLog = log.New(os.Stderr, "weave: ", 0)
 
 var (
 	toolMu  sync.RWMutex
@@ -16,7 +20,8 @@ func RegisterTool(name string, factory func(Config) (Tool, error)) {
 	defer toolMu.Unlock()
 
 	if _, dup := toolReg[name]; dup {
-		panic("sdk: RegisterTool called twice for " + name)
+		toolWarnLog.Printf("warning: tool %q already registered; first registration wins", name)
+		return
 	}
 
 	toolReg[name] = factory

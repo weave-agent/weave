@@ -50,9 +50,13 @@ func (l *Launcher) Run(ctx context.Context, projectDir string, extensionNames, a
 		configDir = filepath.Dir(configPath)
 	}
 
-	exts, err := DiscoverWithBuiltins(projectDir, l.ModuleRoot, extensionNames, configDir)
+	exts, warnings, err := DiscoverWithBuiltins(projectDir, l.ModuleRoot, extensionNames, configDir)
 	if err != nil {
 		return fmt.Errorf("launcher: discover: %w", err)
+	}
+
+	for _, w := range warnings {
+		warnLog.Println(w)
 	}
 
 	hash, err := ComputeHash(exts, l.ModuleRoot, l.coreDirs()...)

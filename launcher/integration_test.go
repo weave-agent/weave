@@ -108,7 +108,7 @@ func TestIntegration_FullPipeline(t *testing.T) {
 	extDir := filepath.Join(projectDir, ".weave", "extensions", "noop")
 	createGoFile(t, extDir, "noop.go", noopCode)
 
-	exts, err := Discover(projectDir, []string{"noop"})
+	exts, _, err := Discover(projectDir, []string{"noop"})
 	require.NoError(t, err, "Discover")
 
 	hash, err := ComputeHash(exts, "")
@@ -148,7 +148,7 @@ func TestIntegration_CacheHitOnSecondRun(t *testing.T) {
 	extDir := filepath.Join(projectDir, ".weave", "extensions", "noop")
 	createGoFile(t, extDir, "noop.go", noopCode)
 
-	exts, err := Discover(projectDir, []string{"noop"})
+	exts, _, err := Discover(projectDir, []string{"noop"})
 	require.NoError(t, err)
 
 	hash, err := ComputeHash(exts, "")
@@ -186,7 +186,7 @@ func TestIntegration_ExtensionInitAndWireInBuiltBinary(t *testing.T) {
 	extDir := filepath.Join(projectDir, ".weave", "extensions", "noop")
 	createGoFile(t, extDir, "noop.go", noopMarkerCode)
 
-	exts, err := Discover(projectDir, []string{"noop"})
+	exts, _, err := Discover(projectDir, []string{"noop"})
 	require.NoError(t, err)
 
 	buildDir := t.TempDir()
@@ -254,14 +254,14 @@ func TestIntegration_DiscoverCustomHome(t *testing.T) {
 	globalDir := filepath.Join(homeDir, ".weave", "extensions", "noop")
 	createGoFile(t, globalDir, "noop.go", "package noop")
 
-	exts, err := DiscoverCustomHome(projectDir, homeDir, []string{"noop"})
+	exts, _, err := DiscoverCustomHome(projectDir, homeDir, []string{"noop"})
 	require.NoError(t, err, "DiscoverCustomHome")
 	assert.Equal(t, globalDir, exts[0].Dir)
 
 	localDir := filepath.Join(projectDir, ".weave", "extensions", "noop")
 	createGoFile(t, localDir, "noop.go", "package noop")
 
-	exts2, err := DiscoverCustomHome(projectDir, homeDir, []string{"noop"})
+	exts2, _, err := DiscoverCustomHome(projectDir, homeDir, []string{"noop"})
 	require.NoError(t, err, "DiscoverCustomHome")
 	assert.Equal(t, localDir, exts2[0].Dir)
 }
@@ -275,7 +275,7 @@ func TestIntegration_DiscoverBuiltinNestedTools(t *testing.T) {
 
 	tools := []string{"bash", "read", "edit", "write", "grep", "find", "ls"}
 
-	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, tools)
+	exts, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, tools)
 	require.NoError(t, err, "DiscoverCustomHomeWithBuiltins for tools")
 
 	require.Len(t, exts, len(tools))
@@ -303,7 +303,7 @@ func TestIntegration_DiscoverBuiltinNestedProviders(t *testing.T) {
 
 	providers := []string{"anthropic", "openai", "zai"}
 
-	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, providers)
+	exts, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, providers)
 	require.NoError(t, err, "DiscoverCustomHomeWithBuiltins for providers")
 
 	require.Len(t, exts, len(providers))
@@ -329,7 +329,7 @@ func TestIntegration_DiscoverBuiltinNestedStore(t *testing.T) {
 	projectDir := t.TempDir()
 	homeDir := t.TempDir()
 
-	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"jsonl"})
+	exts, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"jsonl"})
 	require.NoError(t, err, "DiscoverCustomHomeWithBuiltins for jsonl store")
 
 	require.Len(t, exts, 1)
@@ -346,7 +346,7 @@ func TestIntegration_DiscoverBuiltinLoopDirect(t *testing.T) {
 	projectDir := t.TempDir()
 	homeDir := t.TempDir()
 
-	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"loop"})
+	exts, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"loop"})
 	require.NoError(t, err, "DiscoverCustomHomeWithBuiltins for loop")
 
 	require.Len(t, exts, 1)

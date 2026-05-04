@@ -26,7 +26,7 @@ func discoverExtensions(b *testing.B, moduleRoot string, extNames []string) []Ex
 	projectDir := b.TempDir()
 	homeDir := b.TempDir()
 
-	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, extNames)
+	exts, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, extNames)
 	if err != nil {
 		b.Fatalf("DiscoverCustomHomeWithBuiltins: %v", err)
 	}
@@ -156,7 +156,7 @@ func warmPipeline(b *testing.B, moduleRoot string, extNames []string) {
 		projectDir := b.TempDir()
 		homeDir := b.TempDir()
 
-		exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, extNames)
+		exts, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, extNames)
 		if err != nil {
 			b.Fatalf("DiscoverCustomHomeWithBuiltins: %v", err)
 		}
@@ -274,7 +274,7 @@ func BenchmarkPartialBuild_OneExtRebuild(b *testing.B) {
 	// Prime: build NoTUI + noop to populate Go cache for everything.
 	baseExts := discoverExtensions(b, moduleRoot, extsWithoutTUI)
 
-	noopExts, err := Discover(projectDir, []string{"noop"})
+	noopExts, _, err := Discover(projectDir, []string{"noop"})
 	if err != nil {
 		b.Fatalf("Discover noop: %v", err)
 	}
@@ -297,7 +297,7 @@ func BenchmarkPartialBuild_OneExtRebuild(b *testing.B) {
 
 		loopBase := discoverExtensions(b, moduleRoot, extsWithoutTUI)
 
-		noopLoop, err := Discover(projectDir, []string{"noop"})
+		noopLoop, _, err := Discover(projectDir, []string{"noop"})
 		if err != nil {
 			b.Fatalf("Discover noop: %v", err)
 		}
@@ -329,7 +329,7 @@ func BenchmarkPartialBuild_OneExtRebuild_Cold(b *testing.B) {
 				b.Fatalf("write version.go: %v", writeErr)
 			}
 
-			noopExts, err := Discover(projectDir, []string{"noop"})
+			noopExts, _, err := Discover(projectDir, []string{"noop"})
 			if err != nil {
 				b.Fatalf("Discover noop: %v", err)
 			}

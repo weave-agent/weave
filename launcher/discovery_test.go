@@ -23,7 +23,7 @@ func TestDiscover_LocalExtension(t *testing.T) {
 	extDir := filepath.Join(projectDir, ".weave", "extensions", "noop")
 	createGoFile(t, extDir, "noop.go", "package noop")
 
-	exts, err := Discover(projectDir, []string{"noop"})
+	exts, _, err := Discover(projectDir, []string{"noop"})
 	require.NoError(t, err, "Discover")
 
 	require.Len(t, exts, 1)
@@ -74,7 +74,7 @@ func TestDiscover_MultipleExtensions(t *testing.T) {
 		createGoFile(t, extDir, name+".go", "package "+name)
 	}
 
-	exts, err := Discover(projectDir, []string{"noop", "logging"})
+	exts, _, err := Discover(projectDir, []string{"noop", "logging"})
 	require.NoError(t, err, "Discover")
 
 	require.Len(t, exts, 2)
@@ -100,7 +100,7 @@ func TestDiscover_GoFilesSorted(t *testing.T) {
 	createGoFile(t, extDir, "a.go", "package sorted")
 	createGoFile(t, extDir, "m.go", "package sorted")
 
-	exts, err := Discover(projectDir, []string{"sorted"})
+	exts, _, err := Discover(projectDir, []string{"sorted"})
 	require.NoError(t, err, "Discover")
 
 	expected := []string{
@@ -120,7 +120,7 @@ func TestDiscover_PartialMissing(t *testing.T) {
 	extDir := filepath.Join(projectDir, ".weave", "extensions", "exists")
 	createGoFile(t, extDir, "exists.go", "package exists")
 
-	_, err := Discover(projectDir, []string{"exists", "missing"})
+	_, _, err := Discover(projectDir, []string{"exists", "missing"})
 	require.Error(t, err)
 }
 
@@ -133,7 +133,7 @@ func TestDiscoverWithBuiltins_NestedExtension(t *testing.T) {
 	nestedDir := filepath.Join(moduleRoot, "extensions", "tools", "bash")
 	createGoFile(t, nestedDir, "bash.go", "package bash")
 
-	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"bash"})
+	exts, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"bash"})
 	require.NoError(t, err, "DiscoverCustomHomeWithBuiltins")
 
 	require.Len(t, exts, 1)
@@ -154,7 +154,7 @@ func TestDiscoverWithBuiltins_NestedProviders(t *testing.T) {
 	openaiDir := filepath.Join(moduleRoot, "extensions", "providers", "openai")
 	createGoFile(t, openaiDir, "openai.go", "package openai")
 
-	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"anthropic", "openai"})
+	exts, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"anthropic", "openai"})
 	require.NoError(t, err, "DiscoverCustomHomeWithBuiltins")
 
 	require.Len(t, exts, 2)
@@ -174,7 +174,7 @@ func TestDiscoverWithBuiltins_DirectPreferredOverNested(t *testing.T) {
 	nestedDir := filepath.Join(moduleRoot, "extensions", "tools", "myext")
 	createGoFile(t, nestedDir, "myext.go", "package myext")
 
-	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"myext"})
+	exts, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"myext"})
 	require.NoError(t, err)
 
 	require.Len(t, exts, 1)
@@ -198,7 +198,7 @@ func TestDiscoverWithBuiltins_MixedNestedAndDirect(t *testing.T) {
 	anthropicDir := filepath.Join(moduleRoot, "extensions", "providers", "anthropic")
 	createGoFile(t, anthropicDir, "anthropic.go", "package anthropic")
 
-	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"loop", "bash", "anthropic"})
+	exts, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"loop", "bash", "anthropic"})
 	require.NoError(t, err)
 
 	require.Len(t, exts, 3)
@@ -221,7 +221,7 @@ func TestDiscoverWithBuiltins_NestedNotFound(t *testing.T) {
 	// Create a tools directory but no "bash" inside it
 	require.NoError(t, os.MkdirAll(filepath.Join(moduleRoot, "extensions", "tools"), 0o750))
 
-	_, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"bash"})
+	_, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"bash"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "bash")
 }
@@ -239,7 +239,7 @@ func TestDiscoverWithBuiltins_LocalOverridesNestedBuiltin(t *testing.T) {
 	localDir := filepath.Join(projectDir, ".weave", "extensions", "bash")
 	createGoFile(t, localDir, "bash.go", "package bash")
 
-	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"bash"})
+	exts, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"bash"})
 	require.NoError(t, err)
 
 	require.Len(t, exts, 1)
@@ -255,7 +255,7 @@ func TestDiscoverWithBuiltins_TUIExtension(t *testing.T) {
 	tuiExtDir := filepath.Join(moduleRoot, "extensions", "ui", "tui", "extensions", "diff-viewer")
 	createGoFile(t, tuiExtDir, "diff.go", "package diffviewer")
 
-	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"diff-viewer"})
+	exts, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"diff-viewer"})
 	require.NoError(t, err, "DiscoverCustomHomeWithBuiltins")
 
 	require.Len(t, exts, 1)
@@ -276,7 +276,7 @@ func TestDiscoverWithBuiltins_TUIExtensionWithModulePath(t *testing.T) {
 	goModContent := "module weave/ext/my-ui-ext\n\ngo 1.22\n"
 	require.NoError(t, os.WriteFile(filepath.Join(tuiExtDir, "go.mod"), []byte(goModContent), 0o600))
 
-	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"my-ui-ext"})
+	exts, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"my-ui-ext"})
 	require.NoError(t, err, "DiscoverCustomHomeWithBuiltins")
 
 	require.Len(t, exts, 1)
@@ -294,7 +294,7 @@ func TestDiscoverWithBuiltins_TUIExtensionNotFound(t *testing.T) {
 	homeDir := t.TempDir()
 
 	// No extensions created
-	_, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"nonexistent-ui-ext"})
+	_, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"nonexistent-ui-ext"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "nonexistent-ui-ext")
 }
@@ -308,7 +308,7 @@ func TestDiscoverWithBuiltins_StandardExtensionFound(t *testing.T) {
 	bashDir := filepath.Join(moduleRoot, "extensions", "tools", "bash")
 	createGoFile(t, bashDir, "bash.go", "package bash")
 
-	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"bash"})
+	exts, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"bash"})
 	require.NoError(t, err, "DiscoverCustomHomeWithBuiltins")
 
 	require.Len(t, exts, 1)
@@ -329,7 +329,7 @@ func TestDiscoverWithBuiltins_TUIExtensionFallbackAfterStandard(t *testing.T) {
 	tuiExtDir := filepath.Join(moduleRoot, "extensions", "ui", "tui", "extensions", "mytool")
 	createGoFile(t, tuiExtDir, "mytool.go", "package mytool")
 
-	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"mytool"})
+	exts, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"mytool"})
 	require.NoError(t, err)
 
 	require.Len(t, exts, 1)
@@ -411,7 +411,7 @@ func TestDiscoverWithBuiltins_PathEntryRelative(t *testing.T) {
 	extDir := filepath.Join(parentDir, "my-ext")
 	createGoFile(t, extDir, "ext.go", "package myext")
 
-	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"../my-ext"})
+	exts, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"../my-ext"})
 	require.NoError(t, err)
 
 	require.Len(t, exts, 1)
@@ -427,7 +427,7 @@ func TestDiscoverWithBuiltins_PathEntryAbsolute(t *testing.T) {
 	extDir := filepath.Join(t.TempDir(), "my-ext")
 	createGoFile(t, extDir, "ext.go", "package myext")
 
-	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{extDir})
+	exts, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{extDir})
 	require.NoError(t, err)
 
 	require.Len(t, exts, 1)
@@ -447,7 +447,7 @@ func TestDiscoverWithBuiltins_PathEntryTilde(t *testing.T) {
 	extDir := filepath.Join(homeDir, ".weave-test-ext-tmp")
 	createGoFile(t, extDir, "ext.go", "package ext")
 
-	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"~/.weave-test-ext-tmp"})
+	exts, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"~/.weave-test-ext-tmp"})
 	require.NoError(t, err)
 
 	require.Len(t, exts, 1)
@@ -468,7 +468,7 @@ func TestDiscoverWithBuiltins_MixedPathAndBareNames(t *testing.T) {
 	extDir := filepath.Join(projectDir, "my-custom")
 	createGoFile(t, extDir, "custom.go", "package custom")
 
-	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"bash", "./my-custom"})
+	exts, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"bash", "./my-custom"})
 	require.NoError(t, err)
 
 	require.Len(t, exts, 2)
@@ -483,7 +483,7 @@ func TestDiscoverWithBuiltins_PathEntryNotExist(t *testing.T) {
 	homeDir := t.TempDir()
 	moduleRoot := t.TempDir()
 
-	_, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"./nonexistent"})
+	_, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"./nonexistent"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "nonexistent")
 }
@@ -497,7 +497,7 @@ func TestDiscoverWithBuiltins_PathEntryNotDir(t *testing.T) {
 	filePath := filepath.Join(projectDir, "notadir.go")
 	require.NoError(t, os.WriteFile(filePath, []byte("package main"), 0o600))
 
-	_, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"./notadir.go"})
+	_, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"./notadir.go"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not a directory")
 }
@@ -511,7 +511,7 @@ func TestDiscoverWithBuiltins_PathEntryNoGoFiles(t *testing.T) {
 	emptyDir := filepath.Join(projectDir, "empty")
 	require.NoError(t, os.MkdirAll(emptyDir, 0o750))
 
-	_, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"./empty"})
+	_, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"./empty"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no .go files")
 }
@@ -524,9 +524,134 @@ func TestDiscoverWithBuiltins_PathEntryNameIsBaseDir(t *testing.T) {
 	extDir := filepath.Join(projectDir, "my-special-tool")
 	createGoFile(t, extDir, "tool.go", "package tool")
 
-	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"./my-special-tool"})
+	exts, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"./my-special-tool"})
 	require.NoError(t, err)
 
 	require.Len(t, exts, 1)
 	assert.Equal(t, "my-special-tool", exts[0].Name)
+}
+
+func TestCollisionDetection_LocalShadowsBuiltin(t *testing.T) {
+	moduleRoot := t.TempDir()
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+
+	// Create a built-in
+	bashDir := filepath.Join(moduleRoot, "extensions", "tools", "bash")
+	createGoFile(t, bashDir, "bash.go", "package bash")
+
+	// Create a local override
+	localDir := filepath.Join(projectDir, ".weave", "extensions", "bash")
+	createGoFile(t, localDir, "bash.go", "package bash")
+
+	exts, warnings, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"bash"})
+	require.NoError(t, err)
+	require.Len(t, exts, 1)
+	assert.Equal(t, localDir, exts[0].Dir)
+	require.Len(t, warnings, 1)
+	assert.Contains(t, warnings[0], "bash")
+	assert.Contains(t, warnings[0], "built-in")
+}
+
+func TestCollisionDetection_GlobalShadowsBuiltin(t *testing.T) {
+	moduleRoot := t.TempDir()
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+
+	// Create a built-in
+	bashDir := filepath.Join(moduleRoot, "extensions", "tools", "bash")
+	createGoFile(t, bashDir, "bash.go", "package bash")
+
+	// Create a global override
+	globalDir := filepath.Join(homeDir, ".weave", "extensions", "bash")
+	createGoFile(t, globalDir, "bash.go", "package bash")
+
+	exts, warnings, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"bash"})
+	require.NoError(t, err)
+	require.Len(t, exts, 1)
+	assert.Equal(t, globalDir, exts[0].Dir)
+	require.Len(t, warnings, 1)
+	assert.Contains(t, warnings[0], "bash")
+	assert.Contains(t, warnings[0], "built-in")
+}
+
+func TestCollisionDetection_NoShadow_NoWarning(t *testing.T) {
+	moduleRoot := t.TempDir()
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+
+	// Only a built-in exists, resolved from built-in path
+	bashDir := filepath.Join(moduleRoot, "extensions", "tools", "bash")
+	createGoFile(t, bashDir, "bash.go", "package bash")
+
+	exts, warnings, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"bash"})
+	require.NoError(t, err)
+	require.Len(t, exts, 1)
+	assert.Empty(t, warnings, "no shadow warning when resolved from built-in")
+}
+
+func TestCollisionDetection_PathEntry_NoWarning(t *testing.T) {
+	moduleRoot := t.TempDir()
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+
+	// Built-in exists
+	bashDir := filepath.Join(moduleRoot, "extensions", "tools", "bash")
+	createGoFile(t, bashDir, "bash.go", "package bash")
+
+	// Path entry — should not generate shadow warning (path entries are explicit)
+	extDir := filepath.Join(projectDir, "bash")
+	createGoFile(t, extDir, "bash.go", "package bash")
+
+	exts, warnings, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"./bash"})
+	require.NoError(t, err)
+	require.Len(t, exts, 1)
+	assert.Empty(t, warnings, "path entries should not generate shadow warnings")
+}
+
+func TestCollisionDetection_MultipleWarnings(t *testing.T) {
+	moduleRoot := t.TempDir()
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+
+	// Create built-ins
+	bashBuiltin := filepath.Join(moduleRoot, "extensions", "tools", "bash")
+	createGoFile(t, bashBuiltin, "bash.go", "package bash")
+	readBuiltin := filepath.Join(moduleRoot, "extensions", "tools", "read")
+	createGoFile(t, readBuiltin, "read.go", "package read")
+
+	// Local overrides
+	bashLocal := filepath.Join(projectDir, ".weave", "extensions", "bash")
+	createGoFile(t, bashLocal, "bash.go", "package bash")
+	readLocal := filepath.Join(projectDir, ".weave", "extensions", "read")
+	createGoFile(t, readLocal, "read.go", "package read")
+
+	exts, warnings, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"bash", "read"})
+	require.NoError(t, err)
+	require.Len(t, exts, 2)
+	require.Len(t, warnings, 2)
+}
+
+func TestCheckBuiltinShadow(t *testing.T) {
+	moduleRoot := t.TempDir()
+
+	// Create a built-in extension
+	bashDir := filepath.Join(moduleRoot, "extensions", "tools", "bash")
+	createGoFile(t, bashDir, "bash.go", "package bash")
+
+	t.Run("local shadows builtin", func(t *testing.T) {
+		w := checkBuiltinShadow(moduleRoot, "bash", "/some/local/path")
+		assert.NotEmpty(t, w)
+		assert.Contains(t, w, "bash")
+	})
+
+	t.Run("resolved from builtin — no shadow", func(t *testing.T) {
+		w := checkBuiltinShadow(moduleRoot, "bash", bashDir)
+		assert.Empty(t, w)
+	})
+
+	t.Run("no builtin exists — no shadow", func(t *testing.T) {
+		w := checkBuiltinShadow(moduleRoot, "nonexistent", "/some/local/path")
+		assert.Empty(t, w)
+	})
 }
