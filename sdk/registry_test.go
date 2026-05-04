@@ -28,13 +28,14 @@ func TestDuplicateRegistration(t *testing.T) {
 		return NewExtensionFunc("dup", func(bus Bus) {}), nil
 	})
 
-	// Duplicate extension registration still panics (not warnable — this is a
-	// programming error within a single binary, not a discovery collision).
-	assert.Panics(t, func() {
-		RegisterExtension("dup", func(Config) (Extension, error) {
-			return NewExtensionFunc("dup-v2", func(bus Bus) {}), nil
-		})
+	// Duplicate extension registration logs a warning; first registration wins.
+	RegisterExtension("dup", func(Config) (Extension, error) {
+		return NewExtensionFunc("dup-v2", func(bus Bus) {}), nil
 	})
+
+	got, err := GetExtension("dup", nil)
+	require.NoError(t, err)
+	assert.Equal(t, "dup", got.Name(), "first registration should win")
 }
 
 func TestMissingExtension(t *testing.T) {

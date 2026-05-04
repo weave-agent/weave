@@ -208,7 +208,9 @@ func reloadCmd() tea.Cmd {
 			home, _ := os.UserHomeDir()
 			if home != "" {
 				cacheDir := filepath.Join(home, ".weave", "bin", buildHash)
-				_ = os.RemoveAll(cacheDir) //nolint:gosec // G703 — cleaning our own cache dir
+				if err := os.RemoveAll(cacheDir); err != nil { //nolint:gosec // G703 — cleaning our own cache dir
+					return notifyMsg{message: fmt.Sprintf("/reload: failed to remove cache: %v", err)}
+				}
 			}
 		}
 

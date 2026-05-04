@@ -2,8 +2,12 @@ package sdk
 
 import (
 	"fmt"
+	"log"
+	"os"
 	"sync"
 )
+
+var extWarnLog = log.New(os.Stderr, "weave: ", 0)
 
 var (
 	registryMu sync.RWMutex
@@ -15,7 +19,8 @@ func RegisterExtension(name string, factory func(Config) (Extension, error)) {
 	defer registryMu.Unlock()
 
 	if _, dup := registry[name]; dup {
-		panic("sdk: RegisterExtension called twice for " + name)
+		extWarnLog.Printf("warning: extension %q already registered; first registration wins", name)
+		return
 	}
 
 	registry[name] = factory
