@@ -9,9 +9,8 @@ import (
 )
 
 // MergeSettings deep-merges multiple Settings layers. Later layers override
-// earlier ones. UISettings fields merge recursively; primitive values and
-// slices are replaced entirely by the later layer. Tools map entries are
-// copied by key (later entries for the same tool key replace earlier ones).
+// earlier ones. Nested objects (UI fields, tool config maps) merge recursively;
+// primitive values and slices are replaced entirely by the later layer.
 func MergeSettings(layers ...*Settings) *Settings {
 	result := &Settings{}
 
@@ -51,7 +50,13 @@ func MergeSettings(layers ...*Settings) *Settings {
 				result.Tools = make(map[string]any, len(layer.Tools))
 			}
 
-			maps.Copy(result.Tools, layer.Tools)
+			for k, v := range layer.Tools {
+				if existing, ok := result.Tools[k]; ok {
+					result.Tools[k] = deepMergeValues(existing, v)
+				} else {
+					result.Tools[k] = v
+				}
+			}
 		}
 	}
 
@@ -143,4 +148,29 @@ func loadLocalSettings(projectDir string) (*Settings, error) {
 	path := filepath.Join(projectDir, ".weave", "settings.local.json")
 
 	return loadSettingsFile(path)
+}
+
+// deepMergeValues recursively merges two values. When both are map[string]any,
+// keys from incoming override existing keys, and nested maps are merged
+// recursively. For all other types, incoming replaces existing entirely.
+func deepMergeValues(existing, incoming any) any {
+	existingMap, ok1 := existing.(map[string]any)
+
+	incomingMap, ok2 := incoming.(map[string]any)
+	if !ok1 || !ok2 {
+		return incoming
+	}
+
+	result := make(map[string]any, len(existingMap))
+	maps.Copy(result, existingMap)
+
+	for k, v := range incomingMap {
+		if prev, ok := result[k]; ok {
+			result[k] = deepMergeValues(prev, v)
+		} else {
+			result[k] = v
+		}
+	}
+
+	return result
 }

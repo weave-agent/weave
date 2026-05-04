@@ -84,7 +84,7 @@ func TestMergeSettings_UINilToNonNil(t *testing.T) {
 func TestMergeSettings_ToolsMergeByKey(t *testing.T) {
 	layer1 := &Settings{
 		Tools: map[string]any{
-			"bash": map[string]any{"timeout": 120},
+			"bash": map[string]any{"timeout": 120, "shell": "/bin/bash"},
 			"grep": map[string]any{"context": 3},
 		},
 	}
@@ -98,7 +98,7 @@ func TestMergeSettings_ToolsMergeByKey(t *testing.T) {
 	result := MergeSettings(layer1, layer2)
 
 	require.Len(t, result.Tools, 3)
-	assert.Equal(t, map[string]any{"timeout": 60}, result.Tools["bash"])
+	assert.Equal(t, map[string]any{"timeout": 60, "shell": "/bin/bash"}, result.Tools["bash"])
 	assert.Equal(t, map[string]any{"context": 3}, result.Tools["grep"])
 	assert.Equal(t, map[string]any{"max_lines": 500}, result.Tools["read"])
 }

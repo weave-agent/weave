@@ -26,11 +26,6 @@ func run(args ...string) (exitCode int) {
 		return 1
 	}
 
-	if ve := validateCoreConfig(cf); ve != nil {
-		fmt.Fprintf(os.Stderr, "weave: %v\n", ve)
-		return 1
-	}
-
 	cacheDir, err := launcher.DefaultCacheDir()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", err)
@@ -125,10 +120,6 @@ func ensurePresent(exts []string, name string) []string {
 	}
 
 	return append(exts, name)
-}
-
-func validateCoreConfig(_ *config.File) error {
-	return nil
 }
 
 func findModuleRoot() (string, error) {
