@@ -378,7 +378,7 @@ func (l *Loop) applyModelChange(evt sdk.Event, bus sdk.Bus, currentProv sdk.Prov
 		newProv, err := sdk.GetProvider(provider, l.cfg)
 		if err != nil {
 			bus.Publish(sdk.NewEvent(TopicModelChangeFailed, map[string]any{
-				"provider": l.providerName,
+				"provider": provider,
 				"error":    err.Error(),
 			}))
 
