@@ -282,6 +282,7 @@ func (s *Store) handleMsgEnd(evt sdk.Event) {
 
 	id, err := generateID()
 	if err != nil {
+		slog.Error("jsonl: generate id", "error", err)
 		return
 	}
 
@@ -335,6 +336,7 @@ func (s *Store) handleToolResult(evt sdk.Event) {
 
 	id, err := generateID()
 	if err != nil {
+		slog.Error("jsonl: generate id", "error", err)
 		return
 	}
 

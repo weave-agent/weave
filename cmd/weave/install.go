@@ -124,8 +124,8 @@ func parseSource(source string) (parsedSource, error) {
 		return parsedSource{}, fmt.Errorf("insecure URL %q (use https:// instead)", source)
 	}
 
-	// Git URL: https:// only (reject git:// as unencrypted).
-	if strings.HasPrefix(source, "https://") {
+	// Git URL: https:// or git://.
+	if strings.HasPrefix(source, "https://") || strings.HasPrefix(source, "git://") {
 		return parsedSource{
 			kind:    sourceGitURL,
 			gitURL:  source,

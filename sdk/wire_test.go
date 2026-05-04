@@ -391,7 +391,10 @@ func TestWireWithCore_SyncsProviderEnv(t *testing.T) {
 		return &ProviderMock{}, nil
 	})
 
+	var capturedProvider string
+
 	RegisterExtension("loop", func(Config) (Extension, error) {
+		capturedProvider = os.Getenv("WEAVE_PROVIDER")
 		return NewExtensionFunc("loop", func(Bus) {}), nil
 	})
 
@@ -402,7 +405,8 @@ func TestWireWithCore_SyncsProviderEnv(t *testing.T) {
 	_, err := WireWithCore(CoreWireConfig{AgentLoop: "loop", Providers: []string{"openai"}}, nil, bus, nil)
 	require.NoError(t, err, "WireWithCore")
 
-	assert.Equal(t, "openai", os.Getenv("WEAVE_PROVIDER"))
+	assert.Equal(t, "openai", capturedProvider)
+	assert.Empty(t, os.Getenv("WEAVE_PROVIDER"))
 }
 
 func TestWireWithCore_DoesNotOverrideExistingProviderEnv(t *testing.T) {
@@ -416,7 +420,10 @@ func TestWireWithCore_DoesNotOverrideExistingProviderEnv(t *testing.T) {
 		return &ProviderMock{}, nil
 	})
 
+	var capturedProvider string
+
 	RegisterExtension("loop", func(Config) (Extension, error) {
+		capturedProvider = os.Getenv("WEAVE_PROVIDER")
 		return NewExtensionFunc("loop", func(Bus) {}), nil
 	})
 
@@ -427,6 +434,7 @@ func TestWireWithCore_DoesNotOverrideExistingProviderEnv(t *testing.T) {
 	_, err := WireWithCore(CoreWireConfig{AgentLoop: "loop", Providers: []string{"openai"}}, nil, bus, nil)
 	require.NoError(t, err, "WireWithCore")
 
+	assert.Equal(t, "anthropic", capturedProvider)
 	assert.Equal(t, "anthropic", os.Getenv("WEAVE_PROVIDER"))
 }
 

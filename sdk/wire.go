@@ -64,8 +64,13 @@ func WireWithCore(core CoreWireConfig, optExts []string, bus Bus, cfg Config) (*
 
 	// Sync the primary provider to the env var that the loop extension reads
 	// in its factory, so direct WireWithCore callers don't need to set it.
-	if os.Getenv("WEAVE_PROVIDER") == "" {
+	oldProvider := os.Getenv("WEAVE_PROVIDER")
+	if oldProvider == "" {
 		_ = os.Setenv("WEAVE_PROVIDER", core.Providers[0])
+
+		defer func() {
+			_ = os.Unsetenv("WEAVE_PROVIDER")
+		}()
 	}
 
 	if core.SingleTurn {
