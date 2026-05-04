@@ -116,12 +116,12 @@ Harden weave's extension system with four pi-inspired improvements:
 - [x] run `go test ./cmd/weave/...` - must pass before task 7
 
 ### Task 7: Add /reload slash command
-- [ ] in `launcher/launcher.go` exec function, pass `WEAVE_LAUNCHER_PATH` (path to original weave binary via `os.Args[0]`) and `WEAVE_BUILD_HASH` (current cache hash) as environment variables
-- [ ] add `/reload` slash command handler in TUI that reads `WEAVE_LAUNCHER_PATH` and `WEAVE_BUILD_HASH`, removes the cache directory for the current hash, then calls `syscall.Exec` with the launcher path and original args
-- [ ] store original args in an env var (`WEAVE_ORIG_ARGS`) at exec time so /reload can reconstruct the command
-- [ ] write tests for env var passing in launcher exec
-- [ ] write tests for cache invalidation logic
-- [ ] run `make test` - must pass before task 8
+- [x] in `launcher/launcher.go` exec function, pass `WEAVE_LAUNCHER_PATH` (path to original weave binary via `os.Args[0]`) and `WEAVE_BUILD_HASH` (current cache hash) as environment variables
+- [x] add `/reload` slash command handler in TUI that reads `WEAVE_LAUNCHER_PATH` and `WEAVE_BUILD_HASH`, removes the cache directory for the current hash, then calls `syscall.Exec` with the launcher path and original args
+- [x] store original args in an env var (`WEAVE_ORIG_ARGS`) at exec time so /reload can reconstruct the command
+- [x] write tests for env var passing in launcher exec
+- [x] write tests for cache invalidation logic
+- [x] run `make test` - must pass before task 8
 
 ### Task 8: Verify acceptance criteria
 - [ ] verify all four improvements work end-to-end: callback bus, collision warnings, headless detection, install + reload

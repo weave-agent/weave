@@ -143,7 +143,67 @@ func (l *Launcher) exec(_ context.Context, binPath, configPath, agentLoop string
 
 	argv = append(argv, args...)
 
-	return fmt.Errorf("exec binary: %w", syscall.Exec(binPath, argv, os.Environ()))
+	launcherPath, _ := os.Executable()
+	if launcherPath == "" {
+		launcherPath = os.Args[0]
+	}
+
+	env := os.Environ()
+	env = appendEnv(env, "WEAVE_LAUNCHER_PATH", launcherPath)
+
+	// binPath is <cache.Root>/<hash>/weave — extract hash for reload.
+	hash := filepath.Base(filepath.Dir(binPath))
+	env = appendEnv(env, "WEAVE_BUILD_HASH", hash)
+
+	origArgs := jsonMarshalArgs(os.Args)
+	env = appendEnv(env, "WEAVE_ORIG_ARGS", origArgs)
+
+	return fmt.Errorf("exec binary: %w", syscall.Exec(binPath, argv, env))
+}
+
+func appendEnv(env []string, key, value string) []string {
+	return append(env, key+"="+value)
+}
+
+func jsonMarshalArgs(args []string) string {
+	var b strings.Builder
+	b.WriteByte('[')
+
+	for i, a := range args {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+
+		b.WriteString(jsonEscapeString(a))
+	}
+
+	b.WriteByte(']')
+	return b.String()
+}
+
+func jsonEscapeString(s string) string {
+	var b strings.Builder
+	b.WriteByte('"')
+
+	for _, r := range s {
+		switch r {
+		case '"':
+			b.WriteString(`\"`)
+		case '\\':
+			b.WriteString(`\\`)
+		case '\n':
+			b.WriteString(`\n`)
+		case '\r':
+			b.WriteString(`\r`)
+		case '\t':
+			b.WriteString(`\t`)
+		default:
+			b.WriteRune(r)
+		}
+	}
+
+	b.WriteByte('"')
+	return b.String()
 }
 
 // RunCommand runs the binary as a subprocess (non-replacing, for testing).

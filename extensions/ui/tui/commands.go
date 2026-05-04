@@ -1,10 +1,15 @@
 package tui
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"os/user"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 
 	"weave/sdk"
 
@@ -76,6 +81,10 @@ func NewCommandRegistry(bus sdk.Bus, sessionDir string) *CommandRegistry {
 
 	r.register("/resume", "View a previous session", false, func(_ string) CommandResult {
 		return CommandResult{Command: listSessionsCmd(r.sessionDir)}
+	})
+
+	r.register("/reload", "Rebuild extensions and restart", false, func(_ string) CommandResult {
+		return CommandResult{Command: reloadCmd()}
 	})
 
 	return r
@@ -173,4 +182,55 @@ func parseCommand(input string) (string, string) {
 	name, args, _ := strings.Cut(input, " ")
 
 	return name, strings.TrimSpace(args)
+}
+
+// reloadMsg is a tea.Msg that signals the program should reload.
+type reloadMsg struct {
+	launcherPath string
+	origArgs     []string
+	env          []string
+}
+
+// reloadCmd returns a tea.Cmd that reads reload env vars and returns a reloadMsg.
+// If the env vars are not set (e.g., not launched via the weave launcher), it
+// returns a notifyMsg instead.
+func reloadCmd() tea.Cmd {
+	return func() tea.Msg {
+		launcherPath := os.Getenv("WEAVE_LAUNCHER_PATH")
+		buildHash := os.Getenv("WEAVE_BUILD_HASH")
+		origArgsJSON := os.Getenv("WEAVE_ORIG_ARGS")
+
+		if launcherPath == "" {
+			return notifyMsg{message: "/reload: not available — weave was not launched via the launcher"}
+		}
+
+		// Remove the cache directory for the current build hash.
+		if buildHash != "" {
+			home, _ := user.Current()
+			if home != nil {
+				cacheDir := filepath.Join(home.HomeDir, ".weave", "bin", buildHash)
+				_ = os.RemoveAll(cacheDir)
+			}
+		}
+
+		var origArgs []string
+		if origArgsJSON != "" {
+			_ = json.Unmarshal([]byte(origArgsJSON), &origArgs)
+		}
+
+		if len(origArgs) == 0 {
+			origArgs = []string{launcherPath}
+		}
+
+		return reloadMsg{
+			launcherPath: launcherPath,
+			origArgs:     origArgs,
+			env:          os.Environ(),
+		}
+	}
+}
+
+// handleReload performs the actual syscall.Exec to replace the process.
+func handleReload(msg reloadMsg) error {
+	return syscall.Exec(msg.launcherPath, msg.origArgs, msg.env)
 }

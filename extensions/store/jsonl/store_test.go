@@ -481,6 +481,7 @@ func (m *mockConfig) ProviderConfig(string) *sdk.ProviderConfigEntry { return ni
 func (m *mockConfig) ResolveKey(_, envVar string) (string, error)    { return os.Getenv(envVar), nil }
 func (m *mockConfig) ToolConfig(string, any) error                   { return nil }
 func (m *mockConfig) UIConfig(any) error                             { return nil }
+	func (m *mockConfig) IsHeadless() bool                              { return false }
 
 func TestNewStore_LoadsNestedDir(t *testing.T) {
 	dir := t.TempDir()

@@ -464,6 +464,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ShutdownMsg:
 		return m, tea.Quit
 
+	case reloadMsg:
+		_ = handleReload(msg)
+		return m, tea.Quit
+
 	case popupPendingMsg:
 		return m.handlePopupPending()
 

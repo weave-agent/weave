@@ -1,6 +1,9 @@
 package tui
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"weave/bus"
@@ -425,4 +428,98 @@ func TestModel_ThinkingCommandInHelp(t *testing.T) {
 	am, ok := items[0].(*messages.AssistantMessage)
 	require.True(t, ok)
 	assert.Contains(t, am.Content(), "/thinking")
+}
+
+func TestCommandRegistry_ReloadRegistered(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	r := NewCommandRegistry(b, "")
+
+	names := r.Names()
+	assert.Contains(t, names, "/reload")
+
+	info, ok := r.Lookup("/reload")
+	require.True(t, ok)
+	assert.Equal(t, "Rebuild extensions and restart", info.Description)
+}
+
+func TestReloadCmd_NoLauncherPath(t *testing.T) {
+	t.Setenv("WEAVE_LAUNCHER_PATH", "")
+	t.Setenv("WEAVE_BUILD_HASH", "")
+	t.Setenv("WEAVE_ORIG_ARGS", "")
+
+	cmd := reloadCmd()
+	msg := cmd()
+
+	notify, ok := msg.(notifyMsg)
+	require.True(t, ok, "expected notifyMsg when WEAVE_LAUNCHER_PATH is empty")
+	assert.Contains(t, notify.message, "not available")
+}
+
+func TestReloadCmd_RemovesCacheDir(t *testing.T) {
+	home, err := os.UserHomeDir()
+	require.NoError(t, err)
+
+	testHash := "test-reload-hash-12345"
+	cacheDir := filepath.Join(home, ".weave", "bin", testHash)
+
+	// Create a fake cache dir to verify it gets removed.
+	require.NoError(t, os.MkdirAll(cacheDir, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(cacheDir, "weave"), []byte("fake"), 0o600))
+
+	origArgs, _ := json.Marshal([]string{"weave", "arg1"})
+
+	t.Setenv("WEAVE_LAUNCHER_PATH", "/usr/local/bin/weave")
+	t.Setenv("WEAVE_BUILD_HASH", testHash)
+	t.Setenv("WEAVE_ORIG_ARGS", string(origArgs))
+
+	cmd := reloadCmd()
+	msg := cmd()
+
+	reload, ok := msg.(reloadMsg)
+	require.True(t, ok, "expected reloadMsg")
+	assert.Equal(t, "/usr/local/bin/weave", reload.launcherPath)
+	assert.Equal(t, []string{"weave", "arg1"}, reload.origArgs)
+
+	// Verify cache dir was removed.
+	_, statErr := os.Stat(cacheDir)
+	assert.True(t, os.IsNotExist(statErr), "cache dir should be removed")
+}
+
+func TestReloadCmd_MissingOrigArgs(t *testing.T) {
+	home, err := os.UserHomeDir()
+	require.NoError(t, err)
+
+	// Use a unique hash so we don't interfere with other tests.
+	testHash := "test-missing-args-hash"
+	cacheDir := filepath.Join(home, ".weave", "bin", testHash)
+	_ = os.MkdirAll(cacheDir, 0o750)
+
+	t.Setenv("WEAVE_LAUNCHER_PATH", "/usr/bin/weave")
+	t.Setenv("WEAVE_BUILD_HASH", testHash)
+	t.Setenv("WEAVE_ORIG_ARGS", "")
+
+	cmd := reloadCmd()
+	msg := cmd()
+
+	reload, ok := msg.(reloadMsg)
+	require.True(t, ok)
+	assert.Equal(t, []string{"/usr/bin/weave"}, reload.origArgs)
+
+	// Cleanup
+	_ = os.RemoveAll(cacheDir)
+}
+
+func TestReloadCmd_EmptyBuildHash(t *testing.T) {
+	t.Setenv("WEAVE_LAUNCHER_PATH", "/usr/bin/weave")
+	t.Setenv("WEAVE_BUILD_HASH", "")
+	t.Setenv("WEAVE_ORIG_ARGS", `["weave"]`)
+
+	cmd := reloadCmd()
+	msg := cmd()
+
+	reload, ok := msg.(reloadMsg)
+	require.True(t, ok)
+	assert.Equal(t, "/usr/bin/weave", reload.launcherPath)
 }
