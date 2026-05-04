@@ -331,6 +331,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 
 		m.editor, cmd = m.editor.Update(msg)
+		m = m.refreshEditorCompletion()
 
 		return m, cmd
 
@@ -1463,7 +1464,7 @@ func (m Model) refreshEditorCompletion() Model {
 		lineStart += len(lines[i]) + 1
 	}
 
-	if strings.HasPrefix(line, "/") {
+	if lineIdx == 0 && strings.HasPrefix(line, "/") {
 		return m.slashCommandCompletion(line, lineStart)
 	}
 
@@ -1531,14 +1532,6 @@ func (m Model) atFileCompletion(line string, lineStart int) Model {
 		return m
 	}
 
-	afterAt := line[atIdx+1:]
-
-	if strings.Contains(afterAt, " ") {
-		m.editor = m.editor.HideCompletion()
-
-		return m
-	}
-
 	cursorCol := m.editor.CursorColumn()
 	atRunePos := len([]rune(line[:atIdx]))
 
@@ -1549,11 +1542,19 @@ func (m Model) atFileCompletion(line string, lineStart int) Model {
 	}
 
 	tokenLen := cursorCol - atRunePos - 1
-	filter := afterAt
-
-	if runeFilter := []rune(filter); len(runeFilter) > tokenLen {
-		filter = string(runeFilter[:tokenLen])
+	afterAt := []rune(line[atIdx+1:])
+	if tokenLen > len(afterAt) {
+		tokenLen = len(afterAt)
 	}
+
+	token := string(afterAt[:tokenLen])
+	if strings.Contains(token, " ") {
+		m.editor = m.editor.HideCompletion()
+
+		return m
+	}
+
+	filter := token
 
 	items := components.PathCompletions(".", filter)
 	triggerOffset := lineStart + atIdx

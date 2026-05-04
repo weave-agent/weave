@@ -2210,8 +2210,9 @@ func TestModel_RefreshEditorCompletion_MultilineSlashCommand(t *testing.T) {
 	// Position cursor on second line, at end
 	m.editor, _ = m.editor.Update(tea.KeyPressMsg{Code: tea.KeyEnd})
 	m = m.refreshEditorCompletion()
-	assert.True(t, m.editor.CompletionActive())
-	assert.Equal(t, components.CompletionSlash, m.editor.Completion().Kind())
+	// Slash completion should NOT activate on non-first lines since Dispatch
+	// only handles commands when the full input starts with "/"
+	assert.False(t, m.editor.CompletionActive())
 }
 
 // addTestAttachment is a helper to add a test attachment to the model.
