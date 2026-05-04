@@ -233,6 +233,31 @@ func copyExtension(srcDir, destDir string) error {
 
 		target := filepath.Join(destDir, rel)
 
+		if d.Type()&fs.ModeSymlink != 0 {
+			// Resolve symlink and copy as regular file/directory.
+			// Never preserve symlinks as-is to prevent path traversal.
+			resolved, resolveErr := filepath.EvalSymlinks(path)
+			if resolveErr != nil {
+				return fmt.Errorf("resolve symlink %q: %w", path, resolveErr)
+			}
+
+			stat, statErr := os.Stat(resolved)
+			if statErr != nil {
+				return fmt.Errorf("stat symlink target %q: %w", resolved, statErr)
+			}
+
+			if stat.IsDir() {
+				return os.MkdirAll(target, 0o750) //nolint:gosec // G703 — our own extension dir
+			}
+
+			data, readErr := os.ReadFile(resolved) //nolint:gosec // G122 — reading from known source dir
+			if readErr != nil {
+				return fmt.Errorf("read file: %w", readErr)
+			}
+
+			return os.WriteFile(target, data, stat.Mode().Perm()) //nolint:gosec // G703 — our own extension dir
+		}
+
 		if d.IsDir() {
 			return os.MkdirAll(target, 0o750) //nolint:gosec // G703 — our own extension dir
 		}

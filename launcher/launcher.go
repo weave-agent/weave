@@ -149,6 +149,13 @@ func (l *Launcher) exec(_ context.Context, binPath, configPath, agentLoop string
 		launcherPath = os.Args[0]
 	}
 
+	if !filepath.IsAbs(launcherPath) {
+		absPath, err := filepath.Abs(launcherPath)
+		if err == nil {
+			launcherPath = absPath
+		}
+	}
+
 	env := os.Environ()
 	env = append(env, "WEAVE_LAUNCHER_PATH="+launcherPath)
 

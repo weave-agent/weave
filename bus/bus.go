@@ -42,6 +42,10 @@ func New() *Bus {
 }
 
 func handlerID(h sdk.Handler) uintptr {
+	if h == nil {
+		return 0
+	}
+
 	return reflect.ValueOf(h).Pointer()
 }
 
