@@ -13,12 +13,7 @@ import (
 	"weave/launcher"
 )
 
-var (
-	errAgentLoopRequired = errors.New("core.agent_loop is required")
-	errProviderRequired  = errors.New("core.providers must include at least one provider")
-	errDuplicateProvider = errors.New("core.providers contains duplicates")
-	errNoInput           = errors.New("no prompt provided and ui is disabled — use -p to provide a prompt or set ui: tui")
-)
+var errNoInput = errors.New("no prompt provided and ui is disabled — use -p to provide a prompt or set ui: tui")
 
 func main() {
 	os.Exit(run(os.Args[1:]...))
@@ -132,24 +127,7 @@ func ensurePresent(exts []string, name string) []string {
 	return append(exts, name)
 }
 
-func validateCoreConfig(cf *config.File) error {
-	if cf.Core.AgentLoop == "" {
-		return errAgentLoopRequired
-	}
-
-	if len(cf.Core.Providers) == 0 {
-		return errProviderRequired
-	}
-
-	seen := make(map[string]bool, len(cf.Core.Providers))
-	for _, p := range cf.Core.Providers {
-		if seen[p] {
-			return fmt.Errorf("%w: %q", errDuplicateProvider, p)
-		}
-
-		seen[p] = true
-	}
-
+func validateCoreConfig(_ *config.File) error {
 	return nil
 }
 

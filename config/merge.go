@@ -9,8 +9,9 @@ import (
 )
 
 // MergeSettings deep-merges multiple Settings layers. Later layers override
-// earlier ones. Nested objects merge recursively; primitive values and slices
-// are replaced entirely by the later layer.
+// earlier ones. UISettings fields merge recursively; primitive values and
+// slices are replaced entirely by the later layer. Tools map entries are
+// copied by key (later entries for the same tool key replace earlier ones).
 func MergeSettings(layers ...*Settings) *Settings {
 	result := &Settings{}
 

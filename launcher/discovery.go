@@ -5,47 +5,15 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
+
+	"weave/config"
 )
 
-var validExtName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
-
 // isPath reports whether an extension entry is a filesystem path rather than a
-// bare extension name. Path entries start with ./, ../, /, or ~/.
-func isPath(s string) bool {
-	return strings.HasPrefix(s, "./") ||
-		strings.HasPrefix(s, "../") ||
-		strings.HasPrefix(s, "/") ||
-		strings.HasPrefix(s, "~/")
-}
-
-// resolveExtensionPath expands the given extension path entry into an absolute
-// directory path. Tilde (~) is expanded to the user's home directory; relative
-// paths are resolved from configDir; absolute paths are returned as-is.
-func resolveExtensionPath(entry, configDir string) (string, error) {
-	if strings.HasPrefix(entry, "~/") {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", fmt.Errorf("resolve extension path: %w", err)
-		}
-
-		return filepath.Join(home, entry[2:]), nil
-	}
-
-	if filepath.IsAbs(entry) {
-		return entry, nil
-	}
-
-	// Relative paths (./, ../) resolve from configDir.
-	p, err := filepath.Abs(filepath.Join(configDir, entry))
-	if err != nil {
-		return "", fmt.Errorf("resolve extension path: %w", err)
-	}
-
-	return p, nil
-}
+// bare extension name. Delegates to config.IsPathEntry.
+func isPath(s string) bool { return config.IsPathEntry(s) }
 
 type ExtensionInfo struct {
 	Name       string
@@ -70,13 +38,14 @@ func Discover(projectDir string, names []string) ([]ExtensionInfo, error) {
 // DiscoverWithBuiltins is like Discover but also checks built-in extensions
 // under moduleRoot/extensions/{name}/ as a final fallback. This allows core
 // extensions shipped with weave to be found without installing them.
-func DiscoverWithBuiltins(projectDir, moduleRoot string, names []string) ([]ExtensionInfo, error) {
+// configDir is used to resolve relative path entries; when empty, projectDir is used.
+func DiscoverWithBuiltins(projectDir, moduleRoot string, names []string, configDir ...string) ([]ExtensionInfo, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("discover: get home dir: %w", err)
 	}
 
-	return DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, names)
+	return DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, names, configDir...)
 }
 
 // DiscoverCustomHome is like Discover but accepts an explicit home directory.
@@ -91,7 +60,7 @@ func DiscoverCustomHome(projectDir, homeDir string, names []string) ([]Extension
 		}
 
 		seen[name] = true
-		if !validExtName.MatchString(name) {
+		if !config.ValidExtName(name) {
 			return nil, fmt.Errorf("discover: invalid extension name %q (must match [a-zA-Z0-9_-]+)", name)
 		}
 
@@ -110,14 +79,20 @@ func DiscoverCustomHome(projectDir, homeDir string, names []string) ([]Extension
 // built-in extensions under moduleRoot/extensions/{name}/. Extension entries
 // that look like filesystem paths (prefixed with ./, ../, /, or ~/) are
 // resolved directly instead of going through the name-based discovery hierarchy.
-func DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot string, names []string) ([]ExtensionInfo, error) {
+// configDir is used to resolve relative path entries; when empty, projectDir is used.
+func DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot string, names []string, configDir ...string) ([]ExtensionInfo, error) {
 	var exts []ExtensionInfo
+
+	resolveDir := projectDir
+	if len(configDir) > 0 && configDir[0] != "" {
+		resolveDir = configDir[0]
+	}
 
 	seen := make(map[string]bool, len(names))
 
 	for _, entry := range names {
 		if isPath(entry) {
-			info, err := resolvePathExtension(entry, projectDir)
+			info, err := resolvePathExtension(entry, resolveDir)
 			if err != nil {
 				return nil, err
 			}
@@ -137,7 +112,7 @@ func DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot string, name
 		}
 
 		seen[entry] = true
-		if !validExtName.MatchString(entry) {
+		if !config.ValidExtName(entry) {
 			return nil, fmt.Errorf("discover: invalid extension name %q (must match [a-zA-Z0-9_-]+)", entry)
 		}
 
@@ -154,7 +129,7 @@ func DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot string, name
 
 // resolvePathExtension resolves a path-like extension entry to its ExtensionInfo.
 func resolvePathExtension(entry, configDir string) (*ExtensionInfo, error) {
-	dir, err := resolveExtensionPath(entry, configDir)
+	dir, err := config.ResolveExtPath(entry, configDir)
 	if err != nil {
 		return nil, fmt.Errorf("discover: resolve path %q: %w", entry, err)
 	}

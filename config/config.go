@@ -411,14 +411,14 @@ func (c *FullConfig) ResolveKey(providerName, envVar string) (string, error) {
 }
 
 func (c *FullConfig) ToolConfig(name string, target any) error {
+	applyDefaults(target)
+
 	configDir := filepath.Dir(c.filePath)
 
 	settings, err := LoadLayeredSettings(configDir)
 	if err != nil {
 		return fmt.Errorf("load settings for tool config: %w", err)
 	}
-
-	applyDefaults(target)
 
 	if settings.Tools == nil {
 		return nil
@@ -433,14 +433,14 @@ func (c *FullConfig) ToolConfig(name string, target any) error {
 }
 
 func (c *FullConfig) UIConfig(target any) error {
+	applyDefaults(target)
+
 	configDir := filepath.Dir(c.filePath)
 
 	settings, err := LoadLayeredSettings(configDir)
 	if err != nil {
 		return fmt.Errorf("load settings for UI config: %w", err)
 	}
-
-	applyDefaults(target)
 
 	if settings.UI == nil {
 		return nil

@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -11,13 +12,23 @@ import (
 
 var validName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
-// isPathEntry reports whether an extension entry is a filesystem path
+// IsPathEntry reports whether an extension entry is a filesystem path
 // (prefixed with ./, ../, /, or ~/).
-func isPathEntry(s string) bool {
+func IsPathEntry(s string) bool {
 	return strings.HasPrefix(s, "./") ||
 		strings.HasPrefix(s, "../") ||
 		strings.HasPrefix(s, "/") ||
 		strings.HasPrefix(s, "~/")
+}
+
+// ValidExtName reports whether a string is a valid bare extension name.
+func ValidExtName(s string) bool {
+	return validName.MatchString(s)
+}
+
+// ResolveExtPath expands a path-like extension entry to an absolute path.
+func ResolveExtPath(entry, configDir string) (string, error) {
+	return resolveExtPath(entry, configDir)
 }
 
 // ValidationError is a single validation failure with a field path.
@@ -84,6 +95,22 @@ func ValidateWithConfigDir(f *File, configDir string) error {
 		}
 	}
 
+	// Check for duplicate providers.
+	providerSeen := make(map[string]bool, len(f.Core.Providers))
+
+	for _, p := range f.Core.Providers {
+		if providerSeen[p] {
+			errs = append(errs, ValidationError{
+				Field:   "core.providers",
+				Message: fmt.Sprintf("duplicate provider %q", p),
+			})
+
+			break
+		}
+
+		providerSeen[p] = true
+	}
+
 	for i, ext := range f.Extensions {
 		validateExtEntry(&errs, ext, fmt.Sprintf("extensions[%d]", i), configDir)
 	}
@@ -104,7 +131,7 @@ func ValidateWithConfigDir(f *File, configDir string) error {
 }
 
 func validateExtEntry(errs *ValidationErrors, entry, field, configDir string) {
-	if !isPathEntry(entry) {
+	if !IsPathEntry(entry) {
 		validateBareExtName(errs, entry, field)
 
 		return
@@ -217,21 +244,24 @@ func resolveExtPath(entry, configDir string) (string, error) {
 	return abs, nil
 }
 
-// hasGoFiles reports whether a directory contains at least one .go file.
+// hasGoFiles reports whether a directory contains at least one .go file,
+// searching recursively into subdirectories.
 func hasGoFiles(dir string) bool {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return false
-	}
+	found := false
 
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), ".go") {
-			return true
+	_ = filepath.WalkDir(dir, func(_ string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return nil //nolint:nilerr // skip inaccessible entries during walk
 		}
-	}
 
-	return false
+		if !d.IsDir() && strings.HasSuffix(d.Name(), ".go") {
+			found = true
+
+			return fs.SkipAll
+		}
+
+		return nil
+	})
+
+	return found
 }
-
-// IsPathEntry is the exported version of isPathEntry for use by other packages.
-var IsPathEntry = isPathEntry

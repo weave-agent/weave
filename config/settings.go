@@ -152,16 +152,35 @@ func settingsPathForLayer(layer SettingsLayer, projectDir string) (string, error
 	}
 }
 
-// EnsureLocalSettingsExcluded adds .weave/settings.local.json to the project's
+// EnsureLocalSettingsExcluded adds the local settings file to the project's
 // .git/info/exclude so it is never accidentally committed. Walks up from
-// configDir to find the nearest .git directory. Silently skips if not a git repo.
+// configDir to find the nearest .git directory and computes the correct
+// relative path. Silently skips if not a git repo.
 func EnsureLocalSettingsExcluded(configDir string) {
 	dir := configDir
 
 	for {
 		gitDir := filepath.Join(dir, ".git")
 		if info, err := os.Stat(gitDir); err == nil && info.IsDir() {
-			ensureExcludeEntry(filepath.Join(gitDir, "info", "exclude"))
+			gitRoot := dir
+
+			rel, err := filepath.Rel(gitRoot, configDir)
+			if err != nil {
+				return
+			}
+
+			// configDir is the directory containing the config file.
+			// For .weave.yaml: configDir = project root, local settings at .weave/settings.local.json
+			// For .weave/config.yaml: configDir = .weave/ dir, local settings at settings.local.json
+			var entry string
+			if filepath.Base(configDir) == ".weave" {
+				entry = filepath.Join(rel, "settings.local.json")
+			} else {
+				entry = filepath.Join(rel, ".weave", "settings.local.json")
+			}
+
+			ensureExcludeEntry(filepath.Join(gitDir, "info", "exclude"), entry)
+
 			return
 		}
 
@@ -174,11 +193,9 @@ func EnsureLocalSettingsExcluded(configDir string) {
 	}
 }
 
-// ensureExcludeEntry appends the local settings exclusion line to the git
-// exclude file if it is not already present.
-func ensureExcludeEntry(excludePath string) {
-	const entry = ".weave/settings.local.json"
-
+// ensureExcludeEntry appends the exclusion line to the git exclude file if
+// it is not already present.
+func ensureExcludeEntry(excludePath, entry string) {
 	data, err := os.ReadFile(excludePath)
 	if err != nil && !os.IsNotExist(err) {
 		return

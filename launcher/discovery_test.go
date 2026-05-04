@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"weave/config"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -365,19 +367,19 @@ func TestIsPath(t *testing.T) {
 }
 
 func TestResolveExtensionPath_Relative(t *testing.T) {
-	configDir := "/project"
+	dir := "/project"
 
-	abs, err := resolveExtensionPath("./my-ext", configDir)
+	abs, err := config.ResolveExtPath("./my-ext", dir)
 	require.NoError(t, err)
 	assert.Equal(t, "/project/my-ext", abs)
 
-	abs, err = resolveExtensionPath("../shared/ext", configDir)
+	abs, err = config.ResolveExtPath("../shared/ext", dir)
 	require.NoError(t, err)
 	assert.Equal(t, "/shared/ext", abs)
 }
 
 func TestResolveExtensionPath_Absolute(t *testing.T) {
-	abs, err := resolveExtensionPath("/opt/weave/extensions/my-ext", "/irrelevant")
+	abs, err := config.ResolveExtPath("/opt/weave/extensions/my-ext", "/irrelevant")
 	require.NoError(t, err)
 	assert.Equal(t, "/opt/weave/extensions/my-ext", abs)
 }
@@ -386,15 +388,15 @@ func TestResolveExtensionPath_Tilde(t *testing.T) {
 	home, err := os.UserHomeDir()
 	require.NoError(t, err)
 
-	abs, err := resolveExtensionPath(filepath.Join("~", "dev", "my-ext"), "/irrelevant")
+	abs, err := config.ResolveExtPath(filepath.Join("~", "dev", "my-ext"), "/irrelevant")
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(home, "dev", "my-ext"), abs)
 }
 
 func TestResolveExtensionPath_BareNameErrors(t *testing.T) {
-	// Bare names should not be passed to resolveExtensionPath (they use isPath first),
+	// Bare names should not be passed to ResolveExtPath (they use isPath first),
 	// but if they are, the result is still a valid path relative to configDir.
-	abs, err := resolveExtensionPath("bash", "/project")
+	abs, err := config.ResolveExtPath("bash", "/project")
 	require.NoError(t, err)
 	assert.Equal(t, "/project/bash", abs)
 }

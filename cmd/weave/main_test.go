@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -108,34 +109,34 @@ func TestValidateCoreConfig(t *testing.T) {
 	}{
 		{
 			"valid defaults",
-			&config.File{Core: config.CoreConfig{AgentLoop: "loop", Providers: []string{"anthropic"}}},
+			&config.File{Core: config.CoreConfig{AgentLoop: "loop", Providers: []string{"anthropic"}}, UI: "tui"},
 			nil,
 		},
 		{
 			"empty agent_loop",
-			&config.File{Core: config.CoreConfig{AgentLoop: "", Providers: []string{"anthropic"}}},
-			errAgentLoopRequired,
+			&config.File{Core: config.CoreConfig{AgentLoop: "", Providers: []string{"anthropic"}}, UI: "tui"},
+			errors.New("agent_loop"),
 		},
 		{
 			"no providers",
-			&config.File{Core: config.CoreConfig{AgentLoop: "loop", Providers: nil}},
-			errProviderRequired,
+			&config.File{Core: config.CoreConfig{AgentLoop: "loop", Providers: nil}, UI: "tui"},
+			errors.New("at least one provider"),
 		},
 		{
 			"empty providers",
-			&config.File{Core: config.CoreConfig{AgentLoop: "loop", Providers: []string{}}},
-			errProviderRequired,
+			&config.File{Core: config.CoreConfig{AgentLoop: "loop", Providers: []string{}}, UI: "tui"},
+			errors.New("at least one provider"),
 		},
 		{
 			"duplicate providers",
-			&config.File{Core: config.CoreConfig{AgentLoop: "loop", Providers: []string{"anthropic", "anthropic"}}},
-			errDuplicateProvider,
+			&config.File{Core: config.CoreConfig{AgentLoop: "loop", Providers: []string{"anthropic", "anthropic"}}, UI: "tui"},
+			errors.New("duplicate provider"),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateCoreConfig(tt.config)
+			err := config.Validate(tt.config)
 			if tt.wantErr == nil {
 				assert.NoError(t, err)
 			} else {

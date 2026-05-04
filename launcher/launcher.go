@@ -43,7 +43,14 @@ func (l *Launcher) Run(ctx context.Context, projectDir string, extensionNames, a
 		return errors.New("launcher: no extensions configured")
 	}
 
-	exts, err := DiscoverWithBuiltins(projectDir, l.ModuleRoot, extensionNames)
+	// Resolve relative path entries from the config file's directory, not the
+	// project root. Falls back to projectDir when configPath is empty.
+	configDir := ""
+	if configPath != "" {
+		configDir = filepath.Dir(configPath)
+	}
+
+	exts, err := DiscoverWithBuiltins(projectDir, l.ModuleRoot, extensionNames, configDir)
 	if err != nil {
 		return fmt.Errorf("launcher: discover: %w", err)
 	}
