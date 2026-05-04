@@ -68,9 +68,16 @@ func (t *TUI) Name() string { return "tui" }
 
 // Subscribe starts the Bubble Tea program in a goroutine, blocking until it exits.
 // The bridge goroutine translates bus events into tea.Msg and forwards them.
-// When the program exits (user quit or close), the bus is unsubscribed.
 func (t *TUI) Subscribe(bus sdk.Bus) {
-	events := bus.SubscribeAll()
+	events := make(chan sdk.Event, 256)
+
+	bus.OnAll(func(ev sdk.Event) error {
+		select {
+		case events <- ev:
+		default:
+		}
+		return nil
+	})
 
 	model := newModel(bus, t.cfg, t.ui)
 
@@ -89,7 +96,8 @@ func (t *TUI) Subscribe(bus sdk.Bus) {
 	_, err := t.program.Run()
 
 	t.ui.Close()
-	bus.Unsubscribe(events)
+
+	close(events)
 
 	endPayload := any(nil)
 	if err != nil {

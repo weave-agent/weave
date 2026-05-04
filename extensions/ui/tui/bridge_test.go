@@ -228,9 +228,16 @@ func TestBridge_SkipsUnknownTopics(t *testing.T) {
 
 func TestBridge_IntegrationWithRealBus(t *testing.T) {
 	b := bus.New()
-	defer b.Close()
 
-	events := b.SubscribeAll()
+	events := make(chan sdk.Event, 256)
+
+	b.OnAll(func(ev sdk.Event) error {
+		select {
+		case events <- ev:
+		default:
+		}
+		return nil
+	})
 
 	sender := &collectingSender{}
 
@@ -248,7 +255,8 @@ func TestBridge_IntegrationWithRealBus(t *testing.T) {
 	b.Publish(sdk.NewEvent(topicTurnEnd, nil))
 	b.Publish(sdk.NewEvent(topicEnd, nil))
 
-	b.Unsubscribe(events)
+	b.Close()
+	close(events)
 
 	<-done
 
@@ -271,7 +279,7 @@ func TestPublishPrompt(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	ch := b.Subscribe(topicPrompt)
+	ch := subscribeToChan(b, topicPrompt)
 
 	cmd := PublishPrompt(b, "hello world")
 	result := cmd()
@@ -286,7 +294,7 @@ func TestPublishFollowup(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	ch := b.Subscribe(topicFollowup)
+	ch := subscribeToChan(b, topicFollowup)
 
 	cmd := PublishFollowup(b, "follow up text")
 	result := cmd()
@@ -301,7 +309,7 @@ func TestPublishSteer(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	ch := b.Subscribe(topicSteer)
+	ch := subscribeToChan(b, topicSteer)
 
 	cmd := PublishSteer(b, "steer text")
 	result := cmd()
@@ -426,7 +434,7 @@ func TestPublishInterrupt(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	ch := b.Subscribe(topicInterrupt)
+	ch := subscribeToChan(b, topicInterrupt)
 
 	cmd := PublishInterrupt(b)
 	result := cmd()

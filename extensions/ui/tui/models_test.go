@@ -333,7 +333,7 @@ func TestModel_ModelChangedPublishesEvent(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	ch := b.Subscribe(topicModelChange)
+	ch := subscribeToChan(b, topicModelChange)
 
 	m := newModel(b, nil, nil)
 	m.width = 80

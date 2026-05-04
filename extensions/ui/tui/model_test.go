@@ -36,6 +36,34 @@ func executeBatchCmd(t *testing.T, cmd tea.Cmd) {
 	}
 }
 
+// subscribeToChan creates an internal channel and registers an On handler
+// for the given topic that forwards events to the channel.
+func subscribeToChan(b *bus.Bus, topic string) <-chan sdk.Event {
+	ch := make(chan sdk.Event, 64)
+	b.On(topic, func(ev sdk.Event) error {
+		select {
+		case ch <- ev:
+		default:
+		}
+		return nil
+	})
+	return ch
+}
+
+// subscribeAllToChan creates an internal channel and registers an OnAll handler
+// that forwards all bus events to the channel.
+func subscribeAllToChan(b *bus.Bus) <-chan sdk.Event {
+	ch := make(chan sdk.Event, 256)
+	b.OnAll(func(ev sdk.Event) error {
+		select {
+		case ch <- ev:
+		default:
+		}
+		return nil
+	})
+	return ch
+}
+
 // newModelNoLanding creates a model with landing screen disabled.
 // Use in tests that check chat view content.
 func newModelNoLanding() Model {
@@ -719,7 +747,7 @@ func TestModel_SessionSelectorSelect(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	ch := b.Subscribe(topicSessionResume)
+	ch := subscribeToChan(b, topicSessionResume)
 
 	m := newModel(b, nil, nil)
 	m.width = 80
@@ -933,7 +961,7 @@ func TestModel_InterruptStreaming(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	ch := b.Subscribe(topicInterrupt)
+	ch := subscribeToChan(b, topicInterrupt)
 
 	m := newModel(b, nil, nil)
 	m.width = 80
@@ -1184,7 +1212,7 @@ func TestModel_CycleThinkingPublishesEvent(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	ch := b.Subscribe(topicThinkingChange)
+	ch := subscribeToChan(b, topicThinkingChange)
 
 	m := newModel(b, nil, nil)
 	m.width = 80
@@ -1243,7 +1271,7 @@ func TestModel_ThinkingCommand(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	ch := b.Subscribe(topicThinkingChange)
+	ch := subscribeToChan(b, topicThinkingChange)
 
 	m := newModel(b, nil, nil)
 	m.width = 80

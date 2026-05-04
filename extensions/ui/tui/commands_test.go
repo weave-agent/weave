@@ -96,7 +96,7 @@ func TestCommandRegistry_DispatchCompact(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	ch := b.Subscribe(topicSteer)
+	ch := subscribeToChan(b, topicSteer)
 
 	r := NewCommandRegistry(b, "")
 
@@ -116,7 +116,7 @@ func TestCommandRegistry_DispatchNameWithArgs(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	ch := b.Subscribe(topicSteer)
+	ch := subscribeToChan(b, topicSteer)
 
 	r := NewCommandRegistry(b, "")
 
@@ -345,7 +345,7 @@ func TestModel_RegularSubmitPublishesPrompt(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	ch := b.Subscribe(topicPrompt)
+	ch := subscribeToChan(b, topicPrompt)
 
 	m := newModel(b, nil, nil)
 	m.width = 80
@@ -370,7 +370,7 @@ func TestModel_RegularSubmitFollowup(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	ch := b.Subscribe(topicFollowup)
+	ch := subscribeToChan(b, topicFollowup)
 
 	m := newModel(b, nil, nil)
 	m.width = 80

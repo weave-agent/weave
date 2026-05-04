@@ -75,14 +75,14 @@ Harden weave's extension system with four pi-inspired improvements:
 - [x] run `go test ./sdk/...` - must pass before task 3
 
 ### Task 3: Migrate all built-in extensions to callback bus
-- [ ] migrate `extensions/loop/` — replace channel loops with `bus.On()` handler registrations
-- [ ] migrate `extensions/store/jsonl/` — replace channel loops with `bus.On()` handler registrations
-- [ ] migrate `extensions/ui/tui/` bridge goroutine — replace channel subscriptions with `bus.On()` / `bus.OnAll()` handlers
-- [ ] migrate `extensions/providers/anthropic/`, `extensions/providers/openai/`, `extensions/providers/zai/` — update any bus usage
-- [ ] migrate all tool extensions (`bash`, `read`, `edit`, `write`, `grep`, `find`, `ls`) — update any bus usage
-- [ ] migrate UI extensions (`diff-viewer`) — update any bus usage
-- [ ] write/update tests for each migrated extension verifying handler registration and event processing
-- [ ] run `make test` (root + all extension modules) - must pass before task 4
+- [x] migrate `extensions/loop/` — replace channel loops with `bus.On()` handler registrations
+- [x] migrate `extensions/store/jsonl/` — replace channel loops with `bus.On()` handler registrations
+- [x] migrate `extensions/ui/tui/` bridge goroutine — replace channel subscriptions with `bus.On()` / `bus.OnAll()` handlers
+- [x] migrate `extensions/providers/anthropic/`, `extensions/providers/openai/`, `extensions/providers/zai/` — update any bus usage
+- [x] migrate all tool extensions (`bash`, `read`, `edit`, `write`, `grep`, `find`, `ls`) — update any bus usage
+- [x] migrate UI extensions (`diff-viewer`) — update any bus usage
+- [x] write/update tests for each migrated extension verifying handler registration and event processing
+- [x] run `make test` (root + all extension modules) - must pass before task 4
 
 ### Task 4: Add collision diagnostics
 - [ ] update `DiscoverCustomHomeWithBuiltins` return signature to `([]ExtensionInfo, []string, error)` — warnings as second return value

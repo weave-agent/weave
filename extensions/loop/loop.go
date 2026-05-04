@@ -75,15 +75,53 @@ func (l *Loop) Subscribe(bus sdk.Bus) {
 		panic("loop: Subscribe called twice without Close")
 	}
 
-	promptCh := bus.Subscribe(TopicPrompt)
-	steerCh := bus.Subscribe(TopicSteer)
-	followupCh := bus.Subscribe(TopicFollowup)
-	interruptCh := bus.Subscribe(TopicInterrupt)
-	modelChangeCh := bus.Subscribe(TopicModelChange)
-	thinkingCh := bus.Subscribe(TopicThinkingChange)
-	skillsCh := bus.Subscribe(sdk.TopicSkillsLoaded)
-
 	ctx, cancel := context.WithCancel(context.Background())
+
+	promptCh := make(chan sdk.Event, 64)
+	steerCh := make(chan sdk.Event, 64)
+	followupCh := make(chan sdk.Event, 64)
+	interruptCh := make(chan sdk.Event, 64)
+	modelChangeCh := make(chan sdk.Event, 64)
+	thinkingCh := make(chan sdk.Event, 64)
+	skillsCh := make(chan sdk.Event, 64)
+
+	// Single OnAll handler dispatches to internal channels,
+	// preserving publish order across topics.
+	bus.OnAll(func(ev sdk.Event) error {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+		}
+
+		var ch chan sdk.Event
+
+		switch ev.Topic {
+		case TopicPrompt:
+			ch = promptCh
+		case TopicSteer:
+			ch = steerCh
+		case TopicFollowup:
+			ch = followupCh
+		case TopicInterrupt:
+			ch = interruptCh
+		case TopicModelChange:
+			ch = modelChangeCh
+		case TopicThinkingChange:
+			ch = thinkingCh
+		case sdk.TopicSkillsLoaded:
+			ch = skillsCh
+		}
+
+		if ch != nil {
+			select {
+			case ch <- ev:
+			case <-ctx.Done():
+			}
+		}
+
+		return nil
+	})
 
 	l.cancel = cancel
 	l.done = make(chan struct{})

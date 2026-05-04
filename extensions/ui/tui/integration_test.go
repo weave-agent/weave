@@ -398,7 +398,7 @@ func TestIntegration_SessionResumeFlow(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	ch := b.Subscribe(topicSessionResume)
+	ch := subscribeToChan(b, topicSessionResume)
 
 	m := newModel(b, nil, nil)
 	m.width = 80
@@ -477,7 +477,7 @@ func TestIntegration_ModelSelectionFlow(t *testing.T) {
 
 	defer b.Close()
 
-	ch := b.Subscribe(topicModelChange)
+	ch := subscribeToChan(b, topicModelChange)
 
 	m := newModel(b, nil, nil)
 	m.width = 80
@@ -650,7 +650,7 @@ func TestIntegration_InterruptDuringStreaming(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	ch := b.Subscribe(topicInterrupt)
+	ch := subscribeToChan(b, topicInterrupt)
 
 	m := newModel(b, nil, nil)
 	m.width = 80
