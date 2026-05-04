@@ -253,6 +253,52 @@ func TestLoadLayeredSettings_LocalOverridesProject(t *testing.T) {
 	assert.Equal(t, 30, result.UI.EditorMaxLines)
 }
 
+func TestLoadLayeredSettings_LocalWithoutProject(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	projectDir := t.TempDir()
+	projectWeave := filepath.Join(projectDir, ".weave")
+	require.NoError(t, os.MkdirAll(projectWeave, 0o750))
+
+	// Only local settings, no project settings.json
+	writeJSON(t, filepath.Join(projectWeave, "settings.local.json"), &Settings{
+		ThinkingLevel: "high",
+	})
+
+	result, err := LoadLayeredSettings(projectDir)
+	require.NoError(t, err)
+
+	assert.Equal(t, "high", result.ThinkingLevel)
+}
+
+func TestLoadLayeredSettings_DoesNotReuseGlobalAsProject(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	globalDir := filepath.Join(home, ".weave")
+	require.NoError(t, os.MkdirAll(globalDir, 0o750))
+
+	writeJSON(t, filepath.Join(globalDir, "settings.json"), &Settings{
+		Model: "global-model",
+	})
+
+	// Global-local settings that should NOT be treated as project-local
+	writeJSON(t, filepath.Join(globalDir, "settings.local.json"), &Settings{
+		Model: "global-local-model",
+	})
+
+	// Project under HOME with no project settings
+	projectDir := filepath.Join(home, "myproject")
+	require.NoError(t, os.MkdirAll(projectDir, 0o755))
+
+	result, err := LoadLayeredSettings(projectDir)
+	require.NoError(t, err)
+
+	// Global-local should not override via the project layer
+	assert.Equal(t, "global-model", result.Model)
+}
+
 func TestSaveSettings_GlobalLayer(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

@@ -31,7 +31,9 @@ func init() {
 	sdk.RegisterTool("bash", func(cfg sdk.Config) (sdk.Tool, error) {
 		var bc BashConfig
 
-		_ = cfg.ToolConfig("bash", &bc)
+		if err := cfg.ToolConfig("bash", &bc); err != nil {
+			return nil, fmt.Errorf("load bash config: %w", err)
+		}
 
 		timeout := time.Duration(bc.Timeout) * time.Second
 		if timeout <= 0 {

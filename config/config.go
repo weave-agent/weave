@@ -410,10 +410,22 @@ func (c *FullConfig) ResolveKey(providerName, envVar string) (string, error) {
 	return ResolveProviderKey(providerName, envVar, c.file.ProviderConfig(providerName), auth)
 }
 
+// projectDirFromConfig returns the project root directory for a config file path.
+// If the config file is inside .weave/ (e.g. .weave/config.yaml), returns the
+// parent directory so that layered settings look in the right place.
+func projectDirFromConfig(configPath string) string {
+	dir := filepath.Dir(configPath)
+	if filepath.Base(dir) == ".weave" {
+		return filepath.Dir(dir)
+	}
+
+	return dir
+}
+
 func (c *FullConfig) ToolConfig(name string, target any) error {
 	applyDefaults(target)
 
-	configDir := filepath.Dir(c.filePath)
+	configDir := projectDirFromConfig(c.filePath)
 
 	settings, err := LoadLayeredSettings(configDir)
 	if err != nil {
@@ -435,7 +447,7 @@ func (c *FullConfig) ToolConfig(name string, target any) error {
 func (c *FullConfig) UIConfig(target any) error {
 	applyDefaults(target)
 
-	configDir := filepath.Dir(c.filePath)
+	configDir := projectDirFromConfig(c.filePath)
 
 	settings, err := LoadLayeredSettings(configDir)
 	if err != nil {

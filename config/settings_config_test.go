@@ -301,6 +301,55 @@ func TestLayeredSettings_IntegrationWithToolConfig(t *testing.T) {
 	assert.Equal(t, 30, target.Timeout, "local layer should override global and project")
 }
 
+func TestToolConfig_LocalOnlyFromWeaveDir(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	globalDir := filepath.Join(home, ".weave")
+	require.NoError(t, os.MkdirAll(globalDir, 0o750))
+
+	projectDir := t.TempDir()
+	projectWeave := filepath.Join(projectDir, ".weave")
+	require.NoError(t, os.MkdirAll(projectWeave, 0o750))
+
+	// Only local settings, no project settings — config file is inside .weave/
+	writeJSON(t, filepath.Join(projectWeave, "settings.local.json"), &Settings{
+		Tools: map[string]any{
+			"bash": map[string]any{"timeout": 45},
+		},
+	})
+
+	cfg := &FullConfig{
+		filePath: filepath.Join(projectDir, ".weave", "config.yaml"),
+		file:     DefaultFile(),
+		auth:     &AuthFile{},
+	}
+
+	var target struct {
+		Timeout int `json:"timeout" default:"120"`
+	}
+	require.NoError(t, cfg.ToolConfig("bash", &target))
+	assert.Equal(t, 45, target.Timeout, "local settings should be found when config is inside .weave/")
+}
+
+func TestProjectDirFromConfig(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		expected string
+	}{
+		{"yaml at root", "/project/.weave.yaml", "/project"},
+		{"yaml inside weave", "/project/.weave/config.yaml", "/project"},
+		{"json inside weave", "/project/.weave/config.json", "/project"},
+		{"nested project", "/a/b/c/.weave.yaml", "/a/b/c"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, projectDirFromConfig(tt.path))
+		})
+	}
+}
+
 // Verify the JSON key in Settings matches what FullConfig reads.
 func TestSettingsJSONRoundTrip(t *testing.T) {
 	s := &Settings{

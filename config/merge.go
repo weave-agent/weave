@@ -65,7 +65,9 @@ func MergeSettings(layers ...*Settings) *Settings {
 
 // LoadLayeredSettings loads settings from global, project, and local files,
 // then merges them in order (global → project → local).
-// Missing files are silently skipped.
+// Missing files are silently skipped. Local settings are loaded from the same
+// directory where project settings were found, or from projectDir directly if
+// no project settings file exists.
 func LoadLayeredSettings(projectDir string) (*Settings, error) {
 	globalPath, err := SettingsPath()
 	if err != nil {
@@ -77,12 +79,16 @@ func LoadLayeredSettings(projectDir string) (*Settings, error) {
 		return nil, fmt.Errorf("load global settings: %w", err)
 	}
 
-	project, projectPath, err := loadProjectSettings(projectDir)
+	project, localDir, err := loadProjectSettings(projectDir)
 	if err != nil {
 		return nil, fmt.Errorf("load project settings: %w", err)
 	}
 
-	local, err := loadLocalSettings(projectPath)
+	if localDir == "" {
+		localDir = projectDir
+	}
+
+	local, err := loadLocalSettings(localDir)
 	if err != nil {
 		return nil, fmt.Errorf("load local settings: %w", err)
 	}
@@ -112,10 +118,14 @@ func loadSettingsFile(path string) (*Settings, error) {
 
 // loadProjectSettings walks up from projectDir looking for .weave/settings.json.
 // Returns the settings and the directory where it was found (empty string if not found).
+// Stops before reaching the user's home directory to avoid treating global settings
+// (~/.weave/settings.json) as project-layer settings.
 func loadProjectSettings(projectDir string) (*Settings, string, error) {
+	home, _ := os.UserHomeDir()
+
 	dir := projectDir
 
-	for {
+	for home == "" || dir != home {
 		candidate := filepath.Join(dir, ".weave", "settings.json")
 		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
 			s, err := loadSettingsFile(candidate)
@@ -137,15 +147,14 @@ func loadProjectSettings(projectDir string) (*Settings, string, error) {
 	return &Settings{}, "", nil
 }
 
-// loadLocalSettings loads .weave/settings.local.json from the same directory
-// where project settings were found. projectDir is empty when no project
-// settings were found; in that case, local settings are also skipped.
-func loadLocalSettings(projectDir string) (*Settings, error) {
-	if projectDir == "" {
+// loadLocalSettings loads .weave/settings.local.json from the given directory.
+// Missing files are silently skipped.
+func loadLocalSettings(dir string) (*Settings, error) {
+	if dir == "" {
 		return &Settings{}, nil
 	}
 
-	path := filepath.Join(projectDir, ".weave", "settings.local.json")
+	path := filepath.Join(dir, ".weave", "settings.local.json")
 
 	return loadSettingsFile(path)
 }

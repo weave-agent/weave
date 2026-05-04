@@ -440,28 +440,19 @@ func TestDiscoverWithBuiltins_PathEntryTilde(t *testing.T) {
 	homeDir := t.TempDir()
 	moduleRoot := t.TempDir()
 
+	// Override HOME so ~ resolves to our temp dir
+	t.Setenv("HOME", homeDir)
+
 	// Create extension in fake home
-	extDir := filepath.Join(homeDir, "extensions", "custom-tool")
-	createGoFile(t, extDir, "tool.go", "package customtool")
-
-	// Use ~/extensions/custom-tool — but we need to temporarily override home
-	// Since resolveExtensionPath uses os.UserHomeDir(), we test with the real home
-	// by creating in actual home dir
-	realHome, err := os.UserHomeDir()
-	require.NoError(t, err)
-
-	realExtDir := filepath.Join(realHome, ".weave-test-ext-tmp")
-
-	createGoFile(t, realExtDir, "ext.go", "package ext")
-
-	defer func() { _ = os.RemoveAll(realExtDir) }()
+	extDir := filepath.Join(homeDir, ".weave-test-ext-tmp")
+	createGoFile(t, extDir, "ext.go", "package ext")
 
 	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"~/.weave-test-ext-tmp"})
 	require.NoError(t, err)
 
 	require.Len(t, exts, 1)
 	assert.Equal(t, ".weave-test-ext-tmp", exts[0].Name)
-	assert.Equal(t, realExtDir, exts[0].Dir)
+	assert.Equal(t, extDir, exts[0].Dir)
 }
 
 func TestDiscoverWithBuiltins_MixedPathAndBareNames(t *testing.T) {
