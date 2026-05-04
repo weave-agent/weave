@@ -125,11 +125,11 @@ Improve weave's configuration system with four focused changes:
 - [x] run `go test ./config/...` — must pass before next task
 
 ### Task 5: Wire settings into TUI and existing consumers
-- [ ] update TUI to read `UISettings` from layered settings (editor_max_lines, theme)
-- [ ] update TUI settings persistence (model/thinking level changes) to save to correct layer
-- [ ] add `.weave/settings.local.json` to `.git/info/exclude` if it doesn't exist (prompt user, don't force)
-- [ ] write tests for TUI settings integration
-- [ ] run `go test ./config/... ./launcher/...` — full suite must pass
+- [x] update TUI to read `UISettings` from layered settings (editor_max_lines, theme)
+- [x] update TUI settings persistence (model/thinking level changes) to save to correct layer
+- [x] add `.weave/settings.local.json` to `.git/info/exclude` if it doesn't exist (prompt user, don't force)
+- [x] write tests for TUI settings integration
+- [x] run `go test ./config/... ./launcher/...` — full suite must pass
 
 ### Task 6: Verify acceptance criteria
 - [ ] verify path-based extensions work: bare names, relative paths, absolute paths, tilde

@@ -601,3 +601,23 @@ func TestEditorApplyCompletionWithCorrectTriggerOffset(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "prefix src/", submit.Text)
 }
+
+func TestEditorSetMaxHeight(t *testing.T) {
+	m := NewEditorModel()
+	assert.Equal(t, 15, m.ta.MaxHeight)
+
+	m = m.SetMaxHeight(30)
+	assert.Equal(t, 30, m.ta.MaxHeight)
+}
+
+func TestEditorSetMaxHeight_IgnoresZero(t *testing.T) {
+	m := NewEditorModel().SetMaxHeight(25)
+	m = m.SetMaxHeight(0)
+	assert.Equal(t, 25, m.ta.MaxHeight)
+}
+
+func TestEditorSetMaxHeight_IgnoresNegative(t *testing.T) {
+	m := NewEditorModel().SetMaxHeight(25)
+	m = m.SetMaxHeight(-5)
+	assert.Equal(t, 25, m.ta.MaxHeight)
+}

@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -80,10 +81,10 @@ func TestCurrentModel(t *testing.T) {
 		{Provider: "openai", Model: "gpt-5.5"},
 		{Provider: "zai", Model: "glm-5.1"},
 	}
-	cur := currentModel(entries)
+	cur := currentModel(entries, "")
 	assert.Equal(t, "openai", cur.Provider)
 
-	cur = currentModel(nil)
+	cur = currentModel(nil, "")
 	assert.Equal(t, "anthropic", cur.Provider)
 }
 
@@ -95,7 +96,7 @@ func TestCurrentModel_EnvProvider(t *testing.T) {
 
 	t.Setenv("WEAVE_PROVIDER", "openai")
 
-	cur := currentModel(entries)
+	cur := currentModel(entries, "")
 	assert.Equal(t, "openai", cur.Provider)
 	assert.Equal(t, "gpt-5.5", cur.Model)
 }
@@ -107,7 +108,7 @@ func TestCurrentModel_EnvProviderNotInEntries(t *testing.T) {
 
 	t.Setenv("WEAVE_PROVIDER", "anthropic")
 
-	cur := currentModel(entries)
+	cur := currentModel(entries, "")
 	// Falls back to first entry when env provider not found
 	assert.Equal(t, "openai", cur.Provider)
 }
@@ -680,4 +681,108 @@ func TestStatusMessageNotRenderedWhenEmpty(t *testing.T) {
 	lines := splitLines(view.Content)
 	// Count sections: chat + editor + footer = 3 lines minimum (no spinner, no status)
 	assert.GreaterOrEqual(t, len(lines), 3)
+}
+
+func TestCurrentModel_LayeredSettings(t *testing.T) {
+	entries := []ModelEntry{
+		{Provider: "openai", Model: "gpt-5.5"},
+		{Provider: "anthropic", Model: "claude-sonnet-4-6"},
+	}
+
+	// Create a temp project dir with settings
+	projectDir := t.TempDir()
+	projectWeave := filepath.Join(projectDir, ".weave")
+	require.NoError(t, os.MkdirAll(projectWeave, 0o755))
+
+	settingsJSON := `{"provider":"openai","model":"gpt-5.5"}`
+	require.NoError(t, os.WriteFile(filepath.Join(projectWeave, "settings.json"), []byte(settingsJSON), 0o600))
+
+	// Point settings path to a different (empty) global settings
+	globalDir := t.TempDir()
+	config.SetSettingsPath(filepath.Join(globalDir, "settings.json"))
+
+	cur := currentModel(entries, projectDir)
+	assert.Equal(t, "openai", cur.Provider)
+	assert.Equal(t, "gpt-5.5", cur.Model)
+}
+
+func TestInitialThinkingLevel_LayeredSettings(t *testing.T) {
+	projectDir := t.TempDir()
+	projectWeave := filepath.Join(projectDir, ".weave")
+	require.NoError(t, os.MkdirAll(projectWeave, 0o755))
+
+	settingsJSON := `{"thinking_level":"high"}`
+	require.NoError(t, os.WriteFile(filepath.Join(projectWeave, "settings.json"), []byte(settingsJSON), 0o600))
+
+	globalDir := t.TempDir()
+	config.SetSettingsPath(filepath.Join(globalDir, "settings.json"))
+
+	level := initialThinkingLevel(projectDir)
+	assert.Equal(t, sdk.ThinkingHigh, level)
+}
+
+func TestSaveSettings_PreservesUIFields(t *testing.T) {
+	// Write initial settings with UI fields
+	tmpDir := t.TempDir()
+	settingsPath := filepath.Join(tmpDir, "settings.json")
+	config.SetSettingsPath(settingsPath)
+
+	initial := &config.Settings{
+		Provider:      "anthropic",
+		Model:         "claude-sonnet-4-6",
+		ThinkingLevel: "medium",
+		UI: &config.UISettings{
+			Theme:          "dark",
+			EditorMaxLines: 30,
+		},
+	}
+	require.NoError(t, config.SaveSettingsGlobal(initial))
+
+	// Save model change
+	saveSettings(ModelEntry{Provider: "openai", Model: "gpt-5.5"}, sdk.ThinkingHigh)
+
+	// Verify UI fields preserved
+	loaded, err := config.LoadSettings()
+	require.NoError(t, err)
+	assert.Equal(t, "openai", loaded.Provider)
+	assert.Equal(t, "gpt-5.5", loaded.Model)
+	assert.Equal(t, "high", loaded.ThinkingLevel)
+	require.NotNil(t, loaded.UI)
+	assert.Equal(t, "dark", loaded.UI.Theme)
+	assert.Equal(t, 30, loaded.UI.EditorMaxLines)
+}
+
+func TestNewModel_ReadsUISettings(t *testing.T) {
+	tmpDir := t.TempDir()
+	settingsPath := filepath.Join(tmpDir, "settings.json")
+	config.SetSettingsPath(settingsPath)
+
+	// Write settings with editor_max_lines
+	uiSettings := &config.Settings{
+		UI: &config.UISettings{
+			EditorMaxLines: 25,
+		},
+	}
+	require.NoError(t, config.SaveSettingsGlobal(uiSettings))
+
+	// Create a config file so configDir is set
+	cfgDir := t.TempDir()
+	cfgPath := filepath.Join(cfgDir, ".weave", "config.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(cfgPath), 0o755))
+	require.NoError(t, os.WriteFile(cfgPath, []byte("ui: tui\ncore:\n  agent_loop: loop\n  providers:\n    - anthropic\n"), 0o600))
+
+	cfg, err := config.LoadFullConfig(cfgPath)
+	require.NoError(t, err)
+
+	m := newModel(nil, cfg, nil)
+	assert.Equal(t, 25, m.editor.MaxHeight())
+}
+
+func TestNewModel_DefaultEditorHeightWhenNoSettings(t *testing.T) {
+	tmpDir := t.TempDir()
+	settingsPath := filepath.Join(tmpDir, "settings.json")
+	config.SetSettingsPath(settingsPath)
+
+	m := newModel(nil, nil, nil)
+	assert.Equal(t, 15, m.editor.MaxHeight()) // default
 }

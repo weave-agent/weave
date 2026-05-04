@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -76,6 +77,7 @@ type Model struct {
 	popupSeq       int
 
 	sessionDir string
+	configDir  string
 
 	// double-press tracking
 	ctrlCPressed   bool
@@ -110,6 +112,11 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 		cfgPath = cfg.FilePath()
 	}
 
+	var configDir string
+	if cfgPath != "" {
+		configDir = filepath.Dir(cfgPath)
+	}
+
 	sdir := resolveSessionDir(cfgPath)
 
 	commands := NewCommandRegistry(bus, sdir)
@@ -138,8 +145,18 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 
 	editor := components.NewEditorModel()
 
+	// Read UI settings from layered config
+	var uiSettings config.UISettings
+	if cfg != nil {
+		_ = cfg.UIConfig(&uiSettings)
+	}
+
+	if uiSettings.EditorMaxLines > 0 {
+		editor = editor.SetMaxHeight(uiSettings.EditorMaxLines)
+	}
+
 	models := listModels()
-	cur := initialModel(models)
+	cur := initialModel(models, configDir)
 
 	bindings := NewBindingRegistry()
 
@@ -171,7 +188,8 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 		layout:        NewLayoutEngine(),
 		currentModel:  cur,
 		sessionDir:    sdir,
-		thinkingLevel: initialThinkingLevel(),
+		configDir:     configDir,
+		thinkingLevel: initialThinkingLevel(configDir),
 		noConfigured:  len(models) == 0,
 		showHints:     true,
 		showLanding:   true,
@@ -186,6 +204,11 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 
 	if m.noConfigured {
 		m.statusMsg = "No providers configured. Use /providers to set an API key."
+	}
+
+	// Ensure local settings are excluded from git
+	if configDir != "" {
+		config.EnsureLocalSettingsExcluded(configDir)
 	}
 
 	return m
@@ -1171,7 +1194,7 @@ func (m Model) onKeyInputDialogDone(result overlays.DialogResult, pendingCmd tea
 		models := listModels()
 		if len(models) > 0 {
 			m.noConfigured = false
-			cur := initialModel(models)
+			cur := initialModel(models, m.configDir)
 			m.currentModel = cur
 			m.footer = m.footer.SetModel(cur.Model, cur.Provider)
 			m.footer = m.footer.SetReasoning(modelReasoning(cur.Model))

@@ -87,10 +87,10 @@ func providerHasKey(providerName string, auth *config.AuthFile) bool {
 }
 
 // currentModel returns the startup model entry. It tries persisted settings
-// first, then the WEAVE_PROVIDER env var, then falls back to the first
-// available entry.
-func currentModel(entries []ModelEntry) ModelEntry {
-	if prefs, err := config.LoadSettings(); err == nil {
+// first (using layered loading for project overrides), then the WEAVE_PROVIDER
+// env var, then falls back to the first available entry.
+func currentModel(entries []ModelEntry, configDir string) ModelEntry {
+	if prefs, err := config.LoadLayeredSettings(configDir); err == nil {
 		if prefs.Provider != "" && prefs.Model != "" {
 			for _, e := range entries {
 				if e.Provider == prefs.Provider && e.Model == prefs.Model {
@@ -129,8 +129,8 @@ func currentModel(entries []ModelEntry) ModelEntry {
 // initialModel returns the model entry to use at TUI startup. It applies
 // provider-specific env var overrides (ANTHROPIC_MODEL, OPENAI_MODEL, ZAI_MODEL)
 // so the display matches what the provider will actually use for the first request.
-func initialModel(entries []ModelEntry) ModelEntry {
-	cur := currentModel(entries)
+func initialModel(entries []ModelEntry, configDir string) ModelEntry {
+	cur := currentModel(entries, configDir)
 
 	if envKey, ok := providerModelEnv[cur.Provider]; ok {
 		if m := os.Getenv(envKey); m != "" {
@@ -167,9 +167,10 @@ func modelReasoning(modelID string) bool {
 }
 
 // initialThinkingLevel returns the startup thinking level. Tries persisted
-// settings first, then the WEAVE_THINKING_LEVEL env var, then medium.
-func initialThinkingLevel() sdk.ThinkingLevel {
-	if prefs, err := config.LoadSettings(); err == nil && prefs.ThinkingLevel != "" {
+// settings first (using layered loading for project overrides), then the
+// WEAVE_THINKING_LEVEL env var, then medium.
+func initialThinkingLevel(configDir string) sdk.ThinkingLevel {
+	if prefs, err := config.LoadLayeredSettings(configDir); err == nil && prefs.ThinkingLevel != "" {
 		if lvl, err := sdk.ParseThinkingLevel(prefs.ThinkingLevel); err == nil {
 			return lvl
 		}
@@ -178,14 +179,21 @@ func initialThinkingLevel() sdk.ThinkingLevel {
 	return sdk.DefaultThinkingLevel()
 }
 
-// saveSettings persists the current model and thinking level to disk.
+// saveSettings persists the current model and thinking level to the global
+// settings file. It loads existing settings to preserve UI/Tools sections,
+// updates only the model/thinking fields, and writes back.
 // Best-effort — errors are silently ignored.
 func saveSettings(entry ModelEntry, level sdk.ThinkingLevel) {
-	_ = config.SaveSettingsGlobal(&config.Settings{
-		Provider:      entry.Provider,
-		Model:         entry.Model,
-		ThinkingLevel: string(level),
-	})
+	existing, _ := config.LoadSettings()
+	if existing == nil {
+		existing = &config.Settings{}
+	}
+
+	existing.Provider = entry.Provider
+	existing.Model = entry.Model
+	existing.ThinkingLevel = string(level)
+
+	_ = config.SaveSettingsGlobal(existing)
 }
 
 // saveSettingsCmd returns a tea.Cmd that persists settings asynchronously.

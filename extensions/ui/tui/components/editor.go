@@ -110,6 +110,9 @@ func (m EditorModel) Width() int { return m.ta.Width() }
 // Height returns the editor height (content lines, not including border).
 func (m EditorModel) Height() int { return m.ta.Height() }
 
+// MaxHeight returns the maximum height the editor can grow to.
+func (m EditorModel) MaxHeight() int { return m.ta.MaxHeight }
+
 // Focused returns whether the editor has focus.
 func (m EditorModel) Focused() bool { return m.focused }
 
@@ -126,6 +129,14 @@ func (m EditorModel) Blur() EditorModel {
 	m.focused = false
 	m.ta.Blur()
 
+	return m
+}
+
+// SetMaxHeight sets the maximum height for the dynamic textarea. Values <= 0 are ignored.
+func (m EditorModel) SetMaxHeight(n int) EditorModel {
+	if n > 0 {
+		m.ta.MaxHeight = n
+	}
 	return m
 }
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -148,4 +149,59 @@ func settingsPathForLayer(layer SettingsLayer, projectDir string) (string, error
 	default:
 		return "", fmt.Errorf("unknown settings layer: %q", layer)
 	}
+}
+
+// EnsureLocalSettingsExcluded adds .weave/settings.local.json to the project's
+// .git/info/exclude so it is never accidentally committed. Walks up from
+// configDir to find the nearest .git directory. Silently skips if not a git repo.
+func EnsureLocalSettingsExcluded(configDir string) {
+	dir := configDir
+
+	for {
+		gitDir := filepath.Join(dir, ".git")
+		if info, err := os.Stat(gitDir); err == nil && info.IsDir() {
+			ensureExcludeEntry(filepath.Join(gitDir, "info", "exclude"))
+			return
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return
+		}
+
+		dir = parent
+	}
+}
+
+// ensureExcludeEntry appends the local settings exclusion line to the git
+// exclude file if it is not already present.
+func ensureExcludeEntry(excludePath string) {
+	const entry = ".weave/settings.local.json"
+
+	data, err := os.ReadFile(excludePath)
+	if err != nil && !os.IsNotExist(err) {
+		return
+	}
+
+	content := string(data)
+
+	for line := range strings.SplitSeq(content, "\n") {
+		if strings.TrimSpace(line) == entry {
+			return
+		}
+	}
+
+	_ = os.MkdirAll(filepath.Dir(excludePath), 0o750)
+
+	f, err := os.OpenFile(excludePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	if content != "" && !strings.HasSuffix(content, "\n") {
+		_, _ = f.WriteString("\n")
+	}
+
+	_, _ = fmt.Fprintf(f, "%s\n", entry)
 }

@@ -61,12 +61,10 @@ func MergeSettings(layers ...*Settings) *Settings {
 // then merges them in order (global → project → local).
 // Missing files are silently skipped.
 func LoadLayeredSettings(projectDir string) (*Settings, error) {
-	home, err := os.UserHomeDir()
+	globalPath, err := SettingsPath()
 	if err != nil {
-		return nil, fmt.Errorf("get home dir: %w", err)
+		return nil, fmt.Errorf("global settings path: %w", err)
 	}
-
-	globalPath := filepath.Join(home, ".weave", "settings.json")
 
 	global, err := loadSettingsFile(globalPath)
 	if err != nil {

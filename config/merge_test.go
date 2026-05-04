@@ -330,3 +330,54 @@ func writeJSON(t *testing.T, path string, v any) {
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(path, data, 0o600))
 }
+
+func TestEnsureLocalSettingsExcluded_AddsEntry(t *testing.T) {
+	projectDir := t.TempDir()
+	gitDir := filepath.Join(projectDir, ".git")
+	require.NoError(t, os.MkdirAll(filepath.Join(gitDir, "info"), 0o755))
+
+	EnsureLocalSettingsExcluded(projectDir)
+
+	data, err := os.ReadFile(filepath.Join(gitDir, "info", "exclude"))
+	require.NoError(t, err)
+	assert.Contains(t, string(data), ".weave/settings.local.json")
+}
+
+func TestEnsureLocalSettingsExcluded_SkipsExisting(t *testing.T) {
+	projectDir := t.TempDir()
+	gitDir := filepath.Join(projectDir, ".git")
+	require.NoError(t, os.MkdirAll(filepath.Join(gitDir, "info"), 0o755))
+
+	excludePath := filepath.Join(gitDir, "info", "exclude")
+	require.NoError(t, os.WriteFile(excludePath, []byte(".weave/settings.local.json\n"), 0o644))
+
+	EnsureLocalSettingsExcluded(projectDir)
+
+	data, err := os.ReadFile(excludePath)
+	require.NoError(t, err)
+	assert.Equal(t, ".weave/settings.local.json\n", string(data))
+}
+
+func TestEnsureLocalSettingsExcluded_NoGitRepo(t *testing.T) {
+	projectDir := t.TempDir()
+	// Should not panic or create anything
+	EnsureLocalSettingsExcluded(projectDir)
+
+	_, err := os.Stat(filepath.Join(projectDir, ".git"))
+	assert.True(t, os.IsNotExist(err))
+}
+
+func TestEnsureLocalSettingsExcluded_WalksUpToGitRoot(t *testing.T) {
+	projectDir := t.TempDir()
+	gitDir := filepath.Join(projectDir, ".git")
+	require.NoError(t, os.MkdirAll(filepath.Join(gitDir, "info"), 0o755))
+
+	subDir := filepath.Join(projectDir, "src", "pkg")
+	require.NoError(t, os.MkdirAll(subDir, 0o755))
+
+	EnsureLocalSettingsExcluded(subDir)
+
+	data, err := os.ReadFile(filepath.Join(gitDir, "info", "exclude"))
+	require.NoError(t, err)
+	assert.Contains(t, string(data), ".weave/settings.local.json")
+}
