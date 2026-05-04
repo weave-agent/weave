@@ -420,6 +420,12 @@ func (m EditorModel) CursorLine() int {
 	return m.ta.Line()
 }
 
+// VisualCursorLine returns the cursor's visual line position within the
+// visible textarea area, accounting for scroll offset.
+func (m EditorModel) VisualCursorLine() int {
+	return m.ta.Line() - m.ta.ScrollYOffset()
+}
+
 // CursorColumn returns the current cursor column (0-indexed from line start).
 func (m EditorModel) CursorColumn() int {
 	return m.ta.Column()

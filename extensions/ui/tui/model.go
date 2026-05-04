@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"time"
 
@@ -648,15 +649,15 @@ func (m Model) dispatchBinding(action BindingAction) (tea.Model, tea.Cmd) {
 // toggleLastToolOutput expands or collapses the last tool output panel or skill message.
 func (m *Model) toggleLastToolOutput() {
 	items := m.chat.Items()
-	for i := len(items) - 1; i >= 0; i-- {
-		if tp, ok := items[i].(*messages.ToolPanel); ok {
+	for i, item := range slices.Backward(items) {
+		if tp, ok := item.(*messages.ToolPanel); ok {
 			tp.ToggleExpanded()
 			m.chat = m.chat.UpdateItemByID(tp)
 
 			return
 		}
 
-		if um, ok := items[i].(*messages.UserMessage); ok && um.IsSkillInvocation() {
+		if um, ok := item.(*messages.UserMessage); ok && um.IsSkillInvocation() {
 			um.ToggleExpanded()
 			m.chat = m.chat.UpdateItemAt(i, um)
 
@@ -668,8 +669,8 @@ func (m *Model) toggleLastToolOutput() {
 // toggleLastThinkingBlock expands or collapses the last thinking block.
 func (m *Model) toggleLastThinkingBlock() {
 	items := m.chat.Items()
-	for i := len(items) - 1; i >= 0; i-- {
-		if tb, ok := items[i].(*messages.ThinkingBlock); ok {
+	for _, item := range slices.Backward(items) {
+		if tb, ok := item.(*messages.ThinkingBlock); ok {
 			tb.ToggleExpanded()
 			m.chat = m.chat.UpdateItemByID(tb)
 
@@ -1456,48 +1457,61 @@ func (m Model) refreshEditorCompletion() Model {
 	}
 
 	line := lines[lineIdx]
-	lineStart := lineStartByteOffset(value, lineIdx)
 
-	// Slash command completion: "/" at start, no space yet
-	if strings.HasPrefix(line, "/") {
-		cmdName, afterSpace, hasSpace := strings.Cut(line, " ")
-		if !hasSpace {
-			filter := strings.TrimPrefix(line, "/")
-			names := m.commands.Names()
-
-			items := make([]components.CompletionItem, 0, len(names))
-			for _, name := range names {
-				info, _ := m.commands.Lookup(name)
-				items = append(items, components.CompletionItem{
-					Label:       strings.TrimPrefix(name, "/"),
-					Description: info.Description,
-					Value:       name + " ",
-				})
-			}
-
-			triggerOffset := lineStart // "/" is at the start of the line
-			comp := m.editor.ShowCompletion(components.CompletionSlash, items, filter, triggerOffset)
-			// Hide when no commands match the filter (e.g. "/@") to avoid invisible popup stealing keys
-			if comp.Completion().FilteredCount() == 0 {
-				m.editor = m.editor.HideCompletion()
-			} else {
-				m.editor = comp
-			}
-
-			return m
-		}
-
-		// Has space — check if command accepts files
-		if info, ok := m.commands.Lookup(cmdName); ok && info.AcceptsFiles {
-			items := components.PathCompletions(".", afterSpace)
-			triggerOffset := lineStart + len(cmdName) + 1 // after the space
-			m.editor = m.editor.ShowCompletion(components.CompletionFile, items, afterSpace, triggerOffset)
-
-			return m
-		}
+	lineStart := 0
+	for i := range lineIdx {
+		lineStart += len(lines[i]) + 1
 	}
 
-	// File path completion: "@" after whitespace
+	if strings.HasPrefix(line, "/") {
+		return m.slashCommandCompletion(line, lineStart)
+	}
+
+	return m.atFileCompletion(line, lineStart)
+}
+
+// slashCommandCompletion handles "/" command and file completions at the start of a line.
+func (m Model) slashCommandCompletion(line string, lineStart int) Model {
+	cmdName, afterSpace, hasSpace := strings.Cut(line, " ")
+	if !hasSpace {
+		filter := strings.TrimPrefix(line, "/")
+		names := m.commands.Names()
+
+		items := make([]components.CompletionItem, 0, len(names))
+		for _, name := range names {
+			info, _ := m.commands.Lookup(name)
+			items = append(items, components.CompletionItem{
+				Label:       strings.TrimPrefix(name, "/"),
+				Description: info.Description,
+				Value:       name + " ",
+			})
+		}
+
+		comp := m.editor.ShowCompletion(components.CompletionSlash, items, filter, lineStart)
+		if comp.Completion().FilteredCount() == 0 {
+			m.editor = m.editor.HideCompletion()
+		} else {
+			m.editor = comp
+		}
+
+		return m
+	}
+
+	if info, ok := m.commands.Lookup(cmdName); ok && info.AcceptsFiles {
+		items := components.PathCompletions(".", afterSpace)
+		triggerOffset := lineStart + len(cmdName) + 1
+		m.editor = m.editor.ShowCompletion(components.CompletionFile, items, afterSpace, triggerOffset)
+
+		return m
+	}
+
+	m.editor = m.editor.HideCompletion()
+
+	return m
+}
+
+// atFileCompletion handles "@" file path completions after whitespace.
+func (m Model) atFileCompletion(line string, lineStart int) Model {
 	atIdx := strings.LastIndex(line, "@")
 	if atIdx < 0 || (atIdx > 0 && !isWhitespace(line[atIdx-1])) {
 		m.editor = m.editor.HideCompletion()
@@ -1507,15 +1521,12 @@ func (m Model) refreshEditorCompletion() Model {
 
 	afterAt := line[atIdx+1:]
 
-	// Stop at first whitespace — token boundary. If user typed past the
-	// token (e.g. "@foo bar"), hide completion.
 	if strings.Contains(afterAt, " ") {
 		m.editor = m.editor.HideCompletion()
 
 		return m
 	}
 
-	// Only complete text between @ and the cursor
 	cursorCol := m.editor.CursorColumn()
 	atRunePos := len([]rune(line[:atIdx]))
 
@@ -1525,7 +1536,7 @@ func (m Model) refreshEditorCompletion() Model {
 		return m
 	}
 
-	tokenLen := cursorCol - atRunePos - 1 // runes after @ up to cursor
+	tokenLen := cursorCol - atRunePos - 1
 	filter := afterAt
 
 	if runeFilter := []rune(filter); len(runeFilter) > tokenLen {
@@ -1541,19 +1552,6 @@ func (m Model) refreshEditorCompletion() Model {
 
 func isWhitespace(c byte) bool {
 	return c == ' ' || c == '\t'
-}
-
-// lineStartByteOffset returns the byte offset of the start of the given line
-// index within the full value.
-func lineStartByteOffset(value string, lineIdx int) int {
-	lines := strings.Split(value, "\n")
-
-	offset := 0
-	for i := 0; i < lineIdx && i < len(lines); i++ {
-		offset += len(lines[i]) + 1 // +1 for '\n'
-	}
-
-	return offset
 }
 
 // chatHeight returns the height allocated to the chat area.
@@ -1690,7 +1688,7 @@ func (m Model) drawCompletionPopup(scr uv.Screen, editorArea uv.Rectangle) {
 	// Cursor position within editor content area.
 	// Account for left border (1) + left padding (1).
 	cursorX := editorArea.Min.X + 2 + m.editor.CursorColumn()
-	cursorY := editorArea.Min.Y + 1 + m.editor.CursorLine()
+	cursorY := editorArea.Min.Y + 1 + m.editor.VisualCursorLine()
 
 	// Default: render above cursor
 	popupX := cursorX
@@ -1715,7 +1713,7 @@ func (m Model) drawCompletionPopup(scr uv.Screen, editorArea uv.Rectangle) {
 		popupX = 0
 	}
 
-	if popupH <= 0 || popupW <= 0 {
+	if popupH <= 0 || popupW < 4 {
 		return
 	}
 
