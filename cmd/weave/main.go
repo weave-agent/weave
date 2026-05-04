@@ -16,7 +16,16 @@ import (
 var errNoInput = errors.New("no prompt provided and ui is disabled — use -p to provide a prompt or set ui: tui")
 
 func main() {
-	os.Exit(run(os.Args[1:]...))
+	os.Exit(dispatch(os.Args[1:]))
+}
+
+// dispatch routes to subcommands or the default run path.
+func dispatch(args []string) int {
+	if len(args) > 0 && args[0] == "install" {
+		return runInstall(args[1:])
+	}
+
+	return run(args...)
 }
 
 func run(args ...string) (exitCode int) {

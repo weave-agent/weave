@@ -1,0 +1,234 @@
+package main
+
+import (
+	"fmt"
+	"io/fs"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+
+	"weave/config"
+)
+
+// sourceType identifies the kind of install source.
+type sourceType int
+
+const (
+	sourceGitURL    sourceType = iota // https:// or git:// URL
+	sourceGitHub                      // github.com/user/repo shorthand
+	sourceLocalPath                   // local filesystem path
+)
+
+// parsedSource is the result of parsing an install source string.
+type parsedSource struct {
+	kind     sourceType
+	gitURL   string // full git clone URL (for git/GitHub sources)
+	localDir string // absolute local path (for local sources)
+	rawName  string // derived extension name (basename without .git)
+}
+
+// runInstall handles `weave install <source> [--name <name>]`.
+func runInstall(args []string) int {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "weave install: missing source argument")
+		fmt.Fprintln(os.Stderr, "usage: weave install <source> [--name <name>]")
+		return 1
+	}
+
+	source := args[0]
+	name := ""
+
+	// Parse --name flag from remaining args.
+	rest := args[1:]
+	for i := 0; i < len(rest); i++ {
+		if rest[i] == "--name" && i+1 < len(rest) {
+			name = rest[i+1]
+			i++
+		} else if n, ok := strings.CutPrefix(rest[i], "--name="); ok {
+			name = n
+		}
+	}
+
+	parsed, err := parseSource(source)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "weave install: %v\n", err)
+		return 1
+	}
+
+	// Use explicit name or derived name.
+	extName := name
+	if extName == "" {
+		extName = parsed.rawName
+	}
+
+	if !config.ValidExtName(extName) {
+		fmt.Fprintf(os.Stderr, "weave install: invalid extension name %q (must match [a-zA-Z0-9_-]+)\n", extName)
+		return 1
+	}
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "weave install: %v\n", err)
+		return 1
+	}
+
+	destDir := filepath.Join(homeDir, ".weave", "extensions", extName)
+
+	switch parsed.kind {
+	case sourceGitURL, sourceGitHub:
+		if err := cloneExtension(parsed.gitURL, destDir); err != nil {
+			fmt.Fprintf(os.Stderr, "weave install: clone: %v\n", err)
+			return 1
+		}
+
+	case sourceLocalPath:
+		if err := copyExtension(parsed.localDir, destDir); err != nil {
+			fmt.Fprintf(os.Stderr, "weave install: copy: %v\n", err)
+			return 1
+		}
+	}
+
+	// Validate that .go files exist.
+	if !hasGoFiles(destDir) {
+		_ = os.RemoveAll(destDir)
+		fmt.Fprintf(os.Stderr, "weave install: %s contains no .go files\n", source)
+		return 1
+	}
+
+	fmt.Fprintf(os.Stderr, "installed extension %q to %s\n", extName, destDir)
+	return 0
+}
+
+// parseSource classifies and resolves an install source string.
+func parseSource(source string) (parsedSource, error) {
+	// Git URL: https://..., http://..., git://...
+	if strings.HasPrefix(source, "https://") || strings.HasPrefix(source, "http://") || strings.HasPrefix(source, "git://") {
+		return parsedSource{
+			kind:   sourceGitURL,
+			gitURL: source,
+			rawName: deriveNameFromURL(source),
+		}, nil
+	}
+
+	// GitHub shorthand: github.com/user/repo
+	if rest, ok := strings.CutPrefix(source, "github.com/"); ok {
+		parts := strings.SplitN(rest, "/", 3)
+		if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
+			return parsedSource{}, fmt.Errorf("invalid GitHub shorthand %q (expected github.com/user/repo)", source)
+		}
+
+		repoName := parts[1]
+		if idx := strings.Index(repoName, ".git"); idx >= 0 {
+			repoName = repoName[:idx]
+		}
+
+		return parsedSource{
+			kind:    sourceGitHub,
+			gitURL:  "https://" + source,
+			rawName: repoName,
+		}, nil
+	}
+
+	// Local path: ./..., /..., ~/...
+	if config.IsPathEntry(source) || filepath.IsAbs(source) {
+		abs, err := filepath.Abs(source)
+		if err != nil {
+			return parsedSource{}, fmt.Errorf("resolve path: %w", err)
+		}
+
+		stat, err := os.Stat(abs)
+		if err != nil {
+			return parsedSource{}, fmt.Errorf("path %q: %w", source, err)
+		}
+
+		if !stat.IsDir() {
+			return parsedSource{}, fmt.Errorf("path %q is not a directory", source)
+		}
+
+		return parsedSource{
+			kind:     sourceLocalPath,
+			localDir: abs,
+			rawName:  filepath.Base(abs),
+		}, nil
+	}
+
+	return parsedSource{}, fmt.Errorf("invalid source %q (expected git URL, github.com/user/repo, or local path)", source)
+}
+
+// deriveNameFromURL extracts the repo name from a git URL.
+func deriveNameFromURL(url string) string {
+	// Take the last path segment, strip .git suffix.
+	base := filepath.Base(url)
+	base = strings.TrimSuffix(base, ".git")
+	return base
+}
+
+// cloneExtension runs git clone into destDir.
+func cloneExtension(gitURL, destDir string) error {
+	// If destDir already exists, remove it.
+	if _, err := os.Stat(destDir); err == nil {
+		if err := os.RemoveAll(destDir); err != nil {
+			return fmt.Errorf("remove existing directory: %w", err)
+		}
+	}
+
+	cmd := exec.Command("git", "clone", "--depth", "1", gitURL, destDir)
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("git clone %s: %w", gitURL, err)
+	}
+
+	return nil
+}
+
+// copyExtension copies a local directory to destDir.
+func copyExtension(srcDir, destDir string) error {
+	// If destDir already exists, remove it.
+	if _, err := os.Stat(destDir); err == nil {
+		if err := os.RemoveAll(destDir); err != nil {
+			return fmt.Errorf("remove existing directory: %w", err)
+		}
+	}
+
+	return filepath.WalkDir(srcDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		rel, err := filepath.Rel(srcDir, path)
+		if err != nil {
+			return err
+		}
+
+		target := filepath.Join(destDir, rel)
+
+		if d.IsDir() {
+			return os.MkdirAll(target, 0o750)
+		}
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+
+		return os.WriteFile(target, data, 0o600)
+	})
+}
+
+// hasGoFiles reports whether a directory tree contains .go files.
+func hasGoFiles(dir string) bool {
+	found := false
+	_ = filepath.WalkDir(dir, func(_ string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return nil
+		}
+		if !d.IsDir() && strings.HasSuffix(d.Name(), ".go") && !strings.HasSuffix(d.Name(), "_test.go") {
+			found = true
+			return fs.SkipAll
+		}
+		return nil
+	})
+	return found
+}

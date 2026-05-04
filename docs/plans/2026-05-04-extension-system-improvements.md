@@ -106,14 +106,14 @@ Harden weave's extension system with four pi-inspired improvements:
 - [x] run `go test ./sdk/... ./launcher/...` - must pass before task 6
 
 ### Task 6: Add weave install subcommand
-- [ ] create `cmd/weave/install.go` with `runInstall` function that handles `weave install <source>` where source is a git URL, local path, or GitHub shorthand
-- [ ] parse source: detect git URL (https://, git://), GitHub shorthand (github.com/user/repo), local path (./, /)
-- [ ] derive extension name from repo name (basename without .git) or require `--name` flag
-- [ ] clone/copy into `~/.weave/extensions/<name>/`, validate .go files exist
-- [ ] add install subcommand wiring in `cmd/weave/main.go` (or wherever subcommands are dispatched)
-- [ ] write tests for source parsing (git URL, GitHub shorthand, local path, invalid source)
-- [ ] write tests for name derivation and validation
-- [ ] run `go test ./cmd/weave/...` - must pass before task 7
+- [x] create `cmd/weave/install.go` with `runInstall` function that handles `weave install <source>` where source is a git URL, local path, or GitHub shorthand
+- [x] parse source: detect git URL (https://, git://), GitHub shorthand (github.com/user/repo), local path (./, /)
+- [x] derive extension name from repo name (basename without .git) or require `--name` flag
+- [x] clone/copy into `~/.weave/extensions/<name>/`, validate .go files exist
+- [x] add install subcommand wiring in `cmd/weave/main.go` (or wherever subcommands are dispatched)
+- [x] write tests for source parsing (git URL, GitHub shorthand, local path, invalid source)
+- [x] write tests for name derivation and validation
+- [x] run `go test ./cmd/weave/...` - must pass before task 7
 
 ### Task 7: Add /reload slash command
 - [ ] in `launcher/launcher.go` exec function, pass `WEAVE_LAUNCHER_PATH` (path to original weave binary via `os.Args[0]`) and `WEAVE_BUILD_HASH` (current cache hash) as environment variables
