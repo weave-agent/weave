@@ -461,6 +461,8 @@ func (c *FullConfig) UIConfig(target any) error {
 	return populateConfig(settings.UI, target)
 }
 
+func (c *FullConfig) IsHeadless() bool { return true }
+
 // populateConfig JSON round-trips a map/struct into target and applies default
 // struct tags for zero-value fields.
 func populateConfig(raw, target any) error {

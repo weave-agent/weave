@@ -382,6 +382,7 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string, provider
 	b.WriteString("\tvar promptFilePath string\n")
 	b.WriteString("\tvar agentLoopName string\n")
 	b.WriteString("\tvar providersFlag string\n")
+	b.WriteString("\tvar headlessFlag string\n")
 	b.WriteString("\tfiltered := make([]string, 0, len(os.Args)-1)\n")
 	b.WriteString("\tfor _, a := range os.Args[1:] {\n")
 	b.WriteString("\t\tif p, ok := strings.CutPrefix(a, \"--weave-config=\"); ok {\n")
@@ -392,6 +393,8 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string, provider
 	b.WriteString("\t\t\tagentLoopName = p\n")
 	b.WriteString("\t\t} else if p, ok := strings.CutPrefix(a, \"--weave-providers=\"); ok {\n")
 	b.WriteString("\t\t\tprovidersFlag = p\n")
+	b.WriteString("\t\t} else if p, ok := strings.CutPrefix(a, \"--weave-headless=\"); ok {\n")
+	b.WriteString("\t\t\theadlessFlag = p\n")
 	b.WriteString("\t\t} else {\n")
 	b.WriteString("\t\t\tfiltered = append(filtered, a)\n")
 	b.WriteString("\t\t}\n")
@@ -423,7 +426,9 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string, provider
 	b.WriteString("\t\tfmt.Fprintf(os.Stderr, \"weave: load config: %v\\n\", cfgErr)\n")
 	b.WriteString("\t\tos.Exit(1)\n")
 	b.WriteString("\t}\n")
-	b.WriteString("\tcfg = fullCfg\n\n")
+	b.WriteString("\tcfg = fullCfg\n")
+	b.WriteString("\theadless := headlessFlag != \"false\"\n")
+	b.WriteString("\tcfg = sdk.HeadlessConfig{Config: cfg, Headless: headless}\n\n")
 
 	optExtNames := make([]string, 0, len(exts))
 	for _, ext := range exts {

@@ -20,6 +20,9 @@ var _ Config = &ConfigMock{}
 //			FilePathFunc: func() string {
 //				panic("mock out the FilePath method")
 //			},
+//			IsHeadlessFunc: func() bool {
+//				panic("mock out the IsHeadless method")
+//			},
 //			ProviderConfigFunc: func(name string) *ProviderConfigEntry {
 //				panic("mock out the ProviderConfig method")
 //			},
@@ -42,6 +45,9 @@ type ConfigMock struct {
 	// FilePathFunc mocks the FilePath method.
 	FilePathFunc func() string
 
+	// IsHeadlessFunc mocks the IsHeadless method.
+	IsHeadlessFunc func() bool
+
 	// ProviderConfigFunc mocks the ProviderConfig method.
 	ProviderConfigFunc func(name string) *ProviderConfigEntry
 
@@ -58,6 +64,9 @@ type ConfigMock struct {
 	calls struct {
 		// FilePath holds details about calls to the FilePath method.
 		FilePath []struct {
+		}
+		// IsHeadless holds details about calls to the IsHeadless method.
+		IsHeadless []struct {
 		}
 		// ProviderConfig holds details about calls to the ProviderConfig method.
 		ProviderConfig []struct {
@@ -85,6 +94,7 @@ type ConfigMock struct {
 		}
 	}
 	lockFilePath       sync.RWMutex
+	lockIsHeadless     sync.RWMutex
 	lockProviderConfig sync.RWMutex
 	lockResolveKey     sync.RWMutex
 	lockToolConfig     sync.RWMutex
@@ -118,6 +128,36 @@ func (mock *ConfigMock) FilePathCalls() []struct {
 	mock.lockFilePath.RLock()
 	calls = mock.calls.FilePath
 	mock.lockFilePath.RUnlock()
+	return calls
+}
+
+// IsHeadless calls IsHeadlessFunc.
+func (mock *ConfigMock) IsHeadless() bool {
+	callInfo := struct {
+	}{}
+	mock.lockIsHeadless.Lock()
+	mock.calls.IsHeadless = append(mock.calls.IsHeadless, callInfo)
+	mock.lockIsHeadless.Unlock()
+	if mock.IsHeadlessFunc == nil {
+		var (
+			bOut bool
+		)
+		return bOut
+	}
+	return mock.IsHeadlessFunc()
+}
+
+// IsHeadlessCalls gets all the calls that were made to IsHeadless.
+// Check the length with:
+//
+//	len(mockedConfig.IsHeadlessCalls())
+func (mock *ConfigMock) IsHeadlessCalls() []struct {
+} {
+	var calls []struct {
+	}
+	mock.lockIsHeadless.RLock()
+	calls = mock.calls.IsHeadless
+	mock.lockIsHeadless.RUnlock()
 	return calls
 }
 

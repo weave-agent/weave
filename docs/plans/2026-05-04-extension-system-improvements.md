@@ -96,14 +96,14 @@ Harden weave's extension system with four pi-inspired improvements:
 - [x] run `go test ./launcher/... ./sdk/...` - must pass before task 5
 
 ### Task 5: Add headless mode detection
-- [ ] add `IsHeadless() bool` to `sdk.Config` interface
-- [ ] update `noopConfig.IsHeadless()` to return `true` (default: headless)
-- [ ] update `FilePathConfig.IsHeadless()` to return `true`
-- [ ] add `HeadlessConfig` struct that wraps a `Config` and overrides `IsHeadless()` based on whether TUI is included in the extension set
-- [ ] in launcher pipeline, wrap config with `HeadlessConfig{headless: ui != "tui"}` before passing to Wire
-- [ ] update moq mocks (`make gen`)
-- [ ] write tests for HeadlessConfig wrapping (headless=true when ui=none, headless=false when ui=tui)
-- [ ] run `go test ./sdk/... ./launcher/...` - must pass before task 6
+- [x] add `IsHeadless() bool` to `sdk.Config` interface
+- [x] update `noopConfig.IsHeadless()` to return `true` (default: headless)
+- [x] update `FilePathConfig.IsHeadless()` to return `true`
+- [x] add `HeadlessConfig` struct that wraps a `Config` and overrides `IsHeadless()` based on whether TUI is included in the extension set
+- [x] in launcher pipeline, wrap config with `HeadlessConfig{headless: ui != "tui"}` before passing to Wire
+- [x] update moq mocks (`make gen`)
+- [x] write tests for HeadlessConfig wrapping (headless=true when ui=none, headless=false when ui=tui)
+- [x] run `go test ./sdk/... ./launcher/...` - must pass before task 6
 
 ### Task 6: Add weave install subcommand
 - [ ] create `cmd/weave/install.go` with `runInstall` function that handles `weave install <source>` where source is a git URL, local path, or GitHub shorthand

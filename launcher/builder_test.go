@@ -229,6 +229,8 @@ func TestGenerateMainGo_Content(t *testing.T) {
 	assert.Contains(t, s, "wired.Close()")
 	assert.Contains(t, s, "shutdown error")
 	assert.Contains(t, s, "os.Args = append([]string{os.Args[0]}, filtered...)")
+	assert.Contains(t, s, "--weave-headless=")
+	assert.Contains(t, s, "sdk.HeadlessConfig")
 }
 
 func TestBuild_WithTrivialExtension(t *testing.T) {

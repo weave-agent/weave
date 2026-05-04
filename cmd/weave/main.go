@@ -64,6 +64,8 @@ func run(args ...string) (exitCode int) {
 
 	// Add UI extension when no prompt is provided (interactive mode).
 	// When a prompt is set (-p flag), the agent runs in print mode without TUI.
+	headless := cf.Prompt != "" || cf.UI == "" || cf.UI == config.UIValueNone
+
 	if cf.Prompt == "" && cf.UI != "" && cf.UI != config.UIValueNone {
 		allExts = ensurePresent(allExts, cf.UI)
 	}
@@ -72,6 +74,12 @@ func run(args ...string) (exitCode int) {
 	if cf.Prompt == "" && (cf.UI == "" || cf.UI == config.UIValueNone) {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", errNoInput)
 		return 1
+	}
+
+	if headless {
+		rest = append([]string{"--weave-headless=true"}, rest...)
+	} else {
+		rest = append([]string{"--weave-headless=false"}, rest...)
 	}
 
 	// Compute effective providers: config providers + env override if set.

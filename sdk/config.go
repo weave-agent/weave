@@ -19,6 +19,7 @@ type Config interface {
 	ResolveKey(providerName, envVar string) (string, error)
 	ToolConfig(name string, target any) error
 	UIConfig(target any) error
+	IsHeadless() bool
 }
 
 type noopConfig struct{}
@@ -30,6 +31,7 @@ func (noopConfig) ResolveKey(_, envVar string) (string, error) {
 }
 func (noopConfig) ToolConfig(string, any) error { return nil }
 func (noopConfig) UIConfig(any) error           { return nil }
+func (noopConfig) IsHeadless() bool             { return true }
 
 // FilePathConfig is a Config that returns the given path from FilePath().
 type FilePathConfig string
@@ -41,6 +43,7 @@ func (f FilePathConfig) ResolveKey(_, envVar string) (string, error) {
 }
 func (f FilePathConfig) ToolConfig(string, any) error { return nil }
 func (f FilePathConfig) UIConfig(any) error           { return nil }
+func (f FilePathConfig) IsHeadless() bool             { return true }
 
 func configOrDefault(cfg Config) Config {
 	if cfg != nil {
@@ -49,3 +52,11 @@ func configOrDefault(cfg Config) Config {
 
 	return noopConfig{}
 }
+
+// HeadlessConfig wraps a Config and overrides IsHeadless.
+type HeadlessConfig struct {
+	Config
+	Headless bool
+}
+
+func (h HeadlessConfig) IsHeadless() bool { return h.Headless }
