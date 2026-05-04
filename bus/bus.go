@@ -21,8 +21,9 @@ const (
 )
 
 type handlerSlot struct {
-	ch chan sdk.Event
-	h  sdk.Handler
+	ch   chan sdk.Event
+	h    sdk.Handler
+	done chan struct{}
 }
 
 type Bus struct {
@@ -53,8 +54,9 @@ func (b *Bus) On(topic string, h sdk.Handler) {
 	}
 
 	slot := &handlerSlot{
-		ch: make(chan sdk.Event, topicHandlerBufSize),
-		h:  h,
+		ch:   make(chan sdk.Event, topicHandlerBufSize),
+		h:    h,
+		done: make(chan struct{}),
 	}
 
 	b.mu.Lock()
@@ -74,8 +76,9 @@ func (b *Bus) OnAll(h sdk.Handler) {
 	}
 
 	slot := &handlerSlot{
-		ch: make(chan sdk.Event, allHandlerBufSize),
-		h:  h,
+		ch:   make(chan sdk.Event, allHandlerBufSize),
+		h:    h,
+		done: make(chan struct{}),
 	}
 
 	b.mu.Lock()
@@ -89,8 +92,17 @@ func (b *Bus) OnAll(h sdk.Handler) {
 func (b *Bus) runSlot(slot *handlerSlot) {
 	defer b.wg.Done()
 
-	for ev := range slot.ch {
-		b.invokeHandler(ev, slot.h)
+	for {
+		select {
+		case ev, ok := <-slot.ch:
+			if !ok {
+				return
+			}
+
+			b.invokeHandler(ev, slot.h)
+		case <-slot.done:
+			return
+		}
 	}
 }
 
@@ -113,7 +125,7 @@ func (b *Bus) Off(h sdk.Handler) {
 			if handlerID(slot.h) != target {
 				remaining = append(remaining, slot)
 			} else {
-				close(slot.ch)
+				close(slot.done)
 			}
 		}
 
@@ -129,7 +141,7 @@ func (b *Bus) Off(h sdk.Handler) {
 		if handlerID(slot.h) != target {
 			remainingAll = append(remainingAll, slot)
 		} else {
-			close(slot.ch)
+			close(slot.done)
 		}
 	}
 

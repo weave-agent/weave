@@ -69,7 +69,16 @@ func WireWithCore(core CoreWireConfig, optExts []string, bus Bus, cfg Config) (*
 	}
 
 	if core.SingleTurn {
+		oldSingleTurn := os.Getenv("WEAVE_SINGLE_TURN")
 		_ = os.Setenv("WEAVE_SINGLE_TURN", "1")
+
+		defer func() {
+			if oldSingleTurn == "" {
+				_ = os.Unsetenv("WEAVE_SINGLE_TURN")
+			} else {
+				_ = os.Setenv("WEAVE_SINGLE_TURN", oldSingleTurn)
+			}
+		}()
 	}
 
 	// Only wire the agent-loop extension and optional extensions.

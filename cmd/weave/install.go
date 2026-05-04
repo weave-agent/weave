@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -181,7 +182,7 @@ func deriveNameFromURL(rawURL string) string {
 		return filepath.Base(rawURL)
 	}
 
-	base := filepath.Base(parsed.Path)
+	base := path.Base(parsed.Path)
 	base = strings.TrimSuffix(base, ".git")
 
 	return base
@@ -220,8 +221,8 @@ func copyExtension(srcDir, destDir string) error {
 			return fmt.Errorf("walk: %w", err)
 		}
 
-		// Skip hidden directories (e.g., .git).
-		if d.IsDir() && strings.HasPrefix(d.Name(), ".") {
+		// Skip .git directory.
+		if d.IsDir() && d.Name() == ".git" {
 			return fs.SkipDir
 		}
 
@@ -241,7 +242,12 @@ func copyExtension(srcDir, destDir string) error {
 			return fmt.Errorf("read file: %w", readErr)
 		}
 
-		return os.WriteFile(target, data, 0o600) //nolint:gosec // G703 — our own extension dir
+		info, infoErr := d.Info()
+		if infoErr != nil {
+			return fmt.Errorf("file info: %w", infoErr)
+		}
+
+		return os.WriteFile(target, data, info.Mode().Perm()) //nolint:gosec // G703 — our own extension dir
 	}); err != nil {
 		return fmt.Errorf("copy: %w", err)
 	}
@@ -253,7 +259,7 @@ func copyExtension(srcDir, destDir string) error {
 func hasGoFiles(dir string) bool {
 	found := false
 
-	_ = filepath.WalkDir(dir, func(_ string, d fs.DirEntry, _ error) error { //nolint:gosec // G703 — reading from our own extension dir
+	err := filepath.WalkDir(dir, func(_ string, d fs.DirEntry, _ error) error { //nolint:gosec // G703 — reading from our own extension dir
 		if d != nil && !d.IsDir() && strings.HasSuffix(d.Name(), ".go") && !strings.HasSuffix(d.Name(), "_test.go") {
 			found = true
 			return fs.SkipAll
@@ -261,6 +267,9 @@ func hasGoFiles(dir string) bool {
 
 		return nil
 	})
+	if err != nil {
+		return false
+	}
 
 	return found
 }
