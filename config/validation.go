@@ -254,7 +254,7 @@ func hasGoFiles(dir string) bool {
 			return nil //nolint:nilerr // skip inaccessible entries during walk
 		}
 
-		if !d.IsDir() && strings.HasSuffix(d.Name(), ".go") {
+		if !d.IsDir() && strings.HasSuffix(d.Name(), ".go") && !strings.HasSuffix(d.Name(), "_test.go") {
 			found = true
 
 			return fs.SkipAll
