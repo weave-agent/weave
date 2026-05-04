@@ -142,8 +142,8 @@ Improve weave's configuration system with four focused changes:
 - [x] run `cd extensions/tools/bash && go test ./...`
 
 ### Task 7: Update documentation
-- [ ] update `CLAUDE.md` Configuration section with new settings format and path-based extension syntax
-- [ ] add example `.weave.yaml` showing path-based extensions and settings integration
+- [x] update `CLAUDE.md` Configuration section with new settings format and path-based extension syntax
+- [x] add example `.weave.yaml` showing path-based extensions and settings integration
 
 ## Technical Details
 
