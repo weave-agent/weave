@@ -57,15 +57,15 @@ Harden weave's extension system with four pi-inspired improvements:
 ## Implementation Steps
 
 ### Task 1: Redesign Bus interface to callback model
-- [ ] update `sdk.Bus` interface: replace `Subscribe`/`SubscribeAll`/`Unsubscribe` with `On(topic string, h Handler)`/`OnAll(h Handler)`/`Off(h Handler)` and add `Handler func(Event) error` type
-- [ ] implement callback-based `bus.Bus` with per-handler goroutine management, non-blocking dispatch, and `recover()` wrapping every handler invocation
-- [ ] on panic: log stack trace and publish `extension.panic` diagnostic event; on error return: log and publish `extension.error` diagnostic event
-- [ ] write tests for callback dispatch (single handler, multiple handlers on same topic, OnAll)
-- [ ] write tests for panic recovery (handler panics, process survives, diagnostic event published)
-- [ ] write tests for error handling (handler returns error, diagnostic event published)
-- [ ] write tests for Off (handler removed, stops receiving events)
-- [ ] write tests for Close (all handlers stopped, pending events drained or dropped)
-- [ ] run `cd bus && go test ./...` - must pass before task 2
+- [x] update `sdk.Bus` interface: replace `Subscribe`/`SubscribeAll`/`Unsubscribe` with `On(topic string, h Handler)`/`OnAll(h Handler)`/`Off(h Handler)` and add `Handler func(Event) error` type
+- [x] implement callback-based `bus.Bus` with per-handler goroutine management, non-blocking dispatch, and `recover()` wrapping every handler invocation
+- [x] on panic: log stack trace and publish `extension.panic` diagnostic event; on error return: log and publish `extension.error` diagnostic event
+- [x] write tests for callback dispatch (single handler, multiple handlers on same topic, OnAll)
+- [x] write tests for panic recovery (handler panics, process survives, diagnostic event published)
+- [x] write tests for error handling (handler returns error, diagnostic event published)
+- [x] write tests for Off (handler removed, stops receiving events)
+- [x] write tests for Close (all handlers stopped, pending events drained or dropped)
+- [x] run `cd bus && go test ./...` - must pass before task 2
 
 ### Task 2: Migrate Wire and ExtensionFunc to callbacks
 - [ ] update `sdk.Wire()` and `sdk.WireWithCore()` to use new Bus interface — no channel consumption, just extension.Subscribe(bus) calls remain unchanged

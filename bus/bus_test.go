@@ -2,6 +2,7 @@ package bus
 
 import (
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -11,181 +12,277 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPubSub(t *testing.T) {
+func TestOnSingleHandler(t *testing.T) {
 	b := New()
 	defer b.Close()
 
-	ch := b.Subscribe("test.topic")
+	var received atomic.Value
+	b.On("test.topic", func(e sdk.Event) error {
+		received.Store(e)
+		return nil
+	})
+
 	e := sdk.NewEvent("test.topic", "hello")
 	b.Publish(e)
 
-	select {
-	case got := <-ch:
-		assert.Equal(t, "test.topic", got.Topic)
-		assert.Equal(t, "hello", got.Payload)
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for event")
-	}
+	assert.Eventually(t, func() bool {
+		v, ok := received.Load().(sdk.Event)
+		return ok && v.Topic == "test.topic" && v.Payload == "hello"
+	}, time.Second, 10*time.Millisecond)
 }
 
-func TestMultipleSubscribers(t *testing.T) {
+func TestOnMultipleHandlersSameTopic(t *testing.T) {
 	b := New()
 	defer b.Close()
 
-	ch1 := b.Subscribe("topic")
-	ch2 := b.Subscribe("topic")
+	var count atomic.Int32
+	handler := func(e sdk.Event) error {
+		count.Add(1)
+		return nil
+	}
+
+	b.On("topic", handler)
+	// Register a different handler too
+	b.On("topic", func(e sdk.Event) error {
+		count.Add(1)
+		return nil
+	})
 
 	b.Publish(sdk.NewEvent("topic", nil))
 
-	for i, ch := range []<-chan sdk.Event{ch1, ch2} {
-		select {
-		case <-ch:
-		case <-time.After(time.Second):
-			t.Fatalf("subscriber %d did not receive event", i+1)
-		}
-	}
+	assert.Eventually(t, func() bool {
+		return count.Load() == 2
+	}, time.Second, 10*time.Millisecond)
 }
 
-func TestSubscribeMultipleTopics(t *testing.T) {
+func TestOnAll(t *testing.T) {
 	b := New()
 	defer b.Close()
 
-	ch := b.Subscribe("a", "b")
-	b.Publish(sdk.NewEvent("a", nil))
-	b.Publish(sdk.NewEvent("b", nil))
+	var received atomic.Value
+	b.OnAll(func(e sdk.Event) error {
+		received.Store(e)
+		return nil
+	})
 
-	for i := range 2 {
-		select {
-		case <-ch:
-		case <-time.After(time.Second):
-			t.Fatalf("event %d not received", i+1)
-		}
-	}
-}
-
-func TestSubscribeAll(t *testing.T) {
-	b := New()
-	defer b.Close()
-
-	all := b.SubscribeAll()
 	b.Publish(sdk.NewEvent("any.topic", "data"))
 
-	select {
-	case got := <-all:
-		assert.Equal(t, "any.topic", got.Topic)
-	case <-time.After(time.Second):
-		t.Fatal("SubscribeAll did not receive event")
-	}
+	assert.Eventually(t, func() bool {
+		v, ok := received.Load().(sdk.Event)
+		return ok && v.Topic == "any.topic"
+	}, time.Second, 10*time.Millisecond)
 }
 
 func TestUnrelatedTopicNotReceived(t *testing.T) {
 	b := New()
 	defer b.Close()
 
-	ch := b.Subscribe("alpha")
+	called := atomic.Bool{}
+	b.On("alpha", func(e sdk.Event) error {
+		called.Store(true)
+		return nil
+	})
+
 	b.Publish(sdk.NewEvent("beta", nil))
 
-	select {
-	case <-ch:
-		t.Fatal("received event for wrong topic")
-	case <-time.After(50 * time.Millisecond):
-	}
+	time.Sleep(50 * time.Millisecond)
+	assert.False(t, called.Load(), "handler for 'alpha' should not receive 'beta' events")
 }
 
-func TestBufferOverflow(t *testing.T) {
+func TestPanicRecovery(t *testing.T) {
+	b := New()
+
+	var panicEvent atomic.Value
+
+	b.On("extension.panic", func(e sdk.Event) error {
+		panicEvent.Store(e)
+		return nil
+	})
+
+	b.On("crash.topic", func(e sdk.Event) error {
+		panic("something broke")
+	})
+
+	b.Publish(sdk.NewEvent("crash.topic", nil))
+
+	assert.Eventually(t, func() bool {
+		v, ok := panicEvent.Load().(sdk.Event)
+		return ok && v.Topic == "extension.panic"
+	}, 2*time.Second, 10*time.Millisecond, "expected extension.panic diagnostic event")
+
+	// Bus should still be usable after panic
+	require.NoError(t, b.Close())
+}
+
+func TestErrorHandler(t *testing.T) {
+	b := New()
+
+	var errEvent atomic.Value
+
+	b.On("extension.error", func(e sdk.Event) error {
+		errEvent.Store(e)
+		return nil
+	})
+
+	b.On("fail.topic", func(e sdk.Event) error {
+		return assert.AnError
+	})
+
+	b.Publish(sdk.NewEvent("fail.topic", nil))
+
+	assert.Eventually(t, func() bool {
+		v, ok := errEvent.Load().(sdk.Event)
+		return ok && v.Topic == "extension.error"
+	}, 2*time.Second, 10*time.Millisecond, "expected extension.error diagnostic event")
+
+	require.NoError(t, b.Close())
+}
+
+func TestOff(t *testing.T) {
 	b := New()
 	defer b.Close()
 
-	ch := b.Subscribe("flood")
-	for i := range topicBufSize + 20 {
-		b.Publish(sdk.NewEvent("flood", i))
+	called := atomic.Bool{}
+	h := func(e sdk.Event) error {
+		called.Store(true)
+		return nil
 	}
 
-	count := 0
+	b.On("topic", h)
+	b.Off(h)
 
-	for {
-		select {
-		case <-ch:
-			count++
-		default:
-			goto done
-		}
-	}
+	b.Publish(sdk.NewEvent("topic", nil))
 
-done:
-	assert.LessOrEqual(t, count, topicBufSize, "received more events than buffer size")
-
-	assert.NotZero(t, count, "expected some events to be buffered")
+	time.Sleep(50 * time.Millisecond)
+	assert.False(t, called.Load(), "handler should not be called after Off")
 }
 
-func TestClose(t *testing.T) {
+func TestOffAllHandler(t *testing.T) {
 	b := New()
-	ch := b.Subscribe("x")
-	_ = b.Close()
+	defer b.Close()
 
-	_, ok := <-ch
-	assert.False(t, ok, "expected channel to be closed")
+	called := atomic.Bool{}
+	h := func(e sdk.Event) error {
+		called.Store(true)
+		return nil
+	}
+
+	b.OnAll(h)
+	b.Off(h)
+
+	b.Publish(sdk.NewEvent("any", nil))
+
+	time.Sleep(50 * time.Millisecond)
+	assert.False(t, called.Load(), "OnAll handler should not be called after Off")
+}
+
+func TestOffUnknownHandler(t *testing.T) {
+	b := New()
+	defer b.Close()
+
+	h := func(e sdk.Event) error { return nil }
+	b.Off(h) // should not panic
+}
+
+func TestCloseWaitsForHandlers(t *testing.T) {
+	b := New()
+
+	started := make(chan struct{})
+	completed := atomic.Bool{}
+
+	b.On("slow", func(e sdk.Event) error {
+		close(started)
+		time.Sleep(100 * time.Millisecond)
+		completed.Store(true)
+		return nil
+	})
+
+	b.Publish(sdk.NewEvent("slow", nil))
+	<-started // wait for handler to start
+
+	require.NoError(t, b.Close())
+	assert.True(t, completed.Load(), "Close should wait for handlers to finish")
+}
+
+func TestCloseDrainsAndStops(t *testing.T) {
+	b := New()
+
+	called := atomic.Bool{}
+	b.On("x", func(e sdk.Event) error {
+		called.Store(true)
+		return nil
+	})
+
+	require.NoError(t, b.Close())
+
+	// After close, new publishes should return false
+	assert.False(t, b.Publish(sdk.NewEvent("x", nil)))
+}
+
+func TestOnAfterClose(t *testing.T) {
+	b := New()
+	require.NoError(t, b.Close())
+
+	called := atomic.Bool{}
+	b.On("x", func(e sdk.Event) error {
+		called.Store(true)
+		return nil
+	})
+
+	b.Publish(sdk.NewEvent("x", nil))
+	time.Sleep(20 * time.Millisecond)
+	assert.False(t, called.Load(), "On after Close should not register")
 }
 
 func TestPublishAfterClose(t *testing.T) {
 	b := New()
-	_ = b.Close()
+	require.NoError(t, b.Close())
 
-	ch := b.Subscribe("x")
-	b.Publish(sdk.NewEvent("x", nil))
-
-	_, ok := <-ch
-	assert.False(t, ok, "subscribe after close should return closed channel")
+	assert.False(t, b.Publish(sdk.NewEvent("x", nil)), "Publish after Close should return false")
 }
 
-func TestCloseAllSubscriber(t *testing.T) {
+func TestPublishReturnsFalseWithNoHandlers(t *testing.T) {
 	b := New()
-	all := b.SubscribeAll()
-	_ = b.Close()
+	defer b.Close()
 
-	_, ok := <-all
-	assert.False(t, ok, "expected SubscribeAll channel to be closed")
+	assert.False(t, b.Publish(sdk.NewEvent("nobody", nil)), "expected false with no handlers")
 }
 
 func TestConcurrentPublish(t *testing.T) {
 	b := New()
 	defer b.Close()
 
-	ch := b.Subscribe("concurrent")
+	var count atomic.Int32
+	b.On("concurrent", func(e sdk.Event) error {
+		count.Add(1)
+		return nil
+	})
 
 	var wg sync.WaitGroup
 	for i := range 100 {
-		wg.Go(func() {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
 			b.Publish(sdk.NewEvent("concurrent", i))
-		})
+		}()
 	}
-
 	wg.Wait()
 
-	drained := 0
-
-	for {
-		select {
-		case <-ch:
-			drained++
-		default:
-			require.NotZero(t, drained, "expected at least some events from concurrent publishes")
-			return
-		}
-	}
+	assert.Eventually(t, func() bool {
+		return count.Load() > 0
+	}, time.Second, 10*time.Millisecond, "expected some events from concurrent publishes")
 }
 
 func TestConcurrentPublishAndClose(t *testing.T) {
 	for range 50 {
 		b := New()
-		_ = b.Subscribe("race")
+		b.On("race", func(e sdk.Event) error { return nil })
 
 		var wg sync.WaitGroup
 		wg.Add(2)
 
 		go func() {
 			defer wg.Done()
-
 			for range 200 {
 				b.Publish(sdk.NewEvent("race", nil))
 			}
@@ -193,7 +290,6 @@ func TestConcurrentPublishAndClose(t *testing.T) {
 
 		go func() {
 			defer wg.Done()
-
 			_ = b.Close()
 		}()
 
@@ -201,100 +297,8 @@ func TestConcurrentPublishAndClose(t *testing.T) {
 	}
 }
 
-func TestSubscribeAfterClose(t *testing.T) {
+func TestCloseIdempotent(t *testing.T) {
 	b := New()
-	_ = b.Close()
-
-	ch := b.Subscribe("x")
-	_, ok := <-ch
-	assert.False(t, ok, "Subscribe after Close should return closed channel")
-
-	allCh := b.SubscribeAll()
-	_, ok = <-allCh
-	assert.False(t, ok, "SubscribeAll after Close should return closed channel")
-}
-
-func TestUnsubscribe(t *testing.T) {
-	b := New()
-	defer b.Close()
-
-	ch := b.Subscribe("topic")
-	b.Unsubscribe(ch)
-
-	_, ok := <-ch
-	assert.False(t, ok, "unsubscribed channel should be closed")
-
-	b.Publish(sdk.NewEvent("topic", "data"))
-}
-
-func TestUnsubscribeAllSubscriber(t *testing.T) {
-	b := New()
-	defer b.Close()
-
-	ch := b.SubscribeAll()
-	b.Unsubscribe(ch)
-
-	_, ok := <-ch
-	assert.False(t, ok, "unsubscribed channel should be closed")
-}
-
-func TestUnsubscribeDoubleSafe(t *testing.T) {
-	b := New()
-	defer b.Close()
-
-	ch := b.Subscribe("x")
-	b.Unsubscribe(ch)
-	b.Unsubscribe(ch)
-}
-
-func TestUnsubscribeUnknownChannel(t *testing.T) {
-	b := New()
-	defer b.Close()
-
-	ch := make(chan sdk.Event)
-	b.Unsubscribe(ch)
-}
-
-func TestUnsubscribeMultiTopic(t *testing.T) {
-	b := New()
-	defer b.Close()
-
-	ch := b.Subscribe("a", "b")
-	b.Unsubscribe(ch)
-
-	_, ok := <-ch
-	assert.False(t, ok, "unsubscribed channel should be closed")
-
-	b.Publish(sdk.NewEvent("a", nil))
-	b.Publish(sdk.NewEvent("b", nil))
-}
-
-func TestPublishReturnsFalseOnDrop(t *testing.T) {
-	b := New()
-	defer b.Close()
-
-	ch := b.Subscribe("full")
-	for i := range topicBufSize {
-		require.True(t, b.Publish(sdk.NewEvent("full", i)), "Publish %d returned false before buffer full", i)
-	}
-
-	assert.False(t, b.Publish(sdk.NewEvent("full", "overflow")), "expected Publish to return false when subscriber buffer is full")
-
-	<-ch
-
-	assert.True(t, b.Publish(sdk.NewEvent("full", "after-drain")), "expected Publish to return true after drain")
-}
-
-func TestPublishReturnsFalseWhenClosed(t *testing.T) {
-	b := New()
-	_ = b.Close()
-
-	assert.False(t, b.Publish(sdk.NewEvent("x", nil)), "expected Publish to return false on closed bus")
-}
-
-func TestPublishReturnsFalseWithNoSubscribers(t *testing.T) {
-	b := New()
-	defer b.Close()
-
-	assert.False(t, b.Publish(sdk.NewEvent("nobody", nil)), "expected Publish to return false with no subscribers")
+	require.NoError(t, b.Close())
+	require.NoError(t, b.Close())
 }

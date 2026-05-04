@@ -2,11 +2,16 @@ package sdk
 
 //go:generate moq -fmt goimports -stub -out extension_mock_test.go . Bus Extension
 
+// Handler processes a bus event. Return a non-nil error to trigger an
+// "extension.error" diagnostic event. Panics are caught by the bus and
+// trigger an "extension.panic" diagnostic event.
+type Handler func(Event) error
+
 type Bus interface {
 	Publish(Event) bool
-	Subscribe(topics ...string) <-chan Event
-	SubscribeAll() <-chan Event
-	Unsubscribe(ch <-chan Event)
+	On(topic string, h Handler)
+	OnAll(h Handler)
+	Off(h Handler)
 	Close() error
 }
 
