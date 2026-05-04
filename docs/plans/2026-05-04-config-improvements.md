@@ -63,7 +63,7 @@ Improve weave's configuration system with four focused changes:
 - [x] run `go test ./launcher/...` — must pass before next task
 
 ### Task 2: Layered settings — data structures and merge
-- [ ] create `config/settings.go` rewrite: expand `Settings` struct with `UI` and `Tools` sections
+- [x] create `config/settings.go` rewrite: expand `Settings` struct with `UI` and `Tools` sections
   ```go
   type Settings struct {
       Provider      string                 `json:"provider,omitempty"`
@@ -77,15 +77,15 @@ Improve weave's configuration system with four focused changes:
       EditorMaxLines int   `json:"editor_max_lines,omitempty"`
   }
   ```
-- [ ] create `config/merge.go` with `MergeSettings(layers ...*Settings) *Settings` — deep merge: nested objects merge recursively, primitives override, maps merge by key
-- [ ] create `LoadLayeredSettings(projectDir string) (*Settings, error)` — loads global → project → local, merges
+- [x] create `config/merge.go` with `MergeSettings(layers ...*Settings) *Settings` — deep merge: nested objects merge recursively, primitives override, maps merge by key
+- [x] create `LoadLayeredSettings(projectDir string) (*Settings, error)` — loads global → project → local, merges
   - global: `~/.weave/settings.json`
   - project: `.weave/settings.json` (walk up from projectDir)
   - local: `.weave/settings.local.json` (same dir as project settings)
-- [ ] update `SaveSettings` to accept a layer parameter (global vs project)
-- [ ] write tests for `MergeSettings` (empty layers, override order, deep merge, nil handling)
-- [ ] write tests for `LoadLayeredSettings` (temp dirs with multiple layers)
-- [ ] run `go test ./config/...` — must pass before next task
+- [x] update `SaveSettings` to accept a layer parameter (global vs project)
+- [x] write tests for `MergeSettings` (empty layers, override order, deep merge, nil handling)
+- [x] write tests for `LoadLayeredSettings` (temp dirs with multiple layers)
+- [x] run `go test ./config/...` — must pass before next task
 
 ### Task 3: Typed tool config schemas
 - [ ] add `SettingsConfig` interface to `sdk/config.go`:

@@ -10,10 +10,30 @@ import (
 
 // Settings holds user preferences that persist across sessions.
 type Settings struct {
-	Provider      string `json:"provider,omitempty"`
-	Model         string `json:"model,omitempty"`
-	ThinkingLevel string `json:"thinking_level,omitempty"`
+	Provider      string                 `json:"provider,omitempty"`
+	Model         string                 `json:"model,omitempty"`
+	ThinkingLevel string                 `json:"thinking_level,omitempty"`
+	UI            *UISettings            `json:"ui,omitempty"`
+	Tools         map[string]interface{} `json:"tools,omitempty"`
 }
+
+// UISettings holds UI-specific preferences.
+type UISettings struct {
+	Theme          string `json:"theme,omitempty"`
+	EditorMaxLines int    `json:"editor_max_lines,omitempty"`
+}
+
+// SettingsLayer identifies which settings file to read or write.
+type SettingsLayer string
+
+const (
+	// SettingsGlobal is ~/.weave/settings.json.
+	SettingsGlobal SettingsLayer = "global"
+	// SettingsProject is .weave/settings.json relative to the project.
+	SettingsProject SettingsLayer = "project"
+	// SettingsLocal is .weave/settings.local.json (gitignored, per-developer overrides).
+	SettingsLocal SettingsLayer = "local"
+)
 
 var (
 	settingsMu   sync.RWMutex
@@ -75,9 +95,11 @@ func LoadSettings() (*Settings, error) {
 	return &s, nil
 }
 
-// SaveSettings writes the settings file.
-func SaveSettings(s *Settings) error {
-	path, err := SettingsPath()
+// SaveSettings writes the settings file. When layer is SettingsProject, the
+// projectDir is used to locate the .weave directory. For SettingsGlobal (the
+// zero value), it writes to the global path.
+func SaveSettings(s *Settings, layer SettingsLayer, projectDir string) error {
+	path, err := settingsPathForLayer(layer, projectDir)
 	if err != nil {
 		return err
 	}
@@ -94,8 +116,36 @@ func SaveSettings(s *Settings) error {
 	}
 
 	if writeErr := os.WriteFile(path, data, 0o600); writeErr != nil {
-		return fmt.Errorf("write settings: %w", err)
+		return fmt.Errorf("write settings: %w", writeErr)
 	}
 
 	return nil
+}
+
+// SaveSettingsGlobal persists settings to the global file.
+// Convenience wrapper for SaveSettings with SettingsGlobal layer.
+func SaveSettingsGlobal(s *Settings) error {
+	return SaveSettings(s, SettingsGlobal, "")
+}
+
+// settingsPathForLayer resolves the file path for a given layer.
+func settingsPathForLayer(layer SettingsLayer, projectDir string) (string, error) {
+	switch layer {
+	case SettingsGlobal, "":
+		return SettingsPath()
+	case SettingsProject:
+		if projectDir == "" {
+			return "", fmt.Errorf("project settings require projectDir")
+		}
+
+		return filepath.Join(projectDir, ".weave", "settings.json"), nil
+	case SettingsLocal:
+		if projectDir == "" {
+			return "", fmt.Errorf("local settings require projectDir")
+		}
+
+		return filepath.Join(projectDir, ".weave", "settings.local.json"), nil
+	default:
+		return "", fmt.Errorf("unknown settings layer: %q", layer)
+	}
 }

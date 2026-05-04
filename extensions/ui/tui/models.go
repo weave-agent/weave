@@ -181,7 +181,7 @@ func initialThinkingLevel() sdk.ThinkingLevel {
 // saveSettings persists the current model and thinking level to disk.
 // Best-effort — errors are silently ignored.
 func saveSettings(entry ModelEntry, level sdk.ThinkingLevel) {
-	_ = config.SaveSettings(&config.Settings{
+	_ = config.SaveSettingsGlobal(&config.Settings{
 		Provider:      entry.Provider,
 		Model:         entry.Model,
 		ThinkingLevel: string(level),
