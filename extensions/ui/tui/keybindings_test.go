@@ -413,7 +413,7 @@ func TestModel_V2KeyDispatch_PrintableChars(t *testing.T) {
 	model, cmd := m.Update(tea.KeyPressMsg{Code: 'h', Text: "h"})
 	m = model.(Model)
 
-	assert.Nil(t, cmd)
+	assert.NotNil(t, cmd) // virtual cursor blink cmd
 	assert.Equal(t, "h", m.editor.Value())
 }
 
@@ -426,6 +426,6 @@ func TestModel_V2KeyDispatch_MultiRuneText(t *testing.T) {
 	model, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyExtended, Text: "abc"})
 	m = model.(Model)
 
-	assert.Nil(t, cmd)
+	assert.NotNil(t, cmd) // virtual cursor blink cmd
 	assert.Equal(t, "abc", m.editor.Value())
 }

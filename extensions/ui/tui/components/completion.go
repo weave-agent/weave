@@ -153,6 +153,12 @@ func (m CompletionModel) Cursor() int {
 	return m.cursor
 }
 
+// SetWidth sets the popup width for rendering.
+func (m CompletionModel) SetWidth(w int) CompletionModel {
+	m.width = w
+	return m
+}
+
 // View renders the completion popup as a string.
 func (m CompletionModel) View() string {
 	if !m.visible || len(m.filtered) == 0 {

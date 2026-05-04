@@ -485,30 +485,6 @@ func (m EditorModel) applyCompletion() EditorModel {
 	return m.HideCompletion()
 }
 
-// cursorByteOffset returns the byte offset in value for the given rune-based
-// line and column position.
-func cursorByteOffset(value string, lineIdx, column int) int {
-	lines := strings.Split(value, "\n")
-
-	offset := 0
-	for i := 0; i < lineIdx && i < len(lines); i++ {
-		offset += len(lines[i]) + 1 // +1 for '\n'
-	}
-
-	if lineIdx < len(lines) {
-		line := lines[lineIdx]
-
-		runes := []rune(line)
-		if column > len(runes) {
-			column = len(runes)
-		}
-
-		offset += len(string(runes[:column]))
-	}
-
-	return offset
-}
-
 // View renders the editor.
 func (m EditorModel) View() string {
 	return m.ta.View()

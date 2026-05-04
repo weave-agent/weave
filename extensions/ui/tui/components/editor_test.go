@@ -601,11 +601,3 @@ func TestEditorApplyCompletionWithCorrectTriggerOffset(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "prefix src/", submit.Text)
 }
-
-func TestCursorByteOffset(t *testing.T) {
-	assert.Equal(t, 0, cursorByteOffset("hello", 0, 0))
-	assert.Equal(t, 5, cursorByteOffset("hello", 0, 5))
-	assert.Equal(t, 6, cursorByteOffset("hello\nworld", 1, 0))
-	assert.Equal(t, 8, cursorByteOffset("hello\nworld", 1, 2))
-	assert.Equal(t, 3, cursorByteOffset("héllo", 0, 2)) // é is 2 bytes
-}

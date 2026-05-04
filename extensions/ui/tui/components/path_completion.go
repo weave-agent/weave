@@ -1,8 +1,10 @@
 package components
 
 import (
+	"cmp"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -71,11 +73,7 @@ func splitPrefix(prefix string) (dirPart, filter string) {
 }
 
 func sortCompletionItems(items []CompletionItem) {
-	for i := range items {
-		for j := i + 1; j < len(items); j++ {
-			if items[i].Label > items[j].Label {
-				items[i], items[j] = items[j], items[i]
-			}
-		}
-	}
+	slices.SortFunc(items, func(a, b CompletionItem) int {
+		return cmp.Compare(a.Label, b.Label)
+	})
 }

@@ -160,7 +160,7 @@ func lockBuildDir(hash string) (unlock func(), err error) {
 		return nil, fmt.Errorf("open lock file: %w", err)
 	}
 
-	fd := int(f.Fd()) //nolint:gosec // G115: fd fits in int on all supported platforms
+	fd := int(f.Fd())
 
 	// Retry with backoff for up to 30s — another process may be building.
 	deadline := time.Now().Add(30 * time.Second)

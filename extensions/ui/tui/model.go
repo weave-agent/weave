@@ -1422,7 +1422,7 @@ func (m Model) handleCompletionKey(msg tea.KeyPressMsg) (bool, Model, tea.Cmd) {
 	}
 
 	switch msg.Code {
-	case tea.KeyTab, tea.KeyUp, tea.KeyDown, tea.KeyEnter, tea.KeyEscape:
+	case tea.KeyTab, tea.KeyUp, tea.KeyDown, tea.KeyEnter:
 		var cmd tea.Cmd
 
 		m.editor, cmd = m.editor.Update(msg)
@@ -1476,7 +1476,13 @@ func (m Model) refreshEditorCompletion() Model {
 			}
 
 			triggerOffset := lineStart // "/" is at the start of the line
-			m.editor = m.editor.ShowCompletion(components.CompletionSlash, items, filter, triggerOffset)
+			comp := m.editor.ShowCompletion(components.CompletionSlash, items, filter, triggerOffset)
+			// Hide when no commands match the filter (e.g. "/@") to avoid invisible popup stealing keys
+			if comp.Completion().FilteredCount() == 0 {
+				m.editor = m.editor.HideCompletion()
+			} else {
+				m.editor = comp
+			}
 
 			return m
 		}
@@ -1695,6 +1701,11 @@ func (m Model) drawCompletionPopup(scr uv.Screen, editorArea uv.Rectangle) {
 		popupY = cursorY + 1
 	}
 
+	// Clamp to screen bottom
+	if popupY+popupH > m.height {
+		popupH = m.height - popupY
+	}
+
 	// Clamp X so popup doesn't overflow right edge
 	if popupX+popupW > m.width {
 		popupX = m.width - popupW
@@ -1703,6 +1714,13 @@ func (m Model) drawCompletionPopup(scr uv.Screen, editorArea uv.Rectangle) {
 	if popupX < 0 {
 		popupX = 0
 	}
+
+	if popupH <= 0 || popupW <= 0 {
+		return
+	}
+
+	// Sync popup width so View() renders at the correct size
+	comp = comp.SetWidth(popupW)
 
 	popupArea := uv.Rect(popupX, popupY, popupW, popupH)
 	comp.Draw(scr, popupArea)

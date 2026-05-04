@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 )
 
 type CoreWireConfig struct {
@@ -31,8 +32,8 @@ func Wire(extNames []string, bus Bus, cfg Config) (*Wired, error) {
 				continue
 			}
 
-			for i := len(exts) - 1; i >= 0; i-- {
-				_ = exts[i].Close()
+			for _, v := range slices.Backward(exts) {
+				_ = v.Close()
 			}
 
 			return nil, fmt.Errorf("wire: %w", err)
@@ -80,8 +81,8 @@ func WireWithCore(core CoreWireConfig, optExts []string, bus Bus, cfg Config) (*
 func (w *Wired) Close() error {
 	var errs []error
 
-	for i := len(w.extensions) - 1; i >= 0; i-- {
-		if err := w.extensions[i].Close(); err != nil {
+	for _, v := range slices.Backward(w.extensions) {
+		if err := v.Close(); err != nil {
 			errs = append(errs, err)
 		}
 	}
