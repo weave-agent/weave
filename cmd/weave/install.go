@@ -203,6 +203,11 @@ func copyExtension(srcDir, destDir string) error {
 			return fmt.Errorf("walk: %w", err)
 		}
 
+		// Skip hidden directories (e.g., .git).
+		if d.IsDir() && strings.HasPrefix(d.Name(), ".") {
+			return fs.SkipDir
+		}
+
 		rel, relErr := filepath.Rel(srcDir, path)
 		if relErr != nil {
 			return fmt.Errorf("relative path: %w", relErr)

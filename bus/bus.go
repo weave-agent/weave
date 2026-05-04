@@ -160,13 +160,19 @@ func (b *Bus) invokeHandler(e sdk.Event, h sdk.Handler) {
 		if r := recover(); r != nil {
 			stack := debug.Stack()
 			log.Printf("[bus] panic in handler: %v\n%s", r, stack)
-			b.publishDiagnostic("extension.panic", fmt.Sprintf("panic: %v", r))
+
+			if e.Topic != "extension.panic" && e.Topic != "extension.error" {
+				b.publishDiagnostic("extension.panic", fmt.Sprintf("panic: %v", r))
+			}
 		}
 	}()
 
 	if err := h(e); err != nil {
 		log.Printf("[bus] handler error: %v", err)
-		b.publishDiagnostic("extension.error", err.Error())
+
+		if e.Topic != "extension.panic" && e.Topic != "extension.error" {
+			b.publishDiagnostic("extension.error", err.Error())
+		}
 	}
 }
 

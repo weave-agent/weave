@@ -104,39 +104,34 @@ func (s *Store) Subscribe(bus sdk.Bus) {
 	s.done = make(chan struct{})
 	s.mu.Unlock()
 
+	ch := make(chan sdk.Event, 256)
+
+	bus.OnAll(func(ev sdk.Event) error {
+		switch ev.Topic {
+		case "agent.prompt", "agent.followup", "agent.steer",
+			"agent.turn_start", "agent.message_end",
+			"agent.tool_result", "agent.end":
+			select {
+			case ch <- ev:
+			case <-ctx.Done():
+			}
+		}
+
+		return nil
+	})
+
 	go func() {
-		<-ctx.Done()
-		close(s.done)
+		defer close(s.done)
+
+		for ev := range ch {
+			s.dispatch(ev)
+		}
 	}()
 
-	bus.On("agent.prompt", func(ev sdk.Event) error {
-		s.handlePrompt(ev)
-		return nil
-	})
-	bus.On("agent.followup", func(ev sdk.Event) error {
-		s.handleFollowup(ev)
-		return nil
-	})
-	bus.On("agent.steer", func(ev sdk.Event) error {
-		s.handleSteer(ev)
-		return nil
-	})
-	bus.On("agent.turn_start", func(ev sdk.Event) error {
-		s.handleTurnStart(ev)
-		return nil
-	})
-	bus.On("agent.message_end", func(ev sdk.Event) error {
-		s.handleMsgEnd(ev)
-		return nil
-	})
-	bus.On("agent.tool_result", func(ev sdk.Event) error {
-		s.handleToolResult(ev)
-		return nil
-	})
-	bus.On("agent.end", func(_ sdk.Event) error {
-		cancel()
-		return nil
-	})
+	go func() {
+		<-ctx.Done()
+		close(ch)
+	}()
 }
 
 func (s *Store) Close() error {
@@ -154,6 +149,25 @@ func (s *Store) Close() error {
 	}
 
 	return nil
+}
+
+func (s *Store) dispatch(ev sdk.Event) {
+	switch ev.Topic {
+	case "agent.prompt":
+		s.handlePrompt(ev)
+	case "agent.followup":
+		s.handleFollowup(ev)
+	case "agent.steer":
+		s.handleSteer(ev)
+	case "agent.turn_start":
+		s.handleTurnStart(ev)
+	case "agent.message_end":
+		s.handleMsgEnd(ev)
+	case "agent.tool_result":
+		s.handleToolResult(ev)
+	case "agent.end":
+		s.cancel()
+	}
 }
 
 func (s *Store) handlePrompt(evt sdk.Event) {

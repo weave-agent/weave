@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/user"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -206,9 +205,9 @@ func reloadCmd() tea.Cmd {
 
 		// Remove the cache directory for the current build hash.
 		if buildHash != "" {
-			home, _ := user.Current()
-			if home != nil {
-				cacheDir := filepath.Join(home.HomeDir, ".weave", "bin", buildHash)
+			home, _ := os.UserHomeDir()
+			if home != "" {
+				cacheDir := filepath.Join(home, ".weave", "bin", buildHash)
 				_ = os.RemoveAll(cacheDir) //nolint:gosec // G703 — cleaning our own cache dir
 			}
 		}

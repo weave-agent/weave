@@ -458,11 +458,11 @@ func TestReloadCmd_NoLauncherPath(t *testing.T) {
 }
 
 func TestReloadCmd_RemovesCacheDir(t *testing.T) {
-	home, err := os.UserHomeDir()
-	require.NoError(t, err)
+	fakeHome := t.TempDir()
+	t.Setenv("HOME", fakeHome)
 
 	testHash := "test-reload-hash-12345"
-	cacheDir := filepath.Join(home, ".weave", "bin", testHash)
+	cacheDir := filepath.Join(fakeHome, ".weave", "bin", testHash)
 
 	// Create a fake cache dir to verify it gets removed.
 	require.NoError(t, os.MkdirAll(cacheDir, 0o750))
@@ -488,12 +488,11 @@ func TestReloadCmd_RemovesCacheDir(t *testing.T) {
 }
 
 func TestReloadCmd_MissingOrigArgs(t *testing.T) {
-	home, err := os.UserHomeDir()
-	require.NoError(t, err)
+	fakeHome := t.TempDir()
+	t.Setenv("HOME", fakeHome)
 
-	// Use a unique hash so we don't interfere with other tests.
 	testHash := "test-missing-args-hash"
-	cacheDir := filepath.Join(home, ".weave", "bin", testHash)
+	cacheDir := filepath.Join(fakeHome, ".weave", "bin", testHash)
 	_ = os.MkdirAll(cacheDir, 0o750)
 
 	t.Setenv("WEAVE_LAUNCHER_PATH", "/usr/bin/weave")
@@ -506,9 +505,6 @@ func TestReloadCmd_MissingOrigArgs(t *testing.T) {
 	reload, ok := msg.(reloadMsg)
 	require.True(t, ok)
 	assert.Equal(t, []string{"/usr/bin/weave"}, reload.origArgs)
-
-	// Cleanup
-	_ = os.RemoveAll(cacheDir)
 }
 
 func TestReloadCmd_EmptyBuildHash(t *testing.T) {

@@ -270,3 +270,29 @@ func TestHasGoFiles_OnlyTestFiles(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "main_test.go"), []byte("package main\n"), 0o600))
 	assert.False(t, hasGoFiles(dir), "test-only files should not count as .go files")
 }
+
+func TestRunInstall_SkipsHiddenDirs(t *testing.T) {
+	srcDir := t.TempDir()
+	extDir := filepath.Join(srcDir, "my-tool")
+	require.NoError(t, os.MkdirAll(filepath.Join(extDir, ".git", "objects"), 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, ".git", "config"), []byte("[remote]\n  url = secret\n"), 0o600))
+	require.NoError(t, os.MkdirAll(extDir, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, "main.go"), []byte("package main\n"), 0o600))
+
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	code := runInstall([]string{extDir})
+	assert.Equal(t, 0, code)
+
+	destDir := filepath.Join(homeDir, ".weave", "extensions", "my-tool")
+
+	// .git directory should not be copied.
+	_, err := os.Stat(filepath.Join(destDir, ".git"))
+	assert.True(t, os.IsNotExist(err), ".git directory should be skipped")
+
+	// But the .go file should be copied.
+	data, err := os.ReadFile(filepath.Join(destDir, "main.go"))
+	require.NoError(t, err)
+	assert.Equal(t, "package main\n", string(data))
+}

@@ -465,7 +465,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case reloadMsg:
-		_ = handleReload(msg)
+		if err := handleReload(msg); err != nil {
+			return m, func() tea.Msg { return notifyMsg{message: "/reload failed: " + err.Error()} }
+		}
+
 		return m, tea.Quit
 
 	case popupPendingMsg:

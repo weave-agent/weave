@@ -97,14 +97,14 @@ func resolveExtensionsAndMode(cf *config.File, rest *[]string) (allExts, provide
 	allExts = cf.AllExtensions()
 	allExts = ensurePresent(allExts, "skills")
 
-	headless := cf.Prompt != "" || cf.UI == "" || cf.UI == config.UIValueNone
-	if cf.Prompt == "" && cf.UI != "" && cf.UI != config.UIValueNone {
-		allExts = ensurePresent(allExts, cf.UI)
-	}
-
 	if cf.Prompt == "" && (cf.UI == "" || cf.UI == config.UIValueNone) {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", errNoInput)
 		return nil, nil, nil, false
+	}
+
+	headless := cf.Prompt != ""
+	if !headless {
+		allExts = ensurePresent(allExts, cf.UI)
 	}
 
 	updatedRest = *rest
