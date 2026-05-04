@@ -316,7 +316,8 @@ func collectGoFiles(dir string) ([]string, error) {
 // not a built-in path but a built-in with the same name also exists.
 func checkBuiltinShadow(moduleRoot, name, resolvedDir string) string {
 	// If resolved from built-in paths, no shadow.
-	if strings.HasPrefix(resolvedDir, filepath.Join(moduleRoot, "extensions")) {
+	builtinRoot := filepath.Join(moduleRoot, "extensions") + string(filepath.Separator)
+	if strings.HasPrefix(resolvedDir+string(filepath.Separator), builtinRoot) {
 		return ""
 	}
 

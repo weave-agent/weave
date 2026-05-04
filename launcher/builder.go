@@ -428,7 +428,12 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string, provider
 	b.WriteString("\t\tos.Exit(1)\n")
 	b.WriteString("\t}\n")
 	b.WriteString("\tcfg = fullCfg\n")
-	b.WriteString("\theadless, _ := strconv.ParseBool(headlessFlag)\n")
+	b.WriteString("\theadless := true\n")
+	b.WriteString("\tif headlessFlag != \"\" {\n")
+	b.WriteString("\t\tif parsed, err := strconv.ParseBool(headlessFlag); err == nil {\n")
+	b.WriteString("\t\t\theadless = parsed\n")
+	b.WriteString("\t\t}\n")
+	b.WriteString("\t}\n")
 	b.WriteString("\tcfg = sdk.HeadlessConfig{Config: cfg, Headless: headless}\n\n")
 
 	optExtNames := make([]string, 0, len(exts))

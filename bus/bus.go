@@ -12,6 +12,14 @@ import (
 
 var _ sdk.Bus = (*Bus)(nil)
 
+// Buffer sizes for per-handler dispatch channels. OnAll handlers see every
+// event published on the bus, so they need a larger buffer than topic-specific
+// handlers.
+const (
+	topicHandlerBufSize = 64
+	allHandlerBufSize   = 256
+)
+
 type handlerSlot struct {
 	ch chan sdk.Event
 	h  sdk.Handler
@@ -45,7 +53,7 @@ func (b *Bus) On(topic string, h sdk.Handler) {
 	}
 
 	slot := &handlerSlot{
-		ch: make(chan sdk.Event, 64),
+		ch: make(chan sdk.Event, topicHandlerBufSize),
 		h:  h,
 	}
 
@@ -66,7 +74,7 @@ func (b *Bus) OnAll(h sdk.Handler) {
 	}
 
 	slot := &handlerSlot{
-		ch: make(chan sdk.Event, 256),
+		ch: make(chan sdk.Event, allHandlerBufSize),
 		h:  h,
 	}
 
@@ -116,15 +124,16 @@ func (b *Bus) Off(h sdk.Handler) {
 		}
 	}
 
-	for i, slot := range b.allOn {
-		if handlerID(slot.h) == target {
+	remainingAll := make([]*handlerSlot, 0, len(b.allOn))
+	for _, slot := range b.allOn {
+		if handlerID(slot.h) != target {
+			remainingAll = append(remainingAll, slot)
+		} else {
 			close(slot.ch)
-
-			b.allOn = append(b.allOn[:i], b.allOn[i+1:]...)
-
-			break
 		}
 	}
+
+	b.allOn = remainingAll
 }
 
 func (b *Bus) Publish(e sdk.Event) bool {

@@ -66,9 +66,23 @@ func TestParseSource_GitHubShorthand(t *testing.T) {
 }
 
 func TestParseSource_GitHubShorthandInvalid(t *testing.T) {
-	_, err := parseSource("github.com/user")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid GitHub shorthand")
+	tests := []struct {
+		name   string
+		source string
+	}{
+		{"only user", "github.com/user"},
+		{"too many parts", "github.com/user/repo/extra"},
+		{"empty user", "github.com//repo"},
+		{"empty repo", "github.com/user/"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := parseSource(tt.source)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "invalid GitHub shorthand")
+		})
+	}
 }
 
 func TestParseSource_LocalPath(t *testing.T) {
@@ -143,6 +157,42 @@ func TestDeriveNameFromURL(t *testing.T) {
 func TestRunInstall_MissingSource(t *testing.T) {
 	assert.Equal(t, 1, runInstall(nil))
 	assert.Equal(t, 1, runInstall([]string{}))
+}
+
+func TestRunInstall_NameWithoutValue(t *testing.T) {
+	dir := t.TempDir()
+	extDir := filepath.Join(dir, "ext")
+	require.NoError(t, os.MkdirAll(extDir, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, "main.go"), []byte("package main\n"), 0o600))
+
+	assert.Equal(t, 1, runInstall([]string{extDir, "--name"}))
+}
+
+func TestRunInstall_UnknownArg(t *testing.T) {
+	dir := t.TempDir()
+	extDir := filepath.Join(dir, "ext")
+	require.NoError(t, os.MkdirAll(extDir, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, "main.go"), []byte("package main\n"), 0o600))
+
+	assert.Equal(t, 1, runInstall([]string{extDir, "--unknown-flag"}))
+}
+
+func TestRunInstall_NameWithEqualsForm(t *testing.T) {
+	srcDir := t.TempDir()
+	extDir := filepath.Join(srcDir, "original-name")
+	require.NoError(t, os.MkdirAll(extDir, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, "main.go"), []byte("package main\n"), 0o600))
+
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	code := runInstall([]string{extDir, "--name=equals-form"})
+	assert.Equal(t, 0, code)
+
+	destDir := filepath.Join(homeDir, ".weave", "extensions", "equals-form")
+	info, err := os.Stat(destDir)
+	require.NoError(t, err)
+	assert.True(t, info.IsDir())
 }
 
 func TestRunInstall_InvalidName(t *testing.T) {

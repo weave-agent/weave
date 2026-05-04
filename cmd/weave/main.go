@@ -49,7 +49,7 @@ func run(args ...string) (exitCode int) {
 
 	projectDir := resolveProjectDir(configFile)
 
-	allExts, providers, rest, ok := resolveExtensionsAndMode(cf, &rest)
+	allExts, providers, rest, ok := resolveExtensionsAndMode(cf, rest)
 	if !ok {
 		return 1
 	}
@@ -85,7 +85,7 @@ func resolveProjectDir(configFile string) string {
 	return dir
 }
 
-func resolveExtensionsAndMode(cf *config.File, rest *[]string) (allExts, providers, updatedRest []string, ok bool) {
+func resolveExtensionsAndMode(cf *config.File, rest []string) (allExts, providers, updatedRest []string, ok bool) {
 	envProvider := os.Getenv("WEAVE_PROVIDER")
 	if envProvider == "" && len(cf.Core.Providers) > 0 {
 		if err := os.Setenv("WEAVE_PROVIDER", cf.Core.Providers[0]); err != nil {
@@ -107,7 +107,7 @@ func resolveExtensionsAndMode(cf *config.File, rest *[]string) (allExts, provide
 		allExts = ensurePresent(allExts, cf.UI)
 	}
 
-	updatedRest = *rest
+	updatedRest = rest
 	if headless {
 		updatedRest = append([]string{"--weave-headless=true"}, updatedRest...)
 	} else {

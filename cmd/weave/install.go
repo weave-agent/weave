@@ -45,11 +45,21 @@ func runInstall(args []string) int {
 	// Parse --name flag from remaining args.
 	rest := args[1:]
 	for i := 0; i < len(rest); i++ {
-		if rest[i] == "--name" && i+1 < len(rest) {
-			name = rest[i+1]
+		switch {
+		case rest[i] == "--name":
+			if i+1 >= len(rest) {
+				fmt.Fprintln(os.Stderr, "weave install: --name requires a value")
+				return 1
+			}
+
+			name = rest[i+1] //nolint:gosec // G602 — bounds check immediately above
 			i++
-		} else if n, ok := strings.CutPrefix(rest[i], "--name="); ok {
+		case strings.HasPrefix(rest[i], "--name="):
+			n, _ := strings.CutPrefix(rest[i], "--name=")
 			name = n
+		default:
+			fmt.Fprintf(os.Stderr, "weave install: unknown argument %q\n", rest[i])
+			return 1
 		}
 	}
 
@@ -124,15 +134,12 @@ func parseSource(source string) (parsedSource, error) {
 
 	// GitHub shorthand: github.com/user/repo
 	if rest, ok := strings.CutPrefix(source, "github.com/"); ok {
-		parts := strings.SplitN(rest, "/", 3)
-		if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
+		parts := strings.Split(rest, "/")
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 			return parsedSource{}, fmt.Errorf("invalid GitHub shorthand %q (expected github.com/user/repo)", source)
 		}
 
-		repoName := parts[1]
-		if idx := strings.Index(repoName, ".git"); idx >= 0 {
-			repoName = repoName[:idx]
-		}
+		repoName := strings.TrimSuffix(parts[1], ".git")
 
 		return parsedSource{
 			kind:    sourceGitHub,
