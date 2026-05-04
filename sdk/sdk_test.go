@@ -107,3 +107,34 @@ func TestExtensionFuncWithClose_Error(t *testing.T) {
 
 	require.Error(t, ext.Close())
 }
+
+func TestExtensionFunc_UsesBusOn(t *testing.T) {
+	ext := NewExtensionFunc("on-ext", func(b Bus) {
+		b.On("test.topic", func(e Event) error { return nil })
+	})
+
+	bus := &BusMock{}
+	ext.Subscribe(bus)
+
+	onCalls := bus.OnCalls()
+	require.Len(t, onCalls, 1)
+	assert.Equal(t, "test.topic", onCalls[0].Topic)
+}
+
+func TestExtensionFunc_UsesBusOff(t *testing.T) {
+	handler := func(e Event) error { return nil }
+
+	ext := NewExtensionFunc("off-ext", func(b Bus) {
+		b.On("topic", handler)
+		b.Off(handler)
+	})
+
+	bus := &BusMock{}
+	ext.Subscribe(bus)
+
+	offCalls := bus.OffCalls()
+	require.Len(t, offCalls, 1)
+
+	onCalls := bus.OnCalls()
+	require.Len(t, onCalls, 1)
+}

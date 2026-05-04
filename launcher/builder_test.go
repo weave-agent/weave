@@ -225,7 +225,7 @@ func TestGenerateMainGo_Content(t *testing.T) {
 	assert.Contains(t, s, "strings.CutPrefix")
 	assert.Contains(t, s, "config.LoadFullConfig")
 	assert.Contains(t, s, "signal.Notify")
-	assert.Contains(t, s, `b.Subscribe("agent.end")`)
+	assert.Contains(t, s, `b.On("agent.end"`)
 	assert.Contains(t, s, "wired.Close()")
 	assert.Contains(t, s, "shutdown error")
 	assert.Contains(t, s, "os.Args = append([]string{os.Args[0]}, filtered...)")

@@ -455,5 +455,97 @@ func TestWireWithCore_PassesConfigToFactories(t *testing.T) {
 	assert.Equal(t, "/test/.weave.yaml", receivedCfg.FilePath())
 }
 
+// --- Wire with callback-based Bus mock (On/Off/OnAll) ---
+
+func TestWire_ExtensionCallsBusOn(t *testing.T) {
+	ResetRegistry()
+
+	RegisterExtension("on-ext", func(Config) (Extension, error) {
+		return NewExtensionFunc("on-ext", func(bus Bus) {
+			bus.On("test.topic", func(e Event) error { return nil })
+		}), nil
+	})
+
+	bus := &BusMock{}
+
+	_, err := Wire([]string{"on-ext"}, bus, nil)
+	require.NoError(t, err)
+
+	onCalls := bus.OnCalls()
+	require.Len(t, onCalls, 1)
+	assert.Equal(t, "test.topic", onCalls[0].Topic)
+}
+
+func TestWire_ExtensionCallsBusOnAll(t *testing.T) {
+	ResetRegistry()
+
+	RegisterExtension("onall-ext", func(Config) (Extension, error) {
+		return NewExtensionFunc("onall-ext", func(bus Bus) {
+			bus.OnAll(func(e Event) error { return nil })
+		}), nil
+	})
+
+	bus := &BusMock{}
+
+	_, err := Wire([]string{"onall-ext"}, bus, nil)
+	require.NoError(t, err)
+
+	onAllCalls := bus.OnAllCalls()
+	require.Len(t, onAllCalls, 1)
+}
+
+func TestWire_MultipleExtensionsRegisterHandlers(t *testing.T) {
+	ResetRegistry()
+
+	RegisterExtension("ext-1", func(Config) (Extension, error) {
+		return NewExtensionFunc("ext-1", func(bus Bus) {
+			bus.On("topic.a", func(e Event) error { return nil })
+			bus.On("topic.b", func(e Event) error { return nil })
+		}), nil
+	})
+	RegisterExtension("ext-2", func(Config) (Extension, error) {
+		return NewExtensionFunc("ext-2", func(bus Bus) {
+			bus.OnAll(func(e Event) error { return nil })
+		}), nil
+	})
+
+	bus := &BusMock{}
+
+	_, err := Wire([]string{"ext-1", "ext-2"}, bus, nil)
+	require.NoError(t, err)
+
+	onCalls := bus.OnCalls()
+	require.Len(t, onCalls, 2)
+	assert.Equal(t, "topic.a", onCalls[0].Topic)
+	assert.Equal(t, "topic.b", onCalls[1].Topic)
+
+	onAllCalls := bus.OnAllCalls()
+	require.Len(t, onAllCalls, 1)
+}
+
+func TestWireWithCore_ExtensionUsesBusOn(t *testing.T) {
+	ResetRegistry()
+	ResetProviderRegistry()
+
+	RegisterProvider("anthropic", func(Config) (Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	RegisterExtension("loop", func(Config) (Extension, error) {
+		return NewExtensionFunc("loop", func(bus Bus) {
+			bus.On("agent.prompt", func(e Event) error { return nil })
+		}), nil
+	})
+
+	bus := &BusMock{}
+
+	_, err := WireWithCore(coreCfg("anthropic"), nil, bus, nil)
+	require.NoError(t, err)
+
+	onCalls := bus.OnCalls()
+	require.Len(t, onCalls, 1)
+	assert.Equal(t, "agent.prompt", onCalls[0].Topic)
+}
+
 // Suppress unused import warning.
 var _ = strings.TrimSpace

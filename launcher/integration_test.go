@@ -228,23 +228,23 @@ func TestIntegration_WireSubscribesExtensionsInProcess(t *testing.T) {
 	})
 
 	b := bus.New()
-	allCh := b.SubscribeAll()
+
+	var received sdk.Event
+	b.OnAll(func(e sdk.Event) error {
+		received = e
+		return nil
+	})
 
 	wired, err := sdk.Wire([]string{"noop"}, b, nil)
 	require.NoError(t, err, "Wire")
 
 	require.True(t, subscribeCalled, "Subscribe was not called")
 
-	select {
-	case evt := <-allCh:
-		assert.Equal(t, "noop.subscribed", evt.Topic)
-		assert.Equal(t, "hello", evt.Payload)
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for event")
-	}
-
 	require.NoError(t, wired.Close(), "Close")
 	_ = b.Close()
+
+	assert.Equal(t, "noop.subscribed", received.Topic)
+	assert.Equal(t, "hello", received.Payload)
 }
 
 func TestIntegration_DiscoverCustomHome(t *testing.T) {

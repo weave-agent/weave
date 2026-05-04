@@ -26,10 +26,10 @@ var _ Config = &ConfigMock{}
 //			ResolveKeyFunc: func(providerName string, envVar string) (string, error) {
 //				panic("mock out the ResolveKey method")
 //			},
-//			ToolConfigFunc: func(name string, target interface{}) error {
+//			ToolConfigFunc: func(name string, target any) error {
 //				panic("mock out the ToolConfig method")
 //			},
-//			UIConfigFunc: func(target interface{}) error {
+//			UIConfigFunc: func(target any) error {
 //				panic("mock out the UIConfig method")
 //			},
 //		}
@@ -49,10 +49,10 @@ type ConfigMock struct {
 	ResolveKeyFunc func(providerName string, envVar string) (string, error)
 
 	// ToolConfigFunc mocks the ToolConfig method.
-	ToolConfigFunc func(name string, target interface{}) error
+	ToolConfigFunc func(name string, target any) error
 
 	// UIConfigFunc mocks the UIConfig method.
-	UIConfigFunc func(target interface{}) error
+	UIConfigFunc func(target any) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -76,12 +76,12 @@ type ConfigMock struct {
 			// Name is the name argument value.
 			Name string
 			// Target is the target argument value.
-			Target interface{}
+			Target any
 		}
 		// UIConfig holds details about calls to the UIConfig method.
 		UIConfig []struct {
 			// Target is the target argument value.
-			Target interface{}
+			Target any
 		}
 	}
 	lockFilePath       sync.RWMutex
@@ -197,10 +197,10 @@ func (mock *ConfigMock) ResolveKeyCalls() []struct {
 }
 
 // ToolConfig calls ToolConfigFunc.
-func (mock *ConfigMock) ToolConfig(name string, target interface{}) error {
+func (mock *ConfigMock) ToolConfig(name string, target any) error {
 	callInfo := struct {
 		Name   string
-		Target interface{}
+		Target any
 	}{
 		Name:   name,
 		Target: target,
@@ -223,11 +223,11 @@ func (mock *ConfigMock) ToolConfig(name string, target interface{}) error {
 //	len(mockedConfig.ToolConfigCalls())
 func (mock *ConfigMock) ToolConfigCalls() []struct {
 	Name   string
-	Target interface{}
+	Target any
 } {
 	var calls []struct {
 		Name   string
-		Target interface{}
+		Target any
 	}
 	mock.lockToolConfig.RLock()
 	calls = mock.calls.ToolConfig
@@ -236,9 +236,9 @@ func (mock *ConfigMock) ToolConfigCalls() []struct {
 }
 
 // UIConfig calls UIConfigFunc.
-func (mock *ConfigMock) UIConfig(target interface{}) error {
+func (mock *ConfigMock) UIConfig(target any) error {
 	callInfo := struct {
-		Target interface{}
+		Target any
 	}{
 		Target: target,
 	}
@@ -259,10 +259,10 @@ func (mock *ConfigMock) UIConfig(target interface{}) error {
 //
 //	len(mockedConfig.UIConfigCalls())
 func (mock *ConfigMock) UIConfigCalls() []struct {
-	Target interface{}
+	Target any
 } {
 	var calls []struct {
-		Target interface{}
+		Target any
 	}
 	mock.lockUIConfig.RLock()
 	calls = mock.calls.UIConfig

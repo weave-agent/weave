@@ -68,11 +68,11 @@ Harden weave's extension system with four pi-inspired improvements:
 - [x] run `cd bus && go test ./...` - must pass before task 2
 
 ### Task 2: Migrate Wire and ExtensionFunc to callbacks
-- [ ] update `sdk.Wire()` and `sdk.WireWithCore()` to use new Bus interface — no channel consumption, just extension.Subscribe(bus) calls remain unchanged
-- [ ] update `ExtensionFunc.Subscribe` — the closure receives the new Bus, extension authors use bus.On internally
-- [ ] update all bus mocks (`make gen` to regenerate moq mocks from updated interface)
-- [ ] write tests verifying Wire still correctly resolves and subscribes extensions
-- [ ] run `go test ./sdk/...` - must pass before task 3
+- [x] update `sdk.Wire()` and `sdk.WireWithCore()` to use new Bus interface — no channel consumption, just extension.Subscribe(bus) calls remain unchanged
+- [x] update `ExtensionFunc.Subscribe` — the closure receives the new Bus, extension authors use bus.On internally
+- [x] update all bus mocks (`make gen` to regenerate moq mocks from updated interface)
+- [x] write tests verifying Wire still correctly resolves and subscribes extensions
+- [x] run `go test ./sdk/...` - must pass before task 3
 
 ### Task 3: Migrate all built-in extensions to callback bus
 - [ ] migrate `extensions/loop/` — replace channel loops with `bus.On()` handler registrations
