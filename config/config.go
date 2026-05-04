@@ -334,6 +334,11 @@ func LoadFromDir(dir string, args []string) (string, *File, []string, error) {
 		return "", nil, nil, fmt.Errorf("load config: %w", err)
 	}
 
+	configDir := filepath.Dir(path)
+	if err := ValidateWithConfigDir(&f, configDir); err != nil {
+		return "", nil, nil, fmt.Errorf("validate config: %w", err)
+	}
+
 	return path, &f, rest, nil
 }
 

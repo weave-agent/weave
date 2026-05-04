@@ -265,12 +265,12 @@ func TestLoad_UIOverride(t *testing.T) {
 
 func TestLoad_UIFlag(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave.yaml", "extensions: []\n")
+	writeFile(t, dir, ".weave.yaml", "ui: tui\nextensions: []\n")
 
-	_, cf, _, err := LoadFromDir(dir, []string{"--ui", "custom"})
+	_, cf, _, err := LoadFromDir(dir, []string{"--ui", "none"})
 	require.NoError(t, err)
 
-	assert.Equal(t, "custom", cf.UI)
+	assert.Equal(t, "none", cf.UI)
 }
 
 func TestEnsureGlobalConfig_GeneratesFile(t *testing.T) {

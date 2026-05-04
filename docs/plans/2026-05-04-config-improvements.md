@@ -113,16 +113,16 @@ Improve weave's configuration system with four focused changes:
 - [x] run `cd extensions/tools/bash && go test ./...` — must pass
 
 ### Task 4: Config validation
-- [ ] create `config/validation.go` with `Validate(f *File) error` function
-- [ ] validate `ui` field: must be `"tui"` or `"none"`
-- [ ] validate `core.agent_loop`: non-empty
-- [ ] validate `core.providers`: non-empty slice, valid names
-- [ ] validate extension entries: bare names match `validExtName`, paths are resolvable (dir exists with .go files)
-- [ ] validate provider entries: known provider names have required fields
-- [ ] return structured errors with field paths (e.g. `config.ui: invalid value "web", must be "tui" or "none"`)
-- [ ] integrate `Validate` into `LoadFromDir` — call after gonfig load, return validation errors
-- [ ] write tests for `Validate` (valid config, each invalid case, multiple errors)
-- [ ] run `go test ./config/...` — must pass before next task
+- [x] create `config/validation.go` with `Validate(f *File) error` function
+- [x] validate `ui` field: must be `"tui"` or `"none"`
+- [x] validate `core.agent_loop`: non-empty
+- [x] validate `core.providers`: non-empty slice, valid names
+- [x] validate extension entries: bare names match `validExtName`, paths are resolvable (dir exists with .go files)
+- [x] validate provider entries: known provider names have required fields
+- [x] return structured errors with field paths (e.g. `config.ui: invalid value "web", must be "tui" or "none"`)
+- [x] integrate `Validate` into `LoadFromDir` — call after gonfig load, return validation errors
+- [x] write tests for `Validate` (valid config, each invalid case, multiple errors)
+- [x] run `go test ./config/...` — must pass before next task
 
 ### Task 5: Wire settings into TUI and existing consumers
 - [ ] update TUI to read `UISettings` from layered settings (editor_max_lines, theme)
