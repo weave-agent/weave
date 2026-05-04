@@ -17,7 +17,7 @@ import (
 type sourceType int
 
 const (
-	sourceGitURL    sourceType = iota // https:// or git:// URL
+	sourceGitURL    sourceType = iota // https:// URL
 	sourceGitHub                      // github.com/user/repo shorthand
 	sourceLocalPath                   // local filesystem path
 )
@@ -113,8 +113,8 @@ func parseSource(source string) (parsedSource, error) {
 		return parsedSource{}, fmt.Errorf("insecure URL %q (use https:// instead)", source)
 	}
 
-	// Git URL: https://..., git://...
-	if strings.HasPrefix(source, "https://") || strings.HasPrefix(source, "git://") {
+	// Git URL: https:// only (reject git:// as unencrypted).
+	if strings.HasPrefix(source, "https://") {
 		return parsedSource{
 			kind:    sourceGitURL,
 			gitURL:  source,
@@ -143,12 +143,12 @@ func parseSource(source string) (parsedSource, error) {
 
 	// Local path: ./..., /..., ~/...
 	if config.IsPathEntry(source) || filepath.IsAbs(source) {
-		abs, err := filepath.Abs(source)
+		abs, err := config.ResolveExtPath(source, "")
 		if err != nil {
 			return parsedSource{}, fmt.Errorf("resolve path: %w", err)
 		}
 
-		stat, err := os.Stat(abs)
+		stat, err := os.Stat(abs) //nolint:gosec // G703 — abs is resolved from user CLI arg
 		if err != nil {
 			return parsedSource{}, fmt.Errorf("path %q: %w", source, err)
 		}

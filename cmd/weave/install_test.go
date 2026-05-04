@@ -18,7 +18,6 @@ func TestParseSource_GitURL(t *testing.T) {
 	}{
 		{"https url", "https://github.com/user/weave-ext-mcp", "https://github.com/user/weave-ext-mcp", "weave-ext-mcp"},
 		{"https url with .git", "https://github.com/user/repo.git", "https://github.com/user/repo.git", "repo"},
-		{"git protocol", "git://example.com/ext.git", "git://example.com/ext.git", "ext"},
 	}
 
 	for _, tt := range tests {
@@ -36,6 +35,12 @@ func TestParseSource_RejectsHTTP(t *testing.T) {
 	_, err := parseSource("http://example.com/ext/my-tool")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "insecure URL")
+}
+
+func TestParseSource_RejectsGitProtocol(t *testing.T) {
+	_, err := parseSource("git://example.com/ext.git")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid source")
 }
 
 func TestParseSource_GitHubShorthand(t *testing.T) {
@@ -125,7 +130,6 @@ func TestDeriveNameFromURL(t *testing.T) {
 	}{
 		{"https://github.com/user/weave-ext-mcp", "weave-ext-mcp"},
 		{"https://github.com/user/repo.git", "repo"},
-		{"git://example.com/path/to/my-tool", "my-tool"},
 		{"https://example.com/ext.git", "ext"},
 	}
 

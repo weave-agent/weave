@@ -181,8 +181,8 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 
 			continue
 		case evt := <-thinkingCh:
-			if m, ok := evt.Payload.(string); ok {
-				if lvl, err := sdk.ParseThinkingLevel(m); err == nil {
+			if m, ok := evt.Payload.(map[string]string); ok {
+				if lvl, err := sdk.ParseThinkingLevel(m["level"]); err == nil {
 					l.thinkingLevel = lvl
 				}
 			}
