@@ -12,6 +12,41 @@ import (
 
 var validExtName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
+// isPath reports whether an extension entry is a filesystem path rather than a
+// bare extension name. Path entries start with ./, ../, /, or ~/.
+func isPath(s string) bool {
+	return strings.HasPrefix(s, "./") ||
+		strings.HasPrefix(s, "../") ||
+		strings.HasPrefix(s, "/") ||
+		strings.HasPrefix(s, "~/")
+}
+
+// resolveExtensionPath expands the given extension path entry into an absolute
+// directory path. Tilde (~) is expanded to the user's home directory; relative
+// paths are resolved from configDir; absolute paths are returned as-is.
+func resolveExtensionPath(entry, configDir string) (string, error) {
+	if strings.HasPrefix(entry, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("resolve extension path: %w", err)
+		}
+
+		return filepath.Join(home, entry[2:]), nil
+	}
+
+	if filepath.IsAbs(entry) {
+		return entry, nil
+	}
+
+	// Relative paths (./, ../) resolve from configDir.
+	p, err := filepath.Abs(filepath.Join(configDir, entry))
+	if err != nil {
+		return "", fmt.Errorf("resolve extension path: %w", err)
+	}
+
+	return p, nil
+}
+
 type ExtensionInfo struct {
 	Name       string
 	Dir        string
@@ -72,23 +107,41 @@ func DiscoverCustomHome(projectDir, homeDir string, names []string) ([]Extension
 }
 
 // DiscoverCustomHomeWithBuiltins is like DiscoverCustomHome but falls back to
-// built-in extensions under moduleRoot/extensions/{name}/.
+// built-in extensions under moduleRoot/extensions/{name}/. Extension entries
+// that look like filesystem paths (prefixed with ./, ../, /, or ~/) are
+// resolved directly instead of going through the name-based discovery hierarchy.
 func DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot string, names []string) ([]ExtensionInfo, error) {
 	var exts []ExtensionInfo
 
 	seen := make(map[string]bool, len(names))
 
-	for _, name := range names {
-		if seen[name] {
-			return nil, fmt.Errorf("discover: duplicate extension name %q", name)
+	for _, entry := range names {
+		if isPath(entry) {
+			info, err := resolvePathExtension(entry, projectDir)
+			if err != nil {
+				return nil, err
+			}
+
+			if seen[info.Name] {
+				return nil, fmt.Errorf("discover: duplicate extension name %q", info.Name)
+			}
+
+			seen[info.Name] = true
+			exts = append(exts, *info)
+
+			continue
 		}
 
-		seen[name] = true
-		if !validExtName.MatchString(name) {
-			return nil, fmt.Errorf("discover: invalid extension name %q (must match [a-zA-Z0-9_-]+)", name)
+		if seen[entry] {
+			return nil, fmt.Errorf("discover: duplicate extension name %q", entry)
 		}
 
-		info, err := findExtensionWithBuiltins(projectDir, homeDir, moduleRoot, name)
+		seen[entry] = true
+		if !validExtName.MatchString(entry) {
+			return nil, fmt.Errorf("discover: invalid extension name %q (must match [a-zA-Z0-9_-]+)", entry)
+		}
+
+		info, err := findExtensionWithBuiltins(projectDir, homeDir, moduleRoot, entry)
 		if err != nil {
 			return nil, err
 		}
@@ -97,6 +150,34 @@ func DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot string, name
 	}
 
 	return exts, nil
+}
+
+// resolvePathExtension resolves a path-like extension entry to its ExtensionInfo.
+func resolvePathExtension(entry, configDir string) (*ExtensionInfo, error) {
+	dir, err := resolveExtensionPath(entry, configDir)
+	if err != nil {
+		return nil, fmt.Errorf("discover: resolve path %q: %w", entry, err)
+	}
+
+	stat, statErr := os.Stat(dir)
+	if statErr != nil {
+		return nil, fmt.Errorf("discover: extension path %q: %w", entry, statErr)
+	}
+
+	if !stat.IsDir() {
+		return nil, fmt.Errorf("discover: extension path %q (%s) is not a directory", entry, dir)
+	}
+
+	goFiles, err := collectGoFiles(dir)
+	if err != nil {
+		return nil, fmt.Errorf("discover: extension path %q (%s): %w", entry, dir, err)
+	}
+
+	return &ExtensionInfo{
+		Name:    filepath.Base(dir),
+		Dir:     dir,
+		GoFiles: goFiles,
+	}, nil
 }
 
 func findExtension(projectDir, homeDir, name string) (*ExtensionInfo, error) {

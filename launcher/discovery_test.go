@@ -333,3 +333,207 @@ func TestDiscoverWithBuiltins_TUIExtensionFallbackAfterStandard(t *testing.T) {
 	require.Len(t, exts, 1)
 	assert.Equal(t, standardDir, exts[0].Dir, "standard nested path should be found before TUI-specific fallback")
 }
+
+func TestIsPath(t *testing.T) {
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{"./foo", true},
+		{"./my-ext", true},
+		{"./", true},
+		{"../foo", true},
+		{"../shared/ext", true},
+		{"../", true},
+		{"/abs/path", true},
+		{"/", true},
+		{"~/my-ext", true},
+		{"~/", true},
+		{"bash", false},
+		{"my-extension", false},
+		{"loop", false},
+		{"", false},
+		{"foo/bar", false},
+		{"~", false},
+		{".", false},
+		{"..", false},
+	}
+
+	for _, tt := range tests {
+		assert.Equal(t, tt.want, isPath(tt.input), "isPath(%q)", tt.input)
+	}
+}
+
+func TestResolveExtensionPath_Relative(t *testing.T) {
+	configDir := "/project"
+
+	abs, err := resolveExtensionPath("./my-ext", configDir)
+	require.NoError(t, err)
+	assert.Equal(t, "/project/my-ext", abs)
+
+	abs, err = resolveExtensionPath("../shared/ext", configDir)
+	require.NoError(t, err)
+	assert.Equal(t, "/shared/ext", abs)
+}
+
+func TestResolveExtensionPath_Absolute(t *testing.T) {
+	abs, err := resolveExtensionPath("/opt/weave/extensions/my-ext", "/irrelevant")
+	require.NoError(t, err)
+	assert.Equal(t, "/opt/weave/extensions/my-ext", abs)
+}
+
+func TestResolveExtensionPath_Tilde(t *testing.T) {
+	home, err := os.UserHomeDir()
+	require.NoError(t, err)
+
+	abs, err := resolveExtensionPath(filepath.Join("~", "dev", "my-ext"), "/irrelevant")
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(home, "dev", "my-ext"), abs)
+}
+
+func TestResolveExtensionPath_BareNameErrors(t *testing.T) {
+	// Bare names should not be passed to resolveExtensionPath (they use isPath first),
+	// but if they are, the result is still a valid path relative to configDir.
+	abs, err := resolveExtensionPath("bash", "/project")
+	require.NoError(t, err)
+	assert.Equal(t, "/project/bash", abs)
+}
+
+func TestDiscoverWithBuiltins_PathEntryRelative(t *testing.T) {
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+	moduleRoot := t.TempDir()
+
+	// Create extension at ../my-ext relative to projectDir
+	parentDir := filepath.Dir(projectDir)
+	extDir := filepath.Join(parentDir, "my-ext")
+	createGoFile(t, extDir, "ext.go", "package myext")
+
+	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"../my-ext"})
+	require.NoError(t, err)
+
+	require.Len(t, exts, 1)
+	assert.Equal(t, "my-ext", exts[0].Name)
+	assert.Equal(t, extDir, exts[0].Dir)
+}
+
+func TestDiscoverWithBuiltins_PathEntryAbsolute(t *testing.T) {
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+	moduleRoot := t.TempDir()
+
+	extDir := filepath.Join(t.TempDir(), "my-ext")
+	createGoFile(t, extDir, "ext.go", "package myext")
+
+	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{extDir})
+	require.NoError(t, err)
+
+	require.Len(t, exts, 1)
+	assert.Equal(t, "my-ext", exts[0].Name)
+	assert.Equal(t, extDir, exts[0].Dir)
+}
+
+func TestDiscoverWithBuiltins_PathEntryTilde(t *testing.T) {
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+	moduleRoot := t.TempDir()
+
+	// Create extension in fake home
+	extDir := filepath.Join(homeDir, "extensions", "custom-tool")
+	createGoFile(t, extDir, "tool.go", "package customtool")
+
+	// Use ~/extensions/custom-tool — but we need to temporarily override home
+	// Since resolveExtensionPath uses os.UserHomeDir(), we test with the real home
+	// by creating in actual home dir
+	realHome, err := os.UserHomeDir()
+	require.NoError(t, err)
+
+	realExtDir := filepath.Join(realHome, ".weave-test-ext-tmp")
+
+	createGoFile(t, realExtDir, "ext.go", "package ext")
+
+	defer func() { _ = os.RemoveAll(realExtDir) }()
+
+	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"~/.weave-test-ext-tmp"})
+	require.NoError(t, err)
+
+	require.Len(t, exts, 1)
+	assert.Equal(t, ".weave-test-ext-tmp", exts[0].Name)
+	assert.Equal(t, realExtDir, exts[0].Dir)
+}
+
+func TestDiscoverWithBuiltins_MixedPathAndBareNames(t *testing.T) {
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+	moduleRoot := t.TempDir()
+
+	// Bare name "bash" as built-in
+	bashDir := filepath.Join(moduleRoot, "extensions", "tools", "bash")
+	createGoFile(t, bashDir, "bash.go", "package bash")
+
+	// Path entry relative to projectDir
+	extDir := filepath.Join(projectDir, "my-custom")
+	createGoFile(t, extDir, "custom.go", "package custom")
+
+	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"bash", "./my-custom"})
+	require.NoError(t, err)
+
+	require.Len(t, exts, 2)
+	assert.Equal(t, "bash", exts[0].Name)
+	assert.Equal(t, bashDir, exts[0].Dir)
+	assert.Equal(t, "my-custom", exts[1].Name)
+	assert.Equal(t, extDir, exts[1].Dir)
+}
+
+func TestDiscoverWithBuiltins_PathEntryNotExist(t *testing.T) {
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+	moduleRoot := t.TempDir()
+
+	_, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"./nonexistent"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "nonexistent")
+}
+
+func TestDiscoverWithBuiltins_PathEntryNotDir(t *testing.T) {
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+	moduleRoot := t.TempDir()
+
+	// Create a file (not directory) at the path
+	filePath := filepath.Join(projectDir, "notadir.go")
+	require.NoError(t, os.WriteFile(filePath, []byte("package main"), 0o600))
+
+	_, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"./notadir.go"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not a directory")
+}
+
+func TestDiscoverWithBuiltins_PathEntryNoGoFiles(t *testing.T) {
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+	moduleRoot := t.TempDir()
+
+	// Create an empty directory
+	emptyDir := filepath.Join(projectDir, "empty")
+	require.NoError(t, os.MkdirAll(emptyDir, 0o750))
+
+	_, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"./empty"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no .go files")
+}
+
+func TestDiscoverWithBuiltins_PathEntryNameIsBaseDir(t *testing.T) {
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+	moduleRoot := t.TempDir()
+
+	extDir := filepath.Join(projectDir, "my-special-tool")
+	createGoFile(t, extDir, "tool.go", "package tool")
+
+	exts, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"./my-special-tool"})
+	require.NoError(t, err)
+
+	require.Len(t, exts, 1)
+	assert.Equal(t, "my-special-tool", exts[0].Name)
+}

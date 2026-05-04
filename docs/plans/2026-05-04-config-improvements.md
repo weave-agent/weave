@@ -53,14 +53,14 @@ Improve weave's configuration system with four focused changes:
 ## Implementation Steps
 
 ### Task 1: Path-based extension resolution
-- [ ] add `isPath(s string) bool` helper in `launcher/discovery.go` — detects `./`, `../`, `/`, `~` prefixes
-- [ ] add `resolveExtensionPath(entry, configDir string) (string, error)` — expands `~`, resolves relative from configDir
-- [ ] modify `DiscoverCustomHomeWithBuiltins` to branch: path-like entries resolve directly, bare names use existing discovery
-- [ ] update `ExtensionInfo.Name` derivation for path entries — use directory base name
-- [ ] write tests for `isPath` (all prefixes, bare name negative cases)
-- [ ] write tests for `resolveExtensionPath` (relative, absolute, tilde, error cases)
-- [ ] write tests for `DiscoverCustomHomeWithBuiltins` with path entries mixed with bare names
-- [ ] run `go test ./launcher/...` — must pass before next task
+- [x] add `isPath(s string) bool` helper in `launcher/discovery.go` — detects `./`, `../`, `/`, `~` prefixes
+- [x] add `resolveExtensionPath(entry, configDir string) (string, error)` — expands `~`, resolves relative from configDir
+- [x] modify `DiscoverCustomHomeWithBuiltins` to branch: path-like entries resolve directly, bare names use existing discovery
+- [x] update `ExtensionInfo.Name` derivation for path entries — use directory base name
+- [x] write tests for `isPath` (all prefixes, bare name negative cases)
+- [x] write tests for `resolveExtensionPath` (relative, absolute, tilde, error cases)
+- [x] write tests for `DiscoverCustomHomeWithBuiltins` with path entries mixed with bare names
+- [x] run `go test ./launcher/...` — must pass before next task
 
 ### Task 2: Layered settings — data structures and merge
 - [ ] create `config/settings.go` rewrite: expand `Settings` struct with `UI` and `Tools` sections
