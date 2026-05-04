@@ -134,9 +134,9 @@ Harden weave's extension system with four pi-inspired improvements:
 - [x] run linter (`make lint`) — all issues must be fixed
 
 ### Task 9: Update documentation
-- [ ] update CLAUDE.md extension architecture section to reflect callback-based bus
-- [ ] update extension interface docs (On/Off/OnAll instead of Subscribe/Unsubscribe)
-- [ ] add `weave install` usage to docs
+- [x] update CLAUDE.md extension architecture section to reflect callback-based bus
+- [x] update extension interface docs (On/Off/OnAll instead of Subscribe/Unsubscribe)
+- [x] add `weave install` usage to docs
 
 ## Technical Details
 
