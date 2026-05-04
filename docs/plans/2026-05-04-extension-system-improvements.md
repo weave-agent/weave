@@ -124,14 +124,14 @@ Harden weave's extension system with four pi-inspired improvements:
 - [x] run `make test` - must pass before task 8
 
 ### Task 8: Verify acceptance criteria
-- [ ] verify all four improvements work end-to-end: callback bus, collision warnings, headless detection, install + reload
-- [ ] verify extension panics are caught and don't crash the process
-- [ ] verify collision warnings appear on stderr when local/global shadows built-in
-- [ ] verify IsHeadless returns correct value in both interactive and print modes
-- [ ] verify `weave install` clones an extension and it's discoverable on next run
-- [ ] verify `/reload` invalidates cache and re-execs with fresh build
-- [ ] run full test suite (`make test`)
-- [ ] run linter (`make lint`) — all issues must be fixed
+- [x] verify all four improvements work end-to-end: callback bus, collision warnings, headless detection, install + reload
+- [x] verify extension panics are caught and don't crash the process
+- [x] verify collision warnings appear on stderr when local/global shadows built-in
+- [x] verify IsHeadless returns correct value in both interactive and print modes
+- [x] verify `weave install` clones an extension and it's discoverable on next run
+- [x] verify `/reload` invalidates cache and re-execs with fresh build
+- [x] run full test suite (`make test`)
+- [x] run linter (`make lint`) — all issues must be fixed
 
 ### Task 9: Update documentation
 - [ ] update CLAUDE.md extension architecture section to reflect callback-based bus

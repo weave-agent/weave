@@ -209,7 +209,7 @@ func reloadCmd() tea.Cmd {
 			home, _ := user.Current()
 			if home != nil {
 				cacheDir := filepath.Join(home.HomeDir, ".weave", "bin", buildHash)
-				_ = os.RemoveAll(cacheDir)
+				_ = os.RemoveAll(cacheDir) //nolint:gosec // G703 — cleaning our own cache dir
 			}
 		}
 
@@ -232,5 +232,5 @@ func reloadCmd() tea.Cmd {
 
 // handleReload performs the actual syscall.Exec to replace the process.
 func handleReload(msg reloadMsg) error {
-	return syscall.Exec(msg.launcherPath, msg.origArgs, msg.env)
+	return fmt.Errorf("exec: %w", syscall.Exec(msg.launcherPath, msg.origArgs, msg.env))
 }

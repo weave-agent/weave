@@ -17,6 +17,7 @@ func TestOnSingleHandler(t *testing.T) {
 	defer b.Close()
 
 	var received atomic.Value
+
 	b.On("test.topic", func(e sdk.Event) error {
 		received.Store(e)
 		return nil
@@ -36,6 +37,7 @@ func TestOnMultipleHandlersSameTopic(t *testing.T) {
 	defer b.Close()
 
 	var count atomic.Int32
+
 	handler := func(e sdk.Event) error {
 		count.Add(1)
 		return nil
@@ -60,6 +62,7 @@ func TestOnAll(t *testing.T) {
 	defer b.Close()
 
 	var received atomic.Value
+
 	b.OnAll(func(e sdk.Event) error {
 		received.Store(e)
 		return nil
@@ -78,6 +81,7 @@ func TestUnrelatedTopicNotReceived(t *testing.T) {
 	defer b.Close()
 
 	called := atomic.Bool{}
+
 	b.On("alpha", func(e sdk.Event) error {
 		called.Store(true)
 		return nil
@@ -194,6 +198,7 @@ func TestCloseWaitsForHandlers(t *testing.T) {
 		close(started)
 		time.Sleep(100 * time.Millisecond)
 		completed.Store(true)
+
 		return nil
 	})
 
@@ -208,6 +213,7 @@ func TestCloseDrainsAndStops(t *testing.T) {
 	b := New()
 
 	called := atomic.Bool{}
+
 	b.On("x", func(e sdk.Event) error {
 		called.Store(true)
 		return nil
@@ -224,6 +230,7 @@ func TestOnAfterClose(t *testing.T) {
 	require.NoError(t, b.Close())
 
 	called := atomic.Bool{}
+
 	b.On("x", func(e sdk.Event) error {
 		called.Store(true)
 		return nil
@@ -253,6 +260,7 @@ func TestConcurrentPublish(t *testing.T) {
 	defer b.Close()
 
 	var count atomic.Int32
+
 	b.On("concurrent", func(e sdk.Event) error {
 		count.Add(1)
 		return nil
@@ -260,12 +268,11 @@ func TestConcurrentPublish(t *testing.T) {
 
 	var wg sync.WaitGroup
 	for i := range 100 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			b.Publish(sdk.NewEvent("concurrent", i))
-		}()
+		})
 	}
+
 	wg.Wait()
 
 	assert.Eventually(t, func() bool {
@@ -283,6 +290,7 @@ func TestConcurrentPublishAndClose(t *testing.T) {
 
 		go func() {
 			defer wg.Done()
+
 			for range 200 {
 				b.Publish(sdk.NewEvent("race", nil))
 			}
@@ -290,6 +298,7 @@ func TestConcurrentPublishAndClose(t *testing.T) {
 
 		go func() {
 			defer wg.Done()
+
 			_ = b.Close()
 		}()
 

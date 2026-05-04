@@ -40,27 +40,16 @@ func executeBatchCmd(t *testing.T, cmd tea.Cmd) {
 // for the given topic that forwards events to the channel.
 func subscribeToChan(b *bus.Bus, topic string) <-chan sdk.Event {
 	ch := make(chan sdk.Event, 64)
+
 	b.On(topic, func(ev sdk.Event) error {
 		select {
 		case ch <- ev:
 		default:
 		}
-		return nil
-	})
-	return ch
-}
 
-// subscribeAllToChan creates an internal channel and registers an OnAll handler
-// that forwards all bus events to the channel.
-func subscribeAllToChan(b *bus.Bus) <-chan sdk.Event {
-	ch := make(chan sdk.Event, 256)
-	b.OnAll(func(ev sdk.Event) error {
-		select {
-		case ch <- ev:
-		default:
-		}
 		return nil
 	})
+
 	return ch
 }
 

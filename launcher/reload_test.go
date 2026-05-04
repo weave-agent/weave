@@ -103,6 +103,7 @@ echo "ORIG_ARGS=$WEAVE_ORIG_ARGS"
 	// Override os.Args for the test.
 	origArgs := os.Args
 	os.Args = []string{"weave", "-p", "test prompt"}
+
 	t.Cleanup(func() { os.Args = origArgs })
 
 	// exec will fail because syscall.Exec replaces the process, but the script

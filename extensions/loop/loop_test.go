@@ -130,13 +130,16 @@ func registerMockTool(mt *ToolMock) {
 // that forwards all bus events to it. Returns the channel for reading.
 func subscribeAllToChan(b *bus.Bus) <-chan sdk.Event {
 	ch := make(chan sdk.Event, 256)
+
 	b.OnAll(func(ev sdk.Event) error {
 		select {
 		case ch <- ev:
 		default:
 		}
+
 		return nil
 	})
+
 	return ch
 }
 

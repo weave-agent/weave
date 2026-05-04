@@ -80,6 +80,7 @@ func (b *Bus) OnAll(h sdk.Handler) {
 
 func (b *Bus) runSlot(slot *handlerSlot) {
 	defer b.wg.Done()
+
 	for ev := range slot.ch {
 		b.invokeHandler(ev, slot.h)
 	}
@@ -107,6 +108,7 @@ func (b *Bus) Off(h sdk.Handler) {
 				close(slot.ch)
 			}
 		}
+
 		if len(remaining) == 0 {
 			delete(b.topicOn, topic)
 		} else {
@@ -117,7 +119,9 @@ func (b *Bus) Off(h sdk.Handler) {
 	for i, slot := range b.allOn {
 		if handlerID(slot.h) == target {
 			close(slot.ch)
+
 			b.allOn = append(b.allOn[:i], b.allOn[i+1:]...)
+
 			break
 		}
 	}
@@ -166,7 +170,7 @@ func (b *Bus) invokeHandler(e sdk.Event, h sdk.Handler) {
 	}
 }
 
-func (b *Bus) publishDiagnostic(topic string, msg string) {
+func (b *Bus) publishDiagnostic(topic, msg string) {
 	ev := sdk.Event{
 		Topic:   topic,
 		Payload: msg,
@@ -199,6 +203,7 @@ func (b *Bus) Close() error {
 		b.closeMu.Unlock()
 		return nil
 	}
+
 	b.closed = true
 	b.closeMu.Unlock()
 
@@ -208,6 +213,7 @@ func (b *Bus) Close() error {
 			close(slot.ch)
 		}
 	}
+
 	for _, slot := range b.allOn {
 		close(slot.ch)
 	}

@@ -41,87 +41,32 @@ func run(args ...string) (exitCode int) {
 		return 1
 	}
 
-	cache := launcher.NewCache(cacheDir)
-
 	moduleRoot, err := findModuleRoot()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", err)
 		return 1
 	}
 
-	l := launcher.NewLauncher(cache, moduleRoot)
+	projectDir := resolveProjectDir(configFile)
 
-	projectDir := filepath.Dir(configFile)
-	if filepath.Base(projectDir) == ".weave" {
-		projectDir = filepath.Dir(projectDir)
-	}
-
-	envProvider := os.Getenv("WEAVE_PROVIDER")
-	if envProvider == "" && len(cf.Core.Providers) > 0 {
-		if err := os.Setenv("WEAVE_PROVIDER", cf.Core.Providers[0]); err != nil {
-			fmt.Fprintf(os.Stderr, "weave: setenv: %v\n", err)
-
-			return 1
-		}
-	}
-
-	allExts := cf.AllExtensions()
-
-	// Skills extension is always included — it discovers skill directories
-	// and injects descriptions into the system prompt even in headless mode.
-	allExts = ensurePresent(allExts, "skills")
-
-	// Add UI extension when no prompt is provided (interactive mode).
-	// When a prompt is set (-p flag), the agent runs in print mode without TUI.
-	headless := cf.Prompt != "" || cf.UI == "" || cf.UI == config.UIValueNone
-
-	if cf.Prompt == "" && cf.UI != "" && cf.UI != config.UIValueNone {
-		allExts = ensurePresent(allExts, cf.UI)
-	}
-
-	// Without a prompt and without a UI, the agent has no input and will hang.
-	if cf.Prompt == "" && (cf.UI == "" || cf.UI == config.UIValueNone) {
-		fmt.Fprintf(os.Stderr, "weave: %v\n", errNoInput)
+	allExts, providers, rest, ok := resolveExtensionsAndMode(cf, &rest)
+	if !ok {
 		return 1
 	}
 
-	if headless {
-		rest = append([]string{"--weave-headless=true"}, rest...)
-	} else {
-		rest = append([]string{"--weave-headless=false"}, rest...)
-	}
-
-	// Compute effective providers: config providers + env override if set.
-	providers := cf.Core.Providers
-	if envProvider != "" {
-		providers = ensurePresent(providers, envProvider)
-		allExts = ensurePresent(allExts, envProvider)
-	}
-
 	if cf.Prompt != "" {
-		f, err := os.CreateTemp("", "weave-prompt-*")
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "weave: creating prompt file: %v\n", err)
-
+		promptFile, cleanup, ok := writePromptFile(cf.Prompt)
+		if !ok {
 			return 1
 		}
 
-		promptFile := f.Name()
-		//nolint:wsl // cleanup defer adjacent to captured var
-		defer func() { _ = os.Remove(promptFile) }()
-
-		if _, err := f.WriteString(cf.Prompt); err != nil {
-			_ = f.Close()
-
-			fmt.Fprintf(os.Stderr, "weave: writing prompt file: %v\n", err)
-
-			return 1
-		}
-
-		_ = f.Close()
+		defer cleanup()
 
 		rest = append([]string{"--weave-prompt-file=" + promptFile}, rest...)
 	}
+
+	cache := launcher.NewCache(cacheDir)
+	l := launcher.NewLauncher(cache, moduleRoot)
 
 	if err := l.Run(context.Background(), projectDir, allExts, rest, configFile, cf.Core.AgentLoop, providers); err != nil {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", err)
@@ -129,6 +74,74 @@ func run(args ...string) (exitCode int) {
 	}
 
 	return 0
+}
+
+func resolveProjectDir(configFile string) string {
+	dir := filepath.Dir(configFile)
+	if filepath.Base(dir) == ".weave" {
+		dir = filepath.Dir(dir)
+	}
+
+	return dir
+}
+
+func resolveExtensionsAndMode(cf *config.File, rest *[]string) (allExts, providers, updatedRest []string, ok bool) {
+	envProvider := os.Getenv("WEAVE_PROVIDER")
+	if envProvider == "" && len(cf.Core.Providers) > 0 {
+		if err := os.Setenv("WEAVE_PROVIDER", cf.Core.Providers[0]); err != nil {
+			fmt.Fprintf(os.Stderr, "weave: setenv: %v\n", err)
+			return nil, nil, nil, false
+		}
+	}
+
+	allExts = cf.AllExtensions()
+	allExts = ensurePresent(allExts, "skills")
+
+	headless := cf.Prompt != "" || cf.UI == "" || cf.UI == config.UIValueNone
+	if cf.Prompt == "" && cf.UI != "" && cf.UI != config.UIValueNone {
+		allExts = ensurePresent(allExts, cf.UI)
+	}
+
+	if cf.Prompt == "" && (cf.UI == "" || cf.UI == config.UIValueNone) {
+		fmt.Fprintf(os.Stderr, "weave: %v\n", errNoInput)
+		return nil, nil, nil, false
+	}
+
+	updatedRest = *rest
+	if headless {
+		updatedRest = append([]string{"--weave-headless=true"}, updatedRest...)
+	} else {
+		updatedRest = append([]string{"--weave-headless=false"}, updatedRest...)
+	}
+
+	providers = cf.Core.Providers
+	if envProvider != "" {
+		providers = ensurePresent(providers, envProvider)
+		allExts = ensurePresent(allExts, envProvider)
+	}
+
+	return allExts, providers, updatedRest, true
+}
+
+func writePromptFile(prompt string) (path string, cleanup func(), ok bool) {
+	f, err := os.CreateTemp("", "weave-prompt-*")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "weave: creating prompt file: %v\n", err)
+		return "", nil, false
+	}
+
+	if _, err := f.WriteString(prompt); err != nil {
+		_ = f.Close()
+
+		fmt.Fprintf(os.Stderr, "weave: writing prompt file: %v\n", err)
+
+		return "", nil, false
+	}
+
+	promptFile := f.Name()
+	_ = f.Close()
+
+	return promptFile, func() { _ = os.Remove(promptFile) }, true
 }
 
 func ensurePresent(exts []string, name string) []string {

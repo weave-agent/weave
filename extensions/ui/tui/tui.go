@@ -76,6 +76,7 @@ func (t *TUI) Subscribe(bus sdk.Bus) {
 		case events <- ev:
 		default:
 		}
+
 		return nil
 	})
 

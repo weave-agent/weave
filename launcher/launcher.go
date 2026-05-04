@@ -178,6 +178,7 @@ func jsonMarshalArgs(args []string) string {
 	}
 
 	b.WriteByte(']')
+
 	return b.String()
 }
 
@@ -203,6 +204,7 @@ func jsonEscapeString(s string) string {
 	}
 
 	b.WriteByte('"')
+
 	return b.String()
 }
 

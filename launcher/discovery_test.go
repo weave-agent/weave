@@ -617,12 +617,14 @@ func TestCollisionDetection_MultipleWarnings(t *testing.T) {
 	// Create built-ins
 	bashBuiltin := filepath.Join(moduleRoot, "extensions", "tools", "bash")
 	createGoFile(t, bashBuiltin, "bash.go", "package bash")
+
 	readBuiltin := filepath.Join(moduleRoot, "extensions", "tools", "read")
 	createGoFile(t, readBuiltin, "read.go", "package read")
 
 	// Local overrides
 	bashLocal := filepath.Join(projectDir, ".weave", "extensions", "bash")
 	createGoFile(t, bashLocal, "bash.go", "package bash")
+
 	readLocal := filepath.Join(projectDir, ".weave", "extensions", "read")
 	createGoFile(t, readLocal, "read.go", "package read")
 

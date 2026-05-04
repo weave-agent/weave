@@ -11,9 +11,9 @@ import (
 
 func TestParseSource_GitURL(t *testing.T) {
 	tests := []struct {
-		name    string
-		source  string
-		wantURL string
+		name     string
+		source   string
+		wantURL  string
 		wantName string
 	}{
 		{"https url", "https://github.com/user/weave-ext-mcp", "https://github.com/user/weave-ext-mcp", "weave-ext-mcp"},
@@ -35,9 +35,9 @@ func TestParseSource_GitURL(t *testing.T) {
 
 func TestParseSource_GitHubShorthand(t *testing.T) {
 	tests := []struct {
-		name    string
-		source  string
-		wantURL string
+		name     string
+		source   string
+		wantURL  string
 		wantName string
 	}{
 		{"simple", "github.com/user/weave-ext-mcp", "https://github.com/user/weave-ext-mcp", "weave-ext-mcp"},
@@ -81,8 +81,10 @@ func TestParseSource_LocalPathNotExist(t *testing.T) {
 func TestParseSource_LocalPathFile(t *testing.T) {
 	f, err := os.CreateTemp("", "weave-test-*.go")
 	require.NoError(t, err)
+
 	_ = f.Close()
-	defer os.Remove(f.Name())
+
+	t.Cleanup(func() { _ = os.Remove(f.Name()) })
 
 	_, err = parseSource(f.Name())
 	require.Error(t, err)
@@ -101,8 +103,9 @@ func TestParseSource_RelativePath(t *testing.T) {
 	require.NoError(t, os.MkdirAll(extDir, 0o750))
 
 	origWd, _ := os.Getwd()
+
 	require.NoError(t, os.Chdir(dir))
-	defer os.Chdir(origWd)
+	t.Cleanup(func() { _ = os.Chdir(origWd) })
 
 	parsed, err := parseSource("./my-ext")
 	require.NoError(t, err)

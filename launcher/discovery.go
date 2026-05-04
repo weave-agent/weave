@@ -83,8 +83,10 @@ func DiscoverCustomHome(projectDir, homeDir string, names []string) ([]Extension
 // configDir is used to resolve relative path entries; when empty, projectDir is used.
 // Returns extension infos, shadow warnings, and any error.
 func DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot string, names []string, configDir ...string) ([]ExtensionInfo, []string, error) {
-	var exts []ExtensionInfo
-	var warnings []string
+	var (
+		exts     []ExtensionInfo
+		warnings []string
+	)
 
 	resolveDir := projectDir
 	if len(configDir) > 0 && configDir[0] != "" {

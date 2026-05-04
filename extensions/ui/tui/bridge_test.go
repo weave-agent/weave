@@ -236,6 +236,7 @@ func TestBridge_IntegrationWithRealBus(t *testing.T) {
 		case events <- ev:
 		default:
 		}
+
 		return nil
 	})
 
@@ -255,7 +256,8 @@ func TestBridge_IntegrationWithRealBus(t *testing.T) {
 	b.Publish(sdk.NewEvent(topicTurnEnd, nil))
 	b.Publish(sdk.NewEvent(topicEnd, nil))
 
-	b.Close()
+	_ = b.Close()
+
 	close(events)
 
 	<-done

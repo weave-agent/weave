@@ -230,6 +230,7 @@ func TestIntegration_WireSubscribesExtensionsInProcess(t *testing.T) {
 	b := bus.New()
 
 	var received sdk.Event
+
 	b.OnAll(func(e sdk.Event) error {
 		received = e
 		return nil

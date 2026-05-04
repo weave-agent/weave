@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"os"
@@ -33,6 +34,7 @@ func runInstall(args []string) int {
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "weave install: missing source argument")
 		fmt.Fprintln(os.Stderr, "usage: weave install <source> [--name <name>]")
+
 		return 1
 	}
 
@@ -91,12 +93,15 @@ func runInstall(args []string) int {
 
 	// Validate that .go files exist.
 	if !hasGoFiles(destDir) {
-		_ = os.RemoveAll(destDir)
+		_ = os.RemoveAll(destDir) //nolint:gosec // G703 — cleaning up our own extension dir
+
 		fmt.Fprintf(os.Stderr, "weave install: %s contains no .go files\n", source)
+
 		return 1
 	}
 
 	fmt.Fprintf(os.Stderr, "installed extension %q to %s\n", extName, destDir)
+
 	return 0
 }
 
@@ -105,8 +110,8 @@ func parseSource(source string) (parsedSource, error) {
 	// Git URL: https://..., http://..., git://...
 	if strings.HasPrefix(source, "https://") || strings.HasPrefix(source, "http://") || strings.HasPrefix(source, "git://") {
 		return parsedSource{
-			kind:   sourceGitURL,
-			gitURL: source,
+			kind:    sourceGitURL,
+			gitURL:  source,
 			rawName: deriveNameFromURL(source),
 		}, nil
 	}
@@ -161,19 +166,20 @@ func deriveNameFromURL(url string) string {
 	// Take the last path segment, strip .git suffix.
 	base := filepath.Base(url)
 	base = strings.TrimSuffix(base, ".git")
+
 	return base
 }
 
 // cloneExtension runs git clone into destDir.
 func cloneExtension(gitURL, destDir string) error {
 	// If destDir already exists, remove it.
-	if _, err := os.Stat(destDir); err == nil {
-		if err := os.RemoveAll(destDir); err != nil {
+	if _, err := os.Stat(destDir); err == nil { //nolint:gosec // G703 — our own extension dir
+		if err := os.RemoveAll(destDir); err != nil { //nolint:gosec // G703 — our own extension dir
 			return fmt.Errorf("remove existing directory: %w", err)
 		}
 	}
 
-	cmd := exec.Command("git", "clone", "--depth", "1", gitURL, destDir)
+	cmd := exec.CommandContext(context.Background(), "git", "clone", "--depth", "1", gitURL, destDir) //nolint:gosec // G702 — gitURL is user-provided CLI arg
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
@@ -186,49 +192,53 @@ func cloneExtension(gitURL, destDir string) error {
 // copyExtension copies a local directory to destDir.
 func copyExtension(srcDir, destDir string) error {
 	// If destDir already exists, remove it.
-	if _, err := os.Stat(destDir); err == nil {
-		if err := os.RemoveAll(destDir); err != nil {
+	if _, err := os.Stat(destDir); err == nil { //nolint:gosec // G703 — our own extension dir
+		if err := os.RemoveAll(destDir); err != nil { //nolint:gosec // G703 — our own extension dir
 			return fmt.Errorf("remove existing directory: %w", err)
 		}
 	}
 
-	return filepath.WalkDir(srcDir, func(path string, d fs.DirEntry, err error) error {
+	if err := filepath.WalkDir(srcDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return err
+			return fmt.Errorf("walk: %w", err)
 		}
 
-		rel, err := filepath.Rel(srcDir, path)
-		if err != nil {
-			return err
+		rel, relErr := filepath.Rel(srcDir, path)
+		if relErr != nil {
+			return fmt.Errorf("relative path: %w", relErr)
 		}
 
 		target := filepath.Join(destDir, rel)
 
 		if d.IsDir() {
-			return os.MkdirAll(target, 0o750)
+			return os.MkdirAll(target, 0o750) //nolint:gosec // G703 — our own extension dir
 		}
 
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
+		data, readErr := os.ReadFile(path) //nolint:gosec // G122 — reading from known source dir
+		if readErr != nil {
+			return fmt.Errorf("read file: %w", readErr)
 		}
 
-		return os.WriteFile(target, data, 0o600)
-	})
+		return os.WriteFile(target, data, 0o600) //nolint:gosec // G703 — our own extension dir
+	}); err != nil {
+		return fmt.Errorf("copy: %w", err)
+	}
+
+	return nil
 }
 
 // hasGoFiles reports whether a directory tree contains .go files.
 func hasGoFiles(dir string) bool {
 	found := false
-	_ = filepath.WalkDir(dir, func(_ string, d fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return nil
-		}
-		if !d.IsDir() && strings.HasSuffix(d.Name(), ".go") && !strings.HasSuffix(d.Name(), "_test.go") {
+
+	_ = filepath.WalkDir(dir, func(_ string, d fs.DirEntry, _ error) error { //nolint:gosec // G703 — reading from our own extension dir
+		if d != nil && !d.IsDir() && strings.HasSuffix(d.Name(), ".go") && !strings.HasSuffix(d.Name(), "_test.go") {
 			found = true
 			return fs.SkipAll
 		}
+
 		return nil
 	})
+
 	return found
 }
