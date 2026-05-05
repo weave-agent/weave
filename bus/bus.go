@@ -120,16 +120,16 @@ func (b *Bus) Off(h sdk.Handler) {
 
 	target := handlerID(h)
 
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	var removed []*handlerSlot
 
+	b.mu.Lock()
 	for topic, slots := range b.topicOn {
 		remaining := make([]*handlerSlot, 0, len(slots))
 		for _, slot := range slots {
 			if handlerID(slot.h) != target {
 				remaining = append(remaining, slot)
 			} else {
-				close(slot.done)
+				removed = append(removed, slot)
 			}
 		}
 
@@ -145,11 +145,25 @@ func (b *Bus) Off(h sdk.Handler) {
 		if handlerID(slot.h) != target {
 			remainingAll = append(remainingAll, slot)
 		} else {
-			close(slot.done)
+			removed = append(removed, slot)
 		}
 	}
 
 	b.allOn = remainingAll
+	b.mu.Unlock()
+
+	for _, slot := range removed {
+		close(slot.done)
+	}
+}
+
+func (b *Bus) collectSubscribers(topic string) []*handlerSlot {
+	b.mu.RLock()
+	slots := make([]*handlerSlot, 0, len(b.topicOn[topic])+len(b.allOn))
+	slots = append(slots, b.topicOn[topic]...)
+	slots = append(slots, b.allOn...)
+	b.mu.RUnlock()
+	return slots
 }
 
 func (b *Bus) Publish(e sdk.Event) bool {
@@ -160,11 +174,7 @@ func (b *Bus) Publish(e sdk.Event) bool {
 		return false
 	}
 
-	b.mu.RLock()
-	slots := make([]*handlerSlot, 0, len(b.topicOn[e.Topic])+len(b.allOn))
-	slots = append(slots, b.topicOn[e.Topic]...)
-	slots = append(slots, b.allOn...)
-	b.mu.RUnlock()
+	slots := b.collectSubscribers(e.Topic)
 
 	if len(slots) == 0 {
 		return false
@@ -184,7 +194,7 @@ func (b *Bus) invokeHandler(e sdk.Event, h sdk.Handler) {
 	defer func() {
 		if r := recover(); r != nil {
 			stack := debug.Stack()
-			log.Printf("[bus] panic in handler: %v\n%s", r, stack)
+			log.Printf("[bus] panic in handler on topic %q: %v\n%s", e.Topic, r, stack)
 
 			if e.Topic != "extension.panic" && e.Topic != "extension.error" {
 				b.publishDiagnostic("extension.panic", fmt.Sprintf("panic: %v", r))
@@ -193,7 +203,7 @@ func (b *Bus) invokeHandler(e sdk.Event, h sdk.Handler) {
 	}()
 
 	if err := h(e); err != nil {
-		log.Printf("[bus] handler error: %v", err)
+		log.Printf("[bus] handler error on topic %q: %v", e.Topic, err)
 
 		if e.Topic != "extension.panic" && e.Topic != "extension.error" {
 			b.publishDiagnostic("extension.error", err.Error())
@@ -202,6 +212,12 @@ func (b *Bus) invokeHandler(e sdk.Event, h sdk.Handler) {
 }
 
 func (b *Bus) publishDiagnostic(topic, msg string) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[bus] panic in publishDiagnostic on topic %q: %v", topic, r)
+		}
+	}()
+
 	ev := sdk.Event{
 		Topic:   topic,
 		Payload: msg,
@@ -214,11 +230,7 @@ func (b *Bus) publishDiagnostic(topic, msg string) {
 		return
 	}
 
-	b.mu.RLock()
-	slots := make([]*handlerSlot, 0, len(b.topicOn[topic])+len(b.allOn))
-	slots = append(slots, b.topicOn[topic]...)
-	slots = append(slots, b.allOn...)
-	b.mu.RUnlock()
+	slots := b.collectSubscribers(topic)
 
 	for _, slot := range slots {
 		select {

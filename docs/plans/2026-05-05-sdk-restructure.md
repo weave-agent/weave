@@ -59,12 +59,12 @@ No circular dependencies.
 ## Implementation Steps
 
 ### Task 1: Fix bus concurrency issues and cleanup
-- [ ] fix `Off()` race: hold `b.closeMu` write lock (not `b.mu`) through channel close, signal via `slot.done` channel instead of closing `slot.ch` while publisher may still write
-- [ ] add `recover()` in `publishDiagnostic()` to prevent deadlock if diagnostic handlers themselves panic
-- [ ] extract `collectSubscribers(topic string) []*handlerSlot` helper to deduplicate slot-copying logic between `Publish()` and `publishDiagnostic()`
-- [ ] add topic context to handler error log: `[bus] handler error on topic %q: %v` instead of `[bus] handler error: %v`
-- [ ] write/update tests: verify `Off()` safety under concurrent `Publish`, verify `publishDiagnostic` doesn't deadlock on handler panic, verify subscriber helper
-- [ ] run `go test ./bus/...` — must pass
+- [x] fix `Off()` race: hold `b.closeMu` write lock (not `b.mu`) through channel close, signal via `slot.done` channel instead of closing `slot.ch` while publisher may still write
+- [x] add `recover()` in `publishDiagnostic()` to prevent deadlock if diagnostic handlers themselves panic
+- [x] extract `collectSubscribers(topic string) []*handlerSlot` helper to deduplicate slot-copying logic between `Publish()` and `publishDiagnostic()`
+- [x] add topic context to handler error log: `[bus] handler error on topic %q: %v` instead of `[bus] handler error: %v`
+- [x] write/update tests: verify `Off()` safety under concurrent `Publish`, verify `publishDiagnostic` doesn't deadlock on handler panic, verify subscriber helper
+- [x] run `go test ./bus/...` — must pass
 
 ### Task 2: Create `sdk/registry/` with generic `Registry[T]`
 - [ ] create `sdk/registry/registry.go` with generic `Registry[T any]` type supporting: `Register(name, T)`, `Get(name) (T, bool)`, `Exists(name) bool`, `List() []string`, `Reset()`

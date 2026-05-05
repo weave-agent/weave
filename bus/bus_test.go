@@ -311,3 +311,162 @@ func TestCloseIdempotent(t *testing.T) {
 	require.NoError(t, b.Close())
 	require.NoError(t, b.Close())
 }
+
+func TestOffConcurrentPublish(t *testing.T) {
+	for range 50 {
+		b := New()
+
+		var count atomic.Int32
+
+		h := func(e sdk.Event) error {
+			count.Add(1)
+			return nil
+		}
+
+		b.On("topic", h)
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+
+		go func() {
+			defer wg.Done()
+			for range 200 {
+				b.Publish(sdk.NewEvent("topic", "data"))
+			}
+		}()
+
+		go func() {
+			defer wg.Done()
+			b.Off(h)
+		}()
+
+		wg.Wait()
+		require.NoError(t, b.Close())
+	}
+}
+
+func TestPublishDiagnosticRecoverOnPanic(t *testing.T) {
+	b := New()
+
+	var panicCount atomic.Int32
+
+	// Diagnostic handler that panics
+	b.On("extension.error", func(e sdk.Event) error {
+		panicCount.Add(1)
+		panic("diagnostic handler broke")
+	})
+
+	// Another diagnostic handler that should still be reached despite the panic
+	// (the panic is recovered by invokeHandler, not publishDiagnostic)
+	var secondReceived atomic.Bool
+	b.On("extension.error", func(e sdk.Event) error {
+		secondReceived.Store(true)
+		return nil
+	})
+
+	// Normal handler that returns an error, triggering publishDiagnostic
+	b.On("fail.topic", func(e sdk.Event) error {
+		return assert.AnError
+	})
+
+	b.Publish(sdk.NewEvent("fail.topic", nil))
+
+	// Bus should not deadlock and the second handler should eventually receive
+	assert.Eventually(t, func() bool {
+		return secondReceived.Load()
+	}, 2*time.Second, 10*time.Millisecond, "second extension.error handler should receive event despite first handler panicking")
+
+	require.NoError(t, b.Close())
+}
+
+func TestPublishDiagnosticRecoverOnClosedBus(t *testing.T) {
+	b := New()
+
+	// This test verifies publishDiagnostic's recover protects against
+	// calling it on a closed bus from within a handler.
+	completed := atomic.Bool{}
+
+	b.On("test", func(e sdk.Event) error {
+		// Close the bus from within a handler
+		_ = b.Close()
+		// Return error which triggers publishDiagnostic on closed bus
+		return assert.AnError
+	})
+
+	b.Publish(sdk.NewEvent("test", nil))
+
+	// Give time for handler to run
+	time.Sleep(100 * time.Millisecond)
+	completed.Store(true)
+
+	assert.True(t, completed.Load(), "should not deadlock when publishDiagnostic runs on closed bus")
+}
+
+func TestCollectSubscribers(t *testing.T) {
+	b := New()
+	defer b.Close()
+
+	// Register topic handlers and OnAll handlers
+	var topicCount, allCount atomic.Int32
+
+	b.On("alpha", func(e sdk.Event) error {
+		topicCount.Add(1)
+		return nil
+	})
+
+	b.On("alpha", func(e sdk.Event) error {
+		topicCount.Add(1)
+		return nil
+	})
+
+	b.OnAll(func(e sdk.Event) error {
+		allCount.Add(1)
+		return nil
+	})
+
+	// Publish to alpha should reach both topic handlers + OnAll
+	b.Publish(sdk.NewEvent("alpha", nil))
+
+	assert.Eventually(t, func() bool {
+		return topicCount.Load() == 2 && allCount.Load() == 1
+	}, time.Second, 10*time.Millisecond)
+
+	// Publish to unknown topic should only reach OnAll
+	topicCount.Store(0)
+	allCount.Store(0)
+
+	b.Publish(sdk.NewEvent("beta", nil))
+
+	assert.Eventually(t, func() bool {
+		return topicCount.Load() == 0 && allCount.Load() == 1
+	}, time.Second, 10*time.Millisecond)
+}
+
+func TestOffPreventsNewDeliveries(t *testing.T) {
+	b := New()
+	defer b.Close()
+
+	var count atomic.Int32
+
+	h := func(e sdk.Event) error {
+		count.Add(1)
+		return nil
+	}
+
+	b.On("topic", h)
+
+	// Publish before Off
+	b.Publish(sdk.NewEvent("topic", nil))
+	assert.Eventually(t, func() bool {
+		return count.Load() >= 1
+	}, time.Second, 10*time.Millisecond)
+
+	b.Off(h)
+
+	// Publish after Off
+	b.Publish(sdk.NewEvent("topic", nil))
+	time.Sleep(50 * time.Millisecond)
+
+	finalCount := count.Load()
+	assert.Equal(t, int32(1), finalCount, "handler should receive exactly 1 event (before Off), not %d", finalCount)
+}
