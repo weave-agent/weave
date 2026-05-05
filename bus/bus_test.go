@@ -318,7 +318,7 @@ func TestOffConcurrentPublish(t *testing.T) {
 
 		var count atomic.Int32
 
-		h := func(e sdk.Event) error {
+		h := func(_ sdk.Event) error { //nolint:unparam // bus handler signature
 			count.Add(1)
 			return nil
 		}
@@ -330,6 +330,7 @@ func TestOffConcurrentPublish(t *testing.T) {
 
 		go func() {
 			defer wg.Done()
+
 			for range 200 {
 				b.Publish(sdk.NewEvent("topic", "data"))
 			}
@@ -337,6 +338,7 @@ func TestOffConcurrentPublish(t *testing.T) {
 
 		go func() {
 			defer wg.Done()
+
 			b.Off(h)
 		}()
 
@@ -359,6 +361,7 @@ func TestPublishDiagnosticRecoverOnPanic(t *testing.T) {
 	// Another diagnostic handler that should still be reached despite the panic
 	// (the panic is recovered by invokeHandler, not publishDiagnostic)
 	var secondReceived atomic.Bool
+
 	b.On("extension.error", func(e sdk.Event) error {
 		secondReceived.Store(true)
 		return nil
@@ -372,9 +375,7 @@ func TestPublishDiagnosticRecoverOnPanic(t *testing.T) {
 	b.Publish(sdk.NewEvent("fail.topic", nil))
 
 	// Bus should not deadlock and the second handler should eventually receive
-	assert.Eventually(t, func() bool {
-		return secondReceived.Load()
-	}, 2*time.Second, 10*time.Millisecond, "second extension.error handler should receive event despite first handler panicking")
+	assert.Eventually(t, secondReceived.Load, 2*time.Second, 10*time.Millisecond, "second extension.error handler should receive event despite first handler panicking")
 
 	require.NoError(t, b.Close())
 }

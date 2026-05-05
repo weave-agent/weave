@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave/bus"
+	eventbus "weave/bus"
 	"weave/sdk"
 )
 
@@ -21,9 +21,9 @@ func coreCfg(providers ...string) CoreWireConfig {
 func TestWire_NoExtensions(t *testing.T) {
 	sdk.ResetRegistry()
 
-	bus := &BusMock{}
+	mockBus := &BusMock{}
 
-	wired, err := Wire(nil, bus, nil)
+	wired, err := Wire(nil, mockBus, nil)
 	require.NoError(t, err)
 	require.NotNil(t, wired)
 }
@@ -31,9 +31,9 @@ func TestWire_NoExtensions(t *testing.T) {
 func TestWire_EmptyExtensions(t *testing.T) {
 	sdk.ResetRegistry()
 
-	bus := &BusMock{}
+	mockBus := &BusMock{}
 
-	wired, err := Wire([]string{}, bus, nil)
+	wired, err := Wire([]string{}, mockBus, nil)
 	require.NoError(t, err)
 	require.NotNil(t, wired)
 }
@@ -54,9 +54,9 @@ func TestWire_SubscribesAllExtensions(t *testing.T) {
 		}), nil
 	})
 
-	bus := &BusMock{}
+	mockBus := &BusMock{}
 
-	wired, err := Wire([]string{"ext-a", "ext-b"}, bus, nil)
+	wired, err := Wire([]string{"ext-a", "ext-b"}, mockBus, nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, int32(2), subscribed.Load())
@@ -119,7 +119,7 @@ func TestWire_SkipsUIExtension(t *testing.T) {
 
 type stubUIExt struct{ name string }
 
-func (s stubUIExt) Name() string  { return s.name }
+func (s stubUIExt) Name() string      { return s.name }
 func (s stubUIExt) Register(_ sdk.UI) {}
 
 func TestWire_PassesConfigToFactory(t *testing.T) {
@@ -578,7 +578,7 @@ func TestWire_WireSubscribesExtensionsInProcess(t *testing.T) {
 		}), nil
 	})
 
-	realBus := bus.New()
+	realBus := eventbus.New()
 
 	var received sdk.Event
 

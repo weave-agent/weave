@@ -395,7 +395,7 @@ func (l *Loop) applyModelChange(evt sdk.Event, bus sdk.Bus, currentProv sdk.Prov
 	}
 
 	provider := m["provider"]
-	model := m["model"]
+	modelName := m["model"]
 
 	if provider != "" && provider != l.providerName {
 		newProv, err := sdk.GetProvider(provider, l.cfg)
@@ -412,8 +412,8 @@ func (l *Loop) applyModelChange(evt sdk.Event, bus sdk.Bus, currentProv sdk.Prov
 		currentProv = newProv
 	}
 
-	if model != "" {
-		l.modelName = model
+	if modelName != "" {
+		l.modelName = modelName
 	}
 
 	return currentProv

@@ -157,9 +157,9 @@ func mergeCoreAndOptional(core CoreWireConfig, optExts []string) []string {
 
 type noopConfig struct{}
 
-func (noopConfig) FilePath() string                                { return "" }
-func (noopConfig) ProviderConfig(string) *sdk.ProviderConfigEntry   { return nil }
-func (noopConfig) ResolveKey(_, envVar string) (string, error)      { return os.Getenv(envVar), nil }
-func (noopConfig) ToolConfig(string, any) error                     { return nil }
-func (noopConfig) UIConfig(any) error                               { return nil }
-func (noopConfig) IsHeadless() bool                                 { return true }
+func (noopConfig) FilePath() string                               { return "" }
+func (noopConfig) ProviderConfig(string) *sdk.ProviderConfigEntry { return nil }
+func (noopConfig) ResolveKey(_, envVar string) (string, error)    { return os.Getenv(envVar), nil }
+func (noopConfig) ToolConfig(string, any) error                   { return nil }
+func (noopConfig) UIConfig(any) error                             { return nil }
+func (noopConfig) IsHeadless() bool                               { return true }

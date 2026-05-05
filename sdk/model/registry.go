@@ -26,7 +26,9 @@ func GetModel(id string) (ModelDef, bool) {
 // ListModelsForProvider returns all models for a given provider, sorted by ID.
 func ListModelsForProvider(provider string) []ModelDef {
 	all := modelReg.All()
+
 	var result []ModelDef
+
 	for _, m := range all {
 		if m.Provider == provider {
 			result = append(result, m)

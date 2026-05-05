@@ -118,16 +118,16 @@ No circular dependencies.
 - [x] run `go test ./sdk/wire/... ./cmd/...` — must pass
 
 ### Task 8: Final verification and cleanup
-- [ ] run `make lint` — all issues must be fixed
-- [ ] run `make fmt` — formatting must be clean
-- [ ] run `go test ./sdk/... ./bus/... ./cmd/...` — all must pass
-- [ ] run `cd extensions/loop && go test ./...` — must pass
-- [ ] run `cd extensions/providers/anthropic && go test ./...` — must pass
-- [ ] run `cd extensions/providers/openai && go test ./...` — must pass
-- [ ] run `cd extensions/providers/zai && go test ./...` — must pass
-- [ ] verify no stale references: `grep -r "sdk\.RegisterModel\|sdk\.GetModel\|sdk\.WireWithCore\|sdk\.CoreWireConfig\|sdk\.ThinkingLevel\|sdk\.ModelDef" --include="*.go" .` — should return zero results
-- [ ] verify final package structure matches design: `sdk/model/`, `sdk/registry/`, `sdk/wire/`, clean `sdk/`
-- [ ] update CLAUDE.md to reflect new package structure
+- [x] run `make lint` — all issues must be fixed
+- [x] run `make fmt` — formatting must be clean
+- [x] run `go test ./sdk/... ./bus/... ./cmd/...` — all must pass
+- [x] run `cd extensions/loop && go test ./...` — must pass
+- [x] run `cd extensions/providers/anthropic && go test ./...` — must pass
+- [x] run `cd extensions/providers/openai && go test ./...` — must pass
+- [x] run `cd extensions/providers/zai && go test ./...` — must pass
+- [x] verify no stale references: `grep -r "sdk\.RegisterModel\|sdk\.GetModel\|sdk\.WireWithCore\|sdk\.CoreWireConfig\|sdk\.ThinkingLevel\|sdk\.ModelDef" --include="*.go" .` — should return zero results
+- [x] verify final package structure matches design: `sdk/model/`, `sdk/registry/`, `sdk/wire/`, clean `sdk/`
+- [x] update CLAUDE.md to reflect new package structure
 
 ## Technical Details
 

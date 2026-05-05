@@ -35,16 +35,16 @@ func init() {
 			return nil, errors.New("openai: API key required (set OPENAI_API_KEY, add to ~/.weave/auth.json, or configure in .weave.yaml)")
 		}
 
-		model := defaultModel
+		modelName := defaultModel
 		baseURL := defaultBaseURL
 
 		if v := os.Getenv("OPENAI_MODEL"); v != "" {
-			model = v
+			modelName = v
 		}
 
 		if pc := cfg.ProviderConfig("openai"); pc != nil {
 			if pc.Model != "" {
-				model = pc.Model
+				modelName = pc.Model
 			}
 
 			if pc.BaseURL != "" {
@@ -57,7 +57,7 @@ func init() {
 			config: openaicompat.ProviderConfig{
 				BaseURL: baseURL,
 				APIKey:  apiKey,
-				Model:   model,
+				Model:   modelName,
 			},
 		}, nil
 	})

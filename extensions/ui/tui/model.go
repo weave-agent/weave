@@ -18,7 +18,7 @@ import (
 	"weave/ext/ui/tui/components/overlays"
 	"weave/ext/ui/tui/palette"
 	"weave/sdk"
-	"weave/sdk/model"
+	sdkmodel "weave/sdk/model"
 
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
@@ -69,7 +69,7 @@ type Model struct {
 	pendingProviders  []ProviderEntry
 	currentModel      ModelEntry
 	prevModel         ModelEntry
-	prevThinkingLevel model.ThinkingLevel
+	prevThinkingLevel sdkmodel.ThinkingLevel
 	dialogStack       overlays.DialogStack
 	attach            attachments.Model
 
@@ -86,7 +86,7 @@ type Model struct {
 	doublePressGen int
 
 	// thinking level state
-	thinkingLevel model.ThinkingLevel
+	thinkingLevel sdkmodel.ThinkingLevel
 
 	// noConfigured is true when no provider has an API key set.
 	noConfigured bool
@@ -134,7 +134,7 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 			return CommandResult{Notify: "Usage: /thinking <off|minimal|low|medium|high|xhigh>"}
 		}
 
-		level, err := model.ParseThinkingLevel(args)
+		level, err := sdkmodel.ParseThinkingLevel(args)
 		if err != nil {
 			return CommandResult{Notify: err.Error()}
 		}
@@ -1065,13 +1065,13 @@ func (m Model) onModelChanged(msg ModelChangedMsg) (tea.Model, tea.Cmd) {
 
 	thinkingChanged := false
 
-	if modelDef, ok := model.GetModel(msg.Entry.Model); ok {
+	if modelDef, ok := sdkmodel.GetModel(msg.Entry.Model); ok {
 		if !modelDef.Reasoning {
-			thinkingChanged = m.thinkingLevel != model.ThinkingOff
-			m.thinkingLevel = model.ThinkingOff
-			m.footer = m.footer.SetThinkingLevel(string(model.ThinkingOff))
-			m.editor = m.editor.SetBorderColor(palette.ThinkingBorderColor(model.ThinkingOff))
-		} else if clamped := model.ClampForModel(m.thinkingLevel, modelDef); clamped != m.thinkingLevel {
+			thinkingChanged = m.thinkingLevel != sdkmodel.ThinkingOff
+			m.thinkingLevel = sdkmodel.ThinkingOff
+			m.footer = m.footer.SetThinkingLevel(string(sdkmodel.ThinkingOff))
+			m.editor = m.editor.SetBorderColor(palette.ThinkingBorderColor(sdkmodel.ThinkingOff))
+		} else if clamped := sdkmodel.ClampForModel(m.thinkingLevel, modelDef); clamped != m.thinkingLevel {
 			thinkingChanged = true
 			m.thinkingLevel = clamped
 			m.footer = m.footer.SetThinkingLevel(string(clamped))
@@ -1367,25 +1367,25 @@ func parseToolEntry(raw json.RawMessage) (name, content string, isError bool) {
 // levels that would clamp to the same effective value as the current one.
 func (m Model) cycleThinkingLevel() (tea.Model, tea.Cmd) {
 	cur := m.thinkingLevel
-	if modelDef, ok := model.GetModel(m.currentModel.Model); ok && modelDef.Reasoning {
-		cur = model.ClampForModel(cur, modelDef)
+	if modelDef, ok := sdkmodel.GetModel(m.currentModel.Model); ok && modelDef.Reasoning {
+		cur = sdkmodel.ClampForModel(cur, modelDef)
 	}
 
-	for i, lvl := range model.AllThinkingLevels {
+	for i, lvl := range sdkmodel.AllThinkingLevels {
 		if lvl != cur {
 			continue
 		}
 
-		for j := 1; j <= len(model.AllThinkingLevels); j++ {
-			candidate := model.AllThinkingLevels[(i+j)%len(model.AllThinkingLevels)]
+		for j := 1; j <= len(sdkmodel.AllThinkingLevels); j++ {
+			candidate := sdkmodel.AllThinkingLevels[(i+j)%len(sdkmodel.AllThinkingLevels)]
 
-			var effective model.ThinkingLevel
+			var effective sdkmodel.ThinkingLevel
 
-			if modelDef, ok := model.GetModel(m.currentModel.Model); ok {
+			if modelDef, ok := sdkmodel.GetModel(m.currentModel.Model); ok {
 				if modelDef.Reasoning {
-					effective = model.ClampForModel(candidate, modelDef)
+					effective = sdkmodel.ClampForModel(candidate, modelDef)
 				} else {
-					effective = model.ThinkingOff
+					effective = sdkmodel.ThinkingOff
 				}
 			} else {
 				effective = candidate
@@ -1405,12 +1405,12 @@ func (m Model) cycleThinkingLevel() (tea.Model, tea.Cmd) {
 // applyThinkingLevel applies a thinking level change.
 // It clamps xhigh for models that don't support it, updates UI elements,
 // shows a status message, and publishes the bus event.
-func (m Model) applyThinkingLevel(level model.ThinkingLevel) (tea.Model, tea.Cmd) {
-	if modelDef, ok := model.GetModel(m.currentModel.Model); ok {
+func (m Model) applyThinkingLevel(level sdkmodel.ThinkingLevel) (tea.Model, tea.Cmd) {
+	if modelDef, ok := sdkmodel.GetModel(m.currentModel.Model); ok {
 		if !modelDef.Reasoning {
-			level = model.ThinkingOff
+			level = sdkmodel.ThinkingOff
 		} else {
-			level = model.ClampForModel(level, modelDef)
+			level = sdkmodel.ClampForModel(level, modelDef)
 		}
 	}
 

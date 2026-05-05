@@ -20,7 +20,7 @@ const cloneTimeout = 5 * time.Minute
 type sourceType int
 
 const (
-	sourceGitURL    sourceType = iota
+	sourceGitURL sourceType = iota
 	sourceGitHub
 	sourceLocalPath
 )
@@ -101,7 +101,7 @@ func runInstall(args []string) int {
 	}
 
 	defer func() {
-		_ = os.RemoveAll(stagingDir) //nolint:gosec // G703 — cleanup of our own staging dir
+		_ = os.RemoveAll(stagingDir)
 	}()
 
 	switch parsed.kind {
@@ -160,7 +160,7 @@ func stagingPath(homeDir, extName string) (string, error) {
 		return "", fmt.Errorf("create staging dir: %w", err)
 	}
 
-	if err := os.Remove(staging); err != nil { //nolint:gosec // G703 — our own staging dir under ~/.weave
+	if err := os.Remove(staging); err != nil {
 		return "", fmt.Errorf("prepare staging dir: %w", err)
 	}
 
@@ -168,13 +168,13 @@ func stagingPath(homeDir, extName string) (string, error) {
 }
 
 func swapStaging(stagingDir, destDir string) error {
-	if _, err := os.Stat(destDir); err == nil { //nolint:gosec // G703 — our own extension dir
-		if err := os.RemoveAll(destDir); err != nil { //nolint:gosec // G703 — our own extension dir
+	if _, err := os.Stat(destDir); err == nil {
+		if err := os.RemoveAll(destDir); err != nil {
 			return fmt.Errorf("remove existing extension: %w", err)
 		}
 	}
 
-	if err := os.Rename(stagingDir, destDir); err != nil { //nolint:gosec // G703 — our own extension dir
+	if err := os.Rename(stagingDir, destDir); err != nil {
 		return fmt.Errorf("install staged extension: %w", err)
 	}
 
@@ -219,7 +219,7 @@ func parseSource(source string) (parsedSource, error) {
 			return parsedSource{}, fmt.Errorf("resolve path: %w", err)
 		}
 
-		stat, err := os.Stat(abs) //nolint:gosec // G703 — abs is resolved from user CLI arg
+		stat, err := os.Stat(abs)
 		if err != nil {
 			return parsedSource{}, fmt.Errorf("path %q: %w", source, err)
 		}
@@ -254,7 +254,7 @@ func cloneExtension(gitURL, destDir string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), cloneTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "git", "clone", "--depth", "1", gitURL, destDir) //nolint:gosec // G702 — gitURL is user-provided CLI arg
+	cmd := exec.CommandContext(ctx, "git", "clone", "--depth", "1", gitURL, destDir)
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
@@ -311,7 +311,7 @@ func copyExtension(srcDir, destDir string) error {
 			}
 
 			if stat.IsDir() {
-				return os.MkdirAll(target, 0o750) //nolint:gosec // G703 — our own extension dir
+				return os.MkdirAll(target, 0o750)
 			}
 
 			data, readErr := os.ReadFile(resolved) //nolint:gosec // G122 — reading from known source dir
@@ -323,7 +323,7 @@ func copyExtension(srcDir, destDir string) error {
 		}
 
 		if d.IsDir() {
-			return os.MkdirAll(target, 0o750) //nolint:gosec // G703 — our own extension dir
+			return os.MkdirAll(target, 0o750)
 		}
 
 		data, readErr := os.ReadFile(path) //nolint:gosec // G122 — reading from known source dir
@@ -360,7 +360,7 @@ func pathContains(parent, target string) bool {
 func hasGoFiles(dir string) bool {
 	found := false
 
-	err := filepath.WalkDir(dir, func(_ string, d fs.DirEntry, _ error) error { //nolint:gosec // G703 — reading from our own extension dir
+	err := filepath.WalkDir(dir, func(_ string, d fs.DirEntry, _ error) error {
 		if d != nil && !d.IsDir() && strings.HasSuffix(d.Name(), ".go") && !strings.HasSuffix(d.Name(), "_test.go") {
 			found = true
 			return fs.SkipAll

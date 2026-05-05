@@ -35,16 +35,16 @@ func init() {
 			return nil, errors.New("zai: API key required (set ZAI_API_KEY, add to ~/.weave/auth.json, or configure in .weave.yaml)")
 		}
 
-		model := defaultModel
+		modelName := defaultModel
 		baseURL := defaultBaseURL
 
 		if v := os.Getenv("ZAI_MODEL"); v != "" {
-			model = v
+			modelName = v
 		}
 
 		if pc := cfg.ProviderConfig("zai"); pc != nil {
 			if pc.Model != "" {
-				model = pc.Model
+				modelName = pc.Model
 			}
 
 			if pc.BaseURL != "" {
@@ -57,7 +57,7 @@ func init() {
 			config: openaicompat.ProviderConfig{
 				BaseURL: baseURL,
 				APIKey:  apiKey,
-				Model:   model,
+				Model:   modelName,
 				ExtraBody: map[string]any{
 					"tool_stream": true,
 				},

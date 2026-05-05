@@ -6,7 +6,7 @@ import (
 
 	"weave/config"
 	"weave/sdk"
-	"weave/sdk/model"
+	sdkmodel "weave/sdk/model"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -25,7 +25,7 @@ func (e ModelEntry) Display() string {
 // DisplayName returns the human-friendly name from the model registry,
 // falling back to provider/model format.
 func (e ModelEntry) DisplayName() string {
-	if def, ok := model.GetModel(e.Model); ok && def.DisplayName != "" {
+	if def, ok := sdkmodel.GetModel(e.Model); ok && def.DisplayName != "" {
 		return def.DisplayName
 	}
 
@@ -60,7 +60,7 @@ func listModels() []ModelEntry {
 
 	var entries []ModelEntry
 
-	for _, md := range model.ListAllModels() {
+	for _, md := range sdkmodel.ListAllModels() {
 		if !regSet[md.Provider] {
 			continue
 		}
@@ -78,7 +78,7 @@ func listModels() []ModelEntry {
 // providerHasKey checks whether a provider has an API key configured
 // via environment variable or auth file.
 func providerHasKey(providerName string, auth *config.AuthFile) bool {
-	envVar := model.ProviderEnvVar(providerName)
+	envVar := sdkmodel.ProviderEnvVar(providerName)
 	if envVar == "" {
 		return false
 	}
@@ -113,7 +113,7 @@ func currentModel(entries []ModelEntry, configDir string) ModelEntry {
 		provider = providerAnthropic
 	}
 
-	if def, ok := model.DefaultModelForProvider(provider); ok {
+	if def, ok := sdkmodel.DefaultModelForProvider(provider); ok {
 		for _, e := range entries {
 			if e.Provider == provider {
 				return ModelEntry{Provider: provider, Model: def.ID}
@@ -167,7 +167,7 @@ func cycleModel(entries []ModelEntry, current ModelEntry) ModelEntry {
 
 // modelReasoning returns whether the given model supports reasoning.
 func modelReasoning(modelID string) bool {
-	if def, ok := model.GetModel(modelID); ok {
+	if def, ok := sdkmodel.GetModel(modelID); ok {
 		return def.Reasoning
 	}
 
@@ -177,21 +177,21 @@ func modelReasoning(modelID string) bool {
 // initialThinkingLevel returns the startup thinking level. Tries persisted
 // settings first (using layered loading for project overrides), then the
 // WEAVE_THINKING_LEVEL env var, then medium.
-func initialThinkingLevel(configDir string) model.ThinkingLevel {
+func initialThinkingLevel(configDir string) sdkmodel.ThinkingLevel {
 	if prefs, err := config.LoadLayeredSettings(configDir); err == nil && prefs.ThinkingLevel != "" {
-		if lvl, err := model.ParseThinkingLevel(prefs.ThinkingLevel); err == nil {
+		if lvl, err := sdkmodel.ParseThinkingLevel(prefs.ThinkingLevel); err == nil {
 			return lvl
 		}
 	}
 
-	return model.DefaultThinkingLevel()
+	return sdkmodel.DefaultThinkingLevel()
 }
 
 // saveSettings persists the current model and thinking level to the global
 // settings file. It loads existing settings to preserve UI/Tools sections,
 // updates only the model/thinking fields, and writes back.
 // Best-effort — errors are silently ignored.
-func saveSettings(entry ModelEntry, level model.ThinkingLevel) {
+func saveSettings(entry ModelEntry, level sdkmodel.ThinkingLevel) {
 	existing, _ := config.LoadSettings()
 	if existing == nil {
 		existing = &config.Settings{}
@@ -205,7 +205,7 @@ func saveSettings(entry ModelEntry, level model.ThinkingLevel) {
 }
 
 // saveSettingsCmd returns a tea.Cmd that persists settings asynchronously.
-func saveSettingsCmd(entry ModelEntry, level model.ThinkingLevel) tea.Cmd {
+func saveSettingsCmd(entry ModelEntry, level sdkmodel.ThinkingLevel) tea.Cmd {
 	return func() tea.Msg {
 		saveSettings(entry, level)
 		return nil

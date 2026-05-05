@@ -16,7 +16,7 @@ import (
 	"weave/ext/ui/tui/components/messages"
 	"weave/ext/ui/tui/components/overlays"
 	"weave/sdk"
-	"weave/sdk/model"
+	sdkmodel "weave/sdk/model"
 
 	tea "charm.land/bubbletea/v2"
 	uv "github.com/charmbracelet/ultraviolet"
@@ -1074,7 +1074,7 @@ func TestModel_QuitCommand(t *testing.T) {
 
 func TestModel_DefaultThinkingLevel(t *testing.T) {
 	m := newModel(nil, nil, nil)
-	assert.Equal(t, model.ThinkingMedium, m.thinkingLevel)
+	assert.Equal(t, sdkmodel.ThinkingMedium, m.thinkingLevel)
 	assert.Equal(t, "medium", m.footer.ThinkingLevel())
 }
 
@@ -1082,7 +1082,7 @@ func TestModel_ThinkingLevelFromEnv(t *testing.T) {
 	t.Setenv("WEAVE_THINKING_LEVEL", "high")
 
 	m := newModel(nil, nil, nil)
-	assert.Equal(t, model.ThinkingHigh, m.thinkingLevel)
+	assert.Equal(t, sdkmodel.ThinkingHigh, m.thinkingLevel)
 	assert.Equal(t, "high", m.footer.ThinkingLevel())
 }
 
@@ -1090,62 +1090,62 @@ func TestModel_ThinkingLevelInvalidEnv(t *testing.T) {
 	t.Setenv("WEAVE_THINKING_LEVEL", "invalid")
 
 	m := newModel(nil, nil, nil)
-	assert.Equal(t, model.ThinkingMedium, m.thinkingLevel)
+	assert.Equal(t, sdkmodel.ThinkingMedium, m.thinkingLevel)
 }
 
 func TestModel_CycleThinkingLevel(t *testing.T) {
-	model.ResetModelRegistry()
-	model.RegisterBuiltinModels()
+	sdkmodel.ResetModelRegistry()
+	sdkmodel.RegisterBuiltinModels()
 
-	defer model.ResetModelRegistry()
+	defer sdkmodel.ResetModelRegistry()
 
 	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-6"}
 
-	assert.Equal(t, model.ThinkingMedium, m.thinkingLevel)
+	assert.Equal(t, sdkmodel.ThinkingMedium, m.thinkingLevel)
 
 	model, _ := m.dispatchBinding(ActionThinkingCycle)
 	m = model.(Model)
-	assert.Equal(t, model.ThinkingHigh, m.thinkingLevel)
+	assert.Equal(t, sdkmodel.ThinkingHigh, m.thinkingLevel)
 	assert.Equal(t, "high", m.footer.ThinkingLevel())
 	assert.Equal(t, "139", m.editor.BorderColor)
 
 	// Second press skips xhigh (clamped for Sonnet) and goes to off
 	model, _ = m.dispatchBinding(ActionThinkingCycle)
 	m = model.(Model)
-	assert.Equal(t, model.ThinkingOff, m.thinkingLevel)
+	assert.Equal(t, sdkmodel.ThinkingOff, m.thinkingLevel)
 }
 
 func TestModel_CycleThinkingLevelWraps(t *testing.T) {
 	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
-	m.thinkingLevel = model.ThinkingXHigh
+	m.thinkingLevel = sdkmodel.ThinkingXHigh
 	m.editor = m.editor.SetBorderColor("177")
 
 	// Register models so xhigh clamping works
-	model.ResetModelRegistry()
-	model.RegisterBuiltinModels()
+	sdkmodel.ResetModelRegistry()
+	sdkmodel.RegisterBuiltinModels()
 
-	defer model.ResetModelRegistry()
+	defer sdkmodel.ResetModelRegistry()
 
 	// Set current model to one that supports xhigh (opus)
 	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-opus-4-7"}
 
 	model, _ := m.dispatchBinding(ActionThinkingCycle)
 	m = model.(Model)
-	assert.Equal(t, model.ThinkingOff, m.thinkingLevel)
+	assert.Equal(t, sdkmodel.ThinkingOff, m.thinkingLevel)
 	assert.Equal(t, "off", m.footer.ThinkingLevel())
 	assert.Equal(t, "240", m.editor.BorderColor)
 }
 
 func TestModel_CycleThinkingLevelSkipsClampedForSonnet(t *testing.T) {
-	model.ResetModelRegistry()
-	model.RegisterBuiltinModels()
+	sdkmodel.ResetModelRegistry()
+	sdkmodel.RegisterBuiltinModels()
 
-	defer model.ResetModelRegistry()
+	defer sdkmodel.ResetModelRegistry()
 
 	m := newModel(nil, nil, nil)
 	m.width = 80
@@ -1154,13 +1154,13 @@ func TestModel_CycleThinkingLevelSkipsClampedForSonnet(t *testing.T) {
 
 	// Sonnet doesn't support xhigh, so the cycle skips it:
 	// medium -> high -> off -> minimal -> low -> medium (wraps)
-	expected := []sdk.ThinkingLevel{
-		model.ThinkingMedium, // start
-		model.ThinkingHigh,
-		model.ThinkingOff,
-		model.ThinkingMinimal,
-		model.ThinkingLow,
-		model.ThinkingMedium, // wraps
+	expected := []sdkmodel.ThinkingLevel{
+		sdkmodel.ThinkingMedium, // start
+		sdkmodel.ThinkingHigh,
+		sdkmodel.ThinkingOff,
+		sdkmodel.ThinkingMinimal,
+		sdkmodel.ThinkingLow,
+		sdkmodel.ThinkingMedium, // wraps
 	}
 
 	for _, want := range expected {
@@ -1171,24 +1171,24 @@ func TestModel_CycleThinkingLevelSkipsClampedForSonnet(t *testing.T) {
 }
 
 func TestModel_CycleThinkingLevelAllLevels(t *testing.T) {
-	model.ResetModelRegistry()
-	model.RegisterBuiltinModels()
+	sdkmodel.ResetModelRegistry()
+	sdkmodel.RegisterBuiltinModels()
 
-	defer model.ResetModelRegistry()
+	defer sdkmodel.ResetModelRegistry()
 
 	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-opus-4-7"}
 
-	expected := []sdk.ThinkingLevel{
-		model.ThinkingMedium, // start
-		model.ThinkingHigh,
-		model.ThinkingXHigh,
-		model.ThinkingOff,
-		model.ThinkingMinimal,
-		model.ThinkingLow,
-		model.ThinkingMedium, // wraps
+	expected := []sdkmodel.ThinkingLevel{
+		sdkmodel.ThinkingMedium, // start
+		sdkmodel.ThinkingHigh,
+		sdkmodel.ThinkingXHigh,
+		sdkmodel.ThinkingOff,
+		sdkmodel.ThinkingMinimal,
+		sdkmodel.ThinkingLow,
+		sdkmodel.ThinkingMedium, // wraps
 	}
 
 	for _, want := range expected {
@@ -1229,10 +1229,10 @@ func TestModel_EditorBorderMatchesThinkingLevel(t *testing.T) {
 }
 
 func TestModel_ThinkingLevelUpdatesEditorBorder(t *testing.T) {
-	model.ResetModelRegistry()
-	model.RegisterBuiltinModels()
+	sdkmodel.ResetModelRegistry()
+	sdkmodel.RegisterBuiltinModels()
 
-	defer model.ResetModelRegistry()
+	defer sdkmodel.ResetModelRegistry()
 
 	m := newModel(nil, nil, nil)
 	m.width = 80
@@ -1242,21 +1242,21 @@ func TestModel_ThinkingLevelUpdatesEditorBorder(t *testing.T) {
 	// medium -> high
 	model, _ := m.dispatchBinding(ActionThinkingCycle)
 	m = model.(Model)
-	assert.Equal(t, model.ThinkingHigh, m.thinkingLevel)
+	assert.Equal(t, sdkmodel.ThinkingHigh, m.thinkingLevel)
 	assert.Equal(t, "139", m.editor.BorderColor) // high = "139"
 
 	// high -> xhigh
 	model, _ = m.dispatchBinding(ActionThinkingCycle)
 	m = model.(Model)
-	assert.Equal(t, model.ThinkingXHigh, m.thinkingLevel)
+	assert.Equal(t, sdkmodel.ThinkingXHigh, m.thinkingLevel)
 	assert.Equal(t, "177", m.editor.BorderColor) // xhigh = "177"
 }
 
 func TestModel_ThinkingCommand(t *testing.T) {
-	model.ResetModelRegistry()
-	model.RegisterBuiltinModels()
+	sdkmodel.ResetModelRegistry()
+	sdkmodel.RegisterBuiltinModels()
 
-	defer model.ResetModelRegistry()
+	defer sdkmodel.ResetModelRegistry()
 
 	b := bus.New()
 	defer b.Close()
@@ -1268,7 +1268,7 @@ func TestModel_ThinkingCommand(t *testing.T) {
 	m.height = 24
 	m.chat = m.chat.SetSize(80, 10)
 
-	assert.Equal(t, model.ThinkingMedium, m.thinkingLevel)
+	assert.Equal(t, sdkmodel.ThinkingMedium, m.thinkingLevel)
 
 	// Dispatch /thinking high
 	model, cmd := m.onSubmit("/thinking high")
@@ -1280,13 +1280,13 @@ func TestModel_ThinkingCommand(t *testing.T) {
 	msg := cmd()
 	setMsg, ok := msg.(ThinkingLevelSetMsg)
 	require.True(t, ok)
-	assert.Equal(t, model.ThinkingHigh, setMsg.Level)
+	assert.Equal(t, sdkmodel.ThinkingHigh, setMsg.Level)
 
 	// Process the message
 	model, updateCmd := m.Update(setMsg)
 	m = model.(Model)
 
-	assert.Equal(t, model.ThinkingHigh, m.thinkingLevel)
+	assert.Equal(t, sdkmodel.ThinkingHigh, m.thinkingLevel)
 	assert.Equal(t, "high", m.footer.ThinkingLevel())
 	assert.Equal(t, "139", m.editor.BorderColor)
 
@@ -1337,10 +1337,10 @@ func TestModel_ThinkingCommandInvalid(t *testing.T) {
 }
 
 func TestModel_ThinkingCommandXHighClamped(t *testing.T) {
-	model.ResetModelRegistry()
-	model.RegisterBuiltinModels()
+	sdkmodel.ResetModelRegistry()
+	sdkmodel.RegisterBuiltinModels()
 
-	defer model.ResetModelRegistry()
+	defer sdkmodel.ResetModelRegistry()
 
 	m := newModel(nil, nil, nil)
 	m.width = 80
@@ -1362,22 +1362,22 @@ func TestModel_ThinkingCommandXHighClamped(t *testing.T) {
 	m = model.(Model)
 
 	// xhigh should be clamped to high for Sonnet
-	assert.Equal(t, model.ThinkingHigh, m.thinkingLevel)
+	assert.Equal(t, sdkmodel.ThinkingHigh, m.thinkingLevel)
 	assert.Equal(t, "139", m.editor.BorderColor)
 }
 
 func TestModel_ThinkingCommandAllLevels(t *testing.T) {
-	model.ResetModelRegistry()
-	model.RegisterBuiltinModels()
+	sdkmodel.ResetModelRegistry()
+	sdkmodel.RegisterBuiltinModels()
 
-	defer model.ResetModelRegistry()
+	defer sdkmodel.ResetModelRegistry()
 
 	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-opus-4-7"}
 
-	for _, level := range model.AllThinkingLevels {
+	for _, level := range sdkmodel.AllThinkingLevels {
 		m.chat = components.NewChatModel().SetSize(80, 10)
 
 		model, cmd := m.onSubmit("/thinking " + string(level))

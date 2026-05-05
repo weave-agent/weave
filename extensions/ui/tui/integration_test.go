@@ -14,7 +14,7 @@ import (
 	"weave/ext/ui/tui/components/messages"
 	"weave/ext/ui/tui/components/overlays"
 	"weave/sdk"
-	"weave/sdk/model"
+	sdkmodel "weave/sdk/model"
 
 	tea "charm.land/bubbletea/v2"
 	uv "github.com/charmbracelet/ultraviolet"
@@ -468,11 +468,11 @@ func TestIntegration_SessionResumeFlow(t *testing.T) {
 // TestIntegration_ModelSelectionFlow verifies model selection and cycling
 // through the dialog stack, including footer updates and bus events.
 func TestIntegration_ModelSelectionFlow(t *testing.T) {
-	model.ResetModelRegistry()
+	sdkmodel.ResetModelRegistry()
 
-	model.RegisterBuiltinModels()
+	sdkmodel.RegisterBuiltinModels()
 
-	defer model.ResetModelRegistry()
+	defer sdkmodel.ResetModelRegistry()
 
 	b := bus.New()
 
@@ -608,11 +608,11 @@ func TestIntegration_ScreenBufferLayout(t *testing.T) {
 // TestIntegration_ThinkingLevelCycleWithModelChange verifies that thinking level
 // correctly cycles and clamps when switching between reasoning and non-reasoning models.
 func TestIntegration_ThinkingLevelCycleWithModelChange(t *testing.T) {
-	model.ResetModelRegistry()
+	sdkmodel.ResetModelRegistry()
 
-	model.RegisterBuiltinModels()
+	sdkmodel.RegisterBuiltinModels()
 
-	defer model.ResetModelRegistry()
+	defer sdkmodel.ResetModelRegistry()
 
 	m := newModel(nil, nil, nil)
 	m.width = 80
@@ -620,29 +620,29 @@ func TestIntegration_ThinkingLevelCycleWithModelChange(t *testing.T) {
 	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-6"}
 
 	// Default is medium
-	assert.Equal(t, model.ThinkingMedium, m.thinkingLevel)
+	assert.Equal(t, sdkmodel.ThinkingMedium, m.thinkingLevel)
 
 	// Cycle to high
 	model, _ := m.dispatchBinding(ActionThinkingCycle)
 	m = model.(Model)
-	assert.Equal(t, model.ThinkingHigh, m.thinkingLevel)
+	assert.Equal(t, sdkmodel.ThinkingHigh, m.thinkingLevel)
 	assert.Equal(t, "139", m.editor.BorderColor)
 
 	// Switch to non-reasoning model — forces thinking off
 	model, _ = m.Update(ModelChangedMsg{Entry: ModelEntry{Provider: "openai", Model: "gpt-4.1"}})
 	m = model.(Model)
-	assert.Equal(t, model.ThinkingOff, m.thinkingLevel)
+	assert.Equal(t, sdkmodel.ThinkingOff, m.thinkingLevel)
 	assert.Equal(t, "240", m.editor.BorderColor)
 
 	// Switch back to reasoning model — thinking stays off until user changes it
 	model, _ = m.Update(ModelChangedMsg{Entry: ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-6"}})
 	m = model.(Model)
-	assert.Equal(t, model.ThinkingOff, m.thinkingLevel)
+	assert.Equal(t, sdkmodel.ThinkingOff, m.thinkingLevel)
 
 	// Cycle: off -> minimal (next distinct level after off for Sonnet)
 	model, _ = m.dispatchBinding(ActionThinkingCycle)
 	m = model.(Model)
-	assert.Equal(t, model.ThinkingMinimal, m.thinkingLevel)
+	assert.Equal(t, sdkmodel.ThinkingMinimal, m.thinkingLevel)
 }
 
 // TestIntegration_InterruptDuringStreaming verifies interrupt behavior:

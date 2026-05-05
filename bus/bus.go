@@ -163,6 +163,7 @@ func (b *Bus) collectSubscribers(topic string) []*handlerSlot {
 	slots = append(slots, b.topicOn[topic]...)
 	slots = append(slots, b.allOn...)
 	b.mu.RUnlock()
+
 	return slots
 }
 

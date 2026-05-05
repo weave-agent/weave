@@ -39,11 +39,11 @@ func init() {
 			return nil, errors.New("anthropic: API key required (set ANTHROPIC_API_KEY, add to ~/.weave/auth.json, or configure in .weave.yaml)")
 		}
 
-		model := defaultModel
+		modelName := defaultModel
 		maxTokens := int64(defaultMaxTokens)
 
 		if v := os.Getenv("ANTHROPIC_MODEL"); v != "" {
-			model = v
+			modelName = v
 		}
 
 		if v := os.Getenv("ANTHROPIC_MAX_TOKENS"); v != "" {
@@ -54,7 +54,7 @@ func init() {
 
 		if pc := cfg.ProviderConfig("anthropic"); pc != nil {
 			if pc.Model != "" {
-				model = pc.Model
+				modelName = pc.Model
 			}
 
 			if pc.MaxTokens > 0 {
@@ -66,19 +66,19 @@ func init() {
 
 		return &provider{
 			client:    client,
-			model:     model,
+			model:     modelName,
 			maxTokens: maxTokens,
 		}, nil
 	})
 }
 
 // NewProviderWithClient creates a provider with a pre-configured client (for testing).
-func NewProviderWithClient(client anthropic.Client, model string) sdk.Provider {
-	if model == "" {
-		model = defaultModel
+func NewProviderWithClient(client anthropic.Client, modelName string) sdk.Provider {
+	if modelName == "" {
+		modelName = defaultModel
 	}
 
-	return &provider{client: client, model: model, maxTokens: defaultMaxTokens}
+	return &provider{client: client, model: modelName, maxTokens: defaultMaxTokens}
 }
 
 func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest, opts ...model.StreamOption) (<-chan sdk.ProviderEvent, error) {
@@ -86,9 +86,9 @@ func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest, opts ...
 
 	so := model.NewStreamOptions(opts...)
 
-	model := so.Model
-	if model == "" {
-		model = p.model
+	modelName := so.Model
+	if modelName == "" {
+		modelName = p.model
 	}
 
 	maxTokens := so.MaxTokens
@@ -96,7 +96,7 @@ func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest, opts ...
 		maxTokens = p.maxTokens
 	}
 
-	params := p.buildParams(req, model, maxTokens, so.ThinkingLevel)
+	params := p.buildParams(req, modelName, maxTokens, so.ThinkingLevel)
 
 	send := func(evt sdk.ProviderEvent) bool {
 		select {

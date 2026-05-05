@@ -386,6 +386,7 @@ func TestWritePromptFile(t *testing.T) {
 	path, cleanup, ok := writePromptFile("hello world")
 	require.True(t, ok)
 	require.NotEmpty(t, path)
+
 	defer cleanup()
 
 	data, err := os.ReadFile(path)

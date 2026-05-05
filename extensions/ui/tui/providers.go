@@ -5,7 +5,7 @@ import (
 
 	"weave/config"
 	"weave/sdk"
-	"weave/sdk/model"
+	sdkmodel "weave/sdk/model"
 )
 
 // ProviderEntry describes a provider with its API key status.
@@ -44,7 +44,7 @@ func listProviders() []ProviderEntry {
 		})
 	}
 
-	for _, md := range model.ListAllModels() {
+	for _, md := range sdkmodel.ListAllModels() {
 		if !seen[md.Provider] {
 			seen[md.Provider] = true
 			entries = append(entries, ProviderEntry{
