@@ -67,10 +67,10 @@ No circular dependencies.
 - [x] run `go test ./bus/...` — must pass
 
 ### Task 2: Create `sdk/registry/` with generic `Registry[T]`
-- [ ] create `sdk/registry/registry.go` with generic `Registry[T any]` type supporting: `Register(name, T)`, `Get(name) (T, bool)`, `Exists(name) bool`, `List() []string`, `Reset()`
-- [ ] support configurable duplicate behavior via options: `WithWarn(*log.Logger, string)` (first-wins + warning) and `WithPanic(string)` (panic on dup)
-- [ ] write tests for `Registry[T]`: register/get, duplicate warn, duplicate panic, list, reset, concurrent access, empty name validation
-- [ ] run `go test ./sdk/registry/...` — must pass
+- [x] create `sdk/registry/registry.go` with generic `Registry[T any]` type supporting: `Register(name, T)`, `Get(name) (T, bool)`, `Exists(name) bool`, `List() []string`, `Reset()`
+- [x] support configurable duplicate behavior via options: `WithWarn(*log.Logger, string)` (first-wins + warning) and `WithPanic(string)` (panic on dup)
+- [x] write tests for `Registry[T]`: register/get, duplicate warn, duplicate panic, list, reset, concurrent access, empty name validation
+- [x] run `go test ./sdk/registry/...` — must pass
 
 ### Task 3: Simplify sdk registry wrappers to use `sdk/registry.Registry[T]`
 - [ ] update `sdk/registry.go` (extension registry) to use `registry.New[func(Config) (Extension, error)]()` internally, keeping public API (`RegisterExtension`, `GetExtension`, `ListExtensions`, `ResetRegistry`) unchanged
