@@ -82,12 +82,12 @@ No circular dependencies.
 - [x] run `make gen` to regenerate mocks if needed
 
 ### Task 4: Create `sdk/model/` and migrate model code
-- [ ] create `sdk/model/types.go` — `ThinkingLevel` type + constants, `AllThinkingLevels`, `ModelDef` struct, `StreamOptions` struct, `StreamOption` func type, `NewStreamOptions`, `WithModel`/`WithThinkingLevel`/`WithMaxTokens`, `ClampForModel`, `DefaultThinkingLevel`, `ParseThinkingLevel`, `ProviderAnthropic`/`ProviderOpenAI` constants
-- [ ] create `sdk/model/registry.go` — model registry using `sdk/registry.Registry[ModelDef]` (with warn-on-dup behavior, matching other registries — this fixes the panic-on-duplicate review finding)
-- [ ] create `sdk/model/env.go` — provider env var registry (`RegisterProviderEnvVar`, `ProviderEnvVar`, `ResetProviderEnvVarRegistry`)
-- [ ] create `sdk/model/builtins.go` — `RegisterBuiltinModels()` with all hardcoded model entries + `init()` that calls it
-- [ ] move existing tests from `sdk/model_test.go` to `sdk/model/types_test.go` and `sdk/model/registry_test.go`, updating assertions for warn-instead-of-panic behavior change
-- [ ] run `go test ./sdk/model/...` — must pass
+- [x] create `sdk/model/types.go` — `ThinkingLevel` type + constants, `AllThinkingLevels`, `ModelDef` struct, `StreamOptions` struct, `StreamOption` func type, `NewStreamOptions`, `WithModel`/`WithThinkingLevel`/`WithMaxTokens`, `ClampForModel`, `DefaultThinkingLevel`, `ParseThinkingLevel`, `ProviderAnthropic`/`ProviderOpenAI` constants
+- [x] create `sdk/model/registry.go` — model registry using `sdk/registry.Registry[ModelDef]` (with warn-on-dup behavior, matching other registries — this fixes the panic-on-duplicate review finding)
+- [x] create `sdk/model/env.go` — provider env var registry (`RegisterProviderEnvVar`, `ProviderEnvVar`, `ResetProviderEnvVarRegistry`)
+- [x] create `sdk/model/builtins.go` — `RegisterBuiltinModels()` with all hardcoded model entries + `init()` that calls it
+- [x] move existing tests from `sdk/model_test.go` to `sdk/model/types_test.go` and `sdk/model/registry_test.go`, updating assertions for warn-instead-of-panic behavior change
+- [x] run `go test ./sdk/model/...` — must pass
 
 ### Task 5: Update all consumers of model types
 - [ ] update `extensions/loop/loop.go` — change `sdk.ModelDef` → `model.ModelDef`, `sdk.ThinkingLevel` → `model.ThinkingLevel`, `sdk.NewStreamOptions` → `model.NewStreamOptions`, etc.; add `"weave/sdk/model"` import
