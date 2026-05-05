@@ -70,11 +70,11 @@ Add an `instructions` extension that discovers and loads CLAUDE.md/AGENTS.md con
 - [x] run `go build` from within `extensions/instructions/` to verify compilation
 
 ### Task 3: Write tests for instructions extension
-- [ ] create `extension_test.go` with tests for `discoverContextFiles`: no files found, single file found, walk-up precedence (closest wins), deduplication, global fallback
-- [ ] add tests for `loadSystemPrompt`: no files, project override, global fallback, both project and global
-- [ ] add tests for `formatInstructionsPrompt`: empty input, context files only, system prompt only, all combined
-- [ ] add integration test for `Subscribe()` publishing correct event on bus
-- [ ] run `cd extensions/instructions && go test ./...` — all tests must pass
+- [x] create `extension_test.go` with tests for `discoverContextFiles`: no files found, single file found, walk-up precedence (closest wins), deduplication, global fallback
+- [x] add tests for `loadSystemPrompt`: no files, project override, global fallback, both project and global
+- [x] add tests for `formatInstructionsPrompt`: empty input, context files only, system prompt only, all combined
+- [x] add integration test for `Subscribe()` publishing correct event on bus
+- [x] run `cd extensions/instructions && go test ./...` — all tests must pass
 
 ### Task 4: Integrate instructions with loop extension
 - [ ] add `instructionsLoaded string` field to `Loop` struct in `extensions/loop/loop.go`
