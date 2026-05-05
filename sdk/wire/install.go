@@ -148,6 +148,11 @@ func rejectSelfInstall(srcAbs, destDir string) error {
 		return fmt.Errorf("destination %q is inside source %q", destClean, srcClean)
 	}
 
+	rel2, err2 := filepath.Rel(destClean, srcClean)
+	if err2 == nil && rel2 != "" && !strings.HasPrefix(rel2, "..") && rel2 != "." {
+		return fmt.Errorf("source %q is inside destination %q", srcClean, destClean)
+	}
+
 	return nil
 }
 

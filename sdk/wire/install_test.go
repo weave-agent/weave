@@ -374,7 +374,7 @@ func TestRejectSelfInstall(t *testing.T) {
 		{"identical", "/home/user/.weave/extensions/x", "/home/user/.weave/extensions/x", true},
 		{"src contains dest", "/home/user/.weave/extensions", "/home/user/.weave/extensions/x", true},
 		{"sibling", "/home/user/other", "/home/user/.weave/extensions/x", false},
-		{"dest contains src", "/home/user/.weave/extensions/x/sub", "/home/user/.weave/extensions/x", false},
+		{"dest contains src", "/home/user/.weave/extensions/x/sub", "/home/user/.weave/extensions/x", true},
 	}
 
 	for _, tt := range tests {
