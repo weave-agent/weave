@@ -24,7 +24,7 @@ type Wired struct {
 
 func Wire(extNames []string, bus sdk.Bus, cfg sdk.Config) (*Wired, error) {
 	if cfg == nil {
-		cfg = noopConfig{}
+		cfg = sdk.FilePathConfig("")
 	}
 
 	exts := make([]sdk.Extension, 0, len(extNames))
@@ -154,12 +154,3 @@ func mergeCoreAndOptional(core CoreWireConfig, optExts []string) []string {
 
 	return result
 }
-
-type noopConfig struct{}
-
-func (noopConfig) FilePath() string                               { return "" }
-func (noopConfig) ProviderConfig(string) *sdk.ProviderConfigEntry { return nil }
-func (noopConfig) ResolveKey(_, envVar string) (string, error)    { return os.Getenv(envVar), nil }
-func (noopConfig) ToolConfig(string, any) error                   { return nil }
-func (noopConfig) UIConfig(any) error                             { return nil }
-func (noopConfig) IsHeadless() bool                               { return true }
