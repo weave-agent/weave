@@ -141,7 +141,9 @@ func writePromptFile(prompt string) (path string, cleanup func(), ok bool) {
 	}
 
 	if _, err := f.WriteString(prompt); err != nil {
+		promptFile := f.Name()
 		_ = f.Close()
+		_ = os.Remove(promptFile)
 
 		fmt.Fprintf(os.Stderr, "weave: writing prompt file: %v\n", err)
 

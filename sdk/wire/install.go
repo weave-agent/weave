@@ -318,7 +318,7 @@ func copyExtension(srcDir, destDir string) error {
 			}
 
 			if stat.IsDir() {
-				return os.MkdirAll(target, 0o750)
+				return copyExtension(resolved, target)
 			}
 
 			data, readErr := os.ReadFile(resolved) //nolint:gosec // G122 — reading from known source dir
