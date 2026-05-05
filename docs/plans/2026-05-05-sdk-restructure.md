@@ -90,15 +90,15 @@ No circular dependencies.
 - [x] run `go test ./sdk/model/...` — must pass
 
 ### Task 5: Update all consumers of model types
-- [ ] update `extensions/loop/loop.go` — change `sdk.ModelDef` → `model.ModelDef`, `sdk.ThinkingLevel` → `model.ThinkingLevel`, `sdk.NewStreamOptions` → `model.NewStreamOptions`, etc.; add `"weave/sdk/model"` import
-- [ ] update `extensions/providers/anthropic/anthropic.go` — `sdk.RegisterModel` → `model.RegisterModel`, `sdk.RegisterProviderEnvVar` → `model.RegisterProviderEnvVar`, `sdk.ProviderAnthropic` → `model.ProviderAnthropic`, etc.
-- [ ] update `extensions/providers/openai/openai.go` similarly
-- [ ] update `extensions/providers/zai/zai.go` similarly
-- [ ] update `utils/openaicompat/openai_compat.go` — `sdk.ProviderEvent*`/`sdk.ToolCall`/`sdk.SignedThinking`/`sdk.RedactedThinking` stay in `sdk` (not model), but check for any model imports
-- [ ] update `extensions/ui/tui/models.go`, `bridge.go`, `model.go` — `sdk.ThinkingLevel` → `model.ThinkingLevel`, `sdk.GetModel` → `model.GetModel`, etc.
-- [ ] update `extensions/ui/tui/palette/thinking.go` — `sdk.ThinkingLevel` → `model.ThinkingLevel`
-- [ ] delete `sdk/model.go` (all code extracted to `sdk/model/`)
-- [ ] run `go test ./sdk/... ./bus/...` — must pass (extension tests run separately)
+- [x] update `extensions/loop/loop.go` — change `sdk.ModelDef` → `model.ModelDef`, `sdk.ThinkingLevel` → `model.ThinkingLevel`, `sdk.NewStreamOptions` → `model.NewStreamOptions`, etc.; add `"weave/sdk/model"` import
+- [x] update `extensions/providers/anthropic/anthropic.go` — `sdk.RegisterModel` → `model.RegisterModel`, `sdk.RegisterProviderEnvVar` → `model.RegisterProviderEnvVar`, `sdk.ProviderAnthropic` → `model.ProviderAnthropic`, etc.
+- [x] update `extensions/providers/openai/openai.go` similarly
+- [x] update `extensions/providers/zai/zai.go` similarly
+- [x] update `utils/openaicompat/openai_compat.go` — `sdk.ProviderEvent*`/`sdk.ToolCall`/`sdk.SignedThinking`/`sdk.RedactedThinking` stay in `sdk` (not model), but check for any model imports
+- [x] update `extensions/ui/tui/models.go`, `bridge.go`, `model.go` — `sdk.ThinkingLevel` → `model.ThinkingLevel`, `sdk.GetModel` → `model.GetModel`, etc.
+- [x] update `extensions/ui/tui/palette/thinking.go` — `sdk.ThinkingLevel` → `model.ThinkingLevel`
+- [x] delete `sdk/model.go` (all code extracted to `sdk/model/`)
+- [x] run `go test ./sdk/... ./bus/...` — must pass (extension tests run separately)
 
 ### Task 6: Create `sdk/wire/` with Wire logic
 - [ ] create `sdk/wire/wire.go` — move `Wire`, `WireWithCore`, `Wired`, `CoreWireConfig`, `validateCore`, `mergeCoreAndOptional` from `sdk/wire.go`

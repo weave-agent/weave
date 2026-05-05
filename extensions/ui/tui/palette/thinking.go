@@ -1,19 +1,19 @@
 package palette
 
-import "weave/sdk"
+import "weave/sdk/model"
 
 // ThinkingBorderColor returns the ANSI 256-color code for a thinking level.
-func ThinkingBorderColor(level sdk.ThinkingLevel) string {
+func ThinkingBorderColor(level model.ThinkingLevel) string {
 	switch level {
-	case sdk.ThinkingMinimal:
+	case model.ThinkingMinimal:
 		return "246"
-	case sdk.ThinkingLow:
+	case model.ThinkingLow:
 		return "67"
-	case sdk.ThinkingMedium:
+	case model.ThinkingMedium:
 		return "99"
-	case sdk.ThinkingHigh:
+	case model.ThinkingHigh:
 		return "139"
-	case sdk.ThinkingXHigh:
+	case model.ThinkingXHigh:
 		return "177"
 	default:
 		return "240"

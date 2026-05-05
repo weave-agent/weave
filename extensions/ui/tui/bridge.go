@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"weave/sdk"
+	"weave/sdk/model"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -99,7 +100,7 @@ type ModelChangeFailedMsg struct {
 
 // ThinkingLevelSetMsg is sent when the user sets the thinking level via /thinking command.
 type ThinkingLevelSetMsg struct {
-	Level sdk.ThinkingLevel
+	Level model.ThinkingLevel
 }
 
 // ProviderListResultMsg carries the result of listing providers with key status.
@@ -372,7 +373,7 @@ func PublishModelChange(bus sdk.Bus, entry ModelEntry) tea.Cmd {
 }
 
 // PublishThinkingChange returns a tea.Cmd that publishes a thinking.change event.
-func PublishThinkingChange(bus sdk.Bus, level sdk.ThinkingLevel) tea.Cmd {
+func PublishThinkingChange(bus sdk.Bus, level model.ThinkingLevel) tea.Cmd {
 	return func() tea.Msg {
 		if bus != nil {
 			bus.Publish(sdk.NewEvent(topicThinkingChange, map[string]string{

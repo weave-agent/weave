@@ -12,6 +12,7 @@ import (
 	"weave/ext/ui/tui/components/messages"
 	"weave/ext/ui/tui/components/overlays"
 	"weave/sdk"
+	"weave/sdk/model"
 
 	tea "charm.land/bubbletea/v2"
 	uv "github.com/charmbracelet/ultraviolet"
@@ -309,22 +310,22 @@ func TestModel_ModelChangedUpdatesFooter(t *testing.T) {
 }
 
 func TestModel_ModelChangedToNonReasoningForcesThinkingOff(t *testing.T) {
-	sdk.ResetModelRegistry()
-	sdk.RegisterBuiltinModels()
+	model.ResetModelRegistry()
+	model.RegisterBuiltinModels()
 
-	defer sdk.ResetModelRegistry()
+	defer model.ResetModelRegistry()
 
 	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
-	assert.Equal(t, sdk.ThinkingMedium, m.thinkingLevel)
+	assert.Equal(t, model.ThinkingMedium, m.thinkingLevel)
 
 	// Switch to non-reasoning model
 	entry := ModelEntry{Provider: "openai", Model: "gpt-4.1"}
 	model, _ := m.Update(ModelChangedMsg{Entry: entry})
 	m = model.(Model)
 
-	assert.Equal(t, sdk.ThinkingOff, m.thinkingLevel)
+	assert.Equal(t, model.ThinkingOff, m.thinkingLevel)
 	assert.Equal(t, "off", m.footer.ThinkingLevel())
 	assert.Equal(t, "240", m.editor.BorderColor) // off color
 }
@@ -425,10 +426,10 @@ func TestModel_ModelSelectedInvalidIndex(t *testing.T) {
 }
 
 func TestListModelsWithRegistry(t *testing.T) {
-	sdk.ResetModelRegistry()
+	model.ResetModelRegistry()
 	sdk.ResetProviderRegistry()
-	sdk.ResetProviderEnvVarRegistry()
-	sdk.RegisterBuiltinModels()
+	model.ResetProviderEnvVarRegistry()
+	model.RegisterBuiltinModels()
 
 	// Register providers so their models are included.
 	sdk.RegisterProvider("anthropic", func(_ sdk.Config) (sdk.Provider, error) { return nil, nil }) //nolint:nilnil // stub registration for model list tests
@@ -436,17 +437,17 @@ func TestListModelsWithRegistry(t *testing.T) {
 	sdk.RegisterProvider("zai", func(_ sdk.Config) (sdk.Provider, error) { return nil, nil })       //nolint:nilnil // stub registration for model list tests
 
 	// Register env vars and set test API keys so providers appear configured.
-	sdk.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
-	sdk.RegisterProviderEnvVar("openai", "OPENAI_API_KEY")
-	sdk.RegisterProviderEnvVar("zai", "ZAI_API_KEY")
+	model.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
+	model.RegisterProviderEnvVar("openai", "OPENAI_API_KEY")
+	model.RegisterProviderEnvVar("zai", "ZAI_API_KEY")
 
 	t.Setenv("ANTHROPIC_API_KEY", "test-key")
 	t.Setenv("OPENAI_API_KEY", "test-key")
 	t.Setenv("ZAI_API_KEY", "test-key")
 
-	defer sdk.ResetModelRegistry()
+	defer model.ResetModelRegistry()
 	defer sdk.ResetProviderRegistry()
-	defer sdk.ResetProviderEnvVarRegistry()
+	defer model.ResetProviderEnvVarRegistry()
 
 	entries := listModels()
 	assert.NotEmpty(t, entries, "should return models from registry")
@@ -463,31 +464,31 @@ func TestListModelsWithRegistry(t *testing.T) {
 }
 
 func TestListModelsEmpty(t *testing.T) {
-	sdk.ResetModelRegistry()
+	model.ResetModelRegistry()
 	sdk.ResetProviderRegistry()
-	sdk.ResetProviderEnvVarRegistry()
+	model.ResetProviderEnvVarRegistry()
 
-	defer sdk.ResetModelRegistry()
+	defer model.ResetModelRegistry()
 	defer sdk.ResetProviderRegistry()
-	defer sdk.ResetProviderEnvVarRegistry()
+	defer model.ResetProviderEnvVarRegistry()
 
 	entries := listModels()
 	assert.Nil(t, entries)
 }
 
 func TestListModelsIgnoresEnvOverrides(t *testing.T) {
-	sdk.ResetModelRegistry()
+	model.ResetModelRegistry()
 	sdk.ResetProviderRegistry()
-	sdk.ResetProviderEnvVarRegistry()
-	sdk.RegisterBuiltinModels()
+	model.ResetProviderEnvVarRegistry()
+	model.RegisterBuiltinModels()
 	sdk.RegisterProvider("anthropic", func(_ sdk.Config) (sdk.Provider, error) { return nil, nil }) //nolint:nilnil // stub registration for model list tests
-	sdk.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
+	model.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
 
 	t.Setenv("ANTHROPIC_API_KEY", "test-key")
 
-	defer sdk.ResetModelRegistry()
+	defer model.ResetModelRegistry()
 	defer sdk.ResetProviderRegistry()
-	defer sdk.ResetProviderEnvVarRegistry()
+	defer model.ResetProviderEnvVarRegistry()
 
 	t.Setenv("ANTHROPIC_MODEL", "my-custom-model")
 
@@ -510,10 +511,10 @@ func TestListModelsIgnoresEnvOverrides(t *testing.T) {
 }
 
 func TestModelEntryDisplayName(t *testing.T) {
-	sdk.ResetModelRegistry()
-	sdk.RegisterBuiltinModels()
+	model.ResetModelRegistry()
+	model.RegisterBuiltinModels()
 
-	defer sdk.ResetModelRegistry()
+	defer model.ResetModelRegistry()
 
 	e := ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-6"}
 	assert.Equal(t, "Claude Sonnet 4.6", e.DisplayName())
@@ -523,10 +524,10 @@ func TestModelEntryDisplayName(t *testing.T) {
 }
 
 func TestModelSelectorEntryBadges(t *testing.T) {
-	sdk.ResetModelRegistry()
-	sdk.RegisterBuiltinModels()
+	model.ResetModelRegistry()
+	model.RegisterBuiltinModels()
 
-	defer sdk.ResetModelRegistry()
+	defer model.ResetModelRegistry()
 
 	m := newModel(nil, nil, nil)
 	m.width = 80
@@ -550,10 +551,10 @@ func TestModelSelectorEntryBadges(t *testing.T) {
 }
 
 func TestModelSelectorCurrentModelMarker(t *testing.T) {
-	sdk.ResetModelRegistry()
-	sdk.RegisterBuiltinModels()
+	model.ResetModelRegistry()
+	model.RegisterBuiltinModels()
 
-	defer sdk.ResetModelRegistry()
+	defer model.ResetModelRegistry()
 
 	m := newModel(nil, nil, nil)
 	m.width = 80
@@ -578,21 +579,21 @@ func TestModelSelectorCurrentModelMarker(t *testing.T) {
 }
 
 func TestStatusMessageOnModelCycle(t *testing.T) {
-	sdk.ResetModelRegistry()
+	model.ResetModelRegistry()
 	sdk.ResetProviderRegistry()
-	sdk.ResetProviderEnvVarRegistry()
-	sdk.RegisterBuiltinModels()
+	model.ResetProviderEnvVarRegistry()
+	model.RegisterBuiltinModels()
 	sdk.RegisterProvider("anthropic", func(_ sdk.Config) (sdk.Provider, error) { return nil, nil }) //nolint:nilnil // stub registration for model list tests
 	sdk.RegisterProvider("openai", func(_ sdk.Config) (sdk.Provider, error) { return nil, nil })    //nolint:nilnil // stub registration for model list tests
-	sdk.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
-	sdk.RegisterProviderEnvVar("openai", "OPENAI_API_KEY")
+	model.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
+	model.RegisterProviderEnvVar("openai", "OPENAI_API_KEY")
 
 	t.Setenv("ANTHROPIC_API_KEY", "test-key")
 	t.Setenv("OPENAI_API_KEY", "test-key")
 
-	defer sdk.ResetModelRegistry()
+	defer model.ResetModelRegistry()
 	defer sdk.ResetProviderRegistry()
-	defer sdk.ResetProviderEnvVarRegistry()
+	defer model.ResetProviderEnvVarRegistry()
 
 	m := newModel(nil, nil, nil)
 	m.width = 80
@@ -617,10 +618,10 @@ func TestStatusMessageOnModelCycle(t *testing.T) {
 }
 
 func TestStatusMessageOnModelChanged(t *testing.T) {
-	sdk.ResetModelRegistry()
-	sdk.RegisterBuiltinModels()
+	model.ResetModelRegistry()
+	model.RegisterBuiltinModels()
 
-	defer sdk.ResetModelRegistry()
+	defer model.ResetModelRegistry()
 
 	m := newModel(nil, nil, nil)
 	m.width = 80
@@ -718,7 +719,7 @@ func TestInitialThinkingLevel_LayeredSettings(t *testing.T) {
 	config.SetSettingsPath(filepath.Join(globalDir, "settings.json"))
 
 	level := initialThinkingLevel(projectDir)
-	assert.Equal(t, sdk.ThinkingHigh, level)
+	assert.Equal(t, model.ThinkingHigh, level)
 }
 
 func TestSaveSettings_PreservesUIFields(t *testing.T) {
@@ -739,7 +740,7 @@ func TestSaveSettings_PreservesUIFields(t *testing.T) {
 	require.NoError(t, config.SaveSettingsGlobal(initial))
 
 	// Save model change
-	saveSettings(ModelEntry{Provider: "openai", Model: "gpt-5.5"}, sdk.ThinkingHigh)
+	saveSettings(ModelEntry{Provider: "openai", Model: "gpt-5.5"}, model.ThinkingHigh)
 
 	// Verify UI fields preserved
 	loaded, err := config.LoadSettings()

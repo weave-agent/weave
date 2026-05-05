@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"weave/sdk"
+	"weave/sdk/model"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -670,7 +671,7 @@ func TestStream_WithModelOverride(t *testing.T) {
 		Model:   "gpt-5.5",
 	}, sdk.ProviderRequest{
 		Messages: []sdk.Message{sdk.NewUserMessage("hi")},
-	}, sdk.WithModel("gpt-4.1"))
+	}, model.WithModel("gpt-4.1"))
 	require.NoError(t, err)
 	collectEvents(ch)
 
@@ -679,16 +680,16 @@ func TestStream_WithModelOverride(t *testing.T) {
 
 func TestStream_WithThinkingLevel_SetsReasoningEffort(t *testing.T) {
 	tests := []struct {
-		level   sdk.ThinkingLevel
+		level   model.ThinkingLevel
 		want    string
 		wantNot string
 	}{
-		{sdk.ThinkingOff, "", "reasoning_effort"},
-		{sdk.ThinkingMinimal, "low", ""},
-		{sdk.ThinkingLow, "low", ""},
-		{sdk.ThinkingMedium, "medium", ""},
-		{sdk.ThinkingHigh, "high", ""},
-		{sdk.ThinkingXHigh, "high", ""},
+		{model.ThinkingOff, "", "reasoning_effort"},
+		{model.ThinkingMinimal, "low", ""},
+		{model.ThinkingLow, "low", ""},
+		{model.ThinkingMedium, "medium", ""},
+		{model.ThinkingHigh, "high", ""},
+		{model.ThinkingXHigh, "high", ""},
 	}
 
 	for _, tt := range tests {
@@ -708,9 +709,9 @@ func TestStream_WithThinkingLevel_SetsReasoningEffort(t *testing.T) {
 			defer server.Close()
 
 			// Use a reasoning model so reasoning_effort is actually set.
-			sdk.ResetModelRegistry()
-			sdk.RegisterModel(sdk.ModelDef{ID: "test-reasoning", Reasoning: true})
-			t.Cleanup(func() { sdk.RegisterBuiltinModels() })
+			model.ResetModelRegistry()
+			model.RegisterModel(model.ModelDef{ID: "test-reasoning", Reasoning: true})
+			t.Cleanup(func() { model.RegisterBuiltinModels() })
 
 			ch, err := Stream(context.Background(), server.Client(), ProviderConfig{
 				BaseURL: server.URL,
@@ -718,7 +719,7 @@ func TestStream_WithThinkingLevel_SetsReasoningEffort(t *testing.T) {
 				Model:   "test-reasoning",
 			}, sdk.ProviderRequest{
 				Messages: []sdk.Message{sdk.NewUserMessage("hi")},
-			}, sdk.WithThinkingLevel(tt.level))
+			}, model.WithThinkingLevel(tt.level))
 			require.NoError(t, err)
 			collectEvents(ch)
 
@@ -761,7 +762,7 @@ func TestStream_ReasoningContentEmitted(t *testing.T) {
 		APIKey:  "test-key",
 	}, sdk.ProviderRequest{
 		Messages: []sdk.Message{sdk.NewUserMessage("think")},
-	}, sdk.WithThinkingLevel(sdk.ThinkingMedium))
+	}, model.WithThinkingLevel(model.ThinkingMedium))
 	require.NoError(t, err)
 
 	events := collectEvents(ch)

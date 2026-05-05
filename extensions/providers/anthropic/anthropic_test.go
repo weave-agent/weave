@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"weave/sdk"
+	"weave/sdk/model"
 )
 
 type sseEvent struct {
@@ -457,10 +458,10 @@ func TestRegister(t *testing.T) {
 }
 
 func TestStream_WithThinkingLevel(t *testing.T) {
-	sdk.ResetModelRegistry()
-	defer sdk.ResetModelRegistry()
+	model.ResetModelRegistry()
+	defer model.ResetModelRegistry()
 
-	sdk.RegisterBuiltinModels()
+	model.RegisterBuiltinModels()
 
 	var receivedBody string
 
@@ -476,7 +477,7 @@ func TestStream_WithThinkingLevel(t *testing.T) {
 	p := newTestProvider(server)
 	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
 		Messages: []sdk.Message{sdk.NewUserMessage("think")},
-	}, sdk.WithThinkingLevel(sdk.ThinkingHigh))
+	}, model.WithThinkingLevel(model.ThinkingHigh))
 	require.NoError(t, err)
 	collectEvents(t, ch)
 
@@ -502,7 +503,7 @@ func TestStream_ThinkingOff_NoThinkingParam(t *testing.T) {
 	p := newTestProvider(server)
 	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
 		Messages: []sdk.Message{sdk.NewUserMessage("hello")},
-	}, sdk.WithThinkingLevel(sdk.ThinkingOff))
+	}, model.WithThinkingLevel(model.ThinkingOff))
 	require.NoError(t, err)
 	collectEvents(t, ch)
 
@@ -524,7 +525,7 @@ func TestStream_WithModelOverride(t *testing.T) {
 	p := newTestProvider(server)
 	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
 		Messages: []sdk.Message{sdk.NewUserMessage("hello")},
-	}, sdk.WithModel("claude-opus-4-7"))
+	}, model.WithModel("claude-opus-4-7"))
 	require.NoError(t, err)
 	collectEvents(t, ch)
 
@@ -552,7 +553,7 @@ func TestStream_ThinkingContentEmitted(t *testing.T) {
 	p := newTestProvider(server)
 	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
 		Messages: []sdk.Message{sdk.NewUserMessage("think")},
-	}, sdk.WithThinkingLevel(sdk.ThinkingMedium))
+	}, model.WithThinkingLevel(model.ThinkingMedium))
 	require.NoError(t, err)
 
 	evts := collectEvents(t, ch)

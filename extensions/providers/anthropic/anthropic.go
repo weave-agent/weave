@@ -12,6 +12,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 
 	"weave/sdk"
+	"weave/sdk/model"
 )
 
 const (
@@ -26,7 +27,7 @@ type provider struct {
 }
 
 func init() {
-	sdk.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
+	model.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
 
 	sdk.RegisterProvider("anthropic", func(cfg sdk.Config) (sdk.Provider, error) {
 		apiKey, err := cfg.ResolveKey("anthropic", "ANTHROPIC_API_KEY")
@@ -80,10 +81,10 @@ func NewProviderWithClient(client anthropic.Client, model string) sdk.Provider {
 	return &provider{client: client, model: model, maxTokens: defaultMaxTokens}
 }
 
-func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest, opts ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest, opts ...model.StreamOption) (<-chan sdk.ProviderEvent, error) {
 	ch := make(chan sdk.ProviderEvent, 64)
 
-	so := sdk.NewStreamOptions(opts...)
+	so := model.NewStreamOptions(opts...)
 
 	model := so.Model
 	if model == "" {
@@ -156,9 +157,9 @@ func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest, opts ...
 	return ch, nil
 }
 
-func (p *provider) buildParams(req sdk.ProviderRequest, model string, maxTokens int64, thinkingLevel sdk.ThinkingLevel) anthropic.MessageNewParams {
+func (p *provider) buildParams(req sdk.ProviderRequest, mdl string, maxTokens int64, thinkingLevel model.ThinkingLevel) anthropic.MessageNewParams {
 	params := anthropic.MessageNewParams{
-		Model:     model,
+		Model:     mdl,
 		MaxTokens: maxTokens,
 		Messages:  convertMessages(req.Messages),
 	}
@@ -173,19 +174,19 @@ func (p *provider) buildParams(req sdk.ProviderRequest, model string, maxTokens 
 		params.Tools = convertTools(req.Tools)
 	}
 
-	thinkingLevel = resolveThinkingLevel(model, thinkingLevel)
+	thinkingLevel = resolveThinkingLevel(mdl, thinkingLevel)
 
-	if thinkingLevel != sdk.ThinkingOff {
+	if thinkingLevel != model.ThinkingOff {
 		params.Thinking = anthropic.ThinkingConfigParamUnion{
 			OfAdaptive: &anthropic.ThinkingConfigAdaptiveParam{},
 		}
 
-		effortMap := map[sdk.ThinkingLevel]anthropic.OutputConfigEffort{
-			sdk.ThinkingMinimal: anthropic.OutputConfigEffortLow,
-			sdk.ThinkingLow:     anthropic.OutputConfigEffortLow,
-			sdk.ThinkingMedium:  anthropic.OutputConfigEffortMedium,
-			sdk.ThinkingHigh:    anthropic.OutputConfigEffortHigh,
-			sdk.ThinkingXHigh:   anthropic.OutputConfigEffortXhigh,
+		effortMap := map[model.ThinkingLevel]anthropic.OutputConfigEffort{
+			model.ThinkingMinimal: anthropic.OutputConfigEffortLow,
+			model.ThinkingLow:     anthropic.OutputConfigEffortLow,
+			model.ThinkingMedium:  anthropic.OutputConfigEffortMedium,
+			model.ThinkingHigh:    anthropic.OutputConfigEffortHigh,
+			model.ThinkingXHigh:   anthropic.OutputConfigEffortXhigh,
 		}
 
 		if effort, ok := effortMap[thinkingLevel]; ok {
@@ -196,22 +197,22 @@ func (p *provider) buildParams(req sdk.ProviderRequest, model string, maxTokens 
 	return params
 }
 
-func resolveThinkingLevel(model string, level sdk.ThinkingLevel) sdk.ThinkingLevel {
-	if level == sdk.ThinkingOff {
-		return sdk.ThinkingOff
+func resolveThinkingLevel(mdl string, level model.ThinkingLevel) model.ThinkingLevel {
+	if level == model.ThinkingOff {
+		return model.ThinkingOff
 	}
 
-	m, ok := sdk.GetModel(model)
+	m, ok := model.GetModel(mdl)
 	if !ok {
 		return level
 	}
 
 	if !m.Reasoning {
-		return sdk.ThinkingOff
+		return model.ThinkingOff
 	}
 
-	if level == sdk.ThinkingXHigh && !m.SupportsXHigh {
-		return sdk.ThinkingHigh
+	if level == model.ThinkingXHigh && !m.SupportsXHigh {
+		return model.ThinkingHigh
 	}
 
 	return level

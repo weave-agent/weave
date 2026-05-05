@@ -9,6 +9,7 @@ import (
 
 	"weave/bus"
 	"weave/sdk"
+	"weave/sdk/model"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +30,7 @@ func newMockProvider(responses []providerResponse) *ProviderMock {
 	callCount := 0
 
 	return &ProviderMock{
-		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, _ ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, _ ...model.StreamOption) (<-chan sdk.ProviderEvent, error) {
 			mu.Lock()
 			idx := callCount
 			callCount++
@@ -335,7 +336,7 @@ func TestLoop_SteeringDuringTurn(t *testing.T) {
 	mp := newMockProvider(responses)
 
 	originalStreamFunc := mp.StreamFunc
-	mp.StreamFunc = func(ctx context.Context, req sdk.ProviderRequest, _ ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+	mp.StreamFunc = func(ctx context.Context, req sdk.ProviderRequest, _ ...model.StreamOption) (<-chan sdk.ProviderEvent, error) {
 		callIdx := len(mp.StreamCalls()) - 1
 		if callIdx == 0 {
 			close(streamingStarted)
@@ -498,7 +499,7 @@ func TestLoop_ContextCancellation(t *testing.T) {
 	blockCh := make(chan sdk.ProviderEvent)
 
 	registerMockProvider("anthropic", &ProviderMock{
-		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, _ ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, _ ...model.StreamOption) (<-chan sdk.ProviderEvent, error) {
 			ch := make(chan sdk.ProviderEvent)
 
 			go func() {
@@ -727,7 +728,7 @@ func TestLoop_InterruptHaltsTurn(t *testing.T) {
 
 	mp := newMockProvider(responses)
 	originalStreamFunc := mp.StreamFunc
-	mp.StreamFunc = func(ctx context.Context, req sdk.ProviderRequest, _ ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+	mp.StreamFunc = func(ctx context.Context, req sdk.ProviderRequest, _ ...model.StreamOption) (<-chan sdk.ProviderEvent, error) {
 		callIdx := len(mp.StreamCalls()) - 1
 		if callIdx == 0 {
 			close(started)
@@ -836,10 +837,10 @@ func TestLoop_ThinkingLevelChange(t *testing.T) {
 
 	var mu sync.Mutex
 
-	var capturedOpts []sdk.StreamOption
+	var capturedOpts []model.StreamOption
 
 	mp := &ProviderMock{
-		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, opts ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, opts ...model.StreamOption) (<-chan sdk.ProviderEvent, error) {
 			mu.Lock()
 			capturedOpts = opts
 			mu.Unlock()
@@ -868,9 +869,9 @@ func TestLoop_ThinkingLevelChange(t *testing.T) {
 	// Default thinking level should be medium
 	mu.Lock()
 	require.Len(t, capturedOpts, 1)
-	so := sdk.NewStreamOptions(capturedOpts...)
+	so := model.NewStreamOptions(capturedOpts...)
 	mu.Unlock()
-	assert.Equal(t, sdk.ThinkingMedium, so.ThinkingLevel)
+	assert.Equal(t, model.ThinkingMedium, so.ThinkingLevel)
 
 	// Change thinking level to high
 	b.Publish(sdk.NewEvent(TopicThinkingChange, map[string]string{"level": "high"}))
@@ -883,9 +884,9 @@ func TestLoop_ThinkingLevelChange(t *testing.T) {
 
 	mu.Lock()
 	require.Len(t, capturedOpts, 1)
-	so = sdk.NewStreamOptions(capturedOpts...)
+	so = model.NewStreamOptions(capturedOpts...)
 	mu.Unlock()
-	assert.Equal(t, sdk.ThinkingHigh, so.ThinkingLevel)
+	assert.Equal(t, model.ThinkingHigh, so.ThinkingLevel)
 
 	require.NoError(t, l.Close())
 }
@@ -894,12 +895,12 @@ func TestLoop_ModelChangeWithModelKey(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	var capturedOpts []sdk.StreamOption
+	var capturedOpts []model.StreamOption
 
 	var mu sync.Mutex
 
 	mp := &ProviderMock{
-		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, opts ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, opts ...model.StreamOption) (<-chan sdk.ProviderEvent, error) {
 			mu.Lock()
 			capturedOpts = opts
 			mu.Unlock()
@@ -928,7 +929,7 @@ func TestLoop_ModelChangeWithModelKey(t *testing.T) {
 	// Initially no model option — only thinking level
 	mu.Lock()
 	require.Len(t, capturedOpts, 1)
-	so := sdk.NewStreamOptions(capturedOpts...)
+	so := model.NewStreamOptions(capturedOpts...)
 	mu.Unlock()
 	assert.Empty(t, so.Model)
 
@@ -947,7 +948,7 @@ func TestLoop_ModelChangeWithModelKey(t *testing.T) {
 
 	mu.Lock()
 	require.Len(t, capturedOpts, 2)
-	so = sdk.NewStreamOptions(capturedOpts...)
+	so = model.NewStreamOptions(capturedOpts...)
 	mu.Unlock()
 	assert.Equal(t, "claude-opus-4-7", so.Model, "model should be passed via StreamOptions")
 
@@ -1008,7 +1009,7 @@ func TestLoop_ModelChangeDifferentProvider(t *testing.T) {
 	// Verify openai was called and model was passed
 	require.Len(t, openaiMock.StreamCalls(), 1)
 	openaiOpts := openaiMock.StreamCalls()[0].Opts
-	so := sdk.NewStreamOptions(openaiOpts...)
+	so := model.NewStreamOptions(openaiOpts...)
 	assert.Equal(t, "gpt-5.5", so.Model)
 }
 
@@ -1018,10 +1019,10 @@ func TestLoop_InvalidThinkingLevelIgnored(t *testing.T) {
 
 	var mu sync.Mutex
 
-	var capturedOpts []sdk.StreamOption
+	var capturedOpts []model.StreamOption
 
 	mp := &ProviderMock{
-		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, opts ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, opts ...model.StreamOption) (<-chan sdk.ProviderEvent, error) {
 			mu.Lock()
 			capturedOpts = opts
 			mu.Unlock()
@@ -1056,9 +1057,9 @@ func TestLoop_InvalidThinkingLevelIgnored(t *testing.T) {
 	require.True(t, ok, "timeout waiting for second msg_end")
 
 	mu.Lock()
-	so := sdk.NewStreamOptions(capturedOpts...)
+	so := model.NewStreamOptions(capturedOpts...)
 	mu.Unlock()
-	assert.Equal(t, sdk.ThinkingMedium, so.ThinkingLevel)
+	assert.Equal(t, model.ThinkingMedium, so.ThinkingLevel)
 
 	require.NoError(t, l.Close())
 }
@@ -1072,7 +1073,7 @@ func TestLoop_SystemPromptEmpty(t *testing.T) {
 	var mu sync.Mutex
 
 	mp := &ProviderMock{
-		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, _ ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, _ ...model.StreamOption) (<-chan sdk.ProviderEvent, error) {
 			mu.Lock()
 			capturedReq = req
 			mu.Unlock()
@@ -1114,7 +1115,7 @@ func TestLoop_SystemPromptWithSkills(t *testing.T) {
 	var mu sync.Mutex
 
 	mp := &ProviderMock{
-		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, _ ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, _ ...model.StreamOption) (<-chan sdk.ProviderEvent, error) {
 			mu.Lock()
 			capturedReq = req
 			mu.Unlock()
@@ -1165,7 +1166,7 @@ func TestLoop_SkillsUpdateViaBus(t *testing.T) {
 		{textDeltas: []string{"second"}},
 	})
 	originalStreamFunc := mp.StreamFunc
-	mp.StreamFunc = func(ctx context.Context, req sdk.ProviderRequest, opts ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+	mp.StreamFunc = func(ctx context.Context, req sdk.ProviderRequest, opts ...model.StreamOption) (<-chan sdk.ProviderEvent, error) {
 		mu.Lock()
 
 		capturedReqs = append(capturedReqs, req)
@@ -1224,7 +1225,7 @@ func TestLoop_InstructionsOnlySystemPrompt(t *testing.T) {
 	)
 
 	mp := &ProviderMock{
-		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, _ ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, _ ...model.StreamOption) (<-chan sdk.ProviderEvent, error) {
 			mu.Lock()
 			capturedReq = req
 			mu.Unlock()
@@ -1271,7 +1272,7 @@ func TestLoop_InstructionsCombinedWithSkills(t *testing.T) {
 	)
 
 	mp := &ProviderMock{
-		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, _ ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, _ ...model.StreamOption) (<-chan sdk.ProviderEvent, error) {
 			mu.Lock()
 			capturedReq = req
 			mu.Unlock()
@@ -1327,7 +1328,7 @@ func TestLoop_InstructionsUpdateViaBus(t *testing.T) {
 		{textDeltas: []string{"second"}},
 	})
 	originalStreamFunc := mp.StreamFunc
-	mp.StreamFunc = func(ctx context.Context, req sdk.ProviderRequest, opts ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+	mp.StreamFunc = func(ctx context.Context, req sdk.ProviderRequest, opts ...model.StreamOption) (<-chan sdk.ProviderEvent, error) {
 		mu.Lock()
 
 		capturedReqs = append(capturedReqs, req)

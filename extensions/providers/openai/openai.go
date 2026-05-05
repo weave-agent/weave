@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"weave/sdk"
+	"weave/sdk/model"
 	"weave/utils/openaicompat"
 )
 
@@ -22,7 +23,7 @@ type provider struct {
 }
 
 func init() {
-	sdk.RegisterProviderEnvVar("openai", "OPENAI_API_KEY")
+	model.RegisterProviderEnvVar("openai", "OPENAI_API_KEY")
 
 	sdk.RegisterProvider("openai", func(cfg sdk.Config) (sdk.Provider, error) {
 		apiKey, err := cfg.ResolveKey("openai", "OPENAI_API_KEY")
@@ -62,7 +63,7 @@ func init() {
 	})
 }
 
-func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest, opts ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest, opts ...model.StreamOption) (<-chan sdk.ProviderEvent, error) {
 	ch, err := openaicompat.Stream(ctx, p.client, p.config, req, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("openai: %w", err)

@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"weave/sdk"
+	"weave/sdk/model"
 )
 
 // Bus topics
@@ -38,7 +39,7 @@ type Loop struct {
 	modelName    string
 	singleTurn   bool
 
-	thinkingLevel      sdk.ThinkingLevel
+	thinkingLevel      model.ThinkingLevel
 	availableSkills    string
 	instructionsLoaded string
 
@@ -63,7 +64,7 @@ func NewLoop(cfg sdk.Config, providerName string) (*Loop, error) {
 		cfg:           cfg,
 		providerName:  providerName,
 		singleTurn:    os.Getenv("WEAVE_SINGLE_TURN") == "1",
-		thinkingLevel: sdk.DefaultThinkingLevel(),
+		thinkingLevel: model.DefaultThinkingLevel(),
 	}, nil
 }
 
@@ -186,7 +187,7 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 			continue
 		case evt := <-thinkingCh:
 			if m, ok := evt.Payload.(map[string]string); ok {
-				if lvl, err := sdk.ParseThinkingLevel(m["level"]); err == nil {
+				if lvl, err := model.ParseThinkingLevel(m["level"]); err == nil {
 					l.thinkingLevel = lvl
 				}
 			}
@@ -425,7 +426,7 @@ func (l *Loop) applyThinkingChange(evt sdk.Event) {
 	}
 
 	if level, ok := m["level"]; ok {
-		if parsed, err := sdk.ParseThinkingLevel(level); err == nil {
+		if parsed, err := model.ParseThinkingLevel(level); err == nil {
 			l.thinkingLevel = parsed
 		}
 	}
@@ -500,25 +501,25 @@ func (l *Loop) drainChanges(modelChangeCh, thinkingCh <-chan sdk.Event, bus sdk.
 	}
 }
 
-func (l *Loop) streamOpts() []sdk.StreamOption {
+func (l *Loop) streamOpts() []model.StreamOption {
 	level := l.thinkingLevel
 
-	if level != sdk.ThinkingOff && l.modelName != "" {
-		if modelDef, ok := sdk.GetModel(l.modelName); ok {
+	if level != model.ThinkingOff && l.modelName != "" {
+		if modelDef, ok := model.GetModel(l.modelName); ok {
 			if !modelDef.Reasoning {
-				level = sdk.ThinkingOff
+				level = model.ThinkingOff
 			} else {
-				level = sdk.ClampForModel(level, modelDef)
+				level = model.ClampForModel(level, modelDef)
 			}
 		}
 	}
 
-	opts := []sdk.StreamOption{
-		sdk.WithThinkingLevel(level),
+	opts := []model.StreamOption{
+		model.WithThinkingLevel(level),
 	}
 
 	if l.modelName != "" {
-		opts = append(opts, sdk.WithModel(l.modelName))
+		opts = append(opts, model.WithModel(l.modelName))
 	}
 
 	return opts
@@ -542,7 +543,7 @@ func drainSteering(steerCh <-chan sdk.Event, messages []sdk.Message) ([]sdk.Mess
 	}
 }
 
-func streamTurn(ctx context.Context, bus sdk.Bus, provider sdk.Provider, messages []sdk.Message, tools []sdk.ToolDef, systemPrompt string, opts ...sdk.StreamOption) (sdk.Message, []sdk.ToolCall, error) {
+func streamTurn(ctx context.Context, bus sdk.Bus, provider sdk.Provider, messages []sdk.Message, tools []sdk.ToolDef, systemPrompt string, opts ...model.StreamOption) (sdk.Message, []sdk.ToolCall, error) {
 	req := sdk.ProviderRequest{
 		SystemPrompt: systemPrompt,
 		Messages:     messages,
@@ -645,7 +646,7 @@ func collectToolDefs(cfg sdk.Config) []sdk.ToolDef {
 // an API key available (env var, auth file, or config file).
 func anyProviderHasKey(cfg sdk.Config) bool {
 	for _, name := range sdk.ListProviders() {
-		envVar := sdk.ProviderEnvVar(name)
+		envVar := model.ProviderEnvVar(name)
 		if key, err := cfg.ResolveKey(name, envVar); err == nil && key != "" {
 			return true
 		}

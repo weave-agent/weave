@@ -21,6 +21,7 @@ const noopCode = `package noop
 import (
 	"context"
 	"weave/sdk"
+	"weave/sdk/model"
 )
 
 func init() {
@@ -36,7 +37,7 @@ func init() {
 
 type noopProvider struct{}
 
-func (p *noopProvider) Stream(_ context.Context, _ sdk.ProviderRequest, _ ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+func (p *noopProvider) Stream(_ context.Context, _ sdk.ProviderRequest, _ ...model.StreamOption) (<-chan sdk.ProviderEvent, error) {
 	ch := make(chan sdk.ProviderEvent)
 	close(ch)
 	return ch, nil
@@ -50,6 +51,7 @@ import (
 	"context"
 	"os"
 	"weave/sdk"
+	"weave/sdk/model"
 )
 
 func init() {
@@ -68,7 +70,7 @@ func init() {
 
 type noopProvider struct{}
 
-func (p *noopProvider) Stream(_ context.Context, _ sdk.ProviderRequest, _ ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+func (p *noopProvider) Stream(_ context.Context, _ sdk.ProviderRequest, _ ...model.StreamOption) (<-chan sdk.ProviderEvent, error) {
 	ch := make(chan sdk.ProviderEvent)
 	close(ch)
 	return ch, nil

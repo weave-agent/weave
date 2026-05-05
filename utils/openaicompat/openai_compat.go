@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"weave/sdk"
+	"weave/sdk/model"
 )
 
 const defaultModel = "gpt-5.5"
@@ -59,7 +60,7 @@ type ProviderConfig struct {
 	Model         string
 	ExtraHeaders  map[string]string
 	ExtraBody     map[string]any
-	ModifyRequest func(body map[string]any, so *sdk.StreamOptions)
+	ModifyRequest func(body map[string]any, so *model.StreamOptions)
 }
 
 // ChatRequest is the request body sent to the chat completions endpoint.
@@ -146,20 +147,20 @@ type ErrorResponse struct {
 }
 
 // Stream sends a request to an OpenAI-compatible API and returns a channel of ProviderEvents.
-func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sdk.ProviderRequest, opts ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
-	so := sdk.NewStreamOptions(opts...)
+func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sdk.ProviderRequest, opts ...model.StreamOption) (<-chan sdk.ProviderEvent, error) {
+	so := model.NewStreamOptions(opts...)
 
-	model := so.Model
-	if model == "" {
-		model = cfg.Model
+	mdl := so.Model
+	if mdl == "" {
+		mdl = cfg.Model
 	}
 
-	if model == "" {
-		model = defaultModel
+	if mdl == "" {
+		mdl = defaultModel
 	}
 
 	chatReq := ChatRequest{
-		Model:    model,
+		Model:    mdl,
 		Messages: ConvertMessages(req.Messages),
 		Stream:   true,
 		Tools:    ConvertTools(req.Tools),
@@ -169,16 +170,16 @@ func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sd
 		chatReq.MaxTokens = so.MaxTokens
 	}
 
-	effortMap := map[sdk.ThinkingLevel]string{
-		sdk.ThinkingMinimal: "low",
-		sdk.ThinkingLow:     "low",
-		sdk.ThinkingMedium:  "medium",
-		sdk.ThinkingHigh:    "high",
-		sdk.ThinkingXHigh:   "high",
+	effortMap := map[model.ThinkingLevel]string{
+		model.ThinkingMinimal: "low",
+		model.ThinkingLow:     "low",
+		model.ThinkingMedium:  "medium",
+		model.ThinkingHigh:    "high",
+		model.ThinkingXHigh:   "high",
 	}
 
-	if so.ThinkingLevel != sdk.ThinkingOff {
-		if m, ok := sdk.GetModel(model); !ok || m.Reasoning {
+	if so.ThinkingLevel != model.ThinkingOff {
+		if m, ok := model.GetModel(mdl); !ok || m.Reasoning {
 			if effort, ok := effortMap[so.ThinkingLevel]; ok {
 				chatReq.ReasoningEffort = effort
 			}

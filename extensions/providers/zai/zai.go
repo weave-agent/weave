@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"weave/sdk"
+	"weave/sdk/model"
 	openaicompat "weave/utils/openaicompat"
 )
 
@@ -22,7 +23,7 @@ type provider struct {
 }
 
 func init() {
-	sdk.RegisterProviderEnvVar("zai", "ZAI_API_KEY")
+	model.RegisterProviderEnvVar("zai", "ZAI_API_KEY")
 
 	sdk.RegisterProvider("zai", func(cfg sdk.Config) (sdk.Provider, error) {
 		apiKey, err := cfg.ResolveKey("zai", "ZAI_API_KEY")
@@ -60,8 +61,8 @@ func init() {
 				ExtraBody: map[string]any{
 					"tool_stream": true,
 				},
-				ModifyRequest: func(body map[string]any, so *sdk.StreamOptions) {
-					if so.ThinkingLevel != sdk.ThinkingOff {
+				ModifyRequest: func(body map[string]any, so *model.StreamOptions) {
+					if so.ThinkingLevel != model.ThinkingOff {
 						body["enable_thinking"] = true
 						delete(body, "reasoning_effort")
 					}
@@ -71,7 +72,7 @@ func init() {
 	})
 }
 
-func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest, opts ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest, opts ...model.StreamOption) (<-chan sdk.ProviderEvent, error) {
 	ch, err := openaicompat.Stream(ctx, p.client, p.config, req, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("zai: %w", err)

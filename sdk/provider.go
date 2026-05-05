@@ -2,7 +2,11 @@ package sdk
 
 //go:generate moq -fmt goimports -stub -out provider_mock_test.go . Provider
 
-import "context"
+import (
+	"context"
+
+	"weave/sdk/model"
+)
 
 type ProviderRequest struct {
 	SystemPrompt string
@@ -42,36 +46,6 @@ type ToolCall struct {
 	Arguments map[string]any
 }
 
-// StreamOption is a functional option for configuring per-request stream behavior.
-type StreamOption func(*StreamOptions)
-
-// NewStreamOptions creates StreamOptions with defaults, applying any given options.
-func NewStreamOptions(opts ...StreamOption) *StreamOptions {
-	so := &StreamOptions{
-		ThinkingLevel: ThinkingOff,
-	}
-	for _, o := range opts {
-		o(so)
-	}
-
-	return so
-}
-
-// WithModel sets the model for this request.
-func WithModel(model string) StreamOption {
-	return func(o *StreamOptions) { o.Model = model }
-}
-
-// WithThinkingLevel sets the thinking level for this request.
-func WithThinkingLevel(level ThinkingLevel) StreamOption {
-	return func(o *StreamOptions) { o.ThinkingLevel = level }
-}
-
-// WithMaxTokens sets the max output tokens for this request.
-func WithMaxTokens(n int64) StreamOption {
-	return func(o *StreamOptions) { o.MaxTokens = n }
-}
-
 type Provider interface {
-	Stream(ctx context.Context, req ProviderRequest, opts ...StreamOption) (<-chan ProviderEvent, error)
+	Stream(ctx context.Context, req ProviderRequest, opts ...model.StreamOption) (<-chan ProviderEvent, error)
 }

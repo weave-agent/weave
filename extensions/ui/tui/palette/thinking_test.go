@@ -3,22 +3,22 @@ package palette
 import (
 	"testing"
 
-	"weave/sdk"
+	"weave/sdk/model"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestThinkingBorderColor_AllLevels(t *testing.T) {
 	tests := []struct {
-		level sdk.ThinkingLevel
+		level model.ThinkingLevel
 		want  string
 	}{
-		{sdk.ThinkingOff, "240"},
-		{sdk.ThinkingMinimal, "246"},
-		{sdk.ThinkingLow, "67"},
-		{sdk.ThinkingMedium, "99"},
-		{sdk.ThinkingHigh, "139"},
-		{sdk.ThinkingXHigh, "177"},
+		{model.ThinkingOff, "240"},
+		{model.ThinkingMinimal, "246"},
+		{model.ThinkingLow, "67"},
+		{model.ThinkingMedium, "99"},
+		{model.ThinkingHigh, "139"},
+		{model.ThinkingXHigh, "177"},
 	}
 
 	for _, tt := range tests {
