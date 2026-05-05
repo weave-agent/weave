@@ -111,6 +111,7 @@ func resolveExtensionsAndMode(cf *config.File, rest []string) (allExts, provider
 
 	allExts = cf.AllExtensions()
 	allExts = ensurePresent(allExts, "skills")
+	allExts = ensurePresent(allExts, "instructions")
 
 	if cf.Prompt == "" && (cf.UI == "" || cf.UI == config.UIValueNone) {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", errNoInput)
