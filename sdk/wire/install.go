@@ -87,6 +87,8 @@ func runInstall(args []string) int {
 
 	destDir := filepath.Join(homeDir, ".weave", "extensions", extName)
 
+	// Reject self-install: a local source that resolves to or contains the
+	// destination would be deleted by the staging-replace step.
 	if parsed.kind == sourceLocalPath {
 		if selfErr := rejectSelfInstall(parsed.localDir, destDir); selfErr != nil {
 			fmt.Fprintf(os.Stderr, "weave install: %v\n", selfErr)
@@ -182,6 +184,8 @@ func swapStaging(stagingDir, destDir string) error {
 }
 
 func parseSource(source string) (parsedSource, error) {
+	// Reject insecure transports — extensions are compiled and executed, so
+	// unauthenticated transports allow MITM code injection.
 	if strings.HasPrefix(source, "http://") {
 		return parsedSource{}, fmt.Errorf("insecure URL %q (use https:// instead)", source)
 	}
@@ -269,6 +273,8 @@ func cloneExtension(gitURL, destDir string) error {
 }
 
 func copyExtension(srcDir, destDir string) error {
+	// Verify symlink targets stay inside the source tree to prevent
+	// exfiltrating files outside it (e.g. /etc/passwd, ~/.ssh/id_rsa).
 	absSrcDir, err := filepath.Abs(srcDir)
 	if err != nil {
 		return fmt.Errorf("resolve source dir: %w", err)
@@ -296,6 +302,7 @@ func copyExtension(srcDir, destDir string) error {
 		target := filepath.Join(destDir, rel)
 
 		if d.Type()&fs.ModeSymlink != 0 {
+			// Never preserve symlinks as-is to prevent path traversal.
 			resolved, resolveErr := filepath.EvalSymlinks(path)
 			if resolveErr != nil {
 				return fmt.Errorf("resolve symlink %q: %w", path, resolveErr)

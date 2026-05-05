@@ -108,7 +108,12 @@ func (r *Registry[T]) All() []T {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	names := r.List()
+	names := make([]string, 0, len(r.items))
+	for name := range r.items {
+		names = append(names, name)
+	}
+
+	sort.Strings(names)
 
 	items := make([]T, 0, len(names))
 	for _, name := range names {
