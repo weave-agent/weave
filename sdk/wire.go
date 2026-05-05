@@ -26,9 +26,10 @@ func Wire(extNames []string, bus Bus, cfg Config) (*Wired, error) {
 	for _, name := range extNames {
 		ext, err := GetExtension(name, cfg)
 		if err != nil {
-			// Tools and providers are registered via blank import but resolved
-			// through their own registries at runtime, not wired as extensions.
-			if ToolRegistered(name) || ProviderRegistered(name) {
+			// Tools, providers, and UI extensions are registered via blank
+			// import but resolved through their own registries at runtime,
+			// not wired as Extensions on the bus.
+			if ToolRegistered(name) || ProviderRegistered(name) || UIExtensionRegistered(name) {
 				continue
 			}
 

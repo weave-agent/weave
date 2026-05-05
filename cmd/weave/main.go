@@ -87,8 +87,23 @@ func resolveProjectDir(configFile string) string {
 
 func resolveExtensionsAndMode(cf *config.File, rest []string) (allExts, providers, updatedRest []string, ok bool) {
 	envProvider := os.Getenv("WEAVE_PROVIDER")
+
+	// If WEAVE_PROVIDER was synthesized by a previous launcher invocation
+	// (e.g. via /reload), ignore it so config changes take effect. The marker
+	// is only set when this launcher synthesizes the value below.
+	if os.Getenv("WEAVE_PROVIDER_AUTO") == "1" {
+		envProvider = ""
+		_ = os.Unsetenv("WEAVE_PROVIDER")
+		_ = os.Unsetenv("WEAVE_PROVIDER_AUTO")
+	}
+
 	if envProvider == "" && len(cf.Core.Providers) > 0 {
 		if err := os.Setenv("WEAVE_PROVIDER", cf.Core.Providers[0]); err != nil {
+			fmt.Fprintf(os.Stderr, "weave: setenv: %v\n", err)
+			return nil, nil, nil, false
+		}
+
+		if err := os.Setenv("WEAVE_PROVIDER_AUTO", "1"); err != nil {
 			fmt.Fprintf(os.Stderr, "weave: setenv: %v\n", err)
 			return nil, nil, nil, false
 		}

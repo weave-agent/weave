@@ -106,6 +106,27 @@ func TestWire_PartialMissing(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestWire_SkipsUIExtension verifies that UI extensions registered via
+// RegisterUIExtension (not RegisterExtension) are silently skipped during
+// wiring rather than causing "extension not registered" errors. UI
+// extensions are wired by the TUI itself via GetUIExtensions().
+func TestWire_SkipsUIExtension(t *testing.T) {
+	ResetRegistry()
+	ResetUIExtensionRegistry()
+
+	RegisterUIExtension(stubUIExt{name: "diff-viewer"})
+
+	bus := &BusMock{}
+
+	_, err := Wire([]string{"diff-viewer"}, bus, nil)
+	require.NoError(t, err, "UI extension should be silently skipped")
+}
+
+type stubUIExt struct{ name string }
+
+func (s stubUIExt) Name() string  { return s.name }
+func (s stubUIExt) Register(_ UI) {}
+
 func TestWire_PassesConfigToFactory(t *testing.T) {
 	ResetRegistry()
 

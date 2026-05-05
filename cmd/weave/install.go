@@ -89,26 +89,51 @@ func runInstall(args []string) int {
 
 	destDir := filepath.Join(homeDir, ".weave", "extensions", extName)
 
+	// Reject self-install: a local source that resolves to or contains the
+	// destination would be deleted by the staging-replace step. Require the
+	// user to install from a different path.
+	if parsed.kind == sourceLocalPath {
+		if selfErr := rejectSelfInstall(parsed.localDir, destDir); selfErr != nil {
+			fmt.Fprintf(os.Stderr, "weave install: %v\n", selfErr)
+			return 1
+		}
+	}
+
+	// Stage into a sibling temp dir so a failed clone/copy or an invalid
+	// source leaves the existing extension intact. Only swap when staging
+	// has been validated.
+	stagingDir, err := stagingPath(homeDir, extName)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "weave install: %v\n", err)
+		return 1
+	}
+
+	defer func() {
+		_ = os.RemoveAll(stagingDir) //nolint:gosec // G703 — cleanup of our own staging dir
+	}()
+
 	switch parsed.kind {
 	case sourceGitURL, sourceGitHub:
-		if err := cloneExtension(parsed.gitURL, destDir); err != nil {
+		if err := cloneExtension(parsed.gitURL, stagingDir); err != nil {
 			fmt.Fprintf(os.Stderr, "weave install: clone: %v\n", err)
 			return 1
 		}
 
 	case sourceLocalPath:
-		if err := copyExtension(parsed.localDir, destDir); err != nil {
+		if err := copyExtension(parsed.localDir, stagingDir); err != nil {
 			fmt.Fprintf(os.Stderr, "weave install: copy: %v\n", err)
 			return 1
 		}
 	}
 
-	// Validate that .go files exist.
-	if !hasGoFiles(destDir) {
-		_ = os.RemoveAll(destDir) //nolint:gosec // G703 — cleaning up our own extension dir
-
+	// Validate that .go files exist before swapping.
+	if !hasGoFiles(stagingDir) {
 		fmt.Fprintf(os.Stderr, "weave install: %s contains no .go files\n", source)
+		return 1
+	}
 
+	if err := swapStaging(stagingDir, destDir); err != nil {
+		fmt.Fprintf(os.Stderr, "weave install: %v\n", err)
 		return 1
 	}
 
@@ -117,15 +142,77 @@ func runInstall(args []string) int {
 	return 0
 }
 
+// rejectSelfInstall returns an error if srcAbs equals destDir or destDir is a
+// subdirectory of srcAbs (which would be wiped by the swap step).
+func rejectSelfInstall(srcAbs, destDir string) error {
+	srcClean := filepath.Clean(srcAbs)
+	destClean := filepath.Clean(destDir)
+
+	if srcClean == destClean {
+		return fmt.Errorf("source and destination are the same path %q", destClean)
+	}
+
+	rel, err := filepath.Rel(srcClean, destClean)
+	if err == nil && rel != "" && !strings.HasPrefix(rel, "..") && rel != "." {
+		return fmt.Errorf("destination %q is inside source %q", destClean, srcClean)
+	}
+
+	return nil
+}
+
+// stagingPath returns a sibling directory of destDir under
+// ~/.weave/extensions/.staging-<name>-<rand>/. The parent dir is created if
+// missing.
+func stagingPath(homeDir, extName string) (string, error) {
+	parent := filepath.Join(homeDir, ".weave", "extensions")
+	if err := os.MkdirAll(parent, 0o750); err != nil {
+		return "", fmt.Errorf("create extensions dir: %w", err)
+	}
+
+	staging, err := os.MkdirTemp(parent, ".staging-"+extName+"-")
+	if err != nil {
+		return "", fmt.Errorf("create staging dir: %w", err)
+	}
+
+	// MkdirTemp creates the dir, but cloneExtension/copyExtension expect to
+	// create it themselves. Remove and let them recreate.
+	if err := os.Remove(staging); err != nil { //nolint:gosec // G703 — our own staging dir under ~/.weave
+		return "", fmt.Errorf("prepare staging dir: %w", err)
+	}
+
+	return staging, nil
+}
+
+// swapStaging atomically replaces destDir with stagingDir. The previous
+// destDir, if any, is removed only after staging is validated.
+func swapStaging(stagingDir, destDir string) error {
+	if _, err := os.Stat(destDir); err == nil { //nolint:gosec // G703 — our own extension dir
+		if err := os.RemoveAll(destDir); err != nil { //nolint:gosec // G703 — our own extension dir
+			return fmt.Errorf("remove existing extension: %w", err)
+		}
+	}
+
+	if err := os.Rename(stagingDir, destDir); err != nil { //nolint:gosec // G703 — our own extension dir
+		return fmt.Errorf("install staged extension: %w", err)
+	}
+
+	return nil
+}
+
 // parseSource classifies and resolves an install source string.
 func parseSource(source string) (parsedSource, error) {
-	// Reject insecure http:// URLs — extensions are compiled and executed.
+	// Reject insecure transports — extensions are compiled and executed, so
+	// unauthenticated transports allow MITM code injection.
 	if strings.HasPrefix(source, "http://") {
 		return parsedSource{}, fmt.Errorf("insecure URL %q (use https:// instead)", source)
 	}
 
-	// Git URL: https:// or git://.
-	if strings.HasPrefix(source, "https://") || strings.HasPrefix(source, "git://") {
+	if strings.HasPrefix(source, "git://") {
+		return parsedSource{}, fmt.Errorf("insecure URL %q (use https:// or ssh instead)", source)
+	}
+
+	// Git URL: https:// or ssh.
+	if strings.HasPrefix(source, "https://") || strings.HasPrefix(source, "ssh://") {
 		return parsedSource{
 			kind:    sourceGitURL,
 			gitURL:  source,
@@ -188,15 +275,8 @@ func deriveNameFromURL(rawURL string) string {
 	return base
 }
 
-// cloneExtension runs git clone into destDir.
+// cloneExtension runs git clone into destDir. destDir must not exist.
 func cloneExtension(gitURL, destDir string) error {
-	// If destDir already exists, remove it.
-	if _, err := os.Stat(destDir); err == nil { //nolint:gosec // G703 — our own extension dir
-		if err := os.RemoveAll(destDir); err != nil { //nolint:gosec // G703 — our own extension dir
-			return fmt.Errorf("remove existing directory: %w", err)
-		}
-	}
-
 	cmd := exec.CommandContext(context.Background(), "git", "clone", "--depth", "1", gitURL, destDir) //nolint:gosec // G702 — gitURL is user-provided CLI arg
 	cmd.Stderr = os.Stderr
 
@@ -207,15 +287,9 @@ func cloneExtension(gitURL, destDir string) error {
 	return nil
 }
 
-// copyExtension copies a local directory to destDir.
+// copyExtension copies a local directory tree to destDir. destDir must not
+// exist; it is created by this function.
 func copyExtension(srcDir, destDir string) error {
-	// If destDir already exists, remove it.
-	if _, err := os.Stat(destDir); err == nil { //nolint:gosec // G703 — our own extension dir
-		if err := os.RemoveAll(destDir); err != nil { //nolint:gosec // G703 — our own extension dir
-			return fmt.Errorf("remove existing directory: %w", err)
-		}
-	}
-
 	if err := filepath.WalkDir(srcDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return fmt.Errorf("walk: %w", err)

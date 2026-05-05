@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"weave/bus"
@@ -461,7 +462,7 @@ func TestReloadCmd_RemovesCacheDir(t *testing.T) {
 	fakeHome := t.TempDir()
 	t.Setenv("HOME", fakeHome)
 
-	testHash := "test-reload-hash-12345"
+	testHash := "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
 	cacheDir := filepath.Join(fakeHome, ".weave", "bin", testHash)
 
 	// Create a fake cache dir to verify it gets removed.
@@ -491,7 +492,7 @@ func TestReloadCmd_MissingOrigArgs(t *testing.T) {
 	fakeHome := t.TempDir()
 	t.Setenv("HOME", fakeHome)
 
-	testHash := "test-missing-args-hash"
+	testHash := "0000000000000000000000000000000000000000000000000000000000000001"
 	cacheDir := filepath.Join(fakeHome, ".weave", "bin", testHash)
 	_ = os.MkdirAll(cacheDir, 0o750)
 
@@ -518,4 +519,57 @@ func TestReloadCmd_EmptyBuildHash(t *testing.T) {
 	reload, ok := msg.(reloadMsg)
 	require.True(t, ok)
 	assert.Equal(t, "/usr/bin/weave", reload.launcherPath)
+}
+
+// TestReloadCmd_RejectsPathTraversal verifies a malicious WEAVE_BUILD_HASH
+// value is rejected before being joined into a filesystem path. Without the
+// validation, "../../victim" would escape ~/.weave/bin and let os.RemoveAll
+// delete unrelated files.
+func TestReloadCmd_RejectsPathTraversal(t *testing.T) {
+	fakeHome := t.TempDir()
+	t.Setenv("HOME", fakeHome)
+
+	// Create a sibling directory that must NOT be removed.
+	victim := filepath.Join(fakeHome, "victim")
+	require.NoError(t, os.MkdirAll(victim, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(victim, "data"), []byte("important"), 0o600))
+
+	t.Setenv("WEAVE_LAUNCHER_PATH", "/usr/bin/weave")
+	t.Setenv("WEAVE_BUILD_HASH", "../../victim")
+	t.Setenv("WEAVE_ORIG_ARGS", `["weave"]`)
+
+	cmd := reloadCmd()
+	msg := cmd()
+
+	notify, ok := msg.(notifyMsg)
+	require.True(t, ok, "expected notifyMsg for invalid hash, got %T", msg)
+	assert.Contains(t, notify.message, "invalid build hash")
+
+	// Victim directory must still exist.
+	_, err := os.Stat(victim)
+	assert.NoError(t, err, "victim directory must not be deleted")
+}
+
+func TestIsSHA256Hex(t *testing.T) {
+	valid := "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+	assert.True(t, isSHA256Hex(valid))
+
+	tests := []struct {
+		name string
+		in   string
+	}{
+		{"empty", ""},
+		{"too short", "abc123"},
+		{"too long", valid + "0"},
+		{"path traversal", "../../victim"},
+		{"uppercase letters", strings.ToUpper(valid)},
+		{"non-hex char", strings.Repeat("g", 64)},
+		{"slash", strings.Repeat("a", 63) + "/"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.False(t, isSHA256Hex(tt.in))
+		})
+	}
 }

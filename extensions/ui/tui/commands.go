@@ -203,8 +203,15 @@ func reloadCmd() tea.Cmd {
 			return notifyMsg{message: "/reload: not available — weave was not launched via the launcher"}
 		}
 
-		// Remove the cache directory for the current build hash.
+		// Remove the cache directory for the current build hash. The hash is
+		// validated as a SHA-256 hex string before being joined into the path
+		// so a malicious value (e.g. "../../victim") cannot escape the cache
+		// root and trick os.RemoveAll into deleting unrelated files.
 		if buildHash != "" {
+			if !isSHA256Hex(buildHash) {
+				return notifyMsg{message: fmt.Sprintf("/reload: invalid build hash %q", buildHash)}
+			}
+
 			home, _ := os.UserHomeDir()
 			if home != "" {
 				cacheDir := filepath.Join(home, ".weave", "bin", buildHash)
@@ -234,4 +241,22 @@ func reloadCmd() tea.Cmd {
 // handleReload performs the actual syscall.Exec to replace the process.
 func handleReload(msg reloadMsg) error {
 	return fmt.Errorf("exec: %w", syscall.Exec(msg.launcherPath, msg.origArgs, msg.env))
+}
+
+// isSHA256Hex reports whether s is a 64-character lowercase hexadecimal string,
+// matching the format produced by ComputeHash. Used to reject path-traversal
+// values from WEAVE_BUILD_HASH before joining into a filesystem path.
+func isSHA256Hex(s string) bool {
+	if len(s) != 64 {
+		return false
+	}
+
+	for i := range len(s) {
+		c := s[i]
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+
+	return true
 }

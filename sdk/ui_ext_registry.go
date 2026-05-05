@@ -28,6 +28,17 @@ func RegisterUIExtension(ext UIExtension) {
 	uiExtReg[name] = ext
 }
 
+// UIExtensionRegistered reports whether a UI extension with the given name
+// is registered.
+func UIExtensionRegistered(name string) bool {
+	uiExtMu.RLock()
+	defer uiExtMu.RUnlock()
+
+	_, ok := uiExtReg[name]
+
+	return ok
+}
+
 func GetUIExtensions() []UIExtension {
 	uiExtMu.RLock()
 	defer uiExtMu.RUnlock()

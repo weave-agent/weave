@@ -300,3 +300,44 @@ func TestSkillsNotDuplicated(t *testing.T) {
 
 	assert.Equal(t, 1, skillsCount, "skills should appear exactly once even if already in extensions list")
 }
+
+// TestResolveExtensions_AutoProviderIgnoredOnReload verifies that when
+// WEAVE_PROVIDER_AUTO=1 is set (indicating the provider was synthesized by a
+// previous launcher invocation, e.g. via /reload), the env value is not
+// treated as a user override. This lets config changes take effect across
+// /reload instead of pinning the old provider.
+func TestResolveExtensions_AutoProviderIgnoredOnReload(t *testing.T) {
+	t.Setenv("WEAVE_PROVIDER", "anthropic")
+	t.Setenv("WEAVE_PROVIDER_AUTO", "1")
+
+	cf := &config.File{
+		Core: config.CoreConfig{AgentLoop: "loop", Providers: []string{"openai"}},
+		UI:   "tui",
+	}
+
+	_, providers, _, ok := resolveExtensionsAndMode(cf, nil)
+	require.True(t, ok)
+
+	assert.Equal(t, []string{"openai"}, providers, "synthesized WEAVE_PROVIDER must not be added when AUTO=1")
+	assert.Equal(t, "openai", os.Getenv("WEAVE_PROVIDER"), "WEAVE_PROVIDER should be re-synthesized from new config")
+	assert.Equal(t, "1", os.Getenv("WEAVE_PROVIDER_AUTO"), "AUTO marker should be set after re-synthesis")
+}
+
+// TestResolveExtensions_UserProviderRespected verifies that when a user sets
+// WEAVE_PROVIDER without the AUTO marker, the value is preserved as a real
+// override and added to the provider list.
+func TestResolveExtensions_UserProviderRespected(t *testing.T) {
+	t.Setenv("WEAVE_PROVIDER", "openai")
+	t.Setenv("WEAVE_PROVIDER_AUTO", "")
+
+	cf := &config.File{
+		Core: config.CoreConfig{AgentLoop: "loop", Providers: []string{"anthropic"}},
+		UI:   "tui",
+	}
+
+	_, providers, _, ok := resolveExtensionsAndMode(cf, nil)
+	require.True(t, ok)
+
+	assert.Contains(t, providers, "openai", "user-supplied WEAVE_PROVIDER should be added to providers")
+	assert.Contains(t, providers, "anthropic", "config providers should be preserved")
+}

@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,7 +19,7 @@ func TestParseSource_GitURL(t *testing.T) {
 	}{
 		{"https url", "https://github.com/user/weave-ext-mcp", "https://github.com/user/weave-ext-mcp", "weave-ext-mcp"},
 		{"https url with .git", "https://github.com/user/repo.git", "https://github.com/user/repo.git", "repo"},
-		{"git url", "git://example.com/ext.git", "git://example.com/ext.git", "ext"},
+		{"ssh url", "ssh://git@example.com/user/ext.git", "ssh://git@example.com/user/ext.git", "ext"},
 	}
 
 	for _, tt := range tests {
@@ -34,6 +35,14 @@ func TestParseSource_GitURL(t *testing.T) {
 
 func TestParseSource_RejectsHTTP(t *testing.T) {
 	_, err := parseSource("http://example.com/ext/my-tool")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "insecure URL")
+}
+
+// TestParseSource_RejectsGit verifies git:// is rejected. Extensions are
+// compiled and executed, so unauthenticated transports allow MITM injection.
+func TestParseSource_RejectsGit(t *testing.T) {
+	_, err := parseSource("git://example.com/ext.git")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "insecure URL")
 }
@@ -349,4 +358,97 @@ func TestRunInstall_SkipsHiddenDirs(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(destDir, "main.go"))
 	require.NoError(t, err)
 	assert.Equal(t, "package main\n", string(data))
+}
+
+// TestRunInstall_FailedValidationPreservesExisting verifies that an install
+// attempt with no .go files leaves a previously installed extension intact.
+// Previously, runInstall removed destDir before validating, so any failure
+// after that point destroyed the user's working extension.
+func TestRunInstall_FailedValidationPreservesExisting(t *testing.T) {
+	srcDir := t.TempDir()
+	goodExt := filepath.Join(srcDir, "my-tool")
+	require.NoError(t, os.MkdirAll(goodExt, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(goodExt, "main.go"), []byte("package main // v1\n"), 0o600))
+
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	// First install: succeeds.
+	require.Equal(t, 0, runInstall([]string{goodExt}))
+
+	destDir := filepath.Join(homeDir, ".weave", "extensions", "my-tool")
+	require.FileExists(t, filepath.Join(destDir, "main.go"))
+
+	// Second install attempt from a source with no .go files; same target name.
+	badSrc := t.TempDir()
+	badExt := filepath.Join(badSrc, "my-tool")
+	require.NoError(t, os.MkdirAll(badExt, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(badExt, "README.md"), []byte("# readme\n"), 0o600))
+
+	require.Equal(t, 1, runInstall([]string{badExt}))
+
+	// Existing extension must still be there with original content.
+	data, err := os.ReadFile(filepath.Join(destDir, "main.go"))
+	require.NoError(t, err)
+	assert.Equal(t, "package main // v1\n", string(data), "existing extension must survive failed install")
+
+	// Staging dirs should be cleaned up.
+	entries, err := os.ReadDir(filepath.Join(homeDir, ".weave", "extensions"))
+	require.NoError(t, err)
+
+	for _, e := range entries {
+		assert.False(t, strings.HasPrefix(e.Name(), ".staging-"), "staging dir %q should be removed", e.Name())
+	}
+}
+
+// TestRunInstall_RejectsSelfInstall verifies installing from the current
+// extension directory (or a parent of it) is refused before any destructive
+// step runs.
+func TestRunInstall_RejectsSelfInstall(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	destDir := filepath.Join(homeDir, ".weave", "extensions", "my-tool")
+	require.NoError(t, os.MkdirAll(destDir, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(destDir, "main.go"), []byte("package main\n"), 0o600))
+
+	// Install from destDir itself.
+	code := runInstall([]string{destDir})
+	assert.Equal(t, 1, code)
+
+	// Install from a parent of destDir with --name pointing back to destDir.
+	parent := filepath.Join(homeDir, ".weave", "extensions")
+	code = runInstall([]string{parent, "--name", "my-tool"})
+	assert.Equal(t, 1, code)
+
+	// Original extension is untouched.
+	data, err := os.ReadFile(filepath.Join(destDir, "main.go"))
+	require.NoError(t, err)
+	assert.Equal(t, "package main\n", string(data))
+}
+
+func TestRejectSelfInstall(t *testing.T) {
+	tests := []struct {
+		name    string
+		src     string
+		dest    string
+		wantErr bool
+	}{
+		{"unrelated", "/tmp/source", "/home/user/.weave/extensions/x", false},
+		{"identical", "/home/user/.weave/extensions/x", "/home/user/.weave/extensions/x", true},
+		{"src contains dest", "/home/user/.weave/extensions", "/home/user/.weave/extensions/x", true},
+		{"sibling", "/home/user/other", "/home/user/.weave/extensions/x", false},
+		{"dest contains src", "/home/user/.weave/extensions/x/sub", "/home/user/.weave/extensions/x", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := rejectSelfInstall(tt.src, tt.dest)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
