@@ -4,36 +4,20 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"sort"
-	"sync"
+
+	"weave/sdk/registry"
 )
 
-var uiWarnLog = log.New(os.Stderr, "weave: ", 0)
-
-var (
-	uiMu  sync.RWMutex
-	uiReg = make(map[string]UI)
+var uiReg = registry.New[UI](
+	registry.WithWarn[UI](log.New(os.Stderr, "weave: ", 0), "ui"),
 )
 
 func RegisterUI(name string, ui UI) {
-	uiMu.Lock()
-	defer uiMu.Unlock()
-
-	if _, dup := uiReg[name]; dup {
-		uiWarnLog.Printf("warning: ui %q already registered; first registration wins", name)
-		return
-	}
-
-	uiReg[name] = ui
+	uiReg.Register(name, ui)
 }
 
 func GetUI(name string) (UI, error) {
-	uiMu.RLock()
-
-	ui, ok := uiReg[name]
-
-	uiMu.RUnlock()
-
+	ui, ok := uiReg.Get(name)
 	if !ok {
 		return nil, fmt.Errorf("ui %q not registered", name)
 	}
@@ -42,22 +26,9 @@ func GetUI(name string) (UI, error) {
 }
 
 func ListUIs() []string {
-	uiMu.RLock()
-	defer uiMu.RUnlock()
-
-	names := make([]string, 0, len(uiReg))
-	for name := range uiReg {
-		names = append(names, name)
-	}
-
-	sort.Strings(names)
-
-	return names
+	return uiReg.List()
 }
 
 func ResetUIRegistry() {
-	uiMu.Lock()
-	defer uiMu.Unlock()
-
-	uiReg = make(map[string]UI)
+	uiReg.Reset()
 }

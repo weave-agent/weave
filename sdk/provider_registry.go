@@ -4,46 +4,24 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"sort"
-	"sync"
+
+	"weave/sdk/registry"
 )
 
-var providerWarnLog = log.New(os.Stderr, "weave: ", 0)
-
-var (
-	providerMu  sync.RWMutex
-	providerReg = make(map[string]func(Config) (Provider, error))
+var providerReg = registry.New[func(Config) (Provider, error)](
+	registry.WithWarn[func(Config) (Provider, error)](log.New(os.Stderr, "weave: ", 0), "provider"),
 )
 
 func RegisterProvider(name string, factory func(Config) (Provider, error)) {
-	providerMu.Lock()
-	defer providerMu.Unlock()
-
-	if _, dup := providerReg[name]; dup {
-		providerWarnLog.Printf("warning: provider %q already registered; first registration wins", name)
-		return
-	}
-
-	providerReg[name] = factory
+	providerReg.Register(name, factory)
 }
 
 func ProviderRegistered(name string) bool {
-	providerMu.RLock()
-
-	ok := providerReg[name] != nil
-
-	providerMu.RUnlock()
-
-	return ok
+	return providerReg.Exists(name)
 }
 
 func GetProvider(name string, cfg Config) (Provider, error) {
-	providerMu.RLock()
-
-	factory, ok := providerReg[name]
-
-	providerMu.RUnlock()
-
+	factory, ok := providerReg.Get(name)
 	if !ok {
 		return nil, fmt.Errorf("provider %q not registered", name)
 	}
@@ -52,22 +30,9 @@ func GetProvider(name string, cfg Config) (Provider, error) {
 }
 
 func ListProviders() []string {
-	providerMu.RLock()
-	defer providerMu.RUnlock()
-
-	names := make([]string, 0, len(providerReg))
-	for name := range providerReg {
-		names = append(names, name)
-	}
-
-	sort.Strings(names)
-
-	return names
+	return providerReg.List()
 }
 
 func ResetProviderRegistry() {
-	providerMu.Lock()
-	defer providerMu.Unlock()
-
-	providerReg = make(map[string]func(Config) (Provider, error))
+	providerReg.Reset()
 }

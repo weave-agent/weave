@@ -73,13 +73,13 @@ No circular dependencies.
 - [x] run `go test ./sdk/registry/...` — must pass
 
 ### Task 3: Simplify sdk registry wrappers to use `sdk/registry.Registry[T]`
-- [ ] update `sdk/registry.go` (extension registry) to use `registry.New[func(Config) (Extension, error)]()` internally, keeping public API (`RegisterExtension`, `GetExtension`, `ListExtensions`, `ResetRegistry`) unchanged
-- [ ] update `sdk/tool_registry.go` similarly
-- [ ] update `sdk/provider_registry.go` similarly
-- [ ] update `sdk/ui_registry.go` similarly
-- [ ] update `sdk/ui_ext_registry.go` similarly
-- [ ] run existing `go test ./sdk/...` — all existing tests must pass with zero API changes
-- [ ] run `make gen` to regenerate mocks if needed
+- [x] update `sdk/registry.go` (extension registry) to use `registry.New[func(Config) (Extension, error)]()` internally, keeping public API (`RegisterExtension`, `GetExtension`, `ListExtensions`, `ResetRegistry`) unchanged
+- [x] update `sdk/tool_registry.go` similarly
+- [x] update `sdk/provider_registry.go` similarly
+- [x] update `sdk/ui_registry.go` similarly
+- [x] update `sdk/ui_ext_registry.go` similarly
+- [x] run existing `go test ./sdk/...` — all existing tests must pass with zero API changes
+- [x] run `make gen` to regenerate mocks if needed
 
 ### Task 4: Create `sdk/model/` and migrate model code
 - [ ] create `sdk/model/types.go` — `ThinkingLevel` type + constants, `AllThinkingLevels`, `ModelDef` struct, `StreamOptions` struct, `StreamOption` func type, `NewStreamOptions`, `WithModel`/`WithThinkingLevel`/`WithMaxTokens`, `ClampForModel`, `DefaultThinkingLevel`, `ParseThinkingLevel`, `ProviderAnthropic`/`ProviderOpenAI` constants
