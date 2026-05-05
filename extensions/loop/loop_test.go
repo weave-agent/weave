@@ -1213,3 +1213,153 @@ func TestLoop_SkillsUpdateViaBus(t *testing.T) {
 
 	require.NoError(t, l.Close())
 }
+
+func TestLoop_InstructionsOnlySystemPrompt(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	var capturedReq sdk.ProviderRequest
+	var mu sync.Mutex
+
+	mp := &ProviderMock{
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, _ ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+			mu.Lock()
+			capturedReq = req
+			mu.Unlock()
+
+			ch := make(chan sdk.ProviderEvent, 1)
+			ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "ok"}
+			close(ch)
+
+			return ch, nil
+		},
+	}
+	registerMockProvider("anthropic", mp)
+
+	l, b, cleanup := setupLoop(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	l.Subscribe(b)
+
+	instructions := "# Project Context\n\nSome project instructions"
+	b.Publish(sdk.NewEvent(sdk.TopicInstructionsLoaded, instructions))
+
+	time.Sleep(50 * time.Millisecond)
+	b.Publish(sdk.NewEvent(TopicPrompt, "test"))
+
+	_, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for msg_end")
+
+	mu.Lock()
+	assert.Equal(t, instructions, capturedReq.SystemPrompt, "system prompt should contain instructions only")
+	mu.Unlock()
+
+	require.NoError(t, l.Close())
+}
+
+func TestLoop_InstructionsCombinedWithSkills(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	var capturedReq sdk.ProviderRequest
+	var mu sync.Mutex
+
+	mp := &ProviderMock{
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, _ ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+			mu.Lock()
+			capturedReq = req
+			mu.Unlock()
+
+			ch := make(chan sdk.ProviderEvent, 1)
+			ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "ok"}
+			close(ch)
+
+			return ch, nil
+		},
+	}
+	registerMockProvider("anthropic", mp)
+
+	l, b, cleanup := setupLoop(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	l.Subscribe(b)
+
+	instructions := "# Project Context\n\nSome instructions"
+	skillsXML := "<available_skills><skill><name>test</name></skill></available_skills>"
+
+	b.Publish(sdk.NewEvent(sdk.TopicInstructionsLoaded, instructions))
+	b.Publish(sdk.NewEvent(sdk.TopicSkillsLoaded, skillsXML))
+
+	time.Sleep(50 * time.Millisecond)
+	b.Publish(sdk.NewEvent(TopicPrompt, "test"))
+
+	_, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for msg_end")
+
+	expected := instructions + "\n\n" + skillsXML
+
+	mu.Lock()
+	assert.Equal(t, expected, capturedReq.SystemPrompt, "system prompt should combine instructions + skills")
+	mu.Unlock()
+
+	require.NoError(t, l.Close())
+}
+
+func TestLoop_InstructionsUpdateViaBus(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	var capturedReqs []sdk.ProviderRequest
+	var mu sync.Mutex
+
+	mp := newMockProvider([]providerResponse{
+		{textDeltas: []string{"first"}},
+		{textDeltas: []string{"second"}},
+	})
+	originalStreamFunc := mp.StreamFunc
+	mp.StreamFunc = func(ctx context.Context, req sdk.ProviderRequest, opts ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
+		mu.Lock()
+		capturedReqs = append(capturedReqs, req)
+		mu.Unlock()
+
+		return originalStreamFunc(ctx, req, opts...)
+	}
+	registerMockProvider("anthropic", mp)
+
+	l, b, cleanup := setupLoop(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	l.Subscribe(b)
+
+	instrV1 := "# Context v1"
+	b.Publish(sdk.NewEvent(sdk.TopicInstructionsLoaded, instrV1))
+
+	time.Sleep(50 * time.Millisecond)
+	b.Publish(sdk.NewEvent(TopicPrompt, "first turn"))
+
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for first turn_end")
+
+	mu.Lock()
+	require.Len(t, capturedReqs, 1)
+	assert.Equal(t, instrV1, capturedReqs[0].SystemPrompt)
+	mu.Unlock()
+
+	instrV2 := "# Context v2"
+	b.Publish(sdk.NewEvent(sdk.TopicInstructionsLoaded, instrV2))
+
+	b.Publish(sdk.NewEvent(TopicFollowup, "second turn"))
+
+	_, ok = waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for second turn_end")
+
+	mu.Lock()
+	require.Len(t, capturedReqs, 2)
+	assert.Equal(t, instrV2, capturedReqs[1].SystemPrompt, "system prompt should reflect updated instructions")
+	mu.Unlock()
+
+	require.NoError(t, l.Close())
+}

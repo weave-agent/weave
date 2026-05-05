@@ -38,8 +38,9 @@ type Loop struct {
 	modelName    string
 	singleTurn   bool
 
-	thinkingLevel   sdk.ThinkingLevel
-	availableSkills string
+	thinkingLevel      sdk.ThinkingLevel
+	availableSkills    string
+	instructionsLoaded string
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
@@ -84,6 +85,7 @@ func (l *Loop) Subscribe(bus sdk.Bus) {
 	modelChangeCh := make(chan sdk.Event, 64)
 	thinkingCh := make(chan sdk.Event, 64)
 	skillsCh := make(chan sdk.Event, 64)
+	instructionsCh := make(chan sdk.Event, 64)
 
 	// Single OnAll handler dispatches to internal channels,
 	// preserving publish order across topics.
@@ -111,6 +113,8 @@ func (l *Loop) Subscribe(bus sdk.Bus) {
 			ch = thinkingCh
 		case sdk.TopicSkillsLoaded:
 			ch = skillsCh
+		case sdk.TopicInstructionsLoaded:
+			ch = instructionsCh
 		}
 
 		if ch != nil {
@@ -127,7 +131,7 @@ func (l *Loop) Subscribe(bus sdk.Bus) {
 	l.done = make(chan struct{})
 	l.mu.Unlock()
 
-	go l.run(ctx, bus, promptCh, steerCh, followupCh, interruptCh, modelChangeCh, thinkingCh, skillsCh)
+	go l.run(ctx, bus, promptCh, steerCh, followupCh, interruptCh, modelChangeCh, thinkingCh, skillsCh, instructionsCh)
 }
 
 func (l *Loop) Close() error {
@@ -148,7 +152,7 @@ func (l *Loop) Close() error {
 }
 
 //nolint:gocyclo // central event loop with multiple channel selects
-func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followupCh, interruptCh, modelChangeCh, thinkingCh, skillsCh <-chan sdk.Event) {
+func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followupCh, interruptCh, modelChangeCh, thinkingCh, skillsCh, instructionsCh <-chan sdk.Event) {
 	defer close(l.done)
 
 	var endPayload any
@@ -194,6 +198,12 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 			}
 
 			continue
+		case evt := <-instructionsCh:
+			if s, ok := evt.Payload.(string); ok {
+				l.instructionsLoaded = s
+			}
+
+			continue
 		case <-ctx.Done():
 			return
 		}
@@ -215,6 +225,7 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 	}
 
 	l.drainSkills(skillsCh)
+		l.drainInstructions(instructionsCh)
 	provider = l.drainChanges(modelChangeCh, thinkingCh, bus, provider)
 
 	turn := 1
@@ -248,7 +259,7 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 
 			opts := l.streamOpts()
 
-			resp, toolCalls, err := streamTurn(turnCtx, bus, provider, messages, toolDefs, l.availableSkills, opts...)
+			resp, toolCalls, err := streamTurn(turnCtx, bus, provider, messages, toolDefs, l.systemPrompt(), opts...)
 			if err != nil {
 				bus.Publish(sdk.NewEvent(TopicTurnEnd, nil))
 
@@ -349,6 +360,16 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 			}
 
 			goto waitForInput
+		case evt, ok := <-instructionsCh:
+			if !ok {
+				return
+			}
+
+			if s, ok := evt.Payload.(string); ok {
+				l.instructionsLoaded = s
+			}
+
+			goto waitForInput
 		case <-ctx.Done():
 			return
 		}
@@ -424,6 +445,34 @@ func (l *Loop) drainSkills(ch <-chan sdk.Event) {
 			return
 		}
 	}
+}
+
+func (l *Loop) drainInstructions(ch <-chan sdk.Event) {
+	for {
+		select {
+		case evt, ok := <-ch:
+			if !ok {
+				return
+			}
+
+			if s, ok := evt.Payload.(string); ok {
+				l.instructionsLoaded = s
+			}
+		default:
+			return
+		}
+	}
+}
+
+func (l *Loop) systemPrompt() string {
+	parts := make([]string, 0, 2)
+	if l.instructionsLoaded != "" {
+		parts = append(parts, l.instructionsLoaded)
+	}
+	if l.availableSkills != "" {
+		parts = append(parts, l.availableSkills)
+	}
+	return strings.Join(parts, "\n\n")
 }
 
 func (l *Loop) drainChanges(modelChangeCh, thinkingCh <-chan sdk.Event, bus sdk.Bus, currentProv sdk.Provider) sdk.Provider {

@@ -77,12 +77,12 @@ Add an `instructions` extension that discovers and loads CLAUDE.md/AGENTS.md con
 - [x] run `cd extensions/instructions && go test ./...` — all tests must pass
 
 ### Task 4: Integrate instructions with loop extension
-- [ ] add `instructionsLoaded string` field to `Loop` struct in `extensions/loop/loop.go`
-- [ ] subscribe to `TopicInstructionsLoaded` in the select loop (same pattern as skills at line 191-194)
-- [ ] add drain helper for instructions channel (same pattern as `drainSkills`)
-- [ ] modify `streamTurn` call site to combine instructions + skills into the final system prompt: if both non-empty, concatenate with separator; if only one, use it
-- [ ] update `streamTurn` signature if needed, or assemble prompt before calling it
-- [ ] run `cd extensions/loop && go test ./...` — all tests must pass
+- [x] add `instructionsLoaded string` field to `Loop` struct in `extensions/loop/loop.go`
+- [x] subscribe to `TopicInstructionsLoaded` in the select loop (same pattern as skills at line 191-194)
+- [x] add drain helper for instructions channel (same pattern as `drainSkills`)
+- [x] modify `streamTurn` call site to combine instructions + skills into the final system prompt: if both non-empty, concatenate with separator; if only one, use it
+- [x] update `streamTurn` signature if needed, or assemble prompt before calling it
+- [x] run `cd extensions/loop && go test ./...` — all tests must pass
 
 ### Task 5: Wire instructions into default config and launcher
 - [ ] add `"instructions"` to the default extensions list in `config/config.go:DefaultFile()` and `DefaultConfigJSON()`
