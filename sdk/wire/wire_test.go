@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"weave/bus"
 	"weave/sdk"
 )
 
@@ -562,6 +563,40 @@ func TestWireWithCore_ExtensionUsesBusOn(t *testing.T) {
 	onCalls := bus.OnCalls()
 	require.Len(t, onCalls, 1)
 	assert.Equal(t, "agent.prompt", onCalls[0].Topic)
+}
+
+func TestWire_WireSubscribesExtensionsInProcess(t *testing.T) {
+	sdk.ResetRegistry()
+
+	var subscribeCalled bool
+
+	sdk.RegisterExtension("noop", func(cfg sdk.Config) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("noop", func(b sdk.Bus) {
+			subscribeCalled = true
+
+			b.Publish(sdk.NewEvent("noop.subscribed", "hello"))
+		}), nil
+	})
+
+	realBus := bus.New()
+
+	var received sdk.Event
+
+	realBus.OnAll(func(e sdk.Event) error {
+		received = e
+		return nil
+	})
+
+	wired, err := Wire([]string{"noop"}, realBus, nil)
+	require.NoError(t, err, "Wire")
+
+	require.True(t, subscribeCalled, "Subscribe was not called")
+
+	require.NoError(t, wired.Close(), "Close")
+	_ = realBus.Close()
+
+	assert.Equal(t, "noop.subscribed", received.Topic)
+	assert.Equal(t, "hello", received.Payload)
 }
 
 var _ = strings.TrimSpace

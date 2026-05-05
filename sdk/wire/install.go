@@ -1,4 +1,4 @@
-package main
+package wire
 
 import (
 	"context"
@@ -15,28 +15,23 @@ import (
 	"weave/config"
 )
 
-// cloneTimeout bounds how long `git clone` may run. A hung remote would
-// otherwise block `weave install` indefinitely.
 const cloneTimeout = 5 * time.Minute
 
-// sourceType identifies the kind of install source.
 type sourceType int
 
 const (
-	sourceGitURL    sourceType = iota // https:// URL
-	sourceGitHub                      // github.com/user/repo shorthand
-	sourceLocalPath                   // local filesystem path
+	sourceGitURL    sourceType = iota
+	sourceGitHub
+	sourceLocalPath
 )
 
-// parsedSource is the result of parsing an install source string.
 type parsedSource struct {
 	kind     sourceType
-	gitURL   string // full git clone URL (for git/GitHub sources)
-	localDir string // absolute local path (for local sources)
-	rawName  string // derived extension name (basename without .git)
+	gitURL   string
+	localDir string
+	rawName  string
 }
 
-// runInstall handles `weave install <source> [--name <name>]`.
 func runInstall(args []string) int {
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "weave install: missing source argument")
@@ -48,7 +43,6 @@ func runInstall(args []string) int {
 	source := args[0]
 	name := ""
 
-	// Parse --name flag from remaining args.
 	rest := args[1:]
 	for i := 0; i < len(rest); i++ {
 		switch {
@@ -75,7 +69,6 @@ func runInstall(args []string) int {
 		return 1
 	}
 
-	// Use explicit name or derived name.
 	extName := name
 	if extName == "" {
 		extName = parsed.rawName
@@ -94,9 +87,6 @@ func runInstall(args []string) int {
 
 	destDir := filepath.Join(homeDir, ".weave", "extensions", extName)
 
-	// Reject self-install: a local source that resolves to or contains the
-	// destination would be deleted by the staging-replace step. Require the
-	// user to install from a different path.
 	if parsed.kind == sourceLocalPath {
 		if selfErr := rejectSelfInstall(parsed.localDir, destDir); selfErr != nil {
 			fmt.Fprintf(os.Stderr, "weave install: %v\n", selfErr)
@@ -104,9 +94,6 @@ func runInstall(args []string) int {
 		}
 	}
 
-	// Stage into a sibling temp dir so a failed clone/copy or an invalid
-	// source leaves the existing extension intact. Only swap when staging
-	// has been validated.
 	stagingDir, err := stagingPath(homeDir, extName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "weave install: %v\n", err)
@@ -131,7 +118,6 @@ func runInstall(args []string) int {
 		}
 	}
 
-	// Validate that .go files exist before swapping.
 	if !hasGoFiles(stagingDir) {
 		fmt.Fprintf(os.Stderr, "weave install: %s contains no .go files\n", source)
 		return 1
@@ -147,8 +133,6 @@ func runInstall(args []string) int {
 	return 0
 }
 
-// rejectSelfInstall returns an error if srcAbs equals destDir or destDir is a
-// subdirectory of srcAbs (which would be wiped by the swap step).
 func rejectSelfInstall(srcAbs, destDir string) error {
 	srcClean := filepath.Clean(srcAbs)
 	destClean := filepath.Clean(destDir)
@@ -165,9 +149,6 @@ func rejectSelfInstall(srcAbs, destDir string) error {
 	return nil
 }
 
-// stagingPath returns a sibling directory of destDir under
-// ~/.weave/extensions/.staging-<name>-<rand>/. The parent dir is created if
-// missing.
 func stagingPath(homeDir, extName string) (string, error) {
 	parent := filepath.Join(homeDir, ".weave", "extensions")
 	if err := os.MkdirAll(parent, 0o750); err != nil {
@@ -179,8 +160,6 @@ func stagingPath(homeDir, extName string) (string, error) {
 		return "", fmt.Errorf("create staging dir: %w", err)
 	}
 
-	// MkdirTemp creates the dir, but cloneExtension/copyExtension expect to
-	// create it themselves. Remove and let them recreate.
 	if err := os.Remove(staging); err != nil { //nolint:gosec // G703 — our own staging dir under ~/.weave
 		return "", fmt.Errorf("prepare staging dir: %w", err)
 	}
@@ -188,8 +167,6 @@ func stagingPath(homeDir, extName string) (string, error) {
 	return staging, nil
 }
 
-// swapStaging atomically replaces destDir with stagingDir. The previous
-// destDir, if any, is removed only after staging is validated.
 func swapStaging(stagingDir, destDir string) error {
 	if _, err := os.Stat(destDir); err == nil { //nolint:gosec // G703 — our own extension dir
 		if err := os.RemoveAll(destDir); err != nil { //nolint:gosec // G703 — our own extension dir
@@ -204,10 +181,7 @@ func swapStaging(stagingDir, destDir string) error {
 	return nil
 }
 
-// parseSource classifies and resolves an install source string.
 func parseSource(source string) (parsedSource, error) {
-	// Reject insecure transports — extensions are compiled and executed, so
-	// unauthenticated transports allow MITM code injection.
 	if strings.HasPrefix(source, "http://") {
 		return parsedSource{}, fmt.Errorf("insecure URL %q (use https:// instead)", source)
 	}
@@ -216,7 +190,6 @@ func parseSource(source string) (parsedSource, error) {
 		return parsedSource{}, fmt.Errorf("insecure URL %q (use https:// or ssh instead)", source)
 	}
 
-	// Git URL: https:// or ssh.
 	if strings.HasPrefix(source, "https://") || strings.HasPrefix(source, "ssh://") {
 		return parsedSource{
 			kind:    sourceGitURL,
@@ -225,7 +198,6 @@ func parseSource(source string) (parsedSource, error) {
 		}, nil
 	}
 
-	// GitHub shorthand: github.com/user/repo
 	if rest, ok := strings.CutPrefix(source, "github.com/"); ok {
 		parts := strings.Split(rest, "/")
 		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
@@ -241,7 +213,6 @@ func parseSource(source string) (parsedSource, error) {
 		}, nil
 	}
 
-	// Local path: ./..., /..., ~/...
 	if config.IsPathEntry(source) || filepath.IsAbs(source) {
 		abs, err := config.ResolveExtPath(source, "")
 		if err != nil {
@@ -267,7 +238,6 @@ func parseSource(source string) (parsedSource, error) {
 	return parsedSource{}, fmt.Errorf("invalid source %q (expected git URL, github.com/user/repo, or local path)", source)
 }
 
-// deriveNameFromURL extracts the repo name from a git URL.
 func deriveNameFromURL(rawURL string) string {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
@@ -280,7 +250,6 @@ func deriveNameFromURL(rawURL string) string {
 	return base
 }
 
-// cloneExtension runs git clone into destDir. destDir must not exist.
 func cloneExtension(gitURL, destDir string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), cloneTimeout)
 	defer cancel()
@@ -299,11 +268,7 @@ func cloneExtension(gitURL, destDir string) error {
 	return nil
 }
 
-// copyExtension copies a local directory tree to destDir. destDir must not
-// exist; it is created by this function.
 func copyExtension(srcDir, destDir string) error {
-	// Used to verify symlink targets stay inside the source tree, so we don't
-	// silently exfiltrate files outside it (e.g. /etc/passwd, ~/.ssh/id_rsa).
 	absSrcDir, err := filepath.Abs(srcDir)
 	if err != nil {
 		return fmt.Errorf("resolve source dir: %w", err)
@@ -319,7 +284,6 @@ func copyExtension(srcDir, destDir string) error {
 			return fmt.Errorf("walk: %w", err)
 		}
 
-		// Skip .git directory.
 		if d.IsDir() && d.Name() == ".git" {
 			return fs.SkipDir
 		}
@@ -332,14 +296,11 @@ func copyExtension(srcDir, destDir string) error {
 		target := filepath.Join(destDir, rel)
 
 		if d.Type()&fs.ModeSymlink != 0 {
-			// Resolve symlink and copy as regular file/directory.
-			// Never preserve symlinks as-is to prevent path traversal.
 			resolved, resolveErr := filepath.EvalSymlinks(path)
 			if resolveErr != nil {
 				return fmt.Errorf("resolve symlink %q: %w", path, resolveErr)
 			}
 
-			// Reject symlinks whose targets escape the source tree.
 			if !pathContains(absSrcDir, resolved) {
 				return fmt.Errorf("symlink %q points outside source dir", path)
 			}
@@ -383,8 +344,6 @@ func copyExtension(srcDir, destDir string) error {
 	return nil
 }
 
-// pathContains reports whether target is the same path as parent or lies
-// inside it. Both arguments must be absolute, fully resolved paths.
 func pathContains(parent, target string) bool {
 	rel, err := filepath.Rel(parent, target)
 	if err != nil {
@@ -398,7 +357,6 @@ func pathContains(parent, target string) bool {
 	return !strings.HasPrefix(rel, "..") && rel != ".."
 }
 
-// hasGoFiles reports whether a directory tree contains .go files.
 func hasGoFiles(dir string) bool {
 	found := false
 

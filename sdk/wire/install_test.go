@@ -1,4 +1,4 @@
-package main
+package wire
 
 import (
 	"os"
@@ -39,8 +39,6 @@ func TestParseSource_RejectsHTTP(t *testing.T) {
 	assert.Contains(t, err.Error(), "insecure URL")
 }
 
-// TestParseSource_RejectsGit verifies git:// is rejected. Extensions are
-// compiled and executed, so unauthenticated transports allow MITM injection.
 func TestParseSource_RejectsGit(t *testing.T) {
 	_, err := parseSource("git://example.com/ext.git")
 	require.Error(t, err)
@@ -200,7 +198,6 @@ func TestRunInstall_NameWithEqualsForm(t *testing.T) {
 }
 
 func TestRunInstall_InvalidName(t *testing.T) {
-	// Provide an explicit --name that's invalid.
 	dir := t.TempDir()
 	extDir := filepath.Join(dir, "ext")
 	require.NoError(t, os.MkdirAll(extDir, 0o750))
@@ -211,20 +208,17 @@ func TestRunInstall_InvalidName(t *testing.T) {
 }
 
 func TestRunInstall_LocalPath(t *testing.T) {
-	// Create a source extension with a .go file.
 	srcDir := t.TempDir()
 	extDir := filepath.Join(srcDir, "my-tool")
 	require.NoError(t, os.MkdirAll(extDir, 0o750))
 	require.NoError(t, os.WriteFile(filepath.Join(extDir, "main.go"), []byte("package main\n"), 0o600))
 
-	// Create a fake home dir.
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
 	code := runInstall([]string{extDir})
 	assert.Equal(t, 0, code)
 
-	// Verify the extension was copied.
 	destDir := filepath.Join(homeDir, ".weave", "extensions", "my-tool")
 	info, err := os.Stat(destDir)
 	require.NoError(t, err)
@@ -257,7 +251,6 @@ func TestRunInstall_LocalPathNoGoFiles(t *testing.T) {
 	srcDir := t.TempDir()
 	extDir := filepath.Join(srcDir, "empty-ext")
 	require.NoError(t, os.MkdirAll(extDir, 0o750))
-	// No .go files — just a readme.
 	require.NoError(t, os.WriteFile(filepath.Join(extDir, "README.md"), []byte("# readme\n"), 0o600))
 
 	homeDir := t.TempDir()
@@ -266,7 +259,6 @@ func TestRunInstall_LocalPathNoGoFiles(t *testing.T) {
 	code := runInstall([]string{extDir})
 	assert.Equal(t, 1, code)
 
-	// dest dir should have been cleaned up.
 	destDir := filepath.Join(homeDir, ".weave", "extensions", "empty-ext")
 	_, err := os.Stat(destDir)
 	assert.True(t, os.IsNotExist(err), "dest dir should be cleaned up when no .go files")
@@ -281,11 +273,9 @@ func TestRunInstall_OverwriteExisting(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
-	// First install.
 	code := runInstall([]string{extDir})
 	assert.Equal(t, 0, code)
 
-	// Install again (overwrite).
 	require.NoError(t, os.WriteFile(filepath.Join(extDir, "main.go"), []byte("package main // v3\n"), 0o600))
 
 	code = runInstall([]string{extDir})
@@ -294,44 +284,6 @@ func TestRunInstall_OverwriteExisting(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(homeDir, ".weave", "extensions", "my-tool", "main.go"))
 	require.NoError(t, err)
 	assert.Equal(t, "package main // v3\n", string(data))
-}
-
-func TestDispatch_InstallSubcommand(t *testing.T) {
-	// Verify that "install" is routed to runInstall.
-	dir := t.TempDir()
-	extDir := filepath.Join(dir, "test-ext")
-	require.NoError(t, os.MkdirAll(extDir, 0o750))
-	require.NoError(t, os.WriteFile(filepath.Join(extDir, "main.go"), []byte("package main\n"), 0o600))
-
-	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
-
-	code := dispatch([]string{"install", extDir})
-	assert.Equal(t, 0, code)
-}
-
-func TestDispatch_DefaultRun(t *testing.T) {
-	// Non-install args should go to run() which will fail because no config.
-	// This just verifies the routing, not run() behavior.
-	assert.Equal(t, 1, dispatch([]string{"-xyz"}))
-}
-
-func TestHasGoFiles(t *testing.T) {
-	dir := t.TempDir()
-	assert.False(t, hasGoFiles(dir))
-
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main\n"), 0o600))
-	assert.True(t, hasGoFiles(dir))
-
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "main_test.go"), []byte("package main\n"), 0o600))
-	// Still true — test files don't count but main.go is still there.
-	assert.True(t, hasGoFiles(dir))
-}
-
-func TestHasGoFiles_OnlyTestFiles(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "main_test.go"), []byte("package main\n"), 0o600))
-	assert.False(t, hasGoFiles(dir), "test-only files should not count as .go files")
 }
 
 func TestRunInstall_SkipsHiddenDirs(t *testing.T) {
@@ -350,20 +302,14 @@ func TestRunInstall_SkipsHiddenDirs(t *testing.T) {
 
 	destDir := filepath.Join(homeDir, ".weave", "extensions", "my-tool")
 
-	// .git directory should not be copied.
 	_, err := os.Stat(filepath.Join(destDir, ".git"))
 	assert.True(t, os.IsNotExist(err), ".git directory should be skipped")
 
-	// But the .go file should be copied.
 	data, err := os.ReadFile(filepath.Join(destDir, "main.go"))
 	require.NoError(t, err)
 	assert.Equal(t, "package main\n", string(data))
 }
 
-// TestRunInstall_FailedValidationPreservesExisting verifies that an install
-// attempt with no .go files leaves a previously installed extension intact.
-// Previously, runInstall removed destDir before validating, so any failure
-// after that point destroyed the user's working extension.
 func TestRunInstall_FailedValidationPreservesExisting(t *testing.T) {
 	srcDir := t.TempDir()
 	goodExt := filepath.Join(srcDir, "my-tool")
@@ -373,13 +319,11 @@ func TestRunInstall_FailedValidationPreservesExisting(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
-	// First install: succeeds.
 	require.Equal(t, 0, runInstall([]string{goodExt}))
 
 	destDir := filepath.Join(homeDir, ".weave", "extensions", "my-tool")
 	require.FileExists(t, filepath.Join(destDir, "main.go"))
 
-	// Second install attempt from a source with no .go files; same target name.
 	badSrc := t.TempDir()
 	badExt := filepath.Join(badSrc, "my-tool")
 	require.NoError(t, os.MkdirAll(badExt, 0o750))
@@ -387,12 +331,10 @@ func TestRunInstall_FailedValidationPreservesExisting(t *testing.T) {
 
 	require.Equal(t, 1, runInstall([]string{badExt}))
 
-	// Existing extension must still be there with original content.
 	data, err := os.ReadFile(filepath.Join(destDir, "main.go"))
 	require.NoError(t, err)
 	assert.Equal(t, "package main // v1\n", string(data), "existing extension must survive failed install")
 
-	// Staging dirs should be cleaned up.
 	entries, err := os.ReadDir(filepath.Join(homeDir, ".weave", "extensions"))
 	require.NoError(t, err)
 
@@ -401,9 +343,6 @@ func TestRunInstall_FailedValidationPreservesExisting(t *testing.T) {
 	}
 }
 
-// TestRunInstall_RejectsSelfInstall verifies installing from the current
-// extension directory (or a parent of it) is refused before any destructive
-// step runs.
 func TestRunInstall_RejectsSelfInstall(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
@@ -412,16 +351,13 @@ func TestRunInstall_RejectsSelfInstall(t *testing.T) {
 	require.NoError(t, os.MkdirAll(destDir, 0o750))
 	require.NoError(t, os.WriteFile(filepath.Join(destDir, "main.go"), []byte("package main\n"), 0o600))
 
-	// Install from destDir itself.
 	code := runInstall([]string{destDir})
 	assert.Equal(t, 1, code)
 
-	// Install from a parent of destDir with --name pointing back to destDir.
 	parent := filepath.Join(homeDir, ".weave", "extensions")
 	code = runInstall([]string{parent, "--name", "my-tool"})
 	assert.Equal(t, 1, code)
 
-	// Original extension is untouched.
 	data, err := os.ReadFile(filepath.Join(destDir, "main.go"))
 	require.NoError(t, err)
 	assert.Equal(t, "package main\n", string(data))
@@ -451,4 +387,21 @@ func TestRejectSelfInstall(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHasGoFiles(t *testing.T) {
+	dir := t.TempDir()
+	assert.False(t, hasGoFiles(dir))
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main\n"), 0o600))
+	assert.True(t, hasGoFiles(dir))
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "main_test.go"), []byte("package main\n"), 0o600))
+	assert.True(t, hasGoFiles(dir))
+}
+
+func TestHasGoFiles_OnlyTestFiles(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "main_test.go"), []byte("package main\n"), 0o600))
+	assert.False(t, hasGoFiles(dir), "test-only files should not count as .go files")
 }

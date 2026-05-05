@@ -109,13 +109,13 @@ No circular dependencies.
 - [x] run `go test ./sdk/wire/... ./launcher/...` — must pass
 
 ### Task 7: Extract cmd/weave/main.go logic into sdk/wire/run.go
-- [ ] create `sdk/wire/run.go` — `Run(ctx context.Context, args []string) int` absorbing: `dispatch()`, `run()`, `resolveExtensionsAndMode()`, `writePromptFile()`, `resolveProjectDir()`, `ensurePresent()`, `findModuleRoot()`, `findModuleRootFrom()`, `isWeaveModule()` from `cmd/weave/main.go`
-- [ ] `Run()` calls `config.Load`, `launcher.NewCache`, `launcher.NewLauncher`, `l.Run()` — same flow as current `main.go`
-- [ ] `errNoInput` moves to `sdk/wire/run.go`
-- [ ] handle `install` subcommand dispatch in `Run()` — move `runInstall` or delegate back to a separate install handler
-- [ ] update `cmd/weave/main.go` to be a thin stub: `func main() { os.Exit(wire.Run(context.Background(), os.Args[1:])) }`
-- [ ] write tests for `sdk/wire/run.go` covering: flag parsing, headless mode detection, extension resolution, prompt file creation, module root discovery
-- [ ] run `go test ./sdk/wire/... ./cmd/...` — must pass
+- [x] create `sdk/wire/run.go` — `Run(ctx context.Context, args []string) int` absorbing: `dispatch()`, `run()`, `resolveExtensionsAndMode()`, `writePromptFile()`, `resolveProjectDir()`, `ensurePresent()`, `findModuleRoot()`, `findModuleRootFrom()`, `isWeaveModule()` from `cmd/weave/main.go`
+- [x] `Run()` calls `config.Load`, `launcher.NewCache`, `launcher.NewLauncher`, `l.Run()` — same flow as current `main.go`
+- [x] `errNoInput` moves to `sdk/wire/run.go`
+- [x] handle `install` subcommand dispatch in `Run()` — move `runInstall` or delegate back to a separate install handler
+- [x] update `cmd/weave/main.go` to be a thin stub: `func main() { os.Exit(wire.Run(context.Background(), os.Args[1:])) }`
+- [x] write tests for `sdk/wire/run.go` covering: flag parsing, headless mode detection, extension resolution, prompt file creation, module root discovery
+- [x] run `go test ./sdk/wire/... ./cmd/...` — must pass
 
 ### Task 8: Final verification and cleanup
 - [ ] run `make lint` — all issues must be fixed

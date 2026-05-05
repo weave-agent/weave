@@ -1,8 +1,10 @@
-package main
+package wire
 
 import (
+	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -31,7 +33,7 @@ func TestRunFlagParsing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.wantCode, run(tt.args...))
+			assert.Equal(t, tt.wantCode, run(context.Background(), tt.args...))
 		})
 	}
 }
@@ -44,9 +46,7 @@ func TestRunMissingConfig(t *testing.T) {
 
 	defer func() { _ = os.Chdir(origWd) }()
 
-	// Missing config now falls back to defaults, so run proceeds
-	// and fails because there's no module root in a temp dir.
-	assert.Equal(t, 1, run())
+	assert.Equal(t, 1, run(context.Background()))
 }
 
 func TestRunExtensionOverride(t *testing.T) {
@@ -61,7 +61,7 @@ func TestRunExtensionOverride(t *testing.T) {
 
 	defer func() { _ = os.Chdir(origWd) }()
 
-	assert.Equal(t, 1, run("-e", "ext1,ext2"))
+	assert.Equal(t, 1, run(context.Background(), "-e", "ext1,ext2"))
 }
 
 func TestRunCoreDefaultsUsed(t *testing.T) {
@@ -86,7 +86,7 @@ func TestRunCoreDefaultsUsed(t *testing.T) {
 
 	defer func() { os.Stderr = old }()
 
-	exitCode := run()
+	exitCode := run(context.Background())
 
 	_ = w.Close()
 
@@ -301,11 +301,6 @@ func TestSkillsNotDuplicated(t *testing.T) {
 	assert.Equal(t, 1, skillsCount, "skills should appear exactly once even if already in extensions list")
 }
 
-// TestResolveExtensions_AutoProviderIgnoredOnReload verifies that when
-// WEAVE_PROVIDER_AUTO=1 is set (indicating the provider was synthesized by a
-// previous launcher invocation, e.g. via /reload), the env value is not
-// treated as a user override. This lets config changes take effect across
-// /reload instead of pinning the old provider.
 func TestResolveExtensions_AutoProviderIgnoredOnReload(t *testing.T) {
 	t.Setenv("WEAVE_PROVIDER", "anthropic")
 	t.Setenv("WEAVE_PROVIDER_AUTO", "1")
@@ -323,9 +318,6 @@ func TestResolveExtensions_AutoProviderIgnoredOnReload(t *testing.T) {
 	assert.Equal(t, "1", os.Getenv("WEAVE_PROVIDER_AUTO"), "AUTO marker should be set after re-synthesis")
 }
 
-// TestResolveExtensions_UserProviderRespected verifies that when a user sets
-// WEAVE_PROVIDER without the AUTO marker, the value is preserved as a real
-// override and added to the provider list.
 func TestResolveExtensions_UserProviderRespected(t *testing.T) {
 	t.Setenv("WEAVE_PROVIDER", "openai")
 	t.Setenv("WEAVE_PROVIDER_AUTO", "")
@@ -340,4 +332,69 @@ func TestResolveExtensions_UserProviderRespected(t *testing.T) {
 
 	assert.Contains(t, providers, "openai", "user-supplied WEAVE_PROVIDER should be added to providers")
 	assert.Contains(t, providers, "anthropic", "config providers should be preserved")
+}
+
+func TestRun_InstallSubcommand(t *testing.T) {
+	dir := t.TempDir()
+	extDir := filepath.Join(dir, "test-ext")
+	require.NoError(t, os.MkdirAll(extDir, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, "main.go"), []byte("package main\n"), 0o600))
+
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	code := Run(context.Background(), []string{"install", extDir})
+	assert.Equal(t, 0, code)
+}
+
+func TestRun_DefaultRoute(t *testing.T) {
+	code := Run(context.Background(), []string{"-xyz"})
+	assert.Equal(t, 1, code)
+}
+
+func TestFindModuleRoot(t *testing.T) {
+	_, err := findModuleRoot()
+	require.NoError(t, err, "should find module root from the weave project directory")
+}
+
+func TestFindModuleRootFrom_Invalid(t *testing.T) {
+	_, err := findModuleRootFrom(func() (string, error) {
+		return "/nonexistent/path/that/does/not/exist", nil
+	})
+	require.Error(t, err)
+}
+
+func TestIsWeaveModule(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module weave\n\ngo 1.24\n"), 0o600))
+	assert.True(t, isWeaveModule(dir))
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module other\n\ngo 1.24\n"), 0o600))
+	assert.False(t, isWeaveModule(dir))
+}
+
+func TestEnsurePresent(t *testing.T) {
+	exts := []string{"a", "b"}
+	result := ensurePresent(exts, "a")
+	assert.Equal(t, []string{"a", "b"}, result)
+
+	result = ensurePresent(exts, "c")
+	assert.Equal(t, []string{"a", "b", "c"}, result)
+}
+
+func TestWritePromptFile(t *testing.T) {
+	path, cleanup, ok := writePromptFile("hello world")
+	require.True(t, ok)
+	require.NotEmpty(t, path)
+	defer cleanup()
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, "hello world", string(data))
+}
+
+func TestResolveProjectDir(t *testing.T) {
+	assert.Equal(t, "/project", resolveProjectDir("/project/.weave/config.yaml"))
+	assert.Equal(t, "/project", resolveProjectDir("/project/config.yaml"))
+	assert.Equal(t, "/", resolveProjectDir("/.weave/config.yaml"))
 }

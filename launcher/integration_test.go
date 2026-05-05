@@ -8,10 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"weave/bus"
-	"weave/sdk"
-	"weave/sdk/wire"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -215,40 +211,6 @@ func TestIntegration_ExtensionInitAndWireInBuiltBinary(t *testing.T) {
 	data, err := os.ReadFile(markerFile)
 	require.NoError(t, err, "marker file not found — Subscribe was not called")
 	assert.Equal(t, "subscribed", string(data))
-}
-
-func TestIntegration_WireSubscribesExtensionsInProcess(t *testing.T) {
-	sdk.ResetRegistry()
-
-	var subscribeCalled bool
-
-	sdk.RegisterExtension("noop", func(cfg sdk.Config) (sdk.Extension, error) {
-		return sdk.NewExtensionFunc("noop", func(b sdk.Bus) {
-			subscribeCalled = true
-
-			b.Publish(sdk.NewEvent("noop.subscribed", "hello"))
-		}), nil
-	})
-
-	b := bus.New()
-
-	var received sdk.Event
-
-	b.OnAll(func(e sdk.Event) error {
-		received = e
-		return nil
-	})
-
-	wired, err := wire.Wire([]string{"noop"}, b, nil)
-	require.NoError(t, err, "Wire")
-
-	require.True(t, subscribeCalled, "Subscribe was not called")
-
-	require.NoError(t, wired.Close(), "Close")
-	_ = b.Close()
-
-	assert.Equal(t, "noop.subscribed", received.Topic)
-	assert.Equal(t, "hello", received.Payload)
 }
 
 func TestIntegration_DiscoverCustomHome(t *testing.T) {
