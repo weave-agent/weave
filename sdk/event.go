@@ -4,7 +4,8 @@ import "time"
 
 // Shared bus topic constants for cross-extension communication.
 const (
-	TopicSkillsLoaded = "skills.loaded"
+	TopicSkillsLoaded     = "skills.loaded"
+	TopicInstructionsLoaded = "instructions.loaded"
 )
 
 type Event struct {

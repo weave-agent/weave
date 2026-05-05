@@ -53,13 +53,13 @@ Add an `instructions` extension that discovers and loads CLAUDE.md/AGENTS.md con
 ## Implementation Steps
 
 ### Task 1: Create instructions extension skeleton
-- [ ] create `extensions/instructions/` directory with `go.mod` (module `weave/ext/instructions`, same pattern as `extensions/skills/go.mod`)
-- [ ] create `extension.go` with `InstructionsExtension` struct, `init()` registering via `sdk.RegisterExtension("instructions", ...)`, `Name()`, `Subscribe()`, `Close()` methods
-- [ ] create `discover.go` with `discoverContextFiles(projectDir, globalDir string) []ContextFile` — walks up from `projectDir` to root, then checks `globalDir`, returns ordered list of `{Path, Content}` structs
-- [ ] create `system.go` with `loadSystemPrompt(projectDir, globalDir string) (base string, append string)` — checks for SYSTEM.md and APPEND_SYSTEM.md in project `.weave/` dir and `~/.weave/`, project overrides global
-- [ ] create `prompt.go` with `formatInstructionsPrompt(contextFiles []ContextFile, systemBase, systemAppend string) string` — assembles all parts into a single string with clear section headers
-- [ ] add `TopicInstructionsLoaded` constant to `sdk/event.go`
-- [ ] run `go build` from within `extensions/instructions/` to verify compilation
+- [x] create `extensions/instructions/` directory with `go.mod` (module `weave/ext/instructions`, same pattern as `extensions/skills/go.mod`)
+- [x] create `extension.go` with `InstructionsExtension` struct, `init()` registering via `sdk.RegisterExtension("instructions", ...)`, `Name()`, `Subscribe()`, `Close()` methods
+- [x] create `discover.go` with `discoverContextFiles(projectDir, globalDir string) []ContextFile` — walks up from `projectDir` to root, then checks `globalDir`, returns ordered list of `{Path, Content}` structs
+- [x] create `system.go` with `loadSystemPrompt(projectDir, globalDir string) (base string, append string)` — checks for SYSTEM.md and APPEND_SYSTEM.md in project `.weave/` dir and `~/.weave/`, project overrides global
+- [x] create `prompt.go` with `formatInstructionsPrompt(contextFiles []ContextFile, systemBase, systemAppend string) string` — assembles all parts into a single string with clear section headers
+- [x] add `TopicInstructionsLoaded` constant to `sdk/event.go`
+- [x] run `go build` from within `extensions/instructions/` to verify compilation
 
 ### Task 2: Implement context file discovery and system prompt loading
 - [ ] implement walk-up algorithm in `discover.go`: iterate from `projectDir` upward to filesystem root, check for `CLAUDE.md` then `AGENTS.md` in each dir, dedup by absolute path, collect in order (closest first)
