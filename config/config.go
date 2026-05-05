@@ -144,6 +144,7 @@ func DefaultFile() *File {
 		},
 		Extensions: []string{
 			"jsonl",
+			"instructions",
 			ExtBash,
 			"edit",
 			"find",
@@ -167,6 +168,7 @@ func DefaultConfigJSON() string {
   "ui": "tui",
   "extensions": [
     "jsonl",
+    "instructions",
     "bash",
     "edit",
     "find",

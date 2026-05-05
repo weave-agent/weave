@@ -85,11 +85,11 @@ Add an `instructions` extension that discovers and loads CLAUDE.md/AGENTS.md con
 - [x] run `cd extensions/loop && go test ./...` — all tests must pass
 
 ### Task 5: Wire instructions into default config and launcher
-- [ ] add `"instructions"` to the default extensions list in `config/config.go:DefaultFile()` and `DefaultConfigJSON()`
-- [ ] verify launcher discovery picks up the new extension (it's a built-in under `extensions/instructions/`)
-- [ ] update `CLAUDE.md` Architecture section to document the new extension and its file locations
-- [ ] run `make test` from root — all tests must pass
-- [ ] run `make lint` — no new issues
+- [x] add `"instructions"` to the default extensions list in `config/config.go:DefaultFile()` and `DefaultConfigJSON()`
+- [x] verify launcher discovery picks up the new extension (it's a built-in under `extensions/instructions/`)
+- [x] update `CLAUDE.md` Architecture section to document the new extension and its file locations
+- [x] run `make test` from root — all tests must pass
+- [x] run `make lint` — no new issues
 
 ### Task 6: Verify acceptance criteria
 - [ ] verify CLAUDE.md files are discovered by walking up from project directory

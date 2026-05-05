@@ -237,7 +237,7 @@ func TestLoad_MissingFile(t *testing.T) {
 	assert.NotEmpty(t, path, "should have generated a global config")
 	assert.Equal(t, "tui", cf.UI)
 	assert.Equal(t, "loop", cf.Core.AgentLoop)
-	require.Len(t, cf.Extensions, 8)
+	require.Len(t, cf.Extensions, 9)
 
 	_, statErr := os.Stat(path)
 	require.NoError(t, statErr)
@@ -335,6 +335,7 @@ func TestDefaultConfigJSON(t *testing.T) {
 	assert.Contains(t, j, `"openai"`)
 	assert.Contains(t, j, `"zai"`)
 	assert.Contains(t, j, `"jsonl"`)
+	assert.Contains(t, j, `"instructions"`)
 	assert.Contains(t, j, `"bash"`)
 	assert.Contains(t, j, `"edit"`)
 	assert.Contains(t, j, `"find"`)

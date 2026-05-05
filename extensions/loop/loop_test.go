@@ -1218,8 +1218,10 @@ func TestLoop_InstructionsOnlySystemPrompt(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	var capturedReq sdk.ProviderRequest
-	var mu sync.Mutex
+	var (
+		capturedReq sdk.ProviderRequest
+		mu          sync.Mutex
+	)
 
 	mp := &ProviderMock{
 		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, _ ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
@@ -1229,6 +1231,7 @@ func TestLoop_InstructionsOnlySystemPrompt(t *testing.T) {
 
 			ch := make(chan sdk.ProviderEvent, 1)
 			ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "ok"}
+
 			close(ch)
 
 			return ch, nil
@@ -1262,8 +1265,10 @@ func TestLoop_InstructionsCombinedWithSkills(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	var capturedReq sdk.ProviderRequest
-	var mu sync.Mutex
+	var (
+		capturedReq sdk.ProviderRequest
+		mu          sync.Mutex
+	)
 
 	mp := &ProviderMock{
 		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, _ ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
@@ -1273,6 +1278,7 @@ func TestLoop_InstructionsCombinedWithSkills(t *testing.T) {
 
 			ch := make(chan sdk.ProviderEvent, 1)
 			ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "ok"}
+
 			close(ch)
 
 			return ch, nil
@@ -1311,8 +1317,10 @@ func TestLoop_InstructionsUpdateViaBus(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	var capturedReqs []sdk.ProviderRequest
-	var mu sync.Mutex
+	var (
+		capturedReqs []sdk.ProviderRequest
+		mu           sync.Mutex
+	)
 
 	mp := newMockProvider([]providerResponse{
 		{textDeltas: []string{"first"}},
@@ -1321,6 +1329,7 @@ func TestLoop_InstructionsUpdateViaBus(t *testing.T) {
 	originalStreamFunc := mp.StreamFunc
 	mp.StreamFunc = func(ctx context.Context, req sdk.ProviderRequest, opts ...sdk.StreamOption) (<-chan sdk.ProviderEvent, error) {
 		mu.Lock()
+
 		capturedReqs = append(capturedReqs, req)
 		mu.Unlock()
 

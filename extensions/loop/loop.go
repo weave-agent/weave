@@ -225,7 +225,8 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 	}
 
 	l.drainSkills(skillsCh)
-		l.drainInstructions(instructionsCh)
+	l.drainInstructions(instructionsCh)
+
 	provider = l.drainChanges(modelChangeCh, thinkingCh, bus, provider)
 
 	turn := 1
@@ -466,12 +467,15 @@ func (l *Loop) drainInstructions(ch <-chan sdk.Event) {
 
 func (l *Loop) systemPrompt() string {
 	parts := make([]string, 0, 2)
+
 	if l.instructionsLoaded != "" {
 		parts = append(parts, l.instructionsLoaded)
 	}
+
 	if l.availableSkills != "" {
 		parts = append(parts, l.availableSkills)
 	}
+
 	return strings.Join(parts, "\n\n")
 }
 
