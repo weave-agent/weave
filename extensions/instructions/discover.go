@@ -12,6 +12,7 @@ type ContextFile struct {
 
 func discoverContextFiles(projectDir, globalDir string) []ContextFile {
 	var files []ContextFile
+
 	seen := make(map[string]bool)
 
 	contextNames := []string{"CLAUDE.md", "AGENTS.md"}
@@ -33,7 +34,9 @@ func discoverContextFiles(projectDir, globalDir string) []ContextFile {
 			}
 
 			seen[abs] = true
+
 			files = append([]ContextFile{{Path: path, Content: string(data)}}, files...)
+
 			break // only first match per directory
 		}
 
@@ -61,7 +64,9 @@ func discoverContextFiles(projectDir, globalDir string) []ContextFile {
 			}
 
 			seen[abs] = true
+
 			files = append(files, ContextFile{Path: path, Content: string(data)})
+
 			break
 		}
 	}

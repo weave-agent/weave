@@ -5,9 +5,10 @@ import (
 	"path/filepath"
 )
 
-func loadSystemPrompt(projectDir, globalDir string) (base string, append_ string) {
+func loadSystemPrompt(projectDir, globalDir string) (base, append_ string) {
 	base = loadFirst("SYSTEM.md", projectDir, globalDir)
 	append_ = loadFirst("APPEND_SYSTEM.md", projectDir, globalDir)
+
 	return base, append_
 }
 

@@ -241,6 +241,7 @@ func TestFormatInstructionsPrompt_Ordering(t *testing.T) {
 
 func assertHasSubstring(t *testing.T, s, substr string) int {
 	t.Helper()
+
 	idx := len(s) // fallback
 	for i := 0; i <= len(s)-len(substr); i++ {
 		if s[i:i+len(substr)] == substr {
@@ -248,7 +249,9 @@ func assertHasSubstring(t *testing.T, s, substr string) int {
 			break
 		}
 	}
-	assert.True(t, idx < len(s), "expected to find %q in result", substr)
+
+	assert.Less(t, idx, len(s), "expected to find %q in result", substr)
+
 	return idx
 }
 
@@ -308,5 +311,5 @@ func TestSubscribe_NoFilesPublishesEmpty(t *testing.T) {
 	require.Len(t, bus.PublishCalls(), 1)
 	call := bus.PublishCalls()[0]
 	assert.Equal(t, sdk.TopicInstructionsLoaded, call.Event.Topic)
-	assert.Equal(t, "", call.Event.Payload)
+	assert.Empty(t, call.Event.Payload)
 }

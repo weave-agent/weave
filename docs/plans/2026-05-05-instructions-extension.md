@@ -92,15 +92,15 @@ Add an `instructions` extension that discovers and loads CLAUDE.md/AGENTS.md con
 - [x] run `make lint` — no new issues
 
 ### Task 6: Verify acceptance criteria
-- [ ] verify CLAUDE.md files are discovered by walking up from project directory
-- [ ] verify AGENTS.md files are discovered (same logic, alternative name)
-- [ ] verify `.weave/SYSTEM.md` overrides the system prompt base
-- [ ] verify `.weave/APPEND_SYSTEM.md` appends to the system prompt
-- [ ] verify global `~/.weave/SYSTEM.md` and `~/.weave/APPEND_SYSTEM.md` work as fallback
-- [ ] verify project files take precedence over global files
-- [ ] verify instructions + skills are both present in the final system prompt
-- [ ] run full test suite — all pass
-- [ ] run linter — clean
+- [x] verify CLAUDE.md files are discovered by walking up from project directory
+- [x] verify AGENTS.md files are discovered (same logic, alternative name)
+- [x] verify `.weave/SYSTEM.md` overrides the system prompt base
+- [x] verify `.weave/APPEND_SYSTEM.md` appends to the system prompt
+- [x] verify global `~/.weave/SYSTEM.md` and `~/.weave/APPEND_SYSTEM.md` work as fallback
+- [x] verify project files take precedence over global files
+- [x] verify instructions + skills are both present in the final system prompt
+- [x] run full test suite — all pass
+- [x] run linter — clean
 
 ## Technical Details
 
