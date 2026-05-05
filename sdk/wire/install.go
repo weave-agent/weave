@@ -175,15 +175,23 @@ func stagingPath(homeDir, extName string) (string, error) {
 }
 
 func swapStaging(stagingDir, destDir string) error {
+	backupDir := destDir + ".bak"
+	_, _ = os.Stat(backupDir) // ignore error; backup may not exist
+	_ = os.Remove(backupDir)  // clean stale backup if any
+
 	if _, err := os.Stat(destDir); err == nil {
-		if err := os.RemoveAll(destDir); err != nil {
-			return fmt.Errorf("remove existing extension: %w", err)
+		if err := os.Rename(destDir, backupDir); err != nil {
+			return fmt.Errorf("backup existing extension: %w", err)
 		}
 	}
 
 	if err := os.Rename(stagingDir, destDir); err != nil {
+		_ = os.Rename(backupDir, destDir) // best-effort restore
+
 		return fmt.Errorf("install staged extension: %w", err)
 	}
+
+	_ = os.RemoveAll(backupDir)
 
 	return nil
 }
