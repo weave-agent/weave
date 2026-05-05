@@ -10,9 +10,14 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"weave/config"
 )
+
+// cloneTimeout bounds how long `git clone` may run. A hung remote would
+// otherwise block `weave install` indefinitely.
+const cloneTimeout = 5 * time.Minute
 
 // sourceType identifies the kind of install source.
 type sourceType int
@@ -277,10 +282,17 @@ func deriveNameFromURL(rawURL string) string {
 
 // cloneExtension runs git clone into destDir. destDir must not exist.
 func cloneExtension(gitURL, destDir string) error {
-	cmd := exec.CommandContext(context.Background(), "git", "clone", "--depth", "1", gitURL, destDir) //nolint:gosec // G702 — gitURL is user-provided CLI arg
+	ctx, cancel := context.WithTimeout(context.Background(), cloneTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "git", "clone", "--depth", "1", gitURL, destDir) //nolint:gosec // G702 — gitURL is user-provided CLI arg
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return fmt.Errorf("git clone %s: timed out after %s", gitURL, cloneTimeout)
+		}
+
 		return fmt.Errorf("git clone %s: %w", gitURL, err)
 	}
 
@@ -290,6 +302,18 @@ func cloneExtension(gitURL, destDir string) error {
 // copyExtension copies a local directory tree to destDir. destDir must not
 // exist; it is created by this function.
 func copyExtension(srcDir, destDir string) error {
+	// Used to verify symlink targets stay inside the source tree, so we don't
+	// silently exfiltrate files outside it (e.g. /etc/passwd, ~/.ssh/id_rsa).
+	absSrcDir, err := filepath.Abs(srcDir)
+	if err != nil {
+		return fmt.Errorf("resolve source dir: %w", err)
+	}
+
+	absSrcDir, err = filepath.EvalSymlinks(absSrcDir)
+	if err != nil {
+		return fmt.Errorf("resolve source dir: %w", err)
+	}
+
 	if err := filepath.WalkDir(srcDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return fmt.Errorf("walk: %w", err)
@@ -313,6 +337,11 @@ func copyExtension(srcDir, destDir string) error {
 			resolved, resolveErr := filepath.EvalSymlinks(path)
 			if resolveErr != nil {
 				return fmt.Errorf("resolve symlink %q: %w", path, resolveErr)
+			}
+
+			// Reject symlinks whose targets escape the source tree.
+			if !pathContains(absSrcDir, resolved) {
+				return fmt.Errorf("symlink %q points outside source dir", path)
 			}
 
 			stat, statErr := os.Stat(resolved)
@@ -352,6 +381,21 @@ func copyExtension(srcDir, destDir string) error {
 	}
 
 	return nil
+}
+
+// pathContains reports whether target is the same path as parent or lies
+// inside it. Both arguments must be absolute, fully resolved paths.
+func pathContains(parent, target string) bool {
+	rel, err := filepath.Rel(parent, target)
+	if err != nil {
+		return false
+	}
+
+	if rel == "." {
+		return true
+	}
+
+	return !strings.HasPrefix(rel, "..") && rel != ".."
 }
 
 // hasGoFiles reports whether a directory tree contains .go files.

@@ -292,9 +292,9 @@ func readLocalReplaces(dir string) map[string]string {
 	inReplaceBlock := false
 
 	for line := range strings.SplitSeq(string(data), "\n") {
-		trimmed := strings.TrimSpace(line)
+		trimmed := stripGoModComment(strings.TrimSpace(line))
 
-		if trimmed == "" || strings.HasPrefix(trimmed, "//") {
+		if trimmed == "" {
 			continue
 		}
 
@@ -322,6 +322,16 @@ func readLocalReplaces(dir string) map[string]string {
 	}
 
 	return result
+}
+
+// stripGoModComment removes any "//"-prefixed inline comment from a go.mod
+// line. go.mod has no escape syntax so anything after "//" is comment text.
+func stripGoModComment(line string) string {
+	if before, _, found := strings.Cut(line, "//"); found {
+		return strings.TrimSpace(before)
+	}
+
+	return line
 }
 
 func parseSingleReplace(s, dir string, result map[string]string) {
