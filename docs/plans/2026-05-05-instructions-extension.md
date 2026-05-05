@@ -62,12 +62,12 @@ Add an `instructions` extension that discovers and loads CLAUDE.md/AGENTS.md con
 - [x] run `go build` from within `extensions/instructions/` to verify compilation
 
 ### Task 2: Implement context file discovery and system prompt loading
-- [ ] implement walk-up algorithm in `discover.go`: iterate from `projectDir` upward to filesystem root, check for `CLAUDE.md` then `AGENTS.md` in each dir, dedup by absolute path, collect in order (closest first)
-- [ ] add global context file loading: check `~/.weave/CLAUDE.md` and `~/.weave/AGENTS.md`
-- [ ] implement `loadSystemPrompt` in `system.go`: check `.weave/SYSTEM.md` (project) → `~/.weave/SYSTEM.md` (global), same for APPEND_SYSTEM.md
-- [ ] implement `formatInstructionsPrompt` in `prompt.go`: if context files exist, add "# Project Context" section with each file as `## {path}\n\n{content}`; if systemBase exists, prepend; if systemAppend exists, append
-- [ ] wire `Subscribe()` to call discover + load + format, then publish on `TopicInstructionsLoaded`
-- [ ] run `go build` from within `extensions/instructions/` to verify compilation
+- [x] implement walk-up algorithm in `discover.go`: iterate from `projectDir` upward to filesystem root, check for `CLAUDE.md` then `AGENTS.md` in each dir, dedup by absolute path, collect in order (closest first)
+- [x] add global context file loading: check `~/.weave/CLAUDE.md` and `~/.weave/AGENTS.md`
+- [x] implement `loadSystemPrompt` in `system.go`: check `.weave/SYSTEM.md` (project) → `~/.weave/SYSTEM.md` (global), same for APPEND_SYSTEM.md
+- [x] implement `formatInstructionsPrompt` in `prompt.go`: if context files exist, add "# Project Context" section with each file as `## {path}\n\n{content}`; if systemBase exists, prepend; if systemAppend exists, append
+- [x] wire `Subscribe()` to call discover + load + format, then publish on `TopicInstructionsLoaded`
+- [x] run `go build` from within `extensions/instructions/` to verify compilation
 
 ### Task 3: Write tests for instructions extension
 - [ ] create `extension_test.go` with tests for `discoverContextFiles`: no files found, single file found, walk-up precedence (closest wins), deduplication, global fallback
