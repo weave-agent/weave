@@ -381,6 +381,7 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string, provider
 	b.WriteString("\t\"weave/bus\"\n")
 	b.WriteString("\t\"weave/config\"\n")
 	b.WriteString("\t\"weave/sdk\"\n")
+	b.WriteString("\t\"weave/sdk/wire\"\n")
 
 	for _, ext := range exts {
 		b.WriteString("\n")
@@ -469,7 +470,7 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string, provider
 	}
 
 	b.WriteString("\n")
-	b.WriteString("\tcore := sdk.CoreWireConfig{AgentLoop: \"" + agentLoop + "\", Providers: []string{" + strings.Join(providerNames, ", ") + "}}\n")
+	b.WriteString("\tcore := wire.CoreWireConfig{AgentLoop: \"" + agentLoop + "\", Providers: []string{" + strings.Join(providerNames, ", ") + "}}\n")
 	b.WriteString("\tif agentLoopName != \"\" {\n")
 	b.WriteString("\t\tcore.AgentLoop = agentLoopName\n")
 	b.WriteString("\t}\n")
@@ -479,7 +480,7 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string, provider
 	b.WriteString("\tif prompt != \"\" {\n")
 	b.WriteString("\t\tcore.SingleTurn = true\n")
 	b.WriteString("\t}\n")
-	b.WriteString("\twired, err := sdk.WireWithCore(core, optExts, b, cfg)\n")
+	b.WriteString("\twired, err := wire.WireWithCore(core, optExts, b, cfg)\n")
 	b.WriteString("\tif err != nil {\n")
 	b.WriteString("\t\tfmt.Fprintf(os.Stderr, \"weave: %v\\n\", err)\n")
 	b.WriteString("\t\tos.Exit(1)\n")

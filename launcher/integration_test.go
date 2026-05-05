@@ -10,6 +10,7 @@ import (
 
 	"weave/bus"
 	"weave/sdk"
+	"weave/sdk/wire"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -238,7 +239,7 @@ func TestIntegration_WireSubscribesExtensionsInProcess(t *testing.T) {
 		return nil
 	})
 
-	wired, err := sdk.Wire([]string{"noop"}, b, nil)
+	wired, err := wire.Wire([]string{"noop"}, b, nil)
 	require.NoError(t, err, "Wire")
 
 	require.True(t, subscribeCalled, "Subscribe was not called")

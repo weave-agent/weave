@@ -1,10 +1,14 @@
-package sdk
+package wire
+
+//go:generate moq -fmt goimports -stub -skip-ensure -pkg wire -out wire_mock_test.go .. Bus Provider
 
 import (
 	"errors"
 	"fmt"
 	"os"
 	"slices"
+
+	"weave/sdk"
 )
 
 type CoreWireConfig struct {
@@ -13,23 +17,22 @@ type CoreWireConfig struct {
 	SingleTurn bool
 }
 
-// Wired holds all extensions wired to a bus. Call Close to shut down.
 type Wired struct {
-	extensions []Extension
-	bus        Bus
+	extensions []sdk.Extension
+	bus        sdk.Bus
 }
 
-func Wire(extNames []string, bus Bus, cfg Config) (*Wired, error) {
-	cfg = configOrDefault(cfg)
-	exts := make([]Extension, 0, len(extNames))
+func Wire(extNames []string, bus sdk.Bus, cfg sdk.Config) (*Wired, error) {
+	if cfg == nil {
+		cfg = noopConfig{}
+	}
+
+	exts := make([]sdk.Extension, 0, len(extNames))
 
 	for _, name := range extNames {
-		ext, err := GetExtension(name, cfg)
+		ext, err := sdk.GetExtension(name, cfg)
 		if err != nil {
-			// Tools, providers, and UI extensions are registered via blank
-			// import but resolved through their own registries at runtime,
-			// not wired as Extensions on the bus.
-			if ToolRegistered(name) || ProviderRegistered(name) || UIExtensionRegistered(name) {
+			if sdk.ToolRegistered(name) || sdk.ProviderRegistered(name) || sdk.UIExtensionRegistered(name) {
 				continue
 			}
 
@@ -50,21 +53,17 @@ func Wire(extNames []string, bus Bus, cfg Config) (*Wired, error) {
 	return &Wired{extensions: exts, bus: bus}, nil
 }
 
-func WireWithCore(core CoreWireConfig, optExts []string, bus Bus, cfg Config) (*Wired, error) {
+func WireWithCore(core CoreWireConfig, optExts []string, bus sdk.Bus, cfg sdk.Config) (*Wired, error) {
 	if err := validateCore(core); err != nil {
 		return nil, fmt.Errorf("wire: %w", err)
 	}
 
-	// Validate that provider factories exist (they are resolved on demand by
-	// the agent loop, not wired as extensions).
 	for _, p := range core.Providers {
-		if !ProviderRegistered(p) {
+		if !sdk.ProviderRegistered(p) {
 			return nil, fmt.Errorf("wire: provider %q not registered", p)
 		}
 	}
 
-	// Sync the primary provider to the env var that the loop extension reads
-	// in its factory, so direct WireWithCore callers don't need to set it.
 	oldProvider := os.Getenv("WEAVE_PROVIDER")
 	if oldProvider == "" {
 		_ = os.Setenv("WEAVE_PROVIDER", core.Providers[0])
@@ -87,7 +86,6 @@ func WireWithCore(core CoreWireConfig, optExts []string, bus Bus, cfg Config) (*
 		}()
 	}
 
-	// Only wire the agent-loop extension and optional extensions.
 	extNames := mergeCoreAndOptional(CoreWireConfig{AgentLoop: core.AgentLoop}, optExts)
 
 	return Wire(extNames, bus, cfg)
@@ -156,3 +154,12 @@ func mergeCoreAndOptional(core CoreWireConfig, optExts []string) []string {
 
 	return result
 }
+
+type noopConfig struct{}
+
+func (noopConfig) FilePath() string                                { return "" }
+func (noopConfig) ProviderConfig(string) *sdk.ProviderConfigEntry   { return nil }
+func (noopConfig) ResolveKey(_, envVar string) (string, error)      { return os.Getenv(envVar), nil }
+func (noopConfig) ToolConfig(string, any) error                     { return nil }
+func (noopConfig) UIConfig(any) error                               { return nil }
+func (noopConfig) IsHeadless() bool                                 { return true }

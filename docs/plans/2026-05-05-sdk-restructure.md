@@ -101,12 +101,12 @@ No circular dependencies.
 - [x] run `go test ./sdk/... ./bus/...` — must pass (extension tests run separately)
 
 ### Task 6: Create `sdk/wire/` with Wire logic
-- [ ] create `sdk/wire/wire.go` — move `Wire`, `WireWithCore`, `Wired`, `CoreWireConfig`, `validateCore`, `mergeCoreAndOptional` from `sdk/wire.go`
-- [ ] update imports: `sdk/wire/` imports `weave/sdk` for interfaces and `weave/sdk/model` for thinking level constants
-- [ ] move existing tests from `sdk/wire_test.go` to `sdk/wire/wire_test.go`, updating import paths
-- [ ] delete `sdk/wire.go`
-- [ ] update `launcher/builder.go` — change generated code to import `"weave/sdk/wire"` and use `wire.CoreWireConfig`/`wire.WireWithCore` instead of `sdk.*`
-- [ ] run `go test ./sdk/wire/... ./launcher/...` — must pass
+- [x] create `sdk/wire/wire.go` — move `Wire`, `WireWithCore`, `Wired`, `CoreWireConfig`, `validateCore`, `mergeCoreAndOptional` from `sdk/wire.go`
+- [x] update imports: `sdk/wire/` imports `weave/sdk` for interfaces and `weave/sdk/model` for thinking level constants
+- [x] move existing tests from `sdk/wire_test.go` to `sdk/wire/wire_test.go`, updating import paths
+- [x] delete `sdk/wire.go`
+- [x] update `launcher/builder.go` — change generated code to import `"weave/sdk/wire"` and use `wire.CoreWireConfig`/`wire.WireWithCore` instead of `sdk.*`
+- [x] run `go test ./sdk/wire/... ./launcher/...` — must pass
 
 ### Task 7: Extract cmd/weave/main.go logic into sdk/wire/run.go
 - [ ] create `sdk/wire/run.go` — `Run(ctx context.Context, args []string) int` absorbing: `dispatch()`, `run()`, `resolveExtensionsAndMode()`, `writePromptFile()`, `resolveProjectDir()`, `ensurePresent()`, `findModuleRoot()`, `findModuleRootFrom()`, `isWeaveModule()` from `cmd/weave/main.go`

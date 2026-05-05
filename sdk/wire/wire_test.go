@@ -1,4 +1,4 @@
-package sdk
+package wire
 
 import (
 	"errors"
@@ -9,18 +9,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-)
 
-// --- helpers ---
+	"weave/sdk"
+)
 
 func coreCfg(providers ...string) CoreWireConfig {
 	return CoreWireConfig{AgentLoop: "loop", Providers: providers}
 }
 
-// --- Wire (legacy, no core) ---
-
 func TestWire_NoExtensions(t *testing.T) {
-	ResetRegistry()
+	sdk.ResetRegistry()
 
 	bus := &BusMock{}
 
@@ -30,7 +28,7 @@ func TestWire_NoExtensions(t *testing.T) {
 }
 
 func TestWire_EmptyExtensions(t *testing.T) {
-	ResetRegistry()
+	sdk.ResetRegistry()
 
 	bus := &BusMock{}
 
@@ -40,17 +38,17 @@ func TestWire_EmptyExtensions(t *testing.T) {
 }
 
 func TestWire_SubscribesAllExtensions(t *testing.T) {
-	ResetRegistry()
+	sdk.ResetRegistry()
 
 	var subscribed atomic.Int32
 
-	RegisterExtension("ext-a", func(Config) (Extension, error) {
-		return NewExtensionFunc("ext-a", func(bus Bus) {
+	sdk.RegisterExtension("ext-a", func(sdk.Config) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("ext-a", func(bus sdk.Bus) {
 			subscribed.Add(1)
 		}), nil
 	})
-	RegisterExtension("ext-b", func(Config) (Extension, error) {
-		return NewExtensionFunc("ext-b", func(bus Bus) {
+	sdk.RegisterExtension("ext-b", func(sdk.Config) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("ext-b", func(bus sdk.Bus) {
 			subscribed.Add(1)
 		}), nil
 	})
@@ -66,7 +64,7 @@ func TestWire_SubscribesAllExtensions(t *testing.T) {
 }
 
 func TestWire_MissingExtension(t *testing.T) {
-	ResetRegistry()
+	sdk.ResetRegistry()
 
 	bus := &BusMock{}
 
@@ -76,12 +74,12 @@ func TestWire_MissingExtension(t *testing.T) {
 }
 
 func TestWire_ReceiveBusInSubscribe(t *testing.T) {
-	ResetRegistry()
+	sdk.ResetRegistry()
 
-	var receivedBus Bus
+	var receivedBus sdk.Bus
 
-	RegisterExtension("ext-c", func(Config) (Extension, error) {
-		return NewExtensionFunc("ext-c", func(bus Bus) {
+	sdk.RegisterExtension("ext-c", func(sdk.Config) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("ext-c", func(bus sdk.Bus) {
 			receivedBus = bus
 		}), nil
 	})
@@ -94,10 +92,10 @@ func TestWire_ReceiveBusInSubscribe(t *testing.T) {
 }
 
 func TestWire_PartialMissing(t *testing.T) {
-	ResetRegistry()
+	sdk.ResetRegistry()
 
-	RegisterExtension("good", func(Config) (Extension, error) {
-		return NewExtensionFunc("good", func(bus Bus) {}), nil
+	sdk.RegisterExtension("good", func(sdk.Config) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("good", func(bus sdk.Bus) {}), nil
 	})
 
 	bus := &BusMock{}
@@ -106,15 +104,11 @@ func TestWire_PartialMissing(t *testing.T) {
 	require.Error(t, err)
 }
 
-// TestWire_SkipsUIExtension verifies that UI extensions registered via
-// RegisterUIExtension (not RegisterExtension) are silently skipped during
-// wiring rather than causing "extension not registered" errors. UI
-// extensions are wired by the TUI itself via GetUIExtensions().
 func TestWire_SkipsUIExtension(t *testing.T) {
-	ResetRegistry()
-	ResetUIExtensionRegistry()
+	sdk.ResetRegistry()
+	sdk.ResetUIExtensionRegistry()
 
-	RegisterUIExtension(stubUIExt{name: "diff-viewer"})
+	sdk.RegisterUIExtension(stubUIExt{name: "diff-viewer"})
 
 	bus := &BusMock{}
 
@@ -125,19 +119,19 @@ func TestWire_SkipsUIExtension(t *testing.T) {
 type stubUIExt struct{ name string }
 
 func (s stubUIExt) Name() string  { return s.name }
-func (s stubUIExt) Register(_ UI) {}
+func (s stubUIExt) Register(_ sdk.UI) {}
 
 func TestWire_PassesConfigToFactory(t *testing.T) {
-	ResetRegistry()
+	sdk.ResetRegistry()
 
-	var receivedCfg Config
+	var receivedCfg sdk.Config
 
-	RegisterExtension("cfg-ext", func(cfg Config) (Extension, error) {
+	sdk.RegisterExtension("cfg-ext", func(cfg sdk.Config) (sdk.Extension, error) {
 		receivedCfg = cfg
-		return NewExtensionFunc("cfg-ext", func(Bus) {}), nil
+		return sdk.NewExtensionFunc("cfg-ext", func(sdk.Bus) {}), nil
 	})
 
-	cfg := FilePathConfig("/test/.weave.yaml")
+	cfg := sdk.FilePathConfig("/test/.weave.yaml")
 	bus := &BusMock{}
 
 	_, err := Wire([]string{"cfg-ext"}, bus, cfg)
@@ -147,9 +141,9 @@ func TestWire_PassesConfigToFactory(t *testing.T) {
 }
 
 func TestWire_FactoryError(t *testing.T) {
-	ResetRegistry()
+	sdk.ResetRegistry()
 
-	RegisterExtension("bad", func(Config) (Extension, error) {
+	sdk.RegisterExtension("bad", func(sdk.Config) (sdk.Extension, error) {
 		return nil, errors.New("init failed")
 	})
 
@@ -160,18 +154,18 @@ func TestWire_FactoryError(t *testing.T) {
 }
 
 func TestWired_Close(t *testing.T) {
-	ResetRegistry()
+	sdk.ResetRegistry()
 
 	var closed atomic.Int32
 
-	RegisterExtension("a", func(Config) (Extension, error) {
-		return NewExtensionFuncWithClose("a", func(Bus) {}, func() error {
+	sdk.RegisterExtension("a", func(sdk.Config) (sdk.Extension, error) {
+		return sdk.NewExtensionFuncWithClose("a", func(sdk.Bus) {}, func() error {
 			closed.Add(1)
 			return nil
 		}), nil
 	})
-	RegisterExtension("b", func(Config) (Extension, error) {
-		return NewExtensionFuncWithClose("b", func(Bus) {}, func() error {
+	sdk.RegisterExtension("b", func(sdk.Config) (sdk.Extension, error) {
+		return sdk.NewExtensionFuncWithClose("b", func(sdk.Bus) {}, func() error {
 			closed.Add(1)
 			return nil
 		}), nil
@@ -187,18 +181,18 @@ func TestWired_Close(t *testing.T) {
 }
 
 func TestWired_CloseReverseOrder(t *testing.T) {
-	ResetRegistry()
+	sdk.ResetRegistry()
 
 	var order []string
 
-	RegisterExtension("first", func(Config) (Extension, error) {
-		return NewExtensionFuncWithClose("first", func(Bus) {}, func() error {
+	sdk.RegisterExtension("first", func(sdk.Config) (sdk.Extension, error) {
+		return sdk.NewExtensionFuncWithClose("first", func(sdk.Bus) {}, func() error {
 			order = append(order, "first")
 			return nil
 		}), nil
 	})
-	RegisterExtension("second", func(Config) (Extension, error) {
-		return NewExtensionFuncWithClose("second", func(Bus) {}, func() error {
+	sdk.RegisterExtension("second", func(sdk.Config) (sdk.Extension, error) {
+		return sdk.NewExtensionFuncWithClose("second", func(sdk.Bus) {}, func() error {
 			order = append(order, "second")
 			return nil
 		}), nil
@@ -213,21 +207,19 @@ func TestWired_CloseReverseOrder(t *testing.T) {
 	assert.Equal(t, []string{"second", "first"}, order)
 }
 
-// --- WireWithCore: merging ---
-
 func TestWireWithCore_MergesCoreAndOptional(t *testing.T) {
-	ResetRegistry()
-	ResetProviderRegistry()
+	sdk.ResetRegistry()
+	sdk.ResetProviderRegistry()
 
 	var names []string
 
-	RegisterProvider("anthropic", func(Config) (Provider, error) {
+	sdk.RegisterProvider("anthropic", func(sdk.Config) (sdk.Provider, error) {
 		return &ProviderMock{}, nil
 	})
 
 	reg := func(n string) {
-		RegisterExtension(n, func(Config) (Extension, error) {
-			return NewExtensionFunc(n, func(Bus) {
+		sdk.RegisterExtension(n, func(sdk.Config) (sdk.Extension, error) {
+			return sdk.NewExtensionFunc(n, func(sdk.Bus) {
 				names = append(names, n)
 			}), nil
 		})
@@ -250,18 +242,18 @@ func TestWireWithCore_MergesCoreAndOptional(t *testing.T) {
 }
 
 func TestWireWithCore_Deduplicates(t *testing.T) {
-	ResetRegistry()
-	ResetProviderRegistry()
+	sdk.ResetRegistry()
+	sdk.ResetProviderRegistry()
 
 	var subscribed atomic.Int32
 
-	RegisterProvider("anthropic", func(Config) (Provider, error) {
+	sdk.RegisterProvider("anthropic", func(sdk.Config) (sdk.Provider, error) {
 		return &ProviderMock{}, nil
 	})
 
 	reg := func(n string) {
-		RegisterExtension(n, func(Config) (Extension, error) {
-			return NewExtensionFunc(n, func(Bus) {
+		sdk.RegisterExtension(n, func(sdk.Config) (sdk.Extension, error) {
+			return sdk.NewExtensionFunc(n, func(sdk.Bus) {
 				subscribed.Add(1)
 			}), nil
 		})
@@ -283,18 +275,18 @@ func TestWireWithCore_Deduplicates(t *testing.T) {
 }
 
 func TestWireWithCore_CoreOnly(t *testing.T) {
-	ResetRegistry()
-	ResetProviderRegistry()
+	sdk.ResetRegistry()
+	sdk.ResetProviderRegistry()
 
-	RegisterProvider("anthropic", func(Config) (Provider, error) {
+	sdk.RegisterProvider("anthropic", func(sdk.Config) (sdk.Provider, error) {
 		return &ProviderMock{}, nil
 	})
 
 	var names []string
 
 	reg := func(n string) {
-		RegisterExtension(n, func(Config) (Extension, error) {
-			return NewExtensionFunc(n, func(Bus) {
+		sdk.RegisterExtension(n, func(sdk.Config) (sdk.Extension, error) {
+			return sdk.NewExtensionFunc(n, func(sdk.Bus) {
 				names = append(names, n)
 			}), nil
 		})
@@ -310,10 +302,8 @@ func TestWireWithCore_CoreOnly(t *testing.T) {
 	assert.Equal(t, "loop", names[0])
 }
 
-// --- WireWithCore: validation errors ---
-
 func TestWireWithCore_ErrMissingAgentLoop(t *testing.T) {
-	ResetRegistry()
+	sdk.ResetRegistry()
 
 	bus := &BusMock{}
 
@@ -323,7 +313,7 @@ func TestWireWithCore_ErrMissingAgentLoop(t *testing.T) {
 }
 
 func TestWireWithCore_ErrNoProvider(t *testing.T) {
-	ResetRegistry()
+	sdk.ResetRegistry()
 
 	bus := &BusMock{}
 
@@ -333,7 +323,7 @@ func TestWireWithCore_ErrNoProvider(t *testing.T) {
 }
 
 func TestWireWithCore_ErrEmptyProviders(t *testing.T) {
-	ResetRegistry()
+	sdk.ResetRegistry()
 
 	bus := &BusMock{}
 
@@ -342,7 +332,7 @@ func TestWireWithCore_ErrEmptyProviders(t *testing.T) {
 }
 
 func TestWireWithCore_ErrDuplicateProviders(t *testing.T) {
-	ResetRegistry()
+	sdk.ResetRegistry()
 
 	bus := &BusMock{}
 
@@ -352,22 +342,22 @@ func TestWireWithCore_ErrDuplicateProviders(t *testing.T) {
 }
 
 func TestWireWithCore_FactoryErrorRollback(t *testing.T) {
-	ResetRegistry()
-	ResetProviderRegistry()
+	sdk.ResetRegistry()
+	sdk.ResetProviderRegistry()
 
-	RegisterProvider("anthropic", func(Config) (Provider, error) {
+	sdk.RegisterProvider("anthropic", func(sdk.Config) (sdk.Provider, error) {
 		return &ProviderMock{}, nil
 	})
 
 	var closed atomic.Int32
 
-	RegisterExtension("loop", func(Config) (Extension, error) {
-		return NewExtensionFuncWithClose("loop", func(Bus) {}, func() error {
+	sdk.RegisterExtension("loop", func(sdk.Config) (sdk.Extension, error) {
+		return sdk.NewExtensionFuncWithClose("loop", func(sdk.Bus) {}, func() error {
 			closed.Add(1)
 			return nil
 		}), nil
 	})
-	RegisterExtension("bad", func(Config) (Extension, error) {
+	sdk.RegisterExtension("bad", func(sdk.Config) (sdk.Extension, error) {
 		return nil, errors.New("init failed")
 	})
 
@@ -380,15 +370,15 @@ func TestWireWithCore_FactoryErrorRollback(t *testing.T) {
 }
 
 func TestWired_CloseErrorAggregation(t *testing.T) {
-	ResetRegistry()
+	sdk.ResetRegistry()
 
-	RegisterExtension("a", func(Config) (Extension, error) {
-		return NewExtensionFuncWithClose("a", func(Bus) {}, func() error {
+	sdk.RegisterExtension("a", func(sdk.Config) (sdk.Extension, error) {
+		return sdk.NewExtensionFuncWithClose("a", func(sdk.Bus) {}, func() error {
 			return errors.New("a failed")
 		}), nil
 	})
-	RegisterExtension("b", func(Config) (Extension, error) {
-		return NewExtensionFuncWithClose("b", func(Bus) {}, func() error {
+	sdk.RegisterExtension("b", func(sdk.Config) (sdk.Extension, error) {
+		return sdk.NewExtensionFuncWithClose("b", func(sdk.Bus) {}, func() error {
 			return errors.New("b failed")
 		}), nil
 	})
@@ -405,18 +395,18 @@ func TestWired_CloseErrorAggregation(t *testing.T) {
 }
 
 func TestWireWithCore_SyncsProviderEnv(t *testing.T) {
-	ResetRegistry()
-	ResetProviderRegistry()
+	sdk.ResetRegistry()
+	sdk.ResetProviderRegistry()
 
-	RegisterProvider("openai", func(Config) (Provider, error) {
+	sdk.RegisterProvider("openai", func(sdk.Config) (sdk.Provider, error) {
 		return &ProviderMock{}, nil
 	})
 
 	var capturedProvider string
 
-	RegisterExtension("loop", func(Config) (Extension, error) {
+	sdk.RegisterExtension("loop", func(sdk.Config) (sdk.Extension, error) {
 		capturedProvider = os.Getenv("WEAVE_PROVIDER")
-		return NewExtensionFunc("loop", func(Bus) {}), nil
+		return sdk.NewExtensionFunc("loop", func(sdk.Bus) {}), nil
 	})
 
 	t.Setenv("WEAVE_PROVIDER", "")
@@ -431,21 +421,21 @@ func TestWireWithCore_SyncsProviderEnv(t *testing.T) {
 }
 
 func TestWireWithCore_DoesNotOverrideExistingProviderEnv(t *testing.T) {
-	ResetRegistry()
-	ResetProviderRegistry()
+	sdk.ResetRegistry()
+	sdk.ResetProviderRegistry()
 
-	RegisterProvider("anthropic", func(Config) (Provider, error) {
+	sdk.RegisterProvider("anthropic", func(sdk.Config) (sdk.Provider, error) {
 		return &ProviderMock{}, nil
 	})
-	RegisterProvider("openai", func(Config) (Provider, error) {
+	sdk.RegisterProvider("openai", func(sdk.Config) (sdk.Provider, error) {
 		return &ProviderMock{}, nil
 	})
 
 	var capturedProvider string
 
-	RegisterExtension("loop", func(Config) (Extension, error) {
+	sdk.RegisterExtension("loop", func(sdk.Config) (sdk.Extension, error) {
 		capturedProvider = os.Getenv("WEAVE_PROVIDER")
-		return NewExtensionFunc("loop", func(Bus) {}), nil
+		return sdk.NewExtensionFunc("loop", func(sdk.Bus) {}), nil
 	})
 
 	t.Setenv("WEAVE_PROVIDER", "anthropic")
@@ -460,21 +450,21 @@ func TestWireWithCore_DoesNotOverrideExistingProviderEnv(t *testing.T) {
 }
 
 func TestWireWithCore_PassesConfigToFactories(t *testing.T) {
-	ResetRegistry()
-	ResetProviderRegistry()
+	sdk.ResetRegistry()
+	sdk.ResetProviderRegistry()
 
-	RegisterProvider("anthropic", func(Config) (Provider, error) {
+	sdk.RegisterProvider("anthropic", func(sdk.Config) (sdk.Provider, error) {
 		return &ProviderMock{}, nil
 	})
 
-	var receivedCfg Config
+	var receivedCfg sdk.Config
 
-	RegisterExtension("loop", func(cfg Config) (Extension, error) {
+	sdk.RegisterExtension("loop", func(cfg sdk.Config) (sdk.Extension, error) {
 		receivedCfg = cfg
-		return NewExtensionFunc("loop", func(Bus) {}), nil
+		return sdk.NewExtensionFunc("loop", func(sdk.Bus) {}), nil
 	})
 
-	cfg := FilePathConfig("/test/.weave.yaml")
+	cfg := sdk.FilePathConfig("/test/.weave.yaml")
 	bus := &BusMock{}
 
 	_, err := WireWithCore(coreCfg("anthropic"), nil, bus, cfg)
@@ -484,14 +474,12 @@ func TestWireWithCore_PassesConfigToFactories(t *testing.T) {
 	assert.Equal(t, "/test/.weave.yaml", receivedCfg.FilePath())
 }
 
-// --- Wire with callback-based Bus mock (On/Off/OnAll) ---
-
 func TestWire_ExtensionCallsBusOn(t *testing.T) {
-	ResetRegistry()
+	sdk.ResetRegistry()
 
-	RegisterExtension("on-ext", func(Config) (Extension, error) {
-		return NewExtensionFunc("on-ext", func(bus Bus) {
-			bus.On("test.topic", func(e Event) error { return nil })
+	sdk.RegisterExtension("on-ext", func(sdk.Config) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("on-ext", func(bus sdk.Bus) {
+			bus.On("test.topic", func(e sdk.Event) error { return nil })
 		}), nil
 	})
 
@@ -506,11 +494,11 @@ func TestWire_ExtensionCallsBusOn(t *testing.T) {
 }
 
 func TestWire_ExtensionCallsBusOnAll(t *testing.T) {
-	ResetRegistry()
+	sdk.ResetRegistry()
 
-	RegisterExtension("onall-ext", func(Config) (Extension, error) {
-		return NewExtensionFunc("onall-ext", func(bus Bus) {
-			bus.OnAll(func(e Event) error { return nil })
+	sdk.RegisterExtension("onall-ext", func(sdk.Config) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("onall-ext", func(bus sdk.Bus) {
+			bus.OnAll(func(e sdk.Event) error { return nil })
 		}), nil
 	})
 
@@ -524,17 +512,17 @@ func TestWire_ExtensionCallsBusOnAll(t *testing.T) {
 }
 
 func TestWire_MultipleExtensionsRegisterHandlers(t *testing.T) {
-	ResetRegistry()
+	sdk.ResetRegistry()
 
-	RegisterExtension("ext-1", func(Config) (Extension, error) {
-		return NewExtensionFunc("ext-1", func(bus Bus) {
-			bus.On("topic.a", func(e Event) error { return nil })
-			bus.On("topic.b", func(e Event) error { return nil })
+	sdk.RegisterExtension("ext-1", func(sdk.Config) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("ext-1", func(bus sdk.Bus) {
+			bus.On("topic.a", func(e sdk.Event) error { return nil })
+			bus.On("topic.b", func(e sdk.Event) error { return nil })
 		}), nil
 	})
-	RegisterExtension("ext-2", func(Config) (Extension, error) {
-		return NewExtensionFunc("ext-2", func(bus Bus) {
-			bus.OnAll(func(e Event) error { return nil })
+	sdk.RegisterExtension("ext-2", func(sdk.Config) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("ext-2", func(bus sdk.Bus) {
+			bus.OnAll(func(e sdk.Event) error { return nil })
 		}), nil
 	})
 
@@ -553,16 +541,16 @@ func TestWire_MultipleExtensionsRegisterHandlers(t *testing.T) {
 }
 
 func TestWireWithCore_ExtensionUsesBusOn(t *testing.T) {
-	ResetRegistry()
-	ResetProviderRegistry()
+	sdk.ResetRegistry()
+	sdk.ResetProviderRegistry()
 
-	RegisterProvider("anthropic", func(Config) (Provider, error) {
+	sdk.RegisterProvider("anthropic", func(sdk.Config) (sdk.Provider, error) {
 		return &ProviderMock{}, nil
 	})
 
-	RegisterExtension("loop", func(Config) (Extension, error) {
-		return NewExtensionFunc("loop", func(bus Bus) {
-			bus.On("agent.prompt", func(e Event) error { return nil })
+	sdk.RegisterExtension("loop", func(sdk.Config) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("loop", func(bus sdk.Bus) {
+			bus.On("agent.prompt", func(e sdk.Event) error { return nil })
 		}), nil
 	})
 
@@ -576,5 +564,4 @@ func TestWireWithCore_ExtensionUsesBusOn(t *testing.T) {
 	assert.Equal(t, "agent.prompt", onCalls[0].Topic)
 }
 
-// Suppress unused import warning.
 var _ = strings.TrimSpace
