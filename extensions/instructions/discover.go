@@ -22,7 +22,11 @@ func discoverContextFiles(projectDir, globalDir string) []ContextFile {
 	for dir != "" {
 		for _, name := range contextNames {
 			path := filepath.Join(dir, name)
-			abs, _ := filepath.Abs(path)
+
+			abs := path
+			if a, err := filepath.Abs(path); err == nil {
+				abs = a
+			}
 
 			if seen[abs] {
 				continue
@@ -52,7 +56,11 @@ func discoverContextFiles(projectDir, globalDir string) []ContextFile {
 	if globalDir != "" {
 		for _, name := range contextNames {
 			path := filepath.Join(globalDir, name)
-			abs, _ := filepath.Abs(path)
+
+			abs := path
+			if a, err := filepath.Abs(path); err == nil {
+				abs = a
+			}
 
 			if seen[abs] {
 				continue

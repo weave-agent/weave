@@ -3,6 +3,7 @@ package instructions
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -54,17 +55,16 @@ func TestDiscoverContextFiles_WalkUpPrecedence(t *testing.T) {
 }
 
 func TestDiscoverContextFiles_Deduplication(t *testing.T) {
-	projectDir := t.TempDir()
+	// globalDir is a parent of projectDir so the walk-up reaches the same file.
 	globalDir := t.TempDir()
+	projectDir := filepath.Join(globalDir, "sub")
 
-	// Same CLAUDE.md exists in both project and global - both should be found
-	require.NoError(t, os.WriteFile(filepath.Join(projectDir, "CLAUDE.md"), []byte("project"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(globalDir, "CLAUDE.md"), []byte("global"), 0o644))
+	require.NoError(t, os.MkdirAll(projectDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(globalDir, "CLAUDE.md"), []byte("shared"), 0o644))
 
 	files := discoverContextFiles(projectDir, globalDir)
-	require.Len(t, files, 2)
-	assert.Equal(t, "project", files[0].Content)
-	assert.Equal(t, "global", files[1].Content)
+	require.Len(t, files, 1, "same file found via walk-up and global should be deduplicated")
+	assert.Equal(t, "shared", files[0].Content)
 }
 
 func TestDiscoverContextFiles_AGENTSMD(t *testing.T) {
@@ -242,15 +242,8 @@ func TestFormatInstructionsPrompt_Ordering(t *testing.T) {
 func assertHasSubstring(t *testing.T, s, substr string) int {
 	t.Helper()
 
-	idx := len(s) // fallback
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			idx = i
-			break
-		}
-	}
-
-	assert.Less(t, idx, len(s), "expected to find %q in result", substr)
+	idx := strings.Index(s, substr)
+	require.NotEqual(t, -1, idx, "expected to find %q in result", substr)
 
 	return idx
 }

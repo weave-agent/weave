@@ -7,6 +7,8 @@ import (
 	"weave/sdk"
 )
 
+//go:generate moq -fmt goimports -skip-ensure -pkg instructions -out mock_test.go ../../sdk Bus
+
 type InstructionsExtension struct {
 	cfg sdk.Config
 }
@@ -26,6 +28,12 @@ func (e *InstructionsExtension) Name() string { return "instructions" }
 func (e *InstructionsExtension) Subscribe(bus sdk.Bus) {
 	projectDir := e.projectDir()
 	globalDir := globalConfigDir()
+
+	if projectDir != "" {
+		if abs, err := filepath.Abs(projectDir); err == nil {
+			projectDir = abs
+		}
+	}
 
 	contextFiles := discoverContextFiles(projectDir, globalDir)
 	systemBase, systemAppend := loadSystemPrompt(projectDir, globalDir)
