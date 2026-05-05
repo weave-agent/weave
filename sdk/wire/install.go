@@ -273,6 +273,10 @@ func cloneExtension(gitURL, destDir string) error {
 }
 
 func copyExtension(srcDir, destDir string) error {
+	return copyExt(srcDir, destDir, make(map[string]bool))
+}
+
+func copyExt(srcDir, destDir string, visited map[string]bool) error {
 	// Verify symlink targets stay inside the source tree to prevent
 	// exfiltrating files outside it (e.g. /etc/passwd, ~/.ssh/id_rsa).
 	absSrcDir, err := filepath.Abs(srcDir)
@@ -284,6 +288,13 @@ func copyExtension(srcDir, destDir string) error {
 	if err != nil {
 		return fmt.Errorf("resolve source dir: %w", err)
 	}
+
+	if visited[absSrcDir] {
+		return fmt.Errorf("symlink cycle detected: %q", srcDir)
+	}
+
+	visited[absSrcDir] = true
+	defer delete(visited, absSrcDir)
 
 	if err := filepath.WalkDir(srcDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -318,7 +329,7 @@ func copyExtension(srcDir, destDir string) error {
 			}
 
 			if stat.IsDir() {
-				return copyExtension(resolved, target)
+				return copyExt(resolved, target, visited)
 			}
 
 			data, readErr := os.ReadFile(resolved) //nolint:gosec // G122 — reading from known source dir

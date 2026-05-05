@@ -405,3 +405,53 @@ func TestHasGoFiles_OnlyTestFiles(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "main_test.go"), []byte("package main\n"), 0o600))
 	assert.False(t, hasGoFiles(dir), "test-only files should not count as .go files")
 }
+
+func TestCopyExtension_SymlinkCycle(t *testing.T) {
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "main.go"), []byte("package main\n"), 0o600))
+
+	// Self-referencing symlink: loop -> .
+	require.NoError(t, os.Symlink(".", filepath.Join(srcDir, "loop")))
+
+	destDir := filepath.Join(t.TempDir(), "dest")
+	err := copyExtension(srcDir, destDir)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "symlink cycle detected")
+}
+
+func TestCopyExtension_SymlinkToAncestor(t *testing.T) {
+	srcDir := t.TempDir()
+	subDir := filepath.Join(srcDir, "sub")
+	require.NoError(t, os.MkdirAll(subDir, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "main.go"), []byte("package main\n"), 0o600))
+
+	// Symlink pointing to parent: sub/up -> ..
+	require.NoError(t, os.Symlink("..", filepath.Join(subDir, "up")))
+
+	destDir := filepath.Join(t.TempDir(), "dest")
+	err := copyExtension(srcDir, destDir)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "symlink cycle detected")
+}
+
+func TestCopyExtension_SiblingSymlinksToSameTarget(t *testing.T) {
+	srcDir := t.TempDir()
+
+	// Real directory with a .go file
+	realDir := filepath.Join(srcDir, "shared")
+	require.NoError(t, os.MkdirAll(realDir, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(realDir, "main.go"), []byte("package main\n"), 0o600))
+
+	// Two sibling symlinks pointing to the same real directory
+	require.NoError(t, os.Symlink("shared", filepath.Join(srcDir, "alias-a")))
+	require.NoError(t, os.Symlink("shared", filepath.Join(srcDir, "alias-b")))
+
+	destDir := filepath.Join(t.TempDir(), "dest")
+	err := copyExtension(srcDir, destDir)
+	require.NoError(t, err, "sibling symlinks to same target should not be treated as a cycle")
+
+	// All three copies should exist
+	assert.FileExists(t, filepath.Join(destDir, "shared", "main.go"))
+	assert.FileExists(t, filepath.Join(destDir, "alias-a", "main.go"))
+	assert.FileExists(t, filepath.Join(destDir, "alias-b", "main.go"))
+}
