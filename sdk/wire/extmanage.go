@@ -59,7 +59,7 @@ func listExtensionsDir() ([]extensionStatus, error) {
 	var result []extensionStatus
 
 	for _, entry := range entries {
-		if !entry.IsDir() {
+		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
 			continue
 		}
 
@@ -118,12 +118,17 @@ func updateExtension(name string) error {
 
 	extDir := filepath.Join(dir, name)
 
-	if _, err := os.Stat(extDir); err != nil {
+	info, err := os.Lstat(extDir)
+	if err != nil {
 		if os.IsNotExist(err) {
 			return fmt.Errorf("extension %q not found", name)
 		}
 
-		return fmt.Errorf("stat %s: %w", name, err)
+		return fmt.Errorf("lstat %s: %w", name, err)
+	}
+
+	if info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("extension %q is a symlink — update manually", name)
 	}
 
 	if _, err := os.Stat(filepath.Join(extDir, ".git")); err != nil {
@@ -182,7 +187,13 @@ func uninstallExtension(name string) error {
 
 // runList prints a formatted table of installed extensions to stdout.
 // It checks git-sourced extensions for available updates.
-func runList(_ []string) int {
+func runList(args []string) int {
+	if len(args) > 0 {
+		fmt.Fprintln(os.Stderr, "usage: weave list")
+
+		return 1
+	}
+
 	exts, err := listExtensionsDir()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "weave list: %v\n", err)

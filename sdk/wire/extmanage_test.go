@@ -138,6 +138,18 @@ func TestListExtensionsDir_GitDirs(t *testing.T) {
 	assert.Equal(t, sourceLocal, extMap["local-tool"].Source)
 }
 
+func TestListExtensionsDir_IgnoresHiddenDirs(t *testing.T) {
+	extDir := setupExtensionsDir(t)
+
+	require.NoError(t, os.MkdirAll(filepath.Join(extDir, ".hidden"), 0o750))
+	require.NoError(t, os.MkdirAll(filepath.Join(extDir, "visible"), 0o750))
+
+	exts, err := listExtensionsDir()
+	require.NoError(t, err)
+	require.Len(t, exts, 1)
+	assert.Equal(t, "visible", exts[0].Name)
+}
+
 func TestListExtensionsDir_IgnoresFiles(t *testing.T) {
 	extDir := setupExtensionsDir(t)
 
@@ -334,6 +346,13 @@ func TestRunList_NoExtensions(t *testing.T) {
 
 	code := runList(nil)
 	assert.Equal(t, 0, code)
+}
+
+func TestRunList_RejectsExtraArgs(t *testing.T) {
+	setupExtensionsDir(t)
+
+	code := runList([]string{"unexpected"})
+	assert.Equal(t, 1, code)
 }
 
 func TestRunList_MixedSources(t *testing.T) {
