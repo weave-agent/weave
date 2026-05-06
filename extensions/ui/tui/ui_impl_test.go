@@ -7,6 +7,7 @@ import (
 	"weave/ext/ui/tui/components/messages"
 	"weave/ext/ui/tui/components/overlays"
 	"weave/sdk"
+	"weave/sdk/wire"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/assert"
@@ -654,4 +655,79 @@ type mockRenderer struct{}
 
 func (m *mockRenderer) Render(content string, width int) string {
 	return content
+}
+
+func TestModel_OutdatedNotificationAddsBanner(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, 10)
+
+	msg := OutdatedNotificationMsg{
+		Extensions: []wire.OutdatedInfo{
+			{Name: "mcp", LocalHead: "abc", RemoteHead: "def"},
+			{Name: "diff-viewer", LocalHead: "111", RemoteHead: "222"},
+		},
+	}
+
+	updated, _ := m.Update(msg)
+	m = updated.(Model)
+
+	items := m.chat.Items()
+	require.Len(t, items, 1)
+	am, ok := items[0].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Contains(t, am.Content(), "Extension Updates Available")
+	assert.Contains(t, am.Content(), "mcp, diff-viewer")
+	assert.Contains(t, am.Content(), "weave update")
+	assert.False(t, m.showLanding)
+}
+
+func TestModel_OutdatedNotificationEmptyList(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	msg := OutdatedNotificationMsg{Extensions: nil}
+
+	updated, _ := m.Update(msg)
+	m = updated.(Model)
+
+	assert.Empty(t, m.chat.Items())
+}
+
+func TestModel_OutdatedNotificationSingleExtension(t *testing.T) {
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, 10)
+
+	msg := OutdatedNotificationMsg{
+		Extensions: []wire.OutdatedInfo{
+			{Name: "mcp", LocalHead: "abc", RemoteHead: "def"},
+		},
+	}
+
+	updated, _ := m.Update(msg)
+	m = updated.(Model)
+
+	items := m.chat.Items()
+	require.Len(t, items, 1)
+	am, ok := items[0].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Contains(t, am.Content(), "mcp")
+}
+
+func TestFormatOutdatedBanner(t *testing.T) {
+	banner := formatOutdatedBanner([]string{"mcp", "diff-viewer"})
+	assert.Contains(t, banner, "Extension Updates Available")
+	assert.Contains(t, banner, "mcp, diff-viewer")
+	assert.Contains(t, banner, "weave update")
+	assert.Contains(t, banner, "weave update <name>")
+}
+
+func TestFormatOutdatedBanner_Single(t *testing.T) {
+	banner := formatOutdatedBanner([]string{"mcp"})
+	assert.Contains(t, banner, "mcp")
+	assert.Contains(t, banner, "mcp have newer")
 }

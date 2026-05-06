@@ -508,6 +508,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ThinkingLevelSetMsg:
 		return m.applyThinkingLevel(msg.Level)
 
+	case OutdatedNotificationMsg:
+		return m.onOutdatedExtensions(msg)
+
 	case slashCommandsUpdatedMsg:
 		if m.editor.CompletionActive() {
 			m = m.refreshEditorCompletion()
@@ -891,6 +894,33 @@ func (m Model) interruptStreaming() (tea.Model, tea.Cmd) {
 // AddUserMessage adds a user message to the chat.
 func (m *Model) AddUserMessage(content string) {
 	m.chat = m.chat.AddItem(messages.NewUserMessage(content))
+}
+
+// onOutdatedExtensions renders a notification banner for outdated extensions.
+func (m Model) onOutdatedExtensions(msg OutdatedNotificationMsg) (tea.Model, tea.Cmd) {
+	if len(msg.Extensions) == 0 {
+		return m, nil
+	}
+
+	names := make([]string, len(msg.Extensions))
+	for i, ext := range msg.Extensions {
+		names[i] = ext.Name
+	}
+
+	text := formatOutdatedBanner(names)
+
+	m.showLanding = false
+	m.chat = m.chat.AddItem(newNotifyAssistantMsg(text))
+
+	return m, nil
+}
+
+// formatOutdatedBanner formats outdated extension names into a notification message.
+func formatOutdatedBanner(names []string) string {
+	nameList := strings.Join(names, ", ")
+	hint := "Run `weave update` to update all, or `weave update <name>`"
+
+	return fmt.Sprintf("Extension Updates Available\n%s have newer versions available.\n%s", nameList, hint)
 }
 
 // onSubmit handles editor submit — routes slash commands or publishes prompt/followup.

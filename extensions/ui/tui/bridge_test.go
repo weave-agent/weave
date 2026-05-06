@@ -7,6 +7,7 @@ import (
 
 	"weave/bus"
 	"weave/sdk"
+	"weave/sdk/wire"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/assert"
@@ -157,6 +158,36 @@ func TestTranslateEvent_TurnStart_NonIntPayload(t *testing.T) {
 	ts, ok := msg.(TurnStartMsg)
 	require.True(t, ok)
 	assert.Equal(t, 0, ts.Turn)
+}
+
+func TestTranslateEvent_ExtOutdated(t *testing.T) {
+	payload := wire.OutdatedEvent{
+		Extensions: []wire.OutdatedInfo{
+			{Name: "mcp", LocalHead: "abc123", RemoteHead: "def456"},
+			{Name: "diff-viewer", LocalHead: "111", RemoteHead: "222"},
+		},
+	}
+
+	msg := translateEvent(sdk.NewEvent(topicExtOutdated, payload))
+	outdated, ok := msg.(OutdatedNotificationMsg)
+	require.True(t, ok)
+	require.Len(t, outdated.Extensions, 2)
+	assert.Equal(t, "mcp", outdated.Extensions[0].Name)
+	assert.Equal(t, "diff-viewer", outdated.Extensions[1].Name)
+}
+
+func TestTranslateEvent_ExtOutdated_NonEventPayload(t *testing.T) {
+	msg := translateEvent(sdk.NewEvent(topicExtOutdated, "not an event"))
+	outdated, ok := msg.(OutdatedNotificationMsg)
+	require.True(t, ok)
+	assert.Empty(t, outdated.Extensions)
+}
+
+func TestTranslateEvent_ExtOutdated_NilPayload(t *testing.T) {
+	msg := translateEvent(sdk.NewEvent(topicExtOutdated, nil))
+	outdated, ok := msg.(OutdatedNotificationMsg)
+	require.True(t, ok)
+	assert.Empty(t, outdated.Extensions)
 }
 
 func TestBridge_ForwardsEventsAndShutdown(t *testing.T) {

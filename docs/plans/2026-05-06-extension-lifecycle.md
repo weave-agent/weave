@@ -74,13 +74,13 @@ Add missing extension management commands (`list`, `update`, `uninstall`) and an
 - [x] run tests — must pass before task 4
 
 ### Task 4: Add TUI notification for outdated extensions
-- [ ] add `extension.outdated` topic handling in `extensions/ui/tui/bridge.go` `translateEvent()` — return new `OutdatedNotificationMsg`
-- [ ] define `OutdatedNotificationMsg` struct in bridge with `Extensions []OutdatedInfo`
-- [ ] add handler in TUI model's `Update()` for `OutdatedNotificationMsg` — render styled banner in chat area listing outdated extension names with hint to run `weave update`
-- [ ] style the notification banner (warning color, bordered box) matching existing diagnostic event styling
-- [ ] write tests for bridge event translation
-- [ ] write tests for TUI notification message handling
-- [ ] run tests — must pass before task 5
+- [x] add `extension.outdated` topic handling in `extensions/ui/tui/bridge.go` `translateEvent()` — return new `OutdatedNotificationMsg`
+- [x] define `OutdatedNotificationMsg` struct in bridge with `Extensions []OutdatedInfo`
+- [x] add handler in TUI model's `Update()` for `OutdatedNotificationMsg` — render styled banner in chat area listing outdated extension names with hint to run `weave update`
+- [x] style the notification banner (warning color, bordered box) matching existing diagnostic event styling
+- [x] write tests for bridge event translation
+- [x] write tests for TUI notification message handling
+- [x] run tests — must pass before task 5
 
 ### Task 5: Verify acceptance criteria and cleanup
 - [ ] verify `weave list` shows installed extensions with correct status

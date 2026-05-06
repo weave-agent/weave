@@ -7,6 +7,7 @@ import (
 
 	"weave/sdk"
 	sdkmodel "weave/sdk/model"
+	"weave/sdk/wire"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -31,6 +32,8 @@ const (
 	topicModelChange       = "model.change"
 	topicModelChangeFailed = "model.change_failed"
 	topicThinkingChange    = "thinking.change"
+
+	topicExtOutdated = "extension.outdated"
 )
 
 // Sender abstracts tea.Program.Send for testability.
@@ -103,6 +106,11 @@ type ThinkingLevelSetMsg struct {
 	Level sdkmodel.ThinkingLevel
 }
 
+// OutdatedNotificationMsg is sent when outdated extensions are detected at startup.
+type OutdatedNotificationMsg struct {
+	Extensions []wire.OutdatedInfo
+}
+
 // ProviderListResultMsg carries the result of listing providers with key status.
 type ProviderListResultMsg struct {
 	Providers []ProviderEntry
@@ -133,6 +141,8 @@ func translateEvent(evt sdk.Event) tea.Msg {
 		return SessionResumedMsg{SessionID: id}
 	case topicModelChangeFailed:
 		return translateModelChangeFailed(evt.Payload)
+	case topicExtOutdated:
+		return translateExtOutdated(evt.Payload)
 	default:
 		return nil
 	}
@@ -183,6 +193,15 @@ func translateModelChangeFailed(payload any) ModelChangeFailedMsg {
 	errStr, _ := m["error"].(string)
 
 	return ModelChangeFailedMsg{Provider: provider, Error: errStr}
+}
+
+func translateExtOutdated(payload any) OutdatedNotificationMsg {
+	evt, ok := payload.(wire.OutdatedEvent)
+	if !ok {
+		return OutdatedNotificationMsg{}
+	}
+
+	return OutdatedNotificationMsg{Extensions: evt.Extensions}
 }
 
 // Bridge reads bus events and sends them as tea.Msg to the program.
