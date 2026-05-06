@@ -94,41 +94,6 @@ func TestDefaultModelForProvider_ExplicitDefault(t *testing.T) {
 	assert.Equal(t, "b", m.ID)
 }
 
-func TestRegisterBuiltinModels(t *testing.T) {
-	ResetModelRegistry()
-	defer ResetModelRegistry()
-
-	RegisterBuiltinModels()
-
-	all := ListAllModels()
-	assert.Len(t, all, 17)
-
-	// Anthropic
-	m, ok := GetModel("claude-opus-4-7")
-	require.True(t, ok)
-	assert.True(t, m.Reasoning)
-	assert.True(t, m.SupportsXHigh)
-	assert.Equal(t, "anthropic", m.Provider)
-
-	m, ok = GetModel("claude-sonnet-4-6")
-	require.True(t, ok)
-	assert.True(t, m.Reasoning)
-	assert.False(t, m.SupportsXHigh)
-
-	// OpenAI
-	models := ListModelsForProvider("openai")
-	assert.Len(t, models, 6)
-
-	// ZAI
-	models = ListModelsForProvider("zai")
-	assert.Len(t, models, 6)
-
-	// Default for anthropic is Sonnet 4.6 (marked Default: true)
-	def, ok := DefaultModelForProvider("anthropic")
-	require.True(t, ok)
-	assert.Equal(t, "claude-sonnet-4-6", def.ID)
-}
-
 func TestProviderEnvVarRegistry(t *testing.T) {
 	ResetProviderEnvVarRegistry()
 	defer ResetProviderEnvVarRegistry()

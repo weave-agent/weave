@@ -461,7 +461,7 @@ func TestStream_WithThinkingLevel(t *testing.T) {
 	model.ResetModelRegistry()
 	defer model.ResetModelRegistry()
 
-	model.RegisterBuiltinModels()
+	RegisterModels()
 
 	var receivedBody string
 

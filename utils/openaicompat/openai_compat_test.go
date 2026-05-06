@@ -711,7 +711,7 @@ func TestStream_WithThinkingLevel_SetsReasoningEffort(t *testing.T) {
 			// Use a reasoning model so reasoning_effort is actually set.
 			model.ResetModelRegistry()
 			model.RegisterModel(model.ModelDef{ID: "test-reasoning", Reasoning: true})
-			t.Cleanup(func() { model.RegisterBuiltinModels() })
+			t.Cleanup(func() { model.ResetModelRegistry() })
 
 			ch, err := Stream(context.Background(), server.Client(), ProviderConfig{
 				BaseURL: server.URL,

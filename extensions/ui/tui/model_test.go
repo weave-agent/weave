@@ -1095,7 +1095,7 @@ func TestModel_ThinkingLevelInvalidEnv(t *testing.T) {
 
 func TestModel_CycleThinkingLevel(t *testing.T) {
 	sdkmodel.ResetModelRegistry()
-	sdkmodel.RegisterBuiltinModels()
+	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "claude-sonnet-4-6", Provider: "anthropic", Reasoning: true})
 
 	defer sdkmodel.ResetModelRegistry()
 
@@ -1127,7 +1127,7 @@ func TestModel_CycleThinkingLevelWraps(t *testing.T) {
 
 	// Register models so xhigh clamping works
 	sdkmodel.ResetModelRegistry()
-	sdkmodel.RegisterBuiltinModels()
+	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "claude-opus-4-7", Provider: "anthropic", Reasoning: true, SupportsXHigh: true})
 
 	defer sdkmodel.ResetModelRegistry()
 
@@ -1143,7 +1143,7 @@ func TestModel_CycleThinkingLevelWraps(t *testing.T) {
 
 func TestModel_CycleThinkingLevelSkipsClampedForSonnet(t *testing.T) {
 	sdkmodel.ResetModelRegistry()
-	sdkmodel.RegisterBuiltinModels()
+	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "claude-sonnet-4-6", Provider: "anthropic", Reasoning: true})
 
 	defer sdkmodel.ResetModelRegistry()
 
@@ -1172,7 +1172,7 @@ func TestModel_CycleThinkingLevelSkipsClampedForSonnet(t *testing.T) {
 
 func TestModel_CycleThinkingLevelAllLevels(t *testing.T) {
 	sdkmodel.ResetModelRegistry()
-	sdkmodel.RegisterBuiltinModels()
+	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "claude-opus-4-7", Provider: "anthropic", Reasoning: true, SupportsXHigh: true})
 
 	defer sdkmodel.ResetModelRegistry()
 
@@ -1230,7 +1230,7 @@ func TestModel_EditorBorderMatchesThinkingLevel(t *testing.T) {
 
 func TestModel_ThinkingLevelUpdatesEditorBorder(t *testing.T) {
 	sdkmodel.ResetModelRegistry()
-	sdkmodel.RegisterBuiltinModels()
+	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "claude-opus-4-7", Provider: "anthropic", Reasoning: true, SupportsXHigh: true})
 
 	defer sdkmodel.ResetModelRegistry()
 
@@ -1254,7 +1254,7 @@ func TestModel_ThinkingLevelUpdatesEditorBorder(t *testing.T) {
 
 func TestModel_ThinkingCommand(t *testing.T) {
 	sdkmodel.ResetModelRegistry()
-	sdkmodel.RegisterBuiltinModels()
+	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "claude-sonnet-4-6", Provider: "anthropic", Reasoning: true})
 
 	defer sdkmodel.ResetModelRegistry()
 
@@ -1338,7 +1338,7 @@ func TestModel_ThinkingCommandInvalid(t *testing.T) {
 
 func TestModel_ThinkingCommandXHighClamped(t *testing.T) {
 	sdkmodel.ResetModelRegistry()
-	sdkmodel.RegisterBuiltinModels()
+	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "claude-sonnet-4-6", Provider: "anthropic", Reasoning: true})
 
 	defer sdkmodel.ResetModelRegistry()
 
@@ -1368,7 +1368,7 @@ func TestModel_ThinkingCommandXHighClamped(t *testing.T) {
 
 func TestModel_ThinkingCommandAllLevels(t *testing.T) {
 	sdkmodel.ResetModelRegistry()
-	sdkmodel.RegisterBuiltinModels()
+	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "claude-opus-4-7", Provider: "anthropic", Reasoning: true, SupportsXHigh: true})
 
 	defer sdkmodel.ResetModelRegistry()
 

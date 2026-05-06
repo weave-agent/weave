@@ -15,11 +15,6 @@ const (
 	ThinkingMedium  ThinkingLevel = "medium"
 	ThinkingHigh    ThinkingLevel = "high"
 	ThinkingXHigh   ThinkingLevel = "xhigh"
-
-	// ProviderAnthropic is the Anthropic provider name.
-	ProviderAnthropic = "anthropic"
-	// ProviderOpenAI is the OpenAI provider name.
-	ProviderOpenAI = "openai"
 )
 
 // AllThinkingLevels is the ordered list of all thinking levels.

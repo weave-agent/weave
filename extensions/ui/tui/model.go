@@ -157,7 +157,7 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 	}
 
 	models := listModels()
-	cur := initialModel(models, configDir)
+	cur := currentModel(models, configDir)
 
 	bindings := NewBindingRegistry()
 
@@ -1202,7 +1202,7 @@ func (m Model) onKeyInputDialogDone(result overlays.DialogResult, pendingCmd tea
 		models := listModels()
 		if len(models) > 0 {
 			m.noConfigured = false
-			cur := initialModel(models, m.configDir)
+			cur := currentModel(models, m.configDir)
 			m.currentModel = cur
 			m.footer = m.footer.SetModel(cur.Model, cur.Provider)
 			m.footer = m.footer.SetReasoning(modelReasoning(cur.Model))

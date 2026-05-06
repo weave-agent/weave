@@ -470,7 +470,8 @@ func TestIntegration_SessionResumeFlow(t *testing.T) {
 func TestIntegration_ModelSelectionFlow(t *testing.T) {
 	sdkmodel.ResetModelRegistry()
 
-	sdkmodel.RegisterBuiltinModels()
+	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "claude-sonnet-4-6", Provider: "anthropic", Reasoning: true})
+	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "gpt-5.5", Provider: "openai", Reasoning: true})
 
 	defer sdkmodel.ResetModelRegistry()
 
@@ -610,7 +611,8 @@ func TestIntegration_ScreenBufferLayout(t *testing.T) {
 func TestIntegration_ThinkingLevelCycleWithModelChange(t *testing.T) {
 	sdkmodel.ResetModelRegistry()
 
-	sdkmodel.RegisterBuiltinModels()
+	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "claude-sonnet-4-6", Provider: "anthropic", Reasoning: true})
+	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "gpt-4.1", Provider: "openai"})
 
 	defer sdkmodel.ResetModelRegistry()
 

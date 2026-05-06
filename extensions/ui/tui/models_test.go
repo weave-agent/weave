@@ -86,7 +86,7 @@ func TestCurrentModel(t *testing.T) {
 	assert.Equal(t, "openai", cur.Provider)
 
 	cur = currentModel(nil, "")
-	assert.Equal(t, "anthropic", cur.Provider)
+	assert.Empty(t, cur.Provider)
 }
 
 func TestCurrentModel_EnvProvider(t *testing.T) {
@@ -122,8 +122,18 @@ func TestModel_CommandRegistered(t *testing.T) {
 }
 
 func TestModel_DefaultFooterModel(t *testing.T) {
+	sdkmodel.ResetModelRegistry()
+	sdk.ResetProviderRegistry()
+	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "claude-sonnet-4-6", Provider: "anthropic", Reasoning: true, Default: true})
+	sdk.RegisterProvider("anthropic", func(_ sdk.Config) (sdk.Provider, error) { return nil, nil }) //nolint:nilnil // stub
+	sdkmodel.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
+	t.Setenv("ANTHROPIC_API_KEY", "test-key")
+
+	defer sdkmodel.ResetModelRegistry()
+	defer sdk.ResetProviderRegistry()
+	defer sdkmodel.ResetProviderEnvVarRegistry()
+
 	m := newModel(nil, nil, nil)
-	// Footer should have a model set (anthropic default when no providers registered)
 	assert.NotEmpty(t, m.footer.ModelName())
 }
 
@@ -311,7 +321,7 @@ func TestModel_ModelChangedUpdatesFooter(t *testing.T) {
 
 func TestModel_ModelChangedToNonReasoningForcesThinkingOff(t *testing.T) {
 	sdkmodel.ResetModelRegistry()
-	sdkmodel.RegisterBuiltinModels()
+	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "gpt-4.1", Provider: "openai", DisplayName: "GPT-4.1"})
 
 	defer sdkmodel.ResetModelRegistry()
 
@@ -413,6 +423,7 @@ func TestModel_ModelSelectedInvalidIndex(t *testing.T) {
 	m := newModel(nil, nil, nil)
 	m.width = 80
 	m.height = 24
+	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-6"}
 	m.pendingModels = []ModelEntry{
 		{Provider: "anthropic", Model: "claude-sonnet-4-6"},
 	}
@@ -429,7 +440,29 @@ func TestListModelsWithRegistry(t *testing.T) {
 	sdkmodel.ResetModelRegistry()
 	sdk.ResetProviderRegistry()
 	sdkmodel.ResetProviderEnvVarRegistry()
-	sdkmodel.RegisterBuiltinModels()
+
+	// Register representative models across all providers.
+	for _, def := range []sdkmodel.ModelDef{
+		{ID: "claude-opus-4-7", Provider: "anthropic", DisplayName: "Claude Opus 4.7", Reasoning: true, SupportsXHigh: true},
+		{ID: "claude-sonnet-4-6", Provider: "anthropic", DisplayName: "Claude Sonnet 4.6", Reasoning: true, Default: true},
+		{ID: "claude-opus-4-5", Provider: "anthropic", DisplayName: "Claude Opus 4.5", Reasoning: true},
+		{ID: "claude-sonnet-4-5", Provider: "anthropic", DisplayName: "Claude Sonnet 4.5", Reasoning: true},
+		{ID: "claude-haiku-4-5", Provider: "anthropic", DisplayName: "Claude Haiku 4.5", Reasoning: true},
+		{ID: "gpt-5.5", Provider: "openai", DisplayName: "GPT-5.5", Reasoning: true, Default: true},
+		{ID: "gpt-5.4", Provider: "openai", DisplayName: "GPT-5.4", Reasoning: true},
+		{ID: "gpt-5.2", Provider: "openai", DisplayName: "GPT-5.2", Reasoning: true},
+		{ID: "gpt-4.1", Provider: "openai", DisplayName: "GPT-4.1"},
+		{ID: "o4-mini", Provider: "openai", DisplayName: "o4-mini", Reasoning: true},
+		{ID: "o3", Provider: "openai", DisplayName: "o3", Reasoning: true},
+		{ID: "glm-5.1", Provider: "zai", DisplayName: "GLM-5.1", Reasoning: true, Default: true},
+		{ID: "glm-5", Provider: "zai", DisplayName: "GLM-5", Reasoning: true},
+		{ID: "glm-4.7", Provider: "zai", DisplayName: "GLM-4.7", Reasoning: true},
+		{ID: "glm-4.7-flash", Provider: "zai", DisplayName: "GLM-4.7 Flash", Reasoning: true},
+		{ID: "glm-4.7-flashx", Provider: "zai", DisplayName: "GLM-4.7 FlashX", Reasoning: true},
+		{ID: "glm-4.5-air", Provider: "zai", DisplayName: "GLM-4.5 Air", Reasoning: true},
+	} {
+		sdkmodel.RegisterModel(def)
+	}
 
 	// Register providers so their models are included.
 	sdk.RegisterProvider("anthropic", func(_ sdk.Config) (sdk.Provider, error) { return nil, nil }) //nolint:nilnil // stub registration for model list tests
@@ -480,7 +513,17 @@ func TestListModelsIgnoresEnvOverrides(t *testing.T) {
 	sdkmodel.ResetModelRegistry()
 	sdk.ResetProviderRegistry()
 	sdkmodel.ResetProviderEnvVarRegistry()
-	sdkmodel.RegisterBuiltinModels()
+
+	for _, def := range []sdkmodel.ModelDef{
+		{ID: "claude-opus-4-7", Provider: "anthropic", Reasoning: true},
+		{ID: "claude-sonnet-4-6", Provider: "anthropic", Reasoning: true},
+		{ID: "claude-opus-4-5", Provider: "anthropic", Reasoning: true},
+		{ID: "claude-sonnet-4-5", Provider: "anthropic", Reasoning: true},
+		{ID: "claude-haiku-4-5", Provider: "anthropic", Reasoning: true},
+	} {
+		sdkmodel.RegisterModel(def)
+	}
+
 	sdk.RegisterProvider("anthropic", func(_ sdk.Config) (sdk.Provider, error) { return nil, nil }) //nolint:nilnil // stub registration for model list tests
 	sdkmodel.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
 
@@ -512,7 +555,7 @@ func TestListModelsIgnoresEnvOverrides(t *testing.T) {
 
 func TestModelEntryDisplayName(t *testing.T) {
 	sdkmodel.ResetModelRegistry()
-	sdkmodel.RegisterBuiltinModels()
+	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "claude-sonnet-4-6", Provider: "anthropic", DisplayName: "Claude Sonnet 4.6"})
 
 	defer sdkmodel.ResetModelRegistry()
 
@@ -525,7 +568,8 @@ func TestModelEntryDisplayName(t *testing.T) {
 
 func TestModelSelectorEntryBadges(t *testing.T) {
 	sdkmodel.ResetModelRegistry()
-	sdkmodel.RegisterBuiltinModels()
+	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "claude-sonnet-4-6", Provider: "anthropic", DisplayName: "Claude Sonnet 4.6", Reasoning: true})
+	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "gpt-5.5", Provider: "openai", DisplayName: "GPT-5.5", Reasoning: true})
 
 	defer sdkmodel.ResetModelRegistry()
 
@@ -552,7 +596,8 @@ func TestModelSelectorEntryBadges(t *testing.T) {
 
 func TestModelSelectorCurrentModelMarker(t *testing.T) {
 	sdkmodel.ResetModelRegistry()
-	sdkmodel.RegisterBuiltinModels()
+	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "claude-sonnet-4-6", Provider: "anthropic", DisplayName: "Claude Sonnet 4.6", Reasoning: true})
+	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "gpt-5.5", Provider: "openai", DisplayName: "GPT-5.5", Reasoning: true})
 
 	defer sdkmodel.ResetModelRegistry()
 
@@ -582,7 +627,11 @@ func TestStatusMessageOnModelCycle(t *testing.T) {
 	sdkmodel.ResetModelRegistry()
 	sdk.ResetProviderRegistry()
 	sdkmodel.ResetProviderEnvVarRegistry()
-	sdkmodel.RegisterBuiltinModels()
+
+	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "claude-sonnet-4-6", Provider: "anthropic", Reasoning: true})
+	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "claude-opus-4-7", Provider: "anthropic", Reasoning: true, SupportsXHigh: true})
+	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "gpt-5.5", Provider: "openai", Reasoning: true})
+
 	sdk.RegisterProvider("anthropic", func(_ sdk.Config) (sdk.Provider, error) { return nil, nil }) //nolint:nilnil // stub registration for model list tests
 	sdk.RegisterProvider("openai", func(_ sdk.Config) (sdk.Provider, error) { return nil, nil })    //nolint:nilnil // stub registration for model list tests
 	sdkmodel.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
@@ -619,7 +668,7 @@ func TestStatusMessageOnModelCycle(t *testing.T) {
 
 func TestStatusMessageOnModelChanged(t *testing.T) {
 	sdkmodel.ResetModelRegistry()
-	sdkmodel.RegisterBuiltinModels()
+	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "gpt-5.5", Provider: "openai", DisplayName: "GPT-5.5", Reasoning: true})
 
 	defer sdkmodel.ResetModelRegistry()
 

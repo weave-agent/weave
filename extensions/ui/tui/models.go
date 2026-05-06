@@ -32,20 +32,6 @@ func (e ModelEntry) DisplayName() string {
 	return e.Display()
 }
 
-const (
-	providerAnthropic = "anthropic"
-	providerOpenAI    = "openai"
-
-	defaultModelID = "claude-sonnet-4-6"
-)
-
-// providerModelEnv maps provider names to their model override env vars.
-var providerModelEnv = map[string]string{
-	providerAnthropic: "ANTHROPIC_MODEL",
-	providerOpenAI:    "OPENAI_MODEL",
-	"zai":             "ZAI_MODEL",
-}
-
 // listModels returns model entries for providers that are registered and have
 // an API key configured.
 func listModels() []ModelEntry {
@@ -110,7 +96,9 @@ func currentModel(entries []ModelEntry, configDir string) ModelEntry {
 
 	provider := os.Getenv("WEAVE_PROVIDER")
 	if provider == "" {
-		provider = providerAnthropic
+		if providers := sdk.ListProviders(); len(providers) > 0 {
+			provider = providers[0]
+		}
 	}
 
 	if def, ok := sdkmodel.DefaultModelForProvider(provider); ok {
@@ -131,22 +119,7 @@ func currentModel(entries []ModelEntry, configDir string) ModelEntry {
 		return entries[0]
 	}
 
-	return ModelEntry{Provider: providerAnthropic, Model: defaultModelID}
-}
-
-// initialModel returns the model entry to use at TUI startup. It applies
-// provider-specific env var overrides (ANTHROPIC_MODEL, OPENAI_MODEL, ZAI_MODEL)
-// so the display matches what the provider will actually use for the first request.
-func initialModel(entries []ModelEntry, configDir string) ModelEntry {
-	cur := currentModel(entries, configDir)
-
-	if envKey, ok := providerModelEnv[cur.Provider]; ok {
-		if m := os.Getenv(envKey); m != "" {
-			cur.Model = m
-		}
-	}
-
-	return cur
+	return ModelEntry{}
 }
 
 // cycleModel returns the next model entry after the current one, wrapping around.
