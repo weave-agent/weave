@@ -8,7 +8,7 @@ package sdk
 type Handler func(Event) error
 
 type Bus interface {
-	Publish(Event) bool
+	Publish(Event)
 	On(topic string, h Handler)
 	OnAll(h Handler)
 	Off(h Handler)

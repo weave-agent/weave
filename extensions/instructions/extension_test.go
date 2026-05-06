@@ -266,7 +266,7 @@ func TestSubscribe_PublishesInstructionsLoaded(t *testing.T) {
 	require.NoError(t, err)
 
 	bus := &BusMock{
-		PublishFunc: func(event sdk.Event) bool { return true },
+		PublishFunc: func(event sdk.Event) {},
 	}
 
 	// globalConfigDir() reads HOME and appends ".weave"
@@ -296,7 +296,7 @@ func TestSubscribe_NoFilesPublishesEmpty(t *testing.T) {
 	require.NoError(t, err)
 
 	bus := &BusMock{
-		PublishFunc: func(event sdk.Event) bool { return true },
+		PublishFunc: func(event sdk.Event) {},
 	}
 
 	ext.Subscribe(bus)

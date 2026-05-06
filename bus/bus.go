@@ -35,6 +35,7 @@ type Bus struct {
 	wg      sync.WaitGroup
 }
 
+// New creates a new event bus ready for use.
 func New() *Bus {
 	return &Bus{
 		topicOn: make(map[string][]*handlerSlot),
@@ -49,6 +50,11 @@ func handlerID(h sdk.Handler) uintptr {
 	return reflect.ValueOf(h).Pointer()
 }
 
+// On registers a handler for a specific topic. Each handler runs in its own
+// goroutine with a 64-event buffer. Delivery is non-blocking; if the buffer is
+// full the event is dropped and a warning is logged. Handler panics are
+// recovered and re-published as extension.panic diagnostic events. No-op if
+// called after Close.
 func (b *Bus) On(topic string, h sdk.Handler) {
 	b.closeMu.RLock()
 	defer b.closeMu.RUnlock()
@@ -71,6 +77,9 @@ func (b *Bus) On(topic string, h sdk.Handler) {
 	go b.runSlot(slot)
 }
 
+// OnAll registers a handler that receives every event published on the bus,
+// regardless of topic. Uses a 256-event buffer (larger than On because OnAll
+// handlers see all traffic). Otherwise identical semantics to On.
 func (b *Bus) OnAll(h sdk.Handler) {
 	b.closeMu.RLock()
 	defer b.closeMu.RUnlock()
@@ -110,6 +119,10 @@ func (b *Bus) runSlot(slot *handlerSlot) {
 	}
 }
 
+// Off removes all registrations matching h by function pointer identity
+// (reflect.ValueOf(h).Pointer()). Callers must retain the exact Handler
+// variable passed to On/OnAll — anonymous closures created inline cannot be
+// removed. No-op if called after Close or if h is not registered.
 func (b *Bus) Off(h sdk.Handler) {
 	b.closeMu.Lock()
 	defer b.closeMu.Unlock()
@@ -167,30 +180,33 @@ func (b *Bus) collectSubscribers(topic string) []*handlerSlot {
 	return slots
 }
 
-func (b *Bus) Publish(e sdk.Event) bool {
+// Publish sends an event to all subscribers of the event's topic plus any OnAll
+// handlers. Delivery is non-blocking: if a handler's internal buffer is full the
+// event is dropped and a warning is logged. Publish returns immediately
+// regardless of handler speed.
+func (b *Bus) Publish(e sdk.Event) {
 	b.closeMu.RLock()
 	defer b.closeMu.RUnlock()
 
 	if b.closed {
-		return false
+		return
 	}
 
 	slots := b.collectSubscribers(e.Topic)
-
-	if len(slots) == 0 {
-		return false
-	}
 
 	for _, slot := range slots {
 		select {
 		case slot.ch <- e:
 		default:
+			log.Printf("[bus] dropped event on topic %q: handler channel full", e.Topic)
 		}
 	}
-
-	return true
 }
 
+// invokeHandler calls h(e) with panic/error recovery. Panics are logged and
+// re-published as extension.panic; errors are logged and re-published as
+// extension.error. Diagnostic events for extension.panic/error topics are
+// suppressed to prevent infinite recursion.
 func (b *Bus) invokeHandler(e sdk.Event, h sdk.Handler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -212,13 +228,11 @@ func (b *Bus) invokeHandler(e sdk.Event, h sdk.Handler) {
 	}
 }
 
+// publishDiagnostic emits a diagnostic event (extension.panic or
+// extension.error). It is only called from invokeHandler which already runs
+// inside a recover-wrapped context, so the closeMu check is sufficient — no
+// additional recover is needed here.
 func (b *Bus) publishDiagnostic(topic, msg string) {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("[bus] panic in publishDiagnostic on topic %q: %v", topic, r)
-		}
-	}()
-
 	ev := sdk.Event{
 		Topic:   topic,
 		Payload: msg,
@@ -237,10 +251,14 @@ func (b *Bus) publishDiagnostic(topic, msg string) {
 		select {
 		case slot.ch <- ev:
 		default:
+			log.Printf("[bus] dropped diagnostic event on topic %q: handler channel full", topic)
 		}
 	}
 }
 
+// Close shuts down the bus. It closes all handler channels and blocks until
+// every in-flight handler invocation has completed. After Close, all calls to
+// Publish, On, and OnAll are no-ops. Close is idempotent.
 func (b *Bus) Close() error {
 	b.closeMu.Lock()
 	if b.closed {

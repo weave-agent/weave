@@ -221,8 +221,9 @@ func TestCloseDrainsAndStops(t *testing.T) {
 
 	require.NoError(t, b.Close())
 
-	// After close, new publishes should return false
-	assert.False(t, b.Publish(sdk.NewEvent("x", nil)))
+	// After close, new publishes should be no-ops (not panic)
+	b.Publish(sdk.NewEvent("x", nil))
+	assert.False(t, called.Load(), "handler should not be called after Close")
 }
 
 func TestOnAfterClose(t *testing.T) {
@@ -245,14 +246,16 @@ func TestPublishAfterClose(t *testing.T) {
 	b := New()
 	require.NoError(t, b.Close())
 
-	assert.False(t, b.Publish(sdk.NewEvent("x", nil)), "Publish after Close should return false")
+	// Publish after close should not panic
+	b.Publish(sdk.NewEvent("x", nil))
 }
 
-func TestPublishReturnsFalseWithNoHandlers(t *testing.T) {
+func TestPublishWithNoHandlers(t *testing.T) {
 	b := New()
 	defer b.Close()
 
-	assert.False(t, b.Publish(sdk.NewEvent("nobody", nil)), "expected false with no handlers")
+	// Publish with no subscribers should not panic
+	b.Publish(sdk.NewEvent("nobody", nil))
 }
 
 func TestConcurrentPublish(t *testing.T) {
@@ -383,24 +386,24 @@ func TestPublishDiagnosticRecoverOnPanic(t *testing.T) {
 func TestPublishDiagnosticRecoverOnClosedBus(t *testing.T) {
 	b := New()
 
-	// This test verifies publishDiagnostic's recover protects against
-	// calling it on a closed bus from within a handler.
+	// Verifies that publishDiagnostic handles a closed bus gracefully
+	// when a handler triggers close and then returns an error.
+	// Close() blocks until the handler finishes, so we close in a goroutine
+	// to avoid deadlock.
 	completed := atomic.Bool{}
 
 	b.On("test", func(e sdk.Event) error {
-		// Close the bus from within a handler
-		_ = b.Close()
-		// Return error which triggers publishDiagnostic on closed bus
+		go b.Close()
+
+		completed.Store(true)
+		// Error triggers publishDiagnostic on a now-closed bus
 		return assert.AnError
 	})
 
 	b.Publish(sdk.NewEvent("test", nil))
 
-	// Give time for handler to run
-	time.Sleep(100 * time.Millisecond)
-	completed.Store(true)
-
-	assert.True(t, completed.Load(), "should not deadlock when publishDiagnostic runs on closed bus")
+	assert.Eventually(t, completed.Load, 2*time.Second, 10*time.Millisecond,
+		"handler should have completed without deadlocking")
 }
 
 func TestCollectSubscribers(t *testing.T) {
@@ -470,4 +473,403 @@ func TestOffPreventsNewDeliveries(t *testing.T) {
 
 	finalCount := count.Load()
 	assert.Equal(t, int32(1), finalCount, "handler should receive exactly 1 event (before Off), not %d", finalCount)
+}
+
+func TestPublishDropsWhenBufferFull(t *testing.T) {
+	b := New()
+
+	var received atomic.Int32
+
+	// Handler that blocks, filling its channel buffer
+	block := make(chan struct{})
+
+	b.On("flood", func(e sdk.Event) error {
+		<-block
+		received.Add(1)
+
+		return nil
+	})
+
+	// Publish more events than the buffer can hold (topicHandlerBufSize = 64)
+	for i := range topicHandlerBufSize + 20 {
+		b.Publish(sdk.NewEvent("flood", i))
+	}
+
+	// Unblock the handler — it should only have processed buffer + in-flight
+	close(block)
+
+	assert.Eventually(t, func() bool {
+		return received.Load() > 0
+	}, time.Second, 10*time.Millisecond, "handler should process at least some events")
+
+	require.NoError(t, b.Close())
+}
+
+func TestPanicOnDiagnosticTopicNoRecurse(t *testing.T) {
+	b := New()
+
+	var panicCount atomic.Int32
+
+	// Handler on extension.panic that itself panics
+	b.On("extension.panic", func(e sdk.Event) error {
+		panicCount.Add(1)
+		panic("diagnostic panic")
+	})
+
+	// Trigger a panic that generates extension.panic
+	b.On("trigger", func(e sdk.Event) error {
+		panic("original panic")
+	})
+
+	b.Publish(sdk.NewEvent("trigger", nil))
+
+	// Should receive exactly one extension.panic — no recursion
+	assert.Eventually(t, func() bool {
+		return panicCount.Load() == 1
+	}, 2*time.Second, 10*time.Millisecond, "expected exactly 1 extension.panic event, no recursion")
+
+	// Bus should still be usable
+	var after atomic.Bool
+
+	b.On("after", func(e sdk.Event) error {
+		after.Store(true)
+		return nil
+	})
+
+	b.Publish(sdk.NewEvent("after", nil))
+	assert.Eventually(t, after.Load, time.Second, 10*time.Millisecond)
+
+	require.NoError(t, b.Close())
+}
+
+func TestErrorOnDiagnosticTopicNoRecurse(t *testing.T) {
+	b := New()
+
+	var errCount atomic.Int32
+
+	// Handler on extension.error that itself returns an error
+	b.On("extension.error", func(e sdk.Event) error {
+		errCount.Add(1)
+		return assert.AnError
+	})
+
+	// Trigger an error that generates extension.error
+	b.On("trigger", func(e sdk.Event) error {
+		return assert.AnError
+	})
+
+	b.Publish(sdk.NewEvent("trigger", nil))
+
+	assert.Eventually(t, func() bool {
+		return errCount.Load() == 1
+	}, 2*time.Second, 10*time.Millisecond, "expected exactly 1 extension.error event, no recursion")
+
+	require.NoError(t, b.Close())
+}
+
+func TestOffDuringHandlerExecution(t *testing.T) {
+	b := New()
+
+	started := make(chan struct{})
+
+	var completed atomic.Bool
+
+	h := func(e sdk.Event) error {
+		close(started)
+		time.Sleep(100 * time.Millisecond)
+		completed.Store(true)
+
+		return nil
+	}
+
+	b.On("topic", h)
+	b.Publish(sdk.NewEvent("topic", nil))
+	<-started
+
+	// Off while handler is running should return immediately
+	b.Off(h)
+
+	assert.Eventually(t, completed.Load, 2*time.Second, 10*time.Millisecond,
+		"in-flight handler should complete after Off")
+
+	require.NoError(t, b.Close())
+}
+
+func TestOnAllAfterClose(t *testing.T) {
+	b := New()
+	require.NoError(t, b.Close())
+
+	called := atomic.Bool{}
+
+	b.OnAll(func(e sdk.Event) error {
+		called.Store(true)
+		return nil
+	})
+
+	b.Publish(sdk.NewEvent("any", nil))
+	time.Sleep(20 * time.Millisecond)
+	assert.False(t, called.Load(), "OnAll after Close should not register")
+}
+
+func TestOffAfterClose(t *testing.T) {
+	b := New()
+
+	h := func(e sdk.Event) error { return nil }
+	b.On("topic", h)
+
+	require.NoError(t, b.Close())
+
+	// Off after Close should not panic
+	b.Off(h)
+}
+
+func TestMultipleOnAllOffOne(t *testing.T) {
+	b := New()
+	defer b.Close()
+
+	var count1, count2 atomic.Int32
+
+	h1 := func(e sdk.Event) error {
+		count1.Add(1)
+		return nil
+	}
+
+	h2 := func(e sdk.Event) error {
+		count2.Add(1)
+		return nil
+	}
+
+	b.OnAll(h1)
+	b.OnAll(h2)
+
+	b.Publish(sdk.NewEvent("topic", nil))
+
+	assert.Eventually(t, func() bool {
+		return count1.Load() >= 1 && count2.Load() >= 1
+	}, time.Second, 10*time.Millisecond)
+
+	b.Off(h1)
+
+	count1.Store(0)
+	count2.Store(0)
+
+	b.Publish(sdk.NewEvent("topic", nil))
+	time.Sleep(50 * time.Millisecond)
+
+	assert.Equal(t, int32(0), count1.Load(), "removed OnAll handler should not receive events")
+	assert.Equal(t, int32(1), count2.Load(), "remaining OnAll handler should still receive events")
+}
+
+func TestSameHandlerMultipleTopics(t *testing.T) {
+	b := New()
+	defer b.Close()
+
+	var count atomic.Int32
+
+	h := func(e sdk.Event) error {
+		count.Add(1)
+		return nil
+	}
+
+	b.On("alpha", h)
+	b.On("beta", h)
+
+	b.Publish(sdk.NewEvent("alpha", nil))
+	b.Publish(sdk.NewEvent("beta", nil))
+
+	assert.Eventually(t, func() bool {
+		return count.Load() == 2
+	}, time.Second, 10*time.Millisecond)
+
+	b.Off(h)
+
+	var afterOff atomic.Int32
+
+	b.On("gamma", func(e sdk.Event) error {
+		afterOff.Add(1)
+		return nil
+	})
+
+	b.Publish(sdk.NewEvent("alpha", nil))
+	b.Publish(sdk.NewEvent("beta", nil))
+	b.Publish(sdk.NewEvent("gamma", nil))
+
+	assert.Eventually(t, func() bool {
+		return afterOff.Load() == 1
+	}, time.Second, 10*time.Millisecond)
+
+	time.Sleep(50 * time.Millisecond)
+	assert.Equal(t, int32(2), count.Load(), "removed handler should not receive events after Off")
+}
+
+func TestPublishWithOnlyOnAll(t *testing.T) {
+	b := New()
+	defer b.Close()
+
+	var received atomic.Value
+
+	b.OnAll(func(e sdk.Event) error {
+		received.Store(e)
+		return nil
+	})
+
+	b.Publish(sdk.NewEvent("no.topic.handlers", "data"))
+
+	assert.Eventually(t, func() bool {
+		v, ok := received.Load().(sdk.Event)
+		return ok && v.Topic == "no.topic.handlers" && v.Payload == "data"
+	}, time.Second, 10*time.Millisecond)
+}
+
+func TestConcurrentOnAndPublish(t *testing.T) {
+	b := New()
+	defer b.Close()
+
+	var count atomic.Int32
+
+	var wg sync.WaitGroup
+
+	// Concurrently register handlers and publish
+	for i := range 20 {
+		wg.Add(2)
+
+		go func() {
+			defer wg.Done()
+
+			b.On("concurrent", func(e sdk.Event) error {
+				count.Add(1)
+				return nil
+			})
+		}()
+
+		go func() {
+			defer wg.Done()
+
+			b.Publish(sdk.NewEvent("concurrent", i))
+		}()
+	}
+
+	wg.Wait()
+
+	assert.Eventually(t, func() bool {
+		return count.Load() > 0
+	}, time.Second, 10*time.Millisecond, "expected some events from concurrent On+Publish")
+}
+
+func TestNilHandlerOn(t *testing.T) {
+	b := New()
+
+	var panicEvent atomic.Bool
+
+	b.On("extension.panic", func(e sdk.Event) error {
+		panicEvent.Store(true)
+		return nil
+	})
+
+	b.On("nil.topic", nil)
+	b.Publish(sdk.NewEvent("nil.topic", nil))
+
+	assert.Eventually(t, panicEvent.Load, 2*time.Second, 10*time.Millisecond,
+		"nil handler should trigger extension.panic")
+
+	require.NoError(t, b.Close())
+}
+
+func TestEmptyTopicPublish(t *testing.T) {
+	b := New()
+	defer b.Close()
+
+	var received atomic.Value
+
+	b.On("", func(e sdk.Event) error {
+		received.Store(e)
+		return nil
+	})
+
+	b.Publish(sdk.NewEvent("", "empty topic"))
+
+	assert.Eventually(t, func() bool {
+		v, ok := received.Load().(sdk.Event)
+		return ok && v.Topic == "" && v.Payload == "empty topic"
+	}, time.Second, 10*time.Millisecond)
+}
+
+func TestOnAllReceivesDiagnosticEvents(t *testing.T) {
+	b := New()
+
+	var (
+		mu     sync.Mutex
+		events []string
+	)
+
+	b.OnAll(func(e sdk.Event) error {
+		mu.Lock()
+
+		events = append(events, e.Topic)
+		mu.Unlock()
+
+		return nil
+	})
+
+	b.On("crash", func(e sdk.Event) error {
+		panic("boom")
+	})
+
+	b.Publish(sdk.NewEvent("crash", nil))
+
+	assert.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+
+		return len(events) >= 2
+	}, 2*time.Second, 10*time.Millisecond, "OnAll should receive both original and diagnostic events")
+
+	mu.Lock()
+	topics := make([]string, len(events))
+	copy(topics, events)
+	mu.Unlock()
+
+	assert.Contains(t, topics, "crash")
+	assert.Contains(t, topics, "extension.panic")
+
+	require.NoError(t, b.Close())
+}
+
+func TestEventFieldsPreserved(t *testing.T) {
+	b := New()
+	defer b.Close()
+
+	var received atomic.Value
+
+	b.On("fields", func(e sdk.Event) error {
+		received.Store(e)
+		return nil
+	})
+
+	ts := time.Now()
+	evt := sdk.Event{
+		Topic:     "fields",
+		Payload:   map[string]int{"count": 42},
+		Timestamp: ts,
+		TraceID:   "trace-123",
+	}
+
+	b.Publish(evt)
+
+	assert.Eventually(t, func() bool {
+		v, ok := received.Load().(sdk.Event)
+		if !ok {
+			return false
+		}
+
+		return v.Topic == "fields" &&
+			v.TraceID == "trace-123" &&
+			!v.Timestamp.IsZero()
+	}, time.Second, 10*time.Millisecond)
+
+	v, ok := received.Load().(sdk.Event)
+	require.True(t, ok)
+	payload, ok := v.Payload.(map[string]int)
+	require.True(t, ok)
+	assert.Equal(t, 42, payload["count"])
 }

@@ -51,7 +51,7 @@ func TestExtensionFuncSatisfiesInterface(t *testing.T) {
 		b.Publish(NewEvent("fired", nil))
 	}))
 	bus := &BusMock{
-		PublishFunc: func(e Event) bool { return true },
+		PublishFunc: func(e Event) {},
 	}
 	ext.Subscribe(bus)
 
@@ -71,7 +71,7 @@ func TestExtensionFuncMultipleSubscriptions(t *testing.T) {
 	})
 
 	bus := &BusMock{
-		PublishFunc: func(e Event) bool { return true },
+		PublishFunc: func(e Event) {},
 	}
 	ext.Subscribe(bus)
 

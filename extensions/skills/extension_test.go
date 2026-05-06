@@ -29,7 +29,7 @@ func TestSkillsExtension_Subscribe_DiscoversSkills(t *testing.T) {
 	writeSkillMD(t, filepath.Join(root, "test-skill"), "test-skill", "A test skill", "# Do stuff")
 
 	bus := &BusMock{
-		PublishFunc: func(event sdk.Event) bool { return true },
+		PublishFunc: func(event sdk.Event) {},
 	}
 
 	ext, err := NewSkillsExtension(sdk.FilePathConfig(""))
@@ -61,7 +61,7 @@ func TestSkillsExtension_Subscribe_RegistersCommands(t *testing.T) {
 	t.Cleanup(sdk.ResetUIRegistry)
 
 	bus := &BusMock{
-		PublishFunc: func(event sdk.Event) bool { return true },
+		PublishFunc: func(event sdk.Event) {},
 	}
 
 	ext, err := NewSkillsExtension(sdk.FilePathConfig(""))
@@ -79,7 +79,7 @@ func TestSkillsExtension_Subscribe_HeadlessMode(t *testing.T) {
 	writeSkillMD(t, skillDir, "headless-skill", "No UI", "# Instructions")
 
 	bus := &BusMock{
-		PublishFunc: func(event sdk.Event) bool { return true },
+		PublishFunc: func(event sdk.Event) {},
 	}
 
 	ext, err := NewSkillsExtension(sdk.FilePathConfig(""))
@@ -97,7 +97,7 @@ func TestSkillsExtension_Subscribe_ProjectLocalSkills(t *testing.T) {
 	writeSkillMD(t, skillDir, "proj-skill", "Project skill", "# Proj instructions")
 
 	bus := &BusMock{
-		PublishFunc: func(event sdk.Event) bool { return true },
+		PublishFunc: func(event sdk.Event) {},
 	}
 
 	configPath := filepath.Join(projectDir, ".weave.yaml")
@@ -125,9 +125,8 @@ func TestMakeSkillHandler_Expansion(t *testing.T) {
 	var published []sdk.Event
 
 	bus := &BusMock{
-		PublishFunc: func(event sdk.Event) bool {
+		PublishFunc: func(event sdk.Event) {
 			published = append(published, event)
-			return true
 		},
 	}
 
@@ -171,9 +170,8 @@ func TestMakeSkillHandler_FrontmatterStripped(t *testing.T) {
 	var published []sdk.Event
 
 	bus := &BusMock{
-		PublishFunc: func(event sdk.Event) bool {
+		PublishFunc: func(event sdk.Event) {
 			published = append(published, event)
-			return true
 		},
 	}
 
