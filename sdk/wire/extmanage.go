@@ -228,6 +228,12 @@ func runList(_ []string) int {
 // runUpdate updates git-sourced extensions. With a name argument, only that
 // extension is updated. Without arguments, all git-sourced extensions are updated.
 func runUpdate(args []string) int {
+	if len(args) > 1 {
+		fmt.Fprintln(os.Stderr, "usage: weave update [name]")
+
+		return 1
+	}
+
 	if len(args) > 0 {
 		name := args[0]
 		if err := updateExtension(name); err != nil {
@@ -329,7 +335,8 @@ func gitLSRemoteHEAD(dir string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), outdatedTimeout)
 	defer cancel()
 
-	// Suppress stderr to hide "fatal: could not read from remote repository" on network errors.
+	// stderr is captured into the error by cmd.Output, so "fatal: could not read
+	// from remote repository" won't leak to the terminal on network errors.
 	cmd := exec.CommandContext(ctx, "git", "ls-remote", "origin", "HEAD")
 	cmd.Dir = dir
 	cmd.Stderr = nil

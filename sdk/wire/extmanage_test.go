@@ -411,6 +411,11 @@ func TestRunUpdate_NotFound(t *testing.T) {
 	assert.Equal(t, 1, code)
 }
 
+func TestRunUpdate_TooManyArgs(t *testing.T) {
+	code := runUpdate([]string{"a", "b"})
+	assert.Equal(t, 1, code)
+}
+
 func TestRunUpdate_All(t *testing.T) {
 	gitIsAvailable(t)
 	extDir := setupExtensionsDir(t)
