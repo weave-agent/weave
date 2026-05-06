@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"weave/config"
 )
 
 const outdatedTimeout = 10 * time.Second
@@ -105,6 +107,10 @@ func checkOutdated(ext *extensionStatus) error {
 
 // updateExtension runs git pull --ff-only in the extension directory.
 func updateExtension(name string) error {
+	if !config.ValidExtName(name) {
+		return fmt.Errorf("invalid extension name %q", name)
+	}
+
 	dir, err := extensionsDir()
 	if err != nil {
 		return err
@@ -129,14 +135,13 @@ func updateExtension(name string) error {
 
 	cmd := exec.CommandContext(ctx, "git", "pull", "--ff-only")
 	cmd.Dir = extDir
-	cmd.Stderr = os.Stderr
 
-	if err := cmd.Run(); err != nil {
+	if out, err := cmd.CombinedOutput(); err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			return fmt.Errorf("git pull %s: timed out after %s", name, outdatedTimeout)
 		}
 
-		return fmt.Errorf("git pull %s: %w", name, err)
+		return fmt.Errorf("git pull %s: %w\n%s", name, err, out)
 	}
 
 	return nil
@@ -144,6 +149,10 @@ func updateExtension(name string) error {
 
 // uninstallExtension removes an extension directory from ~/.weave/extensions/.
 func uninstallExtension(name string) error {
+	if !config.ValidExtName(name) {
+		return fmt.Errorf("invalid extension name %q", name)
+	}
+
 	dir, err := extensionsDir()
 	if err != nil {
 		return err
@@ -272,6 +281,13 @@ func runUpdate(args []string) int {
 func runUninstall(args []string) int {
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "weave uninstall: missing extension name")
+		fmt.Fprintln(os.Stderr, "usage: weave uninstall <name>")
+
+		return 1
+	}
+
+	if len(args) > 1 {
+		fmt.Fprintln(os.Stderr, "weave uninstall: too many arguments")
 		fmt.Fprintln(os.Stderr, "usage: weave uninstall <name>")
 
 		return 1

@@ -728,6 +728,5 @@ func TestFormatOutdatedBanner(t *testing.T) {
 
 func TestFormatOutdatedBanner_Single(t *testing.T) {
 	banner := formatOutdatedBanner([]string{"mcp"})
-	assert.Contains(t, banner, "mcp")
-	assert.Contains(t, banner, "mcp have newer")
+	assert.Contains(t, banner, "mcp has a newer version available.")
 }

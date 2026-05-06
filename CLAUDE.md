@@ -173,6 +173,7 @@ Built-in bindings: Escape=interrupt, Ctrl+C=double-press (first clears editor, s
 - `OPENAI_API_KEY` — required for OpenAI provider (default model: `gpt-5.5`, override with `OPENAI_MODEL`)
 - `ZAI_API_KEY` — required for Z.ai provider (default model: `glm-5.1`, override with `ZAI_MODEL`)
 - `WEAVE_THINKING_LEVEL` — initial thinking level (default: `medium`)
+- `WEAVE_OFFLINE` — set to `1` to skip the startup extension update check (for offline/air-gapped environments)
 
 **Extension management:**
 - `weave install <source> [--name <name>]` — install an extension from a git URL, GitHub shorthand, or local path into `~/.weave/extensions/<name>/`
@@ -181,6 +182,9 @@ Built-in bindings: Escape=interrupt, Ctrl+C=double-press (first clears editor, s
   - `weave install ./my-local-ext` — copy from local directory
   - `weave install github.com/user/repo --name mcp` — install with explicit name
   - Validates that target directory contains `.go` files; derives extension name from repo basename (without `.git`) unless `--name` is given
+- `weave list` — list installed extensions with source type (git/local) and status (ok/outdated/static); checks git-sourced extensions for available updates
+- `weave update [<name>]` — update git-sourced extensions via `git pull --ff-only`; no args updates all git-sourced extensions
+- `weave uninstall <name>` — remove an extension from `~/.weave/extensions/`; validates extension name exists
 - `/reload` — TUI slash command that invalidates the build cache and re-execs the launcher for a full rebuild, picking up extension changes without restarting the terminal
 
 ## Design Reference

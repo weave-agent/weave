@@ -311,6 +311,22 @@ func TestUninstallExtension_NotFound(t *testing.T) {
 	assert.Contains(t, err.Error(), "not found")
 }
 
+func TestUninstallExtension_PathTraversal(t *testing.T) {
+	setupExtensionsDir(t)
+
+	err := uninstallExtension("../other-dir")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid extension name")
+}
+
+func TestUpdateExtension_PathTraversal(t *testing.T) {
+	setupExtensionsDir(t)
+
+	err := updateExtension("../../etc")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid extension name")
+}
+
 // --- runList tests ---
 
 func TestRunList_NoExtensions(t *testing.T) {
@@ -442,6 +458,11 @@ func TestRunUninstall_Success(t *testing.T) {
 
 func TestRunUninstall_MissingArg(t *testing.T) {
 	code := runUninstall(nil)
+	assert.Equal(t, 1, code)
+}
+
+func TestRunUninstall_TooManyArgs(t *testing.T) {
+	code := runUninstall([]string{"a", "b"})
 	assert.Equal(t, 1, code)
 }
 

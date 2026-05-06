@@ -12,13 +12,43 @@ import (
 	"weave/sdk"
 )
 
+// newRecorderBus returns a BusMock that records published events.
+func newRecorderBus(t *testing.T) (*BusMock, func() []sdk.Event) {
+	t.Helper()
+
+	var mu sync.Mutex
+
+	var recorded []sdk.Event
+
+	bus := &BusMock{
+		PublishFunc: func(ev sdk.Event) {
+			mu.Lock()
+
+			recorded = append(recorded, ev)
+			mu.Unlock()
+		},
+	}
+
+	getEvents := func() []sdk.Event {
+		mu.Lock()
+		defer mu.Unlock()
+
+		out := make([]sdk.Event, len(recorded))
+		copy(out, recorded)
+
+		return out
+	}
+
+	return bus, getEvents
+}
+
 func TestFireUpdateCheck_NoExtensions(t *testing.T) {
 	setupExtensionsDir(t)
 
-	bus := newEventCollector()
+	bus, events := newRecorderBus(t)
 	FireUpdateCheck(bus)
 
-	assert.Empty(t, bus.events())
+	assert.Empty(t, events())
 }
 
 func TestFireUpdateCheck_OutdatedExtension(t *testing.T) {
@@ -41,10 +71,10 @@ func TestFireUpdateCheck_OutdatedExtension(t *testing.T) {
 	runGit(t, tmpClone, "commit", "-m", "advance remote")
 	runGit(t, tmpClone, "push", "origin", "HEAD")
 
-	bus := newEventCollector()
+	bus, events := newRecorderBus(t)
 	FireUpdateCheck(bus)
 
-	evts := bus.events()
+	evts := events()
 	require.Len(t, evts, 1)
 	assert.Equal(t, "extension.outdated", evts[0].Topic)
 
@@ -67,10 +97,10 @@ func TestFireUpdateCheck_UpToDateExtension(t *testing.T) {
 	initGitRepo(t, gitExt)
 	runGit(t, gitExt, "remote", "add", "origin", gitExt)
 
-	bus := newEventCollector()
+	bus, events := newRecorderBus(t)
 	FireUpdateCheck(bus)
 
-	assert.Empty(t, bus.events())
+	assert.Empty(t, events())
 }
 
 func TestFireUpdateCheck_LocalExtensionSkipped(t *testing.T) {
@@ -79,10 +109,10 @@ func TestFireUpdateCheck_LocalExtensionSkipped(t *testing.T) {
 	// Create a local (non-git) extension.
 	require.NoError(t, os.MkdirAll(filepath.Join(extDir, "local-tool"), 0o750))
 
-	bus := newEventCollector()
+	bus, events := newRecorderBus(t)
 	FireUpdateCheck(bus)
 
-	assert.Empty(t, bus.events())
+	assert.Empty(t, events())
 }
 
 func TestFireUpdateCheck_MixedExtensions(t *testing.T) {
@@ -114,10 +144,10 @@ func TestFireUpdateCheck_MixedExtensions(t *testing.T) {
 	// Local extension (no git).
 	require.NoError(t, os.MkdirAll(filepath.Join(extDir, "local-tool"), 0o750))
 
-	bus := newEventCollector()
+	bus, events := newRecorderBus(t)
 	FireUpdateCheck(bus)
 
-	evts := bus.events()
+	evts := events()
 	require.Len(t, evts, 1)
 
 	payload, ok := evts[0].Payload.(OutdatedEvent)
@@ -130,39 +160,8 @@ func TestFireUpdateCheck_OfflineMode(t *testing.T) {
 	setupExtensionsDir(t)
 	t.Setenv("WEAVE_OFFLINE", "1")
 
-	bus := newEventCollector()
+	bus, events := newRecorderBus(t)
 	FireUpdateCheck(bus)
 
-	assert.Empty(t, bus.events())
+	assert.Empty(t, events())
 }
-
-// eventCollector is a minimal sdk.Bus that records published events.
-type eventCollector struct {
-	mu      sync.Mutex
-	events_ []sdk.Event
-}
-
-func newEventCollector() *eventCollector {
-	return &eventCollector{}
-}
-
-func (e *eventCollector) Publish(ev sdk.Event) {
-	e.mu.Lock()
-	e.events_ = append(e.events_, ev)
-	e.mu.Unlock()
-}
-
-func (e *eventCollector) events() []sdk.Event {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	result := make([]sdk.Event, len(e.events_))
-	copy(result, e.events_)
-
-	return result
-}
-
-func (e *eventCollector) On(_ string, _ sdk.Handler) {}
-func (e *eventCollector) OnAll(_ sdk.Handler)        {}
-func (e *eventCollector) Off(_ sdk.Handler)          {}
-func (e *eventCollector) Close() error               { return nil }

@@ -917,8 +917,13 @@ func (m Model) onOutdatedExtensions(msg OutdatedNotificationMsg) (tea.Model, tea
 
 // formatOutdatedBanner formats outdated extension names into a notification message.
 func formatOutdatedBanner(names []string) string {
-	nameList := strings.Join(names, ", ")
 	hint := "Run `weave update` to update all, or `weave update <name>`"
+
+	if len(names) == 1 {
+		return fmt.Sprintf("Extension Updates Available\n%s has a newer version available.\n%s", names[0], hint)
+	}
+
+	nameList := strings.Join(names, ", ")
 
 	return fmt.Sprintf("Extension Updates Available\n%s have newer versions available.\n%s", nameList, hint)
 }
