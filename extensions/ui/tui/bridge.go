@@ -7,7 +7,6 @@ import (
 
 	"weave/sdk"
 	sdkmodel "weave/sdk/model"
-	"weave/sdk/wire"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -108,7 +107,7 @@ type ThinkingLevelSetMsg struct {
 
 // OutdatedNotificationMsg is sent when outdated extensions are detected at startup.
 type OutdatedNotificationMsg struct {
-	Extensions []wire.OutdatedInfo
+	Extensions []sdk.OutdatedInfo
 }
 
 // ProviderListResultMsg carries the result of listing providers with key status.
@@ -196,7 +195,7 @@ func translateModelChangeFailed(payload any) ModelChangeFailedMsg {
 }
 
 func translateExtOutdated(payload any) OutdatedNotificationMsg {
-	evt, ok := payload.(wire.OutdatedEvent)
+	evt, ok := payload.(sdk.OutdatedEvent)
 	if !ok {
 		return OutdatedNotificationMsg{}
 	}

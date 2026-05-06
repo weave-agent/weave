@@ -160,12 +160,17 @@ func uninstallExtension(name string) error {
 
 	extDir := filepath.Join(dir, name)
 
-	if _, err := os.Stat(extDir); err != nil {
+	info, err := os.Lstat(extDir)
+	if err != nil {
 		if os.IsNotExist(err) {
 			return fmt.Errorf("extension %q not found", name)
 		}
 
-		return fmt.Errorf("stat %s: %w", name, err)
+		return fmt.Errorf("lstat %s: %w", name, err)
+	}
+
+	if info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("extension %q is a symlink — remove manually", name)
 	}
 
 	if err := os.RemoveAll(extDir); err != nil {
@@ -185,7 +190,7 @@ func runList(_ []string) int {
 	}
 
 	if len(exts) == 0 {
-		fmt.Fprintln(os.Stderr, "no extensions installed")
+		_, _ = fmt.Fprintln(os.Stdout, "no extensions installed")
 		return 0
 	}
 
@@ -327,6 +332,7 @@ func gitLSRemoteHEAD(dir string) (string, error) {
 	// Suppress stderr to hide "fatal: could not read from remote repository" on network errors.
 	cmd := exec.CommandContext(ctx, "git", "ls-remote", "origin", "HEAD")
 	cmd.Dir = dir
+	cmd.Stderr = nil
 
 	out, err := cmd.Output()
 	if err != nil {

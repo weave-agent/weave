@@ -7,18 +7,6 @@ import (
 	"weave/sdk"
 )
 
-// OutdatedInfo describes a single extension that has a newer version available.
-type OutdatedInfo struct {
-	Name       string
-	LocalHead  string
-	RemoteHead string
-}
-
-// OutdatedEvent is the payload for the "extension.outdated" bus event.
-type OutdatedEvent struct {
-	Extensions []OutdatedInfo
-}
-
 // FireUpdateCheck scans user-installed extensions for available updates.
 // It lists git-sourced extensions, compares HEAD to the remote, and
 // publishes an "extension.outdated" event if any are behind.
@@ -37,7 +25,7 @@ func FireUpdateCheck(bus sdk.Bus) {
 		return
 	}
 
-	var outdated []OutdatedInfo
+	var outdated []sdk.OutdatedInfo
 
 	for i := range exts {
 		if exts[i].Source != sourceGit {
@@ -50,7 +38,7 @@ func FireUpdateCheck(bus sdk.Bus) {
 		}
 
 		if exts[i].Outdated {
-			outdated = append(outdated, OutdatedInfo{
+			outdated = append(outdated, sdk.OutdatedInfo{
 				Name:       exts[i].Name,
 				LocalHead:  exts[i].LocalHead,
 				RemoteHead: exts[i].RemoteHead,
@@ -59,10 +47,7 @@ func FireUpdateCheck(bus sdk.Bus) {
 	}
 
 	if len(outdated) > 0 {
-		bus.Publish(sdk.Event{
-			Topic:   "extension.outdated",
-			Payload: OutdatedEvent{Extensions: outdated},
-		})
+		bus.Publish(sdk.NewEvent("extension.outdated", sdk.OutdatedEvent{Extensions: outdated}))
 	}
 
 	fmt.Fprintf(os.Stderr, "weave: update check complete (%d outdated)\n", len(outdated))

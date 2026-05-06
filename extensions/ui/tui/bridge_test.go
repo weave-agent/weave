@@ -7,7 +7,6 @@ import (
 
 	"weave/bus"
 	"weave/sdk"
-	"weave/sdk/wire"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/assert"
@@ -161,8 +160,8 @@ func TestTranslateEvent_TurnStart_NonIntPayload(t *testing.T) {
 }
 
 func TestTranslateEvent_ExtOutdated(t *testing.T) {
-	payload := wire.OutdatedEvent{
-		Extensions: []wire.OutdatedInfo{
+	payload := sdk.OutdatedEvent{
+		Extensions: []sdk.OutdatedInfo{
 			{Name: "mcp", LocalHead: "abc123", RemoteHead: "def456"},
 			{Name: "diff-viewer", LocalHead: "111", RemoteHead: "222"},
 		},

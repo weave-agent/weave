@@ -78,7 +78,7 @@ func TestFireUpdateCheck_OutdatedExtension(t *testing.T) {
 	require.Len(t, evts, 1)
 	assert.Equal(t, "extension.outdated", evts[0].Topic)
 
-	payload, ok := evts[0].Payload.(OutdatedEvent)
+	payload, ok := evts[0].Payload.(sdk.OutdatedEvent)
 	require.True(t, ok)
 	require.Len(t, payload.Extensions, 1)
 	assert.Equal(t, "my-tool", payload.Extensions[0].Name)
@@ -150,7 +150,7 @@ func TestFireUpdateCheck_MixedExtensions(t *testing.T) {
 	evts := events()
 	require.Len(t, evts, 1)
 
-	payload, ok := evts[0].Payload.(OutdatedEvent)
+	payload, ok := evts[0].Payload.(sdk.OutdatedEvent)
 	require.True(t, ok)
 	require.Len(t, payload.Extensions, 1)
 	assert.Equal(t, "outdated-tool", payload.Extensions[0].Name)
