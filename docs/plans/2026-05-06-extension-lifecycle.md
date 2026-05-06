@@ -41,16 +41,16 @@ Add missing extension management commands (`list`, `update`, `uninstall`) and an
 ## Implementation Steps
 
 ### Task 1: Add shared extension management helpers in `sdk/wire/extmanage.go`
-- [ ] create `sdk/wire/extmanage.go` with `extensionStatus` type: `{Name, Dir, SourceType(git/local), LocalHead, RemoteHead, Outdated bool}`
-- [ ] implement `listExtensionsDir() []extensionStatus` — scan `~/.weave/extensions/` and `.weave/extensions/`, detect `.git/` presence for source type
-- [ ] implement `checkOutdated(ext *extensionStatus) error` — compare `git rev-parse HEAD` vs `git ls-remote origin HEAD` with 10s timeout
-- [ ] implement `updateExtension(name string) error` — run `git pull --ff-only` in extension dir, return descriptive error on failure
-- [ ] implement `uninstallExtension(name string) error` — remove extension dir from `~/.weave/extensions/`, validate name exists
-- [ ] write tests for `listExtensionsDir` using temp dirs with git repos and plain dirs
-- [ ] write tests for `checkOutdated` (up-to-date, outdated, non-git, network error)
-- [ ] write tests for `updateExtension` (success, non-git, diverged, not found)
-- [ ] write tests for `uninstallExtension` (success, not found)
-- [ ] run tests — must pass before task 2
+- [x] create `sdk/wire/extmanage.go` with `extensionStatus` type: `{Name, Dir, SourceType(git/local), LocalHead, RemoteHead, Outdated bool}`
+- [x] implement `listExtensionsDir() []extensionStatus` — scan `~/.weave/extensions/` and `.weave/extensions/`, detect `.git/` presence for source type
+- [x] implement `checkOutdated(ext *extensionStatus) error` — compare `git rev-parse HEAD` vs `git ls-remote origin HEAD` with 10s timeout
+- [x] implement `updateExtension(name string) error` — run `git pull --ff-only` in extension dir, return descriptive error on failure
+- [x] implement `uninstallExtension(name string) error` — remove extension dir from `~/.weave/extensions/`, validate name exists
+- [x] write tests for `listExtensionsDir` using temp dirs with git repos and plain dirs
+- [x] write tests for `checkOutdated` (up-to-date, outdated, non-git, network error)
+- [x] write tests for `updateExtension` (success, non-git, diverged, not found)
+- [x] write tests for `uninstallExtension` (success, not found)
+- [x] run tests — must pass before task 2
 
 ### Task 2: Add CLI subcommands (`list`, `update`, `uninstall`)
 - [ ] add `runList(args []string) int` in `sdk/wire/extmanage.go` — call `listExtensionsDir`, check outdated for git-sourced extensions, print formatted table to stdout
