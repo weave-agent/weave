@@ -1,7 +1,6 @@
 package registry
 
 import (
-	"fmt"
 	"log"
 	"sort"
 	"sync"
@@ -15,15 +14,6 @@ func WithWarn[T any](logger *log.Logger, label string) Option[T] {
 	return func(r *Registry[T]) {
 		r.onDup = func(name string) {
 			logger.Printf("warning: %s %q already registered; first registration wins", label, name)
-		}
-	}
-}
-
-// WithPanic configures panic-on-duplicate behavior.
-func WithPanic[T any](label string) Option[T] {
-	return func(r *Registry[T]) {
-		r.onDup = func(name string) {
-			panic(fmt.Sprintf("%s: Register called twice for %s", label, name))
 		}
 	}
 }

@@ -25,7 +25,7 @@ func NewInstructionsExtension(cfg sdk.Config) (*InstructionsExtension, error) {
 
 func (e *InstructionsExtension) Name() string { return "instructions" }
 
-func (e *InstructionsExtension) Subscribe(bus sdk.Bus) {
+func (e *InstructionsExtension) Subscribe(bus sdk.Bus) error {
 	projectDir := e.projectDir()
 	globalDir := globalConfigDir()
 
@@ -40,6 +40,8 @@ func (e *InstructionsExtension) Subscribe(bus sdk.Bus) {
 	prompt := formatInstructionsPrompt(contextFiles, systemBase, systemAppend)
 
 	bus.Publish(sdk.NewEvent(sdk.TopicInstructionsLoaded, prompt))
+
+	return nil
 }
 
 func (e *InstructionsExtension) Close() error {

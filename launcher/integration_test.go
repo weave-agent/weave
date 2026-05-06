@@ -23,8 +23,9 @@ import (
 
 func init() {
 	sdk.RegisterExtension("noop", func(cfg sdk.Config) (sdk.Extension, error) {
-		return sdk.NewExtensionFunc("noop", func(b sdk.Bus) {
+		return sdk.NewExtensionFunc("noop", func(b sdk.Bus) error {
 			b.Publish(sdk.NewEvent("noop.ready", "noop extension active"))
+			return nil
 		}), nil
 	})
 	sdk.RegisterProvider("noop", func(cfg sdk.Config) (sdk.Provider, error) {
@@ -53,11 +54,12 @@ import (
 
 func init() {
 	sdk.RegisterExtension("noop", func(cfg sdk.Config) (sdk.Extension, error) {
-		return sdk.NewExtensionFunc("noop", func(b sdk.Bus) {
+		return sdk.NewExtensionFunc("noop", func(b sdk.Bus) error {
 			marker := os.Getenv("WEAVE_NOOP_MARKER")
 			if marker != "" {
 				os.WriteFile(marker, []byte("subscribed"), 0o644)
 			}
+			return nil
 		}), nil
 	})
 	sdk.RegisterProvider("noop", func(cfg sdk.Config) (sdk.Provider, error) {

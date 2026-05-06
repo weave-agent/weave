@@ -37,7 +37,7 @@ func TestSkillsExtension_Subscribe_DiscoversSkills(t *testing.T) {
 
 	ext.discoveryPaths = []string{root}
 
-	ext.Subscribe(bus)
+	require.NoError(t, ext.Subscribe(bus))
 
 	require.Len(t, bus.PublishCalls(), 1)
 	call := bus.PublishCalls()[0]
@@ -69,7 +69,7 @@ func TestSkillsExtension_Subscribe_RegistersCommands(t *testing.T) {
 
 	ext.discoveryPaths = []string{root}
 
-	ext.Subscribe(bus)
+	require.NoError(t, ext.Subscribe(bus))
 
 	assert.Contains(t, registeredCmds, "/skill:my-skill")
 }
@@ -85,7 +85,7 @@ func TestSkillsExtension_Subscribe_HeadlessMode(t *testing.T) {
 	ext, err := NewSkillsExtension(sdk.FilePathConfig(""))
 	require.NoError(t, err)
 
-	ext.Subscribe(bus)
+	require.NoError(t, ext.Subscribe(bus))
 
 	require.Len(t, bus.PublishCalls(), 1)
 	assert.Equal(t, sdk.TopicSkillsLoaded, bus.PublishCalls()[0].Event.Topic)
@@ -108,7 +108,7 @@ func TestSkillsExtension_Subscribe_ProjectLocalSkills(t *testing.T) {
 
 	t.Setenv("HOME", t.TempDir())
 
-	ext.Subscribe(bus)
+	require.NoError(t, ext.Subscribe(bus))
 
 	require.Len(t, bus.PublishCalls(), 1)
 	assert.Contains(t, bus.PublishCalls()[0].Event.Payload.(string), "<name>proj-skill</name>")

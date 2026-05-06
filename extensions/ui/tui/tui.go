@@ -68,7 +68,7 @@ func (t *TUI) Name() string { return "tui" }
 
 // Subscribe starts the Bubble Tea program in a goroutine, blocking until it exits.
 // The bridge goroutine translates bus events into tea.Msg and forwards them.
-func (t *TUI) Subscribe(bus sdk.Bus) {
+func (t *TUI) Subscribe(bus sdk.Bus) error {
 	events := make(chan sdk.Event, 256)
 
 	var eventsMu sync.Mutex
@@ -126,6 +126,8 @@ func (t *TUI) Subscribe(bus sdk.Bus) {
 	bus.Publish(sdk.NewEvent(topicEnd, endPayload))
 
 	close(t.done)
+
+	return nil
 }
 
 // wireUIExtensions registers all UI extensions with the TUI's UI implementation.

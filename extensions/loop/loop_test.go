@@ -197,7 +197,7 @@ func TestLoop_StartupAndShutdown(t *testing.T) {
 	l, b, cleanup := setupLoop(t, "anthropic")
 	defer cleanup()
 
-	l.Subscribe(b)
+	require.NoError(t, l.Subscribe(b))
 
 	require.NoError(t, l.Close())
 }
@@ -215,7 +215,7 @@ func TestLoop_SingleTurn_NoTools(t *testing.T) {
 	defer cleanup()
 
 	allCh := subscribeAllToChan(b)
-	l.Subscribe(b)
+	require.NoError(t, l.Subscribe(b))
 
 	b.Publish(sdk.NewEvent(TopicPrompt, "test prompt"))
 
@@ -266,7 +266,7 @@ func TestLoop_ToolCallCycle(t *testing.T) {
 	defer cleanup()
 
 	allCh := subscribeAllToChan(b)
-	l.Subscribe(b)
+	require.NoError(t, l.Subscribe(b))
 
 	b.Publish(sdk.NewEvent(TopicPrompt, "run echo"))
 
@@ -304,7 +304,7 @@ func TestLoop_SteeringInjection(t *testing.T) {
 	defer cleanup()
 
 	allCh := subscribeAllToChan(b)
-	l.Subscribe(b)
+	require.NoError(t, l.Subscribe(b))
 
 	b.Publish(sdk.NewEvent(TopicPrompt, "start"))
 	b.Publish(sdk.NewEvent(TopicSteer, "steer this"))
@@ -352,7 +352,7 @@ func TestLoop_SteeringDuringTurn(t *testing.T) {
 	defer cleanup()
 
 	allCh := subscribeAllToChan(b)
-	l.Subscribe(b)
+	require.NoError(t, l.Subscribe(b))
 
 	b.Publish(sdk.NewEvent(TopicPrompt, "start"))
 
@@ -386,7 +386,7 @@ func TestLoop_FollowupReentry(t *testing.T) {
 	defer cleanup()
 
 	allCh := subscribeAllToChan(b)
-	l.Subscribe(b)
+	require.NoError(t, l.Subscribe(b))
 
 	// Send initial prompt
 	b.Publish(sdk.NewEvent(TopicPrompt, "initial"))
@@ -423,7 +423,7 @@ func TestLoop_PromptResetsConversation(t *testing.T) {
 	defer cleanup()
 
 	allCh := subscribeAllToChan(b)
-	l.Subscribe(b)
+	require.NoError(t, l.Subscribe(b))
 
 	// First conversation
 	b.Publish(sdk.NewEvent(TopicPrompt, "first prompt"))
@@ -463,7 +463,7 @@ func TestLoop_ErrorAbort(t *testing.T) {
 	defer cleanup()
 
 	allCh := subscribeAllToChan(b)
-	l.Subscribe(b)
+	require.NoError(t, l.Subscribe(b))
 
 	b.Publish(sdk.NewEvent(TopicPrompt, "trigger error"))
 
@@ -483,7 +483,7 @@ func TestLoop_ProviderErrorOnStartup(t *testing.T) {
 	defer cleanup()
 
 	allCh := subscribeAllToChan(b)
-	l.Subscribe(b)
+	require.NoError(t, l.Subscribe(b))
 
 	b.Publish(sdk.NewEvent(TopicPrompt, "test"))
 
@@ -519,7 +519,7 @@ func TestLoop_ContextCancellation(t *testing.T) {
 	defer cleanup()
 
 	allCh := subscribeAllToChan(b)
-	l.Subscribe(b)
+	require.NoError(t, l.Subscribe(b))
 
 	b.Publish(sdk.NewEvent(TopicPrompt, "test"))
 
@@ -551,7 +551,7 @@ func TestLoop_MsgUpdateEvents(t *testing.T) {
 	defer cleanup()
 
 	allCh := subscribeAllToChan(b)
-	l.Subscribe(b)
+	require.NoError(t, l.Subscribe(b))
 
 	b.Publish(sdk.NewEvent(TopicPrompt, "stream test"))
 
@@ -582,7 +582,7 @@ func TestLoop_MissingToolError(t *testing.T) {
 	defer cleanup()
 
 	allCh := subscribeAllToChan(b)
-	l.Subscribe(b)
+	require.NoError(t, l.Subscribe(b))
 
 	b.Publish(sdk.NewEvent(TopicPrompt, "call missing tool"))
 
@@ -641,7 +641,7 @@ func TestLoop_MultipleToolCalls(t *testing.T) {
 	defer cleanup()
 
 	allCh := subscribeAllToChan(b)
-	l.Subscribe(b)
+	require.NoError(t, l.Subscribe(b))
 
 	b.Publish(sdk.NewEvent(TopicPrompt, "multi-tool"))
 
@@ -702,7 +702,7 @@ func TestLoop_StreamingUpdatesPreserveOrder(t *testing.T) {
 	defer cleanup()
 
 	allCh := subscribeAllToChan(b)
-	l.Subscribe(b)
+	require.NoError(t, l.Subscribe(b))
 
 	b.Publish(sdk.NewEvent(TopicPrompt, "order test"))
 
@@ -745,7 +745,7 @@ func TestLoop_InterruptHaltsTurn(t *testing.T) {
 	defer cleanup()
 
 	allCh := subscribeAllToChan(b)
-	l.Subscribe(b)
+	require.NoError(t, l.Subscribe(b))
 
 	b.Publish(sdk.NewEvent(TopicPrompt, "test"))
 
@@ -787,7 +787,7 @@ func TestLoop_ThinkingContentInMsgEnd(t *testing.T) {
 	defer cleanup()
 
 	allCh := subscribeAllToChan(b)
-	l.Subscribe(b)
+	require.NoError(t, l.Subscribe(b))
 
 	b.Publish(sdk.NewEvent(TopicPrompt, "think about it"))
 
@@ -815,7 +815,7 @@ func TestLoop_NoThinkingKeyWhenEmpty(t *testing.T) {
 	defer cleanup()
 
 	allCh := subscribeAllToChan(b)
-	l.Subscribe(b)
+	require.NoError(t, l.Subscribe(b))
 
 	b.Publish(sdk.NewEvent(TopicPrompt, "quick one"))
 
@@ -859,7 +859,7 @@ func TestLoop_ThinkingLevelChange(t *testing.T) {
 	defer cleanup()
 
 	allCh := subscribeAllToChan(b)
-	l.Subscribe(b)
+	require.NoError(t, l.Subscribe(b))
 
 	b.Publish(sdk.NewEvent(TopicPrompt, "first"))
 
@@ -919,7 +919,7 @@ func TestLoop_ModelChangeWithModelKey(t *testing.T) {
 	defer cleanup()
 
 	allCh := subscribeAllToChan(b)
-	l.Subscribe(b)
+	require.NoError(t, l.Subscribe(b))
 
 	b.Publish(sdk.NewEvent(TopicPrompt, "start"))
 
@@ -977,7 +977,7 @@ func TestLoop_ModelChangeDifferentProvider(t *testing.T) {
 	defer cleanup()
 
 	allCh := subscribeAllToChan(b)
-	l.Subscribe(b)
+	require.NoError(t, l.Subscribe(b))
 
 	b.Publish(sdk.NewEvent(TopicPrompt, "start"))
 
@@ -1041,7 +1041,7 @@ func TestLoop_InvalidThinkingLevelIgnored(t *testing.T) {
 	defer cleanup()
 
 	allCh := subscribeAllToChan(b)
-	l.Subscribe(b)
+	require.NoError(t, l.Subscribe(b))
 
 	b.Publish(sdk.NewEvent(TopicPrompt, "start"))
 
@@ -1092,7 +1092,7 @@ func TestLoop_SystemPromptEmpty(t *testing.T) {
 	defer cleanup()
 
 	allCh := subscribeAllToChan(b)
-	l.Subscribe(b)
+	require.NoError(t, l.Subscribe(b))
 
 	b.Publish(sdk.NewEvent(TopicPrompt, "test"))
 
@@ -1134,7 +1134,7 @@ func TestLoop_SystemPromptWithSkills(t *testing.T) {
 	defer cleanup()
 
 	allCh := subscribeAllToChan(b)
-	l.Subscribe(b)
+	require.NoError(t, l.Subscribe(b))
 
 	skillsXML := "<available_skills>\n<skill>\n<name>test-skill</name>\n<description>A test skill</description>\n<location>/path/to/test-skill/SKILL.md</location>\n</skill>\n</available_skills>"
 	b.Publish(sdk.NewEvent(sdk.TopicSkillsLoaded, skillsXML))
@@ -1180,7 +1180,7 @@ func TestLoop_SkillsUpdateViaBus(t *testing.T) {
 	defer cleanup()
 
 	allCh := subscribeAllToChan(b)
-	l.Subscribe(b)
+	require.NoError(t, l.Subscribe(b))
 
 	// First turn with initial skills
 	skillsV1 := "<available_skills><skill><name>v1</name></skill></available_skills>"
@@ -1244,7 +1244,7 @@ func TestLoop_InstructionsOnlySystemPrompt(t *testing.T) {
 	defer cleanup()
 
 	allCh := subscribeAllToChan(b)
-	l.Subscribe(b)
+	require.NoError(t, l.Subscribe(b))
 
 	instructions := "# Project Context\n\nSome project instructions"
 	b.Publish(sdk.NewEvent(sdk.TopicInstructionsLoaded, instructions))
@@ -1291,7 +1291,7 @@ func TestLoop_InstructionsCombinedWithSkills(t *testing.T) {
 	defer cleanup()
 
 	allCh := subscribeAllToChan(b)
-	l.Subscribe(b)
+	require.NoError(t, l.Subscribe(b))
 
 	instructions := "# Project Context\n\nSome instructions"
 	skillsXML := "<available_skills><skill><name>test</name></skill></available_skills>"
@@ -1342,7 +1342,7 @@ func TestLoop_InstructionsUpdateViaBus(t *testing.T) {
 	defer cleanup()
 
 	allCh := subscribeAllToChan(b)
-	l.Subscribe(b)
+	require.NoError(t, l.Subscribe(b))
 
 	instrV1 := "# Context v1"
 	b.Publish(sdk.NewEvent(sdk.TopicInstructionsLoaded, instrV1))

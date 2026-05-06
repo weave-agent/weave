@@ -52,15 +52,6 @@ func TestDuplicateWarn(t *testing.T) {
 	assert.Contains(t, buf.String(), `warning: item "x" already registered; first registration wins`)
 }
 
-func TestDuplicatePanic(t *testing.T) {
-	r := New(WithPanic[int]("test"))
-
-	r.Register("x", 1)
-	assert.Panics(t, func() {
-		r.Register("x", 2)
-	})
-}
-
 func TestDuplicateNoOption(t *testing.T) {
 	r := New[int]()
 

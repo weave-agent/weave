@@ -26,7 +26,7 @@ func NewSkillsExtension(cfg sdk.Config) (*SkillsExtension, error) {
 
 func (e *SkillsExtension) Name() string { return "skills" }
 
-func (e *SkillsExtension) Subscribe(bus sdk.Bus) {
+func (e *SkillsExtension) Subscribe(bus sdk.Bus) error {
 	paths := e.resolvePaths()
 
 	skills, err := discoverSkills(paths...)
@@ -38,7 +38,7 @@ func (e *SkillsExtension) Subscribe(bus sdk.Bus) {
 
 	ui, err := sdk.GetUI("tui")
 	if err != nil {
-		return
+		return nil //nolint:nilerr // headless mode: no TUI available
 	}
 
 	for i := range skills {
@@ -46,6 +46,8 @@ func (e *SkillsExtension) Subscribe(bus sdk.Bus) {
 		cmdName := "/skill:" + skill.Name
 		ui.RegisterCommand(cmdName, makeSkillHandler(skill, bus))
 	}
+
+	return nil
 }
 
 func (e *SkillsExtension) Close() error {

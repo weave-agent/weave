@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -92,11 +93,11 @@ func NewStore(cfg sdk.Config) (*Store, error) {
 
 func (s *Store) Name() string { return "jsonl" }
 
-func (s *Store) Subscribe(bus sdk.Bus) {
+func (s *Store) Subscribe(bus sdk.Bus) error {
 	s.mu.Lock()
 	if s.cancel != nil {
 		s.mu.Unlock()
-		panic("jsonl: Subscribe called twice without Close")
+		return errors.New("jsonl: Subscribe called twice without Close")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -136,6 +137,8 @@ func (s *Store) Subscribe(bus sdk.Bus) {
 			}
 		}
 	}()
+
+	return nil
 }
 
 func (s *Store) Close() error {

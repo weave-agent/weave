@@ -249,7 +249,7 @@ import "weave/sdk"
 
 func init() {
 	sdk.RegisterExtension("noop", func(cfg sdk.Config) (sdk.Extension, error) {
-		return sdk.NewExtensionFunc("noop", func(b sdk.Bus) {}), nil
+		return sdk.NewExtensionFunc("noop", func(b sdk.Bus) error { return nil }), nil
 	})
 }
 `

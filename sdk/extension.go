@@ -17,26 +17,33 @@ type Bus interface {
 
 type Extension interface {
 	Name() string
-	Subscribe(bus Bus)
+	Subscribe(bus Bus) error
 	Close() error
 }
 
 type ExtensionFunc struct {
 	name    string
-	fn      func(Bus)
+	fn      func(Bus) error
 	closeFn func() error
 }
 
-func NewExtensionFunc(name string, fn func(Bus)) *ExtensionFunc {
+func NewExtensionFunc(name string, fn func(Bus) error) *ExtensionFunc {
 	return &ExtensionFunc{name: name, fn: fn}
 }
 
-func NewExtensionFuncWithClose(name string, fn func(Bus), closeFn func() error) *ExtensionFunc {
+func NewExtensionFuncWithClose(name string, fn func(Bus) error, closeFn func() error) *ExtensionFunc {
 	return &ExtensionFunc{name: name, fn: fn, closeFn: closeFn}
 }
 
-func (e *ExtensionFunc) Name() string      { return e.name }
-func (e *ExtensionFunc) Subscribe(bus Bus) { e.fn(bus) }
+func (e *ExtensionFunc) Name() string { return e.name }
+func (e *ExtensionFunc) Subscribe(bus Bus) error {
+	if e.fn != nil {
+		return e.fn(bus)
+	}
+
+	return nil
+}
+
 func (e *ExtensionFunc) Close() error {
 	if e.closeFn != nil {
 		return e.closeFn()

@@ -272,7 +272,7 @@ func TestSubscribe_PublishesInstructionsLoaded(t *testing.T) {
 	// globalConfigDir() reads HOME and appends ".weave"
 	t.Setenv("HOME", fakeHome)
 
-	ext.Subscribe(bus)
+	require.NoError(t, ext.Subscribe(bus))
 
 	require.Len(t, bus.PublishCalls(), 1)
 	call := bus.PublishCalls()[0]
@@ -299,7 +299,7 @@ func TestSubscribe_NoFilesPublishesEmpty(t *testing.T) {
 		PublishFunc: func(event sdk.Event) {},
 	}
 
-	ext.Subscribe(bus)
+	require.NoError(t, ext.Subscribe(bus))
 
 	require.Len(t, bus.PublishCalls(), 1)
 	call := bus.PublishCalls()[0]

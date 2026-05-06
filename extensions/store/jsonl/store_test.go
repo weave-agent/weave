@@ -346,7 +346,7 @@ func TestSubscribe_CreatesSessionOnPrompt(t *testing.T) {
 	s := newTestStore(t)
 	b := eventbus.New()
 
-	s.Subscribe(b)
+	require.NoError(t, s.Subscribe(b))
 	defer s.Close()
 
 	b.Publish(sdk.NewEvent("agent.prompt", "hello world"))
@@ -375,7 +375,7 @@ func TestSubscribe_AppendsAssistantOnMsgEnd(t *testing.T) {
 	s := newTestStore(t)
 	b := eventbus.New()
 
-	s.Subscribe(b)
+	require.NoError(t, s.Subscribe(b))
 	defer s.Close()
 
 	b.Publish(sdk.NewEvent("agent.prompt", "hello"))
@@ -407,7 +407,7 @@ func TestSubscribe_AppendsToolResult(t *testing.T) {
 	s := newTestStore(t)
 	b := eventbus.New()
 
-	s.Subscribe(b)
+	require.NoError(t, s.Subscribe(b))
 	defer s.Close()
 
 	b.Publish(sdk.NewEvent("agent.prompt", "list files"))
@@ -445,7 +445,7 @@ func TestSubscribe_EndStopsGoroutine(t *testing.T) {
 	s := newTestStore(t)
 	b := eventbus.New()
 
-	s.Subscribe(b)
+	require.NoError(t, s.Subscribe(b))
 
 	b.Publish(sdk.NewEvent("agent.prompt", "hello"))
 	time.Sleep(50 * time.Millisecond)
@@ -459,7 +459,7 @@ func TestSubscribe_CloseCancelsGoroutine(t *testing.T) {
 	s := newTestStore(t)
 	b := eventbus.New()
 
-	s.Subscribe(b)
+	require.NoError(t, s.Subscribe(b))
 
 	b.Publish(sdk.NewEvent("agent.prompt", "test"))
 	time.Sleep(50 * time.Millisecond)

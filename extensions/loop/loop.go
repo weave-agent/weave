@@ -4,6 +4,7 @@ package agentloop
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -70,11 +71,11 @@ func NewLoop(cfg sdk.Config, providerName string) (*Loop, error) {
 
 func (l *Loop) Name() string { return "loop" }
 
-func (l *Loop) Subscribe(bus sdk.Bus) {
+func (l *Loop) Subscribe(bus sdk.Bus) error {
 	l.mu.Lock()
 	if l.cancel != nil {
 		l.mu.Unlock()
-		panic("loop: Subscribe called twice without Close")
+		return errors.New("loop: Subscribe called twice without Close")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -133,6 +134,8 @@ func (l *Loop) Subscribe(bus sdk.Bus) {
 	l.mu.Unlock()
 
 	go l.run(ctx, bus, promptCh, steerCh, followupCh, interruptCh, modelChangeCh, thinkingCh, skillsCh, instructionsCh)
+
+	return nil
 }
 
 func (l *Loop) Close() error {

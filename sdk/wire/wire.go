@@ -46,8 +46,14 @@ func Wire(extNames []string, bus sdk.Bus, cfg sdk.Config) (*Wired, error) {
 		exts = append(exts, ext)
 	}
 
-	for _, ext := range exts {
-		ext.Subscribe(bus)
+	for i, ext := range exts {
+		if err := ext.Subscribe(bus); err != nil {
+			for j := range slices.Backward(exts[:i]) {
+				_ = exts[j].Close()
+			}
+
+			return nil, fmt.Errorf("wire: subscribe %s: %w", ext.Name(), err)
+		}
 	}
 
 	return &Wired{extensions: exts, bus: bus}, nil

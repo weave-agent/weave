@@ -12,7 +12,7 @@ import (
 func TestRegisterAndRetrieve(t *testing.T) {
 	ResetRegistry()
 
-	ext := NewExtensionFunc("test", func(bus Bus) {})
+	ext := NewExtensionFunc("test", func(bus Bus) error { return nil })
 
 	RegisterExtension("test", func(Config) (Extension, error) { return ext, nil })
 
@@ -25,12 +25,12 @@ func TestDuplicateRegistration(t *testing.T) {
 	ResetRegistry()
 
 	RegisterExtension("dup", func(Config) (Extension, error) {
-		return NewExtensionFunc("dup", func(bus Bus) {}), nil
+		return NewExtensionFunc("dup", func(bus Bus) error { return nil }), nil
 	})
 
 	// Duplicate extension registration logs a warning; first registration wins.
 	RegisterExtension("dup", func(Config) (Extension, error) {
-		return NewExtensionFunc("dup-v2", func(bus Bus) {}), nil
+		return NewExtensionFunc("dup-v2", func(bus Bus) error { return nil }), nil
 	})
 
 	got, err := GetExtension("dup", nil)
