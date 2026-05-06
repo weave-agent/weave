@@ -166,6 +166,129 @@ func uninstallExtension(name string) error {
 	return nil
 }
 
+// runList prints a formatted table of installed extensions to stdout.
+// It checks git-sourced extensions for available updates.
+func runList(_ []string) int {
+	exts, err := listExtensionsDir()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "weave list: %v\n", err)
+		return 1
+	}
+
+	if len(exts) == 0 {
+		fmt.Fprintln(os.Stderr, "no extensions installed")
+		return 0
+	}
+
+	// Check outdated for git-sourced extensions.
+	for i := range exts {
+		if exts[i].Source == sourceGit {
+			if err := checkOutdated(&exts[i]); err != nil {
+				fmt.Fprintf(os.Stderr, "weave list: warning: %v\n", err)
+			}
+		}
+	}
+
+	_, _ = fmt.Fprintf(os.Stdout, "%-20s %-10s %s\n", "NAME", "SOURCE", "STATUS")
+
+	for _, ext := range exts {
+		sourceLabel := "local"
+		status := "ok"
+
+		if ext.Source == sourceGit {
+			sourceLabel = "git"
+
+			if ext.Outdated {
+				status = "outdated"
+			}
+		} else {
+			status = "static"
+		}
+
+		_, _ = fmt.Fprintf(os.Stdout, "%-20s %-10s %s\n", ext.Name, sourceLabel, status)
+	}
+
+	return 0
+}
+
+// runUpdate updates git-sourced extensions. With a name argument, only that
+// extension is updated. Without arguments, all git-sourced extensions are updated.
+func runUpdate(args []string) int {
+	if len(args) > 0 {
+		name := args[0]
+		if err := updateExtension(name); err != nil {
+			fmt.Fprintf(os.Stderr, "weave update: %v\n", err)
+			return 1
+		}
+
+		_, _ = fmt.Fprintf(os.Stdout, "updated %q\n", name)
+
+		return 0
+	}
+
+	// Update all git-sourced extensions.
+	exts, err := listExtensionsDir()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "weave update: %v\n", err)
+		return 1
+	}
+
+	if len(exts) == 0 {
+		fmt.Fprintln(os.Stderr, "no extensions installed")
+		return 0
+	}
+
+	updated := 0
+	failed := 0
+
+	for _, ext := range exts {
+		if ext.Source != sourceGit {
+			continue
+		}
+
+		if err := updateExtension(ext.Name); err != nil {
+			fmt.Fprintf(os.Stderr, "weave update: %v\n", err)
+
+			failed++
+		} else {
+			_, _ = fmt.Fprintf(os.Stdout, "updated %q\n", ext.Name)
+
+			updated++
+		}
+	}
+
+	if updated == 0 && failed == 0 {
+		fmt.Fprintln(os.Stderr, "no git-sourced extensions to update")
+	}
+
+	if failed > 0 {
+		return 1
+	}
+
+	return 0
+}
+
+// runUninstall removes an extension. It requires exactly one argument (the extension name).
+func runUninstall(args []string) int {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "weave uninstall: missing extension name")
+		fmt.Fprintln(os.Stderr, "usage: weave uninstall <name>")
+
+		return 1
+	}
+
+	name := args[0]
+
+	if err := uninstallExtension(name); err != nil {
+		fmt.Fprintf(os.Stderr, "weave uninstall: %v\n", err)
+		return 1
+	}
+
+	_, _ = fmt.Fprintf(os.Stdout, "uninstalled %q\n", name)
+
+	return 0
+}
+
 func gitRevParseHEAD(dir string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), outdatedTimeout)
 	defer cancel()

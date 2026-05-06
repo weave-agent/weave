@@ -18,8 +18,17 @@ var errNoInput = errors.New("no prompt provided and ui is disabled — use -p to
 // Run is the main entry point for the weave CLI. It parses args, loads config,
 // discovers extensions, and runs the launcher pipeline.
 func Run(ctx context.Context, args []string) int {
-	if len(args) > 0 && args[0] == "install" {
-		return runInstall(args[1:])
+	if len(args) > 0 {
+		switch args[0] {
+		case "install":
+			return runInstall(args[1:])
+		case "list":
+			return runList(args[1:])
+		case "update":
+			return runUpdate(args[1:])
+		case "uninstall":
+			return runUninstall(args[1:])
+		}
 	}
 
 	return run(ctx, args...)

@@ -53,14 +53,14 @@ Add missing extension management commands (`list`, `update`, `uninstall`) and an
 - [x] run tests — must pass before task 2
 
 ### Task 2: Add CLI subcommands (`list`, `update`, `uninstall`)
-- [ ] add `runList(args []string) int` in `sdk/wire/extmanage.go` — call `listExtensionsDir`, check outdated for git-sourced extensions, print formatted table to stdout
-- [ ] add `runUpdate(args []string) int` in `sdk/wire/extmanage.go` — with optional name arg (no name = update all git-sourced), call `updateExtension`
-- [ ] add `runUninstall(args []string) int` in `sdk/wire/extmanage.go` — require name arg, call `uninstallExtension`, warn if extension is referenced in active config
-- [ ] add subcommand dispatch branches in `sdk/wire/run.go` `Run()` function (matching existing `install` pattern)
-- [ ] write tests for `runList` output formatting
-- [ ] write tests for `runUpdate` (single, all, not found, no git extensions)
-- [ ] write tests for `runUninstall` (success, missing arg, not found)
-- [ ] run tests — must pass before task 3
+- [x] add `runList(args []string) int` in `sdk/wire/extmanage.go` — call `listExtensionsDir`, check outdated for git-sourced extensions, print formatted table to stdout
+- [x] add `runUpdate(args []string) int` in `sdk/wire/extmanage.go` — with optional name arg (no name = update all git-sourced), call `updateExtension`
+- [x] add `runUninstall(args []string) int` in `sdk/wire/extmanage.go` — require name arg, call `uninstallExtension`, warn if extension is referenced in active config
+- [x] add subcommand dispatch branches in `sdk/wire/run.go` `Run()` function (matching existing `install` pattern)
+- [x] write tests for `runList` output formatting
+- [x] write tests for `runUpdate` (single, all, not found, no git extensions)
+- [x] write tests for `runUninstall` (success, missing arg, not found)
+- [x] run tests — must pass before task 3
 
 ### Task 3: Add startup update check in core
 - [ ] create `sdk/wire/update_check.go` with `OutdatedInfo{Name, LocalHead, RemoteHead}` struct

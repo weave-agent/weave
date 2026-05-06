@@ -310,3 +310,144 @@ func TestUninstallExtension_NotFound(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }
+
+// --- runList tests ---
+
+func TestRunList_NoExtensions(t *testing.T) {
+	setupExtensionsDir(t)
+
+	code := runList(nil)
+	assert.Equal(t, 0, code)
+}
+
+func TestRunList_MixedSources(t *testing.T) {
+	gitIsAvailable(t)
+	extDir := setupExtensionsDir(t)
+
+	// Create a local extension.
+	require.NoError(t, os.MkdirAll(filepath.Join(extDir, "local-tool"), 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, "local-tool", "main.go"), []byte("package main\n"), 0o600))
+
+	// Create a git-sourced extension (up-to-date: remote points to itself).
+	gitExt := filepath.Join(extDir, "git-tool")
+	require.NoError(t, os.MkdirAll(gitExt, 0o750))
+	initGitRepo(t, gitExt)
+	runGit(t, gitExt, "remote", "add", "origin", gitExt)
+
+	code := runList(nil)
+	assert.Equal(t, 0, code)
+}
+
+func TestRunList_OutdatedExtension(t *testing.T) {
+	gitIsAvailable(t)
+	extDir := setupExtensionsDir(t)
+
+	bareDir := initBareRepo(t)
+
+	// Clone from bare repo.
+	localDir := filepath.Join(extDir, "outdated-tool")
+	runGit(t, t.TempDir(), "clone", bareDir, localDir)
+
+	// Advance the remote.
+	tmpClone := filepath.Join(t.TempDir(), "advance-clone")
+	runGit(t, t.TempDir(), "clone", bareDir, tmpClone)
+	runGit(t, tmpClone, "config", "user.email", "test@test.com")
+	runGit(t, tmpClone, "config", "user.name", "Test")
+	require.NoError(t, os.WriteFile(filepath.Join(tmpClone, "feature.go"), []byte("package main\n"), 0o600))
+	runGit(t, tmpClone, "add", ".")
+	runGit(t, tmpClone, "commit", "-m", "advance remote")
+	runGit(t, tmpClone, "push", "origin", "HEAD")
+
+	code := runList(nil)
+	assert.Equal(t, 0, code)
+}
+
+// --- runUpdate tests ---
+
+func TestRunUpdate_Single(t *testing.T) {
+	gitIsAvailable(t)
+	extDir := setupExtensionsDir(t)
+
+	bareDir := initBareRepo(t)
+
+	localDir := filepath.Join(extDir, "my-tool")
+	runGit(t, t.TempDir(), "clone", bareDir, localDir)
+
+	// Advance the remote.
+	tmpClone := filepath.Join(t.TempDir(), "advance-clone")
+	runGit(t, t.TempDir(), "clone", bareDir, tmpClone)
+	runGit(t, tmpClone, "config", "user.email", "test@test.com")
+	runGit(t, tmpClone, "config", "user.name", "Test")
+	require.NoError(t, os.WriteFile(filepath.Join(tmpClone, "feature.go"), []byte("package main\n"), 0o600))
+	runGit(t, tmpClone, "add", ".")
+	runGit(t, tmpClone, "commit", "-m", "advance remote")
+	runGit(t, tmpClone, "push", "origin", "HEAD")
+
+	code := runUpdate([]string{"my-tool"})
+	assert.Equal(t, 0, code)
+	assert.FileExists(t, filepath.Join(localDir, "feature.go"))
+}
+
+func TestRunUpdate_NotFound(t *testing.T) {
+	setupExtensionsDir(t)
+
+	code := runUpdate([]string{"nonexistent"})
+	assert.Equal(t, 1, code)
+}
+
+func TestRunUpdate_All(t *testing.T) {
+	gitIsAvailable(t)
+	extDir := setupExtensionsDir(t)
+
+	bareDir := initBareRepo(t)
+
+	// Create two git-sourced extensions.
+	for _, name := range []string{"tool-a", "tool-b"} {
+		localDir := filepath.Join(extDir, name)
+		runGit(t, t.TempDir(), "clone", bareDir, localDir)
+	}
+
+	// Create a local extension (should be skipped).
+	require.NoError(t, os.MkdirAll(filepath.Join(extDir, "local-tool"), 0o750))
+
+	code := runUpdate(nil)
+	assert.Equal(t, 0, code)
+}
+
+func TestRunUpdate_NoGitExtensions(t *testing.T) {
+	extDir := setupExtensionsDir(t)
+
+	// Only local extensions — nothing to update.
+	require.NoError(t, os.MkdirAll(filepath.Join(extDir, "local-tool"), 0o750))
+
+	code := runUpdate(nil)
+	assert.Equal(t, 0, code)
+}
+
+// --- runUninstall tests ---
+
+func TestRunUninstall_Success(t *testing.T) {
+	extDir := setupExtensionsDir(t)
+
+	extPath := filepath.Join(extDir, "my-tool")
+	require.NoError(t, os.MkdirAll(extPath, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(extPath, "main.go"), []byte("package main\n"), 0o600))
+
+	code := runUninstall([]string{"my-tool"})
+	assert.Equal(t, 0, code)
+
+	_, statErr := os.Stat(extPath)
+	assert.True(t, os.IsNotExist(statErr))
+}
+
+func TestRunUninstall_MissingArg(t *testing.T) {
+	code := runUninstall(nil)
+	assert.Equal(t, 1, code)
+}
+
+func TestRunUninstall_NotFound(t *testing.T) {
+	setupExtensionsDir(t)
+
+	code := runUninstall([]string{"nonexistent"})
+	assert.Equal(t, 1, code)
+}
