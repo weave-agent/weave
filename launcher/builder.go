@@ -485,6 +485,7 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string, provider
 	b.WriteString("\t\tfmt.Fprintf(os.Stderr, \"weave: %v\\n\", err)\n")
 	b.WriteString("\t\tos.Exit(1)\n")
 	b.WriteString("\t}\n\n")
+	b.WriteString("\tgo wire.FireUpdateCheck(b)\n")
 	b.WriteString("\tif prompt != \"\" {\n")
 	b.WriteString("\t\tb.Publish(sdk.NewEvent(\"agent.prompt\", prompt))\n")
 	b.WriteString("\t}\n\n")

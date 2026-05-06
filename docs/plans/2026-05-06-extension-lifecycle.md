@@ -63,15 +63,15 @@ Add missing extension management commands (`list`, `update`, `uninstall`) and an
 - [x] run tests — must pass before task 3
 
 ### Task 3: Add startup update check in core
-- [ ] create `sdk/wire/update_check.go` with `OutdatedInfo{Name, LocalHead, RemoteHead}` struct
-- [ ] define event payload struct: `OutdatedEvent{Extensions []OutdatedInfo}`
-- [ ] implement `fireUpdateCheck(bus Bus)` — goroutine that iterates `~/.weave/extensions/`, compares HEAD for git-sourced extensions, publishes `extension.outdated` event on bus with list of outdated names
-- [ ] add `go fireUpdateCheck(bus)` call in `run()` (in `sdk/wire/run.go`) after wiring completes, before agent loop starts
-- [ ] respect offline mode — skip check if `WEAVE_OFFLINE=1` env var is set
-- [ ] log check start/completion to stderr for diagnostics
-- [ ] write tests for `fireUpdateCheck` using mock bus and temp git repos
-- [ ] write tests for offline mode skip behavior
-- [ ] run tests — must pass before task 4
+- [x] create `sdk/wire/update_check.go` with `OutdatedInfo{Name, LocalHead, RemoteHead}` struct
+- [x] define event payload struct: `OutdatedEvent{Extensions []OutdatedInfo}`
+- [x] implement `fireUpdateCheck(bus Bus)` — goroutine that iterates `~/.weave/extensions/`, compares HEAD for git-sourced extensions, publishes `extension.outdated` event on bus with list of outdated names
+- [x] add `go fireUpdateCheck(bus)` call in `run()` (in `sdk/wire/run.go`) after wiring completes, before agent loop starts
+- [x] respect offline mode — skip check if `WEAVE_OFFLINE=1` env var is set
+- [x] log check start/completion to stderr for diagnostics
+- [x] write tests for `fireUpdateCheck` using mock bus and temp git repos
+- [x] write tests for offline mode skip behavior
+- [x] run tests — must pass before task 4
 
 ### Task 4: Add TUI notification for outdated extensions
 - [ ] add `extension.outdated` topic handling in `extensions/ui/tui/bridge.go` `translateEvent()` — return new `OutdatedNotificationMsg`
