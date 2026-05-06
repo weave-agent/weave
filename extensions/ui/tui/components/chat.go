@@ -235,6 +235,10 @@ func (m ChatModel) UpdateItemAt(index int, item ChatItem) ChatModel {
 		m.invalidate(index)
 	}
 
+	if m.autoScroll {
+		m.scrollToBottom()
+	}
+
 	return m
 }
 

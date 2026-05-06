@@ -94,6 +94,12 @@ func WireWithCore(core CoreWireConfig, optExts []string, bus sdk.Bus, cfg sdk.Co
 
 	extNames := mergeCoreAndOptional(CoreWireConfig{AgentLoop: core.AgentLoop}, optExts)
 
+	// Fire update check before Subscribe calls — the TUI blocks in Subscribe,
+	// so deferring this past WireWithCore means it never runs during interactive use.
+	if cfg != nil && !cfg.IsHeadless() {
+		go FireUpdateCheck(bus)
+	}
+
 	return Wire(extNames, bus, cfg)
 }
 

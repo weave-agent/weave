@@ -357,6 +357,16 @@ func LoadFromDir(dir string, args []string) (string, *File, []string, error) {
 	return path, &f, rest, nil
 }
 
+// LoadFromFile loads a config file from the given path without discovery or generation.
+func LoadFromFile(path string) (*File, error) {
+	var f File
+	if err := gonfig.Load(&f, gonfig.WithFile(path)); err != nil {
+		return nil, fmt.Errorf("load config %s: %w", path, err)
+	}
+
+	return &f, nil
+}
+
 // LoadFullConfig loads the config file and auth file, returning a FullConfig
 // that implements sdk.Config with full key resolution.
 func LoadFullConfig(path string) (*FullConfig, error) {

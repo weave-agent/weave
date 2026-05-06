@@ -786,47 +786,44 @@ func (m Model) openExternalEditor() (tea.Model, tea.Cmd) {
 	})
 }
 
+// findStreamingAssistant scans chat items backwards for the active streaming assistant message.
+// Returns the message and its index, or nil and -1 if not found.
+func (m *Model) findStreamingAssistant() (*messages.AssistantMessage, int) {
+	for i, item := range slices.Backward(m.chat.Items()) {
+		if am, ok := item.(*messages.AssistantMessage); ok && am.IsStreaming() {
+			return am, i
+		}
+	}
+
+	return nil, -1
+}
+
 // onMessageUpdate appends a delta to the current assistant message and updates token rate.
 func (m *Model) onMessageUpdate(msg MessageUpdateMsg) {
 	if msg.TokenRate > 0 {
 		m.footer = m.footer.SetTokenRate(msg.TokenRate)
 	}
 
-	items := m.chat.Items()
-	if len(items) == 0 {
-		return
-	}
-
-	am, ok := items[len(items)-1].(*messages.AssistantMessage)
-	if !ok || !am.IsStreaming() {
+	am, idx := m.findStreamingAssistant()
+	if am == nil {
 		return
 	}
 
 	am.Append(msg.Content)
-	m.chat = m.chat.UpdateItem(am)
+	m.chat = m.chat.UpdateItemAt(idx, am)
 }
 
 // onMessageEnd finalizes the current assistant message and creates pending tool panels.
 func (m *Model) onMessageEnd(msg MessageEndMsg) {
 	m.footer = m.footer.SetTokenRate(0)
 
-	items := m.chat.Items()
-	if len(items) == 0 {
-		return
-	}
-
-	am, ok := items[len(items)-1].(*messages.AssistantMessage)
-	if !ok {
-		return
-	}
-
-	// If the message was already finalized (e.g. by interrupt), don't overwrite.
-	if !am.IsStreaming() {
+	am, idx := m.findStreamingAssistant()
+	if am == nil {
 		return
 	}
 
 	am.Finalize(msg.Content)
-	m.chat = m.chat.UpdateItem(am)
+	m.chat = m.chat.UpdateItemAt(idx, am)
 
 	if msg.Thinking != "" {
 		m.chat = m.chat.AddItem(messages.NewThinkingBlock(msg.Thinking))
@@ -868,18 +865,13 @@ func (m *Model) onToolResult(msg ToolResultMsg) {
 // interruptStreaming finalizes the current streaming assistant message with
 // an [interrupted] tag, hides the spinner, and publishes an interrupt event.
 func (m Model) interruptStreaming() (tea.Model, tea.Cmd) {
-	items := m.chat.Items()
-	if len(items) == 0 {
-		return m, nil
-	}
-
-	am, ok := items[len(items)-1].(*messages.AssistantMessage)
-	if !ok || !am.IsStreaming() {
+	am, idx := m.findStreamingAssistant()
+	if am == nil {
 		return m, nil
 	}
 
 	am.Interrupt()
-	m.chat = m.chat.UpdateItem(am)
+	m.chat = m.chat.UpdateItemAt(idx, am)
 	m.spinner = m.spinner.Hide()
 	m.footer = m.footer.SetTokenRate(0)
 

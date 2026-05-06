@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -28,6 +29,7 @@ type extensionStatus struct {
 	LocalHead  string
 	RemoteHead string
 	Outdated   bool
+	CheckErr   string
 }
 
 // extensionsDir returns the user-level extensions directory (~/.weave/extensions/).
@@ -209,6 +211,7 @@ func runList(args []string) int {
 	for i := range exts {
 		if exts[i].Source == sourceGit {
 			if err := checkOutdated(&exts[i]); err != nil {
+				exts[i].CheckErr = err.Error()
 				fmt.Fprintf(os.Stderr, "weave list: warning: %v\n", err)
 			}
 		}
@@ -223,7 +226,10 @@ func runList(args []string) int {
 		if ext.Source == sourceGit {
 			sourceLabel = "git"
 
-			if ext.Outdated {
+			switch {
+			case ext.CheckErr != "":
+				status = "unknown"
+			case ext.Outdated:
 				status = "outdated"
 			}
 		} else {
@@ -324,7 +330,52 @@ func runUninstall(args []string) int {
 
 	_, _ = fmt.Fprintf(os.Stdout, "uninstalled %q\n", name)
 
+	warnIfConfigReferences(name)
+
 	return 0
+}
+
+// warnIfConfigReferences checks whether the uninstalled extension is still
+// referenced in the active config file and prints a warning if so.
+// It matches both bare names and path-based entries whose base name matches.
+func warnIfConfigReferences(name string) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return
+	}
+
+	path, err := config.FindConfigPath(cwd)
+	if err != nil {
+		return
+	}
+
+	cf, err := config.LoadFromFile(path)
+	if err != nil {
+		return
+	}
+
+	if slices.Contains(cf.AllExtensions(), name) {
+		fmt.Fprintf(os.Stderr, "warning: extension %q is referenced in %s — remove it to avoid startup errors\n", name, path)
+		return
+	}
+
+	configDir := filepath.Dir(path)
+
+	for _, entry := range cf.AllExtensions() {
+		if !config.IsPathEntry(entry) {
+			continue
+		}
+
+		resolved, err := config.ResolveExtPath(entry, configDir)
+		if err != nil {
+			continue
+		}
+
+		if filepath.Base(resolved) == name {
+			fmt.Fprintf(os.Stderr, "warning: extension %q is referenced as %q in %s — remove it to avoid startup errors\n", name, entry, path)
+			return
+		}
+	}
 }
 
 func gitRevParseHEAD(dir string) (string, error) {
