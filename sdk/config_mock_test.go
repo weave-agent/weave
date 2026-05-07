@@ -23,11 +23,23 @@ var _ Config = &ConfigMock{}
 //			IsHeadlessFunc: func() bool {
 //				panic("mock out the IsHeadless method")
 //			},
+//			PreferencesFunc: func(target any) error {
+//				panic("mock out the Preferences method")
+//			},
 //			ProviderConfigFunc: func(name string) *ProviderConfigEntry {
 //				panic("mock out the ProviderConfig method")
 //			},
+//			ProviderHasKeyFunc: func(providerName string) bool {
+//				panic("mock out the ProviderHasKey method")
+//			},
 //			ResolveKeyFunc: func(providerName string, envVar string) (string, error) {
 //				panic("mock out the ResolveKey method")
+//			},
+//			SavePreferencesFunc: func(target any) error {
+//				panic("mock out the SavePreferences method")
+//			},
+//			SetProviderKeyFunc: func(providerName string, apiKey string) error {
+//				panic("mock out the SetProviderKey method")
 //			},
 //			ToolConfigFunc: func(name string, target any) error {
 //				panic("mock out the ToolConfig method")
@@ -48,11 +60,23 @@ type ConfigMock struct {
 	// IsHeadlessFunc mocks the IsHeadless method.
 	IsHeadlessFunc func() bool
 
+	// PreferencesFunc mocks the Preferences method.
+	PreferencesFunc func(target any) error
+
 	// ProviderConfigFunc mocks the ProviderConfig method.
 	ProviderConfigFunc func(name string) *ProviderConfigEntry
 
+	// ProviderHasKeyFunc mocks the ProviderHasKey method.
+	ProviderHasKeyFunc func(providerName string) bool
+
 	// ResolveKeyFunc mocks the ResolveKey method.
 	ResolveKeyFunc func(providerName string, envVar string) (string, error)
+
+	// SavePreferencesFunc mocks the SavePreferences method.
+	SavePreferencesFunc func(target any) error
+
+	// SetProviderKeyFunc mocks the SetProviderKey method.
+	SetProviderKeyFunc func(providerName string, apiKey string) error
 
 	// ToolConfigFunc mocks the ToolConfig method.
 	ToolConfigFunc func(name string, target any) error
@@ -68,10 +92,20 @@ type ConfigMock struct {
 		// IsHeadless holds details about calls to the IsHeadless method.
 		IsHeadless []struct {
 		}
+		// Preferences holds details about calls to the Preferences method.
+		Preferences []struct {
+			// Target is the target argument value.
+			Target any
+		}
 		// ProviderConfig holds details about calls to the ProviderConfig method.
 		ProviderConfig []struct {
 			// Name is the name argument value.
 			Name string
+		}
+		// ProviderHasKey holds details about calls to the ProviderHasKey method.
+		ProviderHasKey []struct {
+			// ProviderName is the providerName argument value.
+			ProviderName string
 		}
 		// ResolveKey holds details about calls to the ResolveKey method.
 		ResolveKey []struct {
@@ -79,6 +113,18 @@ type ConfigMock struct {
 			ProviderName string
 			// EnvVar is the envVar argument value.
 			EnvVar string
+		}
+		// SavePreferences holds details about calls to the SavePreferences method.
+		SavePreferences []struct {
+			// Target is the target argument value.
+			Target any
+		}
+		// SetProviderKey holds details about calls to the SetProviderKey method.
+		SetProviderKey []struct {
+			// ProviderName is the providerName argument value.
+			ProviderName string
+			// ApiKey is the apiKey argument value.
+			ApiKey string
 		}
 		// ToolConfig holds details about calls to the ToolConfig method.
 		ToolConfig []struct {
@@ -93,12 +139,16 @@ type ConfigMock struct {
 			Target any
 		}
 	}
-	lockFilePath       sync.RWMutex
-	lockIsHeadless     sync.RWMutex
-	lockProviderConfig sync.RWMutex
-	lockResolveKey     sync.RWMutex
-	lockToolConfig     sync.RWMutex
-	lockUIConfig       sync.RWMutex
+	lockFilePath        sync.RWMutex
+	lockIsHeadless      sync.RWMutex
+	lockPreferences     sync.RWMutex
+	lockProviderConfig  sync.RWMutex
+	lockProviderHasKey  sync.RWMutex
+	lockResolveKey      sync.RWMutex
+	lockSavePreferences sync.RWMutex
+	lockSetProviderKey  sync.RWMutex
+	lockToolConfig      sync.RWMutex
+	lockUIConfig        sync.RWMutex
 }
 
 // FilePath calls FilePathFunc.
@@ -161,6 +211,41 @@ func (mock *ConfigMock) IsHeadlessCalls() []struct {
 	return calls
 }
 
+// Preferences calls PreferencesFunc.
+func (mock *ConfigMock) Preferences(target any) error {
+	callInfo := struct {
+		Target any
+	}{
+		Target: target,
+	}
+	mock.lockPreferences.Lock()
+	mock.calls.Preferences = append(mock.calls.Preferences, callInfo)
+	mock.lockPreferences.Unlock()
+	if mock.PreferencesFunc == nil {
+		var (
+			errOut error
+		)
+		return errOut
+	}
+	return mock.PreferencesFunc(target)
+}
+
+// PreferencesCalls gets all the calls that were made to Preferences.
+// Check the length with:
+//
+//	len(mockedConfig.PreferencesCalls())
+func (mock *ConfigMock) PreferencesCalls() []struct {
+	Target any
+} {
+	var calls []struct {
+		Target any
+	}
+	mock.lockPreferences.RLock()
+	calls = mock.calls.Preferences
+	mock.lockPreferences.RUnlock()
+	return calls
+}
+
 // ProviderConfig calls ProviderConfigFunc.
 func (mock *ConfigMock) ProviderConfig(name string) *ProviderConfigEntry {
 	callInfo := struct {
@@ -193,6 +278,41 @@ func (mock *ConfigMock) ProviderConfigCalls() []struct {
 	mock.lockProviderConfig.RLock()
 	calls = mock.calls.ProviderConfig
 	mock.lockProviderConfig.RUnlock()
+	return calls
+}
+
+// ProviderHasKey calls ProviderHasKeyFunc.
+func (mock *ConfigMock) ProviderHasKey(providerName string) bool {
+	callInfo := struct {
+		ProviderName string
+	}{
+		ProviderName: providerName,
+	}
+	mock.lockProviderHasKey.Lock()
+	mock.calls.ProviderHasKey = append(mock.calls.ProviderHasKey, callInfo)
+	mock.lockProviderHasKey.Unlock()
+	if mock.ProviderHasKeyFunc == nil {
+		var (
+			bOut bool
+		)
+		return bOut
+	}
+	return mock.ProviderHasKeyFunc(providerName)
+}
+
+// ProviderHasKeyCalls gets all the calls that were made to ProviderHasKey.
+// Check the length with:
+//
+//	len(mockedConfig.ProviderHasKeyCalls())
+func (mock *ConfigMock) ProviderHasKeyCalls() []struct {
+	ProviderName string
+} {
+	var calls []struct {
+		ProviderName string
+	}
+	mock.lockProviderHasKey.RLock()
+	calls = mock.calls.ProviderHasKey
+	mock.lockProviderHasKey.RUnlock()
 	return calls
 }
 
@@ -233,6 +353,80 @@ func (mock *ConfigMock) ResolveKeyCalls() []struct {
 	mock.lockResolveKey.RLock()
 	calls = mock.calls.ResolveKey
 	mock.lockResolveKey.RUnlock()
+	return calls
+}
+
+// SavePreferences calls SavePreferencesFunc.
+func (mock *ConfigMock) SavePreferences(target any) error {
+	callInfo := struct {
+		Target any
+	}{
+		Target: target,
+	}
+	mock.lockSavePreferences.Lock()
+	mock.calls.SavePreferences = append(mock.calls.SavePreferences, callInfo)
+	mock.lockSavePreferences.Unlock()
+	if mock.SavePreferencesFunc == nil {
+		var (
+			errOut error
+		)
+		return errOut
+	}
+	return mock.SavePreferencesFunc(target)
+}
+
+// SavePreferencesCalls gets all the calls that were made to SavePreferences.
+// Check the length with:
+//
+//	len(mockedConfig.SavePreferencesCalls())
+func (mock *ConfigMock) SavePreferencesCalls() []struct {
+	Target any
+} {
+	var calls []struct {
+		Target any
+	}
+	mock.lockSavePreferences.RLock()
+	calls = mock.calls.SavePreferences
+	mock.lockSavePreferences.RUnlock()
+	return calls
+}
+
+// SetProviderKey calls SetProviderKeyFunc.
+func (mock *ConfigMock) SetProviderKey(providerName string, apiKey string) error {
+	callInfo := struct {
+		ProviderName string
+		ApiKey       string
+	}{
+		ProviderName: providerName,
+		ApiKey:       apiKey,
+	}
+	mock.lockSetProviderKey.Lock()
+	mock.calls.SetProviderKey = append(mock.calls.SetProviderKey, callInfo)
+	mock.lockSetProviderKey.Unlock()
+	if mock.SetProviderKeyFunc == nil {
+		var (
+			errOut error
+		)
+		return errOut
+	}
+	return mock.SetProviderKeyFunc(providerName, apiKey)
+}
+
+// SetProviderKeyCalls gets all the calls that were made to SetProviderKey.
+// Check the length with:
+//
+//	len(mockedConfig.SetProviderKeyCalls())
+func (mock *ConfigMock) SetProviderKeyCalls() []struct {
+	ProviderName string
+	ApiKey       string
+} {
+	var calls []struct {
+		ProviderName string
+		ApiKey       string
+	}
+	mock.lockSetProviderKey.RLock()
+	calls = mock.calls.SetProviderKey
+	mock.lockSetProviderKey.RUnlock()
 	return calls
 }
 

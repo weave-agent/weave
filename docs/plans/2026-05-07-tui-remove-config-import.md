@@ -38,12 +38,12 @@ All other extensions (loop, tools, providers, store, instructions) are clean. Th
 - [x] run `make lint` — no new warnings
 
 ### Task 2: Implement new methods on `config.FullConfig`
-- [ ] implement `Preferences(target any) error` in `config/config.go` — wraps `LoadLayeredSettings(projectDir)` with JSON round-trip into target
-- [ ] implement `SavePreferences(target any) error` in `config/config.go` — loads existing global settings, JSON-merges target fields, saves via `SaveSettingsGlobal`
-- [ ] implement `ProviderHasKey(providerName string) bool` in `config/config.go` — checks env var via `model.ProviderEnvVar()` + `LoadAuth().GetProviderKey()`
-- [ ] implement `SetProviderKey(providerName, apiKey string) error` in `config/config.go` — delegates to existing `config.SetProviderKey()`
-- [ ] write tests for all 4 new methods in `config/config_test.go` (or extend existing)
-- [ ] run `cd config && go test ./...` — config tests must pass
+- [x] implement `Preferences(target any) error` in `config/config.go` — wraps `LoadLayeredSettings(projectDir)` with JSON round-trip into target
+- [x] implement `SavePreferences(target any) error` in `config/config.go` — loads existing global settings, JSON-merges target fields, saves via `SaveSettingsGlobal`
+- [x] implement `ProviderHasKey(providerName string) bool` in `config/config.go` — checks env var via `model.ProviderEnvVar()` + `LoadAuth().GetProviderKey()`
+- [x] implement `SetProviderKey(providerName, apiKey string) error` in `config/config.go` — delegates to existing `config.SetProviderKey()`
+- [x] write tests for all 4 new methods in `config/config_test.go` (or extend existing)
+- [x] run `cd config && go test ./...` — config tests must pass
 
 ### Task 3: Update `extensions/ui/tui/models.go` — remove config import
 - [ ] define local `preferences` struct with `Provider`, `Model`, `ThinkingLevel` fields (json-tagged)

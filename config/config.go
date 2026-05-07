@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -13,6 +14,7 @@ import (
 	"github.com/nniel-ape/gonfig"
 
 	"weave/sdk"
+	"weave/sdk/model"
 )
 
 // String constants used across config validation and defaults.
@@ -475,10 +477,75 @@ func (c *FullConfig) UIConfig(target any) error {
 
 func (c *FullConfig) IsHeadless() bool { return true }
 
-func (c *FullConfig) Preferences(any) error               { return nil }
-func (c *FullConfig) SavePreferences(any) error           { return nil }
-func (c *FullConfig) ProviderHasKey(string) bool          { return false }
-func (c *FullConfig) SetProviderKey(string, string) error { return nil }
+func (c *FullConfig) Preferences(target any) error {
+	configDir := projectDirFromConfig(c.filePath)
+
+	settings, err := LoadLayeredSettings(configDir)
+	if err != nil {
+		return fmt.Errorf("load preferences: %w", err)
+	}
+
+	return populateConfig(settings, target)
+}
+
+func (c *FullConfig) SavePreferences(target any) error {
+	existing, err := LoadSettings()
+	if err != nil {
+		return fmt.Errorf("load existing settings: %w", err)
+	}
+
+	raw, err := json.Marshal(target)
+	if err != nil {
+		return fmt.Errorf("marshal preferences: %w", err)
+	}
+
+	var incoming map[string]any
+	if unErr := json.Unmarshal(raw, &incoming); unErr != nil {
+		return fmt.Errorf("unmarshal preferences: %w", unErr)
+	}
+
+	existingRaw, err := json.Marshal(existing)
+	if err != nil {
+		return fmt.Errorf("marshal existing settings: %w", err)
+	}
+
+	var merged map[string]any
+	if unErr := json.Unmarshal(existingRaw, &merged); unErr != nil {
+		return fmt.Errorf("unmarshal existing settings: %w", unErr)
+	}
+
+	maps.Copy(merged, incoming)
+
+	finalRaw, err := json.Marshal(merged)
+	if err != nil {
+		return fmt.Errorf("marshal merged settings: %w", err)
+	}
+
+	var final Settings
+	if unErr := json.Unmarshal(finalRaw, &final); unErr != nil {
+		return fmt.Errorf("unmarshal merged settings: %w", unErr)
+	}
+
+	return SaveSettingsGlobal(&final)
+}
+
+func (c *FullConfig) ProviderHasKey(providerName string) bool {
+	envVar := model.ProviderEnvVar(providerName)
+	if v := os.Getenv(envVar); v != "" {
+		return true
+	}
+
+	auth, err := LoadAuth()
+	if err != nil {
+		return false
+	}
+
+	return auth.GetProviderKey(providerName) != ""
+}
+
+func (c *FullConfig) SetProviderKey(providerName, apiKey string) error {
+	return SetProviderKey(providerName, apiKey)
+}
 
 // populateConfig JSON round-trips a map/struct into target and applies default
 // struct tags for zero-value fields.

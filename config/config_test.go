@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"weave/sdk/model"
 )
 
 func TestFindConfigPath_WeaveYaml(t *testing.T) {
@@ -359,4 +361,186 @@ func mkdir(t *testing.T, path string) {
 	if err := os.MkdirAll(path, 0o750); err != nil {
 		t.Fatalf("mkdir %s: %v", path, err)
 	}
+}
+
+func TestPreferences_LoadsMergedSettings(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	globalDir := filepath.Join(home, ".weave")
+	require.NoError(t, os.MkdirAll(globalDir, 0o750))
+
+	projectDir := t.TempDir()
+	projectWeave := filepath.Join(projectDir, ".weave")
+	require.NoError(t, os.MkdirAll(projectWeave, 0o750))
+
+	writeJSON(t, filepath.Join(globalDir, "settings.json"), &Settings{
+		Provider: "anthropic",
+		Model:    "claude-sonnet-4-6",
+	})
+	writeJSON(t, filepath.Join(projectWeave, "settings.json"), &Settings{
+		Model:         "gpt-5.5",
+		ThinkingLevel: "high",
+	})
+
+	cfg := &FullConfig{
+		filePath: filepath.Join(projectDir, ".weave", "config.yaml"),
+		file:     DefaultFile(),
+		auth:     &AuthFile{},
+	}
+
+	var prefs struct {
+		Provider      string `json:"provider"`
+		Model         string `json:"model"`
+		ThinkingLevel string `json:"thinking_level"`
+	}
+	require.NoError(t, cfg.Preferences(&prefs))
+	assert.Equal(t, "anthropic", prefs.Provider, "global provider should be preserved")
+	assert.Equal(t, "gpt-5.5", prefs.Model, "project model should override global")
+	assert.Equal(t, "high", prefs.ThinkingLevel)
+}
+
+func TestPreferences_NoSettingsFile(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	globalDir := filepath.Join(home, ".weave")
+	require.NoError(t, os.MkdirAll(globalDir, 0o750))
+
+	projectDir := t.TempDir()
+
+	cfg := &FullConfig{
+		filePath: filepath.Join(projectDir, ".weave", "config.yaml"),
+		file:     DefaultFile(),
+		auth:     &AuthFile{},
+	}
+
+	var prefs struct {
+		Model string `json:"model"`
+	}
+	require.NoError(t, cfg.Preferences(&prefs))
+	assert.Empty(t, prefs.Model)
+}
+
+func TestSavePreferences_MergesIntoGlobal(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	globalDir := filepath.Join(home, ".weave")
+	require.NoError(t, os.MkdirAll(globalDir, 0o750))
+
+	// Pre-existing global settings with a model already set.
+	writeJSON(t, filepath.Join(globalDir, "settings.json"), &Settings{
+		Provider: "anthropic",
+		Model:    "claude-sonnet-4-6",
+	})
+
+	projectDir := t.TempDir()
+
+	cfg := &FullConfig{
+		filePath: filepath.Join(projectDir, ".weave", "config.yaml"),
+		file:     DefaultFile(),
+		auth:     &AuthFile{},
+	}
+
+	prefs := struct {
+		Model string `json:"model"`
+	}{
+		Model: "gpt-5.5",
+	}
+	require.NoError(t, cfg.SavePreferences(&prefs))
+
+	// Verify global settings now has the new model but kept the provider.
+	loaded, err := LoadSettings()
+	require.NoError(t, err)
+	assert.Equal(t, "anthropic", loaded.Provider, "existing provider should be preserved")
+	assert.Equal(t, "gpt-5.5", loaded.Model, "model should be updated")
+}
+
+func TestSavePreferences_CreatesFileIfMissing(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	globalDir := filepath.Join(home, ".weave")
+	require.NoError(t, os.MkdirAll(globalDir, 0o750))
+
+	projectDir := t.TempDir()
+
+	cfg := &FullConfig{
+		filePath: filepath.Join(projectDir, ".weave", "config.yaml"),
+		file:     DefaultFile(),
+		auth:     &AuthFile{},
+	}
+
+	prefs := struct {
+		Model string `json:"model"`
+	}{
+		Model: "opus",
+	}
+	require.NoError(t, cfg.SavePreferences(&prefs))
+
+	loaded, err := LoadSettings()
+	require.NoError(t, err)
+	assert.Equal(t, "opus", loaded.Model)
+}
+
+func TestProviderHasKey_EnvVar(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	t.Setenv("ANTHROPIC_API_KEY", "sk-test-key")
+
+	// Register the env var mapping.
+	model.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
+	t.Cleanup(func() { model.ResetProviderEnvVarRegistry() })
+
+	cfg := &FullConfig{
+		file: DefaultFile(),
+		auth: &AuthFile{},
+	}
+
+	assert.True(t, cfg.ProviderHasKey("anthropic"))
+}
+
+func TestProviderHasKey_AuthFile(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	// Register but don't set env var.
+	model.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
+	t.Cleanup(func() { model.ResetProviderEnvVarRegistry() })
+
+	require.NoError(t, os.MkdirAll(filepath.Join(home, ".weave"), 0o750))
+	require.NoError(t, SetProviderKey("anthropic", "sk-from-auth"))
+
+	cfg := &FullConfig{
+		file: DefaultFile(),
+		auth: &AuthFile{},
+	}
+
+	assert.True(t, cfg.ProviderHasKey("anthropic"))
+}
+
+func TestProviderHasKey_NotFound(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	cfg := &FullConfig{
+		file: DefaultFile(),
+		auth: &AuthFile{},
+	}
+
+	assert.False(t, cfg.ProviderHasKey("anthropic"))
+}
+
+func TestSetProviderKey_Delegates(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	cfg := &FullConfig{
+		file: DefaultFile(),
+		auth: &AuthFile{},
+	}
+
+	require.NoError(t, cfg.SetProviderKey("openai", "sk-openai-key"))
+
+	auth, err := LoadAuth()
+	require.NoError(t, err)
+	assert.Equal(t, "sk-openai-key", auth.GetProviderKey("openai"))
 }
