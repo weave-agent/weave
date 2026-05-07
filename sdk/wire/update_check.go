@@ -3,6 +3,7 @@ package wire
 import (
 	"fmt"
 	"os"
+	"sync"
 
 	"weave/sdk"
 )
@@ -25,26 +26,41 @@ func FireUpdateCheck(bus sdk.Bus) {
 		return
 	}
 
-	var outdated []sdk.OutdatedInfo
+	var (
+		wg       sync.WaitGroup
+		mu       sync.Mutex
+		outdated []sdk.OutdatedInfo
+	)
 
 	for i := range exts {
 		if exts[i].Source != sourceGit {
 			continue
 		}
 
-		if err := checkOutdated(&exts[i]); err != nil {
-			fmt.Fprintf(os.Stderr, "weave: update check: %v\n", err)
-			continue
-		}
+		wg.Add(1)
 
-		if exts[i].Outdated {
-			outdated = append(outdated, sdk.OutdatedInfo{
-				Name:       exts[i].Name,
-				LocalHead:  exts[i].LocalHead,
-				RemoteHead: exts[i].RemoteHead,
-			})
-		}
+		go func(i int) {
+			defer wg.Done()
+
+			if err := checkOutdated(&exts[i]); err != nil {
+				fmt.Fprintf(os.Stderr, "weave: update check: %v\n", err)
+				return
+			}
+
+			if exts[i].Outdated {
+				mu.Lock()
+
+				outdated = append(outdated, sdk.OutdatedInfo{
+					Name:       exts[i].Name,
+					LocalHead:  exts[i].LocalHead,
+					RemoteHead: exts[i].RemoteHead,
+				})
+				mu.Unlock()
+			}
+		}(i)
 	}
+
+	wg.Wait()
 
 	if len(outdated) > 0 {
 		bus.Publish(sdk.NewEvent("extension.outdated", sdk.OutdatedEvent{Extensions: outdated}))

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"weave/config"
@@ -208,14 +209,26 @@ func runList(args []string) int {
 	}
 
 	// Check outdated for git-sourced extensions.
+	var wg sync.WaitGroup
+
 	for i := range exts {
-		if exts[i].Source == sourceGit {
+		if exts[i].Source != sourceGit {
+			continue
+		}
+
+		wg.Add(1)
+
+		go func(i int) {
+			defer wg.Done()
+
 			if err := checkOutdated(&exts[i]); err != nil {
 				exts[i].CheckErr = err.Error()
 				fmt.Fprintf(os.Stderr, "weave list: warning: %v\n", err)
 			}
-		}
+		}(i)
 	}
+
+	wg.Wait()
 
 	_, _ = fmt.Fprintf(os.Stdout, "%-20s %-10s %s\n", "NAME", "SOURCE", "STATUS")
 
