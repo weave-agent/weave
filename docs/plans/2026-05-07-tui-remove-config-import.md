@@ -68,9 +68,9 @@ All other extensions (loop, tools, providers, store, instructions) are clean. Th
 - [x] remove `import "weave/config"`
 
 ### Task 6: Move `EnsureLocalSettingsExcluded` to generated binary
-- [ ] add `config.EnsureLocalSettingsExcluded(filepath.Dir(cfgPath))` call in `launcher/builder.go` generated code, after `cfg = fullCfg` line (~441)
-- [ ] update builder test if affected
-- [ ] run `cd launcher && go test ./...` — launcher tests must pass
+- [x] add `config.EnsureLocalSettingsExcluded(filepath.Dir(cfgPath))` call in `launcher/builder.go` generated code, after `cfg = fullCfg` line (~441)
+- [x] update builder test if affected
+- [x] run `cd launcher && go test ./...` — launcher tests must pass
 
 ### Task 7: Update TUI tests
 - [ ] update `extensions/ui/tui/models_test.go` — remove direct `config.SaveSettingsGlobal`/`config.LoadSettings` calls, use mock `sdk.Config` instead
