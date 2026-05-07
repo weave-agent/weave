@@ -595,6 +595,70 @@ func TestSavePreferences_PreservesUIFields(t *testing.T) {
 	assert.InDelta(t, float64(120), bashConfig["timeout"], 0, "tools.bash.timeout should be preserved")
 }
 
+func TestSavePreferences_DeepMergesNestedFields(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	globalDir := filepath.Join(home, ".weave")
+	require.NoError(t, os.MkdirAll(globalDir, 0o750))
+
+	writeJSON(t, filepath.Join(globalDir, "settings.json"), &Settings{
+		UI: &UISettings{
+			Theme:          "dark",
+			EditorMaxLines: 30,
+		},
+		Tools: map[string]any{
+			"bash": map[string]any{
+				"timeout": 120,
+				"shell":   "fish",
+			},
+		},
+	})
+
+	projectDir := t.TempDir()
+	cfg := &FullConfig{
+		filePath: filepath.Join(projectDir, ".weave", "config.yaml"),
+		file:     DefaultFile(),
+		auth:     &AuthFile{},
+	}
+
+	// Save a partial UI update — only theme changes, editor_max_lines must survive
+	prefs := struct {
+		UI struct {
+			Theme string `json:"theme"`
+		} `json:"ui"`
+		Tools struct {
+			Bash struct {
+				Timeout int `json:"timeout"`
+			} `json:"bash"`
+		} `json:"tools"`
+	}{
+		UI: struct {
+			Theme string `json:"theme"`
+		}{Theme: "light"},
+		Tools: struct {
+			Bash struct {
+				Timeout int `json:"timeout"`
+			} `json:"bash"`
+		}{
+			Bash: struct {
+				Timeout int `json:"timeout"`
+			}{Timeout: 60},
+		},
+	}
+	require.NoError(t, cfg.SavePreferences(&prefs))
+
+	loaded, err := LoadSettings()
+	require.NoError(t, err)
+	require.NotNil(t, loaded.UI)
+	assert.Equal(t, "light", loaded.UI.Theme, "ui.theme should be updated")
+	assert.Equal(t, 30, loaded.UI.EditorMaxLines, "ui.editor_max_lines should be preserved")
+	require.NotNil(t, loaded.Tools)
+	bashConfig, ok := loaded.Tools["bash"].(map[string]any)
+	require.True(t, ok, "tools.bash should be preserved")
+	assert.InDelta(t, float64(60), bashConfig["timeout"], 0, "tools.bash.timeout should be updated")
+	assert.Equal(t, "fish", bashConfig["shell"], "tools.bash.shell should be preserved")
+}
+
 func TestProviderHasKey_ConfigFileAPIKey(t *testing.T) {
 	cfg := &FullConfig{
 		file: &File{

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -516,7 +515,13 @@ func (c *FullConfig) SavePreferences(target any) error {
 		return fmt.Errorf("unmarshal existing settings: %w", unErr)
 	}
 
-	maps.Copy(merged, incoming)
+	for k, v := range incoming {
+		if prev, ok := merged[k]; ok {
+			merged[k] = deepMergeValues(prev, v)
+		} else {
+			merged[k] = v
+		}
+	}
 
 	finalRaw, err := json.Marshal(merged)
 	if err != nil {
