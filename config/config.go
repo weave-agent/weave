@@ -424,10 +424,10 @@ func (c *FullConfig) ResolveKey(providerName, envVar string) (string, error) {
 	return ResolveProviderKey(providerName, envVar, c.file.ProviderConfig(providerName), auth)
 }
 
-// projectDirFromConfig returns the project root directory for a config file path.
+// ProjectDirFromConfig returns the project root directory for a config file path.
 // If the config file is inside .weave/ (e.g. .weave/config.yaml), returns the
 // parent directory so that layered settings look in the right place.
-func projectDirFromConfig(configPath string) string {
+func ProjectDirFromConfig(configPath string) string {
 	dir := filepath.Dir(configPath)
 	if filepath.Base(dir) == ".weave" {
 		return filepath.Dir(dir)
@@ -439,7 +439,7 @@ func projectDirFromConfig(configPath string) string {
 func (c *FullConfig) ToolConfig(name string, target any) error {
 	applyDefaults(target)
 
-	configDir := projectDirFromConfig(c.filePath)
+	configDir := ProjectDirFromConfig(c.filePath)
 
 	settings, err := LoadLayeredSettings(configDir)
 	if err != nil {
@@ -461,7 +461,7 @@ func (c *FullConfig) ToolConfig(name string, target any) error {
 func (c *FullConfig) UIConfig(target any) error {
 	applyDefaults(target)
 
-	configDir := projectDirFromConfig(c.filePath)
+	configDir := ProjectDirFromConfig(c.filePath)
 
 	settings, err := LoadLayeredSettings(configDir)
 	if err != nil {
@@ -480,7 +480,7 @@ func (c *FullConfig) IsHeadless() bool { return true }
 func (c *FullConfig) Preferences(target any) error {
 	applyDefaults(target)
 
-	configDir := projectDirFromConfig(c.filePath)
+	configDir := ProjectDirFromConfig(c.filePath)
 
 	settings, err := LoadLayeredSettings(configDir)
 	if err != nil {
@@ -532,6 +532,11 @@ func (c *FullConfig) SavePreferences(target any) error {
 }
 
 func (c *FullConfig) ProviderHasKey(providerName string) bool {
+	// Check config file first.
+	if pc := c.file.ProviderConfig(providerName); pc != nil && pc.APIKey != "" {
+		return true
+	}
+
 	envVar := model.ProviderEnvVar(providerName)
 	if v := os.Getenv(envVar); v != "" {
 		return true
@@ -539,6 +544,10 @@ func (c *FullConfig) ProviderHasKey(providerName string) bool {
 
 	auth, err := LoadAuth()
 	if err != nil {
+		auth = c.auth // fall back to cached snapshot
+	}
+
+	if auth == nil {
 		return false
 	}
 
@@ -566,7 +575,16 @@ func populateConfig(raw, target any) error {
 
 // applyDefaults sets zero-value fields from their `default` struct tags.
 func applyDefaults(target any) {
-	v := reflect.ValueOf(target).Elem()
+	if target == nil {
+		return
+	}
+
+	v := reflect.ValueOf(target)
+	if v.Kind() != reflect.Pointer || v.IsNil() {
+		return
+	}
+
+	v = v.Elem()
 
 	t := v.Type()
 

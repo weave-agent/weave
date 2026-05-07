@@ -242,6 +242,16 @@ func TestApplyDefaults_SkipsNoTag(t *testing.T) {
 	assert.Empty(t, s.Name)
 }
 
+func TestApplyDefaults_NilPointer(t *testing.T) {
+	// Should not panic on nil pointer.
+	applyDefaults(nil)
+
+	var p *struct {
+		Name string `default:"unnamed"`
+	}
+	applyDefaults(p)
+}
+
 func TestPopulateConfig_RoundTrip(t *testing.T) {
 	raw := map[string]any{
 		"timeout": float64(30),
@@ -345,7 +355,7 @@ func TestProjectDirFromConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, projectDirFromConfig(tt.path))
+			assert.Equal(t, tt.expected, ProjectDirFromConfig(tt.path))
 		})
 	}
 }

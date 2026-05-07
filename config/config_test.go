@@ -595,7 +595,45 @@ func TestSavePreferences_PreservesUIFields(t *testing.T) {
 	assert.InDelta(t, float64(120), bashConfig["timeout"], 0, "tools.bash.timeout should be preserved")
 }
 
-func TestProviderHasKey_LoadAuthFails(t *testing.T) {
+func TestProviderHasKey_ConfigFileAPIKey(t *testing.T) {
+	cfg := &FullConfig{
+		file: &File{
+			Providers: map[string]any{
+				"anthropic": map[string]any{"api_key": "sk-config-key"},
+			},
+		},
+		auth: &AuthFile{},
+	}
+
+	assert.True(t, cfg.ProviderHasKey("anthropic"), "should return true when API key is in config file")
+}
+
+func TestProviderHasKey_LoadAuthFails_FallsBackToCachedAuth(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	// Register env var but don't set it
+	model.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
+	t.Cleanup(func() { model.ResetProviderEnvVarRegistry() })
+
+	// Create a corrupted auth file so LoadAuth fails
+	require.NoError(t, os.MkdirAll(filepath.Join(home, ".weave"), 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(home, ".weave", "auth.json"), []byte("not-json"), 0o600))
+
+	cfg := &FullConfig{
+		file: DefaultFile(),
+		auth: &AuthFile{
+			//nolint:gosec // test credential, not a real secret
+			Providers: map[string]ProviderAuth{
+				"anthropic": {APIKey: "cached-auth-key"},
+			},
+		},
+	}
+
+	assert.True(t, cfg.ProviderHasKey("anthropic"), "should fall back to cached auth when LoadAuth fails")
+}
+
+func TestProviderHasKey_LoadAuthFails_NoCachedAuth(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
@@ -612,5 +650,5 @@ func TestProviderHasKey_LoadAuthFails(t *testing.T) {
 		auth: &AuthFile{},
 	}
 
-	assert.False(t, cfg.ProviderHasKey("anthropic"), "should return false when auth load fails and env var not set")
+	assert.False(t, cfg.ProviderHasKey("anthropic"), "should return false when auth load fails and no cached auth")
 }

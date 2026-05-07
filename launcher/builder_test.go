@@ -226,7 +226,7 @@ func TestGenerateMainGo_Content(t *testing.T) {
 	assert.Contains(t, s, "strings.CutPrefix")
 	assert.Contains(t, s, "config.LoadFullConfig")
 	assert.Contains(t, s, "config.EnsureLocalSettingsExcluded")
-	assert.Contains(t, s, "filepath.Dir")
+	assert.Contains(t, s, "config.ProjectDirFromConfig")
 	assert.Contains(t, s, "signal.Notify")
 	assert.Contains(t, s, `b.On("agent.end"`)
 	assert.Contains(t, s, "wired.Close()")
