@@ -61,11 +61,11 @@ All other extensions (loop, tools, providers, store, instructions) are clean. Th
 - [x] update callers in `model.go` to pass `m.cfg`
 
 ### Task 5: Update `extensions/ui/tui/model.go` — remove config import
-- [ ] define local `uiSettings` struct with `Theme string` and `EditorMaxLines int` (json-tagged) to replace `config.UISettings`
-- [ ] replace `config.UISettings` usage with local struct
-- [ ] replace `config.SetProviderKey()` with `m.cfg.SetProviderKey()`
-- [ ] remove `config.EnsureLocalSettingsExcluded(configDir)` call (moved to builder in Task 7)
-- [ ] remove `import "weave/config"`
+- [x] define local `uiSettings` struct with `Theme string` and `EditorMaxLines int` (json-tagged) to replace `config.UISettings`
+- [x] replace `config.UISettings` usage with local struct
+- [x] replace `config.SetProviderKey()` with `m.cfg.SetProviderKey()`
+- [x] remove `config.EnsureLocalSettingsExcluded(configDir)` call (moved to builder in Task 7)
+- [x] remove `import "weave/config"`
 
 ### Task 6: Move `EnsureLocalSettingsExcluded` to generated binary
 - [ ] add `config.EnsureLocalSettingsExcluded(filepath.Dir(cfgPath))` call in `launcher/builder.go` generated code, after `cfg = fullCfg` line (~441)

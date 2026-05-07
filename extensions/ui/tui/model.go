@@ -28,6 +28,12 @@ const doublePressWindow = 500 * time.Millisecond
 
 const statusMessageTimeout = 2 * time.Second
 
+// uiSettings mirrors the UI-specific settings fields used by the TUI.
+type uiSettings struct {
+	Theme          string `json:"theme,omitempty"`
+	EditorMaxLines int    `json:"editor_max_lines,omitempty"`
+}
+
 // statusTimeoutMsg is sent when the transient status message should be cleared.
 type statusTimeoutMsg struct {
 	gen int
@@ -139,17 +145,13 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 	editor := components.NewEditorModel()
 
 	// Read UI settings from layered config
-	var uiSettings struct {
-		Theme          string `json:"theme,omitempty"`
-		EditorMaxLines int    `json:"editor_max_lines,omitempty"`
-	}
-
+	var us uiSettings
 	if cfg != nil {
-		_ = cfg.UIConfig(&uiSettings)
+		_ = cfg.UIConfig(&us)
 	}
 
-	if uiSettings.EditorMaxLines > 0 {
-		editor = editor.SetMaxHeight(uiSettings.EditorMaxLines)
+	if us.EditorMaxLines > 0 {
+		editor = editor.SetMaxHeight(us.EditorMaxLines)
 	}
 
 	effectiveCfg := effectiveConfig(cfg)
