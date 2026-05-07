@@ -79,11 +79,11 @@ All other extensions (loop, tools, providers, store, instructions) are clean. Th
 - [x] run `make lint` — no new warnings
 
 ### Task 8: Final verification
-- [ ] run `grep -r '"weave/config"' extensions/ui/tui/*.go` — must return no results
-- [ ] run `make gen` — mocks regenerate cleanly
-- [ ] run `make lint` — no warnings
-- [ ] run `go test ./sdk/... ./config/... ./launcher/...` — all pass
-- [ ] run `cd extensions/ui/tui && go test ./...` — TUI tests pass
+- [x] run `grep -r '"weave/config"' extensions/ui/tui/*.go` — must return no results
+- [x] run `make gen` — mocks regenerate cleanly
+- [x] run `make lint` — no warnings
+- [x] run `go test ./sdk/... ./config/... ./launcher/...` — all pass
+- [x] run `cd extensions/ui/tui && go test ./...` — TUI tests pass
 
 ## Technical Details
 
