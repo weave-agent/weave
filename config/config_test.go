@@ -544,3 +544,73 @@ func TestSetProviderKey_Delegates(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "sk-openai-key", auth.GetProviderKey("openai"))
 }
+
+func TestSavePreferences_PreservesUIFields(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	globalDir := filepath.Join(home, ".weave")
+	require.NoError(t, os.MkdirAll(globalDir, 0o750))
+
+	// Pre-existing global settings with nested UI and tools sections
+	writeJSON(t, filepath.Join(globalDir, "settings.json"), &Settings{
+		Provider: "anthropic",
+		Model:    "claude-sonnet-4-6",
+		UI: &UISettings{
+			Theme:          "dark",
+			EditorMaxLines: 30,
+		},
+		Tools: map[string]any{
+			"bash": map[string]any{
+				"timeout": 120,
+			},
+		},
+	})
+
+	projectDir := t.TempDir()
+
+	cfg := &FullConfig{
+		filePath: filepath.Join(projectDir, ".weave", "config.yaml"),
+		file:     DefaultFile(),
+		auth:     &AuthFile{},
+	}
+
+	// Save only model change — UI and tools should be preserved
+	prefs := struct {
+		Model string `json:"model"`
+	}{
+		Model: "gpt-5.5",
+	}
+	require.NoError(t, cfg.SavePreferences(&prefs))
+
+	loaded, err := LoadSettings()
+	require.NoError(t, err)
+	assert.Equal(t, "anthropic", loaded.Provider, "existing provider should be preserved")
+	assert.Equal(t, "gpt-5.5", loaded.Model, "model should be updated")
+	require.NotNil(t, loaded.UI)
+	assert.Equal(t, "dark", loaded.UI.Theme, "ui.theme should be preserved")
+	assert.Equal(t, 30, loaded.UI.EditorMaxLines, "ui.editor_max_lines should be preserved")
+	require.NotNil(t, loaded.Tools)
+	bashConfig, ok := loaded.Tools["bash"].(map[string]any)
+	require.True(t, ok, "tools.bash should be preserved")
+	assert.InDelta(t, float64(120), bashConfig["timeout"], 0, "tools.bash.timeout should be preserved")
+}
+
+func TestProviderHasKey_LoadAuthFails(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	// Register env var but don't set it
+	model.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
+	t.Cleanup(func() { model.ResetProviderEnvVarRegistry() })
+
+	// Create a corrupted auth file so LoadAuth fails
+	require.NoError(t, os.MkdirAll(filepath.Join(home, ".weave"), 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(home, ".weave", "auth.json"), []byte("not-json"), 0o600))
+
+	cfg := &FullConfig{
+		file: DefaultFile(),
+		auth: &AuthFile{},
+	}
+
+	assert.False(t, cfg.ProviderHasKey("anthropic"), "should return false when auth load fails and env var not set")
+}

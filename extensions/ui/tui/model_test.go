@@ -1570,24 +1570,21 @@ func TestModel_Draw_OverlayFillsScreen(t *testing.T) {
 	m.width = 80
 	m.height = 24
 
-	// Activate model selector dialog
-	models := listModels(nil)
-	if len(models) > 1 {
-		items := make([]overlays.SelectorItem, len(models))
-		for i, model := range models {
-			items[i] = overlays.SelectorItem{Title: model.DisplayName()}
-		}
-
-		sel := overlays.NewSelectorModel("Select Model", items)
-		sel = sel.SetSize(80, 24).Show()
-		m.dialogStack = m.dialogStack.Push(overlays.NewSelectorDialog(dialogModelSelect, sel))
-
-		canvas := uv.NewScreenBuffer(m.width, m.height)
-		m.Draw(canvas, canvas.Bounds())
-		rendered := canvas.Render()
-
-		assert.Contains(t, rendered, "Select Model")
+	// Activate model selector dialog with synthetic items
+	items := []overlays.SelectorItem{
+		{Title: "Model A"},
+		{Title: "Model B"},
 	}
+
+	sel := overlays.NewSelectorModel("Select Model", items)
+	sel = sel.SetSize(80, 24).Show()
+	m.dialogStack = m.dialogStack.Push(overlays.NewSelectorDialog(dialogModelSelect, sel))
+
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvas, canvas.Bounds())
+	rendered := canvas.Render()
+
+	assert.Contains(t, rendered, "Select Model")
 }
 
 func TestModel_Draw_SmallTerminal(t *testing.T) {

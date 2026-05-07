@@ -478,6 +478,8 @@ func (c *FullConfig) UIConfig(target any) error {
 func (c *FullConfig) IsHeadless() bool { return true }
 
 func (c *FullConfig) Preferences(target any) error {
+	applyDefaults(target)
+
 	configDir := projectDirFromConfig(c.filePath)
 
 	settings, err := LoadLayeredSettings(configDir)

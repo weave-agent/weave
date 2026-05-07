@@ -98,6 +98,26 @@ func TestCurrentModel_EnvProviderNotInEntries(t *testing.T) {
 	assert.Equal(t, "openai", cur.Provider)
 }
 
+func TestCurrentModel_PreferencesProviderOnly(t *testing.T) {
+	entries := []ModelEntry{
+		{Provider: "openai", Model: "gpt-5.5"},
+		{Provider: "anthropic", Model: "claude-sonnet-4-6"},
+	}
+
+	// Preferences with provider but no model — should fall through to env/default
+	mockCfg := &mockConfig{
+		preferences: map[string]string{
+			"provider": "openai",
+		},
+	}
+
+	cur := currentModel(entries, mockCfg)
+	// Provider-only preferences don't match (requires both provider + model),
+	// so falls through to first available entry
+	assert.Equal(t, "openai", cur.Provider)
+	assert.Equal(t, "gpt-5.5", cur.Model)
+}
+
 func TestModel_CommandRegistered(t *testing.T) {
 	m := newModel(nil, nil, nil)
 	info, ok := m.commands.Lookup("/model")
@@ -746,6 +766,17 @@ func TestInitialThinkingLevel_LayeredSettings(t *testing.T) {
 	assert.Equal(t, sdkmodel.ThinkingHigh, level)
 }
 
+func TestInitialThinkingLevel_InvalidPreference(t *testing.T) {
+	mockCfg := &mockConfig{
+		preferences: map[string]string{
+			"thinking_level": "bogus",
+		},
+	}
+
+	level := initialThinkingLevel(mockCfg)
+	assert.Equal(t, sdkmodel.ThinkingMedium, level)
+}
+
 func TestSaveSettings_CallsSavePreferences(t *testing.T) {
 	var capturedPrefs preferences
 
@@ -829,6 +860,25 @@ func TestNewModel_DefaultEditorHeightWhenNoSettings(t *testing.T) {
 	assert.Equal(t, 15, m.editor.MaxHeight()) // default
 }
 
+func TestNewModel_UIConfigErrorUsesDefault(t *testing.T) {
+	mockCfg := &mockConfig{
+		uiConfig: map[string]any{
+			"editor_max_lines": 25,
+		},
+	}
+	mockCfg.uiConfig = make(chan int) // channels can't be JSON-marshaled
+
+	m := newModel(nil, mockCfg, nil)
+	assert.Equal(t, 15, m.editor.MaxHeight()) // default when UIConfig errors
+}
+
+func TestSaveSettings_NilConfig(t *testing.T) {
+	// Should not panic with nil config
+	assert.NotPanics(t, func() {
+		saveSettings(nil, ModelEntry{Provider: "openai", Model: "gpt-5.5"}, sdkmodel.ThinkingHigh)
+	})
+}
+
 // mockConfig is a test-double for sdk.Config.
 type mockConfig struct {
 	filePath        string
@@ -846,7 +896,10 @@ func (m *mockConfig) UIConfig(target any) error {
 		return nil
 	}
 
-	data, _ := json.Marshal(m.uiConfig)
+	data, err := json.Marshal(m.uiConfig)
+	if err != nil {
+		return fmt.Errorf("marshal ui config: %w", err)
+	}
 
 	if err := json.Unmarshal(data, target); err != nil {
 		return fmt.Errorf("unmarshal ui config: %w", err)
@@ -862,7 +915,10 @@ func (m *mockConfig) Preferences(target any) error {
 		return nil
 	}
 
-	data, _ := json.Marshal(m.preferences)
+	data, err := json.Marshal(m.preferences)
+	if err != nil {
+		return fmt.Errorf("marshal preferences: %w", err)
+	}
 
 	if err := json.Unmarshal(data, target); err != nil {
 		return fmt.Errorf("unmarshal preferences: %w", err)
