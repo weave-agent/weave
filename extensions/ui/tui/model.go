@@ -1204,10 +1204,15 @@ func (m Model) onKeyInputDialogDone(result overlays.DialogResult, pendingCmd tea
 		return m, pendingCmd
 	}
 
-	var err error
-	if m.cfg != nil {
-		err = m.cfg.SetProviderKey(providerName, apiKey)
+	if m.cfg == nil {
+		am := messages.NewAssistantMessage()
+		am.Finalize("No config available to save API key.")
+		m.chat = m.chat.AddItem(am)
+
+		return m, pendingCmd
 	}
+
+	err := m.cfg.SetProviderKey(providerName, apiKey)
 
 	am := messages.NewAssistantMessage()
 	if err != nil {
