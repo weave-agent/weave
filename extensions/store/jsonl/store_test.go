@@ -482,6 +482,10 @@ func (m *mockConfig) ResolveKey(_, envVar string) (string, error)    { return os
 func (m *mockConfig) ToolConfig(string, any) error                   { return nil }
 func (m *mockConfig) UIConfig(any) error                             { return nil }
 func (m *mockConfig) IsHeadless() bool                               { return false }
+func (m *mockConfig) Preferences(any) error                          { return nil }
+func (m *mockConfig) SavePreferences(any) error                      { return nil }
+func (m *mockConfig) ProviderHasKey(string) bool                     { return false }
+func (m *mockConfig) SetProviderKey(string, string) error            { return nil }
 
 func TestNewStore_LoadsNestedDir(t *testing.T) {
 	dir := t.TempDir()

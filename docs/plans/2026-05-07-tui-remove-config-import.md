@@ -31,11 +31,11 @@ All other extensions (loop, tools, providers, store, instructions) are clean. Th
 ## Implementation Steps
 
 ### Task 1: Extend `sdk.Config` interface with 4 new methods
-- [ ] add `Preferences(target any) error`, `SavePreferences(target any) error`, `ProviderHasKey(providerName string) bool`, `SetProviderKey(providerName, apiKey string) error` to `sdk.Config` interface in `sdk/config.go`
-- [ ] add stub implementations to `noopConfig` and `FilePathConfig` in `sdk/config.go`
-- [ ] run `make gen` to regenerate `sdk/config_mock_test.go`
-- [ ] run `go test ./sdk/...` — SDK tests must pass
-- [ ] run `make lint` — no new warnings
+- [x] add `Preferences(target any) error`, `SavePreferences(target any) error`, `ProviderHasKey(providerName string) bool`, `SetProviderKey(providerName, apiKey string) error` to `sdk.Config` interface in `sdk/config.go`
+- [x] add stub implementations to `noopConfig` and `FilePathConfig` in `sdk/config.go`
+- [x] run `make gen` to regenerate `sdk/config_mock_test.go`
+- [x] run `go test ./sdk/...` — SDK tests must pass
+- [x] run `make lint` — no new warnings
 
 ### Task 2: Implement new methods on `config.FullConfig`
 - [ ] implement `Preferences(target any) error` in `config/config.go` — wraps `LoadLayeredSettings(projectDir)` with JSON round-trip into target

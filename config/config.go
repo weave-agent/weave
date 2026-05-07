@@ -475,6 +475,11 @@ func (c *FullConfig) UIConfig(target any) error {
 
 func (c *FullConfig) IsHeadless() bool { return true }
 
+func (c *FullConfig) Preferences(any) error               { return nil }
+func (c *FullConfig) SavePreferences(any) error           { return nil }
+func (c *FullConfig) ProviderHasKey(string) bool          { return false }
+func (c *FullConfig) SetProviderKey(string, string) error { return nil }
+
 // populateConfig JSON round-trips a map/struct into target and applies default
 // struct tags for zero-value fields.
 func populateConfig(raw, target any) error {
