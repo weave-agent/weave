@@ -1,14 +1,13 @@
 package tui
 
 import (
+	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
+	"maps"
 	"strings"
 	"testing"
 
 	"weave/bus"
-	"weave/config"
 	"weave/ext/ui/tui/components/messages"
 	"weave/ext/ui/tui/components/overlays"
 	"weave/sdk"
@@ -19,21 +18,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestMain(m *testing.M) {
-	f, err := os.CreateTemp("", "weave-test-settings-*.json")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to create temp settings file: %v\n", err)
-		os.Exit(1)
-	}
-
-	path := f.Name()
-	_ = f.Close()
-
-	config.SetSettingsPath(path)
-
-	os.Exit(m.Run())
-}
 
 func splitLines(s string) []string {
 	return strings.Split(s, "\n")
@@ -739,118 +723,160 @@ func TestCurrentModel_LayeredSettings(t *testing.T) {
 		{Provider: "anthropic", Model: "claude-sonnet-4-6"},
 	}
 
-	// Create a temp project dir with settings
-	projectDir := t.TempDir()
-	projectWeave := filepath.Join(projectDir, ".weave")
-	require.NoError(t, os.MkdirAll(projectWeave, 0o755))
+	mockCfg := &mockConfig{
+		preferences: map[string]string{
+			"provider": "openai",
+			"model":    "gpt-5.5",
+		},
+	}
 
-	settingsJSON := `{"provider":"openai","model":"gpt-5.5"}`
-	require.NoError(t, os.WriteFile(filepath.Join(projectWeave, "settings.json"), []byte(settingsJSON), 0o600))
-
-	// Point settings path to a different (empty) global settings
-	globalDir := t.TempDir()
-	config.SetSettingsPath(filepath.Join(globalDir, "settings.json"))
-
-	// Create a config file so Preferences can resolve the project dir
-	cfgPath := filepath.Join(projectWeave, "config.yaml")
-	require.NoError(t, os.WriteFile(cfgPath, []byte("ui: tui\ncore:\n  agent_loop: loop\n  providers:\n    - anthropic\n"), 0o600))
-	cfg, err := config.LoadFullConfig(cfgPath)
-	require.NoError(t, err)
-
-	cur := currentModel(entries, cfg)
+	cur := currentModel(entries, mockCfg)
 	assert.Equal(t, "openai", cur.Provider)
 	assert.Equal(t, "gpt-5.5", cur.Model)
 }
 
 func TestInitialThinkingLevel_LayeredSettings(t *testing.T) {
-	projectDir := t.TempDir()
-	projectWeave := filepath.Join(projectDir, ".weave")
-	require.NoError(t, os.MkdirAll(projectWeave, 0o755))
+	mockCfg := &mockConfig{
+		preferences: map[string]string{
+			"thinking_level": "high",
+		},
+	}
 
-	settingsJSON := `{"thinking_level":"high"}`
-	require.NoError(t, os.WriteFile(filepath.Join(projectWeave, "settings.json"), []byte(settingsJSON), 0o600))
-
-	globalDir := t.TempDir()
-	config.SetSettingsPath(filepath.Join(globalDir, "settings.json"))
-
-	cfgPath := filepath.Join(projectWeave, "config.yaml")
-	require.NoError(t, os.WriteFile(cfgPath, []byte("ui: tui\ncore:\n  agent_loop: loop\n  providers:\n    - anthropic\n"), 0o600))
-	cfg, err := config.LoadFullConfig(cfgPath)
-	require.NoError(t, err)
-
-	level := initialThinkingLevel(cfg)
+	level := initialThinkingLevel(mockCfg)
 	assert.Equal(t, sdkmodel.ThinkingHigh, level)
 }
 
-func TestSaveSettings_PreservesUIFields(t *testing.T) {
-	// Write initial settings with UI fields
-	tmpDir := t.TempDir()
-	settingsPath := filepath.Join(tmpDir, "settings.json")
-	config.SetSettingsPath(settingsPath)
+func TestSaveSettings_CallsSavePreferences(t *testing.T) {
+	var capturedPrefs preferences
 
-	initial := &config.Settings{
-		Provider:      "anthropic",
-		Model:         "claude-sonnet-4-6",
-		ThinkingLevel: "medium",
-		UI: &config.UISettings{
-			Theme:          "dark",
-			EditorMaxLines: 30,
+	mockCfg := &mockConfig{
+		savePreferences: func(target any) error {
+			data, err := json.Marshal(target)
+			if err != nil {
+				return fmt.Errorf("marshal: %w", err)
+			}
+
+			if err := json.Unmarshal(data, &capturedPrefs); err != nil {
+				return fmt.Errorf("unmarshal: %w", err)
+			}
+
+			return nil
 		},
 	}
-	require.NoError(t, config.SaveSettingsGlobal(initial))
 
-	// Create a config that points to the temp settings
-	cfgPath := filepath.Join(tmpDir, ".weave", "config.yaml")
-	require.NoError(t, os.MkdirAll(filepath.Dir(cfgPath), 0o755))
-	require.NoError(t, os.WriteFile(cfgPath, []byte("ui: tui\ncore:\n  agent_loop: loop\n  providers:\n    - anthropic\n"), 0o600))
-	cfg, err := config.LoadFullConfig(cfgPath)
-	require.NoError(t, err)
+	saveSettings(mockCfg, ModelEntry{Provider: "openai", Model: "gpt-5.5"}, sdkmodel.ThinkingHigh)
+
+	assert.Equal(t, "openai", capturedPrefs.Provider)
+	assert.Equal(t, "gpt-5.5", capturedPrefs.Model)
+	assert.Equal(t, "high", capturedPrefs.ThinkingLevel)
+}
+
+func TestSaveSettings_PreservesUIFields(t *testing.T) {
+	// Simulate stored settings with UI fields that should be preserved
+	stored := map[string]any{
+		"provider":       "anthropic",
+		"model":          "claude-sonnet-4-6",
+		"thinking_level": "medium",
+		"ui": map[string]any{
+			"theme":            "dark",
+			"editor_max_lines": 30,
+		},
+	}
+
+	mockCfg := &mockConfig{
+		preferences: stored,
+		savePreferences: func(target any) error {
+			// Merge target fields into stored (simulating FullConfig.SavePreferences)
+			targetData, _ := json.Marshal(target)
+
+			var targetMap map[string]any
+
+			_ = json.Unmarshal(targetData, &targetMap)
+			maps.Copy(stored, targetMap)
+
+			return nil
+		},
+	}
 
 	// Save model change
-	saveSettings(cfg, ModelEntry{Provider: "openai", Model: "gpt-5.5"}, sdkmodel.ThinkingHigh)
+	saveSettings(mockCfg, ModelEntry{Provider: "openai", Model: "gpt-5.5"}, sdkmodel.ThinkingHigh)
+
+	// Verify model fields updated
+	assert.Equal(t, "openai", stored["provider"])
+	assert.Equal(t, "gpt-5.5", stored["model"])
+	assert.Equal(t, "high", stored["thinking_level"])
 
 	// Verify UI fields preserved
-	loaded, err := config.LoadSettings()
-	require.NoError(t, err)
-	assert.Equal(t, "openai", loaded.Provider)
-	assert.Equal(t, "gpt-5.5", loaded.Model)
-	assert.Equal(t, "high", loaded.ThinkingLevel)
-	require.NotNil(t, loaded.UI)
-	assert.Equal(t, "dark", loaded.UI.Theme)
-	assert.Equal(t, 30, loaded.UI.EditorMaxLines)
+	ui, ok := stored["ui"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "dark", ui["theme"])
+	assert.Equal(t, 30, ui["editor_max_lines"])
 }
 
 func TestNewModel_ReadsUISettings(t *testing.T) {
-	tmpDir := t.TempDir()
-	settingsPath := filepath.Join(tmpDir, "settings.json")
-	config.SetSettingsPath(settingsPath)
-
-	// Write settings with editor_max_lines
-	uiSettings := &config.Settings{
-		UI: &config.UISettings{
-			EditorMaxLines: 25,
+	mockCfg := &mockConfig{
+		uiConfig: map[string]any{
+			"editor_max_lines": 25,
 		},
 	}
-	require.NoError(t, config.SaveSettingsGlobal(uiSettings))
 
-	// Create a config file so configDir is set
-	cfgDir := t.TempDir()
-	cfgPath := filepath.Join(cfgDir, ".weave", "config.yaml")
-	require.NoError(t, os.MkdirAll(filepath.Dir(cfgPath), 0o755))
-	require.NoError(t, os.WriteFile(cfgPath, []byte("ui: tui\ncore:\n  agent_loop: loop\n  providers:\n    - anthropic\n"), 0o600))
-
-	cfg, err := config.LoadFullConfig(cfgPath)
-	require.NoError(t, err)
-
-	m := newModel(nil, cfg, nil)
+	m := newModel(nil, mockCfg, nil)
 	assert.Equal(t, 25, m.editor.MaxHeight())
 }
 
 func TestNewModel_DefaultEditorHeightWhenNoSettings(t *testing.T) {
-	tmpDir := t.TempDir()
-	settingsPath := filepath.Join(tmpDir, "settings.json")
-	config.SetSettingsPath(settingsPath)
-
 	m := newModel(nil, nil, nil)
 	assert.Equal(t, 15, m.editor.MaxHeight()) // default
 }
+
+// mockConfig is a test-double for sdk.Config.
+type mockConfig struct {
+	filePath        string
+	preferences     any // JSON-marshalable value returned by Preferences
+	savePreferences func(target any) error
+	uiConfig        any // JSON-marshalable value returned by UIConfig
+}
+
+func (m *mockConfig) FilePath() string                               { return m.filePath }
+func (m *mockConfig) ProviderConfig(string) *sdk.ProviderConfigEntry { return nil }
+func (m *mockConfig) ResolveKey(_, envVar string) (string, error)    { return "", nil }
+func (m *mockConfig) ToolConfig(string, any) error                   { return nil }
+func (m *mockConfig) UIConfig(target any) error {
+	if m.uiConfig == nil {
+		return nil
+	}
+
+	data, _ := json.Marshal(m.uiConfig)
+
+	if err := json.Unmarshal(data, target); err != nil {
+		return fmt.Errorf("unmarshal ui config: %w", err)
+	}
+
+	return nil
+}
+
+func (m *mockConfig) IsHeadless() bool { return true }
+
+func (m *mockConfig) Preferences(target any) error {
+	if m.preferences == nil {
+		return nil
+	}
+
+	data, _ := json.Marshal(m.preferences)
+
+	if err := json.Unmarshal(data, target); err != nil {
+		return fmt.Errorf("unmarshal preferences: %w", err)
+	}
+
+	return nil
+}
+
+func (m *mockConfig) SavePreferences(target any) error {
+	if m.savePreferences != nil {
+		return m.savePreferences(target)
+	}
+
+	return nil
+}
+func (m *mockConfig) ProviderHasKey(string) bool          { return true }
+func (m *mockConfig) SetProviderKey(string, string) error { return nil }

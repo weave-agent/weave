@@ -73,10 +73,10 @@ All other extensions (loop, tools, providers, store, instructions) are clean. Th
 - [x] run `cd launcher && go test ./...` — launcher tests must pass
 
 ### Task 7: Update TUI tests
-- [ ] update `extensions/ui/tui/models_test.go` — remove direct `config.SaveSettingsGlobal`/`config.LoadSettings` calls, use mock `sdk.Config` instead
-- [ ] update mock config implementations in TUI tests to satisfy new interface methods
-- [ ] run `cd extensions/ui/tui && go test ./...` — TUI tests must pass
-- [ ] run `make lint` — no new warnings
+- [x] update `extensions/ui/tui/models_test.go` — remove direct `config.SaveSettingsGlobal`/`config.LoadSettings` calls, use mock `sdk.Config` instead
+- [x] update mock config implementations in TUI tests to satisfy new interface methods
+- [x] run `cd extensions/ui/tui && go test ./...` — TUI tests must pass
+- [x] run `make lint` — no new warnings
 
 ### Task 8: Final verification
 - [ ] run `grep -r '"weave/config"' extensions/ui/tui/*.go` — must return no results
