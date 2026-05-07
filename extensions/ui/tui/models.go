@@ -4,12 +4,48 @@ import (
 	"fmt"
 	"os"
 
-	"weave/config"
+	tea "charm.land/bubbletea/v2"
+
 	"weave/sdk"
 	sdkmodel "weave/sdk/model"
-
-	tea "charm.land/bubbletea/v2"
 )
+
+// preferences mirrors the settings fields used by the TUI for model/thinking persistence.
+type preferences struct {
+	Provider      string `json:"provider,omitempty"`
+	Model         string `json:"model,omitempty"`
+	ThinkingLevel string `json:"thinking_level,omitempty"`
+}
+
+// noopConfig provides a nil-safe default Config for TUI functions.
+type noopConfig struct{}
+
+func (noopConfig) FilePath() string                               { return "" }
+func (noopConfig) ProviderConfig(string) *sdk.ProviderConfigEntry { return nil }
+func (noopConfig) ResolveKey(_, envVar string) (string, error)    { return os.Getenv(envVar), nil }
+func (noopConfig) ToolConfig(string, any) error                   { return nil }
+func (noopConfig) UIConfig(any) error                             { return nil }
+func (noopConfig) IsHeadless() bool                               { return true }
+func (noopConfig) Preferences(any) error                          { return nil }
+func (noopConfig) SavePreferences(any) error                      { return nil }
+func (noopConfig) ProviderHasKey(providerName string) bool {
+	envVar := sdkmodel.ProviderEnvVar(providerName)
+	if envVar == "" {
+		return false
+	}
+
+	return os.Getenv(envVar) != ""
+}
+func (noopConfig) SetProviderKey(string, string) error { return nil }
+
+// effectiveConfig returns cfg if non-nil, otherwise a no-op implementation.
+func effectiveConfig(cfg sdk.Config) sdk.Config {
+	if cfg != nil {
+		return cfg
+	}
+
+	return noopConfig{}
+}
 
 // ModelEntry describes a provider + model combination.
 type ModelEntry struct {
@@ -34,15 +70,14 @@ func (e ModelEntry) DisplayName() string {
 
 // listModels returns model entries for providers that are registered and have
 // an API key configured.
-func listModels() []ModelEntry {
+func listModels(cfg sdk.Config) []ModelEntry {
+	cfg = effectiveConfig(cfg)
 	registered := sdk.ListProviders()
 
 	regSet := make(map[string]bool, len(registered))
 	for _, p := range registered {
 		regSet[p] = true
 	}
-
-	auth, _ := config.LoadAuth()
 
 	var entries []ModelEntry
 
@@ -51,7 +86,7 @@ func listModels() []ModelEntry {
 			continue
 		}
 
-		if !providerHasKey(md.Provider, auth) {
+		if !cfg.ProviderHasKey(md.Provider) {
 			continue
 		}
 
@@ -61,30 +96,14 @@ func listModels() []ModelEntry {
 	return entries
 }
 
-// providerHasKey checks whether a provider has an API key configured
-// via environment variable or auth file.
-func providerHasKey(providerName string, auth *config.AuthFile) bool {
-	envVar := sdkmodel.ProviderEnvVar(providerName)
-	if envVar == "" {
-		return false
-	}
-
-	if os.Getenv(envVar) != "" {
-		return true
-	}
-
-	if auth != nil && auth.GetProviderKey(providerName) != "" {
-		return true
-	}
-
-	return false
-}
-
 // currentModel returns the startup model entry. It tries persisted settings
 // first (using layered loading for project overrides), then the WEAVE_PROVIDER
 // env var, then falls back to the first available entry.
-func currentModel(entries []ModelEntry, configDir string) ModelEntry {
-	if prefs, err := config.LoadLayeredSettings(configDir); err == nil {
+func currentModel(entries []ModelEntry, cfg sdk.Config) ModelEntry {
+	cfg = effectiveConfig(cfg)
+
+	var prefs preferences
+	if cfg.Preferences(&prefs) == nil {
 		if prefs.Provider != "" && prefs.Model != "" {
 			for _, e := range entries {
 				if e.Provider == prefs.Provider && e.Model == prefs.Model {
@@ -148,10 +167,12 @@ func modelReasoning(modelID string) bool {
 }
 
 // initialThinkingLevel returns the startup thinking level. Tries persisted
-// settings first (using layered loading for project overrides), then the
-// WEAVE_THINKING_LEVEL env var, then medium.
-func initialThinkingLevel(configDir string) sdkmodel.ThinkingLevel {
-	if prefs, err := config.LoadLayeredSettings(configDir); err == nil && prefs.ThinkingLevel != "" {
+// settings first, then the WEAVE_THINKING_LEVEL env var, then medium.
+func initialThinkingLevel(cfg sdk.Config) sdkmodel.ThinkingLevel {
+	cfg = effectiveConfig(cfg)
+
+	var prefs preferences
+	if cfg.Preferences(&prefs) == nil && prefs.ThinkingLevel != "" {
 		if lvl, err := sdkmodel.ParseThinkingLevel(prefs.ThinkingLevel); err == nil {
 			return lvl
 		}
@@ -161,26 +182,22 @@ func initialThinkingLevel(configDir string) sdkmodel.ThinkingLevel {
 }
 
 // saveSettings persists the current model and thinking level to the global
-// settings file. It loads existing settings to preserve UI/Tools sections,
-// updates only the model/thinking fields, and writes back.
-// Best-effort — errors are silently ignored.
-func saveSettings(entry ModelEntry, level sdkmodel.ThinkingLevel) {
-	existing, _ := config.LoadSettings()
-	if existing == nil {
-		existing = &config.Settings{}
+// settings file via sdk.Config. Best-effort — errors are silently ignored.
+func saveSettings(cfg sdk.Config, entry ModelEntry, level sdkmodel.ThinkingLevel) {
+	cfg = effectiveConfig(cfg)
+	prefs := preferences{
+		Provider:      entry.Provider,
+		Model:         entry.Model,
+		ThinkingLevel: string(level),
 	}
 
-	existing.Provider = entry.Provider
-	existing.Model = entry.Model
-	existing.ThinkingLevel = string(level)
-
-	_ = config.SaveSettingsGlobal(existing)
+	_ = cfg.SavePreferences(&prefs)
 }
 
 // saveSettingsCmd returns a tea.Cmd that persists settings asynchronously.
-func saveSettingsCmd(entry ModelEntry, level sdkmodel.ThinkingLevel) tea.Cmd {
+func saveSettingsCmd(cfg sdk.Config, entry ModelEntry, level sdkmodel.ThinkingLevel) tea.Cmd {
 	return func() tea.Msg {
-		saveSettings(entry, level)
+		saveSettings(cfg, entry, level)
 		return nil
 	}
 }

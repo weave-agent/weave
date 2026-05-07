@@ -1571,7 +1571,7 @@ func TestModel_Draw_OverlayFillsScreen(t *testing.T) {
 	m.height = 24
 
 	// Activate model selector dialog
-	models := listModels()
+	models := listModels(nil)
 	if len(models) > 1 {
 		items := make([]overlays.SelectorItem, len(models))
 		for i, model := range models {

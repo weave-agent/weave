@@ -56,9 +56,9 @@ All other extensions (loop, tools, providers, store, instructions) are clean. Th
 - [x] update all callers of these functions in `model.go` to pass `m.cfg`
 
 ### Task 4: Update `extensions/ui/tui/providers.go` — remove config import
-- [ ] update `listProviders()` to accept `cfg sdk.Config` param, replace `config.LoadAuth()` + `auth.GetProviderKey()` with `cfg.ProviderHasKey()`
-- [ ] remove `import "weave/config"`
-- [ ] update callers in `model.go` to pass `m.cfg`
+- [x] update `listProviders()` to accept `cfg sdk.Config` param, replace `config.LoadAuth()` + `auth.GetProviderKey()` with `cfg.ProviderHasKey()`
+- [x] remove `import "weave/config"`
+- [x] update callers in `model.go` to pass `m.cfg`
 
 ### Task 5: Update `extensions/ui/tui/model.go` — remove config import
 - [ ] define local `uiSettings` struct with `Theme string` and `EditorMaxLines int` (json-tagged) to replace `config.UISettings`

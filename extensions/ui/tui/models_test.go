@@ -82,10 +82,10 @@ func TestCurrentModel(t *testing.T) {
 		{Provider: "openai", Model: "gpt-5.5"},
 		{Provider: "zai", Model: "glm-5.1"},
 	}
-	cur := currentModel(entries, "")
+	cur := currentModel(entries, nil)
 	assert.Equal(t, "openai", cur.Provider)
 
-	cur = currentModel(nil, "")
+	cur = currentModel(nil, nil)
 	assert.Empty(t, cur.Provider)
 }
 
@@ -97,7 +97,7 @@ func TestCurrentModel_EnvProvider(t *testing.T) {
 
 	t.Setenv("WEAVE_PROVIDER", "openai")
 
-	cur := currentModel(entries, "")
+	cur := currentModel(entries, nil)
 	assert.Equal(t, "openai", cur.Provider)
 	assert.Equal(t, "gpt-5.5", cur.Model)
 }
@@ -109,7 +109,7 @@ func TestCurrentModel_EnvProviderNotInEntries(t *testing.T) {
 
 	t.Setenv("WEAVE_PROVIDER", "anthropic")
 
-	cur := currentModel(entries, "")
+	cur := currentModel(entries, nil)
 	// Falls back to first entry when env provider not found
 	assert.Equal(t, "openai", cur.Provider)
 }
@@ -482,7 +482,7 @@ func TestListModelsWithRegistry(t *testing.T) {
 	defer sdk.ResetProviderRegistry()
 	defer sdkmodel.ResetProviderEnvVarRegistry()
 
-	entries := listModels()
+	entries := listModels(nil)
 	assert.NotEmpty(t, entries, "should return models from registry")
 
 	// Should include models from all registered providers
@@ -505,7 +505,7 @@ func TestListModelsEmpty(t *testing.T) {
 	defer sdk.ResetProviderRegistry()
 	defer sdkmodel.ResetProviderEnvVarRegistry()
 
-	entries := listModels()
+	entries := listModels(nil)
 	assert.Nil(t, entries)
 }
 
@@ -535,7 +535,7 @@ func TestListModelsIgnoresEnvOverrides(t *testing.T) {
 
 	t.Setenv("ANTHROPIC_MODEL", "my-custom-model")
 
-	entries := listModels()
+	entries := listModels(nil)
 
 	// Should show registry entries as-is, not env-overridden names
 	anthropicCount := 0
@@ -751,7 +751,13 @@ func TestCurrentModel_LayeredSettings(t *testing.T) {
 	globalDir := t.TempDir()
 	config.SetSettingsPath(filepath.Join(globalDir, "settings.json"))
 
-	cur := currentModel(entries, projectDir)
+	// Create a config file so Preferences can resolve the project dir
+	cfgPath := filepath.Join(projectWeave, "config.yaml")
+	require.NoError(t, os.WriteFile(cfgPath, []byte("ui: tui\ncore:\n  agent_loop: loop\n  providers:\n    - anthropic\n"), 0o600))
+	cfg, err := config.LoadFullConfig(cfgPath)
+	require.NoError(t, err)
+
+	cur := currentModel(entries, cfg)
 	assert.Equal(t, "openai", cur.Provider)
 	assert.Equal(t, "gpt-5.5", cur.Model)
 }
@@ -767,7 +773,12 @@ func TestInitialThinkingLevel_LayeredSettings(t *testing.T) {
 	globalDir := t.TempDir()
 	config.SetSettingsPath(filepath.Join(globalDir, "settings.json"))
 
-	level := initialThinkingLevel(projectDir)
+	cfgPath := filepath.Join(projectWeave, "config.yaml")
+	require.NoError(t, os.WriteFile(cfgPath, []byte("ui: tui\ncore:\n  agent_loop: loop\n  providers:\n    - anthropic\n"), 0o600))
+	cfg, err := config.LoadFullConfig(cfgPath)
+	require.NoError(t, err)
+
+	level := initialThinkingLevel(cfg)
 	assert.Equal(t, sdkmodel.ThinkingHigh, level)
 }
 
@@ -788,8 +799,15 @@ func TestSaveSettings_PreservesUIFields(t *testing.T) {
 	}
 	require.NoError(t, config.SaveSettingsGlobal(initial))
 
+	// Create a config that points to the temp settings
+	cfgPath := filepath.Join(tmpDir, ".weave", "config.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(cfgPath), 0o755))
+	require.NoError(t, os.WriteFile(cfgPath, []byte("ui: tui\ncore:\n  agent_loop: loop\n  providers:\n    - anthropic\n"), 0o600))
+	cfg, err := config.LoadFullConfig(cfgPath)
+	require.NoError(t, err)
+
 	// Save model change
-	saveSettings(ModelEntry{Provider: "openai", Model: "gpt-5.5"}, sdkmodel.ThinkingHigh)
+	saveSettings(cfg, ModelEntry{Provider: "openai", Model: "gpt-5.5"}, sdkmodel.ThinkingHigh)
 
 	// Verify UI fields preserved
 	loaded, err := config.LoadSettings()

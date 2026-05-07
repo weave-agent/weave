@@ -3,7 +3,6 @@ package tui
 import (
 	"sort"
 
-	"weave/config"
 	"weave/sdk"
 	sdkmodel "weave/sdk/model"
 )
@@ -26,12 +25,8 @@ func (e ProviderEntry) Display() string {
 // listProviders builds a list of all known providers with their API key status.
 // Combines registered providers from sdk.ListProviders() with the model registry
 // to include providers that may not be registered yet but have known models.
-func listProviders() []ProviderEntry {
-	auth, err := config.LoadAuth()
-	if err != nil {
-		auth = &config.AuthFile{Providers: make(map[string]config.ProviderAuth)}
-	}
-
+func listProviders(cfg sdk.Config) []ProviderEntry {
+	cfg = effectiveConfig(cfg)
 	seen := make(map[string]bool)
 
 	var entries []ProviderEntry
@@ -40,7 +35,7 @@ func listProviders() []ProviderEntry {
 		seen[name] = true
 		entries = append(entries, ProviderEntry{
 			Name:   name,
-			HasKey: auth.GetProviderKey(name) != "",
+			HasKey: cfg.ProviderHasKey(name),
 		})
 	}
 
@@ -49,7 +44,7 @@ func listProviders() []ProviderEntry {
 			seen[md.Provider] = true
 			entries = append(entries, ProviderEntry{
 				Name:   md.Provider,
-				HasKey: auth.GetProviderKey(md.Provider) != "",
+				HasKey: cfg.ProviderHasKey(md.Provider),
 			})
 		}
 	}
