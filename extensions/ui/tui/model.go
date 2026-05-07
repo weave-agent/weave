@@ -6,12 +6,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
-	"weave/config"
 	"weave/ext/ui/tui/components"
 	"weave/ext/ui/tui/components/attachments"
 	"weave/ext/ui/tui/components/messages"
@@ -78,7 +76,6 @@ type Model struct {
 	popupSeq       int
 
 	sessionDir string
-	configDir  string
 
 	// double-press tracking
 	ctrlCPressed   bool
@@ -113,20 +110,15 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 		cfgPath = cfg.FilePath()
 	}
 
-	var configDir string
-	if cfgPath != "" {
-		configDir = filepath.Dir(cfgPath)
-	}
-
 	sdir := resolveSessionDir(cfgPath)
 
 	commands := NewCommandRegistry(bus, sdir)
 	commands.register("/model", "Select or change model", false, func(_ string) CommandResult {
-		return CommandResult{Command: listModelsCmd()}
+		return CommandResult{Command: listModelsCmd(cfg)}
 	})
 
 	commands.register("/providers", "Manage provider API keys", false, func(_ string) CommandResult {
-		return CommandResult{Command: listProvidersCmd()}
+		return CommandResult{Command: listProvidersCmd(cfg)}
 	})
 
 	commands.register("/thinking", "Set thinking level (off/minimal/low/medium/high/xhigh)", false, func(args string) CommandResult {
@@ -147,7 +139,11 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 	editor := components.NewEditorModel()
 
 	// Read UI settings from layered config
-	var uiSettings config.UISettings
+	var uiSettings struct {
+		Theme          string `json:"theme,omitempty"`
+		EditorMaxLines int    `json:"editor_max_lines,omitempty"`
+	}
+
 	if cfg != nil {
 		_ = cfg.UIConfig(&uiSettings)
 	}
@@ -156,8 +152,9 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 		editor = editor.SetMaxHeight(uiSettings.EditorMaxLines)
 	}
 
-	models := listModels()
-	cur := currentModel(models, configDir)
+	effectiveCfg := effectiveConfig(cfg)
+	models := listModels(effectiveCfg)
+	cur := currentModel(models, effectiveCfg)
 
 	bindings := NewBindingRegistry()
 
@@ -189,8 +186,7 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 		layout:        NewLayoutEngine(),
 		currentModel:  cur,
 		sessionDir:    sdir,
-		configDir:     configDir,
-		thinkingLevel: initialThinkingLevel(configDir),
+		thinkingLevel: initialThinkingLevel(effectiveCfg),
 		noConfigured:  len(models) == 0,
 		showHints:     true,
 		showLanding:   true,
@@ -205,11 +201,6 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 
 	if m.noConfigured {
 		m.statusMsg = "No providers configured. Use /providers to set an API key."
-	}
-
-	// Ensure local settings are excluded from git
-	if configDir != "" {
-		config.EnsureLocalSettingsExcluded(configDir)
 	}
 
 	return m
@@ -587,9 +578,9 @@ func (m Model) dispatchBinding(action BindingAction) (tea.Model, tea.Cmd) {
 	case ActionExit:
 		return m, tea.Quit
 	case ActionModelSelect:
-		return m, listModelsCmd()
+		return m, listModelsCmd(m.cfg)
 	case ActionModelCycle:
-		models := listModels()
+		models := listModels(m.cfg)
 		if len(models) <= 1 {
 			m.showStatus("Only one model available")
 			return m, m.statusTimer
@@ -1119,7 +1110,7 @@ func (m Model) onModelChanged(msg ModelChangedMsg) (tea.Model, tea.Cmd) {
 		}
 
 		if m.cfg != nil {
-			cmds = append(cmds, saveSettingsCmd(m.currentModel, m.thinkingLevel))
+			cmds = append(cmds, saveSettingsCmd(m.cfg, m.currentModel, m.thinkingLevel))
 		}
 
 		cmds = append(cmds, m.statusTimer)
@@ -1211,7 +1202,10 @@ func (m Model) onKeyInputDialogDone(result overlays.DialogResult, pendingCmd tea
 		return m, pendingCmd
 	}
 
-	err := config.SetProviderKey(providerName, apiKey)
+	var err error
+	if m.cfg != nil {
+		err = m.cfg.SetProviderKey(providerName, apiKey)
+	}
 
 	am := messages.NewAssistantMessage()
 	if err != nil {
@@ -1226,10 +1220,10 @@ func (m Model) onKeyInputDialogDone(result overlays.DialogResult, pendingCmd tea
 
 	// If we were in noConfigured state, re-evaluate now that a key exists.
 	if m.noConfigured {
-		models := listModels()
+		models := listModels(m.cfg)
 		if len(models) > 0 {
 			m.noConfigured = false
-			cur := currentModel(models, m.configDir)
+			cur := currentModel(models, m.cfg)
 			m.currentModel = cur
 			m.footer = m.footer.SetModel(cur.Model, cur.Provider)
 			m.footer = m.footer.SetReasoning(modelReasoning(cur.Model))
@@ -1453,7 +1447,7 @@ func (m Model) applyThinkingLevel(level sdkmodel.ThinkingLevel) (tea.Model, tea.
 		cmds = append(cmds, PublishThinkingChange(m.bus, level))
 
 		if m.cfg != nil {
-			cmds = append(cmds, saveSettingsCmd(m.currentModel, level))
+			cmds = append(cmds, saveSettingsCmd(m.cfg, m.currentModel, level))
 		}
 	}
 

@@ -46,14 +46,14 @@ All other extensions (loop, tools, providers, store, instructions) are clean. Th
 - [x] run `cd config && go test ./...` — config tests must pass
 
 ### Task 3: Update `extensions/ui/tui/models.go` — remove config import
-- [ ] define local `preferences` struct with `Provider`, `Model`, `ThinkingLevel` fields (json-tagged)
-- [ ] update `listModels()` to accept `cfg sdk.Config` param, replace `config.LoadAuth()` + `providerHasKey()` with `cfg.ProviderHasKey()`
-- [ ] update `currentModel()` to accept `cfg sdk.Config` param, replace `config.LoadLayeredSettings()` with `cfg.Preferences(&prefs)`
-- [ ] update `initialThinkingLevel()` to accept `cfg sdk.Config` param, replace `config.LoadLayeredSettings()` with `cfg.Preferences(&prefs)`
-- [ ] update `saveSettings()` to accept `cfg sdk.Config` param, replace `config.LoadSettings()` + `config.SaveSettingsGlobal()` with `cfg.SavePreferences(&prefs)`
-- [ ] delete `providerHasKey()` helper — no longer needed
-- [ ] remove `import "weave/config"`
-- [ ] update all callers of these functions in `model.go` to pass `m.cfg`
+- [x] define local `preferences` struct with `Provider`, `Model`, `ThinkingLevel` fields (json-tagged)
+- [x] update `listModels()` to accept `cfg sdk.Config` param, replace `config.LoadAuth()` + `providerHasKey()` with `cfg.ProviderHasKey()`
+- [x] update `currentModel()` to accept `cfg sdk.Config` param, replace `config.LoadLayeredSettings()` with `cfg.Preferences(&prefs)`
+- [x] update `initialThinkingLevel()` to accept `cfg sdk.Config` param, replace `config.LoadLayeredSettings()` with `cfg.Preferences(&prefs)`
+- [x] update `saveSettings()` to accept `cfg sdk.Config` param, replace `config.LoadSettings()` + `config.SaveSettingsGlobal()` with `cfg.SavePreferences(&prefs)`
+- [x] delete `providerHasKey()` helper — no longer needed
+- [x] remove `import "weave/config"`
+- [x] update all callers of these functions in `model.go` to pass `m.cfg`
 
 ### Task 4: Update `extensions/ui/tui/providers.go` — remove config import
 - [ ] update `listProviders()` to accept `cfg sdk.Config` param, replace `config.LoadAuth()` + `auth.GetProviderKey()` with `cfg.ProviderHasKey()`
