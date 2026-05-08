@@ -149,14 +149,14 @@ Radically simplify weave's extension configuration by moving from explicit compi
 - [x] Run `go test ./...` from root — must pass before next task
 
 ### Task 8: Verify acceptance criteria
-- [ ] Verify `config.File` has only: `Prompt`, `UI`, `Core` (AgentLoop only), `Providers` (map for settings), `ExcludeExtensions`
-- [ ] Verify `AutoDiscover` finds all built-in extensions recursively
-- [ ] Verify UI extensions (`diff-viewer`) are excluded from headless builds
-- [ ] Verify all providers are compiled in regardless of settings
-- [ ] Verify runtime model selection (Ctrl+L) works with auto-discovered providers
-- [ ] Run full test suite: `make test`
-- [ ] Run linter: `make lint`
-- [ ] Build weave binary and test interactive + headless modes
+- [x] Verify `config.File` has only: `Prompt`, `UI`, `Core` (AgentLoop only), `Providers` (map for settings), `ExcludeExtensions`
+- [x] Verify `AutoDiscover` finds all built-in extensions recursively
+- [x] Verify UI extensions (`diff-viewer`) are excluded from headless builds
+- [x] Verify all providers are compiled in regardless of settings
+- [x] Verify runtime model selection (Ctrl+L) works with auto-discovered providers
+- [x] Run full test suite: `make test`
+- [x] Run linter: `make lint`
+- [x] Build weave binary and test interactive + headless modes
 
 ### Task 9: Update documentation
 - [ ] Update `docs/design.md` if it references old config format
