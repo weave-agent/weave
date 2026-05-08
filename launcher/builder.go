@@ -368,7 +368,7 @@ func parseSingleReplace(s, dir string, result map[string]string) {
 //   - --weave-config=<path> to pass config to extensions
 //   - --weave-prompt-file=<path> to read the initial prompt from a file
 //   - --weave-agent-loop=<name> for core wiring
-func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string, headless bool) error {
+func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 	var b strings.Builder
 	b.WriteString("package main\n\n")
 	b.WriteString("import (\n")
@@ -385,10 +385,6 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string, headless
 	b.WriteString("\t\"weave/sdk/wire\"\n")
 
 	for _, ext := range exts {
-		if headless && ext.IsUIExt {
-			continue
-		}
-
 		b.WriteString("\n")
 		b.WriteString("\t_ \"" + extModulePath(ext) + "\"\n")
 	}
@@ -456,12 +452,6 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string, headless
 	for _, ext := range exts {
 		// The agent loop is handled by WireWithCore, not passed as optional.
 		if ext.Name == agentLoop {
-			continue
-		}
-
-		// In headless mode, UI extensions are excluded from compilation
-		// and should not be passed as optional extensions.
-		if headless && ext.IsUIExt {
 			continue
 		}
 
@@ -558,7 +548,7 @@ func Build(dir, moduleRoot, agentLoop string, headless bool, exts []ExtensionInf
 		return "", fmt.Errorf("build: generate go.mod: %w", err)
 	}
 
-	if err := GenerateMainGo(dir, sorted, agentLoop, headless); err != nil {
+	if err := GenerateMainGo(dir, sorted, agentLoop); err != nil {
 		return "", fmt.Errorf("build: generate main.go: %w", err)
 	}
 

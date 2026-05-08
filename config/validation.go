@@ -96,10 +96,10 @@ func ValidateWithConfigDir(f *File, configDir string) error {
 		})
 	}
 
-	for _, name := range f.ExcludeExtensions {
+	for i, name := range f.ExcludeExtensions {
 		if !validName.MatchString(name) {
 			errs = append(errs, ValidationError{
-				Field:   "exclude_extensions",
+				Field:   fmt.Sprintf("exclude_extensions[%d]", i),
 				Message: fmt.Sprintf("invalid extension name %q (must match [a-zA-Z0-9_-]+)", name),
 			})
 		}

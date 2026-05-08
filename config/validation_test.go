@@ -68,7 +68,7 @@ func TestValidate_ExcludeExtensionsInvalidName(t *testing.T) {
 	var errs ValidationErrors
 	require.ErrorAs(t, err, &errs)
 	require.Len(t, errs, 1)
-	assert.Equal(t, "exclude_extensions", errs[0].Field)
+	assert.Equal(t, "exclude_extensions[0]", errs[0].Field)
 	assert.Contains(t, errs[0].Message, "bad ext!")
 }
 
@@ -122,7 +122,7 @@ func TestValidate_MultipleErrors(t *testing.T) {
 
 	assert.Contains(t, fields, "ui")
 	assert.Contains(t, fields, "core.agent_loop")
-	assert.Contains(t, fields, "exclude_extensions")
+	assert.Contains(t, fields, "exclude_extensions[0]")
 }
 
 func TestValidationError_ErrorFormat(t *testing.T) {

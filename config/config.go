@@ -394,7 +394,7 @@ func (c *FullConfig) UIConfig(target any) error {
 	return populateConfig(settings.UI, target)
 }
 
-func (c *FullConfig) IsHeadless() bool { return true }
+func (c *FullConfig) IsHeadless() bool { return false }
 
 func (c *FullConfig) Preferences(target any) error {
 	applyDefaults(target)

@@ -235,7 +235,7 @@ func TestIntegration_AutoDiscoverLocalOverGlobal(t *testing.T) {
 	homeDir := t.TempDir()
 	moduleRoot := t.TempDir()
 
-	globalDir := filepath.Join(homeDir, ".weave", "extensions", "noop")
+	globalDir := filepath.Join(homeDir, ".weave", "extensions")
 	createExtension(t, globalDir, "noop", "package noop")
 
 	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
@@ -243,7 +243,7 @@ func TestIntegration_AutoDiscoverLocalOverGlobal(t *testing.T) {
 	require.Len(t, exts, 1)
 	assert.Contains(t, exts[0].Dir, globalDir)
 
-	localDir := filepath.Join(projectDir, ".weave", "extensions", "noop")
+	localDir := filepath.Join(projectDir, ".weave", "extensions")
 	createExtension(t, localDir, "noop", "package noop")
 
 	exts2, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)

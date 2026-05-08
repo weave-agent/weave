@@ -180,14 +180,15 @@ func TestComputeHash_HeadlessDiffers(t *testing.T) {
 	assert.NotEqual(t, h1, h2, "headless flag must affect hash")
 }
 
-func TestGenerateMainGo_UIExtFilteredInHeadless(t *testing.T) {
+func TestGenerateMainGo_UIExtFilteredByBuild(t *testing.T) {
+	// Build() filters UI extensions before calling GenerateMainGo,
+	// so GenerateMainGo only receives non-UI extensions.
 	dir := t.TempDir()
 	exts := []ExtensionInfo{
 		{Name: "bash", Dir: "/tmp/exts/bash", ModulePath: "weave/ext/bash"},
-		{Name: "diff-viewer", Dir: "/tmp/exts/diff-viewer", ModulePath: "weave/ext/diff-viewer", IsUIExt: true},
 	}
 
-	require.NoError(t, GenerateMainGo(dir, exts, "loop", true))
+	require.NoError(t, GenerateMainGo(dir, exts, "loop"))
 
 	content, err := os.ReadFile(filepath.Join(dir, "main.go"))
 	require.NoError(t, err)
@@ -204,7 +205,7 @@ func TestGenerateMainGo_UIExtIncludedInInteractive(t *testing.T) {
 		{Name: "diff-viewer", Dir: "/tmp/exts/diff-viewer", ModulePath: "weave/ext/diff-viewer", IsUIExt: true},
 	}
 
-	require.NoError(t, GenerateMainGo(dir, exts, "loop", false))
+	require.NoError(t, GenerateMainGo(dir, exts, "loop"))
 
 	content, err := os.ReadFile(filepath.Join(dir, "main.go"))
 	require.NoError(t, err)
@@ -257,7 +258,7 @@ func TestGenerateMainGo_Content(t *testing.T) {
 		{Name: "log", Dir: "/tmp/exts/log", ModulePath: "weave/ext/log"},
 	}
 
-	require.NoError(t, GenerateMainGo(dir, exts, "loop", false))
+	require.NoError(t, GenerateMainGo(dir, exts, "loop"))
 
 	content, err := os.ReadFile(filepath.Join(dir, "main.go"))
 	require.NoError(t, err)
