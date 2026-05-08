@@ -38,7 +38,7 @@ func TestRun_CacheHit(t *testing.T) {
 	cacheDir := t.TempDir()
 	c := NewCache(cacheDir)
 
-	exts, _, err := AutoDiscover(projectDir, t.TempDir(), "", nil)
+	exts, err := AutoDiscover(projectDir, t.TempDir(), "", nil)
 	require.NoError(t, err)
 
 	hash, err := ComputeHash(exts, "", false)
@@ -75,7 +75,7 @@ func TestRun_FullPipelineWithMockBuild(t *testing.T) {
 		BuildTmpDir: buildDir,
 	}
 
-	exts, _, err := AutoDiscover(projectDir, t.TempDir(), "", nil)
+	exts, err := AutoDiscover(projectDir, t.TempDir(), "", nil)
 	require.NoError(t, err, "AutoDiscover")
 
 	hash, err := ComputeHash(exts, "", false)
@@ -122,7 +122,7 @@ func TestRun_SecondRunUsesCache(t *testing.T) {
 		BuildTmpDir: buildDir,
 	}
 
-	exts, _, err := AutoDiscover(projectDir, t.TempDir(), "", nil)
+	exts, err := AutoDiscover(projectDir, t.TempDir(), "", nil)
 	require.NoError(t, err)
 
 	hash, err := ComputeHash(exts, "", false)

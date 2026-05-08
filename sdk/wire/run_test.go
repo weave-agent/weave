@@ -144,7 +144,7 @@ func TestWritePromptFile(t *testing.T) {
 }
 
 func TestResolveProjectDir(t *testing.T) {
-	assert.Equal(t, "/project", resolveProjectDir("/project/.weave/config.yaml"))
-	assert.Equal(t, "/project", resolveProjectDir("/project/config.yaml"))
-	assert.Equal(t, "/", resolveProjectDir("/.weave/config.yaml"))
+	assert.Equal(t, "/project", config.ProjectDirFromConfig("/project/.weave/config.yaml"))
+	assert.Equal(t, "/project", config.ProjectDirFromConfig("/project/config.yaml"))
+	assert.Equal(t, "/", config.ProjectDirFromConfig("/.weave/config.yaml"))
 }

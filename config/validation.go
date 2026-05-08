@@ -27,7 +27,25 @@ func ValidExtName(s string) bool {
 
 // ResolveExtPath expands a path-like extension entry to an absolute path.
 func ResolveExtPath(entry, configDir string) (string, error) {
-	return resolveExtPath(entry, configDir)
+	if strings.HasPrefix(entry, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("resolve home directory: %w", err)
+		}
+
+		return filepath.Join(home, entry[2:]), nil
+	}
+
+	if filepath.IsAbs(entry) {
+		return entry, nil
+	}
+
+	abs, err := filepath.Abs(filepath.Join(configDir, entry))
+	if err != nil {
+		return "", fmt.Errorf("resolve absolute path: %w", err)
+	}
+
+	return abs, nil
 }
 
 // ValidationError is a single validation failure with a field path.
@@ -126,27 +144,4 @@ func validateProviderEntry(errs *ValidationErrors, name string, raw any) {
 			Message: fmt.Sprintf("invalid config: %v", err),
 		})
 	}
-}
-
-// resolveExtPath expands a path-like extension entry to an absolute path.
-func resolveExtPath(entry, configDir string) (string, error) {
-	if strings.HasPrefix(entry, "~/") {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", fmt.Errorf("resolve home directory: %w", err)
-		}
-
-		return filepath.Join(home, entry[2:]), nil
-	}
-
-	if filepath.IsAbs(entry) {
-		return entry, nil
-	}
-
-	abs, err := filepath.Abs(filepath.Join(configDir, entry))
-	if err != nil {
-		return "", fmt.Errorf("resolve absolute path: %w", err)
-	}
-
-	return abs, nil
 }

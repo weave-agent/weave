@@ -25,7 +25,7 @@ func TestAutoDiscover_LocalExtension(t *testing.T) {
 
 	createExtension(t, filepath.Join(projectDir, ".weave", "extensions"), "noop", "package noop")
 
-	exts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 	require.NoError(t, err, "AutoDiscover")
 
 	require.Len(t, exts, 1)
@@ -40,7 +40,7 @@ func TestAutoDiscover_GlobalExtension(t *testing.T) {
 
 	createExtension(t, filepath.Join(homeDir, ".weave", "extensions"), "logging", "package logging")
 
-	exts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 	require.NoError(t, err, "AutoDiscover")
 
 	require.Len(t, exts, 1)
@@ -54,7 +54,7 @@ func TestAutoDiscover_BuiltinExtension(t *testing.T) {
 
 	createExtension(t, filepath.Join(moduleRoot, "extensions"), "builtin", "package builtin")
 
-	exts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 	require.NoError(t, err, "AutoDiscover")
 
 	require.Len(t, exts, 1)
@@ -69,7 +69,7 @@ func TestAutoDiscover_LocalPreferredOverGlobal(t *testing.T) {
 	createExtension(t, filepath.Join(projectDir, ".weave", "extensions"), "noop", "package noop")
 	createExtension(t, filepath.Join(homeDir, ".weave", "extensions"), "noop", "package noop")
 
-	exts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 	require.NoError(t, err)
 
 	require.Len(t, exts, 1)
@@ -84,7 +84,7 @@ func TestAutoDiscover_GlobalPreferredOverBuiltin(t *testing.T) {
 	createExtension(t, filepath.Join(homeDir, ".weave", "extensions"), "noop", "package noop")
 	createExtension(t, filepath.Join(moduleRoot, "extensions"), "noop", "package noop")
 
-	exts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 	require.NoError(t, err)
 
 	require.Len(t, exts, 1)
@@ -99,7 +99,7 @@ func TestAutoDiscover_MultipleExtensions(t *testing.T) {
 	createExtension(t, filepath.Join(projectDir, ".weave", "extensions"), "alpha", "package alpha")
 	createExtension(t, filepath.Join(projectDir, ".weave", "extensions"), "beta", "package beta")
 
-	exts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 	require.NoError(t, err, "AutoDiscover")
 
 	require.Len(t, exts, 2)
@@ -116,7 +116,7 @@ func TestAutoDiscover_EmptyExtensionDir(t *testing.T) {
 	// Create an empty extensions dir (no go.mod, no .go files)
 	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".weave", "extensions", "empty"), 0o750))
 
-	exts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 	require.NoError(t, err)
 	assert.Empty(t, exts)
 }
@@ -133,7 +133,7 @@ func TestAutoDiscover_GoFilesSorted(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(extDir, "a.go"), []byte("package sorted"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(extDir, "m.go"), []byte("package sorted"), 0o600))
 
-	exts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 	require.NoError(t, err, "AutoDiscover")
 
 	require.Len(t, exts, 1)
@@ -158,7 +158,7 @@ func TestAutoDiscover_NestedExtension(t *testing.T) {
 	// Create a nested extension at moduleRoot/extensions/tools/bash/
 	createExtension(t, filepath.Join(moduleRoot, "extensions", "tools"), "bash", "package bash")
 
-	exts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 	require.NoError(t, err, "AutoDiscover")
 
 	require.Len(t, exts, 1)
@@ -177,7 +177,7 @@ func TestAutoDiscover_TUIExtension(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(extDir, "go.mod"), []byte("module test/ext/diff-viewer\n\ngo 1.22\n"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(extDir, "diff.go"), []byte("package diffviewer\n\nimport \"weave/sdk\"\n\nfunc init() { sdk.RegisterUIExtension(\"diff\", nil) }\n"), 0o600))
 
-	exts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 	require.NoError(t, err, "AutoDiscover")
 
 	var diffExt *ExtensionInfo
@@ -204,7 +204,7 @@ func TestAutoDetectUIExtension_DetectsRegisterUIExtension(t *testing.T) {
 		filepath.Join(dir, "b.go"),
 	}
 
-	assert.True(t, detectUIExtension(dir, goFiles))
+	assert.True(t, detectUIExtension(goFiles))
 }
 
 func TestAutoDetectUIExtension_NoRegisterUIExtension(t *testing.T) {
@@ -214,7 +214,7 @@ func TestAutoDetectUIExtension_NoRegisterUIExtension(t *testing.T) {
 
 	goFiles := []string{filepath.Join(dir, "a.go")}
 
-	assert.False(t, detectUIExtension(dir, goFiles))
+	assert.False(t, detectUIExtension(goFiles))
 }
 
 func TestAutoDiscover_ExcludeList(t *testing.T) {
@@ -225,7 +225,7 @@ func TestAutoDiscover_ExcludeList(t *testing.T) {
 	createExtension(t, filepath.Join(projectDir, ".weave", "extensions"), "keep", "package keep")
 	createExtension(t, filepath.Join(projectDir, ".weave", "extensions"), "exclude", "package exclude")
 
-	exts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, []string{"exclude"})
+	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, []string{"exclude"})
 	require.NoError(t, err)
 
 	require.Len(t, exts, 1)
@@ -237,7 +237,7 @@ func TestAutoDiscover_NoExtensionsFound(t *testing.T) {
 	homeDir := t.TempDir()
 	moduleRoot := t.TempDir()
 
-	exts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 	require.NoError(t, err)
 	assert.Empty(t, exts)
 }
@@ -259,7 +259,7 @@ func TestAutoDiscover_ModuleBoundaryRespected(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(childDir, "go.mod"), []byte("module test/ext/child\n\ngo 1.22\n"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(childDir, "child.go"), []byte("package child"), 0o600))
 
-	exts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 	require.NoError(t, err)
 
 	// Should find both parent and child as separate extensions

@@ -23,7 +23,7 @@ type ExtensionInfo struct {
 // contain both a go.mod file and at least one non-test .go file.
 // Deduplication: earlier roots take precedence (local > global > built-in).
 // The exclude list filters out extensions by name after discovery.
-func AutoDiscover(projectDir, homeDir, moduleRoot string, exclude []string) ([]ExtensionInfo, []string, error) {
+func AutoDiscover(projectDir, homeDir, moduleRoot string, exclude []string) ([]ExtensionInfo, error) {
 	var exts []ExtensionInfo
 
 	seen := make(map[string]bool)
@@ -60,8 +60,12 @@ func AutoDiscover(projectDir, homeDir, moduleRoot string, exclude []string) ([]E
 
 			// Collect .go files within module boundary
 			goFiles, fileErr := collectGoFiles(path)
-			if fileErr != nil || len(goFiles) == 0 {
-				return nil //nolint:nilerr // skip dirs that are not extensions
+			if fileErr != nil {
+				return nil //nolint:nilerr // I/O error during collection
+			}
+
+			if len(goFiles) == 0 {
+				return nil // no .go files in this module
 			}
 
 			name := filepath.Base(path)
@@ -71,7 +75,7 @@ func AutoDiscover(projectDir, homeDir, moduleRoot string, exclude []string) ([]E
 
 			seen[name] = true
 
-			isUI := detectUIExtension(path, goFiles)
+			isUI := detectUIExtension(goFiles)
 
 			exts = append(exts, ExtensionInfo{
 				Name:    name,
@@ -83,7 +87,7 @@ func AutoDiscover(projectDir, homeDir, moduleRoot string, exclude []string) ([]E
 			return nil
 		})
 		if err != nil {
-			return nil, nil, fmt.Errorf("auto-discover %s: %w", root, err)
+			return nil, fmt.Errorf("auto-discover %s: %w", root, err)
 		}
 	}
 
@@ -110,11 +114,11 @@ func AutoDiscover(projectDir, homeDir, moduleRoot string, exclude []string) ([]E
 		return exts[i].Name < exts[j].Name
 	})
 
-	return exts, nil, nil
+	return exts, nil
 }
 
 // detectUIExtension scans the .go files for RegisterUIExtension calls.
-func detectUIExtension(_ string, goFiles []string) bool {
+func detectUIExtension(goFiles []string) bool {
 	for _, f := range goFiles {
 		data, err := os.ReadFile(f)
 		if err != nil {
@@ -160,7 +164,7 @@ func collectGoFiles(dir string) ([]string, error) {
 	}
 
 	if len(files) == 0 {
-		return nil, fmt.Errorf("no .go files in %s", dir)
+		return nil, nil
 	}
 
 	sort.Strings(files)

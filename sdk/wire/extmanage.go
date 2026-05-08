@@ -342,19 +342,7 @@ func runUninstall(args []string) int {
 
 	_, _ = fmt.Fprintf(os.Stdout, "uninstalled %q\n", name)
 
-	warnIfConfigReferences(name)
-
 	return 0
-}
-
-// warnIfConfigReferences checks whether the uninstalled extension is still
-// referenced in the active config file and prints a warning if so.
-// It matches both bare names and path-based entries whose base name matches.
-func warnIfConfigReferences(name string) {
-	// With auto-discovery, extensions are no longer explicitly listed in config.
-	// The only reference is exclude_extensions, which doesn't need a warning
-	// since excluding a non-existent extension is harmless.
-	_ = name
 }
 
 func gitRevParseHEAD(dir string) (string, error) {

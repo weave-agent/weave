@@ -119,7 +119,7 @@ func TestIntegration_FullPipeline(t *testing.T) {
 	extDir := filepath.Join(projectDir, ".weave", "extensions", "noop")
 	setupTestExtension(t, extDir, moduleRoot, noopCode)
 
-	exts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 	require.NoError(t, err, "AutoDiscover")
 
 	hash, err := ComputeHash(exts, "", false)
@@ -161,7 +161,7 @@ func TestIntegration_CacheHitOnSecondRun(t *testing.T) {
 	extDir := filepath.Join(projectDir, ".weave", "extensions", "noop")
 	setupTestExtension(t, extDir, moduleRoot, noopCode)
 
-	exts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 	require.NoError(t, err)
 
 	hash, err := ComputeHash(exts, "", false)
@@ -200,7 +200,7 @@ func TestIntegration_ExtensionInitAndWireInBuiltBinary(t *testing.T) {
 	extDir := filepath.Join(projectDir, ".weave", "extensions", "noop")
 	setupTestExtension(t, extDir, moduleRoot, noopMarkerCode)
 
-	exts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 	require.NoError(t, err)
 
 	buildDir := t.TempDir()
@@ -238,7 +238,7 @@ func TestIntegration_AutoDiscoverLocalOverGlobal(t *testing.T) {
 	globalDir := filepath.Join(homeDir, ".weave", "extensions", "noop")
 	createExtension(t, globalDir, "noop", "package noop")
 
-	exts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 	require.NoError(t, err, "AutoDiscover")
 	require.Len(t, exts, 1)
 	assert.Contains(t, exts[0].Dir, globalDir)
@@ -246,7 +246,7 @@ func TestIntegration_AutoDiscoverLocalOverGlobal(t *testing.T) {
 	localDir := filepath.Join(projectDir, ".weave", "extensions", "noop")
 	createExtension(t, localDir, "noop", "package noop")
 
-	exts2, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	exts2, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 	require.NoError(t, err, "AutoDiscover")
 	require.Len(t, exts2, 1)
 	assert.Contains(t, exts2[0].Dir, localDir)
@@ -261,7 +261,7 @@ func TestIntegration_DiscoverBuiltinNestedTools(t *testing.T) {
 
 	tools := []string{"bash", "read", "edit", "write", "grep", "find", "ls"}
 
-	exts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 	require.NoError(t, err, "AutoDiscover")
 
 	extMap := make(map[string]ExtensionInfo, len(exts))
@@ -287,7 +287,7 @@ func TestIntegration_DiscoverBuiltinNestedProviders(t *testing.T) {
 
 	providers := []string{"anthropic", "openai", "zai"}
 
-	exts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 	require.NoError(t, err, "AutoDiscover")
 
 	extMap := make(map[string]ExtensionInfo, len(exts))
@@ -311,7 +311,7 @@ func TestIntegration_DiscoverBuiltinNestedStore(t *testing.T) {
 	projectDir := t.TempDir()
 	homeDir := t.TempDir()
 
-	exts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 	require.NoError(t, err, "AutoDiscover")
 
 	var jsonlExt *ExtensionInfo
@@ -336,7 +336,7 @@ func TestIntegration_DiscoverBuiltinLoopDirect(t *testing.T) {
 	projectDir := t.TempDir()
 	homeDir := t.TempDir()
 
-	exts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 	require.NoError(t, err, "AutoDiscover")
 
 	var loopExt *ExtensionInfo

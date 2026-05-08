@@ -52,7 +52,7 @@ func run(ctx context.Context, args ...string) (exitCode int) {
 		return 1
 	}
 
-	projectDir := resolveProjectDir(configFile)
+	projectDir := config.ProjectDirFromConfig(configFile)
 
 	if cf.Prompt == "" && (cf.UI == "" || cf.UI == config.UIValueNone) {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", errNoInput)
@@ -60,12 +60,6 @@ func run(ctx context.Context, args ...string) (exitCode int) {
 	}
 
 	headless := cf.Prompt != ""
-
-	if headless {
-		rest = append([]string{"--weave-headless=true"}, rest...)
-	} else {
-		rest = append([]string{"--weave-headless=false"}, rest...)
-	}
 
 	if cf.Prompt != "" {
 		promptFile, cleanup, ok := writePromptFile(cf.Prompt)
@@ -87,15 +81,6 @@ func run(ctx context.Context, args ...string) (exitCode int) {
 	}
 
 	return 0
-}
-
-func resolveProjectDir(configFile string) string {
-	dir := filepath.Dir(configFile)
-	if filepath.Base(dir) == ".weave" {
-		dir = filepath.Dir(dir)
-	}
-
-	return dir
 }
 
 func writePromptFile(prompt string) (path string, cleanup func(), ok bool) {

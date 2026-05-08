@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"syscall"
 	"time"
@@ -44,7 +43,7 @@ func (l *Launcher) Run(ctx context.Context, projectDir string, args []string, co
 		return fmt.Errorf("launcher: get home dir: %w", err)
 	}
 
-	exts, _, err := AutoDiscover(projectDir, homeDir, l.ModuleRoot, exclude)
+	exts, err := AutoDiscover(projectDir, homeDir, l.ModuleRoot, exclude)
 	if err != nil {
 		return fmt.Errorf("launcher: auto-discover: %w", err)
 	}
@@ -156,21 +155,6 @@ func (l *Launcher) exec(_ context.Context, binPath, configPath, agentLoop string
 	env = append(env, "WEAVE_ORIG_ARGS="+string(origArgs))
 
 	return fmt.Errorf("exec binary: %w", syscall.Exec(binPath, argv, env)) //nolint:gosec // G702 — env is our own os.Environ() with added weave vars
-}
-
-// RunCommand runs the binary as a subprocess (non-replacing, for testing).
-func RunCommand(ctx context.Context, binPath string, args []string) error {
-	argv := append([]string{binPath}, args...)
-	cmd := exec.CommandContext(ctx, binPath, argv[1:]...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("run command: %w", err)
-	}
-
-	return nil
 }
 
 // lockBuildDir acquires a file-based lock for the given build hash to prevent
