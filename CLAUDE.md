@@ -156,7 +156,7 @@ Built-in bindings: Escape=interrupt, Ctrl+C=double-press (first clears editor, s
 **Provider selection priority** (highest to lowest):
 1. `WEAVE_PROVIDER` env var (explicit user override)
 2. `settings.json` `"provider"` field (persisted user preference)
-3. First registered provider (`sdk.ListProviders()[0]`)
+3. Alphabetically first registered provider (`sdk.ListProviders()[0]`)
 4. `"anthropic"` (ultimate fallback)
 
 **Extension management:**
