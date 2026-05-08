@@ -82,12 +82,58 @@ func resolveProviderName(envProvider string, cfg sdk.Config) string {
 	return "anthropic"
 }
 
+// resolveModelName reads the persisted model from settings. Returns empty
+// string when no model is set, which lets the provider use its default.
+func resolveModelName(cfg sdk.Config) string {
+	if cfg == nil {
+		return ""
+	}
+
+	var prefs struct {
+		Model string `json:"model,omitempty"`
+	}
+
+	if cfg.Preferences(&prefs) == nil {
+		return prefs.Model
+	}
+
+	return ""
+}
+
+// resolveThinkingLevel reads the persisted thinking level from settings,
+// falling back to WEAVE_THINKING_LEVEL env var, then medium.
+func resolveThinkingLevel(cfg sdk.Config) model.ThinkingLevel {
+	if cfg != nil {
+		var prefs struct {
+			ThinkingLevel string `json:"thinking_level,omitempty"`
+		}
+
+		if cfg.Preferences(&prefs) == nil && prefs.ThinkingLevel != "" {
+			if lvl, err := model.ParseThinkingLevel(prefs.ThinkingLevel); err == nil {
+				return lvl
+			}
+		}
+	}
+
+	return model.DefaultThinkingLevel()
+}
+
 func NewLoop(cfg sdk.Config, providerName string) (*Loop, error) {
+	modelName := resolveModelName(cfg)
+	if modelName != "" {
+		// Clear persisted model if it belongs to a different provider than the
+		// one that won resolveProviderName (e.g. WEAVE_PROVIDER overrides settings).
+		if m, ok := model.GetModel(modelName); ok && m.Provider != providerName {
+			modelName = ""
+		}
+	}
+
 	return &Loop{
 		cfg:           cfg,
 		providerName:  providerName,
+		modelName:     modelName,
 		singleTurn:    os.Getenv("WEAVE_SINGLE_TURN") == "1",
-		thinkingLevel: model.DefaultThinkingLevel(),
+		thinkingLevel: resolveThinkingLevel(cfg),
 	}, nil
 }
 
@@ -206,6 +252,10 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 			if m, ok := evt.Payload.(map[string]string); ok {
 				if p := m["provider"]; p != "" {
 					l.providerName = p
+				}
+
+				if modelName := m["model"]; modelName != "" {
+					l.modelName = modelName
 				}
 			}
 

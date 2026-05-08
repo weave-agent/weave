@@ -189,8 +189,10 @@ func collectTopic(events <-chan sdk.Event, topic string, timeout time.Duration) 
 // mockPrefsConfig is a lightweight sdk.Config that returns a fixed provider from Preferences.
 type mockPrefsConfig struct {
 	sdk.Config
-	provider string
-	prefsErr error
+	provider      string
+	model         string
+	thinkingLevel string
+	prefsErr      error
 }
 
 func (m *mockPrefsConfig) Preferences(target any) error {
@@ -199,10 +201,16 @@ func (m *mockPrefsConfig) Preferences(target any) error {
 	}
 
 	type prefs struct {
-		Provider string `json:"provider"`
+		Provider      string `json:"provider,omitempty"`
+		Model         string `json:"model,omitempty"`
+		ThinkingLevel string `json:"thinking_level,omitempty"`
 	}
 
-	p := prefs{Provider: m.provider}
+	p := prefs{
+		Provider:      m.provider,
+		Model:         m.model,
+		ThinkingLevel: m.thinkingLevel,
+	}
 
 	raw, _ := json.Marshal(p)
 	_ = json.Unmarshal(raw, target)
@@ -1476,4 +1484,193 @@ func TestResolveProviderName_EnvOverridesSettings(t *testing.T) {
 
 	result := resolveProviderName("zai", cfg)
 	assert.Equal(t, "zai", result, "env var should override settings preference")
+}
+
+func TestResolveModelName_FromSettings(t *testing.T) {
+	cfg := &mockPrefsConfig{model: "claude-opus-4-7"}
+
+	result := resolveModelName(cfg)
+	assert.Equal(t, "claude-opus-4-7", result)
+}
+
+func TestResolveModelName_EmptyWhenUnset(t *testing.T) {
+	cfg := &mockPrefsConfig{}
+
+	result := resolveModelName(cfg)
+	assert.Empty(t, result)
+}
+
+func TestResolveModelName_NilConfig(t *testing.T) {
+	result := resolveModelName(nil)
+	assert.Empty(t, result)
+}
+
+func TestResolveModelName_PrefsError(t *testing.T) {
+	cfg := &mockPrefsConfig{model: "claude-opus-4-7", prefsErr: assert.AnError}
+
+	result := resolveModelName(cfg)
+	assert.Empty(t, result)
+}
+
+func TestResolveThinkingLevel_FromSettings(t *testing.T) {
+	cfg := &mockPrefsConfig{thinkingLevel: "high"}
+
+	result := resolveThinkingLevel(cfg)
+	assert.Equal(t, model.ThinkingHigh, result)
+}
+
+func TestResolveThinkingLevel_FallsBackToEnvVar(t *testing.T) {
+	t.Setenv("WEAVE_THINKING_LEVEL", "low")
+
+	cfg := &mockPrefsConfig{}
+
+	result := resolveThinkingLevel(cfg)
+	assert.Equal(t, model.ThinkingLow, result)
+}
+
+func TestResolveThinkingLevel_SettingsOverEnvVar(t *testing.T) {
+	t.Setenv("WEAVE_THINKING_LEVEL", "low")
+
+	cfg := &mockPrefsConfig{thinkingLevel: "high"}
+
+	result := resolveThinkingLevel(cfg)
+	assert.Equal(t, model.ThinkingHigh, result, "settings should take priority over env var")
+}
+
+func TestResolveThinkingLevel_DefaultMedium(t *testing.T) {
+	result := resolveThinkingLevel(nil)
+	assert.Equal(t, model.ThinkingMedium, result)
+}
+
+func TestResolveThinkingLevel_InvalidFallsBack(t *testing.T) {
+	cfg := &mockPrefsConfig{thinkingLevel: "garbage"}
+
+	result := resolveThinkingLevel(cfg)
+	assert.Equal(t, model.ThinkingMedium, result, "invalid thinking level should fall back to DefaultThinkingLevel")
+}
+
+func TestNewLoop_ReadsModelFromSettings(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mp := &ProviderMock{}
+	registerMockProvider("anthropic", mp)
+
+	cfg := &mockPrefsConfig{model: "claude-opus-4-7", thinkingLevel: "high"}
+
+	l, err := NewLoop(cfg, "anthropic")
+	require.NoError(t, err)
+
+	assert.Equal(t, "claude-opus-4-7", l.modelName)
+	assert.Equal(t, model.ThinkingHigh, l.thinkingLevel)
+}
+
+func TestNewLoop_ClearsModelWhenProviderMismatch(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+	defer model.ResetModelRegistry()
+
+	registerMockProvider("anthropic", &ProviderMock{})
+
+	// Register gpt-5.5 as an OpenAI model
+	model.RegisterModel(model.ModelDef{
+		ID:       "gpt-5.5",
+		Provider: "openai",
+	})
+
+	// Settings have provider=openai, model=gpt-5.5, but WEAVE_PROVIDER=anthropic wins
+	cfg := &mockPrefsConfig{provider: "openai", model: "gpt-5.5"}
+
+	l, err := NewLoop(cfg, "anthropic")
+	require.NoError(t, err)
+
+	assert.Empty(t, l.modelName, "model should be cleared when it belongs to a different provider")
+}
+
+func TestNewLoop_KeepsModelWhenSameProvider(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+	defer model.ResetModelRegistry()
+
+	registerMockProvider("anthropic", &ProviderMock{})
+
+	model.RegisterModel(model.ModelDef{
+		ID:       "claude-opus-4-7",
+		Provider: "anthropic",
+	})
+
+	cfg := &mockPrefsConfig{model: "claude-opus-4-7"}
+
+	l, err := NewLoop(cfg, "anthropic")
+	require.NoError(t, err)
+
+	assert.Equal(t, "claude-opus-4-7", l.modelName, "model should be kept when provider matches")
+}
+
+func TestNewLoop_KeepsUnregisteredModel(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+	defer model.ResetModelRegistry()
+
+	registerMockProvider("anthropic", &ProviderMock{})
+
+	// Model not in registry — user might be using a custom model name
+	cfg := &mockPrefsConfig{model: "my-custom-model"}
+
+	l, err := NewLoop(cfg, "anthropic")
+	require.NoError(t, err)
+
+	assert.Equal(t, "my-custom-model", l.modelName, "unregistered model should be kept (custom model)")
+}
+
+func TestLoop_HeadlessUsesPersistedModel(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	var capturedOpts []model.StreamOption
+
+	var mu sync.Mutex
+
+	mp := &ProviderMock{
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, opts ...model.StreamOption) (<-chan sdk.ProviderEvent, error) {
+			mu.Lock()
+			capturedOpts = opts
+			mu.Unlock()
+
+			ch := make(chan sdk.ProviderEvent, 1)
+			ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "ok"}
+
+			close(ch)
+
+			return ch, nil
+		},
+	}
+	registerMockProvider("anthropic", mp)
+
+	// Simulate headless: config has persisted model, no TUI will publish model.change
+	cfg := &mockPrefsConfig{model: "claude-opus-4-7", thinkingLevel: "high"}
+
+	l, err := NewLoop(cfg, "anthropic")
+	require.NoError(t, err)
+
+	b := bus.New()
+	defer b.Close()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, l.Subscribe(b))
+
+	// Simulate headless: publish prompt directly without any model.change
+	b.Publish(sdk.NewEvent(TopicPrompt, "headless prompt"))
+
+	_, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for msg_end")
+
+	mu.Lock()
+	so := model.NewStreamOptions(capturedOpts...)
+	mu.Unlock()
+
+	assert.Equal(t, "claude-opus-4-7", so.Model, "headless mode should use persisted model")
+	assert.Equal(t, model.ThinkingHigh, so.ThinkingLevel, "headless mode should use persisted thinking level")
+
+	require.NoError(t, l.Close())
 }
