@@ -52,6 +52,19 @@ func TestValidate_EmptyAgentLoop(t *testing.T) {
 	assert.Equal(t, "core.agent_loop", errs[0].Field)
 }
 
+func TestValidate_InvalidAgentLoopChars(t *testing.T) {
+	f := validFile()
+	f.Core.AgentLoop = "my loop!"
+	err := Validate(f)
+	require.Error(t, err)
+
+	var errs ValidationErrors
+	require.ErrorAs(t, err, &errs)
+	require.Len(t, errs, 1)
+	assert.Equal(t, "core.agent_loop", errs[0].Field)
+	assert.Contains(t, errs[0].Message, "my loop!")
+}
+
 func TestValidate_ExcludeExtensionsValid(t *testing.T) {
 	f := validFile()
 	f.ExcludeExtensions = []string{"bash", "custom-ext"}

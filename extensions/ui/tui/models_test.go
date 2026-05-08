@@ -99,12 +99,18 @@ func TestCurrentModel_EnvProviderNotInEntries(t *testing.T) {
 }
 
 func TestCurrentModel_PreferencesProviderOnly(t *testing.T) {
+	sdkmodel.ResetModelRegistry()
+	defer sdkmodel.ResetModelRegistry()
+
+	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "gpt-5.5", Provider: "openai", Default: true})
+	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "gpt-5.4", Provider: "openai"})
+
 	entries := []ModelEntry{
 		{Provider: "openai", Model: "gpt-5.5"},
 		{Provider: "anthropic", Model: "claude-sonnet-4-6"},
 	}
 
-	// Preferences with provider but no model — should fall through to env/default
+	// Preferences with provider but no model — should use provider's default model.
 	mockCfg := &mockConfig{
 		preferences: map[string]string{
 			"provider": "openai",
@@ -112,8 +118,27 @@ func TestCurrentModel_PreferencesProviderOnly(t *testing.T) {
 	}
 
 	cur := currentModel(entries, mockCfg)
-	// Provider-only preferences don't match (requires both provider + model),
-	// so falls through to first available entry
+	assert.Equal(t, "openai", cur.Provider)
+	assert.Equal(t, "gpt-5.5", cur.Model)
+}
+
+func TestCurrentModel_PreferencesProviderOnly_NoRegistryFallback(t *testing.T) {
+	sdkmodel.ResetModelRegistry()
+	defer sdkmodel.ResetModelRegistry()
+
+	entries := []ModelEntry{
+		{Provider: "openai", Model: "gpt-5.5"},
+		{Provider: "anthropic", Model: "claude-sonnet-4-6"},
+	}
+
+	// No model registered for "openai" — should fall back to first matching entry.
+	mockCfg := &mockConfig{
+		preferences: map[string]string{
+			"provider": "openai",
+		},
+	}
+
+	cur := currentModel(entries, mockCfg)
 	assert.Equal(t, "openai", cur.Provider)
 	assert.Equal(t, "gpt-5.5", cur.Model)
 }
@@ -752,6 +777,27 @@ func TestCurrentModel_LayeredSettings(t *testing.T) {
 
 	cur := currentModel(entries, mockCfg)
 	assert.Equal(t, "openai", cur.Provider)
+	assert.Equal(t, "gpt-5.5", cur.Model)
+}
+
+func TestCurrentModel_EnvOverridesSettings(t *testing.T) {
+	entries := []ModelEntry{
+		{Provider: "anthropic", Model: "claude-sonnet-4-6"},
+		{Provider: "openai", Model: "gpt-5.5"},
+	}
+
+	// Settings say anthropic, but env says openai — env wins.
+	t.Setenv("WEAVE_PROVIDER", "openai")
+
+	mockCfg := &mockConfig{
+		preferences: map[string]string{
+			"provider": "anthropic",
+			"model":    "claude-sonnet-4-6",
+		},
+	}
+
+	cur := currentModel(entries, mockCfg)
+	assert.Equal(t, "openai", cur.Provider, "WEAVE_PROVIDER should override settings")
 	assert.Equal(t, "gpt-5.5", cur.Model)
 }
 

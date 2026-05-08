@@ -52,7 +52,21 @@ func run(ctx context.Context, args ...string) (exitCode int) {
 		return 1
 	}
 
-	projectDir := config.ProjectDirFromConfig(configFile)
+	projectDir, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "weave: %v\n", err)
+		return 1
+	}
+
+	// When a project-local config was found (not global fallback), derive the
+	// project directory from the config file path. This ensures auto-discovery
+	// scans the correct .weave/extensions/ directory when running from a subdir.
+	if configFile != "" {
+		globalDir, _ := config.GlobalConfigDir()
+		if globalDir == "" || !strings.HasPrefix(configFile, globalDir+string(os.PathSeparator)) {
+			projectDir = config.ProjectDirFromConfig(configFile)
+		}
+	}
 
 	if cf.Prompt == "" && (cf.UI == "" || cf.UI == config.UIValueNone) {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", errNoInput)

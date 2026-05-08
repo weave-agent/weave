@@ -368,6 +368,7 @@ func parseSingleReplace(s, dir string, result map[string]string) {
 //   - --weave-config=<path> to pass config to extensions
 //   - --weave-prompt-file=<path> to read the initial prompt from a file
 //   - --weave-agent-loop=<name> for core wiring
+//   - --weave-project-dir=<path> to override project dir for settings resolution
 func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 	var b strings.Builder
 	b.WriteString("package main\n\n")
@@ -395,6 +396,7 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 	b.WriteString("\tvar promptFilePath string\n")
 	b.WriteString("\tvar agentLoopName string\n")
 	b.WriteString("\tvar headlessFlag string\n")
+	b.WriteString("\tvar projectDir string\n")
 	b.WriteString("\tfiltered := make([]string, 0, len(os.Args)-1)\n")
 	b.WriteString("\tfor _, a := range os.Args[1:] {\n")
 	b.WriteString("\t\tif p, ok := strings.CutPrefix(a, \"--weave-config=\"); ok {\n")
@@ -405,6 +407,8 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 	b.WriteString("\t\t\tagentLoopName = p\n")
 	b.WriteString("\t\t} else if p, ok := strings.CutPrefix(a, \"--weave-headless=\"); ok {\n")
 	b.WriteString("\t\t\theadlessFlag = p\n")
+	b.WriteString("\t\t} else if p, ok := strings.CutPrefix(a, \"--weave-project-dir=\"); ok {\n")
+	b.WriteString("\t\t\tprojectDir = p\n")
 	b.WriteString("\t\t} else {\n")
 	b.WriteString("\t\t\tfiltered = append(filtered, a)\n")
 	b.WriteString("\t\t}\n")
@@ -437,6 +441,9 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 	b.WriteString("\t\tos.Exit(1)\n")
 	b.WriteString("\t}\n")
 	b.WriteString("\tcfg = fullCfg\n")
+	b.WriteString("\tif projectDir != \"\" {\n")
+	b.WriteString("\t\tfullCfg.SetProjectDir(projectDir)\n")
+	b.WriteString("\t}\n")
 	b.WriteString("\tif cfgPath != \"\" {\n")
 	b.WriteString("\t\tconfig.EnsureLocalSettingsExcluded(config.ProjectDirFromConfig(cfgPath))\n")
 	b.WriteString("\t}\n")
@@ -455,6 +462,12 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 			continue
 		}
 
+		// When using a custom agent loop, also exclude the default "loop" —
+		// it subscribes to agent.prompt and would run turns concurrently.
+		if ext.Name == "loop" && agentLoop != "loop" {
+			continue
+		}
+
 		optExtNames = append(optExtNames, `"`+ext.Name+`"`)
 	}
 
@@ -465,7 +478,7 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 	}
 
 	b.WriteString("\n")
-	b.WriteString("\tcore := wire.CoreWireConfig{AgentLoop: \"" + agentLoop + "\"}\n")
+	b.WriteString("\tcore := wire.CoreWireConfig{AgentLoop: " + strconv.Quote(agentLoop) + "}\n")
 	b.WriteString("\tif agentLoopName != \"\" {\n")
 	b.WriteString("\t\tcore.AgentLoop = agentLoopName\n")
 	b.WriteString("\t}\n")

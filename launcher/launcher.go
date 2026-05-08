@@ -61,7 +61,7 @@ func (l *Launcher) Run(ctx context.Context, projectDir string, args []string, co
 		}
 	}
 
-	return l.exec(ctx, binPath, configPath, agentLoop, headless, args)
+	return l.exec(ctx, binPath, configPath, agentLoop, headless, projectDir, args)
 }
 
 func (l *Launcher) buildAndCache(hash, agentLoop string, headless bool, exts []ExtensionInfo) (string, error) {
@@ -118,7 +118,7 @@ func (l *Launcher) buildDir(hash string) string {
 	return filepath.Join(os.TempDir(), "weave-build-"+hash)
 }
 
-func (l *Launcher) exec(_ context.Context, binPath, configPath, agentLoop string, headless bool, args []string) error {
+func (l *Launcher) exec(_ context.Context, binPath, configPath, agentLoop string, headless bool, projectDir string, args []string) error {
 	argv := []string{binPath}
 	if configPath != "" {
 		argv = append(argv, "--weave-config="+configPath)
@@ -128,6 +128,10 @@ func (l *Launcher) exec(_ context.Context, binPath, configPath, agentLoop string
 
 	if headless {
 		argv = append(argv, "--weave-headless=true")
+	}
+
+	if projectDir != "" {
+		argv = append(argv, "--weave-project-dir="+projectDir)
 	}
 
 	argv = append(argv, args...)
