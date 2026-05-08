@@ -23,8 +23,6 @@ const (
 
 	// DefaultAgentLoop is the default agent loop extension name.
 	DefaultAgentLoop = "loop"
-	// DefaultProvider is the default provider name.
-	DefaultProvider = "anthropic"
 	// ExtBash is the bash tool extension name.
 	ExtBash = "bash"
 )
@@ -310,9 +308,16 @@ func LoadFullConfig(path string) (*FullConfig, error) {
 
 // FullConfig implements sdk.Config with auth resolution and provider config lookup.
 type FullConfig struct {
-	filePath string
-	file     *File
-	auth     *AuthFile
+	filePath   string
+	file       *File
+	auth       *AuthFile
+	projectDir string
+}
+
+// SetProjectDir overrides the project directory used for layered settings resolution.
+// When set, it takes precedence over the directory derived from the config file path.
+func (c *FullConfig) SetProjectDir(dir string) {
+	c.projectDir = dir
 }
 
 var _ sdk.Config = (*FullConfig)(nil)
@@ -331,6 +336,16 @@ func (c *FullConfig) ProviderConfig(name string) *sdk.ProviderConfigEntry {
 		BaseURL:   e.BaseURL,
 		APIKey:    e.APIKey,
 	}
+}
+
+// effectiveProjectDir returns the override project dir if set, otherwise derives
+// it from the config file path.
+func (c *FullConfig) effectiveProjectDir() string {
+	if c.projectDir != "" {
+		return c.projectDir
+	}
+
+	return ProjectDirFromConfig(c.filePath)
 }
 
 func (c *FullConfig) ResolveKey(providerName, envVar string) (string, error) {
@@ -358,7 +373,7 @@ func ProjectDirFromConfig(configPath string) string {
 func (c *FullConfig) ToolConfig(name string, target any) error {
 	applyDefaults(target)
 
-	configDir := ProjectDirFromConfig(c.filePath)
+	configDir := c.effectiveProjectDir()
 
 	settings, err := LoadLayeredSettings(configDir)
 	if err != nil {
@@ -380,7 +395,7 @@ func (c *FullConfig) ToolConfig(name string, target any) error {
 func (c *FullConfig) UIConfig(target any) error {
 	applyDefaults(target)
 
-	configDir := ProjectDirFromConfig(c.filePath)
+	configDir := c.effectiveProjectDir()
 
 	settings, err := LoadLayeredSettings(configDir)
 	if err != nil {
@@ -399,7 +414,7 @@ func (c *FullConfig) IsHeadless() bool { return false }
 func (c *FullConfig) Preferences(target any) error {
 	applyDefaults(target)
 
-	configDir := ProjectDirFromConfig(c.filePath)
+	configDir := c.effectiveProjectDir()
 
 	settings, err := LoadLayeredSettings(configDir)
 	if err != nil {

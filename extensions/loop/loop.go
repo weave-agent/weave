@@ -60,7 +60,7 @@ func init() {
 // resolveProviderName picks the initial provider using priority:
 //  1. WEAVE_PROVIDER env var (explicit user override)
 //  2. settings.json "provider" field (persisted user preference)
-//  3. first registered provider (sdk.ListProviders()[0])
+//  3. alphabetically first registered provider (sdk.ListProviders()[0])
 //  4. "anthropic" (ultimate fallback)
 func resolveProviderName(envProvider string, cfg sdk.Config) string {
 	if envProvider != "" {

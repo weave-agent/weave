@@ -47,7 +47,13 @@ func AutoDiscover(projectDir, homeDir, moduleRoot string, exclude []string) ([]E
 
 		err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
-				return err
+				fmt.Fprintf(os.Stderr, "warning: auto-discover: walk %s: %v\n", path, err)
+
+				if d != nil && d.IsDir() {
+					return fs.SkipDir
+				}
+
+				return nil
 			}
 
 			if !d.IsDir() {
