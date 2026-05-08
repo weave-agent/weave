@@ -183,6 +183,7 @@ func TestRunInstall_NameWithEqualsForm(t *testing.T) {
 	srcDir := t.TempDir()
 	extDir := filepath.Join(srcDir, "original-name")
 	require.NoError(t, os.MkdirAll(extDir, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, "go.mod"), []byte("module test/ext\n\ngo 1.22\n"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(extDir, "main.go"), []byte("package main\n"), 0o600))
 
 	homeDir := t.TempDir()
@@ -211,6 +212,7 @@ func TestRunInstall_LocalPath(t *testing.T) {
 	srcDir := t.TempDir()
 	extDir := filepath.Join(srcDir, "my-tool")
 	require.NoError(t, os.MkdirAll(extDir, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, "go.mod"), []byte("module test/ext\n\ngo 1.22\n"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(extDir, "main.go"), []byte("package main\n"), 0o600))
 
 	homeDir := t.TempDir()
@@ -233,6 +235,7 @@ func TestRunInstall_LocalPathWithExplicitName(t *testing.T) {
 	srcDir := t.TempDir()
 	extDir := filepath.Join(srcDir, "original-name")
 	require.NoError(t, os.MkdirAll(extDir, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, "go.mod"), []byte("module test/ext\n\ngo 1.22\n"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(extDir, "main.go"), []byte("package main\n"), 0o600))
 
 	homeDir := t.TempDir()
@@ -268,6 +271,7 @@ func TestRunInstall_OverwriteExisting(t *testing.T) {
 	srcDir := t.TempDir()
 	extDir := filepath.Join(srcDir, "my-tool")
 	require.NoError(t, os.MkdirAll(extDir, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, "go.mod"), []byte("module test/ext\n\ngo 1.22\n"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(extDir, "main.go"), []byte("package main // v2\n"), 0o600))
 
 	homeDir := t.TempDir()
@@ -292,6 +296,7 @@ func TestRunInstall_SkipsHiddenDirs(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(extDir, ".git", "objects"), 0o750))
 	require.NoError(t, os.WriteFile(filepath.Join(extDir, ".git", "config"), []byte("[remote]\n  url = secret\n"), 0o600))
 	require.NoError(t, os.MkdirAll(extDir, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, "go.mod"), []byte("module test/ext\n\ngo 1.22\n"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(extDir, "main.go"), []byte("package main\n"), 0o600))
 
 	homeDir := t.TempDir()
@@ -314,6 +319,7 @@ func TestRunInstall_FailedValidationPreservesExisting(t *testing.T) {
 	srcDir := t.TempDir()
 	goodExt := filepath.Join(srcDir, "my-tool")
 	require.NoError(t, os.MkdirAll(goodExt, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(goodExt, "go.mod"), []byte("module test/ext\n\ngo 1.22\n"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(goodExt, "main.go"), []byte("package main // v1\n"), 0o600))
 
 	homeDir := t.TempDir()

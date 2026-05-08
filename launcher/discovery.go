@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -14,7 +15,7 @@ type ExtensionInfo struct {
 	Dir        string
 	GoFiles    []string
 	ModulePath string // e.g. "weave/ext/tools/bash"; populated by builder
-	IsUIExt    bool   // true if the extension registers UI elements via RegisterUIExtension
+	IsUIExt    bool   // true if the extension registers UI elements (RegisterUI or RegisterUIExtension)
 }
 
 // AutoDiscover recursively scans extension directories to find all Go modules.
@@ -70,6 +71,10 @@ func AutoDiscover(projectDir, homeDir, moduleRoot string, exclude []string) ([]E
 			}
 
 			name := filepath.Base(path)
+			if !isValidExtName(name) {
+				return nil
+			}
+
 			if seen[name] {
 				return nil // already found at higher precedence
 			}
@@ -118,7 +123,9 @@ func AutoDiscover(projectDir, homeDir, moduleRoot string, exclude []string) ([]E
 	return exts, nil
 }
 
-// detectUIExtension scans the .go files for RegisterUIExtension calls.
+// detectUIExtension scans the .go files for UI-related registrations:
+// RegisterUIExtension (TUI plugins) and RegisterUI (the TUI itself).
+// Any extension matching these patterns is excluded from headless builds.
 func detectUIExtension(goFiles []string) bool {
 	for _, f := range goFiles {
 		data, err := os.ReadFile(f)
@@ -126,7 +133,8 @@ func detectUIExtension(goFiles []string) bool {
 			continue
 		}
 
-		if strings.Contains(string(data), "RegisterUIExtension(") {
+		src := string(data)
+		if strings.Contains(src, "RegisterUIExtension(") || strings.Contains(src, "RegisterUI(") {
 			return true
 		}
 	}
@@ -171,4 +179,10 @@ func collectGoFiles(dir string) ([]string, error) {
 	sort.Strings(files)
 
 	return files, nil
+}
+
+var extNameRe = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+
+func isValidExtName(name string) bool {
+	return extNameRe.MatchString(name)
 }

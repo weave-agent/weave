@@ -217,6 +217,16 @@ func TestAutoDetectUIExtension_NoRegisterUIExtension(t *testing.T) {
 	assert.False(t, detectUIExtension(goFiles))
 }
 
+func TestAutoDetectUIExtension_DetectsRegisterUI(t *testing.T) {
+	dir := t.TempDir()
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "ui.go"), []byte("package x\n\nfunc init() { RegisterUI(\"tui\", nil) }\n"), 0o600))
+
+	goFiles := []string{filepath.Join(dir, "ui.go")}
+
+	assert.True(t, detectUIExtension(goFiles))
+}
+
 func TestAutoDiscover_ExcludeList(t *testing.T) {
 	projectDir := t.TempDir()
 	homeDir := t.TempDir()
@@ -230,6 +240,19 @@ func TestAutoDiscover_ExcludeList(t *testing.T) {
 
 	require.Len(t, exts, 1)
 	assert.Equal(t, "keep", exts[0].Name)
+}
+
+func TestAutoDiscover_SkipsInvalidName(t *testing.T) {
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+	moduleRoot := t.TempDir()
+
+	extBase := filepath.Join(projectDir, ".weave", "extensions")
+	createExtension(t, extBase, "bad name", "package bad")
+
+	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	require.NoError(t, err)
+	assert.Empty(t, exts, "extension with spaces in name should be skipped")
 }
 
 func TestAutoDiscover_NoExtensionsFound(t *testing.T) {

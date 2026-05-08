@@ -97,6 +97,7 @@ func TestRun_InstallSubcommand(t *testing.T) {
 	extDir := filepath.Join(dir, "test-ext")
 	require.NoError(t, os.MkdirAll(extDir, 0o750))
 	require.NoError(t, os.WriteFile(filepath.Join(extDir, "main.go"), []byte("package main\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, "go.mod"), []byte("module test/ext\n\ngo 1.22\n"), 0o600))
 
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
