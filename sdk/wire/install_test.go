@@ -267,6 +267,23 @@ func TestRunInstall_LocalPathNoGoFiles(t *testing.T) {
 	assert.True(t, os.IsNotExist(err), "dest dir should be cleaned up when no .go files")
 }
 
+func TestRunInstall_LocalPathNoGoMod(t *testing.T) {
+	srcDir := t.TempDir()
+	extDir := filepath.Join(srcDir, "no-mod-ext")
+	require.NoError(t, os.MkdirAll(extDir, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, "main.go"), []byte("package main\n"), 0o600))
+
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	code := runInstall([]string{extDir})
+	assert.Equal(t, 1, code)
+
+	destDir := filepath.Join(homeDir, ".weave", "extensions", "no-mod-ext")
+	_, err := os.Stat(destDir)
+	assert.True(t, os.IsNotExist(err), "dest dir should be cleaned up when no go.mod")
+}
+
 func TestRunInstall_OverwriteExisting(t *testing.T) {
 	srcDir := t.TempDir()
 	extDir := filepath.Join(srcDir, "my-tool")

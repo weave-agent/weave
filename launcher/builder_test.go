@@ -284,7 +284,32 @@ func TestGenerateMainGo_Content(t *testing.T) {
 	assert.Contains(t, s, "shutdown error")
 	assert.Contains(t, s, "os.Args = append([]string{os.Args[0]}, filtered...)")
 	assert.Contains(t, s, "--weave-headless=")
+	assert.Contains(t, s, "--weave-project-dir=")
+	assert.Contains(t, s, "fullCfg.SetProjectDir(projectDir)")
 	assert.Contains(t, s, "sdk.HeadlessConfig")
+}
+
+func TestGenerateMainGo_CustomAgentLoopExcludesDefaultLoop(t *testing.T) {
+	dir := t.TempDir()
+	exts := []ExtensionInfo{
+		{Name: "loop", Dir: "/tmp/exts/loop", ModulePath: "weave/ext/loop"},
+		{Name: "my-loop", Dir: "/tmp/exts/my-loop", ModulePath: "weave/ext/my-loop"},
+		{Name: "bash", Dir: "/tmp/exts/bash", ModulePath: "weave/ext/bash"},
+	}
+
+	require.NoError(t, GenerateMainGo(dir, exts, "my-loop"))
+
+	content, err := os.ReadFile(filepath.Join(dir, "main.go"))
+	require.NoError(t, err)
+
+	s := string(content)
+	// optExts should only contain "bash" — both "loop" and "my-loop" are excluded.
+	assert.Contains(t, s, `optExts = []string{"bash"}`, "optExts should only have bash")
+	assert.NotContains(t, s, `optExts = []string{"loop"`, "loop should not be in optExts")
+	// Blank imports still include all extensions for registration.
+	assert.Contains(t, s, `_ "weave/ext/loop"`)
+	assert.Contains(t, s, `_ "weave/ext/my-loop"`)
+	assert.Contains(t, s, `_ "weave/ext/bash"`)
 }
 
 func TestBuild_WithTrivialExtension(t *testing.T) {

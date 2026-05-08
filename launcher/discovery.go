@@ -5,9 +5,10 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
+
+	"weave/config"
 )
 
 type ExtensionInfo struct {
@@ -36,7 +37,11 @@ func AutoDiscover(projectDir, homeDir, moduleRoot string, exclude []string) ([]E
 	}
 
 	for _, root := range roots {
-		if _, err := os.Stat(root); os.IsNotExist(err) {
+		if _, err := os.Stat(root); err != nil {
+			if !os.IsNotExist(err) {
+				fmt.Fprintf(os.Stderr, "warning: auto-discover: stat %s: %v\n", root, err)
+			}
+
 			continue
 		}
 
@@ -51,6 +56,11 @@ func AutoDiscover(projectDir, homeDir, moduleRoot string, exclude []string) ([]E
 
 			if path == root {
 				return nil // skip the root directory itself
+			}
+
+			// Skip hidden/VCS directories (e.g. .git, .hg).
+			if strings.HasPrefix(d.Name(), ".") {
+				return fs.SkipDir
 			}
 
 			// Check if this directory has a go.mod
@@ -71,7 +81,7 @@ func AutoDiscover(projectDir, homeDir, moduleRoot string, exclude []string) ([]E
 			}
 
 			name := filepath.Base(path)
-			if !isValidExtName(name) {
+			if !config.ValidExtName(name) {
 				return nil
 			}
 
@@ -179,10 +189,4 @@ func collectGoFiles(dir string) ([]string, error) {
 	sort.Strings(files)
 
 	return files, nil
-}
-
-var extNameRe = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
-
-func isValidExtName(name string) bool {
-	return extNameRe.MatchString(name)
 }

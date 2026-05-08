@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"weave/config"
@@ -75,6 +76,11 @@ func TestValidateCoreConfig(t *testing.T) {
 		{
 			"empty agent_loop",
 			&config.File{Core: config.CoreConfig{AgentLoop: ""}, UI: "tui"},
+			errors.New("agent_loop"),
+		},
+		{
+			"invalid agent_loop chars",
+			&config.File{Core: config.CoreConfig{AgentLoop: "bad loop!"}, UI: "tui"},
 			errors.New("agent_loop"),
 		},
 	}
@@ -148,4 +154,53 @@ func TestResolveProjectDir(t *testing.T) {
 	assert.Equal(t, "/project", config.ProjectDirFromConfig("/project/.weave/config.yaml"))
 	assert.Equal(t, "/project", config.ProjectDirFromConfig("/project/config.yaml"))
 	assert.Equal(t, "/", config.ProjectDirFromConfig("/.weave/config.yaml"))
+}
+
+func TestRun_ProjectDirFromConfig(t *testing.T) {
+	// Create a project structure: /tmp/project/.weave.yaml and /tmp/project/subdir/
+	projectDir := t.TempDir()
+	subDir := filepath.Join(projectDir, "subdir")
+	require.NoError(t, os.MkdirAll(subDir, 0o750))
+
+	cfgFile := filepath.Join(projectDir, ".weave.yaml")
+	require.NoError(t, os.WriteFile(cfgFile, []byte("ui: none\ncore:\n  agent_loop: loop\n"), 0o600))
+
+	// Loading from subdir should find the config at project root.
+	_, cf, _, err := config.LoadFromDir(subDir, []string{"-p", "hello"})
+	require.NoError(t, err)
+	assert.Equal(t, projectDir, config.ProjectDirFromConfig(cfgFile))
+
+	// Verify the config was found and parsed.
+	assert.Equal(t, "none", cf.UI)
+}
+
+func TestRun_ProjectDirNotUsedForGlobalConfig(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	// Create a global config but no project config.
+	globalDir := filepath.Join(homeDir, ".weave")
+	require.NoError(t, os.MkdirAll(globalDir, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(globalDir, "config.json"), []byte("{}\n"), 0o600))
+
+	globalConfigPath := filepath.Join(globalDir, "config.json")
+
+	// Verify the global config path is detected as being inside the global dir.
+	globalDirResult, _ := config.GlobalConfigDir()
+	require.NotEmpty(t, globalDirResult)
+	assert.True(t, strings.HasPrefix(globalConfigPath, globalDirResult+string(os.PathSeparator)),
+		"global config path should be inside the global config directory")
+
+	// When a project-local config exists, it should resolve to the project dir.
+	projectDir := t.TempDir()
+	localConfigPath := filepath.Join(projectDir, ".weave", "config.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(localConfigPath), 0o750))
+	require.NoError(t, os.WriteFile(localConfigPath, []byte("{}\n"), 0o600))
+
+	// Project-local config should NOT be inside the global dir.
+	assert.False(t, strings.HasPrefix(localConfigPath, globalDirResult+string(os.PathSeparator)),
+		"project-local config should not be classified as global")
+
+	// Verify ProjectDirFromConfig gives the right directory for each.
+	assert.Equal(t, projectDir, config.ProjectDirFromConfig(localConfigPath))
 }

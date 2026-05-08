@@ -70,8 +70,7 @@ func (errs ValidationErrors) Error() string {
 	return strings.Join(msgs, "; ")
 }
 
-// Validate checks a File for configuration errors. Path-based extension entries
-// are not resolved (use ValidateWithConfigDir for full validation).
+// Validate checks a File for configuration errors.
 func Validate(f *File) error {
 	return ValidateWithConfigDir(f, "")
 }
@@ -93,6 +92,11 @@ func ValidateWithConfigDir(f *File, configDir string) error {
 		errs = append(errs, ValidationError{
 			Field:   "core.agent_loop",
 			Message: "must not be empty",
+		})
+	} else if !validName.MatchString(f.Core.AgentLoop) {
+		errs = append(errs, ValidationError{
+			Field:   "core.agent_loop",
+			Message: fmt.Sprintf("invalid agent_loop name %q (must match [a-zA-Z0-9_-]+)", f.Core.AgentLoop),
 		})
 	}
 
