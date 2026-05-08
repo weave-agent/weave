@@ -440,7 +440,7 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 	b.WriteString("\tif cfgPath != \"\" {\n")
 	b.WriteString("\t\tconfig.EnsureLocalSettingsExcluded(config.ProjectDirFromConfig(cfgPath))\n")
 	b.WriteString("\t}\n")
-	b.WriteString("\theadless := true\n")
+	b.WriteString("\theadless := false\n")
 	b.WriteString("\tif headlessFlag != \"\" {\n")
 	b.WriteString("\t\tif parsed, err := strconv.ParseBool(headlessFlag); err == nil {\n")
 	b.WriteString("\t\t\theadless = parsed\n")

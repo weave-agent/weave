@@ -61,7 +61,8 @@ func AutoDiscover(projectDir, homeDir, moduleRoot string, exclude []string) ([]E
 			// Collect .go files within module boundary
 			goFiles, fileErr := collectGoFiles(path)
 			if fileErr != nil {
-				return nil //nolint:nilerr // I/O error during collection
+				fmt.Fprintf(os.Stderr, "warning: auto-discover: %v\n", fileErr)
+				return nil
 			}
 
 			if len(goFiles) == 0 {
