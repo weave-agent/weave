@@ -66,15 +66,15 @@ Radically simplify weave's extension configuration by moving from explicit compi
 ## Implementation Steps
 
 ### Task 1: Simplify config format and validation
-- [ ] Remove `Extensions`, `UIExtensions` fields from `config.File` struct
-- [ ] Remove `Providers` from `config.CoreConfig` struct
-- [ ] Add `ExcludeExtensions []string` to `config.File`
-- [ ] Remove `AllExtensions()`, `CoreExts()` methods from `config.File`
-- [ ] Update `ValidateWithConfigDir` — remove provider list validation, extension entry validation, ui_extensions validation
-- [ ] Keep `Providers map[string]any` field for per-provider settings (api_key, model, etc.)
-- [ ] Update `DefaultFile()` and `DefaultConfigJSON()` to reflect new format
-- [ ] Write tests for simplified `File` struct and validation
-- [ ] Run `go test ./config/...` — must pass before next task
+- [x] Remove `Extensions`, `UIExtensions` fields from `config.File` struct
+- [x] Remove `Providers` from `config.CoreConfig` struct
+- [x] Add `ExcludeExtensions []string` to `config.File`
+- [x] Remove `AllExtensions()`, `CoreExts()` methods from `config.File`
+- [x] Update `ValidateWithConfigDir` — remove provider list validation, extension entry validation, ui_extensions validation
+- [x] Keep `Providers map[string]any` field for per-provider settings (api_key, model, etc.)
+- [x] Update `DefaultFile()` and `DefaultConfigJSON()` to reflect new format
+- [x] Write tests for simplified `File` struct and validation
+- [x] Run `go test ./config/...` — must pass before next task
 
 ### Task 2: Implement recursive AutoDiscover
 - [ ] Add `IsUIExt bool` field to `launcher.ExtensionInfo`

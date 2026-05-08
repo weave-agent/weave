@@ -13,7 +13,7 @@ import (
 
 func TestFindConfigPath_WeaveYaml(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave.yaml", "extensions: [noop]\n")
+	writeFile(t, dir, ".weave.yaml", "ui: tui\n")
 
 	got, err := FindConfigPath(dir)
 	require.NoError(t, err)
@@ -24,7 +24,7 @@ func TestFindConfigPath_ConfigDir(t *testing.T) {
 	dir := t.TempDir()
 	configDir := filepath.Join(dir, ".weave")
 	mkdir(t, configDir)
-	writeFile(t, configDir, "config.yaml", "extensions: []\n")
+	writeFile(t, configDir, "config.yaml", "ui: tui\n")
 
 	got, err := FindConfigPath(dir)
 	require.NoError(t, err)
@@ -35,7 +35,7 @@ func TestFindConfigPath_WalkUp(t *testing.T) {
 	root := t.TempDir()
 	child := filepath.Join(root, "a", "b", "c")
 	mkdir(t, child)
-	writeFile(t, root, ".weave.yaml", "extensions: []\n")
+	writeFile(t, root, ".weave.yaml", "ui: tui\n")
 
 	got, err := FindConfigPath(child)
 	require.NoError(t, err)
@@ -59,7 +59,7 @@ func TestFindConfigPath_ConfigJSON(t *testing.T) {
 	dir := t.TempDir()
 	configDir := filepath.Join(dir, ".weave")
 	mkdir(t, configDir)
-	writeFile(t, configDir, "config.json", `{"extensions":["noop"]}`)
+	writeFile(t, configDir, "config.json", `{"ui":"tui"}`)
 
 	got, err := FindConfigPath(dir)
 	require.NoError(t, err)
@@ -68,163 +68,46 @@ func TestFindConfigPath_ConfigJSON(t *testing.T) {
 
 func TestFindConfigPath_PrefersWeaveYaml(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave.yaml", "extensions: [first]\n")
+	writeFile(t, dir, ".weave.yaml", "ui: tui\n")
 	configDir := filepath.Join(dir, ".weave")
 	mkdir(t, configDir)
-	writeFile(t, configDir, "config.yaml", "extensions: [second]\n")
+	writeFile(t, configDir, "config.yaml", "ui: none\n")
 
 	got, err := FindConfigPath(dir)
 	require.NoError(t, err)
 	assert.Equal(t, ".weave.yaml", filepath.Base(got))
 }
 
-func TestLoad_Extensions(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, ".weave.yaml", "extensions: [noop, logging]\n")
-
-	_, cf, _, err := LoadFromDir(dir, nil)
-	require.NoError(t, err)
-
-	require.Len(t, cf.Extensions, 2)
-	assert.Equal(t, "noop", cf.Extensions[0])
-	assert.Equal(t, "logging", cf.Extensions[1])
-}
-
 func TestLoad_CoreDefaults(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave.yaml", "extensions: []\n")
+	writeFile(t, dir, ".weave.yaml", "ui: tui\n")
 
 	_, cf, _, err := LoadFromDir(dir, nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, "loop", cf.Core.AgentLoop)
-	assert.Equal(t, []string{"anthropic"}, cf.Core.Providers)
 }
 
 func TestLoad_CoreOverride(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave.yaml", "core:\n  agent_loop: custom-loop\n  providers:\n    - openai\n    - google\nextensions:\n  - bash\n")
+	writeFile(t, dir, ".weave.yaml", "core:\n  agent_loop: custom-loop\n")
 
 	_, cf, _, err := LoadFromDir(dir, nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, "custom-loop", cf.Core.AgentLoop)
-	require.Len(t, cf.Core.Providers, 2)
-	assert.Equal(t, "openai", cf.Core.Providers[0])
-	assert.Equal(t, "google", cf.Core.Providers[1])
-	require.Len(t, cf.Extensions, 1)
-	assert.Equal(t, "bash", cf.Extensions[0])
 }
 
-func TestLoad_CoreExts(t *testing.T) {
+func TestLoad_ExcludeExtensions(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave.yaml", "core:\n  providers:\n    - anthropic\n    - openai\nextensions:\n  - bash\n  - file\n")
+	writeFile(t, dir, ".weave.yaml", "exclude_extensions:\n  - bash\n  - grep\n")
 
 	_, cf, _, err := LoadFromDir(dir, nil)
 	require.NoError(t, err)
 
-	coreExts, optExts := cf.CoreExts()
-
-	expectedCore := []string{"loop", "anthropic", "openai"}
-	require.Len(t, coreExts, len(expectedCore))
-
-	for i, name := range expectedCore {
-		assert.Equal(t, name, coreExts[i])
-	}
-
-	expectedOpt := []string{"bash", "file"}
-	require.Len(t, optExts, len(expectedOpt))
-
-	for i, name := range expectedOpt {
-		assert.Equal(t, name, optExts[i])
-	}
-}
-
-func TestLoad_CoreExtsDefaults(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, ".weave.yaml", "extensions: []\n")
-
-	_, cf, _, err := LoadFromDir(dir, nil)
-	require.NoError(t, err)
-
-	coreExts, optExts := cf.CoreExts()
-
-	require.Len(t, coreExts, 2)
-	assert.Equal(t, "loop", coreExts[0])
-	assert.Equal(t, "anthropic", coreExts[1])
-	assert.Empty(t, optExts)
-}
-
-func TestAllExtensions_Empty(t *testing.T) {
-	f := &File{
-		UI: "tui",
-		Core: CoreConfig{
-			AgentLoop: "loop",
-			Providers: []string{"anthropic"},
-		},
-	}
-
-	got := f.AllExtensions()
-	assert.Equal(t, []string{"loop", "anthropic"}, got)
-}
-
-func TestAllExtensions_WithOptional(t *testing.T) {
-	f := &File{
-		UI:         "tui",
-		Extensions: []string{"bash", "edit"},
-		Core: CoreConfig{
-			AgentLoop: "loop",
-			Providers: []string{"anthropic"},
-		},
-	}
-
-	got := f.AllExtensions()
-	assert.Equal(t, []string{"loop", "anthropic", "bash", "edit"}, got)
-}
-
-func TestAllExtensions_TUIIncludesUIExts(t *testing.T) {
-	f := &File{
-		UI:           "tui",
-		Extensions:   []string{"bash"},
-		UIExtensions: []string{"diff-viewer", "theme"},
-		Core: CoreConfig{
-			AgentLoop: "loop",
-			Providers: []string{"anthropic"},
-		},
-	}
-
-	got := f.AllExtensions()
-	assert.Equal(t, []string{"loop", "anthropic", "bash", "diff-viewer", "theme"}, got)
-}
-
-func TestAllExtensions_NonTUIExcludesUIExts(t *testing.T) {
-	f := &File{
-		UI:           "none",
-		Extensions:   []string{"bash"},
-		UIExtensions: []string{"diff-viewer"},
-		Core: CoreConfig{
-			AgentLoop: "loop",
-			Providers: []string{"anthropic"},
-		},
-	}
-
-	got := f.AllExtensions()
-	assert.Equal(t, []string{"loop", "anthropic", "bash"}, got)
-}
-
-func TestAllExtensions_Deduplicates(t *testing.T) {
-	f := &File{
-		UI:           "tui",
-		Extensions:   []string{"loop", "bash"},
-		UIExtensions: []string{"bash", "theme"},
-		Core: CoreConfig{
-			AgentLoop: "loop",
-			Providers: []string{"anthropic"},
-		},
-	}
-
-	got := f.AllExtensions()
-	assert.Equal(t, []string{"loop", "anthropic", "bash", "theme"}, got)
+	require.Len(t, cf.ExcludeExtensions, 2)
+	assert.Equal(t, "bash", cf.ExcludeExtensions[0])
+	assert.Equal(t, "grep", cf.ExcludeExtensions[1])
 }
 
 func TestLoad_MissingFile(t *testing.T) {
@@ -239,7 +122,6 @@ func TestLoad_MissingFile(t *testing.T) {
 	assert.NotEmpty(t, path, "should have generated a global config")
 	assert.Equal(t, "tui", cf.UI)
 	assert.Equal(t, "loop", cf.Core.AgentLoop)
-	require.Len(t, cf.Extensions, 9)
 
 	_, statErr := os.Stat(path)
 	require.NoError(t, statErr)
@@ -247,7 +129,7 @@ func TestLoad_MissingFile(t *testing.T) {
 
 func TestLoad_UIDefault(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave.yaml", "extensions: []\n")
+	writeFile(t, dir, ".weave.yaml", "ui: tui\n")
 
 	_, cf, _, err := LoadFromDir(dir, nil)
 	require.NoError(t, err)
@@ -257,7 +139,7 @@ func TestLoad_UIDefault(t *testing.T) {
 
 func TestLoad_UIOverride(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave.yaml", "ui: none\nextensions: []\n")
+	writeFile(t, dir, ".weave.yaml", "ui: none\n")
 
 	_, cf, _, err := LoadFromDir(dir, nil)
 	require.NoError(t, err)
@@ -267,7 +149,7 @@ func TestLoad_UIOverride(t *testing.T) {
 
 func TestLoad_UIFlag(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave.yaml", "ui: tui\nextensions: []\n")
+	writeFile(t, dir, ".weave.yaml", "ui: tui\n")
 
 	_, cf, _, err := LoadFromDir(dir, []string{"--ui", "none"})
 	require.NoError(t, err)
@@ -286,18 +168,15 @@ func TestEnsureGlobalConfig_GeneratesFile(t *testing.T) {
 
 	data, readErr := os.ReadFile(path)
 	require.NoError(t, readErr)
-	assert.Contains(t, string(data), `"anthropic"`)
-	assert.Contains(t, string(data), `"openai"`)
-	assert.Contains(t, string(data), `"zai"`)
-	assert.Contains(t, string(data), `"bash"`)
-	assert.Contains(t, string(data), `"jsonl"`)
+	assert.Contains(t, string(data), `"agent_loop"`)
+	assert.Contains(t, string(data), `"loop"`)
 }
 
 func TestEnsureGlobalConfig_SkipsIfProjectConfigExists(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	projectDir := t.TempDir()
-	writeFile(t, projectDir, ".weave.yaml", "extensions: [custom]\n")
+	writeFile(t, projectDir, ".weave.yaml", "ui: none\n")
 
 	path, err := EnsureGlobalConfig(projectDir)
 	require.NoError(t, err)
@@ -309,7 +188,7 @@ func TestEnsureGlobalConfig_SkipsIfGlobalConfigExists(t *testing.T) {
 	t.Setenv("HOME", home)
 	globalDir := filepath.Join(home, ".weave")
 	mkdir(t, globalDir)
-	writeFile(t, globalDir, "config.json", `{"core":{"providers":["openai"]}}`)
+	writeFile(t, globalDir, "config.json", `{"ui":"none"}`)
 	projectDir := t.TempDir()
 
 	path, err := EnsureGlobalConfig(projectDir)
@@ -333,18 +212,17 @@ func TestEnsureGlobalConfig_Idempotent(t *testing.T) {
 
 func TestDefaultConfigJSON(t *testing.T) {
 	j := DefaultConfigJSON()
-	assert.Contains(t, j, `"anthropic"`)
-	assert.Contains(t, j, `"openai"`)
-	assert.Contains(t, j, `"zai"`)
-	assert.Contains(t, j, `"jsonl"`)
-	assert.Contains(t, j, `"instructions"`)
-	assert.Contains(t, j, `"bash"`)
-	assert.Contains(t, j, `"edit"`)
-	assert.Contains(t, j, `"find"`)
-	assert.Contains(t, j, `"grep"`)
-	assert.Contains(t, j, `"ls"`)
-	assert.Contains(t, j, `"read"`)
-	assert.Contains(t, j, `"write"`)
+	assert.Contains(t, j, `"agent_loop"`)
+	assert.Contains(t, j, `"loop"`)
+	assert.Contains(t, j, `"ui"`)
+}
+
+func TestDefaultFile(t *testing.T) {
+	f := DefaultFile()
+	assert.Equal(t, "tui", f.UI)
+	assert.Equal(t, "loop", f.Core.AgentLoop)
+	assert.Empty(t, f.ExcludeExtensions)
+	assert.Nil(t, f.Providers)
 }
 
 func writeFile(t *testing.T, dir, name, content string) {
