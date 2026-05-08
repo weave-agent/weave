@@ -2,7 +2,6 @@ package wire
 
 import (
 	"errors"
-	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -14,8 +13,8 @@ import (
 	"weave/sdk"
 )
 
-func coreCfg(providers ...string) CoreWireConfig {
-	return CoreWireConfig{AgentLoop: "loop", Providers: providers}
+func coreCfg() CoreWireConfig {
+	return CoreWireConfig{AgentLoop: "loop"}
 }
 
 func TestWire_NoExtensions(t *testing.T) {
@@ -213,13 +212,8 @@ func TestWired_CloseReverseOrder(t *testing.T) {
 
 func TestWireWithCore_MergesCoreAndOptional(t *testing.T) {
 	sdk.ResetRegistry()
-	sdk.ResetProviderRegistry()
 
 	var names []string
-
-	sdk.RegisterProvider("anthropic", func(sdk.Config) (sdk.Provider, error) {
-		return &ProviderMock{}, nil
-	})
 
 	reg := func(n string) {
 		sdk.RegisterExtension(n, func(sdk.Config) (sdk.Extension, error) {
@@ -235,7 +229,7 @@ func TestWireWithCore_MergesCoreAndOptional(t *testing.T) {
 
 	bus := &BusMock{}
 
-	_, err := WireWithCore(coreCfg("anthropic"), []string{"bash-tool", "file-tool"}, bus, nil)
+	_, err := WireWithCore(coreCfg(), []string{"bash-tool", "file-tool"}, bus, nil)
 	require.NoError(t, err, "WireWithCore")
 
 	want := []string{"loop", "bash-tool", "file-tool"}
@@ -248,13 +242,8 @@ func TestWireWithCore_MergesCoreAndOptional(t *testing.T) {
 
 func TestWireWithCore_Deduplicates(t *testing.T) {
 	sdk.ResetRegistry()
-	sdk.ResetProviderRegistry()
 
 	var subscribed atomic.Int32
-
-	sdk.RegisterProvider("anthropic", func(sdk.Config) (sdk.Provider, error) {
-		return &ProviderMock{}, nil
-	})
 
 	reg := func(n string) {
 		sdk.RegisterExtension(n, func(sdk.Config) (sdk.Extension, error) {
@@ -270,7 +259,7 @@ func TestWireWithCore_Deduplicates(t *testing.T) {
 	bus := &BusMock{}
 
 	_, err := WireWithCore(
-		coreCfg("anthropic"),
+		coreCfg(),
 		[]string{"bash-tool", "loop"},
 		bus,
 		nil,
@@ -282,11 +271,6 @@ func TestWireWithCore_Deduplicates(t *testing.T) {
 
 func TestWireWithCore_CoreOnly(t *testing.T) {
 	sdk.ResetRegistry()
-	sdk.ResetProviderRegistry()
-
-	sdk.RegisterProvider("anthropic", func(sdk.Config) (sdk.Provider, error) {
-		return &ProviderMock{}, nil
-	})
 
 	var names []string
 
@@ -302,7 +286,7 @@ func TestWireWithCore_CoreOnly(t *testing.T) {
 
 	bus := &BusMock{}
 
-	_, err := WireWithCore(coreCfg("anthropic"), nil, bus, nil)
+	_, err := WireWithCore(coreCfg(), nil, bus, nil)
 	require.NoError(t, err, "WireWithCore")
 
 	require.Len(t, names, 1)
@@ -314,7 +298,7 @@ func TestWireWithCore_ErrMissingAgentLoop(t *testing.T) {
 
 	bus := &BusMock{}
 
-	_, err := WireWithCore(CoreWireConfig{Providers: []string{"anthropic"}}, nil, bus, nil)
+	_, err := WireWithCore(CoreWireConfig{}, nil, bus, nil)
 	require.Error(t, err)
 	assert.Equal(t, "wire: agent-loop is required", err.Error())
 }
@@ -332,36 +316,8 @@ func TestWireWithCore_NoProviderRequired(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestWireWithCore_EmptyProvidersAllowed(t *testing.T) {
-	sdk.ResetRegistry()
-
-	sdk.RegisterExtension("loop", func(sdk.Config) (sdk.Extension, error) {
-		return sdk.NewExtensionFunc("loop", func(sdk.Bus) error { return nil }), nil
-	})
-
-	bus := &BusMock{}
-
-	_, err := WireWithCore(CoreWireConfig{AgentLoop: "loop", Providers: []string{}}, nil, bus, nil)
-	require.NoError(t, err)
-}
-
-func TestWireWithCore_ErrDuplicateProviders(t *testing.T) {
-	sdk.ResetRegistry()
-
-	bus := &BusMock{}
-
-	_, err := WireWithCore(CoreWireConfig{AgentLoop: "loop", Providers: []string{"anthropic", "anthropic"}}, nil, bus, nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "duplicate provider")
-}
-
 func TestWireWithCore_FactoryErrorRollback(t *testing.T) {
 	sdk.ResetRegistry()
-	sdk.ResetProviderRegistry()
-
-	sdk.RegisterProvider("anthropic", func(sdk.Config) (sdk.Provider, error) {
-		return &ProviderMock{}, nil
-	})
 
 	var closed atomic.Int32
 
@@ -377,7 +333,7 @@ func TestWireWithCore_FactoryErrorRollback(t *testing.T) {
 
 	bus := &BusMock{}
 
-	_, err := WireWithCore(coreCfg("anthropic"), []string{"bad"}, bus, nil)
+	_, err := WireWithCore(coreCfg(), []string{"bad"}, bus, nil)
 	require.Error(t, err)
 
 	assert.Equal(t, int32(1), closed.Load())
@@ -408,68 +364,8 @@ func TestWired_CloseErrorAggregation(t *testing.T) {
 	assert.Contains(t, err.Error(), "b failed")
 }
 
-func TestWireWithCore_SyncsProviderEnv(t *testing.T) {
-	sdk.ResetRegistry()
-	sdk.ResetProviderRegistry()
-
-	sdk.RegisterProvider("openai", func(sdk.Config) (sdk.Provider, error) {
-		return &ProviderMock{}, nil
-	})
-
-	var capturedProvider string
-
-	sdk.RegisterExtension("loop", func(sdk.Config) (sdk.Extension, error) {
-		capturedProvider = os.Getenv("WEAVE_PROVIDER")
-		return sdk.NewExtensionFunc("loop", func(sdk.Bus) error { return nil }), nil
-	})
-
-	t.Setenv("WEAVE_PROVIDER", "")
-
-	bus := &BusMock{}
-
-	_, err := WireWithCore(CoreWireConfig{AgentLoop: "loop", Providers: []string{"openai"}}, nil, bus, nil)
-	require.NoError(t, err, "WireWithCore")
-
-	assert.Equal(t, "openai", capturedProvider)
-	assert.Empty(t, os.Getenv("WEAVE_PROVIDER"))
-}
-
-func TestWireWithCore_DoesNotOverrideExistingProviderEnv(t *testing.T) {
-	sdk.ResetRegistry()
-	sdk.ResetProviderRegistry()
-
-	sdk.RegisterProvider("anthropic", func(sdk.Config) (sdk.Provider, error) {
-		return &ProviderMock{}, nil
-	})
-	sdk.RegisterProvider("openai", func(sdk.Config) (sdk.Provider, error) {
-		return &ProviderMock{}, nil
-	})
-
-	var capturedProvider string
-
-	sdk.RegisterExtension("loop", func(sdk.Config) (sdk.Extension, error) {
-		capturedProvider = os.Getenv("WEAVE_PROVIDER")
-		return sdk.NewExtensionFunc("loop", func(sdk.Bus) error { return nil }), nil
-	})
-
-	t.Setenv("WEAVE_PROVIDER", "anthropic")
-
-	bus := &BusMock{}
-
-	_, err := WireWithCore(CoreWireConfig{AgentLoop: "loop", Providers: []string{"openai"}}, nil, bus, nil)
-	require.NoError(t, err, "WireWithCore")
-
-	assert.Equal(t, "anthropic", capturedProvider)
-	assert.Equal(t, "anthropic", os.Getenv("WEAVE_PROVIDER"))
-}
-
 func TestWireWithCore_PassesConfigToFactories(t *testing.T) {
 	sdk.ResetRegistry()
-	sdk.ResetProviderRegistry()
-
-	sdk.RegisterProvider("anthropic", func(sdk.Config) (sdk.Provider, error) {
-		return &ProviderMock{}, nil
-	})
 
 	var receivedCfg sdk.Config
 
@@ -481,7 +377,7 @@ func TestWireWithCore_PassesConfigToFactories(t *testing.T) {
 	cfg := sdk.FilePathConfig("/test/.weave.yaml")
 	bus := &BusMock{}
 
-	_, err := WireWithCore(coreCfg("anthropic"), nil, bus, cfg)
+	_, err := WireWithCore(coreCfg(), nil, bus, cfg)
 	require.NoError(t, err, "WireWithCore")
 
 	require.NotNil(t, receivedCfg)
@@ -561,11 +457,6 @@ func TestWire_MultipleExtensionsRegisterHandlers(t *testing.T) {
 
 func TestWireWithCore_ExtensionUsesBusOn(t *testing.T) {
 	sdk.ResetRegistry()
-	sdk.ResetProviderRegistry()
-
-	sdk.RegisterProvider("anthropic", func(sdk.Config) (sdk.Provider, error) {
-		return &ProviderMock{}, nil
-	})
 
 	sdk.RegisterExtension("loop", func(sdk.Config) (sdk.Extension, error) {
 		return sdk.NewExtensionFunc("loop", func(bus sdk.Bus) error {
@@ -576,7 +467,7 @@ func TestWireWithCore_ExtensionUsesBusOn(t *testing.T) {
 
 	bus := &BusMock{}
 
-	_, err := WireWithCore(coreCfg("anthropic"), nil, bus, nil)
+	_, err := WireWithCore(coreCfg(), nil, bus, nil)
 	require.NoError(t, err)
 
 	onCalls := bus.OnCalls()
@@ -618,6 +509,31 @@ func TestWire_WireSubscribesExtensionsInProcess(t *testing.T) {
 
 	assert.Equal(t, "noop.subscribed", received.Topic)
 	assert.Equal(t, "hello", received.Payload)
+}
+
+func TestMergeCoreAndOptional_AgentLoopOnly(t *testing.T) {
+	result := mergeCoreAndOptional("loop", nil)
+	assert.Equal(t, []string{"loop"}, result)
+}
+
+func TestMergeCoreAndOptional_WithOptionalExts(t *testing.T) {
+	result := mergeCoreAndOptional("loop", []string{"bash", "read"})
+	assert.Equal(t, []string{"loop", "bash", "read"}, result)
+}
+
+func TestMergeCoreAndOptional_DeduplicatesAgentLoop(t *testing.T) {
+	result := mergeCoreAndOptional("loop", []string{"loop", "bash"})
+	assert.Equal(t, []string{"loop", "bash"}, result)
+}
+
+func TestMergeCoreAndOptional_DeduplicatesOptExts(t *testing.T) {
+	result := mergeCoreAndOptional("loop", []string{"bash", "bash", "read"})
+	assert.Equal(t, []string{"loop", "bash", "read"}, result)
+}
+
+func TestMergeCoreAndOptional_EmptyOptExts(t *testing.T) {
+	result := mergeCoreAndOptional("loop", []string{})
+	assert.Equal(t, []string{"loop"}, result)
 }
 
 var _ = strings.TrimSpace

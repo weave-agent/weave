@@ -116,21 +116,21 @@ Radically simplify weave's extension configuration by moving from explicit compi
 - [x] Run `go test ./launcher/...` — must pass before next task
 
 ### Task 5: Update wire/run — remove provider list handling
-- [ ] Remove `Providers` from `sdk/wire.CoreWireConfig`
-- [ ] Update `WireWithCore` — remove provider validation, remove `WEAVE_PROVIDER` env var setting
-- [ ] Update `mergeCoreAndOptional` — remove provider merging logic (only agent-loop + optExts now)
-- [ ] Update `sdk/wire/run.go`:
+- [x] Remove `Providers` from `sdk/wire.CoreWireConfig`
+- [x] Update `WireWithCore` — remove provider validation, remove `WEAVE_PROVIDER` env var setting
+- [x] Update `mergeCoreAndOptional` — remove provider merging logic (only agent-loop + optExts now)
+- [x] Update `sdk/wire/run.go`:
   - Remove `resolveExtensionsAndMode` (replaced by auto-discovery)
   - `run()` calls `AutoDiscover` instead of `config.Load` + manual extension merging
   - Remove `ensurePresent` for skills/instructions (they're discovered automatically)
   - Remove provider env var handling (`WEAVE_PROVIDER`, `WEAVE_PROVIDER_AUTO`)
   - Keep headless detection and prompt file handling
-- [ ] Update generated `main.go` template in `launcher/builder.go`:
+- [x] Update generated `main.go` template in `launcher/builder.go`:
   - Remove `providersFlag` parsing
   - Remove provider names from `wire.CoreWireConfig`
-- [ ] Write tests for `WireWithCore` without providers
-- [ ] Write tests for `mergeCoreAndOptional` simplification
-- [ ] Run `go test ./sdk/wire/...` — must pass before next task
+- [x] Write tests for `WireWithCore` without providers
+- [x] Write tests for `mergeCoreAndOptional` simplification
+- [x] Run `go test ./sdk/wire/...` — must pass before next task
 
 ### Task 6: Update loop extension for settings-based provider selection
 - [ ] Update `extensions/loop/loop.go` `init()`:

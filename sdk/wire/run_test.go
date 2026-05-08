@@ -92,54 +92,6 @@ func TestValidateCoreConfig(t *testing.T) {
 	}
 }
 
-func TestResolveExtensionsAndMode_Headless(t *testing.T) {
-	cf := &config.File{
-		Core:   config.CoreConfig{AgentLoop: "loop"},
-		UI:     "tui",
-		Prompt: "hello",
-	}
-
-	providers, rest, ok := resolveExtensionsAndMode(cf, nil)
-	require.True(t, ok)
-	assert.Empty(t, providers)
-	assert.Contains(t, rest, "--weave-headless=true")
-}
-
-func TestResolveExtensionsAndMode_Interactive(t *testing.T) {
-	cf := &config.File{
-		Core: config.CoreConfig{AgentLoop: "loop"},
-		UI:   "tui",
-	}
-
-	providers, rest, ok := resolveExtensionsAndMode(cf, nil)
-	require.True(t, ok)
-	assert.Empty(t, providers)
-	assert.Contains(t, rest, "--weave-headless=false")
-}
-
-func TestResolveExtensionsAndMode_NoInput(t *testing.T) {
-	cf := &config.File{
-		Core: config.CoreConfig{AgentLoop: "loop"},
-		UI:   "none",
-	}
-
-	_, _, ok := resolveExtensionsAndMode(cf, nil)
-	assert.False(t, ok)
-}
-
-func TestResolveExtensionsAndMode_EnvProvider(t *testing.T) {
-	t.Setenv("WEAVE_PROVIDER", "openai")
-
-	cf := &config.File{
-		Core: config.CoreConfig{AgentLoop: "loop"},
-		UI:   "tui",
-	}
-
-	providers, _, ok := resolveExtensionsAndMode(cf, nil)
-	require.True(t, ok)
-	assert.Equal(t, []string{"openai"}, providers)
-}
-
 func TestRun_InstallSubcommand(t *testing.T) {
 	dir := t.TempDir()
 	extDir := filepath.Join(dir, "test-ext")
@@ -177,15 +129,6 @@ func TestIsWeaveModule(t *testing.T) {
 
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module other\n\ngo 1.24\n"), 0o600))
 	assert.False(t, isWeaveModule(dir))
-}
-
-func TestEnsurePresent(t *testing.T) {
-	exts := []string{"a", "b"}
-	result := ensurePresent(exts, "a")
-	assert.Equal(t, []string{"a", "b"}, result)
-
-	result = ensurePresent(exts, "c")
-	assert.Equal(t, []string{"a", "b", "c"}, result)
 }
 
 func TestWritePromptFile(t *testing.T) {

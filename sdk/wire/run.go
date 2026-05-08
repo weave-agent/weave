@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"weave/config"
@@ -55,12 +54,18 @@ func run(ctx context.Context, args ...string) (exitCode int) {
 
 	projectDir := resolveProjectDir(configFile)
 
-	_, rest, ok := resolveExtensionsAndMode(cf, rest)
-	if !ok {
+	if cf.Prompt == "" && (cf.UI == "" || cf.UI == config.UIValueNone) {
+		fmt.Fprintf(os.Stderr, "weave: %v\n", errNoInput)
 		return 1
 	}
 
 	headless := cf.Prompt != ""
+
+	if headless {
+		rest = append([]string{"--weave-headless=true"}, rest...)
+	} else {
+		rest = append([]string{"--weave-headless=false"}, rest...)
+	}
 
 	if cf.Prompt != "" {
 		promptFile, cleanup, ok := writePromptFile(cf.Prompt)
@@ -93,31 +98,6 @@ func resolveProjectDir(configFile string) string {
 	return dir
 }
 
-func resolveExtensionsAndMode(cf *config.File, rest []string) (providers, updatedRest []string, ok bool) {
-	envProvider := os.Getenv("WEAVE_PROVIDER")
-
-	if cf.Prompt == "" && (cf.UI == "" || cf.UI == config.UIValueNone) {
-		fmt.Fprintf(os.Stderr, "weave: %v\n", errNoInput)
-		return nil, nil, false
-	}
-
-	headless := cf.Prompt != ""
-
-	updatedRest = rest
-	if headless {
-		updatedRest = append([]string{"--weave-headless=true"}, updatedRest...)
-	} else {
-		updatedRest = append([]string{"--weave-headless=false"}, updatedRest...)
-	}
-
-	providers = []string{}
-	if envProvider != "" {
-		providers = []string{envProvider}
-	}
-
-	return providers, updatedRest, true
-}
-
 func writePromptFile(prompt string) (path string, cleanup func(), ok bool) {
 	f, err := os.CreateTemp("", "weave-prompt-*")
 	if err != nil {
@@ -139,14 +119,6 @@ func writePromptFile(prompt string) (path string, cleanup func(), ok bool) {
 	_ = f.Close()
 
 	return promptFile, func() { _ = os.Remove(promptFile) }, true
-}
-
-func ensurePresent(exts []string, name string) []string {
-	if slices.Contains(exts, name) {
-		return exts
-	}
-
-	return append(exts, name)
 }
 
 func findModuleRoot() (string, error) {
