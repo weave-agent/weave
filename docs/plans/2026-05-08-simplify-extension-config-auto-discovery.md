@@ -133,13 +133,13 @@ Radically simplify weave's extension configuration by moving from explicit compi
 - [x] Run `go test ./sdk/wire/...` — must pass before next task
 
 ### Task 6: Update loop extension for settings-based provider selection
-- [ ] Update `extensions/loop/loop.go` `init()`:
+- [x] Update `extensions/loop/loop.go` `init()`:
   - Read `cfg.Preferences(&prefs)` for default provider
   - Fall back to `sdk.ListProviders()[0]`
   - Fall back to `"anthropic"` if no providers registered
   - Still respect `WEAVE_PROVIDER` env var as explicit override
-- [ ] Write tests for provider selection priority (env > settings > first registered > fallback)
-- [ ] Run `cd extensions/loop && go test ./...` — must pass before next task
+- [x] Write tests for provider selection priority (env > settings > first registered > fallback)
+- [x] Run `cd extensions/loop && go test ./...` — must pass before next task
 
 ### Task 7: Update remaining references
 - [ ] Search for `cf.Core.Providers` references across codebase and update/remove

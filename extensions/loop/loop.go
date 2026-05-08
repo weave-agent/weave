@@ -51,13 +51,35 @@ type Loop struct {
 
 func init() {
 	sdk.RegisterExtension("loop", func(cfg sdk.Config) (sdk.Extension, error) {
-		provider := os.Getenv("WEAVE_PROVIDER")
-		if provider == "" {
-			provider = "anthropic"
-		}
+		provider := resolveProviderName(os.Getenv("WEAVE_PROVIDER"), cfg)
 
 		return NewLoop(cfg, provider)
 	})
+}
+
+// resolveProviderName picks the initial provider using priority:
+//  1. WEAVE_PROVIDER env var (explicit user override)
+//  2. settings.json "provider" field (persisted user preference)
+//  3. first registered provider (sdk.ListProviders()[0])
+//  4. "anthropic" (ultimate fallback)
+func resolveProviderName(envProvider string, cfg sdk.Config) string {
+	if envProvider != "" {
+		return envProvider
+	}
+
+	var prefs struct {
+		Provider string `json:"provider"`
+	}
+
+	if cfg.Preferences(&prefs) == nil && prefs.Provider != "" {
+		return prefs.Provider
+	}
+
+	if providers := sdk.ListProviders(); len(providers) > 0 {
+		return providers[0]
+	}
+
+	return "anthropic"
 }
 
 func NewLoop(cfg sdk.Config, providerName string) (*Loop, error) {

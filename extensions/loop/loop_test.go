@@ -2,6 +2,7 @@ package agentloop
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"sync"
 	"testing"
@@ -183,6 +184,30 @@ func collectTopic(events <-chan sdk.Event, topic string, timeout time.Duration) 
 			return result
 		}
 	}
+}
+
+// mockPrefsConfig is a lightweight sdk.Config that returns a fixed provider from Preferences.
+type mockPrefsConfig struct {
+	sdk.Config
+	provider string
+	prefsErr error
+}
+
+func (m *mockPrefsConfig) Preferences(target any) error {
+	if m.prefsErr != nil {
+		return m.prefsErr
+	}
+
+	type prefs struct {
+		Provider string `json:"provider"`
+	}
+
+	p := prefs{Provider: m.provider}
+
+	raw, _ := json.Marshal(p)
+	_ = json.Unmarshal(raw, target)
+
+	return nil
 }
 
 // --- tests ---
@@ -1372,4 +1397,83 @@ func TestLoop_InstructionsUpdateViaBus(t *testing.T) {
 	mu.Unlock()
 
 	require.NoError(t, l.Close())
+}
+
+func TestResolveProviderName_EnvVarHighest(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	sdk.RegisterProvider("anthropic", func(sdk.Config) (sdk.Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	cfg := &mockPrefsConfig{provider: "anthropic"}
+
+	result := resolveProviderName("openai", cfg)
+	assert.Equal(t, "openai", result, "env var should win over settings")
+}
+
+func TestResolveProviderName_SettingsPreference(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	sdk.RegisterProvider("anthropic", func(sdk.Config) (sdk.Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	cfg := &mockPrefsConfig{provider: "openai"}
+
+	result := resolveProviderName("", cfg)
+	assert.Equal(t, "openai", result, "settings provider should be used when no env var")
+}
+
+func TestResolveProviderName_FirstRegistered(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	sdk.RegisterProvider("zai", func(sdk.Config) (sdk.Provider, error) {
+		return &ProviderMock{}, nil
+	})
+	sdk.RegisterProvider("openai", func(sdk.Config) (sdk.Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	cfg := &mockPrefsConfig{provider: ""}
+
+	result := resolveProviderName("", cfg)
+	assert.Equal(t, "openai", result, "should pick first registered provider (alphabetically) when no env or settings")
+}
+
+func TestResolveProviderName_AnthropicFallback(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	cfg := &mockPrefsConfig{provider: ""}
+
+	result := resolveProviderName("", cfg)
+	assert.Equal(t, "anthropic", result, "should fall back to anthropic when nothing else available")
+}
+
+func TestResolveProviderName_PrefsErrorFallsThrough(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	sdk.RegisterProvider("openai", func(sdk.Config) (sdk.Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	cfg := &mockPrefsConfig{prefsErr: assert.AnError}
+
+	result := resolveProviderName("", cfg)
+	assert.Equal(t, "openai", result, "should fall through to registered providers when prefs error")
+}
+
+func TestResolveProviderName_EnvOverridesSettings(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	cfg := &mockPrefsConfig{provider: "openai"}
+
+	result := resolveProviderName("zai", cfg)
+	assert.Equal(t, "zai", result, "env var should override settings preference")
 }
