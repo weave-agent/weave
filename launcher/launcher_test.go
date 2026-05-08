@@ -161,10 +161,12 @@ func TestRun_ExcludeExtensions(t *testing.T) {
 	createExtension(t, filepath.Join(projectDir, ".weave", "extensions"), "beta", "package beta")
 
 	var capturedExts []ExtensionInfo
+
 	l := &Launcher{
 		Cache: NewCache(t.TempDir()),
-		Build: func(_ string, _ string, _ string, _ bool, exts []ExtensionInfo) (string, error) {
+		Build: func(_, _, _ string, _ bool, exts []ExtensionInfo) (string, error) {
 			capturedExts = exts
+
 			return "", fmtError("captured")
 		},
 		ModuleRoot:  moduleRoot,
@@ -184,10 +186,12 @@ func TestRun_HeadlessPassedToBuild(t *testing.T) {
 	createExtension(t, filepath.Join(projectDir, ".weave", "extensions"), "noop", "package noop")
 
 	var capturedHeadless bool
+
 	l := &Launcher{
 		Cache: NewCache(t.TempDir()),
-		Build: func(_ string, _ string, _ string, headless bool, _ []ExtensionInfo) (string, error) {
+		Build: func(_, _, _ string, headless bool, _ []ExtensionInfo) (string, error) {
 			capturedHeadless = headless
+
 			return "", fmtError("captured")
 		},
 		ModuleRoot:  moduleRoot,
@@ -206,10 +210,12 @@ func TestRun_NilExclude(t *testing.T) {
 	createExtension(t, filepath.Join(projectDir, ".weave", "extensions"), "beta", "package beta")
 
 	var capturedExts []ExtensionInfo
+
 	l := &Launcher{
 		Cache: NewCache(t.TempDir()),
-		Build: func(_ string, _ string, _ string, _ bool, exts []ExtensionInfo) (string, error) {
+		Build: func(_, _, _ string, _ bool, exts []ExtensionInfo) (string, error) {
 			capturedExts = exts
+
 			return "", fmtError("captured")
 		},
 		ModuleRoot:  moduleRoot,
@@ -233,6 +239,7 @@ func createModuleRoot(t *testing.T) string {
 	for _, dir := range []string{"sdk", "bus", "config", "utils/truncate", "launcher"} {
 		require.NoError(t, os.MkdirAll(filepath.Join(root, dir), 0o750))
 	}
+
 	require.NoError(t, os.WriteFile(filepath.Join(root, "go.mod"), []byte("module weave\n\ngo 1.22\n"), 0o600))
 
 	return root

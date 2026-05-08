@@ -142,11 +142,11 @@ Radically simplify weave's extension configuration by moving from explicit compi
 - [x] Run `cd extensions/loop && go test ./...` — must pass before next task
 
 ### Task 7: Update remaining references
-- [ ] Search for `cf.Core.Providers` references across codebase and update/remove
-- [ ] Search for `AllExtensions` references and update/remove
-- [ ] Search for `WEAVE_PROVIDER` auto-set logic and clean up
-- [ ] Update any integration tests that construct old config format
-- [ ] Run `go test ./...` from root — must pass before next task
+- [x] Search for `cf.Core.Providers` references across codebase and update/remove
+- [x] Search for `AllExtensions` references and update/remove
+- [x] Search for `WEAVE_PROVIDER` auto-set logic and clean up
+- [x] Update any integration tests that construct old config format
+- [x] Run `go test ./...` from root — must pass before next task
 
 ### Task 8: Verify acceptance criteria
 - [ ] Verify `config.File` has only: `Prompt`, `UI`, `Core` (AgentLoop only), `Providers` (map for settings), `ExcludeExtensions`
