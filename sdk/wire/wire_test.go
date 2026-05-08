@@ -319,23 +319,30 @@ func TestWireWithCore_ErrMissingAgentLoop(t *testing.T) {
 	assert.Equal(t, "wire: agent-loop is required", err.Error())
 }
 
-func TestWireWithCore_ErrNoProvider(t *testing.T) {
+func TestWireWithCore_NoProviderRequired(t *testing.T) {
 	sdk.ResetRegistry()
+
+	sdk.RegisterExtension("loop", func(sdk.Config) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("loop", func(sdk.Bus) error { return nil }), nil
+	})
 
 	bus := &BusMock{}
 
 	_, err := WireWithCore(CoreWireConfig{AgentLoop: "loop"}, nil, bus, nil)
-	require.Error(t, err)
-	assert.Equal(t, "wire: at least one provider is required", err.Error())
+	require.NoError(t, err)
 }
 
-func TestWireWithCore_ErrEmptyProviders(t *testing.T) {
+func TestWireWithCore_EmptyProvidersAllowed(t *testing.T) {
 	sdk.ResetRegistry()
+
+	sdk.RegisterExtension("loop", func(sdk.Config) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("loop", func(sdk.Bus) error { return nil }), nil
+	})
 
 	bus := &BusMock{}
 
 	_, err := WireWithCore(CoreWireConfig{AgentLoop: "loop", Providers: []string{}}, nil, bus, nil)
-	require.Error(t, err)
+	require.NoError(t, err)
 }
 
 func TestWireWithCore_ErrDuplicateProviders(t *testing.T) {

@@ -93,18 +93,18 @@ Radically simplify weave's extension configuration by moving from explicit compi
 - [x] Run `go test ./launcher/...` — must pass before next task
 
 ### Task 3: Update builder for headless UI filtering
-- [ ] Update `BuildFunc` signature: remove `providers []string` parameter, add `headless bool`
+- [x] Update `BuildFunc` signature: remove `providers []string` parameter, add `headless bool`
   ```go
   type BuildFunc func(dir, moduleRoot, agentLoop string, headless bool, exts []ExtensionInfo) (string, error)
   ```
-- [ ] Update `GenerateMainGo` — remove `providers` parameter, remove provider flag parsing from generated main.go
-- [ ] Update `GenerateMainGo` — filter `IsUIExt` extensions when `headless` is true before generating blank imports
-- [ ] Update `GenerateGoMod` — no changes needed (works with filtered list)
-- [ ] Update `Build` — pass `headless` through, filter UI extensions before calling `GenerateMainGo`
-- [ ] Update `ComputeHash` — hash must include headless flag so headless and interactive builds have different caches
-- [ ] Write tests for UI extension filtering in generated main.go
-- [ ] Write tests for hash difference between headless and interactive
-- [ ] Run `go test ./launcher/...` — must pass before next task
+- [x] Update `GenerateMainGo` — remove `providers` parameter, remove provider flag parsing from generated main.go
+- [x] Update `GenerateMainGo` — filter `IsUIExt` extensions when `headless` is true before generating blank imports
+- [x] Update `GenerateGoMod` — no changes needed (works with filtered list)
+- [x] Update `Build` — pass `headless` through, filter UI extensions before calling `GenerateMainGo`
+- [x] Update `ComputeHash` — hash must include headless flag so headless and interactive builds have different caches
+- [x] Write tests for UI extension filtering in generated main.go
+- [x] Write tests for hash difference between headless and interactive
+- [x] Run `go test ./launcher/...` — must pass before next task
 
 ### Task 4: Update launcher pipeline
 - [ ] Update `Launcher.Run` — call `AutoDiscover` instead of `DiscoverWithBuiltins`

@@ -64,19 +64,21 @@ func WireWithCore(core CoreWireConfig, optExts []string, bus sdk.Bus, cfg sdk.Co
 		return nil, fmt.Errorf("wire: %w", err)
 	}
 
-	for _, p := range core.Providers {
-		if !sdk.ProviderRegistered(p) {
-			return nil, fmt.Errorf("wire: provider %q not registered", p)
+	if len(core.Providers) > 0 {
+		for _, p := range core.Providers {
+			if !sdk.ProviderRegistered(p) {
+				return nil, fmt.Errorf("wire: provider %q not registered", p)
+			}
 		}
-	}
 
-	oldProvider := os.Getenv("WEAVE_PROVIDER")
-	if oldProvider == "" {
-		_ = os.Setenv("WEAVE_PROVIDER", core.Providers[0])
+		oldProvider := os.Getenv("WEAVE_PROVIDER")
+		if oldProvider == "" {
+			_ = os.Setenv("WEAVE_PROVIDER", core.Providers[0])
 
-		defer func() {
-			_ = os.Unsetenv("WEAVE_PROVIDER")
-		}()
+			defer func() {
+				_ = os.Unsetenv("WEAVE_PROVIDER")
+			}()
+		}
 	}
 
 	if core.SingleTurn {
@@ -122,10 +124,6 @@ func (w *Wired) Close() error {
 func validateCore(core CoreWireConfig) error {
 	if core.AgentLoop == "" {
 		return errors.New("agent-loop is required")
-	}
-
-	if len(core.Providers) == 0 {
-		return errors.New("at least one provider is required")
 	}
 
 	seen := make(map[string]bool, len(core.Providers))

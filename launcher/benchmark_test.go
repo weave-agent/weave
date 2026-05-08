@@ -52,7 +52,7 @@ func buildExtensions(b *testing.B, moduleRoot string, exts []ExtensionInfo) stri
 
 	buildDir := b.TempDir()
 
-	binPath, err := Build(buildDir, moduleRoot, "loop", []string{"anthropic"}, exts)
+	binPath, err := Build(buildDir, moduleRoot, "loop", false, exts)
 	if err != nil {
 		b.Fatalf("Build: %v", err)
 	}
@@ -187,7 +187,7 @@ func warmPipeline(b *testing.B, moduleRoot string, extNames []string) {
 			}
 		}
 
-		hash, err := ComputeHash(exts, moduleRoot)
+		hash, err := ComputeHash(exts, moduleRoot, false)
 		if err != nil {
 			b.Fatalf("ComputeHash: %v", err)
 		}
@@ -195,7 +195,7 @@ func warmPipeline(b *testing.B, moduleRoot string, extNames []string) {
 		// Cache miss (fresh cache) -> buildAndCache
 		buildDir := b.TempDir()
 
-		binPath, buildErr := Build(buildDir, moduleRoot, "loop", []string{"anthropic"}, exts)
+		binPath, buildErr := Build(buildDir, moduleRoot, "loop", false, exts)
 		if buildErr != nil {
 			b.Fatalf("Build: %v", buildErr)
 		}
