@@ -102,15 +102,25 @@ func findModuleRootHelper(t *testing.T) string {
 	return ""
 }
 
+func setupTestExtension(t *testing.T, extDir, moduleRoot, code string) {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(extDir, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, "noop.go"), []byte(code), 0o600))
+
+	goMod := "module test/ext/noop\n\ngo 1.22\n\nrequire weave v0.0.0\n\nreplace weave => " + moduleRoot + "\n"
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, "go.mod"), []byte(goMod), 0o600))
+}
+
 func TestIntegration_FullPipeline(t *testing.T) {
 	moduleRoot := findModuleRootHelper(t)
 
 	projectDir := t.TempDir()
+	homeDir := t.TempDir()
 	extDir := filepath.Join(projectDir, ".weave", "extensions", "noop")
-	createGoFile(t, extDir, "noop.go", noopCode)
+	setupTestExtension(t, extDir, moduleRoot, noopCode)
 
-	exts, _, err := Discover(projectDir, []string{"noop"})
-	require.NoError(t, err, "Discover")
+	exts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	require.NoError(t, err, "AutoDiscover")
 
 	hash, err := ComputeHash(exts, "")
 	require.NoError(t, err, "ComputeHash")
@@ -136,7 +146,8 @@ func TestIntegration_FullPipeline(t *testing.T) {
 	cmd.Env = os.Environ()
 	require.NoError(t, cmd.Start(), "start built binary")
 
-	time.Sleep(500 * time.Millisecond)
+	// Allow extra time for startup — auto-discovery compiles in all extensions including TUI.
+	time.Sleep(2 * time.Second)
 
 	_ = cmd.Process.Kill()
 	_ = cmd.Wait()
@@ -146,10 +157,11 @@ func TestIntegration_CacheHitOnSecondRun(t *testing.T) {
 	moduleRoot := findModuleRootHelper(t)
 
 	projectDir := t.TempDir()
+	homeDir := t.TempDir()
 	extDir := filepath.Join(projectDir, ".weave", "extensions", "noop")
-	createGoFile(t, extDir, "noop.go", noopCode)
+	setupTestExtension(t, extDir, moduleRoot, noopCode)
 
-	exts, _, err := Discover(projectDir, []string{"noop"})
+	exts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 	require.NoError(t, err)
 
 	hash, err := ComputeHash(exts, "")
@@ -184,10 +196,11 @@ func TestIntegration_ExtensionInitAndWireInBuiltBinary(t *testing.T) {
 	moduleRoot := findModuleRootHelper(t)
 
 	projectDir := t.TempDir()
+	homeDir := t.TempDir()
 	extDir := filepath.Join(projectDir, ".weave", "extensions", "noop")
-	createGoFile(t, extDir, "noop.go", noopMarkerCode)
+	setupTestExtension(t, extDir, moduleRoot, noopMarkerCode)
 
-	exts, _, err := Discover(projectDir, []string{"noop"})
+	exts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 	require.NoError(t, err)
 
 	buildDir := t.TempDir()
@@ -196,7 +209,7 @@ func TestIntegration_ExtensionInitAndWireInBuiltBinary(t *testing.T) {
 
 	markerFile := filepath.Join(t.TempDir(), "marker.txt")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, binPath)
@@ -205,7 +218,9 @@ func TestIntegration_ExtensionInitAndWireInBuiltBinary(t *testing.T) {
 
 	require.NoError(t, cmd.Start(), "start binary")
 
-	time.Sleep(500 * time.Millisecond)
+	// Allow extra time for Subscribe to complete — with auto-discovery the TUI
+	// extension is also compiled in, so startup takes longer.
+	time.Sleep(2 * time.Second)
 
 	_ = cmd.Process.Kill()
 	_ = cmd.Wait()
@@ -215,23 +230,26 @@ func TestIntegration_ExtensionInitAndWireInBuiltBinary(t *testing.T) {
 	assert.Equal(t, "subscribed", string(data))
 }
 
-func TestIntegration_DiscoverCustomHome(t *testing.T) {
+func TestIntegration_AutoDiscoverLocalOverGlobal(t *testing.T) {
 	projectDir := t.TempDir()
 	homeDir := t.TempDir()
+	moduleRoot := t.TempDir()
 
 	globalDir := filepath.Join(homeDir, ".weave", "extensions", "noop")
-	createGoFile(t, globalDir, "noop.go", "package noop")
+	createExtension(t, globalDir, "noop", "package noop")
 
-	exts, _, err := DiscoverCustomHome(projectDir, homeDir, []string{"noop"})
-	require.NoError(t, err, "DiscoverCustomHome")
-	assert.Equal(t, globalDir, exts[0].Dir)
+	exts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	require.NoError(t, err, "AutoDiscover")
+	require.Len(t, exts, 1)
+	assert.Contains(t, exts[0].Dir, globalDir)
 
 	localDir := filepath.Join(projectDir, ".weave", "extensions", "noop")
-	createGoFile(t, localDir, "noop.go", "package noop")
+	createExtension(t, localDir, "noop", "package noop")
 
-	exts2, _, err := DiscoverCustomHome(projectDir, homeDir, []string{"noop"})
-	require.NoError(t, err, "DiscoverCustomHome")
-	assert.Equal(t, localDir, exts2[0].Dir)
+	exts2, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	require.NoError(t, err, "AutoDiscover")
+	require.Len(t, exts2, 1)
+	assert.Contains(t, exts2[0].Dir, localDir)
 }
 
 // TestIntegration_DiscoverBuiltinNestedTools verifies that the discovery finds
@@ -243,10 +261,8 @@ func TestIntegration_DiscoverBuiltinNestedTools(t *testing.T) {
 
 	tools := []string{"bash", "read", "edit", "write", "grep", "find", "ls"}
 
-	exts, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, tools)
-	require.NoError(t, err, "DiscoverCustomHomeWithBuiltins for tools")
-
-	require.Len(t, exts, len(tools))
+	exts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	require.NoError(t, err, "AutoDiscover")
 
 	extMap := make(map[string]ExtensionInfo, len(exts))
 	for _, e := range exts {
@@ -271,10 +287,8 @@ func TestIntegration_DiscoverBuiltinNestedProviders(t *testing.T) {
 
 	providers := []string{"anthropic", "openai", "zai"}
 
-	exts, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, providers)
-	require.NoError(t, err, "DiscoverCustomHomeWithBuiltins for providers")
-
-	require.Len(t, exts, len(providers))
+	exts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	require.NoError(t, err, "AutoDiscover")
 
 	extMap := make(map[string]ExtensionInfo, len(exts))
 	for _, e := range exts {
@@ -297,14 +311,22 @@ func TestIntegration_DiscoverBuiltinNestedStore(t *testing.T) {
 	projectDir := t.TempDir()
 	homeDir := t.TempDir()
 
-	exts, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"jsonl"})
-	require.NoError(t, err, "DiscoverCustomHomeWithBuiltins for jsonl store")
+	exts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	require.NoError(t, err, "AutoDiscover")
 
-	require.Len(t, exts, 1)
-	assert.Equal(t, "jsonl", exts[0].Name)
-	assert.Contains(t, exts[0].Dir, filepath.Join("extensions", "store", "jsonl"),
+	var jsonlExt *ExtensionInfo
+
+	for i := range exts {
+		if exts[i].Name == "jsonl" {
+			jsonlExt = &exts[i]
+			break
+		}
+	}
+
+	require.NotNil(t, jsonlExt, "jsonl should be discovered")
+	assert.Contains(t, jsonlExt.Dir, filepath.Join("extensions", "store", "jsonl"),
 		"jsonl store should be found in nested store/ directory")
-	assert.NotEmpty(t, exts[0].GoFiles)
+	assert.NotEmpty(t, jsonlExt.GoFiles)
 }
 
 // TestIntegration_DiscoverBuiltinLoopDirect verifies the loop extension is still
@@ -314,11 +336,19 @@ func TestIntegration_DiscoverBuiltinLoopDirect(t *testing.T) {
 	projectDir := t.TempDir()
 	homeDir := t.TempDir()
 
-	exts, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, []string{"loop"})
-	require.NoError(t, err, "DiscoverCustomHomeWithBuiltins for loop")
+	exts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	require.NoError(t, err, "AutoDiscover")
 
-	require.Len(t, exts, 1)
-	assert.Equal(t, "loop", exts[0].Name)
-	assert.Equal(t, filepath.Join(moduleRoot, "extensions", "loop"), exts[0].Dir)
-	assert.NotEmpty(t, exts[0].GoFiles)
+	var loopExt *ExtensionInfo
+
+	for i := range exts {
+		if exts[i].Name == "loop" {
+			loopExt = &exts[i]
+			break
+		}
+	}
+
+	require.NotNil(t, loopExt, "loop should be discovered")
+	assert.Equal(t, filepath.Join(moduleRoot, "extensions", "loop"), loopExt.Dir)
+	assert.NotEmpty(t, loopExt.GoFiles)
 }

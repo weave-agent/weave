@@ -11,32 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRun_NoExtensions(t *testing.T) {
-	l := &Launcher{
-		Cache:      NewCache(t.TempDir()),
-		Build:      func(string, string, string, []string, []ExtensionInfo) (string, error) { return "", nil },
-		ModuleRoot: "/fake",
-	}
-
-	err := l.Run(context.Background(), t.TempDir(), nil, nil, "", "loop", nil)
-	require.Error(t, err, "expected error for empty extensions")
-}
-
-func TestRun_DiscoveryFails(t *testing.T) {
-	l := &Launcher{
-		Cache:      NewCache(t.TempDir()),
-		Build:      func(string, string, string, []string, []ExtensionInfo) (string, error) { return "", nil },
-		ModuleRoot: "/fake",
-	}
-
-	err := l.Run(context.Background(), t.TempDir(), []string{"nonexistent_ext"}, nil, "", "loop", nil)
-	require.Error(t, err, "expected error for missing extension")
-}
-
 func TestRun_BuildFails(t *testing.T) {
 	projectDir := t.TempDir()
 	extDir := filepath.Join(projectDir, ".weave", "extensions", "noop")
-	createGoFile(t, extDir, "noop.go", "package noop")
+	createExtension(t, extDir, "noop", "package noop")
 
 	buildErr := error(fmtError("mock build failure"))
 	l := &Launcher{
@@ -48,19 +26,19 @@ func TestRun_BuildFails(t *testing.T) {
 		BuildTmpDir: t.TempDir(),
 	}
 
-	err := l.Run(context.Background(), projectDir, []string{"noop"}, nil, "", "loop", nil)
+	err := l.Run(context.Background(), projectDir, nil, "", "loop", nil)
 	require.Error(t, err, "expected error for build failure")
 }
 
 func TestRun_CacheHit(t *testing.T) {
 	projectDir := t.TempDir()
 	extDir := filepath.Join(projectDir, ".weave", "extensions", "noop")
-	createGoFile(t, extDir, "noop.go", "package noop")
+	createExtension(t, extDir, "noop", "package noop")
 
 	cacheDir := t.TempDir()
 	c := NewCache(cacheDir)
 
-	exts, _, err := Discover(projectDir, []string{"noop"})
+	exts, _, err := AutoDiscover(projectDir, t.TempDir(), "", nil)
 	require.NoError(t, err)
 
 	hash, err := ComputeHash(exts, "")
@@ -78,7 +56,7 @@ func TestRun_CacheHit(t *testing.T) {
 func TestRun_FullPipelineWithMockBuild(t *testing.T) {
 	projectDir := t.TempDir()
 	extDir := filepath.Join(projectDir, ".weave", "extensions", "noop")
-	createGoFile(t, extDir, "noop.go", "package noop")
+	createExtension(t, extDir, "noop", "package noop")
 
 	cacheDir := t.TempDir()
 	buildDir := t.TempDir()
@@ -97,8 +75,8 @@ func TestRun_FullPipelineWithMockBuild(t *testing.T) {
 		BuildTmpDir: buildDir,
 	}
 
-	exts, _, err := Discover(projectDir, []string{"noop"})
-	require.NoError(t, err, "Discover")
+	exts, _, err := AutoDiscover(projectDir, t.TempDir(), "", nil)
+	require.NoError(t, err, "AutoDiscover")
 
 	hash, err := ComputeHash(exts, "")
 	require.NoError(t, err, "ComputeHash")
@@ -122,7 +100,7 @@ func TestRun_FullPipelineWithMockBuild(t *testing.T) {
 func TestRun_SecondRunUsesCache(t *testing.T) {
 	projectDir := t.TempDir()
 	extDir := filepath.Join(projectDir, ".weave", "extensions", "noop")
-	createGoFile(t, extDir, "noop.go", "package noop")
+	createExtension(t, extDir, "noop", "package noop")
 
 	cacheDir := t.TempDir()
 	buildDir := t.TempDir()
@@ -144,7 +122,7 @@ func TestRun_SecondRunUsesCache(t *testing.T) {
 		BuildTmpDir: buildDir,
 	}
 
-	exts, _, err := Discover(projectDir, []string{"noop"})
+	exts, _, err := AutoDiscover(projectDir, t.TempDir(), "", nil)
 	require.NoError(t, err)
 
 	hash, err := ComputeHash(exts, "")

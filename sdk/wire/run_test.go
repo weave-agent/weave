@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"weave/config"
@@ -49,56 +48,17 @@ func TestRunMissingConfig(t *testing.T) {
 	assert.Equal(t, 1, run(context.Background()))
 }
 
-func TestRunExtensionOverride(t *testing.T) {
-	dir := t.TempDir()
-
-	cfgFile := dir + "/.weave.yaml"
-	require.NoError(t, os.WriteFile(cfgFile, []byte("extensions: [noop]\n"), 0o600))
-
-	origWd, _ := os.Getwd()
-
-	require.NoError(t, os.Chdir(dir))
-
-	defer func() { _ = os.Chdir(origWd) }()
-
-	assert.Equal(t, 1, run(context.Background(), "-e", "ext1,ext2"))
-}
-
 func TestRunCoreDefaultsUsed(t *testing.T) {
 	dir := t.TempDir()
 
 	cfgFile := dir + "/.weave.yaml"
 	require.NoError(t, os.WriteFile(cfgFile, []byte("{}\n"), 0o600))
 
-	require.NoError(t, os.WriteFile(dir+"/go.mod", []byte("module weave\n\ngo 1.24\n"), 0o600))
-
-	origWd, _ := os.Getwd()
-
-	require.NoError(t, os.Chdir(dir))
-
-	defer func() { _ = os.Chdir(origWd) }()
-
-	old := os.Stderr
-	r, w, err := os.Pipe()
+	_, cf, _, err := config.LoadFromDir(dir, nil)
 	require.NoError(t, err)
 
-	os.Stderr = w
-
-	defer func() { os.Stderr = old }()
-
-	exitCode := run(context.Background())
-
-	_ = w.Close()
-
-	buf := make([]byte, 4096)
-	n, _ := r.Read(buf)
-	_ = r.Close()
-
-	stderr := string(buf[:n])
-
-	assert.Equal(t, 1, exitCode)
-	assert.True(t, strings.Contains(stderr, "loop") || strings.Contains(stderr, "anthropic"),
-		"stderr should mention 'loop' or 'anthropic' (core defaults), got: %q", stderr)
+	assert.Equal(t, "loop", cf.Core.AgentLoop, "default agent_loop should be 'loop'")
+	assert.Equal(t, "tui", cf.UI, "default ui should be 'tui'")
 }
 
 func TestValidateCoreConfig(t *testing.T) {
@@ -109,28 +69,13 @@ func TestValidateCoreConfig(t *testing.T) {
 	}{
 		{
 			"valid defaults",
-			&config.File{Core: config.CoreConfig{AgentLoop: "loop", Providers: []string{"anthropic"}}, UI: "tui"},
+			&config.File{Core: config.CoreConfig{AgentLoop: "loop"}, UI: "tui"},
 			nil,
 		},
 		{
 			"empty agent_loop",
-			&config.File{Core: config.CoreConfig{AgentLoop: "", Providers: []string{"anthropic"}}, UI: "tui"},
+			&config.File{Core: config.CoreConfig{AgentLoop: ""}, UI: "tui"},
 			errors.New("agent_loop"),
-		},
-		{
-			"no providers",
-			&config.File{Core: config.CoreConfig{AgentLoop: "loop", Providers: nil}, UI: "tui"},
-			errors.New("at least one provider"),
-		},
-		{
-			"empty providers",
-			&config.File{Core: config.CoreConfig{AgentLoop: "loop", Providers: []string{}}, UI: "tui"},
-			errors.New("at least one provider"),
-		},
-		{
-			"duplicate providers",
-			&config.File{Core: config.CoreConfig{AgentLoop: "loop", Providers: []string{"anthropic", "anthropic"}}, UI: "tui"},
-			errors.New("duplicate provider"),
 		},
 	}
 
@@ -147,191 +92,52 @@ func TestValidateCoreConfig(t *testing.T) {
 	}
 }
 
-func TestTUIExtensionAddedWhenNoPrompt(t *testing.T) {
+func TestResolveExtensionsAndMode_Headless(t *testing.T) {
 	cf := &config.File{
-		Core:       config.CoreConfig{AgentLoop: "loop", Providers: []string{"anthropic"}},
-		Extensions: []string{"bash"},
-		UI:         "tui",
+		Core:   config.CoreConfig{AgentLoop: "loop"},
+		UI:     "tui",
+		Prompt: "hello",
 	}
 
-	allExts := cf.AllExtensions()
-
-	if cf.Prompt == "" && cf.UI != "" && cf.UI != "none" {
-		allExts = ensurePresent(allExts, cf.UI)
-	}
-
-	assert.Contains(t, allExts, "tui", "tui should be in extension list when no prompt and ui=tui")
-	assert.Contains(t, allExts, "bash")
-	assert.Contains(t, allExts, "loop")
-	assert.Contains(t, allExts, "anthropic")
+	providers, rest, ok := resolveExtensionsAndMode(cf, nil)
+	require.True(t, ok)
+	assert.Empty(t, providers)
+	assert.Contains(t, rest, "--weave-headless=true")
 }
 
-func TestTUIExtensionExcludedWhenPromptSet(t *testing.T) {
+func TestResolveExtensionsAndMode_Interactive(t *testing.T) {
 	cf := &config.File{
-		Core:       config.CoreConfig{AgentLoop: "loop", Providers: []string{"anthropic"}},
-		Extensions: []string{"bash"},
-		Prompt:     "hello",
-		UI:         "tui",
-	}
-
-	allExts := cf.AllExtensions()
-
-	if cf.Prompt == "" && cf.UI != "" && cf.UI != "none" {
-		allExts = ensurePresent(allExts, cf.UI)
-	}
-
-	assert.NotContains(t, allExts, "tui", "tui should NOT be in extension list when prompt is set")
-}
-
-func TestTUIExtensionExcludedWhenUINone(t *testing.T) {
-	cf := &config.File{
-		Core:       config.CoreConfig{AgentLoop: "loop", Providers: []string{"anthropic"}},
-		Extensions: []string{"bash"},
-		UI:         "none",
-	}
-
-	allExts := cf.AllExtensions()
-
-	if cf.Prompt == "" && cf.UI != "" && cf.UI != "none" {
-		allExts = ensurePresent(allExts, cf.UI)
-	}
-
-	assert.NotContains(t, allExts, "tui", "tui should not be included when ui is 'none'")
-}
-
-func TestSkillsAlwaysIncluded(t *testing.T) {
-	cf := &config.File{
-		Core:       config.CoreConfig{AgentLoop: "loop", Providers: []string{"anthropic"}},
-		Extensions: []string{"bash"},
-		UI:         "tui",
-	}
-
-	allExts := cf.AllExtensions()
-	allExts = ensurePresent(allExts, "skills")
-
-	assert.Contains(t, allExts, "skills", "skills should always be in extension list")
-}
-
-func TestSkillsIncludedInHeadlessMode(t *testing.T) {
-	cf := &config.File{
-		Core:       config.CoreConfig{AgentLoop: "loop", Providers: []string{"anthropic"}},
-		Extensions: []string{"bash"},
-		Prompt:     "do something",
-		UI:         "none",
-	}
-
-	allExts := cf.AllExtensions()
-	allExts = ensurePresent(allExts, "skills")
-
-	assert.Contains(t, allExts, "skills", "skills should be included even in headless mode")
-	assert.NotContains(t, allExts, "tui", "tui should not be included in headless mode")
-}
-
-func TestUIExtensionsIncludedInTUIMode(t *testing.T) {
-	cf := &config.File{
-		Core:         config.CoreConfig{AgentLoop: "loop", Providers: []string{"anthropic"}},
-		Extensions:   []string{"bash"},
-		UIExtensions: []string{"diff-viewer"},
-		UI:           "tui",
-	}
-
-	allExts := cf.AllExtensions()
-
-	assert.Contains(t, allExts, "diff-viewer", "UI extensions should be included when ui is 'tui'")
-	assert.Contains(t, allExts, "bash")
-	assert.Contains(t, allExts, "loop")
-	assert.Contains(t, allExts, "anthropic")
-}
-
-func TestUIExtensionsExcludedInHeadlessMode(t *testing.T) {
-	cf := &config.File{
-		Core:         config.CoreConfig{AgentLoop: "loop", Providers: []string{"anthropic"}},
-		Extensions:   []string{"bash"},
-		UIExtensions: []string{"diff-viewer"},
-		UI:           "none",
-	}
-
-	allExts := cf.AllExtensions()
-
-	assert.NotContains(t, allExts, "diff-viewer", "UI extensions should be excluded when ui is 'none'")
-	assert.Contains(t, allExts, "bash")
-	assert.Contains(t, allExts, "loop")
-	assert.Contains(t, allExts, "anthropic")
-}
-
-func TestUIExtensionsNotDuplicated(t *testing.T) {
-	cf := &config.File{
-		Core:         config.CoreConfig{AgentLoop: "loop", Providers: []string{"anthropic"}},
-		Extensions:   []string{"bash", "diff-viewer"},
-		UIExtensions: []string{"diff-viewer"},
-		UI:           "tui",
-	}
-
-	allExts := cf.AllExtensions()
-
-	count := 0
-
-	for _, ext := range allExts {
-		if ext == "diff-viewer" {
-			count++
-		}
-	}
-
-	assert.Equal(t, 1, count, "UI extension should appear exactly once even if also in extensions list")
-}
-
-func TestSkillsNotDuplicated(t *testing.T) {
-	cf := &config.File{
-		Core:       config.CoreConfig{AgentLoop: "loop", Providers: []string{"anthropic"}},
-		Extensions: []string{"skills", "bash"},
-		UI:         "tui",
-	}
-
-	allExts := cf.AllExtensions()
-	allExts = ensurePresent(allExts, "skills")
-
-	skillsCount := 0
-
-	for _, ext := range allExts {
-		if ext == "skills" {
-			skillsCount++
-		}
-	}
-
-	assert.Equal(t, 1, skillsCount, "skills should appear exactly once even if already in extensions list")
-}
-
-func TestResolveExtensions_AutoProviderIgnoredOnReload(t *testing.T) {
-	t.Setenv("WEAVE_PROVIDER", "anthropic")
-	t.Setenv("WEAVE_PROVIDER_AUTO", "1")
-
-	cf := &config.File{
-		Core: config.CoreConfig{AgentLoop: "loop", Providers: []string{"openai"}},
+		Core: config.CoreConfig{AgentLoop: "loop"},
 		UI:   "tui",
 	}
 
-	_, providers, _, ok := resolveExtensionsAndMode(cf, nil)
+	providers, rest, ok := resolveExtensionsAndMode(cf, nil)
 	require.True(t, ok)
-
-	assert.Equal(t, []string{"openai"}, providers, "synthesized WEAVE_PROVIDER must not be added when AUTO=1")
-	assert.Equal(t, "openai", os.Getenv("WEAVE_PROVIDER"), "WEAVE_PROVIDER should be re-synthesized from new config")
-	assert.Equal(t, "1", os.Getenv("WEAVE_PROVIDER_AUTO"), "AUTO marker should be set after re-synthesis")
+	assert.Empty(t, providers)
+	assert.Contains(t, rest, "--weave-headless=false")
 }
 
-func TestResolveExtensions_UserProviderRespected(t *testing.T) {
+func TestResolveExtensionsAndMode_NoInput(t *testing.T) {
+	cf := &config.File{
+		Core: config.CoreConfig{AgentLoop: "loop"},
+		UI:   "none",
+	}
+
+	_, _, ok := resolveExtensionsAndMode(cf, nil)
+	assert.False(t, ok)
+}
+
+func TestResolveExtensionsAndMode_EnvProvider(t *testing.T) {
 	t.Setenv("WEAVE_PROVIDER", "openai")
-	t.Setenv("WEAVE_PROVIDER_AUTO", "")
 
 	cf := &config.File{
-		Core: config.CoreConfig{AgentLoop: "loop", Providers: []string{"anthropic"}},
+		Core: config.CoreConfig{AgentLoop: "loop"},
 		UI:   "tui",
 	}
 
-	_, providers, _, ok := resolveExtensionsAndMode(cf, nil)
+	providers, _, ok := resolveExtensionsAndMode(cf, nil)
 	require.True(t, ok)
-
-	assert.Contains(t, providers, "openai", "user-supplied WEAVE_PROVIDER should be added to providers")
-	assert.Contains(t, providers, "anthropic", "config providers should be preserved")
+	assert.Equal(t, []string{"openai"}, providers)
 }
 
 func TestRun_InstallSubcommand(t *testing.T) {

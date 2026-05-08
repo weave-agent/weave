@@ -55,7 +55,7 @@ func run(ctx context.Context, args ...string) (exitCode int) {
 
 	projectDir := resolveProjectDir(configFile)
 
-	allExts, providers, rest, ok := resolveExtensionsAndMode(cf, rest)
+	providers, rest, ok := resolveExtensionsAndMode(cf, rest)
 	if !ok {
 		return 1
 	}
@@ -74,7 +74,7 @@ func run(ctx context.Context, args ...string) (exitCode int) {
 	cache := launcher.NewCache(cacheDir)
 	l := launcher.NewLauncher(cache, moduleRoot)
 
-	if err := l.Run(ctx, projectDir, allExts, rest, configFile, cf.Core.AgentLoop, providers); err != nil {
+	if err := l.Run(ctx, projectDir, rest, configFile, cf.Core.AgentLoop, providers); err != nil {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", err)
 		return 1
 	}
@@ -91,40 +91,15 @@ func resolveProjectDir(configFile string) string {
 	return dir
 }
 
-func resolveExtensionsAndMode(cf *config.File, rest []string) (allExts, providers, updatedRest []string, ok bool) {
+func resolveExtensionsAndMode(cf *config.File, rest []string) (providers, updatedRest []string, ok bool) {
 	envProvider := os.Getenv("WEAVE_PROVIDER")
-
-	if os.Getenv("WEAVE_PROVIDER_AUTO") == "1" {
-		envProvider = ""
-		_ = os.Unsetenv("WEAVE_PROVIDER")
-		_ = os.Unsetenv("WEAVE_PROVIDER_AUTO")
-	}
-
-	if envProvider == "" && len(cf.Core.Providers) > 0 {
-		if err := os.Setenv("WEAVE_PROVIDER", cf.Core.Providers[0]); err != nil {
-			fmt.Fprintf(os.Stderr, "weave: setenv: %v\n", err)
-			return nil, nil, nil, false
-		}
-
-		if err := os.Setenv("WEAVE_PROVIDER_AUTO", "1"); err != nil {
-			fmt.Fprintf(os.Stderr, "weave: setenv: %v\n", err)
-			return nil, nil, nil, false
-		}
-	}
-
-	allExts = cf.AllExtensions()
-	allExts = ensurePresent(allExts, "skills")
-	allExts = ensurePresent(allExts, "instructions")
 
 	if cf.Prompt == "" && (cf.UI == "" || cf.UI == config.UIValueNone) {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", errNoInput)
-		return nil, nil, nil, false
+		return nil, nil, false
 	}
 
 	headless := cf.Prompt != ""
-	if !headless {
-		allExts = ensurePresent(allExts, cf.UI)
-	}
 
 	updatedRest = rest
 	if headless {
@@ -133,13 +108,12 @@ func resolveExtensionsAndMode(cf *config.File, rest []string) (allExts, provider
 		updatedRest = append([]string{"--weave-headless=false"}, updatedRest...)
 	}
 
-	providers = cf.Core.Providers
+	providers = []string{}
 	if envProvider != "" {
-		providers = ensurePresent(providers, envProvider)
-		allExts = ensurePresent(allExts, envProvider)
+		providers = []string{envProvider}
 	}
 
-	return allExts, providers, updatedRest, true
+	return providers, updatedRest, true
 }
 
 func writePromptFile(prompt string) (path string, cleanup func(), ok bool) {

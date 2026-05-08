@@ -34,30 +34,20 @@ func NewLauncher(cache *Cache, moduleRoot string) *Launcher {
 }
 
 // Run executes the full launcher pipeline:
-//  1. Discover extension source directories
+//  1. Auto-discover extension source directories
 //  2. Compute hash from extension contents
 //  3. Check cache for existing binary
 //  4. Build if cache miss
 //  5. Exec the binary
-func (l *Launcher) Run(ctx context.Context, projectDir string, extensionNames, args []string, configPath, agentLoop string, providers []string) error {
-	if len(extensionNames) == 0 {
-		return errors.New("launcher: no extensions configured")
-	}
-
-	// Resolve relative path entries from the config file's directory, not the
-	// project root. Falls back to projectDir when configPath is empty.
-	configDir := ""
-	if configPath != "" {
-		configDir = filepath.Dir(configPath)
-	}
-
-	exts, warnings, err := DiscoverWithBuiltins(projectDir, l.ModuleRoot, extensionNames, configDir)
+func (l *Launcher) Run(ctx context.Context, projectDir string, args []string, configPath, agentLoop string, providers []string) error {
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return fmt.Errorf("launcher: discover: %w", err)
+		return fmt.Errorf("launcher: get home dir: %w", err)
 	}
 
-	for _, w := range warnings {
-		warnLog.Println(w)
+	exts, _, err := AutoDiscover(projectDir, homeDir, l.ModuleRoot, nil)
+	if err != nil {
+		return fmt.Errorf("launcher: auto-discover: %w", err)
 	}
 
 	hash, err := ComputeHash(exts, l.ModuleRoot, l.coreDirs()...)

@@ -77,20 +77,20 @@ Radically simplify weave's extension configuration by moving from explicit compi
 - [x] Run `go test ./config/...` — must pass before next task
 
 ### Task 2: Implement recursive AutoDiscover
-- [ ] Add `IsUIExt bool` field to `launcher.ExtensionInfo`
-- [ ] Implement `AutoDiscover(projectDir, homeDir, moduleRoot string, exclude []string)` in `launcher/discovery.go`
+- [x] Add `IsUIExt bool` field to `launcher.ExtensionInfo`
+- [x] Implement `AutoDiscover(projectDir, homeDir, moduleRoot string, exclude []string)` in `launcher/discovery.go`
   - Recursively scan `.weave/extensions/`, `~/.weave/extensions/`, `moduleRoot/extensions/`
   - Detect Go modules: directory containing both `go.mod` and at least one non-test `.go` file
   - Name = directory basename
   - Collect `.go` files within module boundary (skip subdirs with their own `go.mod`)
   - Deduplicate by name: local > global > built-in
   - Apply `exclude` list
-- [ ] Implement `detectUIExtension(dir string, goFiles []string) bool` — scan `.go` files for `RegisterUIExtension(` substring
-- [ ] Remove old name-based discovery: `Discover`, `DiscoverWithBuiltins`, `findExtension`, `findBuiltin`, `checkBuiltinShadow`
-- [ ] Keep `collectGoFiles` but make it respect module boundaries
-- [ ] Write tests for `AutoDiscover` with temp directory trees
-- [ ] Write tests for `detectUIExtension` with sample Go source
-- [ ] Run `go test ./launcher/...` — must pass before next task
+- [x] Implement `detectUIExtension(dir string, goFiles []string) bool` — scan `.go` files for `RegisterUIExtension(` substring
+- [x] Remove old name-based discovery: `Discover`, `DiscoverWithBuiltins`, `findExtension`, `findBuiltin`, `checkBuiltinShadow`
+- [x] Keep `collectGoFiles` but make it respect module boundaries
+- [x] Write tests for `AutoDiscover` with temp directory trees
+- [x] Write tests for `detectUIExtension` with sample Go source
+- [x] Run `go test ./launcher/...` — must pass before next task
 
 ### Task 3: Update builder for headless UI filtering
 - [ ] Update `BuildFunc` signature: remove `providers []string` parameter, add `headless bool`

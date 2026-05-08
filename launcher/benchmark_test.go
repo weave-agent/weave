@@ -26,12 +26,25 @@ func discoverExtensions(b *testing.B, moduleRoot string, extNames []string) []Ex
 	projectDir := b.TempDir()
 	homeDir := b.TempDir()
 
-	exts, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, extNames)
+	allExts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 	if err != nil {
-		b.Fatalf("DiscoverCustomHomeWithBuiltins: %v", err)
+		b.Fatalf("AutoDiscover: %v", err)
 	}
 
-	return exts
+	nameSet := make(map[string]bool, len(extNames))
+	for _, name := range extNames {
+		nameSet[name] = true
+	}
+
+	var filtered []ExtensionInfo
+
+	for _, ext := range allExts {
+		if nameSet[ext.Name] {
+			filtered = append(filtered, ext)
+		}
+	}
+
+	return filtered
 }
 
 func buildExtensions(b *testing.B, moduleRoot string, exts []ExtensionInfo) string {
@@ -142,8 +155,8 @@ func BenchmarkColdBuild_NoTUI(b *testing.B) {
 	}
 }
 
-// warmPipeline runs the full launcher build pipeline (discover → hash → cache miss →
-// build → cache store) using a fresh cache each iteration. This matches the real
+// warmPipeline runs the full launcher build pipeline (discover -> hash -> cache miss ->
+// build -> cache store) using a fresh cache each iteration. This matches the real
 // `go run` path: hash always changes (fresh cache), Go build cache is whatever the
 // system has.
 func warmPipeline(b *testing.B, moduleRoot string, extNames []string) {
@@ -156,9 +169,22 @@ func warmPipeline(b *testing.B, moduleRoot string, extNames []string) {
 		projectDir := b.TempDir()
 		homeDir := b.TempDir()
 
-		exts, _, err := DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, extNames)
+		allExts, _, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 		if err != nil {
-			b.Fatalf("DiscoverCustomHomeWithBuiltins: %v", err)
+			b.Fatalf("AutoDiscover: %v", err)
+		}
+
+		nameSet := make(map[string]bool, len(extNames))
+		for _, name := range extNames {
+			nameSet[name] = true
+		}
+
+		var exts []ExtensionInfo
+
+		for _, ext := range allExts {
+			if nameSet[ext.Name] {
+				exts = append(exts, ext)
+			}
 		}
 
 		hash, err := ComputeHash(exts, moduleRoot)
@@ -166,7 +192,7 @@ func warmPipeline(b *testing.B, moduleRoot string, extNames []string) {
 			b.Fatalf("ComputeHash: %v", err)
 		}
 
-		// Cache miss (fresh cache) → buildAndCache
+		// Cache miss (fresh cache) -> buildAndCache
 		buildDir := b.TempDir()
 
 		binPath, buildErr := Build(buildDir, moduleRoot, "loop", []string{"anthropic"}, exts)
@@ -187,7 +213,7 @@ func warmPipeline(b *testing.B, moduleRoot string, extNames []string) {
 	}
 }
 
-// Warm builds: full launcher pipeline (discover → hash → build → cache store).
+// Warm builds: full launcher pipeline (discover -> hash -> build -> cache store).
 // System Go build cache reflects real usage. Fresh launcher cache each iteration
 // simulates a hash change from extension modification.
 
@@ -202,7 +228,7 @@ func BenchmarkWarmBuild_NoTUI(b *testing.B) {
 }
 
 // End-to-end: measures the full `go run ./cmd/weave/ -p "hello"` path.
-// Includes go run compilation + launcher pipeline (discover → hash → build → cache).
+// Includes go run compilation + launcher pipeline (discover -> hash -> build -> cache).
 // Uses a project-local .weave/config.yaml to control extensions.
 // This is what you actually experience at the terminal.
 
@@ -254,11 +280,11 @@ func goRunEndToEnd(b *testing.B, extYAML string) {
 }
 
 func BenchmarkGoRun_NoTUI(b *testing.B) {
-	goRunEndToEnd(b, "core:\n  agent_loop: loop\n  providers:\n    - anthropic\nui: none\n")
+	goRunEndToEnd(b, "core:\n  agent_loop: loop\nui: none\n")
 }
 
 func BenchmarkGoRun_TUI(b *testing.B) {
-	goRunEndToEnd(b, "core:\n  agent_loop: loop\n  providers:\n    - anthropic\nui: none\nextensions:\n  - bash\n  - read\n  - edit\n  - write\n  - grep\n  - find\n  - ls\n  - jsonl\n  - tui\n")
+	goRunEndToEnd(b, "core:\n  agent_loop: loop\nui: tui\n")
 }
 
 // Partial builds: Go cache primed with full build, but one extension source changed.
@@ -270,13 +296,14 @@ func BenchmarkPartialBuild_OneExtRebuild(b *testing.B) {
 	projectDir := b.TempDir()
 	extDir := filepath.Join(projectDir, ".weave", "extensions", "noop")
 	createGoFileB(b, extDir, "noop.go", noopCode)
+	createGoFileB(b, extDir, "go.mod", "module test/ext/noop\n\ngo 1.22\n\nrequire weave v0.0.0\n\nreplace weave => "+moduleRoot+"\n")
 
 	// Prime: build NoTUI + noop to populate Go cache for everything.
 	baseExts := discoverExtensions(b, moduleRoot, extsWithoutTUI)
 
-	noopExts, _, err := Discover(projectDir, []string{"noop"})
+	noopExts, _, err := AutoDiscover(projectDir, b.TempDir(), "", nil)
 	if err != nil {
-		b.Fatalf("Discover noop: %v", err)
+		b.Fatalf("AutoDiscover noop: %v", err)
 	}
 
 	primeExts := append([]ExtensionInfo(nil), baseExts...)
@@ -297,9 +324,9 @@ func BenchmarkPartialBuild_OneExtRebuild(b *testing.B) {
 
 		loopBase := discoverExtensions(b, moduleRoot, extsWithoutTUI)
 
-		noopLoop, _, err := Discover(projectDir, []string{"noop"})
+		noopLoop, _, err := AutoDiscover(projectDir, b.TempDir(), "", nil)
 		if err != nil {
-			b.Fatalf("Discover noop: %v", err)
+			b.Fatalf("AutoDiscover noop: %v", err)
 		}
 
 		allExts := append([]ExtensionInfo(nil), loopBase...)
@@ -317,6 +344,7 @@ func BenchmarkPartialBuild_OneExtRebuild_Cold(b *testing.B) {
 			projectDir := b.TempDir()
 			extDir := filepath.Join(projectDir, ".weave", "extensions", "noop")
 			createGoFileB(b, extDir, "noop.go", noopCode)
+			createGoFileB(b, extDir, "go.mod", "module test/ext/noop\n\ngo 1.22\n\nrequire weave v0.0.0\n\nreplace weave => "+moduleRoot+"\n")
 
 			// Prime temp cache with NoTUI build.
 			baseExts := discoverExtensions(b, moduleRoot, extsWithoutTUI)
@@ -329,9 +357,9 @@ func BenchmarkPartialBuild_OneExtRebuild_Cold(b *testing.B) {
 				b.Fatalf("write version.go: %v", writeErr)
 			}
 
-			noopExts, _, err := Discover(projectDir, []string{"noop"})
+			noopExts, _, err := AutoDiscover(projectDir, b.TempDir(), "", nil)
 			if err != nil {
-				b.Fatalf("Discover noop: %v", err)
+				b.Fatalf("AutoDiscover noop: %v", err)
 			}
 
 			deltaExts := append([]ExtensionInfo(nil), baseExts...)
