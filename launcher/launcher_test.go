@@ -26,7 +26,7 @@ func TestRun_BuildFails(t *testing.T) {
 		BuildTmpDir: t.TempDir(),
 	}
 
-	err := l.Run(context.Background(), projectDir, nil, "", "loop", false)
+	err := l.Run(context.Background(), projectDir, nil, "", "loop", false, nil)
 	require.Error(t, err, "expected error for build failure")
 }
 
@@ -151,3 +151,89 @@ func TestBuildDir_DefaultTmpDir(t *testing.T) {
 type fmtError string
 
 func (e fmtError) Error() string { return string(e) }
+
+func TestRun_ExcludeExtensions(t *testing.T) {
+	projectDir := t.TempDir()
+	moduleRoot := createModuleRoot(t)
+
+	// Create two extensions
+	createExtension(t, filepath.Join(projectDir, ".weave", "extensions"), "alpha", "package alpha")
+	createExtension(t, filepath.Join(projectDir, ".weave", "extensions"), "beta", "package beta")
+
+	var capturedExts []ExtensionInfo
+	l := &Launcher{
+		Cache: NewCache(t.TempDir()),
+		Build: func(_ string, _ string, _ string, _ bool, exts []ExtensionInfo) (string, error) {
+			capturedExts = exts
+			return "", fmtError("captured")
+		},
+		ModuleRoot:  moduleRoot,
+		BuildTmpDir: t.TempDir(),
+	}
+
+	err := l.Run(context.Background(), projectDir, nil, "", "loop", false, []string{"alpha"})
+	require.Error(t, err) // Build returns error to prevent exec
+
+	require.Len(t, capturedExts, 1)
+	assert.Equal(t, "beta", capturedExts[0].Name)
+}
+
+func TestRun_HeadlessPassedToBuild(t *testing.T) {
+	projectDir := t.TempDir()
+	moduleRoot := createModuleRoot(t)
+	createExtension(t, filepath.Join(projectDir, ".weave", "extensions"), "noop", "package noop")
+
+	var capturedHeadless bool
+	l := &Launcher{
+		Cache: NewCache(t.TempDir()),
+		Build: func(_ string, _ string, _ string, headless bool, _ []ExtensionInfo) (string, error) {
+			capturedHeadless = headless
+			return "", fmtError("captured")
+		},
+		ModuleRoot:  moduleRoot,
+		BuildTmpDir: t.TempDir(),
+	}
+
+	err := l.Run(context.Background(), projectDir, nil, "", "loop", true, nil)
+	require.Error(t, err) // Build returns error to prevent exec
+	assert.True(t, capturedHeadless)
+}
+
+func TestRun_NilExclude(t *testing.T) {
+	projectDir := t.TempDir()
+	moduleRoot := createModuleRoot(t)
+	createExtension(t, filepath.Join(projectDir, ".weave", "extensions"), "alpha", "package alpha")
+	createExtension(t, filepath.Join(projectDir, ".weave", "extensions"), "beta", "package beta")
+
+	var capturedExts []ExtensionInfo
+	l := &Launcher{
+		Cache: NewCache(t.TempDir()),
+		Build: func(_ string, _ string, _ string, _ bool, exts []ExtensionInfo) (string, error) {
+			capturedExts = exts
+			return "", fmtError("captured")
+		},
+		ModuleRoot:  moduleRoot,
+		BuildTmpDir: t.TempDir(),
+	}
+
+	err := l.Run(context.Background(), projectDir, nil, "", "loop", false, nil)
+	require.Error(t, err)
+
+	require.Len(t, capturedExts, 2)
+	assert.Equal(t, "alpha", capturedExts[0].Name)
+	assert.Equal(t, "beta", capturedExts[1].Name)
+}
+
+// createModuleRoot creates a temporary directory mimicking the weave module root
+// with empty core dirs so ComputeHash can walk them without error.
+func createModuleRoot(t *testing.T) string {
+	t.Helper()
+
+	root := t.TempDir()
+	for _, dir := range []string{"sdk", "bus", "config", "utils/truncate", "launcher"} {
+		require.NoError(t, os.MkdirAll(filepath.Join(root, dir), 0o750))
+	}
+	require.NoError(t, os.WriteFile(filepath.Join(root, "go.mod"), []byte("module weave\n\ngo 1.22\n"), 0o600))
+
+	return root
+}

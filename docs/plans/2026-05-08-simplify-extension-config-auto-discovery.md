@@ -107,13 +107,13 @@ Radically simplify weave's extension configuration by moving from explicit compi
 - [x] Run `go test ./launcher/...` — must pass before next task
 
 ### Task 4: Update launcher pipeline
-- [ ] Update `Launcher.Run` — call `AutoDiscover` instead of `DiscoverWithBuiltins`
+- [x] Update `Launcher.Run` — call `AutoDiscover` instead of `DiscoverWithBuiltins`
   - Pass `cf.ExcludeExtensions` as exclude list
   - Pass headless flag to `buildAndCache`
-- [ ] Update `Launcher.buildAndCache` — pass headless to `l.Build`
-- [ ] Update `Launcher.exec` — remove `--weave-providers=` flag
-- [ ] Write tests for updated launcher pipeline
-- [ ] Run `go test ./launcher/...` — must pass before next task
+- [x] Update `Launcher.buildAndCache` — pass headless to `l.Build`
+- [x] Update `Launcher.exec` — remove `--weave-providers=` flag
+- [x] Write tests for updated launcher pipeline
+- [x] Run `go test ./launcher/...` — must pass before next task
 
 ### Task 5: Update wire/run — remove provider list handling
 - [ ] Remove `Providers` from `sdk/wire.CoreWireConfig`

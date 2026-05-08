@@ -38,13 +38,13 @@ func NewLauncher(cache *Cache, moduleRoot string) *Launcher {
 //  3. Check cache for existing binary
 //  4. Build if cache miss
 //  5. Exec the binary
-func (l *Launcher) Run(ctx context.Context, projectDir string, args []string, configPath, agentLoop string, headless bool) error {
+func (l *Launcher) Run(ctx context.Context, projectDir string, args []string, configPath, agentLoop string, headless bool, exclude []string) error {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return fmt.Errorf("launcher: get home dir: %w", err)
 	}
 
-	exts, _, err := AutoDiscover(projectDir, homeDir, l.ModuleRoot, nil)
+	exts, _, err := AutoDiscover(projectDir, homeDir, l.ModuleRoot, exclude)
 	if err != nil {
 		return fmt.Errorf("launcher: auto-discover: %w", err)
 	}

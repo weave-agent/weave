@@ -76,7 +76,7 @@ func run(ctx context.Context, args ...string) (exitCode int) {
 	cache := launcher.NewCache(cacheDir)
 	l := launcher.NewLauncher(cache, moduleRoot)
 
-	if err := l.Run(ctx, projectDir, rest, configFile, cf.Core.AgentLoop, headless); err != nil {
+	if err := l.Run(ctx, projectDir, rest, configFile, cf.Core.AgentLoop, headless, cf.ExcludeExtensions); err != nil {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", err)
 		return 1
 	}
