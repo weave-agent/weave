@@ -159,8 +159,8 @@ Radically simplify weave's extension configuration by moving from explicit compi
 - [x] Build weave binary and test interactive + headless modes
 
 ### Task 9: Update documentation
-- [ ] Update `docs/design.md` if it references old config format
-- [ ] Update example configs in any README or docs
+- [x] Update `docs/design.md` if it references old config format
+- [x] Update example configs in any README or docs
 
 ## Technical Details
 

@@ -8,7 +8,7 @@ A coding agent framework written in Go. Event-driven, extension-based, with dyna
 - Standard library as much as possible
 - Every replaceable component is an extension (runner, provider, tools, store, hooks)
 - Extensions are independent Go modules, installed globally
-- Per-project config selects which extensions to activate via explicit slots
+- Extensions are auto-discovered from filesystem (no explicit config lists)
 - Channel-based event bus with string topics, extensible by extensions
 - Fast recompile via Go build cache + per-hash binary caching
 - Single external dependency: gonfig
@@ -286,10 +286,10 @@ type Config interface {
 
 ## Registry + Wire
 
-Extensions self-register via `init()` using factory functions. No priority numbers. Resolution is config-driven:
+Extensions self-register via `init()` using factory functions. All extensions found by auto-discovery are compiled in and instantiated:
 - **Slots** (runner, store) — config explicitly maps which extension fills the role
-- **Providers** — all listed providers are instantiated, runner picks by model name
-- **Tools** — last-wins by config `extensions` list order, name from `Tool.Name()`
+- **Providers** — all discovered providers are instantiated, runner picks by model name
+- **Tools** — all discovered tools instantiated, name from `Tool.Name()`
 - **Extensions** (hooks) — all are instantiated and subscribed to the event bus
 
 ```go
@@ -1068,32 +1068,21 @@ func ResolveConfig(configFlag string, extFlag string) (*ResolvedConfig, error) {
 
 ### Extension Discovery
 
-```go
-func resolveExtensions(names []string) ([]Extension, error) {
-    var exts []Extension
-    for _, name := range names {
-        // search order:
-        //   1. .agent/extensions/{name}/     (project-local)
-        //   2. ~/.agent/extensions/{name}/   (global)
-        path, err := findExtension(name)
-        if err != nil {
-            return nil, fmt.Errorf("extension %q not found", name)
-        }
-        exts = append(exts, Extension{Name: name, Path: path})
-    }
-    return exts, nil
-}
+Extensions are auto-discovered by recursively scanning for Go modules. No explicit config list is needed.
 
-func findExtension(name string) (string, error) {
-    local := filepath.Join(".agent", "extensions", name)
-    if isGoModule(local) {
-        return filepath.Abs(local)
+```go
+// AutoDiscover scans all extension roots and returns deduplicated, sorted extensions.
+func AutoDiscover(projectDir, homeDir, moduleRoot string, exclude []string) ([]ExtensionInfo, error) {
+    roots := []string{
+        filepath.Join(projectDir, ".agent", "extensions"),  // project-local
+        filepath.Join(homeDir, ".agent", "extensions"),     // global
+        filepath.Join(moduleRoot, "extensions"),            // built-in
     }
-    global := filepath.Join(homeDir(), ".agent", "extensions", name)
-    if isGoModule(global) {
-        return global, nil
-    }
-    return "", fmt.Errorf("not found")
+    // Walk each root recursively, detect Go modules (go.mod + .go files)
+    // Deduplicate by name: local > global > built-in
+    // Apply exclude list
+    // Detect UI extensions by scanning source for RegisterUIExtension(
+    return sortedExts, nil
 }
 ```
 
@@ -1456,16 +1445,9 @@ func cmdRun(args []string) {
 
 ## Project Config (.agent.yaml)
 
-```yaml
-extensions:
-  - llmprovider              # Anthropic (claude-opus-4-7, claude-sonnet-4-6, ...)
-  - openai-provider          # OpenAI (gpt-5, gpt-4o, ...)
-  - tools                    # registers bash, read, write, edit, grep, glob
-  - sandbox                  # also registers bash → overrides tools/bash (last wins)
-  - jsonlstore
-  - turnrunner
-  - lint
+Extensions are auto-discovered from the filesystem — no explicit `extensions` list needed. The launcher recursively scans project-local (`.agent/extensions/`), global (`~/.agent/extensions/`), and built-in (`extensions/`) directories for Go modules (directories with `go.mod` + `.go` files). All providers are compiled in; the active provider is selected at runtime via settings or env var.
 
+```yaml
 slots:
   runner: turnrunner
   store: jsonl
@@ -1492,6 +1474,9 @@ session:
   auto_compact: true
   compact_threshold: 50
 
+exclude_extensions:           # optional: skip auto-discovered extensions by name
+  - lint
+
 extensions_config:
   llmprovider:
     max_tokens: 8192
@@ -1506,7 +1491,7 @@ User types prompt
        │
        ▼
   ┌──────────┐
-  │ Launcher │  reads .agent.yaml, resolves extensions
+  │ Launcher │  auto-discovers extensions from filesystem
   └────┬─────┘
        │ cache hit? → exec binary
        │ cache miss → generate main.go + go.mod → build → cache → exec
@@ -1527,7 +1512,7 @@ User types prompt
   │         → sdk.Wire(config, bus)          │
   │           → slots: runner, store         │
   │           → providers: all instantiated  │
-  │           → tools: last-wins by config   │
+  │           → tools: all discovered        │
   │           → hooks: all subscribed to bus │
   │                                          │
   │  ┌──── Turn Runner Loop ────┐            │
@@ -1606,9 +1591,9 @@ Implementation: `Name()`, `Definition() ToolDef` (combines name+description+para
 
 Design does not mention truncation. Implementation adds `internal/truncate/` with a shared `Truncate()` function (2000 lines / 50KB defaults) used by all tools. Never returns partial lines; includes metadata (truncated bool, line/byte counts).
 
-### Launcher: nested extension discovery
+### Launcher: nested extension discovery → auto-discovery
 
-Design shows flat discovery: `extensions/{name}/`. Implementation adds two-level lookup: first `extensions/{name}/`, then `extensions/*/{name}/`. This allows the built-in extensions to live under `extensions/tools/bash/` and `extensions/providers/anthropic/` while being referenced by short names (`bash`, `anthropic`) in config.
+Design shows flat discovery: `extensions/{name}/`. Implementation originally added two-level lookup (`extensions/{name}/`, then `extensions/*/{name}/`), and later evolved into full auto-discovery — the launcher recursively scans all extension roots for Go modules, eliminating the need for explicit extension lists in config entirely. Built-in extensions live under `extensions/tools/bash/`, `extensions/providers/anthropic/`, etc. and are found automatically.
 
 ### Store: bus-only extension, no SDK interface
 
@@ -1617,3 +1602,7 @@ Design defines `sdk.Store` as a first-class SDK interface with `RegisterStore` a
 ### Config path: .agent → .weave
 
 Design uses `.agent.yaml` / `.agent/`. Implementation uses `.weave.yaml` / `.weave/` throughout (config discovery, extension directories, global dirs under `~/.weave/`).
+
+### Auto-discovery replaces explicit extension lists
+
+Design shows explicit `extensions:` list in project config and name-based lookup. Implementation uses auto-discovery: the launcher recursively scans project-local (`.weave/extensions/`), global (`~/.weave/extensions/`), and built-in (`extensions/`) directories for Go modules (directories with `go.mod` + `.go` files). All extensions are compiled in; no `extensions`, `ui_extensions`, or `core.providers` fields in config. UI extensions (detected by `RegisterUIExtension(` in source) are excluded from headless builds. All providers are compiled in regardless of settings — runtime selection via settings or `WEAVE_PROVIDER` env var. Config supports only `exclude_extensions` to opt out of specific auto-discovered extensions.
