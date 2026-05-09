@@ -394,7 +394,7 @@ func TestWrapCommand_ModeAsk_PublishesCommandEvent(t *testing.T) {
 	assert.Equal(t, "git status", payload["command"])
 
 	// Resolve to avoid goroutine leak.
-	bus.Publish(sdk.NewEvent("sandbox.denied", nil))
+	bus.Publish(sdk.NewEvent("sandbox.denied", map[string]string{"command": "git status"}))
 
 	<-done
 }

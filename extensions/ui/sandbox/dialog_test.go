@@ -118,13 +118,13 @@ func TestApproveDialog_ApproveFlow(t *testing.T) {
 	// Verify selector was shown with correct options
 	assert.True(t, ui.selectCalled)
 	assert.Contains(t, ui.selectTitle, "Sandbox: allow command?")
-	assert.Equal(t, []string{approveOption, denyOption}, ui.selectItems)
+	assert.Equal(t, []string{approveOption, trustOption, denyOption}, ui.selectItems)
 }
 
 func TestApproveDialog_DenyFlow(t *testing.T) {
 	ui := &mockSelectUI{
 		mockUI:       newMockUI(),
-		selectResult: 1, // Deny
+		selectResult: 2, // Deny (index 2: Approve=0, Trust=1, Deny=2)
 	}
 	bus := newMockBus()
 
@@ -141,6 +141,31 @@ func TestApproveDialog_DenyFlow(t *testing.T) {
 	payload, ok := denied[0].Payload.(map[string]string)
 	require.True(t, ok)
 	assert.Equal(t, "curl evil.com", payload["command"])
+}
+
+func TestApproveDialog_TrustForSessionFlow(t *testing.T) {
+	ui := &mockSelectUI{
+		mockUI:       newMockUI(),
+		selectResult: 1, // Trust for session (index 1)
+	}
+	bus := newMockBus()
+
+	d := &ApproveDialog{}
+	d.RegisterWithBus(ui, bus)
+
+	bus.Publish(sdk.NewEvent("sandbox.approve", map[string]string{
+		"command": "npm install",
+	}))
+
+	trusted := bus.published("sandbox.trust")
+	require.Len(t, trusted, 1, "expected one sandbox.trust event")
+
+	payload, ok := trusted[0].Payload.(map[string]string)
+	require.True(t, ok)
+	assert.Equal(t, "npm install", payload["pattern"])
+
+	approved := bus.published("sandbox.approved")
+	require.Len(t, approved, 1, "expected one sandbox.approved event after trust")
 }
 
 func TestApproveDialog_SelectError_Denies(t *testing.T) {

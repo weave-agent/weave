@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/nniel-ape/gonfig"
 
@@ -23,6 +24,8 @@ type SandboxConfig struct {
 	Network   bool     `json:"network" default:"true" description:"Allow network access in sandbox"`
 }
 
+const keyCommand = "command"
+
 // config wraps SandboxConfig for gonfig loading.
 type config struct {
 	Sandbox SandboxConfig
@@ -30,11 +33,13 @@ type config struct {
 
 // Sandbox implements sdk.Sandboxer with configurable modes and path policies.
 type Sandbox struct {
-	cfg      SandboxConfig
-	bus      sdk.Bus
-	headless bool
-	pending  []*askPending
-	mu       sync.RWMutex
+	cfg       SandboxConfig
+	bus       sdk.Bus
+	headless  bool
+	pending   []*askPending
+	allowlist []string
+	closed    bool
+	mu        sync.RWMutex
 }
 
 func init() {
@@ -98,28 +103,58 @@ func (s *Sandbox) Subscribe(bus sdk.Bus) error {
 		return s.resolvePending(ev, false)
 	})
 
+	bus.On("sandbox.trust", func(ev sdk.Event) error {
+		payload, ok := ev.Payload.(map[string]string)
+		if !ok {
+			return nil
+		}
+
+		pattern := payload["pattern"]
+		if pattern == "" {
+			return nil
+		}
+
+		s.mu.Lock()
+		s.allowlist = append(s.allowlist, pattern)
+		s.mu.Unlock()
+
+		slog.Info("sandbox: trusted pattern for session", "pattern", pattern)
+
+		return nil
+	})
+
 	return nil
 }
 
-// resolvePending resolves the oldest pending ask-mode command.
-func (s *Sandbox) resolvePending(_ sdk.Event, approved bool) error {
-	s.mu.Lock()
-	if len(s.pending) == 0 {
-		s.mu.Unlock()
+// resolvePending resolves the pending ask-mode command matching the event's command.
+func (s *Sandbox) resolvePending(ev sdk.Event, approved bool) error {
+	payload, ok := ev.Payload.(map[string]string)
+	if !ok {
 		return nil
 	}
 
-	p := s.pending[0]
-	s.pending = s.pending[1:]
-	s.mu.Unlock()
+	cmd := payload[keyCommand]
 
-	p.result <- approved
+	s.mu.Lock()
+	for i, p := range s.pending {
+		if p.cmd == cmd {
+			s.pending = append(s.pending[:i], s.pending[i+1:]...)
+			s.mu.Unlock()
+
+			p.result <- approved
+
+			return nil
+		}
+	}
+	s.mu.Unlock()
 
 	return nil
 }
 
 func (s *Sandbox) Close() error {
 	s.mu.Lock()
+	s.closed = true
+
 	for _, p := range s.pending {
 		select {
 		case p.result <- false:
@@ -165,14 +200,14 @@ func (s *Sandbox) WrapCommand(cmd, dir string) (string, error) {
 // AllowWrite reports whether the given path is allowed for write operations.
 func (s *Sandbox) AllowWrite(path string) bool {
 	s.mu.RLock()
-	mode := s.cfg.Mode
+	cfg := s.cfg
 	s.mu.RUnlock()
 
-	if mode == sdk.SandboxOff {
+	if cfg.Mode == sdk.SandboxOff {
 		return true
 	}
 
-	if mode == sdk.SandboxReadonly {
+	if cfg.Mode == sdk.SandboxReadonly {
 		return false
 	}
 
@@ -180,13 +215,13 @@ func (s *Sandbox) AllowWrite(path string) bool {
 		return false
 	}
 
-	for _, deny := range s.cfg.DenyWrite {
+	for _, deny := range cfg.DenyWrite {
 		if pathMatches(path, deny) {
 			return false
 		}
 	}
 
-	if len(s.cfg.Writable) == 0 {
+	if len(cfg.Writable) == 0 {
 		abs, err := filepath.Abs(path)
 		if err != nil {
 			abs = path
@@ -197,10 +232,10 @@ func (s *Sandbox) AllowWrite(path string) bool {
 			return strings.HasPrefix(abs, cwd)
 		}
 
-		return true
+		return false
 	}
 
-	for _, w := range s.cfg.Writable {
+	for _, w := range cfg.Writable {
 		if pathMatches(path, w) {
 			return true
 		}
@@ -212,10 +247,10 @@ func (s *Sandbox) AllowWrite(path string) bool {
 // AllowRead reports whether the given path is allowed for read operations.
 func (s *Sandbox) AllowRead(path string) bool {
 	s.mu.RLock()
-	mode := s.cfg.Mode
+	cfg := s.cfg
 	s.mu.RUnlock()
 
-	if mode == sdk.SandboxOff {
+	if cfg.Mode == sdk.SandboxOff {
 		return true
 	}
 
@@ -223,7 +258,7 @@ func (s *Sandbox) AllowRead(path string) bool {
 		return false
 	}
 
-	for _, deny := range s.cfg.DenyRead {
+	for _, deny := range cfg.DenyRead {
 		if pathMatches(path, deny) {
 			return false
 		}
@@ -253,19 +288,56 @@ func (s *Sandbox) wrapCommandAsk(cmd string) (string, error) {
 		return "", errors.New("sandbox: bus not available for ask mode")
 	}
 
+	// Check session allowlist before prompting.
+	s.mu.RLock()
+
+	for _, pattern := range s.allowlist {
+		if pathMatches(cmd, pattern) {
+			s.mu.RUnlock()
+
+			return cmd, nil
+		}
+	}
+
+	closed := s.closed
+	s.mu.RUnlock()
+
+	if closed {
+		return "", errors.New("sandbox: extension closed")
+	}
+
 	result := make(chan bool, 1)
 
 	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		return "", errors.New("sandbox: extension closed")
+	}
+
 	s.pending = append(s.pending, &askPending{cmd: cmd, result: result})
 	s.mu.Unlock()
 
 	s.bus.Publish(sdk.NewEvent("sandbox.approve", map[string]string{"command": cmd}))
 
-	if !<-result {
-		return "", fmt.Errorf("sandbox: command denied: %s", cmd)
-	}
+	select {
+	case approved := <-result:
+		if !approved {
+			return "", fmt.Errorf("sandbox: command denied: %s", cmd)
+		}
 
-	return cmd, nil
+		return cmd, nil
+	case <-time.After(5 * time.Minute):
+		s.mu.Lock()
+		for i, p := range s.pending {
+			if p.cmd == cmd {
+				s.pending = append(s.pending[:i], s.pending[i+1:]...)
+				break
+			}
+		}
+		s.mu.Unlock()
+
+		return "", fmt.Errorf("sandbox: command approval timed out: %s", cmd)
+	}
 }
 
 type askPending struct {

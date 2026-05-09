@@ -6,8 +6,10 @@ import (
 
 const (
 	approveOption = "Approve"
+	trustOption   = "Trust for session"
 	denyOption    = "Deny"
 	keyCommand    = "command"
+	keyPattern    = "pattern"
 )
 
 // ApproveDialog handles ask-mode approval flow by listening for sandbox.approve
@@ -48,6 +50,7 @@ func (d *ApproveDialog) handleApproval(ev sdk.Event) {
 
 	items := []string{
 		approveOption,
+		trustOption,
 		denyOption,
 	}
 
@@ -64,6 +67,13 @@ func (d *ApproveDialog) handleApproval(ev sdk.Event) {
 
 	switch idx {
 	case 0:
+		d.bus.Publish(sdk.NewEvent("sandbox.approved", map[string]string{
+			keyCommand: command,
+		}))
+	case 1:
+		d.bus.Publish(sdk.NewEvent("sandbox.trust", map[string]string{
+			keyPattern: command,
+		}))
 		d.bus.Publish(sdk.NewEvent("sandbox.approved", map[string]string{
 			keyCommand: command,
 		}))
