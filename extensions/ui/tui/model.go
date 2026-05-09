@@ -1497,7 +1497,7 @@ func (m Model) cycleSandboxMode() (tea.Model, tea.Cmd) {
 	sb := sdk.GetSandboxer()
 	if sb == nil {
 		m.showStatus("Sandbox: not available")
-		return m, nil
+		return m, m.statusTimer
 	}
 
 	current := sb.Mode()
