@@ -42,6 +42,10 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		path = "."
 	}
 
+	if s := sdk.GetSandboxer(); s != nil && !s.AllowRead(path) {
+		return sdk.ToolResult{Content: "sandbox: read denied — path is protected", IsError: true}, nil
+	}
+
 	info, err := os.Stat(path)
 	if err != nil {
 		return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil

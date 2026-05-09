@@ -191,3 +191,76 @@ func TestExecute(t *testing.T) {
 		assert.Contains(t, result.Content, "a")
 	})
 }
+
+func TestExecuteSandboxDenied(t *testing.T) {
+	tool := &tool{}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "secret.txt")
+	require.NoError(t, os.WriteFile(path, []byte("secret data"), 0o644))
+
+	sandboxer := &testSandboxer{allowReadFn: func(p string) bool { return false }}
+	sdk.SetSandboxer(sandboxer)
+	t.Cleanup(func() { sdk.SetSandboxer(nil) })
+
+	result, err := tool.Execute(context.Background(), map[string]any{"path": path})
+	require.NoError(t, err)
+	assert.True(t, result.IsError)
+	assert.Contains(t, result.Content, "sandbox: read denied")
+}
+
+func TestExecuteSandboxAllowed(t *testing.T) {
+	tool := &tool{}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "readable.txt")
+	require.NoError(t, os.WriteFile(path, []byte("hello"), 0o644))
+
+	sandboxer := &testSandboxer{allowReadFn: func(p string) bool { return true }}
+	sdk.SetSandboxer(sandboxer)
+	t.Cleanup(func() { sdk.SetSandboxer(nil) })
+
+	result, err := tool.Execute(context.Background(), map[string]any{"path": path})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+	assert.Contains(t, result.Content, "hello")
+}
+
+func TestExecuteSandboxNil(t *testing.T) {
+	tool := &tool{}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "normal.txt")
+	require.NoError(t, os.WriteFile(path, []byte("normal data"), 0o644))
+
+	sdk.SetSandboxer(nil)
+
+	result, err := tool.Execute(context.Background(), map[string]any{"path": path})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+	assert.Contains(t, result.Content, "normal data")
+}
+
+type testSandboxer struct {
+	allowReadFn  func(string) bool
+	allowWriteFn func(string) bool
+	wrapFn       func(cmd, dir string) (string, error)
+}
+
+func (ts *testSandboxer) WrapCommand(cmd, dir string) (string, error) {
+	if ts.wrapFn != nil {
+		return ts.wrapFn(cmd, dir)
+	}
+	return cmd, nil
+}
+
+func (ts *testSandboxer) AllowWrite(path string) bool {
+	if ts.allowWriteFn != nil {
+		return ts.allowWriteFn(path)
+	}
+	return true
+}
+
+func (ts *testSandboxer) AllowRead(path string) bool {
+	if ts.allowReadFn != nil {
+		return ts.allowReadFn(path)
+	}
+	return true
+}

@@ -130,14 +130,14 @@ Four sandbox modes: `off` → `readonly` → `ask` → `auto` (default). The des
 - [x] run `cd extensions/tools/write && go test ./...` and `cd extensions/tools/edit && go test ./...` — must pass before task 8
 
 ### Task 8: Integrate sandbox policy into file tools (read, grep, find, ls)
-- [ ] modify `extensions/tools/read/read.go` `Execute()` — check `sdk.GetSandboxer().AllowRead(path)` before reading
-- [ ] if denied, return `ToolResult{Content: "sandbox: read denied — path is protected", IsError: true}`
-- [ ] modify `extensions/tools/grep/grep.go` `Execute()` — check `AllowRead()` for search paths
-- [ ] modify `extensions/tools/find/find.go` `Execute()` — check `AllowRead()` for search paths
-- [ ] modify `extensions/tools/ls/ls.go` `Execute()` — check `AllowRead()` for listed paths
-- [ ] if sandboxer nil, current behavior unchanged for all tools
-- [ ] write tests for each tool with mock sandboxer (allowed read, denied read, nil sandboxer)
-- [ ] run tests for all four tool modules — must pass before task 9
+- [x] modify `extensions/tools/read/read.go` `Execute()` — check `sdk.GetSandboxer().AllowRead(path)` before reading
+- [x] if denied, return `ToolResult{Content: "sandbox: read denied — path is protected", IsError: true}`
+- [x] modify `extensions/tools/grep/grep.go` `Execute()` — check `AllowRead()` for search paths
+- [x] modify `extensions/tools/find/find.go` `Execute()` — check `AllowRead()` for search paths
+- [x] modify `extensions/tools/ls/ls.go` `Execute()` — check `AllowRead()` for listed paths
+- [x] if sandboxer nil, current behavior unchanged for all tools
+- [x] write tests for each tool with mock sandboxer (allowed read, denied read, nil sandboxer)
+- [x] run tests for all four tool modules — must pass before task 9
 
 ### Task 9: Create TUI sandbox extension
 - [ ] create `extensions/ui/sandbox/` directory with `go.mod` (module: `weave/extensions/ui/sandbox`)
