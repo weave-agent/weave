@@ -114,3 +114,11 @@ func wrapCommandDarwin(cmd, dir string) (string, error) {
 func generateSeatbeltProfile(cfg SandboxConfig, dir string) string {
 	return ""
 }
+
+func wrapCommandDarwinWithConfig(cmd, dir string, cfg SandboxConfig) (string, error) {
+	return cmd, nil
+}
+
+func wrapCommandLinuxWithConfig(cmd, dir string, cfg SandboxConfig) (string, error) {
+	return cmd, nil
+}

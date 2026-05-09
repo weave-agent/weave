@@ -119,3 +119,16 @@ func wrapCommandPlatform(cmd, dir string) (string, error) {
 		return cmd, nil
 	}
 }
+
+// wrapCommandPlatformWithConfig dispatches to the OS-specific implementation
+// with an explicit config, used by readonly mode to override writable paths.
+func wrapCommandPlatformWithConfig(cmd, dir string, cfg SandboxConfig) (string, error) {
+	switch runtime.GOOS {
+	case "darwin":
+		return wrapCommandDarwinWithConfig(cmd, dir, cfg)
+	case "linux":
+		return wrapCommandLinuxWithConfig(cmd, dir, cfg)
+	default:
+		return cmd, nil
+	}
+}

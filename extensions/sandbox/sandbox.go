@@ -1,6 +1,7 @@
 package sandbox
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -34,8 +35,11 @@ type config struct {
 
 // Sandbox implements sdk.Sandboxer with configurable modes and path policies.
 type Sandbox struct {
-	cfg SandboxConfig
-	mu  sync.RWMutex
+	cfg      SandboxConfig
+	bus      sdk.Bus
+	headless bool
+	pending  []*askPending
+	mu       sync.RWMutex
 }
 
 func init() {
@@ -62,7 +66,8 @@ func NewSandbox(cfg sdk.Config) (*Sandbox, error) {
 		sc.Mode = ModeAuto
 	}
 
-	s := &Sandbox{cfg: sc}
+	headless := cfg == nil || cfg.IsHeadless()
+	s := &Sandbox{cfg: sc, headless: headless}
 	sdk.SetSandboxer(s)
 
 	return s, nil
@@ -71,6 +76,8 @@ func NewSandbox(cfg sdk.Config) (*Sandbox, error) {
 func (s *Sandbox) Name() string { return "sandbox" }
 
 func (s *Sandbox) Subscribe(bus sdk.Bus) error {
+	s.bus = bus
+
 	bus.On("sandbox.mode.change", func(ev sdk.Event) error {
 		mode, ok := ev.Payload.(string)
 		if !ok {
@@ -86,6 +93,32 @@ func (s *Sandbox) Subscribe(bus sdk.Bus) error {
 
 		return nil
 	})
+
+	// Handle approval responses from TUI ask dialog.
+	bus.On("sandbox.approved", func(ev sdk.Event) error {
+		return s.resolvePending(ev, true)
+	})
+
+	bus.On("sandbox.denied", func(ev sdk.Event) error {
+		return s.resolvePending(ev, false)
+	})
+
+	return nil
+}
+
+// resolvePending resolves the oldest pending ask-mode command.
+func (s *Sandbox) resolvePending(_ sdk.Event, approved bool) error {
+	s.mu.Lock()
+	if len(s.pending) == 0 {
+		s.mu.Unlock()
+		return nil
+	}
+
+	p := s.pending[0]
+	s.pending = s.pending[1:]
+	s.mu.Unlock()
+
+	p.result <- askResult{approved: approved}
 
 	return nil
 }
@@ -114,6 +147,10 @@ func (s *Sandbox) WrapCommand(cmd, dir string) (string, error) {
 		return cmd, nil
 	case ModeAuto:
 		return wrapCommandPlatform(cmd, dir)
+	case ModeReadonly:
+		return wrapCommandReadonly(cmd, dir)
+	case ModeAsk:
+		return s.wrapCommandAsk(cmd)
 	default:
 		return cmd, nil
 	}
@@ -127,6 +164,10 @@ func (s *Sandbox) AllowWrite(path string) bool {
 
 	if mode == ModeOff {
 		return true
+	}
+
+	if mode == ModeReadonly {
+		return false
 	}
 
 	if isDeniedWrite(path) {
@@ -173,6 +214,58 @@ func (s *Sandbox) AllowRead(path string) bool {
 	}
 
 	return true
+}
+
+// wrapCommandReadonly wraps a command with no writable paths in the sandbox profile.
+func wrapCommandReadonly(cmd, dir string) (string, error) {
+	s := getCurrentSandbox()
+
+	var cfg SandboxConfig
+
+	if s != nil {
+		s.mu.RLock()
+		cfg = s.cfg
+		s.mu.RUnlock()
+	}
+
+	cfg.Writable = nil
+
+	return wrapCommandPlatformWithConfig(cmd, dir, cfg)
+}
+
+// wrapCommandAsk publishes an approval request on the bus and waits for a response.
+func (s *Sandbox) wrapCommandAsk(cmd string) (string, error) {
+	if s.headless {
+		return "", fmt.Errorf("command requires approval (headless mode): %s", cmd)
+	}
+
+	if s.bus == nil {
+		return "", errors.New("sandbox: bus not available for ask mode")
+	}
+
+	result := make(chan askResult, 1)
+
+	s.mu.Lock()
+	s.pending = append(s.pending, &askPending{cmd: cmd, result: result})
+	s.mu.Unlock()
+
+	s.bus.Publish(sdk.NewEvent("sandbox.approve", map[string]string{"command": cmd}))
+
+	r := <-result
+	if !r.approved {
+		return "", fmt.Errorf("sandbox: command denied: %s", cmd)
+	}
+
+	return cmd, nil
+}
+
+type askResult struct {
+	approved bool
+}
+
+type askPending struct {
+	cmd    string
+	result chan askResult
 }
 
 // SetMode changes the sandbox mode (for testing and bus events).

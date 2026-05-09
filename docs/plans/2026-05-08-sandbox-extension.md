@@ -102,14 +102,14 @@ Four sandbox modes: `off` → `readonly` → `ask` → `auto` (default). The des
 - [x] run `cd extensions/sandbox && go test ./...` — must pass before task 5
 
 ### Task 5: Implement sandbox modes
-- [ ] add mode constants: `ModeOff`, `ModeReadonly`, `ModeAsk`, `ModeAuto`
-- [ ] `auto` mode: `WrapCommand` wraps every bash command in sandbox profile
-- [ ] `readonly` mode: profile has no writable paths, built-in read-only command allowlist passes through
-- [ ] `ask` mode: publishes `sandbox.approve` event on bus with command details, waits for `sandbox.approved`/`sandbox.denied` response
-- [ ] `off` mode: `WrapCommand` returns command unchanged
-- [ ] handle headless `ask` mode: deny with message "command requires approval (headless mode)"
-- [ ] write tests for each mode's `WrapCommand` behavior (off returns unchanged, readonly has no writable paths, ask publishes event, auto wraps)
-- [ ] run `cd extensions/sandbox && go test ./...` — must pass before task 6
+- [x] add mode constants: `ModeOff`, `ModeReadonly`, `ModeAsk`, `ModeAuto`
+- [x] `auto` mode: `WrapCommand` wraps every bash command in sandbox profile
+- [x] `readonly` mode: profile has no writable paths, built-in read-only command allowlist passes through
+- [x] `ask` mode: publishes `sandbox.approve` event on bus with command details, waits for `sandbox.approved`/`sandbox.denied` response
+- [x] `off` mode: `WrapCommand` returns command unchanged
+- [x] handle headless `ask` mode: deny with message "command requires approval (headless mode)"
+- [x] write tests for each mode's `WrapCommand` behavior (off returns unchanged, readonly has no writable paths, ask publishes event, auto wraps)
+- [x] run `cd extensions/sandbox && go test ./...` — must pass before task 6
 
 ### Task 6: Integrate sandbox into bash tool
 - [ ] modify `extensions/tools/bash/bash.go` `Execute()` — check `sdk.GetSandboxer()` before building command
