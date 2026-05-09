@@ -27,7 +27,7 @@ func (d *ApproveDialog) RegisterWithBus(ui sdk.UI, bus sdk.Bus) {
 	d.bus = bus
 
 	bus.On("sandbox.approve", func(ev sdk.Event) error {
-		d.handleApproval(ev)
+		go d.handleApproval(ev)
 		return nil
 	})
 }

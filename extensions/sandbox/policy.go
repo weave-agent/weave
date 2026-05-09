@@ -9,15 +9,17 @@ import (
 )
 
 // mandatoryDenyWritePaths are paths that are always blocked from writes.
+// Paths prefixed with "project:" are resolved against the project root
+// (found by walking up from CWD), not CWD itself.
 var mandatoryDenyWritePaths = []string{
 	"~/.ssh/",
 	"~/.bashrc",
 	"~/.zshrc",
 	"~/.profile",
 	"~/.gitconfig",
-	".git/hooks/",
-	".git/config",
-	".weave/",
+	"project:.git/hooks/",
+	"project:.git/config",
+	"project:.weave/",
 }
 
 // mandatoryDenyReadPatterns are glob patterns always blocked from reading.
@@ -28,14 +30,12 @@ var mandatoryDenyReadPatterns = []string{
 	"**/.env.*",
 }
 
-func isDeniedWrite(path, cwd string) bool {
+func isDeniedWrite(abs, cwd string) bool {
 	home, _ := os.UserHomeDir()
-
-	abs := resolveAbs(path)
 
 	for _, deny := range mandatoryDenyWritePaths {
 		expanded := expandDenyRule(deny, home, cwd)
-		if strings.HasPrefix(abs, expanded) || strings.HasPrefix(path, deny) {
+		if strings.HasPrefix(abs, expanded) {
 			return true
 		}
 	}
@@ -43,10 +43,8 @@ func isDeniedWrite(path, cwd string) bool {
 	return false
 }
 
-func isDeniedRead(path string) bool {
+func isDeniedRead(abs string) bool {
 	home, _ := os.UserHomeDir()
-
-	abs := resolveAbs(path)
 
 	for _, pattern := range mandatoryDenyReadPatterns {
 		expanded := expandHome(pattern, home)
@@ -61,16 +59,12 @@ func isDeniedRead(path string) bool {
 			parts := strings.SplitN(expanded, "**/", 2)
 			if len(parts) == 2 {
 				suffix := parts[1]
-				// Match suffix (which may contain *) against the basename.
+
 				base := filepath.Base(abs)
 				if m, _ := filepath.Match(suffix, base); m {
 					return true
 				}
 			}
-		}
-
-		if strings.HasPrefix(path, pattern) {
-			return true
 		}
 	}
 
@@ -289,9 +283,16 @@ func expandHome(path, home string) string {
 // expandDenyRule expands a deny rule for comparison against absolute paths.
 // Home-relative paths (~/.ssh/) are expanded. Project-relative paths
 // (.git/hooks/) are resolved against the given base directory.
+// Paths with "project:" prefix are resolved against the project root
+// (found by walking up from dir for .git or .weave).
 func expandDenyRule(path, home, dir string) string {
 	if strings.HasPrefix(path, "~/") {
 		return expandHome(path, home)
+	}
+
+	if rel, ok := strings.CutPrefix(path, "project:"); ok {
+		root := findProjectRoot(dir)
+		return filepath.Join(root, rel)
 	}
 
 	if !filepath.IsAbs(path) {
@@ -306,6 +307,34 @@ func expandDenyRule(path, home, dir string) string {
 	}
 
 	return path
+}
+
+// findProjectRoot walks up from dir to find the nearest ancestor containing
+// .git (directory) or .weave/ (directory). Falls back to dir itself.
+func findProjectRoot(dir string) string {
+	if dir == "" {
+		dir, _ = os.Getwd()
+	}
+
+	cur := dir
+	for {
+		if fi, err := os.Stat(filepath.Join(cur, ".git")); err == nil && fi.IsDir() {
+			return cur
+		}
+
+		if fi, err := os.Stat(filepath.Join(cur, ".weave")); err == nil && fi.IsDir() {
+			return cur
+		}
+
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			break
+		}
+
+		cur = parent
+	}
+
+	return dir
 }
 
 // wrapCommandPlatformWithConfig dispatches to the OS-specific implementation

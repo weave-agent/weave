@@ -30,6 +30,9 @@ func buildBwrapArgs(cfg SandboxConfig, dir string) []string {
 	// Read-only root
 	args = append(args, "--ro-bind", "/", "/")
 
+	// Dev mount so sandboxed processes can access /dev/null, /dev/urandom, etc.
+	args = append(args, "--dev", "/dev")
+
 	// Resolve dir
 	if dir == "" {
 		dir, _ = os.Getwd()

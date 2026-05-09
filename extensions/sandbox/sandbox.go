@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -278,6 +279,12 @@ func (s *Sandbox) AllowRead(path string) bool {
 	}
 
 	abs := resolveAbs(path)
+
+	// If path could not be resolved to absolute, deny to prevent
+	// mandatory deny rules from being bypassed by relative paths.
+	if !filepath.IsAbs(abs) {
+		return false
+	}
 
 	if isDeniedRead(abs) {
 		return false

