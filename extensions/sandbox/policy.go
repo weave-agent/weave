@@ -28,13 +28,13 @@ var mandatoryDenyReadPatterns = []string{
 	"**/.env.*",
 }
 
-func isDeniedWrite(path string) bool {
+func isDeniedWrite(path, cwd string) bool {
 	home, _ := os.UserHomeDir()
 
 	abs := resolveAbs(path)
 
 	for _, deny := range mandatoryDenyWritePaths {
-		expanded := expandDenyRule(deny, home, "")
+		expanded := expandDenyRule(deny, home, cwd)
 		if strings.HasPrefix(abs, expanded) || strings.HasPrefix(path, deny) {
 			return true
 		}
@@ -77,18 +77,24 @@ func isDeniedRead(path string) bool {
 	return false
 }
 
-func pathMatches(path, pattern string) bool {
+func pathMatches(path, pattern, cwd string) bool {
 	if pattern == "." || pattern == "" {
-		cwd, _ := os.Getwd()
-		return path == cwd || strings.HasPrefix(path, cwd+"/")
+		dir := cwd
+		if dir == "" {
+			dir, _ = os.Getwd()
+		}
+
+		return path == dir || strings.HasPrefix(path, dir+"/")
 	}
 
 	home, _ := os.UserHomeDir()
 	expanded := expandHome(pattern, home)
 
-	// Resolve relative paths against CWD so they match absolute tool paths.
+	// Resolve relative paths against project root so they match absolute tool paths.
 	if !filepath.IsAbs(expanded) {
-		if abs, err := filepath.Abs(expanded); err == nil {
+		if cwd != "" {
+			expanded = filepath.Join(cwd, expanded)
+		} else if abs, err := filepath.Abs(expanded); err == nil {
 			expanded = abs
 		}
 	}

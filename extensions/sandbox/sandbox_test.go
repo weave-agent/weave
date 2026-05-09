@@ -461,9 +461,17 @@ func TestPathMatches(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		got := pathMatches(tt.path, tt.pattern)
+		got := pathMatches(tt.path, tt.pattern, "")
 		assert.Equal(t, tt.want, got, "pathMatches(%q, %q)", tt.path, tt.pattern)
 	}
+}
+
+func TestPathMatches_ProjectRoot(t *testing.T) {
+	got := pathMatches("/project/file.go", ".", "/project")
+	assert.True(t, got, "pathMatches with project root")
+
+	got = pathMatches("/other/file.go", ".", "/project")
+	assert.False(t, got, "pathMatches outside project root")
 }
 
 func TestIsDeniedWrite(t *testing.T) {
@@ -483,8 +491,27 @@ func TestIsDeniedWrite(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		got := isDeniedWrite(tt.path)
+		got := isDeniedWrite(tt.path, "")
 		assert.Equal(t, tt.want, got, "isDeniedWrite(%q)", tt.path)
+	}
+}
+
+func TestIsDeniedWrite_ProjectRoot(t *testing.T) {
+	tests := []struct {
+		path string
+		cwd  string
+		want bool
+	}{
+		{"/project/.git/hooks/pre-commit", "/project", true},
+		{"/project/.git/config", "/project", true},
+		{"/project/.weave/config.yaml", "/project", true},
+		{"/project/src/main.go", "/project", false},
+		{"/other/.git/hooks/pre-commit", "/project", false},
+	}
+
+	for _, tt := range tests {
+		got := isDeniedWrite(tt.path, tt.cwd)
+		assert.Equal(t, tt.want, got, "isDeniedWrite(%q, cwd=%q)", tt.path, tt.cwd)
 	}
 }
 

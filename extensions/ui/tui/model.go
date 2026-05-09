@@ -221,7 +221,7 @@ func (m Model) Init() tea.Cmd {
 	if m.ui != nil {
 		for _, s := range m.ui.DrainStatuses() {
 			cmds = append(cmds, func() tea.Msg {
-				return extStatusMsg{key: s.key, text: s.text}
+				return extStatusMsg(s)
 			})
 		}
 	}

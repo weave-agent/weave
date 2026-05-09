@@ -230,13 +230,13 @@ func (s *Sandbox) AllowWrite(path string) bool {
 
 	abs := resolveAbs(path)
 
-	if isDeniedWrite(abs) {
+	if isDeniedWrite(abs, s.cwd) {
 		return false
 	}
 
 	// User-configured deny rules are enforced in all modes (hard policy).
 	for _, deny := range cfg.DenyWrite {
-		if pathMatches(abs, deny) {
+		if pathMatches(abs, deny, s.cwd) {
 			return false
 		}
 	}
@@ -259,7 +259,7 @@ func (s *Sandbox) AllowWrite(path string) bool {
 	}
 
 	for _, w := range cfg.Writable {
-		if pathMatches(abs, w) {
+		if pathMatches(abs, w, s.cwd) {
 			return true
 		}
 	}
@@ -284,7 +284,7 @@ func (s *Sandbox) AllowRead(path string) bool {
 	}
 
 	for _, deny := range cfg.DenyRead {
-		if pathMatches(abs, deny) {
+		if pathMatches(abs, deny, s.cwd) {
 			return false
 		}
 	}

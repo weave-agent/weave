@@ -148,10 +148,13 @@ func (u *TUIImpl) Input(prompt string) (string, error) {
 // when the event loop starts (via DrainStatuses).
 func (u *TUIImpl) SetStatus(key, text string) {
 	u.mu.Lock()
+
 	p := u.program
+
 	if p == nil {
 		u.pendingStatuses = append(u.pendingStatuses, pendingStatus{key: key, text: text})
 		u.mu.Unlock()
+
 		return
 	}
 	u.mu.Unlock()
@@ -167,6 +170,7 @@ func (u *TUIImpl) DrainStatuses() []pendingStatus {
 
 	statuses := u.pendingStatuses
 	u.pendingStatuses = nil
+
 	return statuses
 }
 
