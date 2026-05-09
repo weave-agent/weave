@@ -39,12 +39,22 @@ type ProviderEntry struct {
 	BaseURL   string `json:"base_url" description:"Custom base URL (for OpenAI-compat providers)"`
 }
 
+// SandboxFileConfig holds sandbox configuration from the config file.
+type SandboxFileConfig struct {
+	Mode      string   `yaml:"mode" json:"mode" description:"Sandbox mode: off, readonly, ask, auto"`
+	Writable  []string `yaml:"writable" json:"writable" description:"Paths allowed for writes (default: CWD)"`
+	DenyWrite []string `yaml:"deny_write" json:"deny_write" description:"Additional paths to block from writes"`
+	DenyRead  []string `yaml:"deny_read" json:"deny_read" description:"Paths to block from reading"`
+	Network   *bool    `yaml:"network" json:"network" description:"Allow network access in sandbox"`
+}
+
 type File struct {
-	Prompt            string         `short:"p" description:"Prompt to pass to the agent"`
-	UI                string         `default:"tui" description:"UI extension name (tui for interactive, none for headless)"`
-	Core              CoreConfig     `description:"Core agent configuration"`
-	Providers         map[string]any `description:"Per-provider configuration"`
-	ExcludeExtensions []string       `yaml:"exclude_extensions" description:"Extensions to exclude from auto-discovery"`
+	Prompt            string            `short:"p" description:"Prompt to pass to the agent"`
+	UI                string            `default:"tui" description:"UI extension name (tui for interactive, none for headless)"`
+	Core              CoreConfig        `description:"Core agent configuration"`
+	Providers         map[string]any    `description:"Per-provider configuration"`
+	ExcludeExtensions []string          `yaml:"exclude_extensions" description:"Extensions to exclude from auto-discovery"`
+	Sandbox           SandboxFileConfig `description:"Sandbox configuration"`
 }
 
 // TypedProviders converts the Providers map[string]any to map[string]ProviderEntry

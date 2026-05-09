@@ -160,3 +160,127 @@ func TestValidateWithConfigDir_IntegratedWithLoad(t *testing.T) {
 	assert.Contains(t, err.Error(), "validate config")
 	assert.Contains(t, err.Error(), "ui")
 }
+
+func TestValidate_SandboxDefaultsValid(t *testing.T) {
+	f := validFile()
+	// Empty/zero sandbox config is valid (defaults apply at runtime).
+	err := Validate(f)
+	assert.NoError(t, err)
+}
+
+func TestValidate_SandboxValidModes(t *testing.T) {
+	for _, mode := range []string{"off", "readonly", "ask", "auto"} {
+		t.Run(mode, func(t *testing.T) {
+			f := validFile()
+			f.Sandbox.Mode = mode
+			err := Validate(f)
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestValidate_SandboxInvalidMode(t *testing.T) {
+	f := validFile()
+	f.Sandbox.Mode = "strict"
+	err := Validate(f)
+	require.Error(t, err)
+
+	var errs ValidationErrors
+	require.ErrorAs(t, err, &errs)
+	require.Len(t, errs, 1)
+	assert.Equal(t, "sandbox.mode", errs[0].Field)
+	assert.Contains(t, errs[0].Message, "strict")
+	assert.Contains(t, errs[0].Message, "off, readonly, ask, auto")
+}
+
+func TestValidate_SandboxValidPaths(t *testing.T) {
+	f := validFile()
+	f.Sandbox.Writable = []string{".", "/tmp/build"}
+	f.Sandbox.DenyWrite = []string{"~/.ssh"}
+	f.Sandbox.DenyRead = []string{"~/.aws/credentials"}
+	err := Validate(f)
+	assert.NoError(t, err)
+}
+
+func TestValidate_SandboxEmptyWritablePath(t *testing.T) {
+	f := validFile()
+	f.Sandbox.Writable = []string{"", "."}
+	err := Validate(f)
+	require.Error(t, err)
+
+	var errs ValidationErrors
+	require.ErrorAs(t, err, &errs)
+	require.Len(t, errs, 1)
+	assert.Equal(t, "sandbox.writable[0]", errs[0].Field)
+	assert.Contains(t, errs[0].Message, "empty")
+}
+
+func TestValidate_SandboxEmptyDenyWritePath(t *testing.T) {
+	f := validFile()
+	f.Sandbox.DenyWrite = []string{"  "}
+	err := Validate(f)
+	require.Error(t, err)
+
+	var errs ValidationErrors
+	require.ErrorAs(t, err, &errs)
+	require.Len(t, errs, 1)
+	assert.Equal(t, "sandbox.deny_write[0]", errs[0].Field)
+}
+
+func TestValidate_SandboxEmptyDenyReadPath(t *testing.T) {
+	f := validFile()
+	f.Sandbox.DenyRead = []string{" "}
+	err := Validate(f)
+	require.Error(t, err)
+
+	var errs ValidationErrors
+	require.ErrorAs(t, err, &errs)
+	require.Len(t, errs, 1)
+	assert.Equal(t, "sandbox.deny_read[0]", errs[0].Field)
+}
+
+func TestValidate_SandboxMultipleErrors(t *testing.T) {
+	f := validFile()
+	f.Sandbox.Mode = "invalid"
+	f.Sandbox.Writable = []string{""}
+	f.Sandbox.DenyWrite = []string{""}
+	f.Sandbox.DenyRead = []string{""}
+	err := Validate(f)
+	require.Error(t, err)
+
+	var errs ValidationErrors
+	require.ErrorAs(t, err, &errs)
+	assert.Len(t, errs, 4)
+
+	fields := make([]string, len(errs))
+	for i, e := range errs {
+		fields[i] = e.Field
+	}
+	assert.Contains(t, fields, "sandbox.mode")
+	assert.Contains(t, fields, "sandbox.writable[0]")
+	assert.Contains(t, fields, "sandbox.deny_write[0]")
+	assert.Contains(t, fields, "sandbox.deny_read[0]")
+}
+
+func TestValidate_SandboxCombinedWithOtherErrors(t *testing.T) {
+	f := &File{
+		UI:   "web",
+		Core: CoreConfig{AgentLoop: "loop"},
+		Sandbox: SandboxFileConfig{
+			Mode: "bogus",
+		},
+	}
+	err := Validate(f)
+	require.Error(t, err)
+
+	var errs ValidationErrors
+	require.ErrorAs(t, err, &errs)
+	assert.Len(t, errs, 2)
+
+	fields := make([]string, len(errs))
+	for i, e := range errs {
+		fields[i] = e.Field
+	}
+	assert.Contains(t, fields, "ui")
+	assert.Contains(t, fields, "sandbox.mode")
+}

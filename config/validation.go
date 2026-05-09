@@ -113,6 +113,8 @@ func ValidateWithConfigDir(f *File, configDir string) error {
 		validateProviderEntry(&errs, name, raw)
 	}
 
+	validateSandbox(&errs, &f.Sandbox)
+
 	if len(errs) > 0 {
 		return errs
 	}
@@ -147,5 +149,48 @@ func validateProviderEntry(errs *ValidationErrors, name string, raw any) {
 			Field:   "providers." + name,
 			Message: fmt.Sprintf("invalid config: %v", err),
 		})
+	}
+}
+
+var validSandboxModes = map[string]bool{
+	"off":      true,
+	"readonly": true,
+	"ask":      true,
+	"auto":     true,
+}
+
+func validateSandbox(errs *ValidationErrors, sc *SandboxFileConfig) {
+	if sc.Mode != "" && !validSandboxModes[sc.Mode] {
+		*errs = append(*errs, ValidationError{
+			Field:   "sandbox.mode",
+			Message: fmt.Sprintf("invalid value %q, must be one of: off, readonly, ask, auto", sc.Mode),
+		})
+	}
+
+	for i, p := range sc.Writable {
+		if strings.TrimSpace(p) == "" {
+			*errs = append(*errs, ValidationError{
+				Field:   fmt.Sprintf("sandbox.writable[%d]", i),
+				Message: "path must not be empty",
+			})
+		}
+	}
+
+	for i, p := range sc.DenyWrite {
+		if strings.TrimSpace(p) == "" {
+			*errs = append(*errs, ValidationError{
+				Field:   fmt.Sprintf("sandbox.deny_write[%d]", i),
+				Message: "path must not be empty",
+			})
+		}
+	}
+
+	for i, p := range sc.DenyRead {
+		if strings.TrimSpace(p) == "" {
+			*errs = append(*errs, ValidationError{
+				Field:   fmt.Sprintf("sandbox.deny_read[%d]", i),
+				Message: "path must not be empty",
+			})
+		}
 	}
 }

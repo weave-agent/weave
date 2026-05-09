@@ -158,12 +158,12 @@ Four sandbox modes: `off` → `readonly` → `ask` → `auto` (default). The des
 - [x] run `cd extensions/ui/sandbox && go test ./...` — must pass before task 11
 
 ### Task 11: Add sandbox config to .weave.yaml validation
-- [ ] update `config/validation.go` to validate `sandbox` section if present
-- [ ] validate `mode` is one of: off, readonly, ask, auto
-- [ ] validate `writable`, `deny_write`, `deny_read` entries are valid paths
-- [ ] validate `network` is boolean
-- [ ] write tests for config validation (valid configs, invalid mode, invalid paths)
-- [ ] run `go test ./config/...` — must pass before task 12
+- [x] update `config/validation.go` to validate `sandbox` section if present
+- [x] validate `mode` is one of: off, readonly, ask, auto
+- [x] validate `writable`, `deny_write`, `deny_read` entries are valid paths
+- [x] validate `network` is boolean
+- [x] write tests for config validation (valid configs, invalid mode, invalid paths)
+- [x] run `go test ./config/...` — must pass before task 12
 
 ### Task 12: Update CLAUDE.md and documentation
 - [ ] update `CLAUDE.md` Architecture section with sandbox extension description
