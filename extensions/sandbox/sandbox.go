@@ -4,6 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/nniel-ape/gonfig"
@@ -110,12 +113,23 @@ func (s *Sandbox) resolvePending(_ sdk.Event, approved bool) error {
 	s.pending = s.pending[1:]
 	s.mu.Unlock()
 
-	p.result <- askResult{approved: approved}
+	p.result <- approved
 
 	return nil
 }
 
 func (s *Sandbox) Close() error {
+	s.mu.Lock()
+	for _, p := range s.pending {
+		select {
+		case p.result <- false:
+		default:
+		}
+	}
+
+	s.pending = nil
+	s.mu.Unlock()
+
 	return nil
 }
 
@@ -140,7 +154,7 @@ func (s *Sandbox) WrapCommand(cmd, dir string) (string, error) {
 	case sdk.SandboxAuto:
 		return wrapCommandPlatform(cmd, dir)
 	case sdk.SandboxReadonly:
-		return wrapCommandReadonly(cmd, dir)
+		return s.wrapCommandReadonly(cmd, dir)
 	case sdk.SandboxAsk:
 		return s.wrapCommandAsk(cmd)
 	default:
@@ -173,6 +187,16 @@ func (s *Sandbox) AllowWrite(path string) bool {
 	}
 
 	if len(s.cfg.Writable) == 0 {
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			abs = path
+		}
+
+		cwd, _ := os.Getwd()
+		if cwd != "" {
+			return strings.HasPrefix(abs, cwd)
+		}
+
 		return true
 	}
 
@@ -209,16 +233,10 @@ func (s *Sandbox) AllowRead(path string) bool {
 }
 
 // wrapCommandReadonly wraps a command with no writable paths in the sandbox profile.
-func wrapCommandReadonly(cmd, dir string) (string, error) {
-	s := getCurrentSandbox()
-
-	var cfg SandboxConfig
-
-	if s != nil {
-		s.mu.RLock()
-		cfg = s.cfg
-		s.mu.RUnlock()
-	}
+func (s *Sandbox) wrapCommandReadonly(cmd, dir string) (string, error) {
+	s.mu.RLock()
+	cfg := s.cfg
+	s.mu.RUnlock()
 
 	cfg.Writable = nil
 
@@ -235,7 +253,7 @@ func (s *Sandbox) wrapCommandAsk(cmd string) (string, error) {
 		return "", errors.New("sandbox: bus not available for ask mode")
 	}
 
-	result := make(chan askResult, 1)
+	result := make(chan bool, 1)
 
 	s.mu.Lock()
 	s.pending = append(s.pending, &askPending{cmd: cmd, result: result})
@@ -243,21 +261,16 @@ func (s *Sandbox) wrapCommandAsk(cmd string) (string, error) {
 
 	s.bus.Publish(sdk.NewEvent("sandbox.approve", map[string]string{"command": cmd}))
 
-	r := <-result
-	if !r.approved {
+	if !<-result {
 		return "", fmt.Errorf("sandbox: command denied: %s", cmd)
 	}
 
 	return cmd, nil
 }
 
-type askResult struct {
-	approved bool
-}
-
 type askPending struct {
 	cmd    string
-	result chan askResult
+	result chan bool
 }
 
 // SetMode changes the sandbox mode (for testing and bus events).
@@ -267,16 +280,16 @@ func (s *Sandbox) SetMode(mode string) {
 	s.mu.Unlock()
 }
 
-// getCurrentSandbox returns the global Sandboxer as a *Sandbox, or nil.
-func getCurrentSandbox() *Sandbox {
+// currentConfig returns the active SandboxConfig from the global Sandboxer.
+func currentConfig() SandboxConfig {
 	sb := sdk.GetSandboxer()
-	if sb == nil {
-		return nil
-	}
-
 	if s, ok := sb.(*Sandbox); ok {
-		return s
+		s.mu.RLock()
+		cfg := s.cfg
+		s.mu.RUnlock()
+
+		return cfg
 	}
 
-	return nil
+	return SandboxConfig{Mode: sdk.SandboxAuto, Network: true}
 }

@@ -2,6 +2,7 @@ package sandbox
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -149,7 +150,9 @@ func TestSandbox_ModeAuto_AllowWrite_NoWritableConfig(t *testing.T) {
 		Writable: nil,
 	}}
 
-	assert.True(t, s.AllowWrite("/tmp/file"))
+	cwd, _ := os.Getwd()
+	assert.True(t, s.AllowWrite(filepath.Join(cwd, "file.go")), "path under CWD should be allowed")
+	assert.False(t, s.AllowWrite("/tmp/file"), "path outside CWD should be denied")
 }
 
 func TestSandbox_Subscribe_ModeChange(t *testing.T) {

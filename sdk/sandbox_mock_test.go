@@ -23,6 +23,12 @@ var _ Sandboxer = &SandboxerMock{}
 //			AllowWriteFunc: func(path string) bool {
 //				panic("mock out the AllowWrite method")
 //			},
+//			ModeFunc: func() string {
+//				panic("mock out the Mode method")
+//			},
+//			SetModeFunc: func(mode string)  {
+//				panic("mock out the SetMode method")
+//			},
 //			WrapCommandFunc: func(cmd string, dir string) (string, error) {
 //				panic("mock out the WrapCommand method")
 //			},
@@ -39,6 +45,12 @@ type SandboxerMock struct {
 	// AllowWriteFunc mocks the AllowWrite method.
 	AllowWriteFunc func(path string) bool
 
+	// ModeFunc mocks the Mode method.
+	ModeFunc func() string
+
+	// SetModeFunc mocks the SetMode method.
+	SetModeFunc func(mode string)
+
 	// WrapCommandFunc mocks the WrapCommand method.
 	WrapCommandFunc func(cmd string, dir string) (string, error)
 
@@ -54,6 +66,14 @@ type SandboxerMock struct {
 			// Path is the path argument value.
 			Path string
 		}
+		// Mode holds details about calls to the Mode method.
+		Mode []struct {
+		}
+		// SetMode holds details about calls to the SetMode method.
+		SetMode []struct {
+			// Mode is the mode argument value.
+			Mode string
+		}
 		// WrapCommand holds details about calls to the WrapCommand method.
 		WrapCommand []struct {
 			// Cmd is the cmd argument value.
@@ -64,6 +84,8 @@ type SandboxerMock struct {
 	}
 	lockAllowRead   sync.RWMutex
 	lockAllowWrite  sync.RWMutex
+	lockMode        sync.RWMutex
+	lockSetMode     sync.RWMutex
 	lockWrapCommand sync.RWMutex
 }
 
@@ -128,6 +150,65 @@ func (mock *SandboxerMock) AllowWriteCalls() []struct {
 	mock.lockAllowWrite.RLock()
 	calls = mock.calls.AllowWrite
 	mock.lockAllowWrite.RUnlock()
+	return calls
+}
+
+// Mode calls ModeFunc.
+func (mock *SandboxerMock) Mode() string {
+	if mock.ModeFunc == nil {
+		panic("SandboxerMock.ModeFunc: method is nil but Sandboxer.Mode was just called")
+	}
+	callInfo := struct {
+	}{}
+	mock.lockMode.Lock()
+	mock.calls.Mode = append(mock.calls.Mode, callInfo)
+	mock.lockMode.Unlock()
+	return mock.ModeFunc()
+}
+
+// ModeCalls gets all the calls that were made to Mode.
+// Check the length with:
+//
+//	len(mockedSandboxer.ModeCalls())
+func (mock *SandboxerMock) ModeCalls() []struct {
+} {
+	var calls []struct {
+	}
+	mock.lockMode.RLock()
+	calls = mock.calls.Mode
+	mock.lockMode.RUnlock()
+	return calls
+}
+
+// SetMode calls SetModeFunc.
+func (mock *SandboxerMock) SetMode(mode string) {
+	if mock.SetModeFunc == nil {
+		panic("SandboxerMock.SetModeFunc: method is nil but Sandboxer.SetMode was just called")
+	}
+	callInfo := struct {
+		Mode string
+	}{
+		Mode: mode,
+	}
+	mock.lockSetMode.Lock()
+	mock.calls.SetMode = append(mock.calls.SetMode, callInfo)
+	mock.lockSetMode.Unlock()
+	mock.SetModeFunc(mode)
+}
+
+// SetModeCalls gets all the calls that were made to SetMode.
+// Check the length with:
+//
+//	len(mockedSandboxer.SetModeCalls())
+func (mock *SandboxerMock) SetModeCalls() []struct {
+	Mode string
+} {
+	var calls []struct {
+		Mode string
+	}
+	mock.lockSetMode.RLock()
+	calls = mock.calls.SetMode
+	mock.lockSetMode.RUnlock()
 	return calls
 }
 

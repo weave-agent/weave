@@ -36,7 +36,7 @@ func isDeniedWrite(path string) bool {
 	}
 
 	for _, deny := range mandatoryDenyWritePaths {
-		expanded := expandHome(deny, home)
+		expanded := expandDenyRule(deny, home)
 		if strings.HasPrefix(abs, expanded) || strings.HasPrefix(path, deny) {
 			return true
 		}
@@ -102,6 +102,24 @@ func expandHome(path, home string) string {
 	if strings.HasPrefix(path, "~/") {
 		if home != "" {
 			return filepath.Join(home, path[2:])
+		}
+	}
+
+	return path
+}
+
+// expandDenyRule expands a deny rule for comparison against absolute paths.
+// Home-relative paths (~/.ssh/) are expanded. Project-relative paths
+// (.git/hooks/) are resolved against the current working directory.
+func expandDenyRule(path, home string) string {
+	if strings.HasPrefix(path, "~/") {
+		return expandHome(path, home)
+	}
+
+	if !filepath.IsAbs(path) {
+		abs, err := filepath.Abs(path)
+		if err == nil {
+			return abs
 		}
 	}
 

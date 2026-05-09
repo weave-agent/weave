@@ -2239,7 +2239,7 @@ func addTestAttachment(m Model, path, content string, lines int) Model {
 func TestModel_CycleSandboxMode(t *testing.T) {
 	defer sdk.SetSandboxer(nil)
 
-	sb := &mockSandboxModer{mode: sdk.SandboxAuto}
+	sb := &mockSandboxer{mode: sdk.SandboxAuto}
 	sdk.SetSandboxer(sb)
 
 	m := newModel(nil, nil, nil)
@@ -2282,7 +2282,7 @@ func TestModel_CycleSandboxMode_PublishesBusEvent(t *testing.T) {
 
 	ch := subscribeToChan(b, "sandbox.mode.change")
 
-	sb := &mockSandboxModer{mode: sdk.SandboxAuto}
+	sb := &mockSandboxer{mode: sdk.SandboxAuto}
 	sdk.SetSandboxer(sb)
 
 	m := newModel(b, nil, nil)
@@ -2300,19 +2300,19 @@ func TestModel_CycleSandboxMode_PublishesBusEvent(t *testing.T) {
 }
 
 func TestNextSandboxMode(t *testing.T) {
-	assert.Equal(t, sdk.SandboxReadonly, nextSandboxMode(sdk.SandboxOff))
-	assert.Equal(t, sdk.SandboxAsk, nextSandboxMode(sdk.SandboxReadonly))
-	assert.Equal(t, sdk.SandboxAuto, nextSandboxMode(sdk.SandboxAsk))
-	assert.Equal(t, sdk.SandboxOff, nextSandboxMode(sdk.SandboxAuto))
-	assert.Equal(t, sdk.SandboxOff, nextSandboxMode("unknown"))
+	assert.Equal(t, sdk.SandboxReadonly, sdk.NextSandboxMode(sdk.SandboxOff))
+	assert.Equal(t, sdk.SandboxAsk, sdk.NextSandboxMode(sdk.SandboxReadonly))
+	assert.Equal(t, sdk.SandboxAuto, sdk.NextSandboxMode(sdk.SandboxAsk))
+	assert.Equal(t, sdk.SandboxOff, sdk.NextSandboxMode(sdk.SandboxAuto))
+	assert.Equal(t, sdk.SandboxOff, sdk.NextSandboxMode("unknown"))
 }
 
-type mockSandboxModer struct {
+type mockSandboxer struct {
 	mode string
 }
 
-func (m *mockSandboxModer) WrapCommand(cmd, dir string) (string, error) { return cmd, nil }
-func (m *mockSandboxModer) AllowWrite(path string) bool                 { return true }
-func (m *mockSandboxModer) AllowRead(path string) bool                  { return true }
-func (m *mockSandboxModer) Mode() string                                { return m.mode }
-func (m *mockSandboxModer) SetMode(mode string)                         { m.mode = mode }
+func (m *mockSandboxer) WrapCommand(cmd, dir string) (string, error) { return cmd, nil }
+func (m *mockSandboxer) AllowWrite(path string) bool                 { return true }
+func (m *mockSandboxer) AllowRead(path string) bool                  { return true }
+func (m *mockSandboxer) Mode() string                                { return m.mode }
+func (m *mockSandboxer) SetMode(mode string)                         { m.mode = mode }

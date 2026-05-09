@@ -43,24 +43,10 @@ func currentMode() string {
 		return sdk.SandboxOff
 	}
 
-	if m, ok := sb.(sdk.SandboxModer); ok {
-		return m.Mode()
-	}
-
-	return sdk.SandboxOff
+	return sb.Mode()
 }
 
 // NextMode returns the next mode in the cycle order.
 func NextMode(current string) string {
-	for i, m := range sdk.SandboxModes {
-		if m == current {
-			if i+1 < len(sdk.SandboxModes) {
-				return sdk.SandboxModes[i+1]
-			}
-
-			return sdk.SandboxModes[0]
-		}
-	}
-
-	return sdk.SandboxModes[0]
+	return sdk.NextSandboxMode(current)
 }

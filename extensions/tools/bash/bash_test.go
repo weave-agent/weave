@@ -22,6 +22,8 @@ type testSandboxer struct {
 func (ts *testSandboxer) WrapCommand(cmd, dir string) (string, error) { return ts.wrapFn(cmd, dir) }
 func (ts *testSandboxer) AllowWrite(path string) bool                 { return true }
 func (ts *testSandboxer) AllowRead(path string) bool                  { return true }
+func (ts *testSandboxer) Mode() string                                { return "auto" }
+func (ts *testSandboxer) SetMode(string)                              {}
 
 func TestRegister(t *testing.T) {
 	tool, err := sdk.GetTool("bash", nil)

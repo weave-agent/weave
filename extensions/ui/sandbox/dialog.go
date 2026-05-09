@@ -1,16 +1,13 @@
 package sandboxui
 
 import (
-	"strings"
-
 	"weave/sdk"
 )
 
 const (
-	approveOption      = "Approve"
-	denyOption         = "Deny"
-	trustSessionOption = "Trust for session"
-	keyCommand         = "command"
+	approveOption = "Approve"
+	denyOption    = "Deny"
+	keyCommand    = "command"
 )
 
 // ApproveDialog handles ask-mode approval flow by listening for sandbox.approve
@@ -52,7 +49,6 @@ func (d *ApproveDialog) handleApproval(ev sdk.Event) {
 	items := []string{
 		approveOption,
 		denyOption,
-		trustSessionOption,
 	}
 
 	title := formatApprovalTitle(command)
@@ -70,15 +66,6 @@ func (d *ApproveDialog) handleApproval(ev sdk.Event) {
 	case 0:
 		d.bus.Publish(sdk.NewEvent("sandbox.approved", map[string]string{
 			keyCommand: command,
-			"trust":    "false",
-		}))
-	case 2:
-		d.bus.Publish(sdk.NewEvent("sandbox.approved", map[string]string{
-			keyCommand: command,
-			"trust":    "true",
-		}))
-		d.bus.Publish(sdk.NewEvent("sandbox.trust", map[string]string{
-			"pattern": extractPattern(command),
 		}))
 	default:
 		d.bus.Publish(sdk.NewEvent("sandbox.denied", map[string]string{
@@ -91,21 +78,10 @@ func (d *ApproveDialog) handleApproval(ev sdk.Event) {
 func formatApprovalTitle(command string) string {
 	const maxLen = 60
 
-	if len(command) > maxLen {
-		return "Sandbox: allow command?\n\n" + command[:maxLen] + "..."
+	runes := []rune(command)
+	if len(runes) > maxLen {
+		return "Sandbox: allow command?\n\n" + string(runes[:maxLen]) + "..."
 	}
 
 	return "Sandbox: allow command?\n\n" + command
-}
-
-// extractPattern extracts a trustable pattern from a command.
-// For now, uses the command's base executable as the pattern.
-func extractPattern(command string) string {
-	cmd := strings.TrimSpace(command)
-
-	if idx := strings.IndexAny(cmd, " \t"); idx > 0 {
-		return cmd[:idx] + " *"
-	}
-
-	return cmd
 }

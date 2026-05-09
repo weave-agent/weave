@@ -8,8 +8,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-
-	"weave/sdk"
 )
 
 func bwrapAvailable() error {
@@ -24,23 +22,24 @@ func wrapCommandLinux(cmd, dir string) (string, error) {
 		return "", err
 	}
 
-	s := getCurrentSandbox()
-	var cfg SandboxConfig
-	if s != nil {
-		s.mu.RLock()
-		cfg = s.cfg
-		s.mu.RUnlock()
-	} else {
-		cfg = SandboxConfig{Mode: sdk.SandboxAuto, Network: true}
-	}
+	cfg := currentConfig()
 
 	args := buildBwrapArgs(cfg, dir)
-	escaped := strings.ReplaceAll(cmd, "'", "'\\''")
-	parts := []string{"bwrap"}
-	parts = append(parts, args...)
-	parts = append(parts, "--", "bash", "-c", "'"+escaped+"'")
 
-	return strings.Join(parts, " "), nil
+	// Shell-escape each arg and the command for safe bash -c consumption.
+	quoted := make([]string, 0, len(args)+4)
+	quoted = append(quoted, "bwrap")
+	for _, a := range args {
+		quoted = append(quoted, shellQuote(a))
+	}
+	quoted = append(quoted, "--", "bash", "-c", shellQuote(cmd))
+
+	return strings.Join(quoted, " "), nil
+}
+
+// shellQuote wraps a string in single quotes, escaping embedded single quotes.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
 }
 
 func buildBwrapArgs(cfg SandboxConfig, dir string) []string {

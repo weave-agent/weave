@@ -267,3 +267,6 @@ func (ts *testSandboxer) AllowRead(path string) bool {
 
 	return true
 }
+
+func (ts *testSandboxer) Mode() string   { return "auto" }
+func (ts *testSandboxer) SetMode(string) {}

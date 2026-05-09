@@ -1488,15 +1488,9 @@ func (m Model) cycleSandboxMode() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	moder, ok := sb.(sdk.SandboxModer)
-	if !ok {
-		m.showStatus("Sandbox: mode cycling not supported")
-		return m, nil
-	}
-
-	current := moder.Mode()
-	next := nextSandboxMode(current)
-	moder.SetMode(next)
+	current := sb.Mode()
+	next := sdk.NextSandboxMode(current)
+	sb.SetMode(next)
 
 	if m.ui != nil {
 		m.ui.SetStatus("sandbox", "SB:"+next)
@@ -1509,21 +1503,6 @@ func (m Model) cycleSandboxMode() (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
-}
-
-// nextSandboxMode returns the next mode in the cycle order.
-func nextSandboxMode(current string) string {
-	for i, m := range sdk.SandboxModes {
-		if m == current {
-			if i+1 < len(sdk.SandboxModes) {
-				return sdk.SandboxModes[i+1]
-			}
-
-			return sdk.SandboxModes[0]
-		}
-	}
-
-	return sdk.SandboxModes[0]
 }
 
 // handleCompletionKey processes keys when the completion popup is active.

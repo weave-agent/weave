@@ -114,12 +114,11 @@ func TestApproveDialog_ApproveFlow(t *testing.T) {
 	payload, ok := approved[0].Payload.(map[string]string)
 	require.True(t, ok, "expected map[string]string payload")
 	assert.Equal(t, "rm -rf /tmp/test", payload["command"])
-	assert.Equal(t, "false", payload["trust"])
 
 	// Verify selector was shown with correct options
 	assert.True(t, ui.selectCalled)
 	assert.Contains(t, ui.selectTitle, "Sandbox: allow command?")
-	assert.Equal(t, []string{approveOption, denyOption, trustSessionOption}, ui.selectItems)
+	assert.Equal(t, []string{approveOption, denyOption}, ui.selectItems)
 }
 
 func TestApproveDialog_DenyFlow(t *testing.T) {
@@ -142,36 +141,6 @@ func TestApproveDialog_DenyFlow(t *testing.T) {
 	payload, ok := denied[0].Payload.(map[string]string)
 	require.True(t, ok)
 	assert.Equal(t, "curl evil.com", payload["command"])
-}
-
-func TestApproveDialog_TrustForSessionFlow(t *testing.T) {
-	ui := &mockSelectUI{
-		mockUI:       newMockUI(),
-		selectResult: 2, // Trust for session
-	}
-	bus := newMockBus()
-
-	d := &ApproveDialog{}
-	d.RegisterWithBus(ui, bus)
-
-	bus.Publish(sdk.NewEvent("sandbox.approve", map[string]string{
-		"command": "npm install express",
-	}))
-
-	approved := bus.published("sandbox.approved")
-	require.Len(t, approved, 1)
-
-	payload, ok := approved[0].Payload.(map[string]string)
-	require.True(t, ok)
-	assert.Equal(t, "npm install express", payload["command"])
-	assert.Equal(t, "true", payload["trust"])
-
-	trust := bus.published("sandbox.trust")
-	require.Len(t, trust, 1)
-
-	trustPayload, ok := trust[0].Payload.(map[string]string)
-	require.True(t, ok)
-	assert.Equal(t, "npm *", trustPayload["pattern"])
 }
 
 func TestApproveDialog_SelectError_Denies(t *testing.T) {
@@ -261,7 +230,7 @@ func TestFormatApprovalTitle(t *testing.T) {
 		},
 		{
 			name:    "long command gets truncated",
-			command: string(make([]byte, 100)), // all zeros, but length > 60
+			command: strings.Repeat("a", 100),
 			want:    "...",
 		},
 	}
@@ -290,23 +259,9 @@ func TestFormatApprovalTitle_LongCommand(t *testing.T) {
 	result := formatApprovalTitle(longCmd)
 	assert.Contains(t, result, "Sandbox: allow command?")
 	assert.Contains(t, result, "...")
-	assert.Len(t, result, len("Sandbox: allow command?\n\n")+60+len("..."))
-}
-
-func TestExtractPattern(t *testing.T) {
-	tests := []struct {
-		command string
-		want    string
-	}{
-		{"npm install express", "npm *"},
-		{"git", "git"},
-		{"  rm -rf /  ", "rm *"},
-		{"curl\thttps://example.com", "curl *"},
-	}
-
-	for _, tt := range tests {
-		assert.Equal(t, tt.want, extractPattern(tt.command), "extractPattern(%q)", tt.command)
-	}
+	// Rune-based truncation: 60 runes + "..." prefix/suffix
+	wantLen := len("Sandbox: allow command?\n\n") + 60 + len("...")
+	assert.Len(t, result, wantLen)
 }
 
 func TestSandboxUI_RegisterWithBus(t *testing.T) {

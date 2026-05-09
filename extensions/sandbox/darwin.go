@@ -9,8 +9,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-
-	"weave/sdk"
 )
 
 func wrapCommandDarwin(cmd, dir string) (string, error) {
@@ -18,17 +16,7 @@ func wrapCommandDarwin(cmd, dir string) (string, error) {
 		return "", fmt.Errorf("sandbox-exec not found: %w", err)
 	}
 
-	s := getCurrentSandbox()
-
-	var cfg SandboxConfig
-
-	if s != nil {
-		s.mu.RLock()
-		cfg = s.cfg
-		s.mu.RUnlock()
-	} else {
-		cfg = SandboxConfig{Mode: sdk.SandboxAuto, Network: true}
-	}
+	cfg := currentConfig()
 
 	profile := generateSeatbeltProfile(cfg, dir)
 	escaped := strings.ReplaceAll(profile, "'", "'\\''")

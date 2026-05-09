@@ -42,7 +42,7 @@ func (m *mockUI) RegisterKeybinding(kb sdk.Keybinding) {
 	m.bindings = append(m.bindings, kb)
 }
 
-// mockSandboxer implements sdk.SandboxModer for testing.
+// mockSandboxer implements sdk.Sandboxer for testing.
 type mockSandboxer struct {
 	mode string
 }
@@ -112,16 +112,6 @@ func TestCurrentMode_WithSandboxer(t *testing.T) {
 
 	sdk.SetSandboxer(&mockSandboxer{mode: "ask"})
 	assert.Equal(t, "ask", currentMode())
-}
-
-func TestCurrentMode_SandboxerWithoutModer(t *testing.T) {
-	defer sdk.SetSandboxer(nil)
-
-	// A plain Sandboxer that doesn't implement SandboxModer
-	sdk.SetSandboxer(sdk.Sandboxer(&struct {
-		sdk.Sandboxer
-	}{}))
-	assert.Equal(t, sdk.SandboxOff, currentMode())
 }
 
 func TestNextMode(t *testing.T) {
