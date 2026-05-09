@@ -231,6 +231,11 @@ func (s *Sandbox) AllowWrite(path string) bool {
 
 	abs := resolveAbs(path)
 
+	// Deny if path could not be resolved — prevents bypass via relative paths.
+	if !filepath.IsAbs(abs) {
+		return false
+	}
+
 	if isDeniedWrite(abs, s.cwd) {
 		return false
 	}
@@ -242,25 +247,38 @@ func (s *Sandbox) AllowWrite(path string) bool {
 		}
 	}
 
-	// Ask mode: deny in headless, prompt in interactive.
+	// Ask mode: enforce writable-path policy, then prompt in interactive.
 	if cfg.Mode == sdk.SandboxAsk {
 		if s.headless {
+			return false
+		}
+
+		if !isWritablePath(abs, cfg.Writable, s.cwd) {
 			return false
 		}
 
 		return s.promptFileAccess(abs, "write")
 	}
 
-	if len(cfg.Writable) == 0 {
-		if s.cwd != "" {
-			return abs == s.cwd || strings.HasPrefix(abs, s.cwd+"/")
+	if !isWritablePath(abs, cfg.Writable, s.cwd) {
+		return false
+	}
+
+	return true
+}
+
+// isWritablePath checks whether abs is within a configured writable zone.
+func isWritablePath(abs string, writable []string, cwd string) bool {
+	if len(writable) == 0 {
+		if cwd != "" {
+			return abs == cwd || strings.HasPrefix(abs, cwd+"/")
 		}
 
 		return false
 	}
 
-	for _, w := range cfg.Writable {
-		if pathMatches(abs, w, s.cwd) {
+	for _, w := range writable {
+		if pathMatches(abs, w, cwd) {
 			return true
 		}
 	}
@@ -439,6 +457,7 @@ type askPending struct {
 }
 
 // SetMode changes the sandbox mode (for testing and bus events).
+// When switching away from ask mode, pending requests are canceled.
 func (s *Sandbox) SetMode(mode string) {
 	if !isValidMode(mode) {
 		return
@@ -446,6 +465,18 @@ func (s *Sandbox) SetMode(mode string) {
 
 	s.mu.Lock()
 	s.cfg.Mode = mode
+
+	if mode != sdk.SandboxAsk {
+		for _, p := range s.pending {
+			select {
+			case p.result <- false:
+			default:
+			}
+		}
+
+		s.pending = s.pending[:0]
+	}
+
 	s.mu.Unlock()
 }
 

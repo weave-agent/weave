@@ -35,8 +35,17 @@ func isDeniedWrite(abs, cwd string) bool {
 
 	for _, deny := range mandatoryDenyWritePaths {
 		expanded := expandDenyRule(deny, home, cwd)
-		if strings.HasPrefix(abs, expanded) {
-			return true
+
+		if strings.HasSuffix(deny, "/") {
+			// Directory rule (original had trailing /): prefix match.
+			if strings.HasPrefix(abs, expanded+"/") || abs == expanded {
+				return true
+			}
+		} else {
+			// File rule: exact match only.
+			if abs == expanded {
+				return true
+			}
 		}
 	}
 

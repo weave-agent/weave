@@ -54,16 +54,16 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		}
 	}
 
-	info, err := os.Stat(path)
+	info, err := os.Stat(absPath)
 	if err != nil {
 		return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
 	}
 
 	if !info.IsDir() {
-		return sdk.ToolResult{Content: fmt.Sprintf("error: %s is not a directory", path), IsError: true}, nil
+		return sdk.ToolResult{Content: fmt.Sprintf("error: %s is not a directory", absPath), IsError: true}, nil
 	}
 
-	entries, err := os.ReadDir(path)
+	entries, err := os.ReadDir(absPath)
 	if err != nil {
 		return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
 	}
