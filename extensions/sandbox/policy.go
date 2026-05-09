@@ -30,10 +30,7 @@ var mandatoryDenyReadPatterns = []string{
 func isDeniedWrite(path string) bool {
 	home, _ := os.UserHomeDir()
 
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		abs = path
-	}
+	abs := resolveAbs(path)
 
 	for _, deny := range mandatoryDenyWritePaths {
 		expanded := expandDenyRule(deny, home, "")
@@ -48,10 +45,7 @@ func isDeniedWrite(path string) bool {
 func isDeniedRead(path string) bool {
 	home, _ := os.UserHomeDir()
 
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		abs = path
-	}
+	abs := resolveAbs(path)
 
 	for _, pattern := range mandatoryDenyReadPatterns {
 		expanded := expandHome(pattern, home)
@@ -96,6 +90,21 @@ func pathMatches(path, pattern string) bool {
 	}
 
 	return path == expanded || strings.HasPrefix(path, expanded+"/")
+}
+
+// resolveAbs resolves a path to an absolute path, following symlinks
+// when possible to prevent symlink-based deny rule bypasses.
+func resolveAbs(path string) string {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return path
+	}
+
+	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
+		return resolved
+	}
+
+	return abs
 }
 
 func expandHome(path, home string) string {

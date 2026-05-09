@@ -3,6 +3,7 @@ package sandbox
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 
 // stubBus captures handlers registered via On and events published.
 type stubBus struct {
+	mu        sync.Mutex
 	handlers  map[string]sdk.Handler
 	published []sdk.Event
 }
@@ -23,12 +25,21 @@ func newStubBus() *stubBus {
 }
 
 func (b *stubBus) Publish(ev sdk.Event) {
+	b.mu.Lock()
 	b.published = append(b.published, ev)
+	b.mu.Unlock()
 
 	// Deliver to matching handler if registered (for testing event flow).
 	if h, ok := b.handlers[ev.Topic]; ok {
 		_ = h(ev)
 	}
+}
+
+func (b *stubBus) events() []sdk.Event {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return append([]sdk.Event(nil), b.published...)
 }
 
 func (b *stubBus) On(topic string, h sdk.Handler) { b.handlers[topic] = h }
@@ -145,12 +156,12 @@ func TestSandbox_ModeAuto_AllowRead_DenyReadOverrides(t *testing.T) {
 }
 
 func TestSandbox_ModeAuto_AllowWrite_NoWritableConfig(t *testing.T) {
-	s := &Sandbox{cfg: SandboxConfig{
-		Mode:     sdk.SandboxAuto,
-		Writable: nil,
-	}}
-
 	cwd, _ := os.Getwd()
+	s := &Sandbox{
+		cfg: SandboxConfig{Mode: sdk.SandboxAuto},
+		cwd: cwd,
+	}
+
 	assert.True(t, s.AllowWrite(filepath.Join(cwd, "file.go")), "path under CWD should be allowed")
 	assert.False(t, s.AllowWrite("/tmp/file"), "path outside CWD should be denied")
 }
@@ -294,7 +305,7 @@ func TestWrapCommand_ModeAsk_Approved(t *testing.T) {
 	// to the sandbox.approve handler (which doesn't exist on bus yet, so
 	// we need to wait for the goroutine to publish manually).
 	require.Eventually(t, func() bool {
-		for _, ev := range bus.published {
+		for _, ev := range bus.events() {
 			if ev.Topic == "sandbox.approve" {
 				return true
 			}
@@ -337,7 +348,7 @@ func TestWrapCommand_ModeAsk_Denied(t *testing.T) {
 	}()
 
 	require.Eventually(t, func() bool {
-		for _, ev := range bus.published {
+		for _, ev := range bus.events() {
 			if ev.Topic == "sandbox.approve" {
 				return true
 			}
@@ -374,13 +385,13 @@ func TestWrapCommand_ModeAsk_PublishesCommandEvent(t *testing.T) {
 	}()
 
 	require.Eventually(t, func() bool {
-		return len(bus.published) > 0
+		return len(bus.events()) > 0
 	}, 2*time.Second, 50*time.Millisecond)
 
 	// Find the sandbox.approve event (not the sandbox.approved handler call).
 	var approveEv *sdk.Event
 
-	for _, ev := range bus.published {
+	for _, ev := range bus.events() {
 		if ev.Topic == "sandbox.approve" {
 			approveEv = &ev
 			break

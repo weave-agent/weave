@@ -36,6 +36,7 @@ type Sandbox struct {
 	cfg       SandboxConfig
 	bus       sdk.Bus
 	headless  bool
+	cwd       string
 	pending   []*askPending
 	allowlist []string
 	closed    bool
@@ -67,7 +68,8 @@ func NewSandbox(cfg sdk.Config) (*Sandbox, error) {
 	}
 
 	headless := cfg == nil || cfg.IsHeadless()
-	s := &Sandbox{cfg: sc, headless: headless}
+	cwd, _ := os.Getwd()
+	s := &Sandbox{cfg: sc, headless: headless, cwd: cwd}
 	sdk.SetSandboxer(s)
 
 	return s, nil
@@ -82,6 +84,11 @@ func (s *Sandbox) Subscribe(bus sdk.Bus) error {
 		mode, ok := ev.Payload.(string)
 		if !ok {
 			slog.Warn("sandbox: invalid mode.change payload", "payload", ev.Payload)
+			return nil
+		}
+
+		if !isValidMode(mode) {
+			slog.Warn("sandbox: invalid mode", "mode", mode)
 			return nil
 		}
 
@@ -238,9 +245,8 @@ func (s *Sandbox) AllowWrite(path string) bool {
 			abs = path
 		}
 
-		cwd, _ := os.Getwd()
-		if cwd != "" {
-			return abs == cwd || strings.HasPrefix(abs, cwd+"/")
+		if s.cwd != "" {
+			return abs == s.cwd || strings.HasPrefix(abs, s.cwd+"/")
 		}
 
 		return false
@@ -359,7 +365,20 @@ type askPending struct {
 
 // SetMode changes the sandbox mode (for testing and bus events).
 func (s *Sandbox) SetMode(mode string) {
+	if !isValidMode(mode) {
+		return
+	}
+
 	s.mu.Lock()
 	s.cfg.Mode = mode
 	s.mu.Unlock()
+}
+
+func isValidMode(mode string) bool {
+	switch mode {
+	case sdk.SandboxOff, sdk.SandboxReadonly, sdk.SandboxAsk, sdk.SandboxAuto:
+		return true
+	default:
+		return false
+	}
 }
