@@ -148,6 +148,10 @@ func searchDir(root string, re *regexp.Regexp, contextLines int) ([]string, erro
 			return nil
 		}
 
+		if s := sdk.GetSandboxer(); s != nil && !s.AllowRead(walkPath) {
+			return nil
+		}
+
 		fileMatches := searchFile(walkPath, re, contextLines)
 		matches = append(matches, fileMatches...)
 

@@ -87,6 +87,17 @@ func (s *Sandbox) Subscribe(bus sdk.Bus) error {
 
 		s.mu.Lock()
 		s.cfg.Mode = mode
+
+		if mode != sdk.SandboxAsk {
+			for _, p := range s.pending {
+				select {
+				case p.result <- false:
+				default:
+				}
+			}
+
+			s.pending = s.pending[:0]
+		}
 		s.mu.Unlock()
 
 		slog.Info("sandbox: mode changed", "mode", mode)
@@ -279,8 +290,6 @@ func (s *Sandbox) wrapCommandReadonly(cmd, dir string) (string, error) {
 }
 
 // wrapCommandAsk publishes an approval request on the bus and waits for a response.
-
-// wrapCommandAsk publishes an approval request on the bus and waits for a response.
 func (s *Sandbox) wrapCommandAsk(cmd string) (string, error) {
 	if s.headless {
 		return "", fmt.Errorf("command requires approval (headless mode): %s", cmd)
@@ -293,8 +302,9 @@ func (s *Sandbox) wrapCommandAsk(cmd string) (string, error) {
 	// Check session allowlist before prompting.
 	s.mu.RLock()
 
+	trimmed := strings.TrimSpace(cmd)
 	for _, pattern := range s.allowlist {
-		if cmd == pattern || strings.HasPrefix(cmd, pattern+" ") {
+		if trimmed == pattern || strings.HasPrefix(trimmed, pattern+" ") {
 			s.mu.RUnlock()
 
 			return cmd, nil

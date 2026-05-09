@@ -1502,7 +1502,7 @@ func (m Model) cycleSandboxMode() (tea.Model, tea.Cmd) {
 
 	m.showStatus("Sandbox mode: " + next)
 
-	return m, nil
+	return m, m.statusTimer
 }
 
 // handleCompletionKey processes keys when the completion popup is active.
