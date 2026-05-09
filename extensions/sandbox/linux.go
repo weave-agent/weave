@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -21,7 +22,17 @@ func wrapCommandLinux(cmd, dir string) (string, error) {
 		return "", err
 	}
 
-	args := buildBwrapArgs(dir)
+	s := getCurrentSandbox()
+	var cfg SandboxConfig
+	if s != nil {
+		s.mu.RLock()
+		cfg = s.cfg
+		s.mu.RUnlock()
+	} else {
+		cfg = SandboxConfig{Mode: ModeAuto, Network: true}
+	}
+
+	args := buildBwrapArgs(cfg, dir)
 	escaped := strings.ReplaceAll(cmd, "'", "'\\''")
 	parts := []string{"bwrap"}
 	parts = append(parts, args...)
@@ -30,26 +41,72 @@ func wrapCommandLinux(cmd, dir string) (string, error) {
 	return strings.Join(parts, " "), nil
 }
 
-func buildBwrapArgs(dir string) []string {
+func buildBwrapArgs(cfg SandboxConfig, dir string) []string {
 	var args []string
+	home, _ := os.UserHomeDir()
 
+	// Read-only root
 	args = append(args, "--ro-bind", "/", "/")
 
+	// Resolve dir
 	if dir == "" {
 		dir, _ = os.Getwd()
 	}
-	args = append(args, "--bind", dir, dir)
 
+	// Writable paths
+	writable := cfg.Writable
+	if len(writable) == 0 {
+		writable = []string{dir}
+	}
+	for _, w := range writable {
+		if w == "." {
+			w = dir
+		}
+		args = append(args, "--bind", w, w)
+	}
+
+	// Mandatory deny write paths
+	for _, deny := range mandatoryDenyWritePaths {
+		expanded := expandDenyPath(deny, home, dir)
+		if strings.HasSuffix(deny, "/") {
+			args = append(args, "--tmpfs", expanded)
+		} else {
+			args = append(args, "--ro-bind-try", "/dev/null", expanded)
+		}
+	}
+
+	// User-configured deny write paths
+	for _, deny := range cfg.DenyWrite {
+		expanded := expandDenyPath(deny, home, dir)
+		if strings.HasSuffix(deny, "/") {
+			args = append(args, "--tmpfs", expanded)
+		} else {
+			args = append(args, "--ro-bind-try", "/dev/null", expanded)
+		}
+	}
+
+	// PID isolation
 	args = append(args, "--unshare-pid", "--proc", "/proc")
 
-	s := getCurrentSandbox()
-	if s != nil && !s.cfg.Network {
+	// Network
+	if !cfg.Network {
 		args = append(args, "--unshare-net")
 	}
 
 	return args
 }
 
+func expandDenyPath(path, home, dir string) string {
+	if strings.HasPrefix(path, "~/") {
+		return filepath.Join(home, path[2:])
+	}
+	if !filepath.IsAbs(path) {
+		return filepath.Join(dir, path)
+	}
+	return path
+}
+
+// Darwin stubs for cross-compilation.
 func wrapCommandDarwin(cmd, dir string) (string, error) {
 	return cmd, nil
 }

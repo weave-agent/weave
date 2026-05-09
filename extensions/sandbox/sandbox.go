@@ -20,11 +20,11 @@ const (
 
 // SandboxConfig holds user-configurable sandbox settings loaded via gonfig.
 type SandboxConfig struct {
-	Mode       string   `json:"mode" default:"auto" description:"Sandbox mode: off, readonly, ask, auto"`
-	Writable   []string `json:"writable" description:"Paths allowed for writes (default: CWD)"`
-	DenyWrite  []string `json:"deny_write" description:"Additional paths to block from writes"`
-	DenyRead   []string `json:"deny_read" description:"Paths to block from reading"`
-	Network    bool     `json:"network" default:"true" description:"Allow network access in sandbox"`
+	Mode      string   `json:"mode" default:"auto" description:"Sandbox mode: off, readonly, ask, auto"`
+	Writable  []string `json:"writable" description:"Paths allowed for writes (default: CWD)"`
+	DenyWrite []string `json:"deny_write" description:"Additional paths to block from writes"`
+	DenyRead  []string `json:"deny_read" description:"Paths to block from reading"`
+	Network   bool     `json:"network" default:"true" description:"Allow network access in sandbox"`
 }
 
 // config wraps SandboxConfig for gonfig loading.
@@ -64,6 +64,7 @@ func NewSandbox(cfg sdk.Config) (*Sandbox, error) {
 
 	s := &Sandbox{cfg: sc}
 	sdk.SetSandboxer(s)
+
 	return s, nil
 }
 
@@ -82,6 +83,7 @@ func (s *Sandbox) Subscribe(bus sdk.Bus) error {
 		s.mu.Unlock()
 
 		slog.Info("sandbox: mode changed", "mode", mode)
+
 		return nil
 	})
 
@@ -96,6 +98,7 @@ func (s *Sandbox) Close() error {
 func (s *Sandbox) Mode() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
 	return s.cfg.Mode
 }
 
@@ -185,8 +188,10 @@ func getCurrentSandbox() *Sandbox {
 	if sb == nil {
 		return nil
 	}
+
 	if s, ok := sb.(*Sandbox); ok {
 		return s
 	}
+
 	return nil
 }

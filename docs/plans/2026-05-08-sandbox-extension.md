@@ -89,17 +89,17 @@ Four sandbox modes: `off` → `readonly` → `ask` → `auto` (default). The des
 - [x] run `cd extensions/sandbox && go test ./...` — must pass before task 4
 
 ### Task 4: Implement Linux bwrap profile generation
-- [ ] create `extensions/sandbox/linux.go` with build tag `//go:build linux`
-- [ ] implement `buildBwrapArgs(config SandboxConfig, dir string) []string`
-- [ ] read-only root: `--ro-bind / /`
-- [ ] writable paths: `--bind <path> <path>` for each writable entry
-- [ ] mandatory deny paths: `--ro-bind /dev/null <deny-path>` for files, `--tmpfs <dir>` for directories
-- [ ] network: `--unshare-net` when `network: false`
-- [ ] PID isolation: `--unshare-pid --proc /proc`
-- [ ] implement `WrapCommand(cmd, dir) (string, error)` — returns `bwrap <args> -- bash -c '<cmd>'`
-- [ ] add `bwrapAvailable()` check — return error if bwrap not installed
-- [ ] write tests for bwrap arg construction (mandatory denies, writable mounts, network flags)
-- [ ] run `cd extensions/sandbox && go test ./...` — must pass before task 5
+- [x] create `extensions/sandbox/linux.go` with build tag `//go:build linux`
+- [x] implement `buildBwrapArgs(config SandboxConfig, dir string) []string`
+- [x] read-only root: `--ro-bind / /`
+- [x] writable paths: `--bind <path> <path>` for each writable entry
+- [x] mandatory deny paths: `--ro-bind /dev/null <deny-path>` for files, `--tmpfs <dir>` for directories
+- [x] network: `--unshare-net` when `network: false`
+- [x] PID isolation: `--unshare-pid --proc /proc`
+- [x] implement `WrapCommand(cmd, dir) (string, error)` — returns `bwrap <args> -- bash -c '<cmd>'`
+- [x] add `bwrapAvailable()` check — return error if bwrap not installed
+- [x] write tests for bwrap arg construction (mandatory denies, writable mounts, network flags)
+- [x] run `cd extensions/sandbox && go test ./...` — must pass before task 5
 
 ### Task 5: Implement sandbox modes
 - [ ] add mode constants: `ModeOff`, `ModeReadonly`, `ModeAsk`, `ModeAuto`

@@ -19,15 +19,16 @@ func newStubBus() *stubBus {
 	return &stubBus{handlers: make(map[string]sdk.Handler)}
 }
 
-func (b *stubBus) Publish(ev sdk.Event)                                          {}
-func (b *stubBus) On(topic string, h sdk.Handler)                                 { b.handlers[topic] = h }
-func (b *stubBus) OnAll(h sdk.Handler)                                            {}
-func (b *stubBus) Off(h sdk.Handler)                                              {}
-func (b *stubBus) Close() error                                                   { return nil }
+func (b *stubBus) Publish(ev sdk.Event)           {}
+func (b *stubBus) On(topic string, h sdk.Handler) { b.handlers[topic] = h }
+func (b *stubBus) OnAll(h sdk.Handler)            {}
+func (b *stubBus) Off(h sdk.Handler)              {}
+func (b *stubBus) Close() error                   { return nil }
 
 func TestNewSandbox_DefaultConfig(t *testing.T) {
 	s, err := NewSandbox(nil)
 	require.NoError(t, err)
+
 	defer sdk.SetSandboxer(nil)
 
 	require.NotNil(t, s)
@@ -251,7 +252,9 @@ func TestIsDeniedRead(t *testing.T) {
 
 func homeDir(t *testing.T) string {
 	t.Helper()
+
 	dir, err := os.UserHomeDir()
 	require.NoError(t, err)
+
 	return dir
 }

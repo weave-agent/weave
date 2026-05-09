@@ -144,6 +144,7 @@ func TestGenerateSeatbeltProfile_NetworkDeny(t *testing.T) {
 
 func TestWrapCommandDarwin_NoSandboxExec(t *testing.T) {
 	original := os.Getenv("PATH")
+
 	t.Setenv("PATH", "/nonexistent")
 	defer t.Setenv("PATH", original)
 
@@ -158,6 +159,7 @@ func TestWrapCommandDarwin_WithSandboxExec(t *testing.T) {
 	}
 
 	s := &Sandbox{cfg: SandboxConfig{Mode: ModeAuto, Network: true}}
+
 	sdk.SetSandboxer(s)
 	defer sdk.SetSandboxer(nil)
 
@@ -166,4 +168,3 @@ func TestWrapCommandDarwin_WithSandboxExec(t *testing.T) {
 	assert.Contains(t, wrapped, "sandbox-exec -p '")
 	assert.Contains(t, wrapped, "echo hello")
 }
-

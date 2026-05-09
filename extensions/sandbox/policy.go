@@ -29,6 +29,7 @@ var mandatoryDenyReadPatterns = []string{
 
 func isDeniedWrite(path string) bool {
 	home, _ := os.UserHomeDir()
+
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		abs = path
@@ -46,6 +47,7 @@ func isDeniedWrite(path string) bool {
 
 func isDeniedRead(path string) bool {
 	home, _ := os.UserHomeDir()
+
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		abs = path
@@ -53,6 +55,7 @@ func isDeniedRead(path string) bool {
 
 	for _, pattern := range mandatoryDenyReadPatterns {
 		expanded := expandHome(pattern, home)
+
 		matched, _ := filepath.Match(expanded, abs)
 		if matched {
 			return true
@@ -95,12 +98,13 @@ func pathMatches(path, pattern string) bool {
 	return path == expanded || strings.HasPrefix(path, expanded+"/")
 }
 
-func expandHome(path string, home string) string {
+func expandHome(path, home string) string {
 	if strings.HasPrefix(path, "~/") {
 		if home != "" {
 			return filepath.Join(home, path[2:])
 		}
 	}
+
 	return path
 }
 
