@@ -106,7 +106,7 @@ func (s *Sandbox) Subscribe(bus sdk.Bus) error {
 		}
 		s.mu.Unlock()
 
-		slog.Info("sandbox: mode changed", "mode", mode)
+		slog.Debug("sandbox: mode changed", "mode", mode)
 
 		return nil
 	})
@@ -135,7 +135,7 @@ func (s *Sandbox) Subscribe(bus sdk.Bus) error {
 		s.allowlist = append(s.allowlist, pattern)
 		s.mu.Unlock()
 
-		slog.Info("sandbox: trusted pattern for session", "pattern", pattern)
+		slog.Debug("sandbox: trusted pattern for session", "pattern", pattern)
 
 		return nil
 	})
