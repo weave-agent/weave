@@ -210,11 +210,23 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 
 // Init returns the initial command.
 func (m Model) Init() tea.Cmd {
+	var cmds []tea.Cmd
+
 	if m.bus != nil {
-		return PublishModelChange(m.bus, m.currentModel)
+		cmds = append(cmds, PublishModelChange(m.bus, m.currentModel))
 	}
 
-	return nil
+	// Flush status updates buffered during UI extension wiring
+	// (before the event loop was running).
+	if m.ui != nil {
+		for _, s := range m.ui.DrainStatuses() {
+			cmds = append(cmds, func() tea.Msg {
+				return extStatusMsg{key: s.key, text: s.text}
+			})
+		}
+	}
+
+	return tea.Batch(cmds...)
 }
 
 // Update handles messages.

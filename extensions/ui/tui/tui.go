@@ -98,11 +98,12 @@ func (t *TUI) Subscribe(bus sdk.Bus) error {
 	t.program = tea.NewProgram(model)
 	t.mu.Unlock()
 
+	// Register UI extensions before setting the program so that
+	// SetStatus calls during registration are buffered (not sent).
+	t.wireUIExtensions(bus)
+
 	// Wire the UI implementation to the program.
 	t.ui.SetProgram(t.program)
-
-	// Register UI extensions.
-	t.wireUIExtensions(bus)
 
 	go Bridge(t.program, events)
 

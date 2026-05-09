@@ -102,15 +102,11 @@ func pathMatches(path, pattern string) bool {
 
 // resolveAbs resolves a path to an absolute path, following symlinks
 // when possible to prevent symlink-based deny rule bypasses.
-// For non-existent files, it walks up the path to find the deepest
-// existing ancestor, resolves it, then appends the remaining components.
+// It walks path components left-to-right, following symlinks before
+// processing '..' — matching kernel VFS behavior. This prevents
+// symlink-plus-dotdot bypasses where filepath.Abs/Clean would remove
+// '..' before symlinks are resolved.
 func resolveAbs(path string) string {
-	// Build an absolute path WITHOUT cleaning '..' first.
-	// filepath.Abs calls filepath.Clean, which removes '..' before
-	// symlinks are resolved, allowing symlink-plus-dotdot bypasses
-	// (e.g. link/../target where link is a symlink escapes the project).
-	// EvalSymlinks walks left-to-right, resolving symlinks before
-	// processing '..', which is the correct order.
 	var abs string
 	if filepath.IsAbs(path) {
 		abs = path
@@ -120,36 +116,144 @@ func resolveAbs(path string) string {
 			return path
 		}
 
-		abs = cwd + string(filepath.Separator) + path
+		abs = cwd + "/" + path
 	}
 
-	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
+	return walkComponents(abs)
+}
+
+// maxSymlinkDepth limits recursive symlink resolution to prevent infinite loops.
+const maxSymlinkDepth = 40
+
+// walkComponents resolves a path by processing components left-to-right using
+// a queue. Symlinks are followed before '..' is processed, and symlink target
+// components are reinserted into the queue so chained symlinks (link1 -> link2
+// -> target) are fully resolved — matching kernel VFS behavior.
+func walkComponents(path string) string {
+	var queue []string
+
+	for p := range strings.SplitSeq(path, "/") {
+		if p != "" && p != "." {
+			queue = append(queue, p)
+		}
+	}
+
+	var stack []string
+
+	symDepth := 0
+
+	for len(queue) > 0 {
+		if symDepth > maxSymlinkDepth {
+			break
+		}
+
+		part := queue[0]
+		queue = queue[1:]
+
+		if part == ".." {
+			if len(stack) > 0 {
+				stack = stack[:len(stack)-1]
+			}
+
+			continue
+		}
+
+		candidate := "/" + strings.Join(append(stack, part), "/")
+
+		fi, err := os.Lstat(candidate)
+		if err != nil {
+			stack = appendRemaining(stack, part, queue)
+
+			break
+		}
+
+		if fi.Mode()&os.ModeSymlink != 0 {
+			symDepth++
+
+			link, err := os.Readlink(candidate)
+			if err != nil {
+				stack = append(stack, part)
+
+				continue
+			}
+
+			var linkParts []string
+
+			for lp := range strings.SplitSeq(link, "/") {
+				if lp != "" && lp != "." {
+					linkParts = append(linkParts, lp)
+				}
+			}
+
+			if filepath.IsAbs(link) {
+				stack = nil
+			}
+
+			queue = append(linkParts, queue...)
+		} else {
+			stack = append(stack, part)
+		}
+	}
+
+	result := finalizeStack(stack)
+
+	if resolved, err := filepath.EvalSymlinks(result); err == nil {
 		return resolved
 	}
 
-	// Walk up to find the deepest existing ancestor, then append remaining components.
-	dir := abs
+	return resolveNonExistent(result)
+}
+
+// appendRemaining adds a non-existent component and all remaining parts to the stack.
+func appendRemaining(stack []string, part string, remaining []string) []string {
+	stack = append(stack, part)
+
+	for _, r := range remaining {
+		switch r {
+		case "..":
+			if len(stack) > 0 {
+				stack = stack[:len(stack)-1]
+			}
+		default:
+			stack = append(stack, r)
+		}
+	}
+
+	return stack
+}
+
+// resolveNonExistent walks up a non-existent path to find the deepest
+// existing ancestor, resolves it, then appends the remaining components.
+func resolveNonExistent(path string) string {
+	dir := path
 
 	var suffix []string
 
 	for {
-		if resolvedDir, err := filepath.EvalSymlinks(dir); err == nil {
+		if rd, err := filepath.EvalSymlinks(dir); err == nil {
 			if len(suffix) == 0 {
-				return resolvedDir
+				return rd
 			}
 
-			return filepath.Join(append([]string{resolvedDir}, suffix...)...)
+			return filepath.Join(append([]string{rd}, suffix...)...)
 		}
 
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			// Reached filesystem root without finding an existing ancestor.
-			return filepath.Clean(abs)
+			return path
 		}
 
 		suffix = append([]string{filepath.Base(dir)}, suffix...)
 		dir = parent
 	}
+}
+
+func finalizeStack(stack []string) string {
+	if len(stack) == 0 {
+		return "/"
+	}
+
+	return "/" + strings.Join(stack, "/")
 }
 
 // resolveAbsUnsafe returns the resolved absolute CWD, following symlinks.

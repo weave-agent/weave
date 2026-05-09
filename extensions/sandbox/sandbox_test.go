@@ -563,6 +563,31 @@ func TestResolveAbs_SymlinkDotDotBypass(t *testing.T) {
 		"should follow symlink before processing .., not clean first")
 }
 
+func TestResolveAbs_ChainedSymlinkDotDotBypass(t *testing.T) {
+	// link1 -> link2, link2 -> /tmp/out/subdir
+	// /project/link1/../owned should resolve through both symlinks
+	// to /tmp/out/owned, not /project/owned.
+	project := t.TempDir()
+	outer := t.TempDir()
+	subdir := filepath.Join(outer, "subdir")
+	require.NoError(t, os.MkdirAll(subdir, 0o755))
+
+	link2 := filepath.Join(project, "link2")
+	require.NoError(t, os.Symlink(subdir, link2))
+
+	link1 := filepath.Join(project, "link1")
+	require.NoError(t, os.Symlink("link2", link1)) // relative: link1 -> link2
+
+	requested := link1 + "/../owned"
+	resolved := resolveAbs(requested)
+
+	realOuter, err := filepath.EvalSymlinks(outer)
+	require.NoError(t, err)
+
+	assert.Equal(t, filepath.Join(realOuter, "owned"), resolved,
+		"should resolve chained symlinks before processing ..")
+}
+
 func TestSandbox_ModeAsk_DenyWriteOverridesApproval(t *testing.T) {
 	bus := newStubBus()
 	s := &Sandbox{

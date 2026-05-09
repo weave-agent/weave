@@ -17,6 +17,12 @@ type pendingCommand struct {
 	handler func(args string) error
 }
 
+// pendingStatus holds a status update registered before the program was running.
+type pendingStatus struct {
+	key  string
+	text string
+}
+
 // TUIImpl implements sdk.UI by delegating to the TUI's internal registries
 // and overlay components.
 type TUIImpl struct {
@@ -25,10 +31,11 @@ type TUIImpl struct {
 	bindings  *BindingRegistry
 	renderers map[string]sdk.ToolRenderer
 
-	mu      sync.Mutex
-	popupQ  []*overlayRequest
-	pending []pendingCommand
-	done    chan struct{}
+	mu              sync.Mutex
+	popupQ          []*overlayRequest
+	pending         []pendingCommand
+	pendingStatuses []pendingStatus
+	done            chan struct{}
 }
 
 // NewTUIImpl creates a UI implementation backed by the given registries.
@@ -137,14 +144,30 @@ func (u *TUIImpl) Input(prompt string) (string, error) {
 }
 
 // SetStatus updates the footer's extension status area.
+// If the program is not yet set, the update is buffered and flushed
+// when the event loop starts (via DrainStatuses).
 func (u *TUIImpl) SetStatus(key, text string) {
 	u.mu.Lock()
 	p := u.program
+	if p == nil {
+		u.pendingStatuses = append(u.pendingStatuses, pendingStatus{key: key, text: text})
+		u.mu.Unlock()
+		return
+	}
 	u.mu.Unlock()
 
-	if p != nil {
-		p.Send(extStatusMsg{key: key, text: text})
-	}
+	p.Send(extStatusMsg{key: key, text: text})
+}
+
+// DrainStatuses returns and clears pending status updates buffered before
+// the program was available. Called from Model.Init to flush initial statuses.
+func (u *TUIImpl) DrainStatuses() []pendingStatus {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	statuses := u.pendingStatuses
+	u.pendingStatuses = nil
+	return statuses
 }
 
 // Notify shows a temporary notification in the chat area.
