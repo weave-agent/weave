@@ -36,7 +36,7 @@ func isDeniedWrite(path string) bool {
 	}
 
 	for _, deny := range mandatoryDenyWritePaths {
-		expanded := expandDenyRule(deny, home)
+		expanded := expandDenyRule(deny, home, "")
 		if strings.HasPrefix(abs, expanded) || strings.HasPrefix(path, deny) {
 			return true
 		}
@@ -110,13 +110,17 @@ func expandHome(path, home string) string {
 
 // expandDenyRule expands a deny rule for comparison against absolute paths.
 // Home-relative paths (~/.ssh/) are expanded. Project-relative paths
-// (.git/hooks/) are resolved against the current working directory.
-func expandDenyRule(path, home string) string {
+// (.git/hooks/) are resolved against the given base directory.
+func expandDenyRule(path, home, dir string) string {
 	if strings.HasPrefix(path, "~/") {
 		return expandHome(path, home)
 	}
 
 	if !filepath.IsAbs(path) {
+		if dir != "" {
+			return filepath.Join(dir, path)
+		}
+
 		abs, err := filepath.Abs(path)
 		if err == nil {
 			return abs
@@ -126,20 +130,8 @@ func expandDenyRule(path, home string) string {
 	return path
 }
 
-// wrapCommandPlatform dispatches to the OS-specific implementation.
-func wrapCommandPlatform(cmd, dir string) (string, error) {
-	switch runtime.GOOS {
-	case "darwin":
-		return wrapCommandDarwin(cmd, dir)
-	case "linux":
-		return wrapCommandLinux(cmd, dir)
-	default:
-		return cmd, nil
-	}
-}
-
 // wrapCommandPlatformWithConfig dispatches to the OS-specific implementation
-// with an explicit config, used by readonly mode to override writable paths.
+// with an explicit config.
 func wrapCommandPlatformWithConfig(cmd, dir string, cfg SandboxConfig) (string, error) {
 	switch runtime.GOOS {
 	case "darwin":

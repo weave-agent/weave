@@ -1480,7 +1480,7 @@ func (m *Model) showStatus(msg string) {
 }
 
 // cycleSandboxMode advances the sandbox to the next mode in the cycle order,
-// updates the footer status pill, and publishes a bus event.
+// updates the footer status pill.
 func (m Model) cycleSandboxMode() (tea.Model, tea.Cmd) {
 	sb := sdk.GetSandboxer()
 	if sb == nil {
@@ -1497,10 +1497,6 @@ func (m Model) cycleSandboxMode() (tea.Model, tea.Cmd) {
 	}
 
 	m.showStatus("Sandbox mode: " + next)
-
-	if m.bus != nil {
-		m.bus.Publish(sdk.NewEvent("sandbox.mode.change", next))
-	}
 
 	return m, nil
 }

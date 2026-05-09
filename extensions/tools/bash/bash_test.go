@@ -39,10 +39,16 @@ func TestDefinition(t *testing.T) {
 }
 
 func TestDirFromConfig(t *testing.T) {
-	t.Run("uses FilePath directory", func(t *testing.T) {
+	t.Run("resolves project root from .weave/config.yaml", func(t *testing.T) {
 		cfg := sdk.FilePathConfig("/project/.weave/config.yaml")
 		dir := dirFromConfig(cfg)
-		assert.Equal(t, "/project/.weave", dir)
+		assert.Equal(t, "/project", dir)
+	})
+
+	t.Run("uses parent dir for .weave.yaml", func(t *testing.T) {
+		cfg := sdk.FilePathConfig("/project/.weave.yaml")
+		dir := dirFromConfig(cfg)
+		assert.Equal(t, "/project", dir)
 	})
 
 	t.Run("falls back to cwd when FilePath empty", func(t *testing.T) {

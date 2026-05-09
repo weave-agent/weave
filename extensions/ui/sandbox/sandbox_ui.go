@@ -45,8 +45,3 @@ func currentMode() string {
 
 	return sb.Mode()
 }
-
-// NextMode returns the next mode in the cycle order.
-func NextMode(current string) string {
-	return sdk.NextSandboxMode(current)
-}

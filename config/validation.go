@@ -167,28 +167,16 @@ func validateSandbox(errs *ValidationErrors, sc *SandboxFileConfig) {
 		})
 	}
 
-	for i, p := range sc.Writable {
-		if strings.TrimSpace(p) == "" {
-			*errs = append(*errs, ValidationError{
-				Field:   fmt.Sprintf("sandbox.writable[%d]", i),
-				Message: "path must not be empty",
-			})
-		}
-	}
+	validatePathSlice(errs, "sandbox.writable", sc.Writable)
+	validatePathSlice(errs, "sandbox.deny_write", sc.DenyWrite)
+	validatePathSlice(errs, "sandbox.deny_read", sc.DenyRead)
+}
 
-	for i, p := range sc.DenyWrite {
+func validatePathSlice(errs *ValidationErrors, prefix string, paths []string) {
+	for i, p := range paths {
 		if strings.TrimSpace(p) == "" {
 			*errs = append(*errs, ValidationError{
-				Field:   fmt.Sprintf("sandbox.deny_write[%d]", i),
-				Message: "path must not be empty",
-			})
-		}
-	}
-
-	for i, p := range sc.DenyRead {
-		if strings.TrimSpace(p) == "" {
-			*errs = append(*errs, ValidationError{
-				Field:   fmt.Sprintf("sandbox.deny_read[%d]", i),
+				Field:   fmt.Sprintf("%s[%d]", prefix, i),
 				Message: "path must not be empty",
 			})
 		}

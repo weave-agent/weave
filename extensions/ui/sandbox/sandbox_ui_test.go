@@ -113,20 +113,3 @@ func TestCurrentMode_WithSandboxer(t *testing.T) {
 	sdk.SetSandboxer(&mockSandboxer{mode: "ask"})
 	assert.Equal(t, "ask", currentMode())
 }
-
-func TestNextMode(t *testing.T) {
-	tests := []struct {
-		current string
-		want    string
-	}{
-		{sdk.SandboxOff, sdk.SandboxReadonly},
-		{sdk.SandboxReadonly, sdk.SandboxAsk},
-		{sdk.SandboxAsk, sdk.SandboxAuto},
-		{sdk.SandboxAuto, sdk.SandboxOff},
-		{"unknown", sdk.SandboxOff},
-	}
-
-	for _, tt := range tests {
-		assert.Equal(t, tt.want, NextMode(tt.current), "NextMode(%q)", tt.current)
-	}
-}

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 )
 
@@ -15,26 +14,6 @@ func bwrapAvailable() error {
 		return fmt.Errorf("bubblewrap not installed")
 	}
 	return nil
-}
-
-func wrapCommandLinux(cmd, dir string) (string, error) {
-	if err := bwrapAvailable(); err != nil {
-		return "", err
-	}
-
-	cfg := currentConfig()
-
-	args := buildBwrapArgs(cfg, dir)
-
-	// Shell-escape each arg and the command for safe bash -c consumption.
-	quoted := make([]string, 0, len(args)+4)
-	quoted = append(quoted, "bwrap")
-	for _, a := range args {
-		quoted = append(quoted, shellQuote(a))
-	}
-	quoted = append(quoted, "--", "bash", "-c", shellQuote(cmd))
-
-	return strings.Join(quoted, " "), nil
 }
 
 // shellQuote wraps a string in single quotes, escaping embedded single quotes.
@@ -68,7 +47,7 @@ func buildBwrapArgs(cfg SandboxConfig, dir string) []string {
 
 	// Mandatory deny write paths
 	for _, deny := range mandatoryDenyWritePaths {
-		expanded := expandDenyPath(deny, home, dir)
+		expanded := expandDenyRule(deny, home, dir)
 		if strings.HasSuffix(deny, "/") {
 			args = append(args, "--tmpfs", expanded)
 		} else {
@@ -78,7 +57,7 @@ func buildBwrapArgs(cfg SandboxConfig, dir string) []string {
 
 	// User-configured deny write paths
 	for _, deny := range cfg.DenyWrite {
-		expanded := expandDenyPath(deny, home, dir)
+		expanded := expandDenyRule(deny, home, dir)
 		if strings.HasSuffix(deny, "/") {
 			args = append(args, "--tmpfs", expanded)
 		} else {
@@ -97,21 +76,7 @@ func buildBwrapArgs(cfg SandboxConfig, dir string) []string {
 	return args
 }
 
-func expandDenyPath(path, home, dir string) string {
-	if strings.HasPrefix(path, "~/") {
-		return filepath.Join(home, path[2:])
-	}
-	if !filepath.IsAbs(path) {
-		return filepath.Join(dir, path)
-	}
-	return path
-}
-
 // Darwin stubs for cross-compilation.
-func wrapCommandDarwin(cmd, dir string) (string, error) {
-	return cmd, nil
-}
-
 func generateSeatbeltProfile(cfg SandboxConfig, dir string) string {
 	return ""
 }
@@ -121,5 +86,18 @@ func wrapCommandDarwinWithConfig(cmd, dir string, cfg SandboxConfig) (string, er
 }
 
 func wrapCommandLinuxWithConfig(cmd, dir string, cfg SandboxConfig) (string, error) {
-	return cmd, nil
+	if err := bwrapAvailable(); err != nil {
+		return "", err
+	}
+
+	args := buildBwrapArgs(cfg, dir)
+
+	quoted := make([]string, 0, len(args)+4)
+	quoted = append(quoted, "bwrap")
+	for _, a := range args {
+		quoted = append(quoted, shellQuote(a))
+	}
+	quoted = append(quoted, "--", "bash", "-c", shellQuote(cmd))
+
+	return strings.Join(quoted, " "), nil
 }

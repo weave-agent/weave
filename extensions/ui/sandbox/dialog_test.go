@@ -268,6 +268,9 @@ func TestFormatApprovalTitle(t *testing.T) {
 			} else {
 				assert.Contains(t, result, "Sandbox: allow command?")
 				assert.Contains(t, result, "...")
+
+				wantLen := len("Sandbox: allow command?\n\n") + 60 + len("...")
+				assert.Len(t, result, wantLen)
 			}
 		})
 	}

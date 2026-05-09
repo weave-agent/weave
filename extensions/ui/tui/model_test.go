@@ -2274,13 +2274,11 @@ func TestModel_CycleSandboxMode_NoSandboxer(t *testing.T) {
 	assert.Contains(t, m.statusMsg, "not available")
 }
 
-func TestModel_CycleSandboxMode_PublishesBusEvent(t *testing.T) {
+func TestModel_CycleSandboxMode_UpdatesMode(t *testing.T) {
 	defer sdk.SetSandboxer(nil)
 
 	b := bus.New()
 	defer b.Close()
-
-	ch := subscribeToChan(b, "sandbox.mode.change")
 
 	sb := &mockSandboxer{mode: sdk.SandboxAuto}
 	sdk.SetSandboxer(sb)
@@ -2293,10 +2291,6 @@ func TestModel_CycleSandboxMode_PublishesBusEvent(t *testing.T) {
 	_ = model.(Model)
 
 	assert.Equal(t, sdk.SandboxOff, sb.mode)
-
-	evt := <-ch
-	assert.Equal(t, "sandbox.mode.change", evt.Topic)
-	assert.Equal(t, sdk.SandboxOff, evt.Payload.(string))
 }
 
 func TestNextSandboxMode(t *testing.T) {

@@ -11,19 +11,6 @@ import (
 	"strings"
 )
 
-func wrapCommandDarwin(cmd, dir string) (string, error) {
-	if _, err := exec.LookPath("sandbox-exec"); err != nil {
-		return "", fmt.Errorf("sandbox-exec not found: %w", err)
-	}
-
-	cfg := currentConfig()
-
-	profile := generateSeatbeltProfile(cfg, dir)
-	escaped := strings.ReplaceAll(profile, "'", "'\\''")
-
-	return fmt.Sprintf("sandbox-exec -p '%s' bash -c '%s'", escaped, strings.ReplaceAll(cmd, "'", "'\\''")), nil
-}
-
 func generateSeatbeltProfile(cfg SandboxConfig, dir string) string {
 	var b strings.Builder
 	b.WriteString("(version 1)\n")
@@ -91,10 +78,6 @@ func generateSeatbeltProfile(cfg SandboxConfig, dir string) string {
 	}
 
 	return b.String()
-}
-
-func wrapCommandLinux(cmd, dir string) (string, error) {
-	return cmd, nil
 }
 
 func wrapCommandDarwinWithConfig(cmd, dir string, cfg SandboxConfig) (string, error) {

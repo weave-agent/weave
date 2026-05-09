@@ -180,14 +180,14 @@ func (s *Sandbox) Mode() string {
 // Behavior depends on the active mode.
 func (s *Sandbox) WrapCommand(cmd, dir string) (string, error) {
 	s.mu.RLock()
-	mode := s.cfg.Mode
+	cfg := s.cfg
 	s.mu.RUnlock()
 
-	switch mode {
+	switch cfg.Mode {
 	case sdk.SandboxOff:
 		return cmd, nil
 	case sdk.SandboxAuto:
-		return wrapCommandPlatform(cmd, dir)
+		return wrapCommandPlatformWithConfig(cmd, dir, cfg)
 	case sdk.SandboxReadonly:
 		return s.wrapCommandReadonly(cmd, dir)
 	case sdk.SandboxAsk:
@@ -229,7 +229,7 @@ func (s *Sandbox) AllowWrite(path string) bool {
 
 		cwd, _ := os.Getwd()
 		if cwd != "" {
-			return strings.HasPrefix(abs, cwd)
+			return abs == cwd || strings.HasPrefix(abs, cwd+"/")
 		}
 
 		return false
@@ -277,6 +277,8 @@ func (s *Sandbox) wrapCommandReadonly(cmd, dir string) (string, error) {
 
 	return wrapCommandPlatformWithConfig(cmd, dir, cfg)
 }
+
+// wrapCommandAsk publishes an approval request on the bus and waits for a response.
 
 // wrapCommandAsk publishes an approval request on the bus and waits for a response.
 func (s *Sandbox) wrapCommandAsk(cmd string) (string, error) {
@@ -350,18 +352,4 @@ func (s *Sandbox) SetMode(mode string) {
 	s.mu.Lock()
 	s.cfg.Mode = mode
 	s.mu.Unlock()
-}
-
-// currentConfig returns the active SandboxConfig from the global Sandboxer.
-func currentConfig() SandboxConfig {
-	sb := sdk.GetSandboxer()
-	if s, ok := sb.(*Sandbox); ok {
-		s.mu.RLock()
-		cfg := s.cfg
-		s.mu.RUnlock()
-
-		return cfg
-	}
-
-	return SandboxConfig{Mode: sdk.SandboxAuto, Network: true}
 }

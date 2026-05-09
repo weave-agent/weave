@@ -10,8 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"weave/sdk"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -148,7 +146,7 @@ func TestWrapCommandDarwin_NoSandboxExec(t *testing.T) {
 	t.Setenv("PATH", "/nonexistent")
 	defer t.Setenv("PATH", original)
 
-	_, err := wrapCommandDarwin("ls -la", "/tmp")
+	_, err := wrapCommandDarwinWithConfig("ls -la", "/tmp", SandboxConfig{Network: true})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "sandbox-exec not found")
 }
@@ -158,12 +156,7 @@ func TestWrapCommandDarwin_WithSandboxExec(t *testing.T) {
 		t.Skip("darwin only")
 	}
 
-	s := &Sandbox{cfg: SandboxConfig{Mode: sdk.SandboxAuto, Network: true}}
-
-	sdk.SetSandboxer(s)
-	defer sdk.SetSandboxer(nil)
-
-	wrapped, err := wrapCommandDarwin("echo hello", "/tmp/project")
+	wrapped, err := wrapCommandDarwinWithConfig("echo hello", "/tmp/project", SandboxConfig{Network: true})
 	require.NoError(t, err)
 	assert.Contains(t, wrapped, "sandbox-exec -p '")
 	assert.Contains(t, wrapped, "echo hello")

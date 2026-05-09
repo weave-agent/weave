@@ -9,8 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"weave/sdk"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -129,7 +127,7 @@ func TestWrapCommandLinux_NoBwrap(t *testing.T) {
 	t.Setenv("PATH", "/nonexistent")
 	defer t.Setenv("PATH", original)
 
-	_, err := wrapCommandLinux("echo hello", "/tmp")
+	_, err := wrapCommandLinuxWithConfig("echo hello", "/tmp", SandboxConfig{Network: true})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "bubblewrap not installed")
 }
@@ -139,27 +137,23 @@ func TestWrapCommandLinux_WithBwrap(t *testing.T) {
 		t.Skip("bwrap not installed")
 	}
 
-	s := &Sandbox{cfg: SandboxConfig{Mode: sdk.SandboxAuto, Network: true}}
-	sdk.SetSandboxer(s)
-	defer sdk.SetSandboxer(nil)
-
-	wrapped, err := wrapCommandLinux("echo hello", "/tmp/project")
+	wrapped, err := wrapCommandLinuxWithConfig("echo hello", "/tmp/project", SandboxConfig{Network: true})
 	require.NoError(t, err)
 	assert.Contains(t, wrapped, "bwrap")
 	assert.Contains(t, wrapped, "echo hello")
 }
 
-func TestExpandDenyPath_HomePrefix(t *testing.T) {
-	result := expandDenyPath("~/.ssh/", "/home/user", "/tmp/project")
+func TestExpandDenyRule_HomePrefix(t *testing.T) {
+	result := expandDenyRule("~/.ssh/", "/home/user", "/tmp/project")
 	assert.Equal(t, filepath.Join("/home/user", ".ssh"), result)
 }
 
-func TestExpandDenyPath_RelativePath(t *testing.T) {
-	result := expandDenyPath(".git/config", "/home/user", "/tmp/project")
+func TestExpandDenyRule_RelativePath(t *testing.T) {
+	result := expandDenyRule(".git/config", "/home/user", "/tmp/project")
 	assert.Equal(t, "/tmp/project/.git/config", result)
 }
 
-func TestExpandDenyPath_AbsolutePath(t *testing.T) {
-	result := expandDenyPath("/etc/secret", "/home/user", "/tmp/project")
+func TestExpandDenyRule_AbsolutePath(t *testing.T) {
+	result := expandDenyRule("/etc/secret", "/home/user", "/tmp/project")
 	assert.Equal(t, "/etc/secret", result)
 }
