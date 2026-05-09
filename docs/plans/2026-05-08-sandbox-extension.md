@@ -121,13 +121,13 @@ Four sandbox modes: `off` → `readonly` → `ask` → `auto` (default). The des
 - [x] run `cd extensions/tools/bash && go test ./...` — must pass before task 7
 
 ### Task 7: Integrate sandbox policy into file tools (write, edit)
-- [ ] modify `extensions/tools/write/write.go` `Execute()` — check `sdk.GetSandboxer().AllowWrite(path)` before writing
-- [ ] if denied, return `ToolResult{Content: "sandbox: write denied — path is protected", IsError: true}`
-- [ ] modify `extensions/tools/edit/edit.go` `Execute()` — check `sdk.GetSandboxer().AllowWrite(path)` before editing
-- [ ] if sandboxer nil, current behavior unchanged for both tools
-- [ ] write tests for write tool with mock sandboxer (allowed write, denied write, nil sandboxer)
-- [ ] write tests for edit tool with mock sandboxer (allowed edit, denied edit, nil sandboxer)
-- [ ] run `cd extensions/tools/write && go test ./...` and `cd extensions/tools/edit && go test ./...` — must pass before task 8
+- [x] modify `extensions/tools/write/write.go` `Execute()` — check `sdk.GetSandboxer().AllowWrite(path)` before writing
+- [x] if denied, return `ToolResult{Content: "sandbox: write denied — path is protected", IsError: true}`
+- [x] modify `extensions/tools/edit/edit.go` `Execute()` — check `sdk.GetSandboxer().AllowWrite(path)` before editing
+- [x] if sandboxer nil, current behavior unchanged for both tools
+- [x] write tests for write tool with mock sandboxer (allowed write, denied write, nil sandboxer)
+- [x] write tests for edit tool with mock sandboxer (allowed edit, denied edit, nil sandboxer)
+- [x] run `cd extensions/tools/write && go test ./...` and `cd extensions/tools/edit && go test ./...` — must pass before task 8
 
 ### Task 8: Integrate sandbox policy into file tools (read, grep, find, ls)
 - [ ] modify `extensions/tools/read/read.go` `Execute()` — check `sdk.GetSandboxer().AllowRead(path)` before reading

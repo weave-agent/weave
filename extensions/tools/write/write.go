@@ -53,6 +53,10 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		return sdk.ToolResult{Content: "error: path is required", IsError: true}, nil
 	}
 
+	if s := sdk.GetSandboxer(); s != nil && !s.AllowWrite(path) {
+		return sdk.ToolResult{Content: "sandbox: write denied — path is protected", IsError: true}, nil
+	}
+
 	content, _ := args[ParamContent].(string)
 
 	dir := filepath.Dir(path)

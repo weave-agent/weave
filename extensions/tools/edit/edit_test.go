@@ -267,3 +267,106 @@ func TestExecuteTruncation(t *testing.T) {
 	assert.False(t, result.IsError)
 	assert.Contains(t, result.Content, "output truncated")
 }
+
+func TestExecuteSandboxDenied(t *testing.T) {
+	tool := &tool{}
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "protected.txt")
+	require.NoError(t, os.WriteFile(path, []byte("original"), 0o644))
+
+	sandboxer := &testSandboxer{
+		allowWriteFn: func(p string) bool { return false },
+	}
+	sdk.SetSandboxer(sandboxer)
+	t.Cleanup(func() { sdk.SetSandboxer(nil) })
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"path": path,
+		"edits": []any{
+			map[string]any{"oldText": "original", "newText": "modified"},
+		},
+	})
+	require.NoError(t, err)
+	assert.True(t, result.IsError)
+	assert.Contains(t, result.Content, "sandbox: write denied")
+
+	data, readErr := os.ReadFile(path)
+	require.NoError(t, readErr)
+	assert.Equal(t, "original", string(data))
+}
+
+func TestExecuteSandboxAllowed(t *testing.T) {
+	tool := &tool{}
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "allowed.txt")
+	require.NoError(t, os.WriteFile(path, []byte("hello"), 0o644))
+
+	sandboxer := &testSandboxer{
+		allowWriteFn: func(p string) bool { return true },
+	}
+	sdk.SetSandboxer(sandboxer)
+	t.Cleanup(func() { sdk.SetSandboxer(nil) })
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"path": path,
+		"edits": []any{
+			map[string]any{"oldText": "hello", "newText": "world"},
+		},
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+	assert.Contains(t, result.Content, "-hello")
+	assert.Contains(t, result.Content, "+world")
+
+	data, readErr := os.ReadFile(path)
+	require.NoError(t, readErr)
+	assert.Equal(t, "world", string(data))
+}
+
+func TestExecuteSandboxNil(t *testing.T) {
+	tool := &tool{}
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "nosandbox.txt")
+	require.NoError(t, os.WriteFile(path, []byte("before"), 0o644))
+
+	sdk.SetSandboxer(nil)
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"path": path,
+		"edits": []any{
+			map[string]any{"oldText": "before", "newText": "after"},
+		},
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	data, readErr := os.ReadFile(path)
+	require.NoError(t, readErr)
+	assert.Equal(t, "after", string(data))
+}
+
+// testSandboxer is a minimal Sandboxer for edit-tool tests.
+type testSandboxer struct {
+	allowWriteFn func(string) bool
+	allowReadFn  func(string) bool
+	wrapFn       func(cmd, dir string) (string, error)
+}
+
+func (ts *testSandboxer) WrapCommand(cmd, dir string) (string, error) {
+	if ts.wrapFn != nil {
+		return ts.wrapFn(cmd, dir)
+	}
+	return cmd, nil
+}
+func (ts *testSandboxer) AllowWrite(path string) bool {
+	if ts.allowWriteFn != nil {
+		return ts.allowWriteFn(path)
+	}
+	return true
+}
+func (ts *testSandboxer) AllowRead(path string) bool {
+	if ts.allowReadFn != nil {
+		return ts.allowReadFn(path)
+	}
+	return true
+}

@@ -192,3 +192,96 @@ func TestExecuteNestedDirCreation(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "deep", string(data))
 }
+
+func TestExecuteSandboxDenied(t *testing.T) {
+	tool := &tool{}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "protected.txt")
+
+	sandboxer := &testSandboxer{
+		allowWriteFn: func(p string) bool { return false },
+	}
+	sdk.SetSandboxer(sandboxer)
+	t.Cleanup(func() { sdk.SetSandboxer(nil) })
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"path":    path,
+		"content": "should not write",
+	})
+	require.NoError(t, err)
+	assert.True(t, result.IsError)
+	assert.Contains(t, result.Content, "sandbox: write denied")
+
+	_, statErr := os.Stat(path)
+	assert.True(t, os.IsNotExist(statErr))
+}
+
+func TestExecuteSandboxAllowed(t *testing.T) {
+	tool := &tool{}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "allowed.txt")
+
+	sandboxer := &testSandboxer{
+		allowWriteFn: func(p string) bool { return true },
+	}
+	sdk.SetSandboxer(sandboxer)
+	t.Cleanup(func() { sdk.SetSandboxer(nil) })
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"path":    path,
+		"content": "hello",
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+	assert.Contains(t, result.Content, "wrote 5 bytes")
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, "hello", string(data))
+}
+
+func TestExecuteSandboxNil(t *testing.T) {
+	tool := &tool{}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "nosandbox.txt")
+
+	sdk.SetSandboxer(nil)
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"path":    path,
+		"content": "works normally",
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+	assert.Contains(t, result.Content, "wrote 14 bytes")
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, "works normally", string(data))
+}
+
+// testSandboxer is a minimal Sandboxer for write-tool tests.
+type testSandboxer struct {
+	allowWriteFn func(string) bool
+	allowReadFn  func(string) bool
+	wrapFn       func(cmd, dir string) (string, error)
+}
+
+func (ts *testSandboxer) WrapCommand(cmd, dir string) (string, error) {
+	if ts.wrapFn != nil {
+		return ts.wrapFn(cmd, dir)
+	}
+	return cmd, nil
+}
+func (ts *testSandboxer) AllowWrite(path string) bool {
+	if ts.allowWriteFn != nil {
+		return ts.allowWriteFn(path)
+	}
+	return true
+}
+func (ts *testSandboxer) AllowRead(path string) bool {
+	if ts.allowReadFn != nil {
+		return ts.allowReadFn(path)
+	}
+	return true
+}
