@@ -112,13 +112,13 @@ Four sandbox modes: `off` → `readonly` → `ask` → `auto` (default). The des
 - [x] run `cd extensions/sandbox && go test ./...` — must pass before task 6
 
 ### Task 6: Integrate sandbox into bash tool
-- [ ] modify `extensions/tools/bash/bash.go` `Execute()` — check `sdk.GetSandboxer()` before building command
-- [ ] if sandboxer present, call `sandboxer.WrapCommand(command, t.dir)` and use wrapped command
-- [ ] if sandboxer returns error, return `ToolResult{Content: "sandbox: ...", IsError: true}`
-- [ ] if sandboxer nil, current behavior unchanged
-- [ ] add `dir` field to bash tool struct, populated from `cfg.FilePath()` or CWD
-- [ ] write tests for bash tool with mock sandboxer (wraps command, returns error, nil sandboxer)
-- [ ] run `cd extensions/tools/bash && go test ./...` — must pass before task 7
+- [x] modify `extensions/tools/bash/bash.go` `Execute()` — check `sdk.GetSandboxer()` before building command
+- [x] if sandboxer present, call `sandboxer.WrapCommand(command, t.dir)` and use wrapped command
+- [x] if sandboxer returns error, return `ToolResult{Content: "sandbox: ...", IsError: true}`
+- [x] if sandboxer nil, current behavior unchanged
+- [x] add `dir` field to bash tool struct, populated from `cfg.FilePath()` or CWD
+- [x] write tests for bash tool with mock sandboxer (wraps command, returns error, nil sandboxer)
+- [x] run `cd extensions/tools/bash && go test ./...` — must pass before task 7
 
 ### Task 7: Integrate sandbox policy into file tools (write, edit)
 - [ ] modify `extensions/tools/write/write.go` `Execute()` — check `sdk.GetSandboxer().AllowWrite(path)` before writing

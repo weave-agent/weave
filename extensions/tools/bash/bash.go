@@ -9,6 +9,8 @@ import (
 	"syscall"
 	"time"
 
+	"path/filepath"
+
 	"weave/sdk"
 	"weave/utils/truncate"
 )
@@ -25,6 +27,7 @@ type BashConfig struct {
 
 type tool struct {
 	timeout time.Duration
+	dir     string
 }
 
 func init() {
@@ -40,8 +43,20 @@ func init() {
 			timeout = defaultTimeout
 		}
 
-		return &tool{timeout: timeout}, nil
+		dir := dirFromConfig(cfg)
+
+		return &tool{timeout: timeout, dir: dir}, nil
 	})
+}
+
+func dirFromConfig(cfg sdk.Config) string {
+	if fp := cfg.FilePath(); fp != "" {
+		return filepath.Dir(fp)
+	}
+
+	dir, _ := os.Getwd()
+
+	return dir
 }
 
 func (t *tool) Name() string { return "bash" }
@@ -71,6 +86,15 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 	command, _ := args[ParamCommand].(string)
 	if command == "" {
 		return sdk.ToolResult{Content: "error: command is required", IsError: true}, nil
+	}
+
+	if s := sdk.GetSandboxer(); s != nil {
+		wrapped, err := s.WrapCommand(command, t.dir)
+		if err != nil {
+			return sdk.ToolResult{Content: "sandbox: " + err.Error(), IsError: true}, nil
+		}
+
+		command = wrapped
 	}
 
 	timeout := t.timeout
