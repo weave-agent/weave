@@ -68,14 +68,14 @@ Four sandbox modes: `off` → `readonly` → `ask` → `auto` (default). The des
 - [x] run `go test ./sdk/...` — must pass before task 2
 
 ### Task 2: Create sandbox extension scaffold
-- [ ] create `extensions/sandbox/` directory with `go.mod` (module: `weave/extensions/sandbox`)
-- [ ] create `extensions/sandbox/sandbox.go` with `SandboxConfig` struct (JSON tags: mode, writable, deny_write, deny_read, network)
-- [ ] implement `init()` with `sdk.RegisterExtension("sandbox", factory)`
-- [ ] factory loads config via `cfg.ToolConfig("sandbox", &sc)`, creates `Sandbox` struct, calls `sdk.SetSandboxer(s)`
-- [ ] implement `Subscribe(bus)` — listen for `sandbox.mode.change` to switch modes mid-session
-- [ ] implement `Close()` — cleanup
-- [ ] write tests for config loading, mode switching, extension lifecycle
-- [ ] run `cd extensions/sandbox && go test ./...` — must pass before task 3
+- [x] create `extensions/sandbox/` directory with `go.mod` (module: `weave/extensions/sandbox`)
+- [x] create `extensions/sandbox/sandbox.go` with `SandboxConfig` struct (JSON tags: mode, writable, deny_write, deny_read, network)
+- [x] implement `init()` with `sdk.RegisterExtension("sandbox", factory)`
+- [x] factory loads config via `cfg.ToolConfig("sandbox", &sc)`, creates `Sandbox` struct, calls `sdk.SetSandboxer(s)`
+- [x] implement `Subscribe(bus)` — listen for `sandbox.mode.change` to switch modes mid-session
+- [x] implement `Close()` — cleanup
+- [x] write tests for config loading, mode switching, extension lifecycle
+- [x] run `cd extensions/sandbox && go test ./...` — must pass before task 3
 
 ### Task 3: Implement macOS Seatbelt profile generation
 - [ ] create `extensions/sandbox/darwin.go` with build tag `//go:build darwin`
