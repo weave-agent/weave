@@ -33,17 +33,17 @@ Standard library as much as possible. Every replaceable component is an extensio
 
 **Extension responsibility boundaries** — each extension owns exactly one concern and must not leak into another extension's domain. A tool runs commands, a provider calls an API, the agent loop drives turns, the TUI renders output — no overlap. Extensions communicate exclusively through bus events; they never import or call each other directly. If an extension needs data another extension owns, it listens for the event that publishes it rather than reaching into that extension's internals. When adding code to an extension, ask: is this this extension's job? If not, it belongs somewhere else.
 
-**Launcher pattern:** resolve config → pick extensions → build a custom binary (cached per hash) → exec it. `cmd/weave/main.go` is a thin stub that calls `wire.Run()`.
+**Launcher pattern:** resolve config → auto-discover extensions → build a custom binary (cached per hash) → exec it. `cmd/weave/main.go` is a thin stub that calls `wire.Run()`.
 
 **Key packages:**
 - `sdk/` — defines `Extension`, `Bus`, `Config`, `UI` interfaces; `Handler func(Event) error` type for callback-based bus handlers; `Config` includes `ToolConfig(name, target)`, `UIConfig(target)`, and `IsHeadless() bool` for headless mode detection; `HeadlessConfig` wraps a `Config` and overrides `IsHeadless()` based on whether TUI is included; global registries for extensions, providers, tools, and UIs (`RegisterExtension`/`GetExtension`, `RegisterProvider`/`GetProvider`, `RegisterTool`/`GetTool`, `RegisterUI`/`GetUI`) with duplicate registration warnings (first wins, logs to stderr); `RegisterUIExtension` for TUI-specific plugins; `Message` types; `NoopUI` stub for headless mode
 - `sdk/model/` — model types (`ThinkingLevel`, `ModelDef`, `StreamOptions`), model registry (`RegisterModel`/`GetModel`/`ListModelsForProvider`/`ListAllModels`), provider env var registry (`RegisterProviderEnvVar`/`ProviderEnvVar`), and `RegisterBuiltinModels()` with all hardcoded entries. Model registry warns on duplicates (first wins, matching other registries)
 - `sdk/registry/` — generic `Registry[T]` type used internally by all sdk registries; supports `WithWarn` (first-wins + warning) and `WithPanic` (panic on dup) options
-- `sdk/wire/` — `Wire()` and `WireWithCore()` composition roots that resolve names and subscribe extensions to the bus; `Run()` absorbs the full entry-point pipeline (config loading, extension resolution, launcher build); `CoreWireConfig` struct; install subcommand logic
+- `sdk/wire/` — `Wire()` and `WireWithCore()` composition roots that resolve names and subscribe extensions to the bus; `Run()` absorbs the full entry-point pipeline (config loading, auto-discovery via `launcher.AutoDiscover`, launcher build); `CoreWireConfig` struct (AgentLoop + SingleTurn only, no providers); install subcommand logic
 - `bus/` — callback-based event bus (`Publish`/`On`/`OnAll`/`Off`) with per-handler goroutines, non-blocking dispatch, `recover()` wrapping every handler invocation (panics trigger `extension.panic`, errors trigger `extension.error` diagnostic events), and graceful close via `sync.WaitGroup`
-- `config/` — config discovery (walks up from cwd for `.weave.yaml` or `.weave/config.yaml`) and loading via gonfig. Config has a `core` section (agent_loop + providers) and `extensions` list. `FullConfig` implements `sdk.Config` with key resolution, typed tool/UI config via layered settings, and validation. `settings.go` — `Settings` struct with UI/Tools sections, load/save with layer support. `merge.go` — `MergeSettings` deep-merges global → project → local layers. `validation.go` — `ValidateWithConfigDir` checks config fields with structured field-path errors.
+- `config/` — config discovery (walks up from cwd for `.weave.yaml` or `.weave/config.yaml`) and loading via gonfig. Config has a `core` section (agent_loop only) and `exclude_extensions` list. `FullConfig` implements `sdk.Config` with key resolution, typed tool/UI config via layered settings, and validation. `settings.go` — `Settings` struct with UI/Tools sections, load/save with layer support. `merge.go` — `MergeSettings` deep-merges global → project → local layers. `validation.go` — `ValidateWithConfigDir` checks config fields with structured field-path errors.
 - `internal/truncate/` — shared output truncation (2000 lines / 50KB) used by all tools for consistent output limiting
-- `extensions/loop/` — core extension implementing the two-level while-loop agent cycle (outer: follow-ups, inner: steering + tool calls); subscribes to `agent.prompt`, `agent.steer`, `agent.followup`, `model.change`, `thinking.change`, `skills.loaded`, `instructions.loaded`; combines instructions + skills into system prompt; publishes `agent.turn_start/end`, `agent.message_start/update/end`, `agent.tool_result`, `agent.end`
+- `extensions/loop/` — core extension implementing the two-level while-loop agent cycle (outer: follow-ups, inner: steering + tool calls); subscribes to `agent.prompt`, `agent.steer`, `agent.followup`, `model.change`, `thinking.change`, `skills.loaded`, `instructions.loaded`; combines instructions + skills into system prompt; publishes `agent.turn_start/end`, `agent.message_start/update/end`, `agent.tool_result`, `agent.end`; selects initial provider via priority chain (`WEAVE_PROVIDER` env > settings provider > first registered > `"anthropic"` fallback)
 - `extensions/instructions/` — discovers and loads context files (CLAUDE.md/AGENTS.md walked up from project root, then global `~/.weave/`) and system prompt files (SYSTEM.md/APPEND_SYSTEM.md from `.weave/` or `~/.weave/`); publishes assembled prompt on `TopicInstructionsLoaded`; project files override global
 - `extensions/tools/{bash,read,edit,write,grep,find,ls}/` — individual tool extension modules, each an independent Go module self-registering via `sdk.RegisterTool`
 - `extensions/providers/openai-compat/` — shared library for OpenAI-compatible providers (SSE parsing, message/tool conversion); reused by `openai` and `zai` providers; import as `openaicompat` package
@@ -63,49 +63,30 @@ Standard library as much as possible. Every replaceable component is an extensio
   - `keybindings.go` — key resolution using v2 API (`keyString(msg tea.KeyPressMsg)`, `msg.Key.String()`)
   - `overlays.go` — overlay request routing, dialog stack integration for `sdk.UI` methods
   - `bridge.go` — bus-to-Tea message translation with delta batching and token rate calculation
-- `launcher/` — full pipeline: `Discover` extensions (project-local `.weave/extensions/{name}/`, global `~/.weave/extensions/{name}/`, then built-in under `extensions/{category}/{name}/` with nested lookup, plus TUI extensions at `extensions/ui/tui/extensions/{name}/`); collision warnings logged when local/global extensions shadow built-ins; path-based entries (`./`, `../`, `/`, `~` prefixed) resolve directly instead of going through name-based discovery; `ComputeHash` of .go files, `Cache` in `~/.weave/bin/{hash}/`, `Build` by generating go.mod+main.go with blank imports, then `syscall.Exec`; generated code imports `weave/sdk/wire` and uses `wire.CoreWireConfig`/`wire.WireWithCore`; passes `WEAVE_LAUNCHER_PATH`, `WEAVE_BUILD_HASH`, and `WEAVE_ORIG_ARGS` env vars for `/reload` support
+- `launcher/` — full pipeline: `AutoDiscover` recursively scans project-local `.weave/extensions/`, global `~/.weave/extensions/`, and built-in `extensions/` for Go modules (dirs with `go.mod` + `.go` files); UI extensions detected by `RegisterUIExtension(` in source; deduplicates by name (local > global > built-in); applies `exclude_extensions` list; `ComputeHash` of .go files (includes headless flag for different caches), `Cache` in `~/.weave/bin/{hash}/`, `Build` by generating go.mod+main.go with blank imports (filtering UI extensions for headless), then `syscall.Exec`; generated code imports `weave/sdk/wire` and uses `wire.CoreWireConfig`/`wire.WireWithCore`; passes `WEAVE_LAUNCHER_PATH`, `WEAVE_BUILD_HASH`, and `WEAVE_ORIG_ARGS` env vars for `/reload` support
 
-**Extension lifecycle:** Extension packages call `sdk.RegisterExtension(name, factory)` in `init()`. Provider, tool, and UI extensions similarly call `sdk.RegisterProvider`, `sdk.RegisterTool`, and `sdk.RegisterUI`. Duplicate registrations log a warning (first registration wins). UI extensions (TUI-specific plugins) call `sdk.RegisterUIExtension` in `init()` and are wired by the TUI at startup via `sdk.GetUIExtensions()`. The built binary blank-imports selected extensions, triggering registration. `wire.Wire()` or `wire.WireWithCore()` (from `sdk/wire/`) resolves names from registries and calls `Subscribe(bus)` on each extension. Extensions register handlers via `bus.On(topic, handler)` or `bus.OnAll(handler)` to receive events; `bus.Off(handler)` removes a handler. Handler panics are caught by the bus and logged as `extension.panic` diagnostic events; errors are logged as `extension.error`. When no prompt is provided (`-p` flag unset), the TUI extension is included in the build for interactive mode; with `-p`, weave runs in print mode without TUI. `IsHeadless()` returns true in print mode, false in interactive mode. UI extensions are silently skipped in headless mode.
+**Extension lifecycle:** Extension packages call `sdk.RegisterExtension(name, factory)` in `init()`. Provider, tool, and UI extensions similarly call `sdk.RegisterProvider`, `sdk.RegisterTool`, and `sdk.RegisterUI`. Duplicate registrations log a warning (first registration wins). UI extensions (TUI-specific plugins) call `sdk.RegisterUIExtension` in `init()` and are wired by the TUI at startup via `sdk.GetUIExtensions()`. All auto-discovered extensions are blank-imported in the generated binary, triggering registration. `wire.WireWithCore()` (from `sdk/wire/`) resolves names from registries and calls `Subscribe(bus)` on each extension. Extensions register handlers via `bus.On(topic, handler)` or `bus.OnAll(handler)` to receive events; `bus.Off(handler)` removes a handler. Handler panics are caught by the bus and logged as `extension.panic` diagnostic events; errors are logged as `extension.error`. When no prompt is provided (`-p` flag unset), the TUI extension is included in the build for interactive mode; with `-p`, weave runs in print mode without TUI. `IsHeadless()` returns true in print mode, false in interactive mode. UI extensions are silently skipped in headless mode.
 
 ## Configuration
 
 All config loading uses `github.com/nniel-ape/gonfig` (user-owned lib). No direct `yaml.v3` imports — gonfig handles all file parsing internally. Config files are `.weave.yaml` or `.weave/config.yaml`, discovered by walking up from cwd. Extensions define their own typed config structs with gonfig tags (`default`, `description`, `env`, `validate`) and call `gonfig.Load` themselves with `WithFile` + `WithEnvPrefix("WEAVE")`.
 
-`sdk.Config` is the carrier interface (`FilePath()`, `ProviderConfig()`, `ResolveKey()`, `ToolConfig()`, `UIConfig()`, `IsHeadless()`) — extensions use it to load their own config via gonfig or read typed settings sections. `IsHeadless()` returns true when running without TUI (print mode); extensions use it to skip UI-dependent work. `HeadlessConfig` wraps a `Config` and overrides `IsHeadless()` based on whether TUI is included. `wire.Wire` (from `sdk/wire/`) takes `[]string` (extension names) directly. `wire.WireWithCore` takes a `wire.CoreWireConfig` struct (AgentLoop + Providers) alongside optional extension names, merging and deduplicating them.
+`sdk.Config` is the carrier interface (`FilePath()`, `ProviderConfig()`, `ResolveKey()`, `ToolConfig()`, `UIConfig()`, `IsHeadless()`) — extensions use it to load their own config via gonfig or read typed settings sections. `IsHeadless()` returns true when running without TUI (print mode); extensions use it to skip UI-dependent work. `HeadlessConfig` wraps a `Config` and overrides `IsHeadless()` based on whether TUI is included. `wire.WireWithCore` takes a `wire.CoreWireConfig` struct (AgentLoop + SingleTurn) without provider or extension lists.
 
-Config yaml format:
+Config yaml format (minimal — extensions are auto-discovered):
 ```yaml
 core:
   agent_loop: loop       # default: "loop"
-  providers:             # default: ["anthropic"]
-    - anthropic
 ui: tui                  # default: "tui" (interactive). "none" for headless.
-extensions:
-  - bash
-ui_extensions:           # only loaded when ui: tui
-  - diff-viewer
-```
-
-Example `.weave.yaml` with path-based extensions and per-provider config:
-```yaml
-core:
-  agent_loop: loop
-  providers:
-    - anthropic
-    - openai
-ui: tui
-extensions:
-  - bash
-  - jsonl
-  - ./my-custom-tool          # relative path: resolved from this file's directory
-  - ~/weave-extensions/debug  # tilde: resolved from home directory
-ui_extensions:
-  - diff-viewer
-providers:
+exclude_extensions:      # optional: skip auto-discovered extensions by name
+  - some-extension
+providers:               # optional: per-provider settings (not provider selection)
   openai:
     model: gpt-5.5
     base_url: https://api.openai.com/v1
 ```
+
+All extensions are auto-discovered by recursively scanning for Go modules (directories with `go.mod` + `.go` files) in project-local `.weave/extensions/`, global `~/.weave/extensions/`, and built-in `extensions/`. UI extensions (detected by `RegisterUIExtension(` in source) are excluded from headless builds. All providers are compiled in; runtime selection via settings or `WEAVE_PROVIDER` env var.
 
 Corresponding `.weave/settings.json` (project-layer settings):
 ```json
@@ -117,11 +98,7 @@ Corresponding `.weave/settings.json` (project-layer settings):
 }
 ```
 
-**Extension entries** can be bare names or filesystem paths:
-- Bare names (`bash`) — resolved through the three-tier discovery hierarchy (project-local `.weave/extensions/`, global `~/.weave/extensions/`, built-in `extensions/`)
-- Path entries (`./my-ext`, `../shared/ext`, `/opt/weave-ext`, `~/exts/custom`) — resolved directly: `~` expands to home dir, relative paths resolve from the config file's directory, absolute paths used as-is. Path entries derive their extension name from the directory's base name.
-
-**Config validation** runs automatically on every `LoadFromDir` call via `ValidateWithConfigDir` in `config/validation.go`. It checks: `ui` must be `"tui"` or `"none"`, `core.agent_loop` non-empty, `core.providers` non-empty with valid names, extension entries valid (bare names match `[a-zA-Z0-9_-]+`, paths exist as directories with `.go` files), and provider entries have valid structure. Errors include field paths (e.g. `config.extensions[2]: path "./missing" does not exist`).
+**Config validation** runs automatically on every `LoadFromDir` call via `ValidateWithConfigDir` in `config/validation.go`. It checks: `ui` must be `"tui"` or `"none"`, `core.agent_loop` non-empty, `exclude_extensions` entries valid, and provider entries have valid structure. Errors include field paths (e.g. `config.exclude_extensions[0]: invalid extension name`).
 
 **Layered settings** provide persistent user preferences with three layers merged in order (global → project → local):
 - Global: `~/.weave/settings.json` — user-wide defaults
@@ -172,8 +149,15 @@ Built-in bindings: Escape=interrupt, Ctrl+C=double-press (first clears editor, s
 - `ANTHROPIC_API_KEY` — required for Anthropic provider (default model: `claude-sonnet-4-6`, override with `ANTHROPIC_MODEL`)
 - `OPENAI_API_KEY` — required for OpenAI provider (default model: `gpt-5.5`, override with `OPENAI_MODEL`)
 - `ZAI_API_KEY` — required for Z.ai provider (default model: `glm-5.1`, override with `ZAI_MODEL`)
+- `WEAVE_PROVIDER` — override the active provider at runtime (e.g., `openai`, `zai`); highest priority, overrides settings.json preference
 - `WEAVE_THINKING_LEVEL` — initial thinking level (default: `medium`)
 - `WEAVE_OFFLINE` — set to `1` to skip the startup extension update check (for offline/air-gapped environments)
+
+**Provider selection priority** (highest to lowest):
+1. `WEAVE_PROVIDER` env var (explicit user override)
+2. `settings.json` `"provider"` field (persisted user preference)
+3. Alphabetically first registered provider (`sdk.ListProviders()[0]`)
+4. `"anthropic"` (ultimate fallback)
 
 **Extension management:**
 - `weave install <source> [--name <name>]` — install an extension from a git URL, GitHub shorthand, or local path into `~/.weave/extensions/<name>/`

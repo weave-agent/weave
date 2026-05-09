@@ -33,6 +33,9 @@ const (
 	topicThinkingChange    = "thinking.change"
 
 	topicExtOutdated = "extension.outdated"
+
+	keyProvider = "provider"
+	keyModel    = "model"
 )
 
 // Sender abstracts tea.Program.Send for testability.
@@ -188,7 +191,7 @@ func translateModelChangeFailed(payload any) ModelChangeFailedMsg {
 		return ModelChangeFailedMsg{}
 	}
 
-	provider, _ := m["provider"].(string)
+	provider, _ := m[keyProvider].(string)
 	errStr, _ := m["error"].(string)
 
 	return ModelChangeFailedMsg{Provider: provider, Error: errStr}
@@ -381,8 +384,8 @@ func PublishModelChange(bus sdk.Bus, entry ModelEntry) tea.Cmd {
 	return func() tea.Msg {
 		if bus != nil {
 			bus.Publish(sdk.NewEvent(topicModelChange, map[string]string{
-				"provider": entry.Provider,
-				"model":    entry.Model,
+				keyProvider: entry.Provider,
+				keyModel:    entry.Model,
 			}))
 		}
 

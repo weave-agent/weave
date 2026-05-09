@@ -6,15 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 )
 
 // BuildFunc builds a binary from extension infos and returns its path.
-type BuildFunc func(dir, moduleRoot, agentLoop string, providers []string, exts []ExtensionInfo) (string, error)
+type BuildFunc func(dir, moduleRoot, agentLoop string, headless bool, exts []ExtensionInfo) (string, error)
 
 // Launcher orchestrates the full pipeline: discover -> hash -> cache -> build -> exec.
 type Launcher struct {
@@ -34,49 +32,39 @@ func NewLauncher(cache *Cache, moduleRoot string) *Launcher {
 }
 
 // Run executes the full launcher pipeline:
-//  1. Discover extension source directories
-//  2. Compute hash from extension contents
+//  1. Auto-discover extension source directories
+//  2. Compute hash from extension contents (including headless flag)
 //  3. Check cache for existing binary
 //  4. Build if cache miss
 //  5. Exec the binary
-func (l *Launcher) Run(ctx context.Context, projectDir string, extensionNames, args []string, configPath, agentLoop string, providers []string) error {
-	if len(extensionNames) == 0 {
-		return errors.New("launcher: no extensions configured")
-	}
-
-	// Resolve relative path entries from the config file's directory, not the
-	// project root. Falls back to projectDir when configPath is empty.
-	configDir := ""
-	if configPath != "" {
-		configDir = filepath.Dir(configPath)
-	}
-
-	exts, warnings, err := DiscoverWithBuiltins(projectDir, l.ModuleRoot, extensionNames, configDir)
+func (l *Launcher) Run(ctx context.Context, projectDir string, args []string, configPath, agentLoop string, headless bool, exclude []string) error {
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return fmt.Errorf("launcher: discover: %w", err)
+		return fmt.Errorf("launcher: get home dir: %w", err)
 	}
 
-	for _, w := range warnings {
-		warnLog.Println(w)
+	exts, err := AutoDiscover(projectDir, homeDir, l.ModuleRoot, exclude)
+	if err != nil {
+		return fmt.Errorf("launcher: auto-discover: %w", err)
 	}
 
-	hash, err := ComputeHash(exts, l.ModuleRoot, l.coreDirs()...)
+	hash, err := ComputeHash(exts, l.ModuleRoot, headless, l.coreDirs()...)
 	if err != nil {
 		return fmt.Errorf("launcher: hash: %w", err)
 	}
 
 	binPath, found := l.Cache.Lookup(hash)
 	if !found {
-		binPath, err = l.buildAndCache(hash, agentLoop, providers, exts)
+		binPath, err = l.buildAndCache(hash, agentLoop, headless, exts)
 		if err != nil {
 			return fmt.Errorf("launcher: build: %w", err)
 		}
 	}
 
-	return l.exec(ctx, binPath, configPath, agentLoop, providers, args)
+	return l.exec(ctx, binPath, configPath, agentLoop, headless, projectDir, args)
 }
 
-func (l *Launcher) buildAndCache(hash, agentLoop string, providers []string, exts []ExtensionInfo) (string, error) {
+func (l *Launcher) buildAndCache(hash, agentLoop string, headless bool, exts []ExtensionInfo) (string, error) {
 	unlock, lockErr := lockBuildDir(hash)
 	if lockErr != nil {
 		return "", fmt.Errorf("acquire build lock: %w", lockErr)
@@ -95,7 +83,7 @@ func (l *Launcher) buildAndCache(hash, agentLoop string, providers []string, ext
 
 	defer func() { _ = os.RemoveAll(buildDir) }()
 
-	binPath, err := l.Build(buildDir, l.ModuleRoot, agentLoop, providers, exts)
+	binPath, err := l.Build(buildDir, l.ModuleRoot, agentLoop, headless, exts)
 	if err != nil {
 		return "", err
 	}
@@ -130,7 +118,7 @@ func (l *Launcher) buildDir(hash string) string {
 	return filepath.Join(os.TempDir(), "weave-build-"+hash)
 }
 
-func (l *Launcher) exec(_ context.Context, binPath, configPath, agentLoop string, providers, args []string) error {
+func (l *Launcher) exec(_ context.Context, binPath, configPath, agentLoop string, headless bool, projectDir string, args []string) error {
 	argv := []string{binPath}
 	if configPath != "" {
 		argv = append(argv, "--weave-config="+configPath)
@@ -138,8 +126,12 @@ func (l *Launcher) exec(_ context.Context, binPath, configPath, agentLoop string
 
 	argv = append(argv, "--weave-agent-loop="+agentLoop)
 
-	if len(providers) > 0 {
-		argv = append(argv, "--weave-providers="+strings.Join(providers, ","))
+	if headless {
+		argv = append(argv, "--weave-headless=true")
+	}
+
+	if projectDir != "" {
+		argv = append(argv, "--weave-project-dir="+projectDir)
 	}
 
 	argv = append(argv, args...)
@@ -167,21 +159,6 @@ func (l *Launcher) exec(_ context.Context, binPath, configPath, agentLoop string
 	env = append(env, "WEAVE_ORIG_ARGS="+string(origArgs))
 
 	return fmt.Errorf("exec binary: %w", syscall.Exec(binPath, argv, env)) //nolint:gosec // G702 — env is our own os.Environ() with added weave vars
-}
-
-// RunCommand runs the binary as a subprocess (non-replacing, for testing).
-func RunCommand(ctx context.Context, binPath string, args []string) error {
-	argv := append([]string{binPath}, args...)
-	cmd := exec.CommandContext(ctx, binPath, argv[1:]...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("run command: %w", err)
-	}
-
-	return nil
 }
 
 // lockBuildDir acquires a file-based lock for the given build hash to prevent

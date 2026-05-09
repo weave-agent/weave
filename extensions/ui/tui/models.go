@@ -96,44 +96,70 @@ func listModels(cfg sdk.Config) []ModelEntry {
 	return entries
 }
 
-// currentModel returns the startup model entry. It tries persisted settings
-// first (using layered loading for project overrides), then the WEAVE_PROVIDER
-// env var, then falls back to the first available entry.
-func currentModel(entries []ModelEntry, cfg sdk.Config) ModelEntry {
-	cfg = effectiveConfig(cfg)
-
-	var prefs preferences
-	if cfg.Preferences(&prefs) == nil {
-		if prefs.Provider != "" && prefs.Model != "" {
-			for _, e := range entries {
-				if e.Provider == prefs.Provider && e.Model == prefs.Model {
-					return e
-				}
-			}
-		}
-	}
-
-	provider := os.Getenv("WEAVE_PROVIDER")
-	if provider == "" {
-		if providers := sdk.ListProviders(); len(providers) > 0 {
-			provider = providers[0]
-		}
-	}
-
-	if def, ok := sdkmodel.DefaultModelForProvider(provider); ok {
+// modelFromSettings resolves a model entry from persisted preferences. When
+// the model field is empty or stale it falls back to the provider's default.
+// Only returns entries whose provider has a configured key (entries is pre-filtered).
+func modelFromSettings(entries []ModelEntry, prefs preferences) ModelEntry {
+	if prefs.Model != "" {
 		for _, e := range entries {
-			if e.Provider == provider {
-				return ModelEntry{Provider: provider, Model: def.ID}
+			if e.Provider == prefs.Provider && e.Model == prefs.Model {
+				return e
 			}
 		}
 	}
 
 	for _, e := range entries {
-		if e.Provider == provider {
+		if e.Provider == prefs.Provider {
 			return e
 		}
 	}
 
+	return ModelEntry{}
+}
+
+// currentModel returns the startup model entry using the same priority as the
+// loop's provider resolver: WEAVE_PROVIDER env var > settings > first registered > fallback.
+func currentModel(entries []ModelEntry, cfg sdk.Config) ModelEntry {
+	cfg = effectiveConfig(cfg)
+
+	// 1. WEAVE_PROVIDER env var — highest priority (matches loop resolver).
+	if provider := os.Getenv("WEAVE_PROVIDER"); provider != "" {
+		if def, ok := sdkmodel.DefaultModelForProvider(provider); ok {
+			for _, e := range entries {
+				if e.Provider == provider {
+					return ModelEntry{Provider: provider, Model: def.ID}
+				}
+			}
+		}
+
+		for _, e := range entries {
+			if e.Provider == provider {
+				return e
+			}
+		}
+	}
+
+	// 2. Persisted settings.
+	var prefs preferences
+	if cfg.Preferences(&prefs) == nil && prefs.Provider != "" {
+		if e := modelFromSettings(entries, prefs); e.Provider != "" {
+			return e
+		}
+	}
+
+	// 3. First registered provider.
+	if providers := sdk.ListProviders(); len(providers) > 0 {
+		provider := providers[0]
+		if def, ok := sdkmodel.DefaultModelForProvider(provider); ok {
+			for _, e := range entries {
+				if e.Provider == provider {
+					return ModelEntry{Provider: provider, Model: def.ID}
+				}
+			}
+		}
+	}
+
+	// 4. First available entry.
 	if len(entries) > 0 {
 		return entries[0]
 	}

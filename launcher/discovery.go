@@ -3,7 +3,6 @@ package launcher
 import (
 	"fmt"
 	"io/fs"
-	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -12,272 +11,152 @@ import (
 	"weave/config"
 )
 
-// isPath reports whether an extension entry is a filesystem path rather than a
-// bare extension name. Delegates to config.IsPathEntry.
-func isPath(s string) bool { return config.IsPathEntry(s) }
-
 type ExtensionInfo struct {
 	Name       string
 	Dir        string
 	GoFiles    []string
 	ModulePath string // e.g. "weave/ext/tools/bash"; populated by builder
+	IsUIExt    bool   // true if the extension registers UI elements (RegisterUI or RegisterUIExtension)
 }
 
-// Discover resolves each named extension to its source directory and Go files.
-// For each name, it checks:
-//  1. Project-local: .weave/extensions/{name}/
-//  2. Global: ~/.weave/extensions/{name}/
-func Discover(projectDir string, names []string) ([]ExtensionInfo, []string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, nil, fmt.Errorf("discover: get home dir: %w", err)
-	}
-
-	return DiscoverCustomHome(projectDir, homeDir, names)
-}
-
-// DiscoverWithBuiltins is like Discover but also checks built-in extensions
-// under moduleRoot/extensions/{name}/ as a final fallback. This allows core
-// extensions shipped with weave to be found without installing them.
-// configDir is used to resolve relative path entries; when empty, projectDir is used.
-func DiscoverWithBuiltins(projectDir, moduleRoot string, names []string, configDir ...string) ([]ExtensionInfo, []string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, nil, fmt.Errorf("discover: get home dir: %w", err)
-	}
-
-	return DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot, names, configDir...)
-}
-
-// DiscoverCustomHome is like Discover but accepts an explicit home directory.
-func DiscoverCustomHome(projectDir, homeDir string, names []string) ([]ExtensionInfo, []string, error) {
+// AutoDiscover recursively scans extension directories to find all Go modules.
+// It checks three roots in order of precedence: project-local, global, built-in.
+// Within each root, it walks the directory tree looking for directories that
+// contain both a go.mod file and at least one non-test .go file.
+// Deduplication: earlier roots take precedence (local > global > built-in).
+// The exclude list filters out extensions by name after discovery.
+func AutoDiscover(projectDir, homeDir, moduleRoot string, exclude []string) ([]ExtensionInfo, error) {
 	var exts []ExtensionInfo
 
-	seen := make(map[string]bool, len(names))
+	seen := make(map[string]bool)
 
-	for _, name := range names {
-		if seen[name] {
-			return nil, nil, fmt.Errorf("discover: duplicate extension name %q", name)
-		}
-
-		seen[name] = true
-		if !config.ValidExtName(name) {
-			return nil, nil, fmt.Errorf("discover: invalid extension name %q (must match [a-zA-Z0-9_-]+)", name)
-		}
-
-		info, err := findExtension(projectDir, homeDir, name)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		exts = append(exts, *info)
+	roots := []string{
+		filepath.Join(projectDir, ".weave", "extensions"),
+		filepath.Join(homeDir, ".weave", "extensions"),
+		filepath.Join(moduleRoot, "extensions"),
 	}
 
-	return exts, nil, nil
-}
+	for _, root := range roots {
+		if _, err := os.Stat(root); err != nil {
+			if !os.IsNotExist(err) {
+				fmt.Fprintf(os.Stderr, "warning: auto-discover: stat %s: %v\n", root, err)
+			}
 
-// DiscoverCustomHomeWithBuiltins is like DiscoverCustomHome but falls back to
-// built-in extensions under moduleRoot/extensions/{name}/. Extension entries
-// that look like filesystem paths (prefixed with ./, ../, /, or ~/) are
-// resolved directly instead of going through the name-based discovery hierarchy.
-// configDir is used to resolve relative path entries; when empty, projectDir is used.
-// Returns extension infos, shadow warnings, and any error.
-func DiscoverCustomHomeWithBuiltins(projectDir, homeDir, moduleRoot string, names []string, configDir ...string) ([]ExtensionInfo, []string, error) {
-	var (
-		exts     []ExtensionInfo
-		warnings []string
-	)
+			continue
+		}
 
-	resolveDir := projectDir
-	if len(configDir) > 0 && configDir[0] != "" {
-		resolveDir = configDir[0]
-	}
-
-	seen := make(map[string]bool, len(names))
-
-	for _, entry := range names {
-		if isPath(entry) {
-			info, err := resolvePathExtension(entry, resolveDir)
+		err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
-				return nil, nil, err
+				fmt.Fprintf(os.Stderr, "warning: auto-discover: walk %s: %v\n", path, err)
+
+				if d != nil && d.IsDir() {
+					return fs.SkipDir
+				}
+
+				return nil
 			}
 
-			if seen[info.Name] {
-				return nil, nil, fmt.Errorf("discover: duplicate extension name %q", info.Name)
+			if !d.IsDir() {
+				return nil
 			}
 
-			seen[info.Name] = true
-			exts = append(exts, *info)
+			if path == root {
+				return nil // skip the root directory itself
+			}
 
+			// Skip hidden/VCS directories (e.g. .git, .hg).
+			if strings.HasPrefix(d.Name(), ".") {
+				return fs.SkipDir
+			}
+
+			// Check if this directory has a go.mod
+			goModPath := filepath.Join(path, "go.mod")
+			if _, statErr := os.Stat(goModPath); statErr != nil {
+				return nil //nolint:nilerr // skip dirs without go.mod
+			}
+
+			// Collect .go files within module boundary
+			goFiles, fileErr := collectGoFiles(path)
+			if fileErr != nil {
+				fmt.Fprintf(os.Stderr, "warning: auto-discover: %v\n", fileErr)
+				return nil
+			}
+
+			if len(goFiles) == 0 {
+				return nil // no .go files in this module
+			}
+
+			name := filepath.Base(path)
+			if !config.ValidExtName(name) {
+				fmt.Fprintf(os.Stderr, "warning: auto-discover: skipping %q: invalid extension name\n", name)
+				return nil
+			}
+
+			if seen[name] {
+				return nil // already found at higher precedence
+			}
+
+			seen[name] = true
+
+			isUI := detectUIExtension(goFiles)
+
+			exts = append(exts, ExtensionInfo{
+				Name:    name,
+				Dir:     path,
+				GoFiles: goFiles,
+				IsUIExt: isUI,
+			})
+
+			return nil
+		})
+		if err != nil {
+			return nil, fmt.Errorf("auto-discover %s: %w", root, err)
+		}
+	}
+
+	// Apply exclude list
+	if len(exclude) > 0 {
+		excludeSet := make(map[string]bool, len(exclude))
+		for _, e := range exclude {
+			excludeSet[e] = true
+		}
+
+		var filtered []ExtensionInfo
+
+		for _, ext := range exts {
+			if !excludeSet[ext.Name] {
+				filtered = append(filtered, ext)
+			}
+		}
+
+		exts = filtered
+	}
+
+	// Sort by name for deterministic output
+	sort.Slice(exts, func(i, j int) bool {
+		return exts[i].Name < exts[j].Name
+	})
+
+	return exts, nil
+}
+
+// detectUIExtension scans the .go files for UI-related registrations:
+// RegisterUIExtension (TUI plugins) and RegisterUI (the TUI itself).
+// Any extension matching these patterns is excluded from headless builds.
+func detectUIExtension(goFiles []string) bool {
+	for _, f := range goFiles {
+		data, err := os.ReadFile(f)
+		if err != nil {
 			continue
 		}
 
-		if seen[entry] {
-			return nil, nil, fmt.Errorf("discover: duplicate extension name %q", entry)
-		}
-
-		seen[entry] = true
-		if !config.ValidExtName(entry) {
-			return nil, nil, fmt.Errorf("discover: invalid extension name %q (must match [a-zA-Z0-9_-]+)", entry)
-		}
-
-		info, err := findExtensionWithBuiltins(projectDir, homeDir, moduleRoot, entry)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		if w := checkBuiltinShadow(moduleRoot, entry, info.Dir); w != "" {
-			warnings = append(warnings, w)
-		}
-
-		exts = append(exts, *info)
-	}
-
-	return exts, warnings, nil
-}
-
-// resolvePathExtension resolves a path-like extension entry to its ExtensionInfo.
-func resolvePathExtension(entry, configDir string) (*ExtensionInfo, error) {
-	dir, err := config.ResolveExtPath(entry, configDir)
-	if err != nil {
-		return nil, fmt.Errorf("discover: resolve path %q: %w", entry, err)
-	}
-
-	stat, statErr := os.Stat(dir)
-	if statErr != nil {
-		return nil, fmt.Errorf("discover: extension path %q: %w", entry, statErr)
-	}
-
-	if !stat.IsDir() {
-		return nil, fmt.Errorf("discover: extension path %q (%s) is not a directory", entry, dir)
-	}
-
-	goFiles, err := collectGoFiles(dir)
-	if err != nil {
-		return nil, fmt.Errorf("discover: extension path %q (%s): %w", entry, dir, err)
-	}
-
-	return &ExtensionInfo{
-		Name:    filepath.Base(dir),
-		Dir:     dir,
-		GoFiles: goFiles,
-	}, nil
-}
-
-func findExtension(projectDir, homeDir, name string) (*ExtensionInfo, error) {
-	localDir := filepath.Join(projectDir, ".weave", "extensions", name)
-
-	stat, statErr := os.Stat(localDir)
-	if statErr == nil {
-		if !stat.IsDir() {
-			return nil, fmt.Errorf("discover: local extension path %q exists but is not a directory", localDir)
-		}
-
-		goFiles, err := collectGoFiles(localDir)
-		if err != nil {
-			return nil, fmt.Errorf("discover: local extension %q: %w", name, err)
-		}
-
-		return &ExtensionInfo{
-			Name:    name,
-			Dir:     localDir,
-			GoFiles: goFiles,
-		}, nil
-	}
-
-	if !os.IsNotExist(statErr) {
-		return nil, fmt.Errorf("discover: local extension path %q: %w", localDir, statErr)
-	}
-
-	globalDir := filepath.Join(homeDir, ".weave", "extensions", name)
-
-	goFiles, err := collectGoFiles(globalDir)
-	if err != nil {
-		return nil, fmt.Errorf("discover: extension %q not found in .weave/extensions/ (local or global): %w", name, err)
-	}
-
-	if len(goFiles) > 0 {
-		return &ExtensionInfo{
-			Name:    name,
-			Dir:     globalDir,
-			GoFiles: goFiles,
-		}, nil
-	}
-
-	return nil, fmt.Errorf("discover: extension %q not found in .weave/extensions/ (local or global)", name)
-}
-
-func findExtensionWithBuiltins(projectDir, homeDir, moduleRoot, name string) (*ExtensionInfo, error) {
-	// Try local then global first.
-	info, err := findExtension(projectDir, homeDir, name)
-	if err == nil {
-		return info, nil
-	}
-
-	// If a local extension directory exists (or stat failed for a reason other
-	// than "not found"), surface the original error instead of silently falling
-	// back to built-in. This catches permission errors and other broken states.
-	localDir := filepath.Join(projectDir, ".weave", "extensions", name)
-	if _, statErr := os.Stat(localDir); statErr == nil || !os.IsNotExist(statErr) {
-		return nil, err
-	}
-
-	// Same guard for global: if a user-installed global extension exists but is
-	// broken, surface the error rather than silently falling back to built-in.
-	globalDir := filepath.Join(homeDir, ".weave", "extensions", name)
-	if _, statErr := os.Stat(globalDir); statErr == nil || !os.IsNotExist(statErr) {
-		return nil, err
-	}
-
-	// Fallback: try built-in extension under moduleRoot/extensions/{name}/
-	// and also one level deeper: moduleRoot/extensions/*/{name}/
-	info, foundErr := findBuiltin(moduleRoot, name)
-	if foundErr != nil {
-		return nil, fmt.Errorf("discover: extension %q not found (local, global, or built-in): %w", name, err)
-	}
-
-	return info, nil
-}
-
-// findBuiltin searches for a built-in extension first at
-// moduleRoot/extensions/{name}/ then one level deeper at
-// moduleRoot/extensions/*/{name}/, then in TUI-specific extensions at
-// moduleRoot/extensions/ui/tui/extensions/{name}/.
-func findBuiltin(moduleRoot, name string) (*ExtensionInfo, error) {
-	builtinDir := filepath.Join(moduleRoot, "extensions", name)
-
-	if goFiles, err := collectGoFiles(builtinDir); err == nil && len(goFiles) > 0 {
-		return &ExtensionInfo{Name: name, Dir: builtinDir, GoFiles: goFiles}, nil
-	}
-
-	// Search one level deeper: extensions/*/{name}/
-	extRoot := filepath.Join(moduleRoot, "extensions")
-
-	entries, err := os.ReadDir(extRoot)
-	if err != nil {
-		return nil, fmt.Errorf("extension %q not found in built-ins", name)
-	}
-
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-
-		nestedDir := filepath.Join(extRoot, e.Name(), name)
-
-		if goFiles, goErr := collectGoFiles(nestedDir); goErr == nil && len(goFiles) > 0 {
-			return &ExtensionInfo{Name: name, Dir: nestedDir, GoFiles: goFiles}, nil
+		src := string(data)
+		if strings.Contains(src, "RegisterUIExtension(") || strings.Contains(src, "RegisterUI(") {
+			return true
 		}
 	}
 
-	// Fallback: search TUI-specific extensions at extensions/ui/tui/extensions/{name}/
-	tuiExtDir := filepath.Join(moduleRoot, "extensions", "ui", "tui", "extensions", name)
-
-	if goFiles, err := collectGoFiles(tuiExtDir); err == nil && len(goFiles) > 0 {
-		return &ExtensionInfo{Name: name, Dir: tuiExtDir, GoFiles: goFiles}, nil
-	}
-
-	return nil, fmt.Errorf("extension %q not found in built-ins", name)
+	return false
 }
 
 func collectGoFiles(dir string) ([]string, error) {
@@ -289,6 +168,13 @@ func collectGoFiles(dir string) ([]string, error) {
 		}
 
 		if d.IsDir() {
+			// Skip subdirectories that have their own go.mod (module boundary)
+			if path != dir {
+				if _, statErr := os.Stat(filepath.Join(path, "go.mod")); statErr == nil {
+					return fs.SkipDir
+				}
+			}
+
 			return nil
 		}
 
@@ -304,29 +190,10 @@ func collectGoFiles(dir string) ([]string, error) {
 	}
 
 	if len(files) == 0 {
-		return nil, fmt.Errorf("no .go files in %s", dir)
+		return nil, nil
 	}
 
 	sort.Strings(files)
 
 	return files, nil
 }
-
-// checkBuiltinShadow returns a warning if the resolved extension directory is
-// not a built-in path but a built-in with the same name also exists.
-func checkBuiltinShadow(moduleRoot, name, resolvedDir string) string {
-	// If resolved from built-in paths, no shadow.
-	builtinRoot := filepath.Join(moduleRoot, "extensions") + string(filepath.Separator)
-	if strings.HasPrefix(resolvedDir+string(filepath.Separator), builtinRoot) {
-		return ""
-	}
-
-	// Check if a built-in exists.
-	if _, err := findBuiltin(moduleRoot, name); err != nil {
-		return ""
-	}
-
-	return fmt.Sprintf("extension %q resolved from %s but also exists as built-in; local/global takes precedence", name, resolvedDir)
-}
-
-var warnLog = log.New(os.Stderr, "weave: ", 0)

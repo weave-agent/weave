@@ -23,15 +23,12 @@ const (
 
 	// DefaultAgentLoop is the default agent loop extension name.
 	DefaultAgentLoop = "loop"
-	// DefaultProvider is the default provider name.
-	DefaultProvider = "anthropic"
 	// ExtBash is the bash tool extension name.
 	ExtBash = "bash"
 )
 
 type CoreConfig struct {
-	AgentLoop string   `default:"loop" description:"Agent loop extension name"`
-	Providers []string `default:"anthropic" description:"Provider extension names"`
+	AgentLoop string `default:"loop" description:"Agent loop extension name"`
 }
 
 // ProviderEntry holds per-provider configuration from the config file.
@@ -43,62 +40,11 @@ type ProviderEntry struct {
 }
 
 type File struct {
-	Extensions   []string       `short:"e" description:"List of optional extensions to load"`
-	UIExtensions []string       `yaml:"ui_extensions" description:"List of UI-specific extensions to load when TUI is active"`
-	Prompt       string         `short:"p" description:"Prompt to pass to the agent"`
-	UI           string         `default:"tui" description:"UI extension name (tui for interactive, none for headless)"`
-	Core         CoreConfig     `description:"Core agent configuration"`
-	Providers    map[string]any `description:"Per-provider configuration"`
-}
-
-// CoreExts returns (coreExts, optionalExts) where coreExts contains the agent-loop
-// and provider names, and optionalExts contains the user-specified extensions.
-func (f *File) CoreExts() ([]string, []string) {
-	core := make([]string, 0, 1+len(f.Core.Providers))
-	core = append(core, f.Core.AgentLoop)
-	core = append(core, f.Core.Providers...)
-
-	return core, f.Extensions
-}
-
-// AllExtensions returns the complete merged list of all extensions: core
-// (agent-loop + providers), optional extensions, and UI extensions (only
-// when UI is "tui"). Duplicates are removed.
-func (f *File) AllExtensions() []string {
-	core, opt := f.CoreExts()
-
-	totalLen := len(core) + len(opt)
-	if f.UI == UIValueTUI {
-		totalLen += len(f.UIExtensions)
-	}
-
-	seen := make(map[string]bool, totalLen)
-	result := make([]string, 0, totalLen)
-
-	for _, e := range core {
-		if !seen[e] {
-			seen[e] = true
-			result = append(result, e)
-		}
-	}
-
-	for _, e := range opt {
-		if !seen[e] {
-			seen[e] = true
-			result = append(result, e)
-		}
-	}
-
-	if f.UI == UIValueTUI {
-		for _, e := range f.UIExtensions {
-			if !seen[e] {
-				seen[e] = true
-				result = append(result, e)
-			}
-		}
-	}
-
-	return result
+	Prompt            string         `short:"p" description:"Prompt to pass to the agent"`
+	UI                string         `default:"tui" description:"UI extension name (tui for interactive, none for headless)"`
+	Core              CoreConfig     `description:"Core agent configuration"`
+	Providers         map[string]any `description:"Per-provider configuration"`
+	ExcludeExtensions []string       `yaml:"exclude_extensions" description:"Extensions to exclude from auto-discovery"`
 }
 
 // TypedProviders converts the Providers map[string]any to map[string]ProviderEntry
@@ -135,50 +81,21 @@ func (f *File) ProviderConfig(name string) *ProviderEntry {
 	return &e
 }
 
-// DefaultFile returns a File with all built-in extensions and sensible defaults.
+// DefaultFile returns a File with sensible defaults.
 func DefaultFile() *File {
 	return &File{
-		UI: UIValueTUI,
-		Core: CoreConfig{
-			AgentLoop: DefaultAgentLoop,
-			Providers: []string{DefaultProvider},
-		},
-		Extensions: []string{
-			"jsonl",
-			"instructions",
-			ExtBash,
-			"edit",
-			"find",
-			"grep",
-			"ls",
-			"read",
-			"write",
-		},
-		UIExtensions: []string{},
+		UI:   UIValueTUI,
+		Core: CoreConfig{AgentLoop: DefaultAgentLoop},
 	}
 }
 
-// DefaultConfigJSON returns the default config as formatted JSON
-// with all built-in extensions and providers.
+// DefaultConfigJSON returns the default config as formatted JSON.
 func DefaultConfigJSON() string {
 	return `{
   "core": {
-    "agent_loop": "loop",
-    "providers": ["anthropic", "openai", "zai"]
+    "agent_loop": "loop"
   },
-  "ui": "tui",
-  "extensions": [
-    "jsonl",
-    "instructions",
-    "bash",
-    "edit",
-    "find",
-    "grep",
-    "ls",
-    "read",
-    "write"
-  ],
-  "ui_extensions": []
+  "ui": "tui"
 }`
 }
 
@@ -341,7 +258,8 @@ func LoadFromDir(dir string, args []string) (string, *File, []string, error) {
 		rest []string
 	)
 
-	if err := gonfig.Load(&f,
+	if err := gonfig.Load(
+		&f,
 		gonfig.WithFile(path),
 		gonfig.WithEnvPrefix("WEAVE"),
 		gonfig.WithFlags(args),
@@ -390,9 +308,16 @@ func LoadFullConfig(path string) (*FullConfig, error) {
 
 // FullConfig implements sdk.Config with auth resolution and provider config lookup.
 type FullConfig struct {
-	filePath string
-	file     *File
-	auth     *AuthFile
+	filePath   string
+	file       *File
+	auth       *AuthFile
+	projectDir string
+}
+
+// SetProjectDir overrides the project directory used for layered settings resolution.
+// When set, it takes precedence over the directory derived from the config file path.
+func (c *FullConfig) SetProjectDir(dir string) {
+	c.projectDir = dir
 }
 
 var _ sdk.Config = (*FullConfig)(nil)
@@ -411,6 +336,16 @@ func (c *FullConfig) ProviderConfig(name string) *sdk.ProviderConfigEntry {
 		BaseURL:   e.BaseURL,
 		APIKey:    e.APIKey,
 	}
+}
+
+// effectiveProjectDir returns the override project dir if set, otherwise derives
+// it from the config file path.
+func (c *FullConfig) effectiveProjectDir() string {
+	if c.projectDir != "" {
+		return c.projectDir
+	}
+
+	return ProjectDirFromConfig(c.filePath)
 }
 
 func (c *FullConfig) ResolveKey(providerName, envVar string) (string, error) {
@@ -438,7 +373,7 @@ func ProjectDirFromConfig(configPath string) string {
 func (c *FullConfig) ToolConfig(name string, target any) error {
 	applyDefaults(target)
 
-	configDir := ProjectDirFromConfig(c.filePath)
+	configDir := c.effectiveProjectDir()
 
 	settings, err := LoadLayeredSettings(configDir)
 	if err != nil {
@@ -460,7 +395,7 @@ func (c *FullConfig) ToolConfig(name string, target any) error {
 func (c *FullConfig) UIConfig(target any) error {
 	applyDefaults(target)
 
-	configDir := ProjectDirFromConfig(c.filePath)
+	configDir := c.effectiveProjectDir()
 
 	settings, err := LoadLayeredSettings(configDir)
 	if err != nil {
@@ -474,12 +409,12 @@ func (c *FullConfig) UIConfig(target any) error {
 	return populateConfig(settings.UI, target)
 }
 
-func (c *FullConfig) IsHeadless() bool { return true }
+func (c *FullConfig) IsHeadless() bool { return false }
 
 func (c *FullConfig) Preferences(target any) error {
 	applyDefaults(target)
 
-	configDir := ProjectDirFromConfig(c.filePath)
+	configDir := c.effectiveProjectDir()
 
 	settings, err := LoadLayeredSettings(configDir)
 	if err != nil {

@@ -13,7 +13,6 @@ import (
 
 type CoreWireConfig struct {
 	AgentLoop  string
-	Providers  []string
 	SingleTurn bool
 }
 
@@ -64,21 +63,6 @@ func WireWithCore(core CoreWireConfig, optExts []string, bus sdk.Bus, cfg sdk.Co
 		return nil, fmt.Errorf("wire: %w", err)
 	}
 
-	for _, p := range core.Providers {
-		if !sdk.ProviderRegistered(p) {
-			return nil, fmt.Errorf("wire: provider %q not registered", p)
-		}
-	}
-
-	oldProvider := os.Getenv("WEAVE_PROVIDER")
-	if oldProvider == "" {
-		_ = os.Setenv("WEAVE_PROVIDER", core.Providers[0])
-
-		defer func() {
-			_ = os.Unsetenv("WEAVE_PROVIDER")
-		}()
-	}
-
 	if core.SingleTurn {
 		oldSingleTurn := os.Getenv("WEAVE_SINGLE_TURN")
 		_ = os.Setenv("WEAVE_SINGLE_TURN", "1")
@@ -92,7 +76,7 @@ func WireWithCore(core CoreWireConfig, optExts []string, bus sdk.Bus, cfg sdk.Co
 		}()
 	}
 
-	extNames := mergeCoreAndOptional(CoreWireConfig{AgentLoop: core.AgentLoop}, optExts)
+	extNames := mergeCoreAndOptional(core.AgentLoop, optExts)
 
 	// Fire update check before Subscribe calls — the TUI blocks in Subscribe,
 	// so deferring this past WireWithCore means it never runs during interactive use.
@@ -124,37 +108,17 @@ func validateCore(core CoreWireConfig) error {
 		return errors.New("agent-loop is required")
 	}
 
-	if len(core.Providers) == 0 {
-		return errors.New("at least one provider is required")
-	}
-
-	seen := make(map[string]bool, len(core.Providers))
-	for _, p := range core.Providers {
-		if seen[p] {
-			return fmt.Errorf("duplicate provider %q", p)
-		}
-
-		seen[p] = true
-	}
-
 	return nil
 }
 
-func mergeCoreAndOptional(core CoreWireConfig, optExts []string) []string {
+func mergeCoreAndOptional(agentLoop string, optExts []string) []string {
 	seen := make(map[string]bool)
 
 	var result []string
 
-	for _, name := range core.Providers {
-		if !seen[name] {
-			seen[name] = true
-			result = append(result, name)
-		}
-	}
-
-	if !seen[core.AgentLoop] {
-		seen[core.AgentLoop] = true
-		result = append(result, core.AgentLoop)
+	if !seen[agentLoop] {
+		seen[agentLoop] = true
+		result = append(result, agentLoop)
 	}
 
 	for _, name := range optExts {

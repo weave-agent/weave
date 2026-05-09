@@ -1,8 +1,6 @@
 package config
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,13 +9,8 @@ import (
 
 func validFile() *File {
 	return &File{
-		UI: "tui",
-		Core: CoreConfig{
-			AgentLoop: "loop",
-			Providers: []string{"anthropic"},
-		},
-		Extensions:   []string{"bash"},
-		UIExtensions: []string{},
+		UI:   "tui",
+		Core: CoreConfig{AgentLoop: "loop"},
 	}
 }
 
@@ -59,124 +52,37 @@ func TestValidate_EmptyAgentLoop(t *testing.T) {
 	assert.Equal(t, "core.agent_loop", errs[0].Field)
 }
 
-func TestValidate_EmptyProviders(t *testing.T) {
+func TestValidate_InvalidAgentLoopChars(t *testing.T) {
 	f := validFile()
-	f.Core.Providers = nil
+	f.Core.AgentLoop = "my loop!"
 	err := Validate(f)
 	require.Error(t, err)
 
 	var errs ValidationErrors
 	require.ErrorAs(t, err, &errs)
 	require.Len(t, errs, 1)
-	assert.Equal(t, "core.providers", errs[0].Field)
-	assert.Contains(t, errs[0].Message, "at least one provider")
+	assert.Equal(t, "core.agent_loop", errs[0].Field)
+	assert.Contains(t, errs[0].Message, "my loop!")
 }
 
-func TestValidate_InvalidProviderName(t *testing.T) {
+func TestValidate_ExcludeExtensionsValid(t *testing.T) {
 	f := validFile()
-	f.Core.Providers = []string{"anthropic", "bad name!"}
+	f.ExcludeExtensions = []string{"bash", "custom-ext"}
 	err := Validate(f)
-	require.Error(t, err)
-
-	var errs ValidationErrors
-	require.ErrorAs(t, err, &errs)
-	require.Len(t, errs, 1)
-	assert.Equal(t, "core.providers[1]", errs[0].Field)
-	assert.Contains(t, errs[0].Message, "bad name!")
-}
-
-func TestValidate_InvalidExtensionName(t *testing.T) {
-	f := validFile()
-	f.Extensions = []string{"bad ext!"}
-	err := Validate(f)
-	require.Error(t, err)
-
-	var errs ValidationErrors
-	require.ErrorAs(t, err, &errs)
-	require.Len(t, errs, 1)
-	assert.Equal(t, "extensions[0]", errs[0].Field)
-	assert.Contains(t, errs[0].Message, "bad ext!")
-}
-
-func TestValidate_InvalidUIExtensionName(t *testing.T) {
-	f := validFile()
-	f.UIExtensions = []string{"bad!"}
-	err := Validate(f)
-	require.Error(t, err)
-
-	var errs ValidationErrors
-	require.ErrorAs(t, err, &errs)
-	require.Len(t, errs, 1)
-	assert.Equal(t, "ui_extensions[0]", errs[0].Field)
-}
-
-func TestValidate_PathExtensionExists(t *testing.T) {
-	dir := t.TempDir()
-	extDir := filepath.Join(dir, "my-ext")
-	require.NoError(t, os.MkdirAll(extDir, 0o750))
-	writeFile(t, extDir, "main.go", "package main")
-
-	f := validFile()
-	f.Extensions = []string{"./my-ext"}
-
-	err := ValidateWithConfigDir(f, dir)
 	assert.NoError(t, err)
 }
 
-func TestValidate_PathExtensionNotExist(t *testing.T) {
-	dir := t.TempDir()
-
+func TestValidate_ExcludeExtensionsInvalidName(t *testing.T) {
 	f := validFile()
-	f.Extensions = []string{"./missing-ext"}
-
-	err := ValidateWithConfigDir(f, dir)
+	f.ExcludeExtensions = []string{"bad ext!"}
+	err := Validate(f)
 	require.Error(t, err)
 
 	var errs ValidationErrors
 	require.ErrorAs(t, err, &errs)
 	require.Len(t, errs, 1)
-	assert.Equal(t, "extensions[0]", errs[0].Field)
-	assert.Contains(t, errs[0].Message, "does not exist")
-}
-
-func TestValidate_PathExtensionNotDirectory(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, "not-a-dir", "content")
-
-	f := validFile()
-	f.Extensions = []string{"./not-a-dir"}
-
-	err := ValidateWithConfigDir(f, dir)
-	require.Error(t, err)
-
-	var errs ValidationErrors
-	require.ErrorAs(t, err, &errs)
-	assert.Contains(t, errs[0].Message, "not a directory")
-}
-
-func TestValidate_PathExtensionNoGoFiles(t *testing.T) {
-	dir := t.TempDir()
-	extDir := filepath.Join(dir, "empty-ext")
-	require.NoError(t, os.MkdirAll(extDir, 0o750))
-	writeFile(t, extDir, "readme.md", "# hello")
-
-	f := validFile()
-	f.Extensions = []string{"./empty-ext"}
-
-	err := ValidateWithConfigDir(f, dir)
-	require.Error(t, err)
-
-	var errs ValidationErrors
-	require.ErrorAs(t, err, &errs)
-	assert.Contains(t, errs[0].Message, "no .go files")
-}
-
-func TestValidate_PathSkippedWithoutConfigDir(t *testing.T) {
-	f := validFile()
-	f.Extensions = []string{"./nonexistent"}
-
-	err := Validate(f)
-	assert.NoError(t, err, "path entries should be skipped when configDir is empty")
+	assert.Equal(t, "exclude_extensions[0]", errs[0].Field)
+	assert.Contains(t, errs[0].Message, "bad ext!")
 }
 
 func TestValidate_ProviderEntryValid(t *testing.T) {
@@ -210,12 +116,9 @@ func TestValidate_ProviderEntryInvalidType(t *testing.T) {
 
 func TestValidate_MultipleErrors(t *testing.T) {
 	f := &File{
-		UI: "web",
-		Core: CoreConfig{
-			AgentLoop: "",
-			Providers: []string{},
-		},
-		Extensions: []string{"bad!name"},
+		UI:                "web",
+		Core:              CoreConfig{AgentLoop: ""},
+		ExcludeExtensions: []string{"bad!name"},
 	}
 
 	err := Validate(f)
@@ -223,7 +126,7 @@ func TestValidate_MultipleErrors(t *testing.T) {
 
 	var errs ValidationErrors
 	require.ErrorAs(t, err, &errs)
-	assert.Len(t, errs, 4, "should collect all validation errors")
+	assert.Len(t, errs, 3, "should collect all validation errors")
 
 	fields := make([]string, len(errs))
 	for i, e := range errs {
@@ -232,8 +135,7 @@ func TestValidate_MultipleErrors(t *testing.T) {
 
 	assert.Contains(t, fields, "ui")
 	assert.Contains(t, fields, "core.agent_loop")
-	assert.Contains(t, fields, "core.providers")
-	assert.Contains(t, fields, "extensions[0]")
+	assert.Contains(t, fields, "exclude_extensions[0]")
 }
 
 func TestValidationError_ErrorFormat(t *testing.T) {
@@ -251,7 +153,7 @@ func TestValidationErrors_ErrorFormat(t *testing.T) {
 
 func TestValidateWithConfigDir_IntegratedWithLoad(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave.yaml", "ui: web\nextensions: []\n")
+	writeFile(t, dir, ".weave.yaml", "ui: web\n")
 
 	_, _, _, err := LoadFromDir(dir, nil)
 	require.Error(t, err)

@@ -125,6 +125,11 @@ func runInstall(args []string) int {
 		return 1
 	}
 
+	if !hasGoMod(stagingDir) {
+		fmt.Fprintf(os.Stderr, "weave install: %s contains no go.mod (extensions must be Go modules)\n", source)
+		return 1
+	}
+
 	if err := swapStaging(stagingDir, destDir); err != nil {
 		fmt.Fprintf(os.Stderr, "weave install: %v\n", err)
 		return 1
@@ -404,4 +409,9 @@ func hasGoFiles(dir string) bool {
 	}
 
 	return found
+}
+
+func hasGoMod(dir string) bool {
+	_, err := os.Stat(filepath.Join(dir, "go.mod"))
+	return err == nil
 }

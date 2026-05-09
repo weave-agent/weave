@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"weave/config"
@@ -53,12 +52,28 @@ func run(ctx context.Context, args ...string) (exitCode int) {
 		return 1
 	}
 
-	projectDir := resolveProjectDir(configFile)
-
-	allExts, providers, rest, ok := resolveExtensionsAndMode(cf, rest)
-	if !ok {
+	projectDir, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "weave: %v\n", err)
 		return 1
 	}
+
+	// When a project-local config was found (not global fallback), derive the
+	// project directory from the config file path. This ensures auto-discovery
+	// scans the correct .weave/extensions/ directory when running from a subdir.
+	if configFile != "" {
+		globalDir, _ := config.GlobalConfigDir()
+		if globalDir == "" || !strings.HasPrefix(configFile, globalDir+string(os.PathSeparator)) {
+			projectDir = config.ProjectDirFromConfig(configFile)
+		}
+	}
+
+	if cf.Prompt == "" && (cf.UI == "" || cf.UI == config.UIValueNone) {
+		fmt.Fprintf(os.Stderr, "weave: %v\n", errNoInput)
+		return 1
+	}
+
+	headless := cf.Prompt != ""
 
 	if cf.Prompt != "" {
 		promptFile, cleanup, ok := writePromptFile(cf.Prompt)
@@ -74,72 +89,12 @@ func run(ctx context.Context, args ...string) (exitCode int) {
 	cache := launcher.NewCache(cacheDir)
 	l := launcher.NewLauncher(cache, moduleRoot)
 
-	if err := l.Run(ctx, projectDir, allExts, rest, configFile, cf.Core.AgentLoop, providers); err != nil {
+	if err := l.Run(ctx, projectDir, rest, configFile, cf.Core.AgentLoop, headless, cf.ExcludeExtensions); err != nil {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", err)
 		return 1
 	}
 
 	return 0
-}
-
-func resolveProjectDir(configFile string) string {
-	dir := filepath.Dir(configFile)
-	if filepath.Base(dir) == ".weave" {
-		dir = filepath.Dir(dir)
-	}
-
-	return dir
-}
-
-func resolveExtensionsAndMode(cf *config.File, rest []string) (allExts, providers, updatedRest []string, ok bool) {
-	envProvider := os.Getenv("WEAVE_PROVIDER")
-
-	if os.Getenv("WEAVE_PROVIDER_AUTO") == "1" {
-		envProvider = ""
-		_ = os.Unsetenv("WEAVE_PROVIDER")
-		_ = os.Unsetenv("WEAVE_PROVIDER_AUTO")
-	}
-
-	if envProvider == "" && len(cf.Core.Providers) > 0 {
-		if err := os.Setenv("WEAVE_PROVIDER", cf.Core.Providers[0]); err != nil {
-			fmt.Fprintf(os.Stderr, "weave: setenv: %v\n", err)
-			return nil, nil, nil, false
-		}
-
-		if err := os.Setenv("WEAVE_PROVIDER_AUTO", "1"); err != nil {
-			fmt.Fprintf(os.Stderr, "weave: setenv: %v\n", err)
-			return nil, nil, nil, false
-		}
-	}
-
-	allExts = cf.AllExtensions()
-	allExts = ensurePresent(allExts, "skills")
-	allExts = ensurePresent(allExts, "instructions")
-
-	if cf.Prompt == "" && (cf.UI == "" || cf.UI == config.UIValueNone) {
-		fmt.Fprintf(os.Stderr, "weave: %v\n", errNoInput)
-		return nil, nil, nil, false
-	}
-
-	headless := cf.Prompt != ""
-	if !headless {
-		allExts = ensurePresent(allExts, cf.UI)
-	}
-
-	updatedRest = rest
-	if headless {
-		updatedRest = append([]string{"--weave-headless=true"}, updatedRest...)
-	} else {
-		updatedRest = append([]string{"--weave-headless=false"}, updatedRest...)
-	}
-
-	providers = cf.Core.Providers
-	if envProvider != "" {
-		providers = ensurePresent(providers, envProvider)
-		allExts = ensurePresent(allExts, envProvider)
-	}
-
-	return allExts, providers, updatedRest, true
 }
 
 func writePromptFile(prompt string) (path string, cleanup func(), ok bool) {
@@ -163,14 +118,6 @@ func writePromptFile(prompt string) (path string, cleanup func(), ok bool) {
 	_ = f.Close()
 
 	return promptFile, func() { _ = os.Remove(promptFile) }, true
-}
-
-func ensurePresent(exts []string, name string) []string {
-	if slices.Contains(exts, name) {
-		return exts
-	}
-
-	return append(exts, name)
 }
 
 func findModuleRoot() (string, error) {

@@ -11,19 +11,20 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"sort"
+	"strconv"
 	"strings"
 )
 
 // ComputeHash returns a deterministic SHA256 hex string for the given extensions.
-// The hash covers the Go version, the root module's go.mod and go.sum, the sorted
-// contents of all extension .go files, and the contents of any additional core
+// The hash covers the Go version, the headless flag, the root module's go.mod and go.sum,
+// the sorted contents of all extension .go files, and the contents of any additional core
 // package directories.
-func ComputeHash(exts []ExtensionInfo, moduleRoot string, coreDirs ...string) (string, error) {
+func ComputeHash(exts []ExtensionInfo, moduleRoot string, headless bool, coreDirs ...string) (string, error) {
 	h := sha256.New()
 
 	h.Write([]byte("go" + runtime.Version() + "\n"))
+	h.Write([]byte("headless:" + strconv.FormatBool(headless) + "\n"))
 
 	HashModuleGraph(h, moduleRoot)
 
@@ -366,8 +367,9 @@ func parseSingleReplace(s, dir string, result map[string]string) {
 // The generated binary accepts:
 //   - --weave-config=<path> to pass config to extensions
 //   - --weave-prompt-file=<path> to read the initial prompt from a file
-//   - --weave-agent-loop=<name> and --weave-providers=<name1,name2> for core wiring
-func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string, providers []string) error {
+//   - --weave-agent-loop=<name> for core wiring
+//   - --weave-project-dir=<path> to override project dir for settings resolution
+func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 	var b strings.Builder
 	b.WriteString("package main\n\n")
 	b.WriteString("import (\n")
@@ -393,8 +395,8 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string, provider
 	b.WriteString("\tvar cfgPath string\n")
 	b.WriteString("\tvar promptFilePath string\n")
 	b.WriteString("\tvar agentLoopName string\n")
-	b.WriteString("\tvar providersFlag string\n")
 	b.WriteString("\tvar headlessFlag string\n")
+	b.WriteString("\tvar projectDir string\n")
 	b.WriteString("\tfiltered := make([]string, 0, len(os.Args)-1)\n")
 	b.WriteString("\tfor _, a := range os.Args[1:] {\n")
 	b.WriteString("\t\tif p, ok := strings.CutPrefix(a, \"--weave-config=\"); ok {\n")
@@ -403,10 +405,10 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string, provider
 	b.WriteString("\t\t\tpromptFilePath = p\n")
 	b.WriteString("\t\t} else if p, ok := strings.CutPrefix(a, \"--weave-agent-loop=\"); ok {\n")
 	b.WriteString("\t\t\tagentLoopName = p\n")
-	b.WriteString("\t\t} else if p, ok := strings.CutPrefix(a, \"--weave-providers=\"); ok {\n")
-	b.WriteString("\t\t\tprovidersFlag = p\n")
 	b.WriteString("\t\t} else if p, ok := strings.CutPrefix(a, \"--weave-headless=\"); ok {\n")
 	b.WriteString("\t\t\theadlessFlag = p\n")
+	b.WriteString("\t\t} else if p, ok := strings.CutPrefix(a, \"--weave-project-dir=\"); ok {\n")
+	b.WriteString("\t\t\tprojectDir = p\n")
 	b.WriteString("\t\t} else {\n")
 	b.WriteString("\t\t\tfiltered = append(filtered, a)\n")
 	b.WriteString("\t\t}\n")
@@ -439,10 +441,13 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string, provider
 	b.WriteString("\t\tos.Exit(1)\n")
 	b.WriteString("\t}\n")
 	b.WriteString("\tcfg = fullCfg\n")
+	b.WriteString("\tif projectDir != \"\" {\n")
+	b.WriteString("\t\tfullCfg.SetProjectDir(projectDir)\n")
+	b.WriteString("\t}\n")
 	b.WriteString("\tif cfgPath != \"\" {\n")
 	b.WriteString("\t\tconfig.EnsureLocalSettingsExcluded(config.ProjectDirFromConfig(cfgPath))\n")
 	b.WriteString("\t}\n")
-	b.WriteString("\theadless := true\n")
+	b.WriteString("\theadless := false\n")
 	b.WriteString("\tif headlessFlag != \"\" {\n")
 	b.WriteString("\t\tif parsed, err := strconv.ParseBool(headlessFlag); err == nil {\n")
 	b.WriteString("\t\t\theadless = parsed\n")
@@ -452,18 +457,18 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string, provider
 
 	optExtNames := make([]string, 0, len(exts))
 	for _, ext := range exts {
-		// Core extensions (agent-loop, providers) are handled by WireWithCore,
-		// not passed as optional extensions.
-		if ext.Name == agentLoop || slices.Contains(providers, ext.Name) {
+		// The agent loop is handled by WireWithCore, not passed as optional.
+		if ext.Name == agentLoop {
+			continue
+		}
+
+		// When using a custom agent loop, also exclude the default "loop" —
+		// it subscribes to agent.prompt and would run turns concurrently.
+		if ext.Name == "loop" && agentLoop != "loop" {
 			continue
 		}
 
 		optExtNames = append(optExtNames, `"`+ext.Name+`"`)
-	}
-
-	providerNames := make([]string, len(providers))
-	for i, p := range providers {
-		providerNames[i] = `"` + p + `"`
 	}
 
 	b.WriteString("\tvar optExts []string\n")
@@ -473,12 +478,9 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string, provider
 	}
 
 	b.WriteString("\n")
-	b.WriteString("\tcore := wire.CoreWireConfig{AgentLoop: \"" + agentLoop + "\", Providers: []string{" + strings.Join(providerNames, ", ") + "}}\n")
+	b.WriteString("\tcore := wire.CoreWireConfig{AgentLoop: " + strconv.Quote(agentLoop) + "}\n")
 	b.WriteString("\tif agentLoopName != \"\" {\n")
 	b.WriteString("\t\tcore.AgentLoop = agentLoopName\n")
-	b.WriteString("\t}\n")
-	b.WriteString("\tif providersFlag != \"\" {\n")
-	b.WriteString("\t\tcore.Providers = strings.Split(providersFlag, \",\")\n")
 	b.WriteString("\t}\n")
 	b.WriteString("\tif prompt != \"\" {\n")
 	b.WriteString("\t\tcore.SingleTurn = true\n")
@@ -521,14 +523,27 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string, provider
 
 // Build generates go.mod and main.go in dir, runs go build, and returns the binary path.
 // moduleRoot is the absolute path to the weave module root (containing go.mod).
-// agentLoop and providers identify the core extensions for WireWithCore.
+// agentLoop identifies the core agent loop extension for WireWithCore.
+// When headless is true, UI extensions (IsUIExt) are excluded from compilation.
 // Extensions are sorted by name to match the hash computation order.
-func Build(dir, moduleRoot, agentLoop string, providers []string, exts []ExtensionInfo) (string, error) {
+func Build(dir, moduleRoot, agentLoop string, headless bool, exts []ExtensionInfo) (string, error) {
 	sorted := make([]ExtensionInfo, len(exts))
 	copy(sorted, exts)
 	sort.Slice(sorted, func(i, j int) bool {
 		return sorted[i].Name < sorted[j].Name
 	})
+
+	// Filter out UI extensions in headless mode before generating go.mod/main.go.
+	if headless {
+		filtered := make([]ExtensionInfo, 0, len(sorted))
+		for _, ext := range sorted {
+			if !ext.IsUIExt {
+				filtered = append(filtered, ext)
+			}
+		}
+
+		sorted = filtered
+	}
 
 	// Ensure each extension dir has a go.mod so Go treats it as a module
 	for _, ext := range sorted {
@@ -546,7 +561,7 @@ func Build(dir, moduleRoot, agentLoop string, providers []string, exts []Extensi
 		return "", fmt.Errorf("build: generate go.mod: %w", err)
 	}
 
-	if err := GenerateMainGo(dir, sorted, agentLoop, providers); err != nil {
+	if err := GenerateMainGo(dir, sorted, agentLoop); err != nil {
 		return "", fmt.Errorf("build: generate main.go: %w", err)
 	}
 

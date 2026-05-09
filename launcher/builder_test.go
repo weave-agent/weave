@@ -21,10 +21,10 @@ func TestComputeHash_Deterministic(t *testing.T) {
 		{Name: "alpha", Dir: dir, GoFiles: []string{f1}},
 	}
 
-	h1, err := ComputeHash(exts, "")
+	h1, err := ComputeHash(exts, "", false)
 	require.NoError(t, err)
 
-	h2, err := ComputeHash(exts, "")
+	h2, err := ComputeHash(exts, "", false)
 	require.NoError(t, err)
 
 	assert.Equal(t, h1, h2)
@@ -47,10 +47,10 @@ func TestComputeHash_SortedByName(t *testing.T) {
 		{Name: "alpha", Dir: dir, GoFiles: []string{f1}},
 	}
 
-	h1, err := ComputeHash(exts1, "")
+	h1, err := ComputeHash(exts1, "", false)
 	require.NoError(t, err)
 
-	h2, err := ComputeHash(exts2, "")
+	h2, err := ComputeHash(exts2, "", false)
 	require.NoError(t, err)
 
 	assert.Equal(t, h1, h2)
@@ -64,10 +64,10 @@ func TestComputeHash_DifferentContent(t *testing.T) {
 	require.NoError(t, os.WriteFile(f1, []byte("package a"), 0o600))
 	require.NoError(t, os.WriteFile(f2, []byte("package different"), 0o600))
 
-	h1, err := ComputeHash([]ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f1}}}, "")
+	h1, err := ComputeHash([]ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f1}}}, "", false)
 	require.NoError(t, err)
 
-	h2, err := ComputeHash([]ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f2}}}, "")
+	h2, err := ComputeHash([]ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f2}}}, "", false)
 	require.NoError(t, err)
 
 	assert.NotEqual(t, h1, h2)
@@ -79,10 +79,10 @@ func TestComputeHash_DifferentNames(t *testing.T) {
 	f := filepath.Join(dir, "ext.go")
 	require.NoError(t, os.WriteFile(f, []byte("package ext"), 0o600))
 
-	h1, err := ComputeHash([]ExtensionInfo{{Name: "alpha", Dir: dir, GoFiles: []string{f}}}, "")
+	h1, err := ComputeHash([]ExtensionInfo{{Name: "alpha", Dir: dir, GoFiles: []string{f}}}, "", false)
 	require.NoError(t, err)
 
-	h2, err := ComputeHash([]ExtensionInfo{{Name: "beta", Dir: dir, GoFiles: []string{f}}}, "")
+	h2, err := ComputeHash([]ExtensionInfo{{Name: "beta", Dir: dir, GoFiles: []string{f}}}, "", false)
 	require.NoError(t, err)
 
 	assert.NotEqual(t, h1, h2)
@@ -93,7 +93,7 @@ func TestComputeHash_ReadError(t *testing.T) {
 		{Name: "x", Dir: "/nonexistent", GoFiles: []string{"/nonexistent/missing.go"}},
 	}
 
-	_, err := ComputeHash(exts, "")
+	_, err := ComputeHash(exts, "", false)
 	require.Error(t, err)
 }
 
@@ -105,13 +105,13 @@ func TestComputeHash_GoModChangesHash(t *testing.T) {
 
 	exts := []ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f}}}
 
-	h1, err := ComputeHash(exts, "")
+	h1, err := ComputeHash(exts, "", false)
 	require.NoError(t, err)
 
 	goMod := filepath.Join(dir, "go.mod")
 	require.NoError(t, os.WriteFile(goMod, []byte("module weave/ext/x\ngo 1.22\n"), 0o600))
 
-	h2, err := ComputeHash(exts, "")
+	h2, err := ComputeHash(exts, "", false)
 	require.NoError(t, err)
 
 	assert.NotEqual(t, h1, h2)
@@ -128,13 +128,13 @@ func TestComputeHash_GoSumChangesHash(t *testing.T) {
 
 	exts := []ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f}}}
 
-	h1, err := ComputeHash(exts, "")
+	h1, err := ComputeHash(exts, "", false)
 	require.NoError(t, err)
 
 	goSum := filepath.Join(dir, "go.sum")
 	require.NoError(t, os.WriteFile(goSum, []byte("example.com/pkg v1.0.0 h1:abc123\n"), 0o600))
 
-	h2, err := ComputeHash(exts, "")
+	h2, err := ComputeHash(exts, "", false)
 	require.NoError(t, err)
 
 	assert.NotEqual(t, h1, h2, "go.sum change should produce different hash")
@@ -151,16 +151,68 @@ func TestComputeHash_GoSumIgnoredForShim(t *testing.T) {
 
 	exts := []ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f}}}
 
-	h1, err := ComputeHash(exts, "")
+	h1, err := ComputeHash(exts, "", false)
 	require.NoError(t, err)
 
 	goSum := filepath.Join(dir, "go.sum")
 	require.NoError(t, os.WriteFile(goSum, []byte("example.com/pkg v1.0.0 h1:abc123\n"), 0o600))
 
-	h2, err := ComputeHash(exts, "")
+	h2, err := ComputeHash(exts, "", false)
 	require.NoError(t, err)
 
 	assert.Equal(t, h1, h2, "go.sum should not affect hash for shim go.mod extensions")
+}
+
+func TestComputeHash_HeadlessDiffers(t *testing.T) {
+	dir := t.TempDir()
+
+	f := filepath.Join(dir, "ext.go")
+	require.NoError(t, os.WriteFile(f, []byte("package ext"), 0o600))
+
+	exts := []ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f}}}
+
+	h1, err := ComputeHash(exts, "", false)
+	require.NoError(t, err)
+
+	h2, err := ComputeHash(exts, "", true)
+	require.NoError(t, err)
+
+	assert.NotEqual(t, h1, h2, "headless flag must affect hash")
+}
+
+func TestGenerateMainGo_UIExtFilteredByBuild(t *testing.T) {
+	// Build() filters UI extensions before calling GenerateMainGo,
+	// so GenerateMainGo only receives non-UI extensions.
+	dir := t.TempDir()
+	exts := []ExtensionInfo{
+		{Name: "bash", Dir: "/tmp/exts/bash", ModulePath: "weave/ext/bash"},
+	}
+
+	require.NoError(t, GenerateMainGo(dir, exts, "loop"))
+
+	content, err := os.ReadFile(filepath.Join(dir, "main.go"))
+	require.NoError(t, err)
+
+	s := string(content)
+	assert.Contains(t, s, `_ "weave/ext/bash"`)
+	assert.NotContains(t, s, `_ "weave/ext/diff-viewer"`)
+}
+
+func TestGenerateMainGo_UIExtIncludedInInteractive(t *testing.T) {
+	dir := t.TempDir()
+	exts := []ExtensionInfo{
+		{Name: "bash", Dir: "/tmp/exts/bash", ModulePath: "weave/ext/bash"},
+		{Name: "diff-viewer", Dir: "/tmp/exts/diff-viewer", ModulePath: "weave/ext/diff-viewer", IsUIExt: true},
+	}
+
+	require.NoError(t, GenerateMainGo(dir, exts, "loop"))
+
+	content, err := os.ReadFile(filepath.Join(dir, "main.go"))
+	require.NoError(t, err)
+
+	s := string(content)
+	assert.Contains(t, s, `_ "weave/ext/bash"`)
+	assert.Contains(t, s, `_ "weave/ext/diff-viewer"`)
 }
 
 func TestGenerateGoMod_Content(t *testing.T) {
@@ -206,7 +258,7 @@ func TestGenerateMainGo_Content(t *testing.T) {
 		{Name: "log", Dir: "/tmp/exts/log", ModulePath: "weave/ext/log"},
 	}
 
-	require.NoError(t, GenerateMainGo(dir, exts, "loop", []string{"anthropic"}))
+	require.NoError(t, GenerateMainGo(dir, exts, "loop"))
 
 	content, err := os.ReadFile(filepath.Join(dir, "main.go"))
 	require.NoError(t, err)
@@ -222,7 +274,6 @@ func TestGenerateMainGo_Content(t *testing.T) {
 	assert.Contains(t, s, "bus.New()")
 	assert.Contains(t, s, "wire.WireWithCore")
 	assert.Contains(t, s, `AgentLoop: "loop"`)
-	assert.Contains(t, s, `"anthropic"`)
 	assert.Contains(t, s, "strings.CutPrefix")
 	assert.Contains(t, s, "config.LoadFullConfig")
 	assert.Contains(t, s, "config.EnsureLocalSettingsExcluded")
@@ -233,7 +284,32 @@ func TestGenerateMainGo_Content(t *testing.T) {
 	assert.Contains(t, s, "shutdown error")
 	assert.Contains(t, s, "os.Args = append([]string{os.Args[0]}, filtered...)")
 	assert.Contains(t, s, "--weave-headless=")
+	assert.Contains(t, s, "--weave-project-dir=")
+	assert.Contains(t, s, "fullCfg.SetProjectDir(projectDir)")
 	assert.Contains(t, s, "sdk.HeadlessConfig")
+}
+
+func TestGenerateMainGo_CustomAgentLoopExcludesDefaultLoop(t *testing.T) {
+	dir := t.TempDir()
+	exts := []ExtensionInfo{
+		{Name: "loop", Dir: "/tmp/exts/loop", ModulePath: "weave/ext/loop"},
+		{Name: "my-loop", Dir: "/tmp/exts/my-loop", ModulePath: "weave/ext/my-loop"},
+		{Name: "bash", Dir: "/tmp/exts/bash", ModulePath: "weave/ext/bash"},
+	}
+
+	require.NoError(t, GenerateMainGo(dir, exts, "my-loop"))
+
+	content, err := os.ReadFile(filepath.Join(dir, "main.go"))
+	require.NoError(t, err)
+
+	s := string(content)
+	// optExts should only contain "bash" — both "loop" and "my-loop" are excluded.
+	assert.Contains(t, s, `optExts = []string{"bash"}`, "optExts should only have bash")
+	assert.NotContains(t, s, `optExts = []string{"loop"`, "loop should not be in optExts")
+	// Blank imports still include all extensions for registration.
+	assert.Contains(t, s, `_ "weave/ext/loop"`)
+	assert.Contains(t, s, `_ "weave/ext/my-loop"`)
+	assert.Contains(t, s, `_ "weave/ext/bash"`)
 }
 
 func TestBuild_WithTrivialExtension(t *testing.T) {
@@ -261,7 +337,7 @@ func init() {
 		{Name: "noop", Dir: extDir, GoFiles: []string{filepath.Join(extDir, "noop.go")}},
 	}
 
-	binaryPath, err := Build(buildDir, moduleRoot, "noop", nil, exts)
+	binaryPath, err := Build(buildDir, moduleRoot, "noop", false, exts)
 	require.NoError(t, err, "Build failed")
 
 	_, err = os.Stat(binaryPath)
