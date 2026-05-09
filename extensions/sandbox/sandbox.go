@@ -178,3 +178,15 @@ func (s *Sandbox) SetMode(mode string) {
 	s.cfg.Mode = mode
 	s.mu.Unlock()
 }
+
+// getCurrentSandbox returns the global Sandboxer as a *Sandbox, or nil.
+func getCurrentSandbox() *Sandbox {
+	sb := sdk.GetSandboxer()
+	if sb == nil {
+		return nil
+	}
+	if s, ok := sb.(*Sandbox); ok {
+		return s
+	}
+	return nil
+}

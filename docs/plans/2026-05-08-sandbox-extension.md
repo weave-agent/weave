@@ -78,15 +78,15 @@ Four sandbox modes: `off` → `readonly` → `ask` → `auto` (default). The des
 - [x] run `cd extensions/sandbox && go test ./...` — must pass before task 3
 
 ### Task 3: Implement macOS Seatbelt profile generation
-- [ ] create `extensions/sandbox/darwin.go` with build tag `//go:build darwin`
-- [ ] implement `generateSeatbeltProfile(config SandboxConfig, dir string) string` — generates Seatbelt v1 profile
-- [ ] mandatory deny paths: `~/.ssh/`, `~/.bashrc`, `~/.zshrc`, `~/.profile`, `~/.gitconfig`, `.git/hooks/`, `.git/config`, `.weave/`
-- [ ] mandatory read denies: `~/.ssh/id_*`, `~/.aws/credentials`, `**/.env`, `**/.env.*`
-- [ ] write rules: `(allow file-write* (subpath <writable>))` for CWD by default
-- [ ] network rules: allow all if `network: true`, proxy-based if `network: false`
-- [ ] implement `WrapCommand(cmd, dir) (string, error)` — returns `sandbox-exec -p '<profile>' bash -c '<cmd>'`
-- [ ] write tests for profile generation (mandatory denies present, writable paths correct, network rules)
-- [ ] run `cd extensions/sandbox && go test ./...` — must pass before task 4
+- [x] create `extensions/sandbox/darwin.go` with build tag `//go:build darwin`
+- [x] implement `generateSeatbeltProfile(config SandboxConfig, dir string) string` — generates Seatbelt v1 profile
+- [x] mandatory deny paths: `~/.ssh/`, `~/.bashrc`, `~/.zshrc`, `~/.profile`, `~/.gitconfig`, `.git/hooks/`, `.git/config`, `.weave/`
+- [x] mandatory read denies: `~/.ssh/id_*`, `~/.aws/credentials`, `**/.env`, `**/.env.*`
+- [x] write rules: `(allow file-write* (subpath <writable>))` for CWD by default
+- [x] network rules: allow all if `network: true`, proxy-based if `network: false`
+- [x] implement `WrapCommand(cmd, dir) (string, error)` — returns `sandbox-exec -p '<profile>' bash -c '<cmd>'`
+- [x] write tests for profile generation (mandatory denies present, writable paths correct, network rules)
+- [x] run `cd extensions/sandbox && go test ./...` — must pass before task 4
 
 ### Task 4: Implement Linux bwrap profile generation
 - [ ] create `extensions/sandbox/linux.go` with build tag `//go:build linux`

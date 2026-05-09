@@ -7,8 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-
-	"weave/sdk"
 )
 
 func bwrapAvailable() error {
@@ -52,21 +50,10 @@ func buildBwrapArgs(dir string) []string {
 	return args
 }
 
-func getCurrentSandbox() *Sandbox {
-	sb := sdk.GetSandboxer()
-	if sb == nil {
-		return nil
-	}
-	if s, ok := sb.(*Sandbox); ok {
-		return s
-	}
-	return nil
-}
-
 func wrapCommandDarwin(cmd, dir string) (string, error) {
 	return cmd, nil
 }
 
-func generateSeatbeltProfile(dir string) string {
+func generateSeatbeltProfile(cfg SandboxConfig, dir string) string {
 	return ""
 }
