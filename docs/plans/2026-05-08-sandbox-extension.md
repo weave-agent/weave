@@ -166,11 +166,11 @@ Four sandbox modes: `off` → `readonly` → `ask` → `auto` (default). The des
 - [x] run `go test ./config/...` — must pass before task 12
 
 ### Task 12: Update CLAUDE.md and documentation
-- [ ] update `CLAUDE.md` Architecture section with sandbox extension description
-- [ ] update `CLAUDE.md` Configuration section with sandbox config format
-- [ ] add sandbox mode descriptions and keybinding to Configuration section
-- [ ] run `make lint` — all issues must be fixed
-- [ ] run full test suite: `make test`
+- [x] update `CLAUDE.md` Architecture section with sandbox extension description
+- [x] update `CLAUDE.md` Configuration section with sandbox config format
+- [x] add sandbox mode descriptions and keybinding to Configuration section
+- [x] run `make lint` — all issues must be fixed
+- [x] run full test suite: `make test`
 
 ## Technical Details
 

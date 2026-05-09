@@ -7,9 +7,10 @@ import (
 )
 
 const (
-	approveOption     = "Approve"
-	denyOption        = "Deny"
+	approveOption      = "Approve"
+	denyOption         = "Deny"
 	trustSessionOption = "Trust for session"
+	keyCommand         = "command"
 )
 
 // ApproveDialog handles ask-mode approval flow by listening for sandbox.approve
@@ -43,7 +44,7 @@ func (d *ApproveDialog) handleApproval(ev sdk.Event) {
 		return
 	}
 
-	command := payload["command"]
+	command := payload[keyCommand]
 	if command == "" {
 		return
 	}
@@ -59,7 +60,7 @@ func (d *ApproveDialog) handleApproval(ev sdk.Event) {
 	idx, err := d.ui.Select(title, items)
 	if err != nil {
 		d.bus.Publish(sdk.NewEvent("sandbox.denied", map[string]string{
-			"command": command,
+			keyCommand: command,
 		}))
 
 		return
@@ -68,20 +69,20 @@ func (d *ApproveDialog) handleApproval(ev sdk.Event) {
 	switch idx {
 	case 0:
 		d.bus.Publish(sdk.NewEvent("sandbox.approved", map[string]string{
-			"command": command,
-			"trust":   "false",
+			keyCommand: command,
+			"trust":    "false",
 		}))
 	case 2:
 		d.bus.Publish(sdk.NewEvent("sandbox.approved", map[string]string{
-			"command": command,
-			"trust":   "true",
+			keyCommand: command,
+			"trust":    "true",
 		}))
 		d.bus.Publish(sdk.NewEvent("sandbox.trust", map[string]string{
 			"pattern": extractPattern(command),
 		}))
 	default:
 		d.bus.Publish(sdk.NewEvent("sandbox.denied", map[string]string{
-			"command": command,
+			keyCommand: command,
 		}))
 	}
 }

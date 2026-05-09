@@ -2,7 +2,7 @@ package bash
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -176,6 +176,7 @@ func TestExecuteTruncation(t *testing.T) {
 
 func TestExecuteWithSandboxer(t *testing.T) {
 	orig := sdk.GetSandboxer()
+
 	sdk.SetSandboxer(nil)
 	t.Cleanup(func() { sdk.SetSandboxer(orig) })
 
@@ -192,6 +193,7 @@ func TestExecuteWithSandboxer(t *testing.T) {
 
 	t.Run("sandboxer wraps command", func(t *testing.T) {
 		var mu sync.Mutex
+
 		gotCmd, gotDir := "", ""
 
 		s := &testSandboxer{
@@ -218,7 +220,7 @@ func TestExecuteWithSandboxer(t *testing.T) {
 	t.Run("sandboxer error returns sandbox error", func(t *testing.T) {
 		s := &testSandboxer{
 			wrapFn: func(cmd, dir string) (string, error) {
-				return "", fmt.Errorf("sandbox unavailable")
+				return "", errors.New("sandbox unavailable")
 			},
 		}
 		sdk.SetSandboxer(s)

@@ -6,10 +6,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"syscall"
 	"time"
-
-	"path/filepath"
 
 	"weave/sdk"
 	"weave/utils/truncate"

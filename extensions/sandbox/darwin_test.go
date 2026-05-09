@@ -148,9 +148,9 @@ func TestWrapCommandDarwin_NoSandboxExec(t *testing.T) {
 	t.Setenv("PATH", "/nonexistent")
 	defer t.Setenv("PATH", original)
 
-	wrapped, err := wrapCommandDarwin("ls -la", "/tmp")
-	require.NoError(t, err)
-	assert.Equal(t, "ls -la", wrapped, "should return command unchanged when sandbox-exec not found")
+	_, err := wrapCommandDarwin("ls -la", "/tmp")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "sandbox-exec not found")
 }
 
 func TestWrapCommandDarwin_WithSandboxExec(t *testing.T) {

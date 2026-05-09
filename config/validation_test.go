@@ -256,6 +256,7 @@ func TestValidate_SandboxMultipleErrors(t *testing.T) {
 	for i, e := range errs {
 		fields[i] = e.Field
 	}
+
 	assert.Contains(t, fields, "sandbox.mode")
 	assert.Contains(t, fields, "sandbox.writable[0]")
 	assert.Contains(t, fields, "sandbox.deny_write[0]")
@@ -281,6 +282,7 @@ func TestValidate_SandboxCombinedWithOtherErrors(t *testing.T) {
 	for i, e := range errs {
 		fields[i] = e.Field
 	}
+
 	assert.Contains(t, fields, "ui")
 	assert.Contains(t, fields, "sandbox.mode")
 }

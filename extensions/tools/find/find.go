@@ -55,6 +55,10 @@ func matchName(pattern, name, rel string) bool {
 	return matched
 }
 
+func isSkipDir(name string) bool {
+	return name == ".git" || name == "node_modules" || name == ".hg" || name == ".svn"
+}
+
 func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, error) {
 	pattern, _ := args[ParamPattern].(string)
 	if pattern == "" {
@@ -103,7 +107,7 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 
 		if d.IsDir() {
 			name := d.Name()
-			if name == ".git" || name == "node_modules" || name == ".hg" || name == ".svn" {
+			if isSkipDir(name) {
 				return filepath.SkipDir
 			}
 

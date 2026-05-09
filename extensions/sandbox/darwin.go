@@ -13,13 +13,9 @@ import (
 	"weave/sdk"
 )
 
-func bwrapAvailable() error {
-	return nil
-}
-
 func wrapCommandDarwin(cmd, dir string) (string, error) {
 	if _, err := exec.LookPath("sandbox-exec"); err != nil {
-		return cmd, nil
+		return "", fmt.Errorf("sandbox-exec not found: %w", err)
 	}
 
 	s := getCurrentSandbox()
@@ -115,7 +111,7 @@ func wrapCommandLinux(cmd, dir string) (string, error) {
 
 func wrapCommandDarwinWithConfig(cmd, dir string, cfg SandboxConfig) (string, error) {
 	if _, err := exec.LookPath("sandbox-exec"); err != nil {
-		return cmd, nil
+		return "", fmt.Errorf("sandbox-exec not found: %w", err)
 	}
 
 	profile := generateSeatbeltProfile(cfg, dir)

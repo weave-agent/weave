@@ -1,6 +1,7 @@
 package sandboxui
 
 import (
+	"strings"
 	"sync"
 	"testing"
 
@@ -59,15 +60,16 @@ func (b *mockBus) On(topic string, h sdk.Handler) {
 	b.mu.Unlock()
 }
 
-func (b *mockBus) OnAll(_ sdk.Handler)     {}
-func (b *mockBus) Off(_ sdk.Handler)       {}
-func (b *mockBus) Close() error            { return nil }
+func (b *mockBus) OnAll(_ sdk.Handler) {}
+func (b *mockBus) Off(_ sdk.Handler)   {}
+func (b *mockBus) Close() error        { return nil }
 
 func (b *mockBus) published(topic string) []sdk.Event {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	var result []sdk.Event
+
 	for _, ev := range b.events {
 		if ev.Topic == topic {
 			result = append(result, ev)
@@ -278,10 +280,12 @@ func TestFormatApprovalTitle(t *testing.T) {
 }
 
 func TestFormatApprovalTitle_LongCommand(t *testing.T) {
-	longCmd := ""
-	for i := 0; i < 100; i++ {
-		longCmd += "x"
+	var sb strings.Builder
+	for range 100 {
+		sb.WriteString("x")
 	}
+
+	longCmd := sb.String()
 
 	result := formatApprovalTitle(longCmd)
 	assert.Contains(t, result, "Sandbox: allow command?")

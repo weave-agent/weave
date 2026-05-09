@@ -1518,9 +1518,11 @@ func nextSandboxMode(current string) string {
 			if i+1 < len(sdk.SandboxModes) {
 				return sdk.SandboxModes[i+1]
 			}
+
 			return sdk.SandboxModes[0]
 		}
 	}
+
 	return sdk.SandboxModes[0]
 }
 

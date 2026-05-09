@@ -38,7 +38,7 @@ func (t *tool) Definition() sdk.ToolDef {
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"path": map[string]any{
+				"path": map[string]any{ //nolint:goconst // JSON parameter name, not a magic constant
 					"type":        "string",
 					"description": "The absolute path to the file to edit.",
 				},

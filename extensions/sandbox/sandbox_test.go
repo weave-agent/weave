@@ -162,10 +162,10 @@ func TestSandbox_Subscribe_ModeChange(t *testing.T) {
 	handler, ok := bus.handlers["sandbox.mode.change"]
 	require.True(t, ok, "expected handler for sandbox.mode.change")
 
-	handler(sdk.NewEvent("sandbox.mode.change", sdk.SandboxReadonly))
+	require.NoError(t, handler(sdk.NewEvent("sandbox.mode.change", sdk.SandboxReadonly)))
 	assert.Equal(t, sdk.SandboxReadonly, s.Mode())
 
-	handler(sdk.NewEvent("sandbox.mode.change", sdk.SandboxOff))
+	require.NoError(t, handler(sdk.NewEvent("sandbox.mode.change", sdk.SandboxOff)))
 	assert.Equal(t, sdk.SandboxOff, s.Mode())
 }
 
@@ -179,7 +179,7 @@ func TestSandbox_Subscribe_InvalidPayload(t *testing.T) {
 	handler, ok := bus.handlers["sandbox.mode.change"]
 	require.True(t, ok)
 
-	handler(sdk.NewEvent("sandbox.mode.change", 42))
+	require.NoError(t, handler(sdk.NewEvent("sandbox.mode.change", 42)))
 	assert.Equal(t, sdk.SandboxAuto, s.Mode())
 }
 

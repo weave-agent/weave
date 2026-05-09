@@ -138,17 +138,18 @@ type mockUIExtensionWithBus struct {
 // mockBus is a minimal sdk.Bus implementation for tests.
 type mockBus struct{}
 
-func (m *mockBus) Publish(_ sdk.Event)         {}
-func (m *mockBus) On(_ string, _ sdk.Handler)  {}
-func (m *mockBus) OnAll(_ sdk.Handler)         {}
-func (m *mockBus) Off(_ sdk.Handler)           {}
-func (m *mockBus) Close() error                { return nil }
+func (m *mockBus) Publish(_ sdk.Event)        {}
+func (m *mockBus) On(_ string, _ sdk.Handler) {}
+func (m *mockBus) OnAll(_ sdk.Handler)        {}
+func (m *mockBus) Off(_ sdk.Handler)          {}
+func (m *mockBus) Close() error               { return nil }
 
 func (m *mockUIExtensionWithBus) Name() string { return m.name }
 func (m *mockUIExtensionWithBus) Register(ui sdk.UI) {
 	m.registerCalled = true
 	m.registeredUI = ui
 }
+
 func (m *mockUIExtensionWithBus) RegisterWithBus(ui sdk.UI, bus sdk.Bus) {
 	m.busCalled = true
 	m.registeredUIWith = ui

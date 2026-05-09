@@ -36,7 +36,7 @@ Standard library as much as possible. Every replaceable component is an extensio
 **Launcher pattern:** resolve config → auto-discover extensions → build a custom binary (cached per hash) → exec it. `cmd/weave/main.go` is a thin stub that calls `wire.Run()`.
 
 **Key packages:**
-- `sdk/` — defines `Extension`, `Bus`, `Config`, `UI` interfaces; `Handler func(Event) error` type for callback-based bus handlers; `Config` includes `ToolConfig(name, target)`, `UIConfig(target)`, and `IsHeadless() bool` for headless mode detection; `HeadlessConfig` wraps a `Config` and overrides `IsHeadless()` based on whether TUI is included; global registries for extensions, providers, tools, and UIs (`RegisterExtension`/`GetExtension`, `RegisterProvider`/`GetProvider`, `RegisterTool`/`GetTool`, `RegisterUI`/`GetUI`) with duplicate registration warnings (first wins, logs to stderr); `RegisterUIExtension` for TUI-specific plugins; `Message` types; `NoopUI` stub for headless mode
+- `sdk/` — defines `Extension`, `Bus`, `Config`, `UI` interfaces; `Handler func(Event) error` type for callback-based bus handlers; `Config` includes `ToolConfig(name, target)`, `UIConfig(target)`, and `IsHeadless() bool` for headless mode detection; `HeadlessConfig` wraps a `Config` and overrides `IsHeadless()` based on whether TUI is included; global registries for extensions, providers, tools, and UIs (`RegisterExtension`/`GetExtension`, `RegisterProvider`/`GetProvider`, `RegisterTool`/`GetTool`, `RegisterUI`/`GetUI`) with duplicate registration warnings (first wins, logs to stderr); `RegisterUIExtension` for TUI-specific plugins; `Sandboxer` interface (`WrapCommand`, `AllowWrite`, `AllowRead`) with package-level getter/setter (`SetSandboxer`/`GetSandboxer`, nil-safe); `Message` types; `NoopUI` stub for headless mode
 - `sdk/model/` — model types (`ThinkingLevel`, `ModelDef`, `StreamOptions`), model registry (`RegisterModel`/`GetModel`/`ListModelsForProvider`/`ListAllModels`), provider env var registry (`RegisterProviderEnvVar`/`ProviderEnvVar`), and `RegisterBuiltinModels()` with all hardcoded entries. Model registry warns on duplicates (first wins, matching other registries)
 - `sdk/registry/` — generic `Registry[T]` type used internally by all sdk registries; supports `WithWarn` (first-wins + warning) and `WithPanic` (panic on dup) options
 - `sdk/wire/` — `Wire()` and `WireWithCore()` composition roots that resolve names and subscribe extensions to the bus; `Run()` absorbs the full entry-point pipeline (config loading, auto-discovery via `launcher.AutoDiscover`, launcher build); `CoreWireConfig` struct (AgentLoop + SingleTurn only, no providers); install subcommand logic
@@ -49,6 +49,8 @@ Standard library as much as possible. Every replaceable component is an extensio
 - `extensions/providers/openai-compat/` — shared library for OpenAI-compatible providers (SSE parsing, message/tool conversion); reused by `openai` and `zai` providers; import as `openaicompat` package
 - `extensions/providers/{anthropic,openai,zai}/` — provider extension modules; Anthropic uses official SDK, OpenAI and Z.ai delegate to `openai-compat`
 - `extensions/store/jsonl/` — session persistence extension; subscribes to bus events and writes JSONL files to `~/.weave/sessions/`; implements Create, Append, Load, History, List, Compact internally with no SDK interface
+- `extensions/sandbox/` — OS-level tool execution guard; wraps bash commands in Seatbelt (macOS) or bubblewrap (Linux) sandbox profiles; enforces path-based access policy on file tools via `Sandboxer` interface; four modes: `off` (no restrictions), `readonly` (no writes), `ask` (prompt per command), `auto` (sandbox wraps all commands); mandatory deny paths hardcoded (sensitive dotfiles, SSH keys, AWS credentials, .env files); subscribes to `sandbox.mode.change` for mid-session mode switching; publishes `sandbox.approve`/`sandbox.approved`/`sandbox.denied`/`sandbox.trust` events for ask-mode approval flow; self-registers via `sdk.RegisterExtension("sandbox", ...)`
+- `extensions/ui/sandbox/` — TUI extension for sandbox mode indicator and ask-mode approval dialog; registers `Ctrl+S` keybinding to cycle sandbox modes; displays current mode in footer status pill (`SB:auto`, `SB:off`, etc.); implements `ApproveDialog` with approve/deny/trust-for-session options integrated into TUI `DialogStack` overlay system; self-registers via `sdk.RegisterUIExtension`
 - `extensions/ui/tui/` — interactive terminal UI extension built with Bubble Tea v2 (`charm.land/bubbletea/v2`) + Ultraviolet screen buffers for `Draw()` rendering. Key handling uses `tea.KeyPressMsg` (not v1 `tea.KeyMsg`). Components use `lipgloss.NewStyle()` from `charm.land/lipgloss/v2`. Screen buffer rendering pattern: `Model.View()` creates an `uv.NewScreenBuffer(w,h)`, delegates to `Model.Draw()` which computes layout via `LayoutEngine` then draws each component, and returns `uv.TrimSpace(canvas.Render())`. Components implement `Draw(scr uv.Screen, area uv.Rectangle)` alongside retained `View() string` (used internally for string-to-buffer conversion via `uv.NewStyledString`). Uses `github.com/charmbracelet/ultraviolet` for `uv.Screen`, `uv.Rectangle`, `uv.layout` splitting. Self-registers via `sdk.RegisterExtension("tui", ...)` and `sdk.RegisterUI("tui", ...)`; implements `sdk.UI` interface for cross-extension integration (popups, status bar, slash commands, keybindings); bridge goroutine translates bus events to Bubble Tea messages; includes: streaming chat with progressive markdown rendering (Glamour with custom xchroma formatter), dialog stack for layered overlays, landing state before first prompt, smart auto-scroll with new-content indicator, token rate display in footer, tool output panels, thinking blocks, diff highlighting, multi-line editor (bubbles/v2 textarea) with history, file attachments with paste detection, pills bar for tool progress, slash commands, session/model selectors, and configurable keybindings. UI extensions (see below) are wired at startup via `sdk.GetUIExtensions()`
   - `components/chat.go` — chat viewport with auto-scroll tracking and scroll indicator
   - `components/editor.go` — multi-line editor wrapping `bubbles/v2 textarea.Model` with history navigation, external editor support (`Ctrl+G`), and dynamic height (3–15 lines)
@@ -84,6 +86,12 @@ providers:               # optional: per-provider settings (not provider selecti
   openai:
     model: gpt-5.5
     base_url: https://api.openai.com/v1
+sandbox:                 # optional: sandbox configuration
+  mode: auto             # off | readonly | ask | auto (default: auto)
+  writable: ["."]        # paths allowed for writes (default: CWD)
+  deny_write: []         # additional paths to block writes
+  deny_read: []          # additional paths to block reads
+  network: true          # allow network access in sandbox (default: true)
 ```
 
 All extensions are auto-discovered by recursively scanning for Go modules (directories with `go.mod` + `.go` files) in project-local `.weave/extensions/`, global `~/.weave/extensions/`, and built-in `extensions/`. UI extensions (detected by `RegisterUIExtension(` in source) are excluded from headless builds. All providers are compiled in; runtime selection via settings or `WEAVE_PROVIDER` env var.
@@ -98,7 +106,7 @@ Corresponding `.weave/settings.json` (project-layer settings):
 }
 ```
 
-**Config validation** runs automatically on every `LoadFromDir` call via `ValidateWithConfigDir` in `config/validation.go`. It checks: `ui` must be `"tui"` or `"none"`, `core.agent_loop` non-empty, `exclude_extensions` entries valid, and provider entries have valid structure. Errors include field paths (e.g. `config.exclude_extensions[0]: invalid extension name`).
+**Config validation** runs automatically on every `LoadFromDir` call via `ValidateWithConfigDir` in `config/validation.go`. It checks: `ui` must be `"tui"` or `"none"`, `core.agent_loop` non-empty, `exclude_extensions` entries valid, provider entries have valid structure, and `sandbox` section (if present) has valid `mode` (off/readonly/ask/auto), valid paths in `writable`/`deny_write`/`deny_read`, and boolean `network`. Errors include field paths (e.g. `config.exclude_extensions[0]: invalid extension name`).
 
 **Layered settings** provide persistent user preferences with three layers merged in order (global → project → local):
 - Global: `~/.weave/settings.json` — user-wide defaults
@@ -133,13 +141,20 @@ keybindings:
   app.model.cycle: ["ctrl+p"]
   app.model.select: ["ctrl+l"]
 ```
-Built-in bindings: Escape=interrupt, Ctrl+C=double-press (first clears editor, second exits), Ctrl+D=exit, Ctrl+L=model selector, Ctrl+P=model cycle, Ctrl+N=new session, Ctrl+R=toggle attachment delete mode, Shift+Tab=cycle thinking level, Ctrl+T=toggle thinking blocks, Ctrl+O=expand tool output, Ctrl+G=open external editor, Ctrl+Z=suspend, Shift+G=scroll to bottom.
+Built-in bindings: Escape=interrupt, Ctrl+C=double-press (first clears editor, second exits), Ctrl+D=exit, Ctrl+L=model selector, Ctrl+P=model cycle, Ctrl+N=new session, Ctrl+R=toggle attachment delete mode, Shift+Tab=cycle thinking level, Ctrl+T=toggle thinking blocks, Ctrl+O=expand tool output, Ctrl+G=open external editor, Ctrl+Z=suspend, Shift+G=scroll to bottom, Ctrl+S=cycle sandbox mode.
 
 **Thinking levels** control reasoning depth for providers that support it. Six levels: off, minimal, low, medium (default), high, xhigh. Configured via:
 - Shift+Tab cycles through levels (editor border color changes with level)
 - `/thinking <level>` slash command sets a specific level
 - `WEAVE_THINKING_LEVEL` environment variable for initial level
 - Models that don't support xhigh (e.g. Sonnet) are automatically clamped to high
+
+**Sandbox modes** control OS-level tool execution guard. Four modes: `off` (no restrictions), `readonly` (writes blocked, file tools denied), `ask` (prompt per write/command via TUI dialog, denied in headless), `auto` (default, sandbox wraps bash commands and enforces path policy). Configured via:
+- Ctrl+S cycles through modes (footer status pill shows `SB:off`, `SB:readonly`, `SB:ask`, `SB:auto`)
+- `.weave.yaml` `sandbox.mode` for initial mode
+- Bus events: `sandbox.mode.change` (switch mode), `sandbox.approve`/`sandbox.approved`/`sandbox.denied` (ask-mode approval), `sandbox.trust` (session allowlist pattern)
+- Mandatory deny paths are hardcoded (not configurable): writes to `~/.ssh/`, `~/.bashrc`, `~/.zshrc`, `~/.profile`, `~/.gitconfig`, `.git/hooks/`, `.git/config`, `.weave/`; reads from `~/.ssh/id_*`, `~/.aws/credentials`, `**/.env`, `**/.env.*`
+- macOS uses Seatbelt (`sandbox-exec`), Linux uses bubblewrap (`bwrap`, must be installed separately)
 
 **Model registry** (`sdk/model/`) provides curated model metadata (display name, reasoning support, context window, max tokens) via `model.RegisterModel`/`model.GetModel`/`model.ListModelsForProvider`/`model.ListAllModels`. Built-in models are registered by `model.RegisterBuiltinModels()`.
 

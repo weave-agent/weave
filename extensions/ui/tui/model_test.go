@@ -2290,7 +2290,7 @@ func TestModel_CycleSandboxMode_PublishesBusEvent(t *testing.T) {
 	m.height = 24
 
 	model, _ := m.dispatchBinding(ActionSandboxCycle)
-	m = model.(Model)
+	_ = model.(Model)
 
 	assert.Equal(t, sdk.SandboxOff, sb.mode)
 

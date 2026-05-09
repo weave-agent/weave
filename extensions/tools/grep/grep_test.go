@@ -245,6 +245,7 @@ func (ts *testSandboxer) WrapCommand(cmd, dir string) (string, error) {
 	if ts.wrapFn != nil {
 		return ts.wrapFn(cmd, dir)
 	}
+
 	return cmd, nil
 }
 
@@ -252,6 +253,7 @@ func (ts *testSandboxer) AllowWrite(path string) bool {
 	if ts.allowWriteFn != nil {
 		return ts.allowWriteFn(path)
 	}
+
 	return true
 }
 
@@ -259,5 +261,6 @@ func (ts *testSandboxer) AllowRead(path string) bool {
 	if ts.allowReadFn != nil {
 		return ts.allowReadFn(path)
 	}
+
 	return true
 }
