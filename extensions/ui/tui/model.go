@@ -669,6 +669,10 @@ func (m Model) dispatchBinding(action BindingAction) (tea.Model, tea.Cmd) {
 
 		return m, nil
 
+	// Sandbox
+	case ActionSandboxCycle:
+		return m.cycleSandboxMode()
+
 	default:
 		return m, nil
 	}
@@ -1473,6 +1477,51 @@ func (m *Model) showStatus(msg string) {
 	m.statusTimer = tea.Tick(statusMessageTimeout, func(_ time.Time) tea.Msg {
 		return statusTimeoutMsg{gen: gen}
 	})
+}
+
+// cycleSandboxMode advances the sandbox to the next mode in the cycle order,
+// updates the footer status pill, and publishes a bus event.
+func (m Model) cycleSandboxMode() (tea.Model, tea.Cmd) {
+	sb := sdk.GetSandboxer()
+	if sb == nil {
+		m.showStatus("Sandbox: not available")
+		return m, nil
+	}
+
+	moder, ok := sb.(sdk.SandboxModer)
+	if !ok {
+		m.showStatus("Sandbox: mode cycling not supported")
+		return m, nil
+	}
+
+	current := moder.Mode()
+	next := nextSandboxMode(current)
+	moder.SetMode(next)
+
+	if m.ui != nil {
+		m.ui.SetStatus("sandbox", "SB:"+next)
+	}
+
+	m.showStatus("Sandbox mode: " + next)
+
+	if m.bus != nil {
+		m.bus.Publish(sdk.NewEvent("sandbox.mode.change", next))
+	}
+
+	return m, nil
+}
+
+// nextSandboxMode returns the next mode in the cycle order.
+func nextSandboxMode(current string) string {
+	for i, m := range sdk.SandboxModes {
+		if m == current {
+			if i+1 < len(sdk.SandboxModes) {
+				return sdk.SandboxModes[i+1]
+			}
+			return sdk.SandboxModes[0]
+		}
+	}
+	return sdk.SandboxModes[0]
 }
 
 // handleCompletionKey processes keys when the completion popup is active.

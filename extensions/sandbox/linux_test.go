@@ -139,7 +139,7 @@ func TestWrapCommandLinux_WithBwrap(t *testing.T) {
 		t.Skip("bwrap not installed")
 	}
 
-	s := &Sandbox{cfg: SandboxConfig{Mode: ModeAuto, Network: true}}
+	s := &Sandbox{cfg: SandboxConfig{Mode: sdk.SandboxAuto, Network: true}}
 	sdk.SetSandboxer(s)
 	defer sdk.SetSandboxer(nil)
 

@@ -40,6 +40,7 @@ const (
 	ActionThinkingCycle      BindingAction = "app.thinking.cycle"
 	ActionNewSession         BindingAction = "app.session.new"
 	ActionAttachDelete       BindingAction = "app.attachments.delete"
+	ActionSandboxCycle       BindingAction = "sandbox.cycle"
 )
 
 // Binding maps a key sequence to a named action with a description.

@@ -11,14 +11,6 @@ import (
 	"weave/sdk"
 )
 
-// Sandbox modes.
-const (
-	ModeOff      = "off"
-	ModeReadonly = "readonly"
-	ModeAsk      = "ask"
-	ModeAuto     = "auto"
-)
-
 // SandboxConfig holds user-configurable sandbox settings loaded via gonfig.
 type SandboxConfig struct {
 	Mode      string   `json:"mode" default:"auto" description:"Sandbox mode: off, readonly, ask, auto"`
@@ -63,7 +55,7 @@ func NewSandbox(cfg sdk.Config) (*Sandbox, error) {
 
 	sc := c.Sandbox
 	if sc.Mode == "" {
-		sc.Mode = ModeAuto
+		sc.Mode = sdk.SandboxAuto
 	}
 
 	headless := cfg == nil || cfg.IsHeadless()
@@ -143,13 +135,13 @@ func (s *Sandbox) WrapCommand(cmd, dir string) (string, error) {
 	s.mu.RUnlock()
 
 	switch mode {
-	case ModeOff:
+	case sdk.SandboxOff:
 		return cmd, nil
-	case ModeAuto:
+	case sdk.SandboxAuto:
 		return wrapCommandPlatform(cmd, dir)
-	case ModeReadonly:
+	case sdk.SandboxReadonly:
 		return wrapCommandReadonly(cmd, dir)
-	case ModeAsk:
+	case sdk.SandboxAsk:
 		return s.wrapCommandAsk(cmd)
 	default:
 		return cmd, nil
@@ -162,11 +154,11 @@ func (s *Sandbox) AllowWrite(path string) bool {
 	mode := s.cfg.Mode
 	s.mu.RUnlock()
 
-	if mode == ModeOff {
+	if mode == sdk.SandboxOff {
 		return true
 	}
 
-	if mode == ModeReadonly {
+	if mode == sdk.SandboxReadonly {
 		return false
 	}
 
@@ -199,7 +191,7 @@ func (s *Sandbox) AllowRead(path string) bool {
 	mode := s.cfg.Mode
 	s.mu.RUnlock()
 
-	if mode == ModeOff {
+	if mode == sdk.SandboxOff {
 		return true
 	}
 

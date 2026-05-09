@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"weave/sdk"
 )
 
 func bwrapAvailable() error {
@@ -29,7 +31,7 @@ func wrapCommandDarwin(cmd, dir string) (string, error) {
 		cfg = s.cfg
 		s.mu.RUnlock()
 	} else {
-		cfg = SandboxConfig{Mode: ModeAuto, Network: true}
+		cfg = SandboxConfig{Mode: sdk.SandboxAuto, Network: true}
 	}
 
 	profile := generateSeatbeltProfile(cfg, dir)

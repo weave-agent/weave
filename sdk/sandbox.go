@@ -2,6 +2,17 @@ package sdk
 
 //go:generate moq -fmt goimports -out sandbox_mock_test.go . Sandboxer
 
+// Sandbox modes.
+const (
+	SandboxOff      = "off"
+	SandboxReadonly = "readonly"
+	SandboxAsk      = "ask"
+	SandboxAuto     = "auto"
+)
+
+// SandboxModes is the ordered cycle of sandbox modes.
+var SandboxModes = []string{SandboxOff, SandboxReadonly, SandboxAsk, SandboxAuto}
+
 // Sandboxer wraps tool execution with OS-level sandboxing and path-based
 // access policy. Extensions register a Sandboxer via SetSandboxer; tools
 // query it via GetSandboxer (nil-safe).
@@ -15,6 +26,14 @@ type Sandboxer interface {
 
 	// AllowRead reports whether the given path is allowed for read operations.
 	AllowRead(path string) bool
+}
+
+// SandboxModer is an optional interface that Sandboxer implementations can
+// satisfy to expose the current mode and allow mode changes.
+type SandboxModer interface {
+	Sandboxer
+	Mode() string
+	SetMode(mode string)
 }
 
 var sandboxer Sandboxer

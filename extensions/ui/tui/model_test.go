@@ -2235,3 +2235,84 @@ func addTestAttachment(m Model, path, content string, lines int) Model {
 	m.attach = m.attach.Add(attachments.Attachment{Path: path, Content: content, Lines: lines})
 	return m
 }
+
+func TestModel_CycleSandboxMode(t *testing.T) {
+	defer sdk.SetSandboxer(nil)
+
+	sb := &mockSandboxModer{mode: sdk.SandboxAuto}
+	sdk.SetSandboxer(sb)
+
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	model, _ := m.dispatchBinding(ActionSandboxCycle)
+	m = model.(Model)
+
+	assert.Equal(t, sdk.SandboxOff, sb.mode, "auto -> off")
+	assert.Contains(t, m.statusMsg, "Sandbox mode: off")
+
+	model, _ = m.dispatchBinding(ActionSandboxCycle)
+	m = model.(Model)
+
+	assert.Equal(t, sdk.SandboxReadonly, sb.mode, "off -> readonly")
+	assert.Contains(t, m.statusMsg, "Sandbox mode: readonly")
+}
+
+func TestModel_CycleSandboxMode_NoSandboxer(t *testing.T) {
+	defer sdk.SetSandboxer(nil)
+
+	sdk.SetSandboxer(nil)
+
+	m := newModel(nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	model, _ := m.dispatchBinding(ActionSandboxCycle)
+	m = model.(Model)
+
+	assert.Contains(t, m.statusMsg, "not available")
+}
+
+func TestModel_CycleSandboxMode_PublishesBusEvent(t *testing.T) {
+	defer sdk.SetSandboxer(nil)
+
+	b := bus.New()
+	defer b.Close()
+
+	ch := subscribeToChan(b, "sandbox.mode.change")
+
+	sb := &mockSandboxModer{mode: sdk.SandboxAuto}
+	sdk.SetSandboxer(sb)
+
+	m := newModel(b, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	model, _ := m.dispatchBinding(ActionSandboxCycle)
+	m = model.(Model)
+
+	assert.Equal(t, sdk.SandboxOff, sb.mode)
+
+	evt := <-ch
+	assert.Equal(t, "sandbox.mode.change", evt.Topic)
+	assert.Equal(t, sdk.SandboxOff, evt.Payload.(string))
+}
+
+func TestNextSandboxMode(t *testing.T) {
+	assert.Equal(t, sdk.SandboxReadonly, nextSandboxMode(sdk.SandboxOff))
+	assert.Equal(t, sdk.SandboxAsk, nextSandboxMode(sdk.SandboxReadonly))
+	assert.Equal(t, sdk.SandboxAuto, nextSandboxMode(sdk.SandboxAsk))
+	assert.Equal(t, sdk.SandboxOff, nextSandboxMode(sdk.SandboxAuto))
+	assert.Equal(t, sdk.SandboxOff, nextSandboxMode("unknown"))
+}
+
+type mockSandboxModer struct {
+	mode string
+}
+
+func (m *mockSandboxModer) WrapCommand(cmd, dir string) (string, error) { return cmd, nil }
+func (m *mockSandboxModer) AllowWrite(path string) bool                 { return true }
+func (m *mockSandboxModer) AllowRead(path string) bool                  { return true }
+func (m *mockSandboxModer) Mode() string                                { return m.mode }
+func (m *mockSandboxModer) SetMode(mode string)                         { m.mode = mode }

@@ -140,13 +140,13 @@ Four sandbox modes: `off` → `readonly` → `ask` → `auto` (default). The des
 - [x] run tests for all four tool modules — must pass before task 9
 
 ### Task 9: Create TUI sandbox extension
-- [ ] create `extensions/ui/sandbox/` directory with `go.mod` (module: `weave/extensions/ui/sandbox`)
-- [ ] implement `init()` with `sdk.RegisterUIExtension(&SandboxUI{})`
-- [ ] `Register(ui)`: call `ui.SetStatus("sandbox", "SB:auto")` for initial mode display
-- [ ] `Register(ui)`: call `ui.RegisterKeybinding(sdk.Keybinding{Name: "sandbox.cycle", Keys: []string{"ctrl+s"}, Description: "Cycle sandbox mode"})`
-- [ ] listen for `sandbox.mode.change` events to update footer status pill
-- [ ] write tests for UI extension registration and status updates
-- [ ] run `cd extensions/ui/sandbox && go test ./...` — must pass before task 10
+- [x] create `extensions/ui/sandbox/` directory with `go.mod` (module: `weave/ext/ui/sandbox`)
+- [x] implement `init()` with `sdk.RegisterUIExtension(&SandboxUI{})`
+- [x] `Register(ui)`: call `ui.SetStatus("sandbox", "SB:auto")` for initial mode display
+- [x] `Register(ui)`: call `ui.RegisterKeybinding(sdk.Keybinding{Name: "sandbox.cycle", Keys: []string{"ctrl+s"}, Description: "Cycle sandbox mode"})`
+- [x] listen for `sandbox.mode.change` events to update footer status pill
+- [x] write tests for UI extension registration and status updates
+- [x] run `cd extensions/ui/sandbox && go test ./...` — must pass before task 10
 
 ### Task 10: Implement ask-mode approval dialog in TUI
 - [ ] create `extensions/ui/sandbox/dialog.go` with `ApproveDialog` implementing TUI dialog interface

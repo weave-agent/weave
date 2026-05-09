@@ -158,7 +158,7 @@ func TestWrapCommandDarwin_WithSandboxExec(t *testing.T) {
 		t.Skip("darwin only")
 	}
 
-	s := &Sandbox{cfg: SandboxConfig{Mode: ModeAuto, Network: true}}
+	s := &Sandbox{cfg: SandboxConfig{Mode: sdk.SandboxAuto, Network: true}}
 
 	sdk.SetSandboxer(s)
 	defer sdk.SetSandboxer(nil)

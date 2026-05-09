@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"weave/sdk"
 )
 
 func bwrapAvailable() error {
@@ -29,7 +31,7 @@ func wrapCommandLinux(cmd, dir string) (string, error) {
 		cfg = s.cfg
 		s.mu.RUnlock()
 	} else {
-		cfg = SandboxConfig{Mode: ModeAuto, Network: true}
+		cfg = SandboxConfig{Mode: sdk.SandboxAuto, Network: true}
 	}
 
 	args := buildBwrapArgs(cfg, dir)
