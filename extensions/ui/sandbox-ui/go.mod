@@ -1,4 +1,4 @@
-module weave/ext/ui/sandbox
+module weave/ext/ui/sandboxui
 
 go 1.26.2
 

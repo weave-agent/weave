@@ -518,3 +518,69 @@ func homeDir(t *testing.T) string {
 
 	return dir
 }
+
+func TestResolveAbs_SymlinkInPath(t *testing.T) {
+	// Create a symlink inside a temp dir pointing to another temp dir.
+	project := t.TempDir()
+	target := t.TempDir()
+
+	link := filepath.Join(project, "link-out")
+	require.NoError(t, os.Symlink(target, link))
+
+	// Request a non-existent path through the symlink.
+	requested := filepath.Join(link, "newdir", "file.txt")
+	resolved := resolveAbs(requested)
+
+	// Resolve the target through any OS-level symlinks (macOS /var → /private/var).
+	realTarget, err := filepath.EvalSymlinks(target)
+	require.NoError(t, err)
+
+	assert.Equal(t, filepath.Join(realTarget, "newdir", "file.txt"), resolved,
+		"should resolve symlink even when intermediate dirs don't exist")
+}
+
+func TestResolveAbs_SymlinkDotDotBypass(t *testing.T) {
+	// Simulate the attack: /project/link -> /tmp/out/subdir
+	// A path like link/../secret should resolve through the symlink,
+	// not be cleaned to /project/secret before symlink evaluation.
+	project := t.TempDir()
+	outer := t.TempDir()
+	subdir := filepath.Join(outer, "subdir")
+	require.NoError(t, os.MkdirAll(subdir, 0o755))
+
+	link := filepath.Join(project, "link")
+	require.NoError(t, os.Symlink(subdir, link))
+
+	// Use raw string concatenation (not filepath.Join) to preserve '..'.
+	requested := link + "/../secret"
+	resolved := resolveAbs(requested)
+
+	// Expected: resolve link -> /tmp/out/subdir, then .. -> /tmp/out, then secret.
+	realOuter, err := filepath.EvalSymlinks(outer)
+	require.NoError(t, err)
+
+	assert.Equal(t, filepath.Join(realOuter, "secret"), resolved,
+		"should follow symlink before processing .., not clean first")
+}
+
+func TestSandbox_ModeAsk_DenyWriteOverridesApproval(t *testing.T) {
+	bus := newStubBus()
+	s := &Sandbox{
+		cfg: SandboxConfig{
+			Mode:      sdk.SandboxAsk,
+			DenyWrite: []string{"/project/secret"},
+		},
+		headless: false,
+	}
+	s.bus = bus
+	require.NoError(t, s.Subscribe(bus))
+
+	// DenyWrite should block even in ask mode, before prompting.
+	assert.False(t, s.AllowWrite("/project/secret/key"),
+		"deny_write should block in ask mode without prompting")
+	// Verify no approve event was published (prompt was never shown).
+	for _, ev := range bus.events() {
+		assert.NotEqual(t, "sandbox.approve", ev.Topic,
+			"should not prompt for deny_write blocked path")
+	}
+}

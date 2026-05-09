@@ -55,7 +55,7 @@ func (m *mockSandboxer) SetMode(mode string)                         { m.mode = 
 
 func TestSandboxUI_Name(t *testing.T) {
 	s := &SandboxUI{}
-	assert.Equal(t, "sandbox", s.Name())
+	assert.Equal(t, "sandbox-ui", s.Name())
 }
 
 func TestSandboxUI_Register_SetsStatus(t *testing.T) {

@@ -15,8 +15,8 @@ type SandboxUI struct {
 	dialog ApproveDialog
 }
 
-// Name returns the extension name.
-func (s *SandboxUI) Name() string { return "sandbox" }
+// Name returns the extension name, matching the directory used by AutoDiscover.
+func (s *SandboxUI) Name() string { return "sandbox-ui" }
 
 // Register wires the sandbox mode indicator and keybinding into the TUI.
 func (s *SandboxUI) Register(ui sdk.UI) {

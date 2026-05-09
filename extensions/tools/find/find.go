@@ -59,6 +59,14 @@ func isSkipDir(name string) bool {
 	return name == ".git" || name == "node_modules" || name == ".hg" || name == ".svn"
 }
 
+func allowRead(path string) bool {
+	if s := sdk.GetSandboxer(); s != nil {
+		return s.AllowRead(path)
+	}
+
+	return true
+}
+
 func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, error) {
 	pattern, _ := args[ParamPattern].(string)
 	if pattern == "" {
@@ -111,14 +119,14 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 				return filepath.SkipDir
 			}
 
-			if rel != "." && matchName(pattern, name, rel) {
+			if rel != "." && matchName(pattern, name, rel) && allowRead(walkPath) {
 				matches = append(matches, rel)
 			}
 
 			return nil
 		}
 
-		if matchName(pattern, d.Name(), rel) {
+		if matchName(pattern, d.Name(), rel) && allowRead(walkPath) {
 			matches = append(matches, rel)
 		}
 

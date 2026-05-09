@@ -204,7 +204,7 @@ func TestIntegration_ExtensionInitAndWireInBuiltBinary(t *testing.T) {
 	require.NoError(t, err)
 
 	buildDir := t.TempDir()
-	binPath, err := Build(buildDir, moduleRoot, "noop", false, exts)
+	binPath, err := Build(buildDir, moduleRoot, "noop", true, exts)
 	require.NoError(t, err, "Build")
 
 	markerFile := filepath.Join(t.TempDir(), "marker.txt")

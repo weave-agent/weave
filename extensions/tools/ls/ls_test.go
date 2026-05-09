@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"weave/sdk"
@@ -176,6 +177,27 @@ func TestExecuteSandboxNil(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, result.IsError)
 	assert.Contains(t, result.Content, "normal.txt")
+}
+
+func TestExecuteSandboxPerEntryFiltering(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "visible.txt"), []byte("a"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".env"), []byte("secret"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "readme.md"), []byte("b"), 0o644))
+
+	// Allow the directory and visible files, but deny .env.
+	sandboxer := &testSandboxer{allowReadFn: func(p string) bool {
+		return !strings.HasSuffix(p, "/.env")
+	}}
+	sdk.SetSandboxer(sandboxer)
+	t.Cleanup(func() { sdk.SetSandboxer(nil) })
+
+	result, err := (&tool{}).Execute(context.Background(), map[string]any{"path": dir})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+	assert.Contains(t, result.Content, "visible.txt")
+	assert.Contains(t, result.Content, "readme.md")
+	assert.NotContains(t, result.Content, ".env", ".env should be filtered out by sandbox")
 }
 
 type testSandboxer struct {

@@ -4,8 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -68,7 +66,8 @@ func NewSandbox(cfg sdk.Config) (*Sandbox, error) {
 	}
 
 	headless := cfg == nil || cfg.IsHeadless()
-	cwd, _ := os.Getwd()
+	cwd := resolveAbsUnsafe()
+
 	s := &Sandbox{cfg: sc, headless: headless, cwd: cwd}
 	sdk.SetSandboxer(s)
 
@@ -229,22 +228,29 @@ func (s *Sandbox) AllowWrite(path string) bool {
 		return false
 	}
 
-	if isDeniedWrite(path) {
+	abs := resolveAbs(path)
+
+	if isDeniedWrite(abs) {
 		return false
 	}
 
+	// User-configured deny rules are enforced in all modes (hard policy).
 	for _, deny := range cfg.DenyWrite {
-		if pathMatches(path, deny) {
+		if pathMatches(abs, deny) {
 			return false
 		}
 	}
 
-	if len(cfg.Writable) == 0 {
-		abs, err := filepath.Abs(path)
-		if err != nil {
-			abs = path
+	// Ask mode: deny in headless, prompt in interactive.
+	if cfg.Mode == sdk.SandboxAsk {
+		if s.headless {
+			return false
 		}
 
+		return s.promptFileAccess(abs, "write")
+	}
+
+	if len(cfg.Writable) == 0 {
 		if s.cwd != "" {
 			return abs == s.cwd || strings.HasPrefix(abs, s.cwd+"/")
 		}
@@ -253,7 +259,7 @@ func (s *Sandbox) AllowWrite(path string) bool {
 	}
 
 	for _, w := range cfg.Writable {
-		if pathMatches(path, w) {
+		if pathMatches(abs, w) {
 			return true
 		}
 	}
@@ -271,12 +277,14 @@ func (s *Sandbox) AllowRead(path string) bool {
 		return true
 	}
 
-	if isDeniedRead(path) {
+	abs := resolveAbs(path)
+
+	if isDeniedRead(abs) {
 		return false
 	}
 
 	for _, deny := range cfg.DenyRead {
-		if pathMatches(path, deny) {
+		if pathMatches(abs, deny) {
 			return false
 		}
 	}
@@ -284,15 +292,75 @@ func (s *Sandbox) AllowRead(path string) bool {
 	return true
 }
 
+// noWritable is a sentinel indicating the sandbox should have zero write paths.
+// nil/empty Writable means "use default (CWD)", while []string{""} means "no writes".
+var noWritable = []string{""}
+
 // wrapCommandReadonly wraps a command with no writable paths in the sandbox profile.
 func (s *Sandbox) wrapCommandReadonly(cmd, dir string) (string, error) {
 	s.mu.RLock()
 	cfg := s.cfg
 	s.mu.RUnlock()
 
-	cfg.Writable = nil
+	cfg.Writable = noWritable
 
 	return wrapCommandPlatformWithConfig(cmd, dir, cfg)
+}
+
+// promptFileAccess asks the user to approve a file operation via the TUI dialog.
+func (s *Sandbox) promptFileAccess(path, op string) bool {
+	if s.bus == nil {
+		return false
+	}
+
+	label := op + ": " + path
+
+	// Check session allowlist before prompting.
+	s.mu.RLock()
+
+	for _, pattern := range s.allowlist {
+		if label == pattern || strings.HasPrefix(label, pattern+" ") {
+			s.mu.RUnlock()
+
+			return true
+		}
+	}
+
+	closed := s.closed
+	s.mu.RUnlock()
+
+	if closed {
+		return false
+	}
+
+	result := make(chan bool, 1)
+
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		return false
+	}
+
+	s.pending = append(s.pending, &askPending{cmd: label, result: result})
+	s.mu.Unlock()
+
+	s.bus.Publish(sdk.NewEvent("sandbox.approve", map[string]string{"command": label}))
+
+	select {
+	case approved := <-result:
+		return approved
+	case <-time.After(5 * time.Minute):
+		s.mu.Lock()
+		for i, p := range s.pending {
+			if p.cmd == label {
+				s.pending = append(s.pending[:i], s.pending[i+1:]...)
+				break
+			}
+		}
+		s.mu.Unlock()
+
+		return false
+	}
 }
 
 // wrapCommandAsk publishes an approval request on the bus and waits for a response.

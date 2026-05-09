@@ -31,7 +31,10 @@ func generateSeatbeltProfile(cfg SandboxConfig, dir string) string {
 	}
 
 	writable := cfg.Writable
-	if len(writable) == 0 {
+	if len(writable) == 1 && writable[0] == "" {
+		// Sentinel: explicitly no writable paths (readonly mode).
+		writable = nil
+	} else if len(writable) == 0 {
 		writable = []string{dir}
 	}
 

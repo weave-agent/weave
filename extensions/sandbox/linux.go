@@ -4,8 +4,10 @@ package sandbox
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -35,7 +37,10 @@ func buildBwrapArgs(cfg SandboxConfig, dir string) []string {
 
 	// Writable paths
 	writable := cfg.Writable
-	if len(writable) == 0 {
+	if len(writable) == 1 && writable[0] == "" {
+		// Sentinel: explicitly no writable paths (readonly mode).
+		writable = nil
+	} else if len(writable) == 0 {
 		writable = []string{dir}
 	}
 	for _, w := range writable {
@@ -68,9 +73,34 @@ func buildBwrapArgs(cfg SandboxConfig, dir string) []string {
 	// Mandatory deny read paths (SSH keys, AWS credentials, .env files)
 	for _, pattern := range mandatoryDenyReadPatterns {
 		expanded := expandHome(pattern, home)
-		// Skip glob patterns — they can't be mapped to bwrap args directly.
-		// The policy-level AllowRead check handles glob matching for file tools.
+
+		if strings.Contains(expanded, "**/") {
+			// Recursive glob: filepath.Glob does not support '**', so walk
+			// the project directory to find matching files.
+			parts := strings.SplitN(expanded, "**/", 2)
+			suffix := parts[1]
+			filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+				if err != nil || d.IsDir() {
+					return nil
+				}
+
+				if m, _ := filepath.Match(suffix, filepath.Base(path)); m {
+					args = append(args, "--ro-bind-try", "/dev/null", path)
+				}
+
+				return nil
+			})
+
+			continue
+		}
+
 		if strings.Contains(expanded, "*") {
+			// Expand simple globs (e.g. ~/.ssh/id_*) to individual file entries.
+			matches, _ := filepath.Glob(expanded)
+			for _, m := range matches {
+				args = append(args, "--ro-bind-try", "/dev/null", m)
+			}
+
 			continue
 		}
 

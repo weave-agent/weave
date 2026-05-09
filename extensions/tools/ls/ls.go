@@ -43,12 +43,12 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		path = "."
 	}
 
-	if s := sdk.GetSandboxer(); s != nil {
-		absPath, err := filepath.Abs(path)
-		if err != nil {
-			return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
-		}
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
+	}
 
+	if s := sdk.GetSandboxer(); s != nil {
 		if !s.AllowRead(absPath) {
 			return sdk.ToolResult{Content: "sandbox: read denied — path is protected", IsError: true}, nil
 		}
@@ -72,9 +72,15 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		return sdk.ToolResult{Content: "(empty directory)", IsError: false}, nil
 	}
 
+	sb := sdk.GetSandboxer()
+
 	var lines []string
 
 	for _, e := range entries {
+		if sb != nil && !sb.AllowRead(filepath.Join(absPath, e.Name())) {
+			continue
+		}
+
 		if e.IsDir() {
 			lines = append(lines, e.Name()+"/")
 		} else {
