@@ -85,7 +85,7 @@ func isDeniedRead(path string) bool {
 func pathMatches(path, pattern string) bool {
 	if pattern == "." || pattern == "" {
 		cwd, _ := os.Getwd()
-		return strings.HasPrefix(path, cwd)
+		return path == cwd || strings.HasPrefix(path, cwd+"/")
 	}
 
 	home, _ := os.UserHomeDir()

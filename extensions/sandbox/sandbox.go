@@ -294,7 +294,7 @@ func (s *Sandbox) wrapCommandAsk(cmd string) (string, error) {
 	s.mu.RLock()
 
 	for _, pattern := range s.allowlist {
-		if pathMatches(cmd, pattern) {
+		if cmd == pattern || strings.HasPrefix(cmd, pattern+" ") {
 			s.mu.RUnlock()
 
 			return cmd, nil

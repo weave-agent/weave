@@ -1492,6 +1492,10 @@ func (m Model) cycleSandboxMode() (tea.Model, tea.Cmd) {
 	next := sdk.NextSandboxMode(current)
 	sb.SetMode(next)
 
+	if m.bus != nil {
+		m.bus.Publish(sdk.NewEvent("sandbox.mode.change", next))
+	}
+
 	if m.ui != nil {
 		m.ui.SetStatus("sandbox", "SB:"+next)
 	}

@@ -149,7 +149,7 @@ Built-in bindings: Escape=interrupt, Ctrl+C=double-press (first clears editor, s
 - `WEAVE_THINKING_LEVEL` environment variable for initial level
 - Models that don't support xhigh (e.g. Sonnet) are automatically clamped to high
 
-**Sandbox modes** control OS-level tool execution guard. Four modes: `off` (no restrictions), `readonly` (writes blocked, file tools denied), `ask` (prompt per write/command via TUI dialog, denied in headless), `auto` (default, sandbox wraps bash commands and enforces path policy). Configured via:
+**Sandbox modes** control OS-level tool execution guard. Four modes: `off` (no restrictions), `readonly` (writes blocked, file tools denied), `ask` (prompt per bash command via TUI dialog, file tools use path policy, denied in headless), `auto` (default, sandbox wraps bash commands and enforces path policy). Configured via:
 - Ctrl+S cycles through modes (footer status pill shows `SB:off`, `SB:readonly`, `SB:ask`, `SB:auto`)
 - `.weave.yaml` `sandbox.mode` for initial mode
 - Bus events: `sandbox.mode.change` (switch mode), `sandbox.approve`/`sandbox.approved`/`sandbox.denied` (ask-mode approval), `sandbox.trust` (session allowlist pattern)
