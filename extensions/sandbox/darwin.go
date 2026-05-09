@@ -66,6 +66,26 @@ func generateSeatbeltProfile(cfg SandboxConfig, dir string) string {
 	fmt.Fprintf(&b, "(deny file-write* (literal %q))\n", filepath.Join(dir, ".git", "config"))
 	fmt.Fprintf(&b, "(deny file-write* (subpath %q))\n", filepath.Join(dir, ".weave"))
 
+	// User-configured deny write paths
+	for _, deny := range cfg.DenyWrite {
+		expanded := expandDenyRule(deny, home, dir)
+		if strings.HasSuffix(deny, "/") {
+			fmt.Fprintf(&b, "(deny file-write* (subpath %q))\n", strings.TrimSuffix(expanded, "/"))
+		} else {
+			fmt.Fprintf(&b, "(deny file-write* (literal %q))\n", expanded)
+		}
+	}
+
+	// User-configured deny read paths
+	for _, deny := range cfg.DenyRead {
+		expanded := expandDenyRule(deny, home, dir)
+		if strings.HasSuffix(deny, "/") {
+			fmt.Fprintf(&b, "(deny file-read* (subpath %q))\n", strings.TrimSuffix(expanded, "/"))
+		} else {
+			fmt.Fprintf(&b, "(deny file-read* (literal %q))\n", expanded)
+		}
+	}
+
 	// Process rules
 	b.WriteString("(allow process-exec)\n")
 	b.WriteString("(allow process-fork)\n")

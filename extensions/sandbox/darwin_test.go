@@ -119,6 +119,46 @@ func TestGenerateSeatbeltProfile_WriteDenyWeaveDir(t *testing.T) {
 	assert.Contains(t, profile, `(deny file-write* (subpath "/tmp/project/.weave"))`)
 }
 
+func TestGenerateSeatbeltProfile_UserDenyWriteDirs(t *testing.T) {
+	cfg := SandboxConfig{
+		DenyWrite: []string{"/secret/dir/"},
+		Network:   true,
+	}
+	profile := generateSeatbeltProfile(cfg, "/tmp/project")
+
+	assert.Contains(t, profile, `(deny file-write* (subpath "/secret/dir"))`)
+}
+
+func TestGenerateSeatbeltProfile_UserDenyWriteFiles(t *testing.T) {
+	cfg := SandboxConfig{
+		DenyWrite: []string{"/secret/file.txt"},
+		Network:   true,
+	}
+	profile := generateSeatbeltProfile(cfg, "/tmp/project")
+
+	assert.Contains(t, profile, `(deny file-write* (literal "/secret/file.txt"))`)
+}
+
+func TestGenerateSeatbeltProfile_UserDenyReadDirs(t *testing.T) {
+	cfg := SandboxConfig{
+		DenyRead: []string{"/private/docs/"},
+		Network:  true,
+	}
+	profile := generateSeatbeltProfile(cfg, "/tmp/project")
+
+	assert.Contains(t, profile, `(deny file-read* (subpath "/private/docs"))`)
+}
+
+func TestGenerateSeatbeltProfile_UserDenyReadFiles(t *testing.T) {
+	cfg := SandboxConfig{
+		DenyRead: []string{"/private/secret.key"},
+		Network:  true,
+	}
+	profile := generateSeatbeltProfile(cfg, "/tmp/project")
+
+	assert.Contains(t, profile, `(deny file-read* (literal "/private/secret.key"))`)
+}
+
 func TestGenerateSeatbeltProfile_ProcessRules(t *testing.T) {
 	profile := generateSeatbeltProfile(SandboxConfig{Network: true}, "/tmp/project")
 

@@ -100,6 +100,36 @@ func TestBuildBwrapArgs_UserDenyWriteFiles(t *testing.T) {
 	assert.Contains(t, joined, "--ro-bind-try /dev/null /secret/file.txt")
 }
 
+func TestBuildBwrapArgs_MandatoryDenyReadAWSCredentials(t *testing.T) {
+	home, _ := os.UserHomeDir()
+	args := buildBwrapArgs(SandboxConfig{Network: true}, "/tmp/project")
+	joined := strings.Join(args, " ")
+
+	assert.Contains(t, joined, "--ro-bind-try /dev/null "+filepath.Join(home, ".aws", "credentials"))
+}
+
+func TestBuildBwrapArgs_UserDenyReadDirs(t *testing.T) {
+	cfg := SandboxConfig{
+		DenyRead: []string{"/private/docs/"},
+		Network:  true,
+	}
+	args := buildBwrapArgs(cfg, "/tmp/project")
+	joined := strings.Join(args, " ")
+
+	assert.Contains(t, joined, "--tmpfs /private/docs")
+}
+
+func TestBuildBwrapArgs_UserDenyReadFiles(t *testing.T) {
+	cfg := SandboxConfig{
+		DenyRead: []string{"/private/secret.key"},
+		Network:  true,
+	}
+	args := buildBwrapArgs(cfg, "/tmp/project")
+	joined := strings.Join(args, " ")
+
+	assert.Contains(t, joined, "--ro-bind-try /dev/null /private/secret.key")
+}
+
 func TestBuildBwrapArgs_PIDIsolation(t *testing.T) {
 	args := buildBwrapArgs(SandboxConfig{Network: true}, "/tmp/project")
 	joined := strings.Join(args, " ")

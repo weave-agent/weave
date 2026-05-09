@@ -1,6 +1,7 @@
 package sandbox
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -148,6 +149,6 @@ func wrapCommandPlatformWithConfig(cmd, dir string, cfg SandboxConfig) (string, 
 	case "linux":
 		return wrapCommandLinuxWithConfig(cmd, dir, cfg)
 	default:
-		return cmd, nil
+		return "", fmt.Errorf("sandbox: unsupported platform %s", runtime.GOOS)
 	}
 }
