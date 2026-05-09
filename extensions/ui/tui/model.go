@@ -1508,9 +1508,7 @@ func (m Model) cycleSandboxMode() (tea.Model, tea.Cmd) {
 		m.bus.Publish(sdk.NewEvent("sandbox.mode.change", next))
 	}
 
-	if m.ui != nil {
-		m.ui.SetStatus("sandbox", "SB:"+next)
-	}
+	m.footer = m.footer.SetExtStatus("sandbox", "SB:"+next)
 
 	m.showStatus("Sandbox mode: " + next)
 
