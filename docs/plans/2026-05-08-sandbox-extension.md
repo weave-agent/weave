@@ -53,7 +53,7 @@ Four sandbox modes: `off` → `readonly` → `ask` → `auto` (default). The des
 ## Implementation Steps
 
 ### Task 1: Add Sandboxer interface to SDK
-- [ ] create `sdk/sandbox.go` with `Sandboxer` interface:
+- [x] create `sdk/sandbox.go` with `Sandboxer` interface:
   ```go
   type Sandboxer interface {
       WrapCommand(cmd, dir string) (string, error) // wraps bash commands in OS sandbox
@@ -61,11 +61,11 @@ Four sandbox modes: `off` → `readonly` → `ask` → `auto` (default). The des
       AllowRead(path string) bool                  // checks if file tool can read from path
   }
   ```
-- [ ] add package-level `sandboxer` var with `SetSandboxer()` / `GetSandboxer()` (nil-safe, no registry)
-- [ ] add `//go:generate moq` directive for `Sandboxer`
-- [ ] write tests for `SetSandboxer`/`GetSandboxer` (set/get, nil default, overwrite)
-- [ ] run `make gen` to generate mocks
-- [ ] run `go test ./sdk/...` — must pass before task 2
+- [x] add package-level `sandboxer` var with `SetSandboxer()` / `GetSandboxer()` (nil-safe, no registry)
+- [x] add `//go:generate moq` directive for `Sandboxer`
+- [x] write tests for `SetSandboxer`/`GetSandboxer` (set/get, nil default, overwrite)
+- [x] run `make gen` to generate mocks
+- [x] run `go test ./sdk/...` — must pass before task 2
 
 ### Task 2: Create sandbox extension scaffold
 - [ ] create `extensions/sandbox/` directory with `go.mod` (module: `weave/extensions/sandbox`)
