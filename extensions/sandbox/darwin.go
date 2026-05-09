@@ -46,28 +46,15 @@ func generateSeatbeltProfile(cfg SandboxConfig, dir string) string {
 		fmt.Fprintf(&b, "(allow file-write* (subpath %q))\n", w)
 	}
 
-	// Mandatory write deny rules (directories)
-	denyDirs := []string{
-		filepath.Join(home, ".ssh"),
+	// Mandatory write deny rules
+	for _, deny := range mandatoryDenyWritePaths {
+		expanded := expandDenyRule(deny, home, dir)
+		if strings.HasSuffix(deny, "/") {
+			fmt.Fprintf(&b, "(deny file-write* (subpath %q))\n", expanded)
+		} else {
+			fmt.Fprintf(&b, "(deny file-write* (literal %q))\n", expanded)
+		}
 	}
-	for _, d := range denyDirs {
-		fmt.Fprintf(&b, "(deny file-write* (subpath %q))\n", d)
-	}
-
-	// Mandatory write deny rules (files)
-	denyFiles := []string{
-		filepath.Join(home, ".bashrc"),
-		filepath.Join(home, ".zshrc"),
-		filepath.Join(home, ".profile"),
-		filepath.Join(home, ".gitconfig"),
-	}
-	for _, f := range denyFiles {
-		fmt.Fprintf(&b, "(deny file-write* (literal %q))\n", f)
-	}
-
-	fmt.Fprintf(&b, "(deny file-write* (subpath %q))\n", filepath.Join(dir, ".git", "hooks"))
-	fmt.Fprintf(&b, "(deny file-write* (literal %q))\n", filepath.Join(dir, ".git", "config"))
-	fmt.Fprintf(&b, "(deny file-write* (subpath %q))\n", filepath.Join(dir, ".weave"))
 
 	// User-configured deny write paths
 	for _, deny := range cfg.DenyWrite {
