@@ -102,7 +102,7 @@ func (t *TUI) Subscribe(bus sdk.Bus) error {
 	t.ui.SetProgram(t.program)
 
 	// Register UI extensions.
-	t.wireUIExtensions()
+	t.wireUIExtensions(bus)
 
 	go Bridge(t.program, events)
 
@@ -131,9 +131,14 @@ func (t *TUI) Subscribe(bus sdk.Bus) error {
 }
 
 // wireUIExtensions registers all UI extensions with the TUI's UI implementation.
-func (t *TUI) wireUIExtensions() {
+// Extensions that implement UIExtensionWithBus also receive the event bus.
+func (t *TUI) wireUIExtensions(bus sdk.Bus) {
 	for _, ext := range sdk.GetUIExtensions() {
 		ext.Register(t.ui)
+
+		if withBus, ok := ext.(sdk.UIExtensionWithBus); ok {
+			withBus.RegisterWithBus(t.ui, bus)
+		}
 	}
 }
 

@@ -149,13 +149,13 @@ Four sandbox modes: `off` → `readonly` → `ask` → `auto` (default). The des
 - [x] run `cd extensions/ui/sandbox && go test ./...` — must pass before task 10
 
 ### Task 10: Implement ask-mode approval dialog in TUI
-- [ ] create `extensions/ui/sandbox/dialog.go` with `ApproveDialog` implementing TUI dialog interface
-- [ ] dialog shows command text, approve/deny/trust-for-session options
-- [ ] "trust for session" publishes `sandbox.trust` event — sandbox extension adds pattern to session allowlist
-- [ ] dialog integrates with existing `DialogStack` overlay system
-- [ ] listen for `sandbox.approve` bus events to trigger dialog display
-- [ ] write tests for dialog construction and approval/denial flows
-- [ ] run `cd extensions/ui/sandbox && go test ./...` — must pass before task 11
+- [x] create `extensions/ui/sandbox/dialog.go` with `ApproveDialog` implementing TUI dialog interface
+- [x] dialog shows command text, approve/deny/trust-for-session options
+- [x] "trust for session" publishes `sandbox.trust` event — sandbox extension adds pattern to session allowlist
+- [x] dialog integrates with existing `DialogStack` overlay system
+- [x] listen for `sandbox.approve` bus events to trigger dialog display
+- [x] write tests for dialog construction and approval/denial flows
+- [x] run `cd extensions/ui/sandbox && go test ./...` — must pass before task 11
 
 ### Task 11: Add sandbox config to .weave.yaml validation
 - [ ] update `config/validation.go` to validate `sandbox` section if present

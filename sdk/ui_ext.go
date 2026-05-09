@@ -7,3 +7,11 @@ type UIExtension interface {
 	Name() string
 	Register(ui UI)
 }
+
+// UIExtensionWithBus is an optional interface that UI extensions can implement
+// to receive the event bus during TUI wiring, enabling them to subscribe to
+// bus events and publish responses.
+type UIExtensionWithBus interface {
+	UIExtension
+	RegisterWithBus(ui UI, bus Bus)
+}

@@ -85,7 +85,7 @@ func TestTUI_WireUIExtensions(t *testing.T) {
 	tui, err := NewTUI(nil)
 	require.NoError(t, err)
 
-	tui.wireUIExtensions()
+	tui.wireUIExtensions(nil)
 
 	assert.True(t, ext.registerCalled, "expected Register to be called on UI extension")
 	assert.Equal(t, tui.ui, ext.registeredUI, "expected UI extension to receive TUI's UI implementation")
@@ -104,7 +104,7 @@ func TestTUI_WireUIExtensions_Multiple(t *testing.T) {
 	tui, err := NewTUI(nil)
 	require.NoError(t, err)
 
-	tui.wireUIExtensions()
+	tui.wireUIExtensions(nil)
 
 	assert.True(t, ext1.registerCalled, "expected Register to be called on ext-one")
 	assert.True(t, ext2.registerCalled, "expected Register to be called on ext-two")
@@ -121,6 +121,73 @@ func TestTUI_WireUIExtensions_EmptyRegistry(t *testing.T) {
 
 	// Should not panic with empty registry
 	assert.NotPanics(t, func() {
-		tui.wireUIExtensions()
+		tui.wireUIExtensions(nil)
 	})
+}
+
+// mockUIExtensionWithBus records whether RegisterWithBus was called.
+type mockUIExtensionWithBus struct {
+	name             string
+	registerCalled   bool
+	registeredUI     sdk.UI
+	busCalled        bool
+	registeredUIWith sdk.UI
+	registeredBus    sdk.Bus
+}
+
+// mockBus is a minimal sdk.Bus implementation for tests.
+type mockBus struct{}
+
+func (m *mockBus) Publish(_ sdk.Event)         {}
+func (m *mockBus) On(_ string, _ sdk.Handler)  {}
+func (m *mockBus) OnAll(_ sdk.Handler)         {}
+func (m *mockBus) Off(_ sdk.Handler)           {}
+func (m *mockBus) Close() error                { return nil }
+
+func (m *mockUIExtensionWithBus) Name() string { return m.name }
+func (m *mockUIExtensionWithBus) Register(ui sdk.UI) {
+	m.registerCalled = true
+	m.registeredUI = ui
+}
+func (m *mockUIExtensionWithBus) RegisterWithBus(ui sdk.UI, bus sdk.Bus) {
+	m.busCalled = true
+	m.registeredUIWith = ui
+	m.registeredBus = bus
+}
+
+func TestTUI_WireUIExtensions_WithBus(t *testing.T) {
+	sdk.ResetUIExtensionRegistry()
+	defer sdk.ResetUIExtensionRegistry()
+
+	ext := &mockUIExtensionWithBus{name: "bus-ext"}
+	sdk.RegisterUIExtension(ext)
+
+	tui, err := NewTUI(nil)
+	require.NoError(t, err)
+
+	bus := &mockBus{}
+	tui.wireUIExtensions(bus)
+
+	assert.True(t, ext.registerCalled, "expected Register to be called")
+	assert.True(t, ext.busCalled, "expected RegisterWithBus to be called")
+	assert.Equal(t, tui.ui, ext.registeredUIWith)
+	assert.Equal(t, bus, ext.registeredBus)
+}
+
+func TestTUI_WireUIExtensions_PlainExtension_NoBus(t *testing.T) {
+	sdk.ResetUIExtensionRegistry()
+	defer sdk.ResetUIExtensionRegistry()
+
+	ext := &mockUIExtension{name: "plain-ext"}
+	sdk.RegisterUIExtension(ext)
+
+	tui, err := NewTUI(nil)
+	require.NoError(t, err)
+
+	// Should not panic even with a bus when extension doesn't implement UIExtensionWithBus
+	assert.NotPanics(t, func() {
+		tui.wireUIExtensions(&mockBus{})
+	})
+
+	assert.True(t, ext.registerCalled)
 }
