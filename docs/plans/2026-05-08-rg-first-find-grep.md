@@ -67,12 +67,12 @@ Replace the pure Go grep implementation with rg-first, stdlib-fallback.
 
 Replace the pure Go find implementation with rg-first, stdlib-fallback.
 
-- [ ] implement `findWithRipgrep()` — shells out to `rg --files --glob <pattern> --null` with path; passes `--no-ignore` when `respect_gitignore` is false; parses null-separated output
-- [ ] add `**/` recursive pattern support: when pattern contains `/`, pass `--full-path` and prepend `**/` if needed (matches crush's approach)
-- [ ] refactor `Execute()` to try rg first, fall back to current stdlib `filepath.WalkDir` on rg failure
-- [ ] update find tool description to mention rg and glob support
-- [ ] write tests for rg path (skip if rg not in PATH), fallback path, `**/` patterns, existing test cases still pass
-- [ ] run tests — must pass before next task
+- [x] implement `findWithRipgrep()` — shells out to `rg --files --null` with path; passes `--no-ignore` when `respect_gitignore` is false; parses null-separated output and filters by pattern in Go (avoids rg --glob overriding gitignore)
+- [x] add `**/` recursive pattern support: pattern matched via component-wise segment matching when pattern contains `**/`
+- [x] refactor `Execute()` to try rg first, fall back to current stdlib `filepath.WalkDir` on rg failure
+- [x] update find tool description to mention rg and glob support
+- [x] write tests for rg path (skip if rg not in PATH), fallback path, `**/` patterns, existing test cases still pass
+- [x] run tests — must pass before next task
 
 ### Task 5: Update go.mod for both tool modules
 

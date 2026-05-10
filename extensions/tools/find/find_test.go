@@ -3,10 +3,12 @@ package find
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
 	"weave/sdk"
+	"weave/utils/ripgrep"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -144,6 +146,24 @@ func TestExecute(t *testing.T) {
 				assert.Contains(t, result.Content, "not a directory")
 			},
 		},
+		{
+			name: "recursive doublestar pattern",
+			setup: func(t *testing.T) string {
+				dir := t.TempDir()
+				require.NoError(t, os.MkdirAll(filepath.Join(dir, "src", "pkg"), 0o755))
+				require.NoError(t, os.MkdirAll(filepath.Join(dir, "cmd"), 0o755))
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "src", "pkg", "main.go"), []byte("package main"), 0o644))
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "src", "pkg", "util.go"), []byte("package pkg"), 0o644))
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "cmd", "root.go"), []byte("package cmd"), 0o644))
+
+				return dir
+			},
+			args: map[string]any{"pattern": "**/pkg/*.go"},
+			check: func(t *testing.T, result sdk.ToolResult) {
+				assert.Contains(t, result.Content, "main.go")
+				assert.Contains(t, result.Content, "util.go")
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -214,6 +234,126 @@ func TestExecuteSandboxNil(t *testing.T) {
 	assert.False(t, result.IsError)
 	assert.Contains(t, result.Content, "normal.txt")
 }
+
+func TestRespectGitignore(t *testing.T) {
+	if _, err := exec.LookPath("rg"); err != nil {
+		t.Skip("rg not in PATH")
+	}
+
+	dir := t.TempDir()
+
+	// Initialize git repo so rg picks up .gitignore
+	require.NoError(t, exec.Command("git", "init", dir).Run())
+	require.NoError(t, exec.Command("git", "-C", dir, "config", "user.email", "test@test.com").Run())
+	require.NoError(t, exec.Command("git", "-C", dir, "config", "user.name", "test").Run())
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("ignored.txt\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "ignored.txt"), []byte("ignored"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "visible.txt"), []byte("visible"), 0o644))
+
+	// Stage .gitignore so rg recognizes the repo properly
+	require.NoError(t, exec.Command("git", "-C", dir, "add", ".gitignore").Run())
+	require.NoError(t, exec.Command("git", "-C", dir, "commit", "-m", "init").Run())
+
+	// With respect_gitignore=true (default), ignored.txt should be excluded
+	cfg := &testConfig{respectGitignore: true}
+	tt := &tool{cfg: cfg}
+
+	result, err := tt.Execute(context.Background(), map[string]any{
+		"pattern": "*.txt",
+		"path":    dir,
+	})
+	require.NoError(t, err)
+	assert.Contains(t, result.Content, "visible.txt")
+	assert.NotContains(t, result.Content, "ignored.txt")
+
+	// With respect_gitignore=false, ignored.txt should be included
+	cfg.respectGitignore = false
+
+	result, err = tt.Execute(context.Background(), map[string]any{
+		"pattern": "*.txt",
+		"path":    dir,
+	})
+	require.NoError(t, err)
+	assert.Contains(t, result.Content, "visible.txt")
+	assert.Contains(t, result.Content, "ignored.txt")
+}
+
+func TestRgFallback(t *testing.T) {
+	// Force fallback by providing an invalid rg path
+	origFind := ripgrep.Find
+	ripgrep.Find = func() string { return "" }
+
+	t.Cleanup(func() { ripgrep.Find = origFind })
+
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.go"), []byte("package main"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "b.txt"), []byte("hello"), 0o644))
+
+	result, err := (&tool{}).Execute(context.Background(), map[string]any{
+		"pattern": "*.go",
+		"path":    dir,
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+	assert.Contains(t, result.Content, "a.go")
+	assert.NotContains(t, result.Content, "b.txt")
+}
+
+func TestRgPathDirect(t *testing.T) {
+	// Test the rg path directly when rg is available
+	if _, err := exec.LookPath("rg"); err != nil {
+		t.Skip("rg not in PATH")
+	}
+
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "src"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "src", "main.go"), []byte("package main"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "readme.md"), []byte("# hello"), 0o644))
+
+	result, err := (&tool{}).Execute(context.Background(), map[string]any{
+		"pattern": "*.go",
+		"path":    dir,
+	})
+	require.NoError(t, err)
+	assert.Contains(t, result.Content, "main.go")
+	assert.NotContains(t, result.Content, "readme.md")
+}
+
+func TestDoubleStarPatternWithSlash(t *testing.T) {
+	if _, err := exec.LookPath("rg"); err != nil {
+		t.Skip("rg not in PATH")
+	}
+
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "src", "pkg"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "lib"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "src", "pkg", "handler.go"), []byte("package pkg"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "lib", "handler.go"), []byte("package lib"), 0o644))
+
+	result, err := (&tool{}).Execute(context.Background(), map[string]any{
+		"pattern": "**/pkg/*.go",
+		"path":    dir,
+	})
+	require.NoError(t, err)
+	assert.Contains(t, result.Content, "handler.go")
+}
+
+type testConfig struct {
+	respectGitignore bool
+}
+
+func (c *testConfig) FilePath() string                               { return "" }
+func (c *testConfig) ProviderConfig(string) *sdk.ProviderConfigEntry { return nil }
+func (c *testConfig) ResolveKey(_, envVar string) (string, error)    { return "", nil }
+func (c *testConfig) ToolConfig(string, any) error                   { return nil }
+func (c *testConfig) UIConfig(any) error                             { return nil }
+func (c *testConfig) IsHeadless() bool                               { return false }
+func (c *testConfig) RespectGitignore() bool                         { return c.respectGitignore }
+func (c *testConfig) Preferences(any) error                          { return nil }
+func (c *testConfig) SavePreferences(any) error                      { return nil }
+func (c *testConfig) ProviderHasKey(string) bool                     { return false }
+func (c *testConfig) SetProviderKey(string, string) error            { return nil }
 
 type testSandboxer struct {
 	allowReadFn  func(string) bool
