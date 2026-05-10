@@ -135,6 +135,35 @@ func TestMergeSettings_ThreeLayers(t *testing.T) {
 	assert.Equal(t, 20, result.UI.EditorMaxLines)
 }
 
+func TestMergeSettings_RespectGitignore(t *testing.T) {
+	t.Run("nil preserved when no layer sets it", func(t *testing.T) {
+		result := MergeSettings(&Settings{Provider: "anthropic"})
+		assert.Nil(t, result.RespectGitignore)
+	})
+
+	t.Run("explicit value wins", func(t *testing.T) {
+		v := false
+		result := MergeSettings(&Settings{RespectGitignore: &v})
+		require.NotNil(t, result.RespectGitignore)
+		assert.False(t, *result.RespectGitignore)
+	})
+
+	t.Run("later layer overrides", func(t *testing.T) {
+		t1 := true
+		f1 := false
+		result := MergeSettings(&Settings{RespectGitignore: &t1}, &Settings{RespectGitignore: &f1})
+		require.NotNil(t, result.RespectGitignore)
+		assert.False(t, *result.RespectGitignore)
+	})
+
+	t.Run("nil layer does not clear value", func(t *testing.T) {
+		v := true
+		result := MergeSettings(&Settings{RespectGitignore: &v}, &Settings{Provider: "openai"})
+		require.NotNil(t, result.RespectGitignore)
+		assert.True(t, *result.RespectGitignore)
+	})
+}
+
 func TestLoadLayeredSettings_NoFiles(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

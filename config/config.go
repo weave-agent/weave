@@ -421,6 +421,21 @@ func (c *FullConfig) UIConfig(target any) error {
 
 func (c *FullConfig) IsHeadless() bool { return false }
 
+func (c *FullConfig) RespectGitignore() bool {
+	configDir := c.effectiveProjectDir()
+
+	settings, err := LoadLayeredSettings(configDir)
+	if err != nil {
+		return true
+	}
+
+	if settings.RespectGitignore == nil {
+		return true
+	}
+
+	return *settings.RespectGitignore
+}
+
 func (c *FullConfig) Preferences(target any) error {
 	applyDefaults(target)
 

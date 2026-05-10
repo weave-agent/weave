@@ -43,12 +43,12 @@ Create a shared rg detection utility in a new package that both find and grep ca
 
 Wire the new setting through the config system so tools can read it.
 
-- [ ] add `RespectGitignore` field to the config/settings structs in `config/settings.go` (default: true)
-- [ ] add `RespectGitignore() bool` method to `sdk.Config` interface in `sdk/config.go`
-- [ ] implement the method on `config.FullConfig` in `config/config.go` — reads from settings, defaults to true
-- [ ] update `config/validation.go` if needed
-- [ ] write tests for the new config key (default value, explicit true/false)
-- [ ] run tests — must pass before next task
+- [x] add `RespectGitignore` field to the config/settings structs in `config/settings.go` (default: true)
+- [x] add `RespectGitignore() bool` method to `sdk.Config` interface in `sdk/config.go`
+- [x] implement the method on `config.FullConfig` in `config/config.go` — reads from settings, defaults to true
+- [x] update `config/validation.go` if needed
+- [x] write tests for the new config key (default value, explicit true/false)
+- [x] run tests — must pass before next task
 
 ### Task 3: Refactor grep to rg-first
 

@@ -35,6 +35,9 @@ var _ Config = &ConfigMock{}
 //			ResolveKeyFunc: func(providerName string, envVar string) (string, error) {
 //				panic("mock out the ResolveKey method")
 //			},
+//			RespectGitignoreFunc: func() bool {
+//				panic("mock out the RespectGitignore method")
+//			},
 //			SavePreferencesFunc: func(target any) error {
 //				panic("mock out the SavePreferences method")
 //			},
@@ -71,6 +74,9 @@ type ConfigMock struct {
 
 	// ResolveKeyFunc mocks the ResolveKey method.
 	ResolveKeyFunc func(providerName string, envVar string) (string, error)
+
+	// RespectGitignoreFunc mocks the RespectGitignore method.
+	RespectGitignoreFunc func() bool
 
 	// SavePreferencesFunc mocks the SavePreferences method.
 	SavePreferencesFunc func(target any) error
@@ -114,6 +120,9 @@ type ConfigMock struct {
 			// EnvVar is the envVar argument value.
 			EnvVar string
 		}
+		// RespectGitignore holds details about calls to the RespectGitignore method.
+		RespectGitignore []struct {
+		}
 		// SavePreferences holds details about calls to the SavePreferences method.
 		SavePreferences []struct {
 			// Target is the target argument value.
@@ -139,16 +148,17 @@ type ConfigMock struct {
 			Target any
 		}
 	}
-	lockFilePath        sync.RWMutex
-	lockIsHeadless      sync.RWMutex
-	lockPreferences     sync.RWMutex
-	lockProviderConfig  sync.RWMutex
-	lockProviderHasKey  sync.RWMutex
-	lockResolveKey      sync.RWMutex
-	lockSavePreferences sync.RWMutex
-	lockSetProviderKey  sync.RWMutex
-	lockToolConfig      sync.RWMutex
-	lockUIConfig        sync.RWMutex
+	lockFilePath         sync.RWMutex
+	lockIsHeadless       sync.RWMutex
+	lockPreferences      sync.RWMutex
+	lockProviderConfig   sync.RWMutex
+	lockProviderHasKey   sync.RWMutex
+	lockResolveKey       sync.RWMutex
+	lockRespectGitignore sync.RWMutex
+	lockSavePreferences  sync.RWMutex
+	lockSetProviderKey   sync.RWMutex
+	lockToolConfig       sync.RWMutex
+	lockUIConfig         sync.RWMutex
 }
 
 // FilePath calls FilePathFunc.
@@ -353,6 +363,36 @@ func (mock *ConfigMock) ResolveKeyCalls() []struct {
 	mock.lockResolveKey.RLock()
 	calls = mock.calls.ResolveKey
 	mock.lockResolveKey.RUnlock()
+	return calls
+}
+
+// RespectGitignore calls RespectGitignoreFunc.
+func (mock *ConfigMock) RespectGitignore() bool {
+	callInfo := struct {
+	}{}
+	mock.lockRespectGitignore.Lock()
+	mock.calls.RespectGitignore = append(mock.calls.RespectGitignore, callInfo)
+	mock.lockRespectGitignore.Unlock()
+	if mock.RespectGitignoreFunc == nil {
+		var (
+			bOut bool
+		)
+		return bOut
+	}
+	return mock.RespectGitignoreFunc()
+}
+
+// RespectGitignoreCalls gets all the calls that were made to RespectGitignore.
+// Check the length with:
+//
+//	len(mockedConfig.RespectGitignoreCalls())
+func (mock *ConfigMock) RespectGitignoreCalls() []struct {
+} {
+	var calls []struct {
+	}
+	mock.lockRespectGitignore.RLock()
+	calls = mock.calls.RespectGitignore
+	mock.lockRespectGitignore.RUnlock()
 	return calls
 }
 

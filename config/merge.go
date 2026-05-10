@@ -31,6 +31,10 @@ func MergeSettings(layers ...*Settings) *Settings {
 			result.ThinkingLevel = layer.ThinkingLevel
 		}
 
+		if layer.RespectGitignore != nil {
+			result.RespectGitignore = layer.RespectGitignore
+		}
+
 		if layer.UI != nil {
 			if result.UI == nil {
 				result.UI = &UISettings{}

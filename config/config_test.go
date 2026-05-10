@@ -594,3 +594,97 @@ func TestProviderHasKey_LoadAuthFails_NoCachedAuth(t *testing.T) {
 
 	assert.False(t, cfg.ProviderHasKey("anthropic"), "should return false when auth load fails and no cached auth")
 }
+
+func TestRespectGitignore_DefaultTrue(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	globalDir := filepath.Join(home, ".weave")
+	require.NoError(t, os.MkdirAll(globalDir, 0o750))
+
+	projectDir := t.TempDir()
+
+	cfg := &FullConfig{
+		filePath: filepath.Join(projectDir, ".weave", "config.yaml"),
+		file:     DefaultFile(),
+		auth:     &AuthFile{},
+	}
+
+	assert.True(t, cfg.RespectGitignore(), "default should be true when no settings file")
+}
+
+func TestRespectGitignore_ExplicitTrue(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	globalDir := filepath.Join(home, ".weave")
+	require.NoError(t, os.MkdirAll(globalDir, 0o750))
+
+	projectDir := t.TempDir()
+	projectWeave := filepath.Join(projectDir, ".weave")
+	require.NoError(t, os.MkdirAll(projectWeave, 0o750))
+
+	v := true
+	writeJSON(t, filepath.Join(projectWeave, "settings.json"), &Settings{
+		RespectGitignore: &v,
+	})
+
+	cfg := &FullConfig{
+		filePath: filepath.Join(projectDir, ".weave", "config.yaml"),
+		file:     DefaultFile(),
+		auth:     &AuthFile{},
+	}
+
+	assert.True(t, cfg.RespectGitignore())
+}
+
+func TestRespectGitignore_ExplicitFalse(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	globalDir := filepath.Join(home, ".weave")
+	require.NoError(t, os.MkdirAll(globalDir, 0o750))
+
+	projectDir := t.TempDir()
+	projectWeave := filepath.Join(projectDir, ".weave")
+	require.NoError(t, os.MkdirAll(projectWeave, 0o750))
+
+	v := false
+	writeJSON(t, filepath.Join(projectWeave, "settings.json"), &Settings{
+		RespectGitignore: &v,
+	})
+
+	cfg := &FullConfig{
+		filePath: filepath.Join(projectDir, ".weave", "config.yaml"),
+		file:     DefaultFile(),
+		auth:     &AuthFile{},
+	}
+
+	assert.False(t, cfg.RespectGitignore())
+}
+
+func TestRespectGitignore_LocalOverridesGlobal(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	globalDir := filepath.Join(home, ".weave")
+	require.NoError(t, os.MkdirAll(globalDir, 0o750))
+
+	globalVal := true
+	writeJSON(t, filepath.Join(globalDir, "settings.json"), &Settings{
+		RespectGitignore: &globalVal,
+	})
+
+	projectDir := t.TempDir()
+	projectWeave := filepath.Join(projectDir, ".weave")
+	require.NoError(t, os.MkdirAll(projectWeave, 0o750))
+
+	localVal := false
+	writeJSON(t, filepath.Join(projectWeave, "settings.json"), &Settings{
+		RespectGitignore: &localVal,
+	})
+
+	cfg := &FullConfig{
+		filePath: filepath.Join(projectDir, ".weave", "config.yaml"),
+		file:     DefaultFile(),
+		auth:     &AuthFile{},
+	}
+
+	assert.False(t, cfg.RespectGitignore(), "project layer should override global")
+}

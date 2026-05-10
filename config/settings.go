@@ -12,11 +12,12 @@ import (
 
 // Settings holds user preferences that persist across sessions.
 type Settings struct {
-	Provider      string         `json:"provider,omitempty"`
-	Model         string         `json:"model,omitempty"`
-	ThinkingLevel string         `json:"thinking_level,omitempty"`
-	UI            *UISettings    `json:"ui,omitempty"`
-	Tools         map[string]any `json:"tools,omitempty"`
+	Provider         string         `json:"provider,omitempty"`
+	Model            string         `json:"model,omitempty"`
+	ThinkingLevel    string         `json:"thinking_level,omitempty"`
+	RespectGitignore *bool          `json:"respect_gitignore,omitempty"`
+	UI               *UISettings    `json:"ui,omitempty"`
+	Tools            map[string]any `json:"tools,omitempty"`
 }
 
 // UISettings holds UI-specific preferences.

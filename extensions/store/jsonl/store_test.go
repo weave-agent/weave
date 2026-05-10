@@ -486,6 +486,7 @@ func (m *mockConfig) Preferences(any) error                          { return ni
 func (m *mockConfig) SavePreferences(any) error                      { return nil }
 func (m *mockConfig) ProviderHasKey(string) bool                     { return false }
 func (m *mockConfig) SetProviderKey(string, string) error            { return nil }
+func (m *mockConfig) RespectGitignore() bool                         { return true }
 
 func TestNewStore_LoadsNestedDir(t *testing.T) {
 	dir := t.TempDir()

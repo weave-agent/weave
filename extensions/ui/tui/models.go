@@ -37,6 +37,7 @@ func (noopConfig) ProviderHasKey(providerName string) bool {
 	return os.Getenv(envVar) != ""
 }
 func (noopConfig) SetProviderKey(string, string) error { return nil }
+func (noopConfig) RespectGitignore() bool              { return true }
 
 // effectiveConfig returns cfg if non-nil, otherwise a no-op implementation.
 func effectiveConfig(cfg sdk.Config) sdk.Config {

@@ -24,6 +24,7 @@ type Config interface {
 	SavePreferences(target any) error
 	ProviderHasKey(providerName string) bool
 	SetProviderKey(providerName, apiKey string) error
+	RespectGitignore() bool
 }
 
 type noopConfig struct{}
@@ -40,6 +41,7 @@ func (noopConfig) Preferences(any) error               { return nil }
 func (noopConfig) SavePreferences(any) error           { return nil }
 func (noopConfig) ProviderHasKey(string) bool          { return false }
 func (noopConfig) SetProviderKey(string, string) error { return nil }
+func (noopConfig) RespectGitignore() bool              { return true }
 
 // FilePathConfig is a Config that returns the given path from FilePath().
 type FilePathConfig string
@@ -56,6 +58,7 @@ func (f FilePathConfig) Preferences(any) error               { return nil }
 func (f FilePathConfig) SavePreferences(any) error           { return nil }
 func (f FilePathConfig) ProviderHasKey(string) bool          { return false }
 func (f FilePathConfig) SetProviderKey(string, string) error { return nil }
+func (f FilePathConfig) RespectGitignore() bool              { return true }
 
 func configOrDefault(cfg Config) Config {
 	if cfg != nil {
