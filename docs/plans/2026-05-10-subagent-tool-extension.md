@@ -85,12 +85,12 @@ Add a subagent system to Weave as a tool extension (`extensions/tools/subagent/`
 - [x] run tests — must pass before task 3
 
 ### Task 3: Subagent tool registration
-- [ ] create `subagent.go` with `init()` calling `sdk.RegisterTool` for each discovered agent
-- [ ] implement `Tool` interface: `Name()` returns `subagent_<agentname>`, `Definition()` returns tool definition with description from agent def
-- [ ] tool parameters: `prompt` (string), `tasks` (array for parallel), `chain` (array for sequential), `background` (bool, default false), `cwd` (string override)
-- [ ] validate mutually exclusive params (exactly one of prompt/tasks/chain)
-- [ ] write tests for tool registration and parameter validation
-- [ ] run tests — must pass before task 4
+- [x] create `subagent.go` with `init()` calling `sdk.RegisterTool` for each discovered agent
+- [x] implement `Tool` interface: `Name()` returns `subagent_<agentname>`, `Definition()` returns tool definition with description from agent def
+- [x] tool parameters: `prompt` (string), `tasks` (array for parallel), `chain` (array for sequential), `background` (bool, default false), `cwd` (string override)
+- [x] validate mutually exclusive params (exactly one of prompt/tasks/chain)
+- [x] write tests for tool registration and parameter validation
+- [x] run tests — must pass before task 4
 
 ### Task 4: Subprocess execution engine
 - [ ] create `execute.go` with `runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd string) (string, error)`
