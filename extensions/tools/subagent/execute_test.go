@@ -170,6 +170,11 @@ func TestBuildCommand_PromptFileCreated(t *testing.T) {
 	data, err := os.ReadFile(promptFile)
 	require.NoError(t, err)
 	assert.Equal(t, "my test prompt", string(data))
+
+	// Verify permissions are restricted to owner-only.
+	info, err := os.Stat(promptFile)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 }
 
 func TestRunSubagent_Mock(t *testing.T) {

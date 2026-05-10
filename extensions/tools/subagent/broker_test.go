@@ -12,6 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func resetBrokerGenCounter() {
+	brokerGenCounter.Store(0)
+}
+
 // startDrainer starts a goroutine that reads JSON lines from r and sends them
 // on the returned channel.
 func startDrainer(r io.Reader) <-chan brokerMessage {
@@ -60,6 +64,7 @@ func TestBroker_RouteSend(t *testing.T) {
 	a1StdoutR, a1StdoutW := io.Pipe()
 	go func() {
 		_, _ = fmt.Fprintln(a1StdoutW, `{"type":"send","to":"agent2","content":"hello from agent1"}`)
+		_, _ = fmt.Fprintln(a1StdoutW, `{"type":"message_end"}`)
 		_ = a1StdoutW.Close()
 	}()
 
@@ -86,10 +91,11 @@ func TestBroker_RouteSend_TargetNotFound(t *testing.T) {
 	a1StdoutR, a1StdoutW := io.Pipe()
 	go func() {
 		_, _ = fmt.Fprintln(a1StdoutW, `{"type":"send","to":"nonexistent","content":"hello"}`)
+		_, _ = fmt.Fprintln(a1StdoutW, `{"type":"message_end"}`)
 		_ = a1StdoutW.Close()
 	}()
 
-	// Should not panic; returns empty result since no message_end.
+	// Should not panic when target is missing.
 	result, err := broker.MonitorStdout("agent1", a1StdoutR)
 	require.NoError(t, err)
 	assert.Empty(t, result)
@@ -121,6 +127,7 @@ func TestBroker_Broadcast(t *testing.T) {
 	a1StdoutR, a1StdoutW := io.Pipe()
 	go func() {
 		_, _ = fmt.Fprintln(a1StdoutW, `{"type":"broadcast","content":"hello all"}`)
+		_, _ = fmt.Fprintln(a1StdoutW, `{"type":"message_end"}`)
 		_ = a1StdoutW.Close()
 	}()
 
@@ -159,6 +166,7 @@ func TestBroker_Broadcast_NoOthers(t *testing.T) {
 	a1StdoutR, a1StdoutW := io.Pipe()
 	go func() {
 		_, _ = fmt.Fprintln(a1StdoutW, `{"type":"broadcast","content":"hello all"}`)
+		_, _ = fmt.Fprintln(a1StdoutW, `{"type":"message_end"}`)
 		_ = a1StdoutW.Close()
 	}()
 
@@ -186,6 +194,7 @@ func TestBroker_ListAgents(t *testing.T) {
 	a1StdoutR, a1StdoutW := io.Pipe()
 	go func() {
 		_, _ = fmt.Fprintln(a1StdoutW, `{"type":"list_agents"}`)
+		_, _ = fmt.Fprintln(a1StdoutW, `{"type":"message_end"}`)
 		_ = a1StdoutW.Close()
 	}()
 
@@ -331,7 +340,10 @@ func TestBroker_MonitorStdout_UnregistersOnDone(t *testing.T) {
 	require.Len(t, roster, 1)
 
 	a1StdoutR, a1StdoutW := io.Pipe()
-	_ = a1StdoutW.Close() // Immediately close.
+	go func() {
+		_, _ = fmt.Fprintln(a1StdoutW, `{"type":"message_end"}`)
+		_ = a1StdoutW.Close()
+	}()
 
 	_, err := broker.MonitorStdout("agent1", a1StdoutR)
 	require.NoError(t, err)
@@ -400,6 +412,8 @@ func TestBroker_MonitorStdout_WithRoutingEvents(t *testing.T) {
 }
 
 func TestBroker_Unregister(t *testing.T) {
+	resetBrokerGenCounter()
+
 	broker := NewBroker()
 
 	a1StdinR, a1StdinW := io.Pipe()
@@ -408,11 +422,11 @@ func TestBroker_Unregister(t *testing.T) {
 
 	require.Len(t, broker.Roster(), 1)
 
-	broker.Unregister("agent1")
+	broker.Unregister("agent1", 1)
 	require.Empty(t, broker.Roster())
 
 	// Unregistering non-existent agent should not panic.
-	broker.Unregister("nonexistent")
+	broker.Unregister("nonexistent", 1)
 }
 
 func TestFormatRoster_Empty(t *testing.T) {

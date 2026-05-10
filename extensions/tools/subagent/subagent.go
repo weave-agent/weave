@@ -353,5 +353,9 @@ func hasNonEmptyArray(args map[string]any, key string) bool {
 		return len(arr) > 0
 	}
 
+	if arr, ok := v.([]string); ok {
+		return len(arr) > 0
+	}
+
 	return false
 }

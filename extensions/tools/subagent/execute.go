@@ -163,6 +163,8 @@ func buildCommand(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID,
 
 	tools := agent.Tools
 	if agent.Messaging {
+		args = append(args, "--weave-messaging=true")
+
 		seen := make(map[string]bool, len(tools))
 		for _, t := range tools {
 			seen[t] = true
@@ -221,9 +223,11 @@ func parseJSONLines(r io.Reader) (string, error) {
 	buf := make([]byte, 0, 64*1024)
 	scanner.Buffer(buf, maxCapacity)
 
-	var finalContent string
-
-	var jsonLines int
+	var (
+		finalContent  string
+		sawMessageEnd bool
+		jsonLines     int
+	)
 
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -241,6 +245,7 @@ func parseJSONLines(r io.Reader) (string, error) {
 
 		if evt.Type == "message_end" {
 			finalContent = evt.Content
+			sawMessageEnd = true
 		}
 	}
 
@@ -250,6 +255,10 @@ func parseJSONLines(r io.Reader) (string, error) {
 
 	if jsonLines == 0 {
 		return "", errors.New("no valid JSON events from subagent")
+	}
+
+	if !sawMessageEnd {
+		return "", errors.New("subagent stream ended without a message_end event")
 	}
 
 	return finalContent, nil

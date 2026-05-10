@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"strings"
 	"sync"
@@ -91,6 +92,10 @@ func (sl *stdinListener) run() {
 
 	for scanner.Scan() {
 		sl.handleLine(strings.TrimSpace(scanner.Text()))
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Printf("stdin listener: scanner error: %v", err)
 	}
 }
 

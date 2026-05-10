@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -19,9 +20,14 @@ var (
 )
 
 // registerMessagingTools registers the child-side inter-agent communication
-// tools when running as a subagent (indicated by WEAVE_SUBAGENT_ID env var).
+// tools when running as a subagent with messaging enabled.
+// Messaging is enabled when WEAVE_SUBAGENT_ID is set AND WEAVE_MESSAGING is "true".
 func registerMessagingTools() {
 	if os.Getenv("WEAVE_SUBAGENT_ID") == "" {
+		return
+	}
+
+	if os.Getenv("WEAVE_MESSAGING") != "true" {
 		return
 	}
 
@@ -271,6 +277,10 @@ func readListAgentsResponseWithChannel(ctx context.Context, r io.Reader, respCh 
 
 	select {
 	case <-done:
+		if result == "" && scanErr == nil {
+			return "", errors.New("no list_agents_response received")
+		}
+
 		return result, scanErr
 	case <-ctx.Done():
 		return "", fmt.Errorf("context canceled: %w", ctx.Err())

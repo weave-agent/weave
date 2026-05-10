@@ -3,11 +3,13 @@ package subagent
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"strings"
 	"sync"
+	"sync/atomic"
 )
 
 // Protocol message type constants.
@@ -41,11 +43,14 @@ type agentInfo struct {
 	Status string `json:"status"`
 }
 
+var brokerGenCounter atomic.Uint64
+
 // subagentProc tracks an active subagent process managed by the broker.
 type subagentProc struct {
 	id    string
 	name  string
 	stdin io.Writer
+	gen   uint64 // monotonic generation to distinguish re-registrations
 }
 
 // Broker routes inter-agent messages between running subagent processes.
@@ -65,11 +70,18 @@ func NewBroker() *Broker {
 // The caller must supply a writer connected to the child's stdin.
 // After registration, the current roster is injected into the new agent.
 func (b *Broker) Register(id, name string, stdin io.Writer) {
+	if stdin == nil {
+		log.Printf("broker: refusing to register %s with nil stdin", id)
+
+		return
+	}
+
 	b.mu.Lock()
 	b.agents[id] = &subagentProc{
 		id:    id,
 		name:  name,
 		stdin: stdin,
+		gen:   brokerGenCounter.Add(1),
 	}
 	roster := b.snapshotRosterLocked()
 	b.mu.Unlock()
@@ -80,21 +92,36 @@ func (b *Broker) Register(id, name string, stdin io.Writer) {
 }
 
 // Unregister removes a subagent from the broker's registry.
-func (b *Broker) Unregister(id string) {
+// The gen parameter ensures only the specific registration is removed,
+// preventing races where a new agent with the same ID was registered
+// concurrently.
+func (b *Broker) Unregister(id string, gen uint64) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	delete(b.agents, id)
+	if p, ok := b.agents[id]; ok && p.gen == gen {
+		delete(b.agents, id)
+	}
 }
 
 // MonitorStdout reads JSON lines from the agent's stdout, routes inter-agent
 // messages, and captures the final result from the last "message_end" event.
 // When the reader closes (process exits), the agent is automatically unregistered.
 func (b *Broker) MonitorStdout(id string, stdout io.Reader) (string, error) {
+	// Capture the generation of the agent we're about to monitor so that
+	// we only unregister this specific registration, not a newer one
+	// that may have been created concurrently.
+	b.mu.RLock()
+
+	var gen uint64
+	if p, ok := b.agents[id]; ok {
+		gen = p.gen
+	}
+
+	b.mu.RUnlock()
+
 	result, err := b.monitorStdout(id, stdout)
-	// Unregister this agent. If a new agent with the same ID was registered
-	// concurrently, the delete is a harmless no-op for the old caller.
-	b.Unregister(id)
+	b.Unregister(id, gen)
 
 	return result, err
 }
@@ -109,7 +136,10 @@ func (b *Broker) monitorStdout(id string, stdout io.Reader) (string, error) {
 	buf := make([]byte, 0, 64*1024)
 	scanner.Buffer(buf, maxCapacity)
 
-	var finalContent string
+	var (
+		finalContent  string
+		sawMessageEnd bool
+	)
 
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -138,11 +168,16 @@ func (b *Broker) monitorStdout(id string, stdout io.Reader) (string, error) {
 			}
 		case msgTypeMessageEnd:
 			finalContent = msg.Content
+			sawMessageEnd = true
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
 		return "", fmt.Errorf("read stdout: %w", err)
+	}
+
+	if !sawMessageEnd {
+		return "", errors.New("subagent exited without producing a message_end event")
 	}
 
 	return finalContent, nil

@@ -8,6 +8,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"weave/sdk"
 
@@ -289,6 +290,7 @@ func TestReadListAgentsResponse_ContextCancelled(t *testing.T) {
 
 func TestRegisterMessagingTools_WhenSubagentIDSet(t *testing.T) {
 	t.Setenv("WEAVE_SUBAGENT_ID", "subagent_test_abc123")
+	t.Setenv("WEAVE_MESSAGING", "true")
 
 	sdk.ResetToolRegistry()
 	registerMessagingTools()
@@ -311,6 +313,7 @@ func TestRegisterMessagingTools_WhenSubagentIDNotSet(t *testing.T) {
 
 func TestMessagingToolFactories(t *testing.T) {
 	t.Setenv("WEAVE_SUBAGENT_ID", "subagent_test_abc123")
+	t.Setenv("WEAVE_MESSAGING", "true")
 
 	sdk.ResetToolRegistry()
 	registerMessagingTools()
@@ -485,7 +488,7 @@ func TestBroadcastMessageTool_InvalidContentType(t *testing.T) {
 }
 
 func TestReadListAgentsResponse_EmptyInput(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 0)
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
 	_, err := readListAgentsResponse(ctx, strings.NewReader(""))

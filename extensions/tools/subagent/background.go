@@ -64,6 +64,12 @@ func (bm *backgroundManager) spawn(agent *AgentDef, prompt, cwd, subagentID stri
 		subagentID = generateAgentID(agent.Name)
 	}
 
+	bm.mu.Lock()
+	// Ensure unique ID: if collision, regenerate.
+	for bm.agents[subagentID] != nil {
+		subagentID = generateAgentID(agent.Name)
+	}
+
 	ba := &backgroundAgent{
 		ID:      subagentID,
 		Agent:   agent,
@@ -74,7 +80,6 @@ func (bm *backgroundManager) spawn(agent *AgentDef, prompt, cwd, subagentID stri
 		started: time.Now(),
 	}
 
-	bm.mu.Lock()
 	bm.agents[subagentID] = ba
 	bm.mu.Unlock()
 
@@ -146,14 +151,20 @@ func (bm *backgroundManager) getSnapshot(id string) (backgroundAgent, bool) {
 }
 
 func (bm *backgroundManager) await(ctx context.Context, id string) (*backgroundAgent, bool) {
-	ba, ok := bm.get(id)
+	ba, ok := bm.getSnapshot(id)
 	if !ok {
 		return nil, false
 	}
 
 	select {
 	case <-ba.done:
-		return ba, true
+		// Re-fetch to get the final updated state after completion.
+		ba, ok = bm.getSnapshot(id)
+		if !ok {
+			return nil, false
+		}
+
+		return &ba, true
 	case <-ctx.Done():
 		return nil, false
 	}

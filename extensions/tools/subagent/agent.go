@@ -42,17 +42,40 @@ func ParseAgent(data []byte) (*AgentDef, error) {
 		return nil, errors.New("agent definition must start with YAML frontmatter (---)")
 	}
 
-	end := strings.Index(content[4:], "\n---\n")
-	if end < 0 {
-		return nil, errors.New("agent definition frontmatter not closed (missing ---)")
+	// Find the closing --- delimiter. Use strings.Index sequentially to handle
+	// cases where --- appears inside the frontmatter body.
+	var end int
+
+	searchStart := 4
+	for {
+		idx := strings.Index(content[searchStart:], "\n---\n")
+		if idx < 0 {
+			return nil, errors.New("agent definition frontmatter not closed (missing ---)")
+		}
+
+		end = searchStart + idx
+		// Verify that what precedes it is valid YAML by trying to unmarshal.
+		// If it fails, continue searching for the next ---.
+		candidate := content[4:end]
+		if err := yaml.Unmarshal([]byte(candidate), &fm); err != nil {
+			searchStart = end + 1
+			// If there are no more --- delimiters, the YAML is genuinely invalid.
+			if !strings.Contains(content[searchStart:], "\n---\n") {
+				return nil, fmt.Errorf("invalid YAML frontmatter: %w", err)
+			}
+
+			continue
+		}
+
+		break
 	}
 
-	fmText := content[4 : 4+end]
+	fmText := content[4:end]
 	if err := yaml.Unmarshal([]byte(fmText), &fm); err != nil {
 		return nil, fmt.Errorf("invalid YAML frontmatter: %w", err)
 	}
 
-	body := content[4+end+5:]
+	body := content[end+5:]
 	body = strings.TrimLeft(body, "\n")
 
 	if fm.Name == "" {
