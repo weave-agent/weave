@@ -170,12 +170,12 @@ Add a subagent system to Weave as a tool extension (`extensions/tools/subagent/`
 - [x] run tests — must pass before task 12
 
 ### Task 12: Integration and verification
-- [ ] verify all requirements from Overview are implemented
-- [ ] verify edge cases: no agents discovered, agent with invalid tools, child process crash, target agent not found for send_message
-- [ ] run full test suite (`make test`)
-- [ ] run linter (`make lint`) — all issues must be fixed
-- [ ] verify test coverage for new extension module
-- [ ] update CLAUDE.md with subagent extension documentation
+- [x] verify all requirements from Overview are implemented
+- [x] verify edge cases: no agents discovered, agent with invalid tools, child process crash, target agent not found for send_message
+- [x] run full test suite (`make test`)
+- [x] run linter (`make lint`) — all issues must be fixed
+- [x] verify test coverage for new extension module
+- [x] update CLAUDE.md with subagent extension documentation
 
 ## Technical Details
 
