@@ -68,14 +68,14 @@ Add a subagent system to Weave as a tool extension (`extensions/tools/subagent/`
 ## Implementation Steps
 
 ### Task 1: Agent definition parser and built-in agents
-- [ ] create `extensions/tools/subagent/` directory with `go.mod`
-- [ ] create `agent.go` with `AgentDef` struct (Name, Description, Tools, Model, Sandbox, System fields)
-- [ ] implement `ParseAgent(data []byte) (*AgentDef, error)` — parse YAML frontmatter + markdown body from agent definition files
-- [ ] create `agents/general.md` — full tools, any task, default model
-- [ ] create `agents/explore.md` — read/grep/find/ls tools, research agent
-- [ ] create `agents/plan.md` — read-only, implementation planning agent
-- [ ] write tests for `ParseAgent` — valid definitions, missing fields, invalid YAML, body as system prompt fallback
-- [ ] run tests — must pass before task 2
+- [x] create `extensions/tools/subagent/` directory with `go.mod`
+- [x] create `agent.go` with `AgentDef` struct (Name, Description, Tools, Model, Sandbox, System fields)
+- [x] implement `ParseAgent(data []byte) (*AgentDef, error)` — parse YAML frontmatter + markdown body from agent definition files
+- [x] create `agents/general.md` — full tools, any task, default model
+- [x] create `agents/explore.md` — read/grep/find/ls tools, research agent
+- [x] create `agents/plan.md` — read-only, implementation planning agent
+- [x] write tests for `ParseAgent` — valid definitions, missing fields, invalid YAML, body as system prompt fallback
+- [x] run tests — must pass before task 2
 
 ### Task 2: Agent discovery
 - [ ] create `discovery.go` with `DiscoverAgents(projectDir string) ([]*AgentDef, error)` — walk `.weave/agents/` then `~/.weave/agents/`, dedup by name (project wins over global)
