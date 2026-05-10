@@ -35,9 +35,9 @@ Add a `respect_gitignore` config key so users can toggle .gitignore honoring (on
 
 Create a shared rg detection utility in a new package that both find and grep can import.
 
-- [ ] create `utils/ripgrep/ripgrep.go` with `Find()` function (uses `sync.OnceValue` + `exec.LookPath("rg")` to cache result)
-- [ ] create `utils/ripgrep/ripgrep_test.go` — test that Find() returns empty string when rg absent, valid path when rg in PATH
-- [ ] run tests — must pass before next task
+- [x] create `utils/ripgrep/ripgrep.go` with `Find()` function (uses `sync.OnceValue` + `exec.LookPath("rg")` to cache result)
+- [x] create `utils/ripgrep/ripgrep_test.go` — test that Find() returns empty string when rg absent, valid path when rg in PATH
+- [x] run tests — must pass before next task
 
 ### Task 2: Add `respect_gitignore` config key
 
