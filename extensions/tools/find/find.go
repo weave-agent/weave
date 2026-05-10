@@ -133,11 +133,11 @@ func findWithRipgrep(ctx context.Context, rgPath, absPath, pattern string, respe
 		return nil, fmt.Errorf("rg: %w", err)
 	}
 
-	return filterResults(out, absPath, pattern)
+	return filterResults(out, absPath, pattern, respectGitignore)
 }
 
 // filterResults parses null-separated rg output, applies glob matching and skip-dir filtering.
-func filterResults(data []byte, baseDir, pattern string) ([]string, error) {
+func filterResults(data []byte, baseDir, pattern string, respectGitignore bool) ([]string, error) {
 	var matches []string
 
 	entries := bytes.SplitSeq(data, []byte{0})
@@ -152,7 +152,7 @@ func filterResults(data []byte, baseDir, pattern string) ([]string, error) {
 		rel := filepath.Clean(text)
 
 		// Skip VCS and dependency directories (matches stdlib isSkipDir behavior)
-		if isSkipPath(rel) {
+		if respectGitignore && isSkipPath(rel) {
 			continue
 		}
 
