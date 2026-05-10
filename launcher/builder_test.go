@@ -291,6 +291,8 @@ func TestGenerateMainGo_Content(t *testing.T) {
 	assert.Contains(t, s, "--weave-subagent-id=")
 	assert.Contains(t, s, "--weave-sandbox-mode=")
 	assert.Contains(t, s, "--weave-model=")
+	assert.Contains(t, s, "--weave-messaging=")
+	assert.Contains(t, s, "WEAVE_MESSAGING")
 	assert.Contains(t, s, "fullCfg.SetProjectDir(projectDir)")
 	assert.Contains(t, s, "sdk.HeadlessConfig")
 	assert.Contains(t, s, "sdk.SetToolFilter")
