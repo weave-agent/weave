@@ -2,6 +2,8 @@ package subagent
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"weave/sdk"
@@ -28,11 +30,11 @@ func TestExtensionRegistration(t *testing.T) {
 			a := agent
 			toolName := "subagent_" + a.Name
 			sdk.RegisterTool(toolName, func(sdk.Config) (sdk.Tool, error) {
-				return newSubagentTool(a, nil, nil), nil
+				return newSubagentTool(a, nil, nil, "", ""), nil
 			})
 		}
 
-		mgr := newBackgroundManager(nil)
+		mgr := newBackgroundManager(nil, "", "")
 
 		sdk.RegisterTool("check_agent", func(sdk.Config) (sdk.Tool, error) {
 			return &checkAgentTool{mgr: mgr}, nil
@@ -63,13 +65,13 @@ func TestExtensionFactoryRegistersTools(t *testing.T) {
 			return nil, err
 		}
 
-		mgr := newBackgroundManager(nil)
+		mgr := newBackgroundManager(nil, "", "")
 
 		for _, agent := range agents {
 			a := agent
 			toolName := "subagent_" + a.Name
 			sdk.RegisterTool(toolName, func(sdk.Config) (sdk.Tool, error) {
-				return newSubagentTool(a, mgr, nil), nil
+				return newSubagentTool(a, mgr, nil, "", ""), nil
 			})
 		}
 
@@ -109,7 +111,7 @@ func TestSubagentTool_Definition(t *testing.T) {
 		Name:        "test",
 		Description: "A test agent",
 	}
-	tool := newSubagentTool(agent, nil, nil)
+	tool := newSubagentTool(agent, nil, nil, "", "")
 
 	def := tool.Definition()
 	assert.Equal(t, "subagent_test", def.Name)
@@ -228,7 +230,7 @@ func TestValidateMode_TypedArrays(t *testing.T) {
 
 func TestExecute_ValidationError(t *testing.T) {
 	agent := &AgentDef{Name: "test"}
-	tool := newSubagentTool(agent, nil, nil)
+	tool := newSubagentTool(agent, nil, nil, "", "")
 
 	ctx := context.Background()
 	args := map[string]any{"prompt": "hello", "tasks": []any{"task1"}}
@@ -240,7 +242,7 @@ func TestExecute_ValidationError(t *testing.T) {
 
 func TestExecute_MissingMode(t *testing.T) {
 	agent := &AgentDef{Name: "test"}
-	tool := newSubagentTool(agent, nil, nil)
+	tool := newSubagentTool(agent, nil, nil, "", "")
 
 	ctx := context.Background()
 	args := map[string]any{}
@@ -255,12 +257,12 @@ func TestExecute_PromptMode(t *testing.T) {
 
 	t.Cleanup(func() { testRunSubagent = original })
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
 		return "result: " + prompt, nil
 	}
 
 	agent := &AgentDef{Name: "test"}
-	tool := newSubagentTool(agent, nil, nil)
+	tool := newSubagentTool(agent, nil, nil, "", "")
 
 	ctx := context.Background()
 	args := map[string]any{"prompt": "hello"}
@@ -275,12 +277,12 @@ func TestExecute_ParallelMode(t *testing.T) {
 
 	t.Cleanup(func() { testRunSubagent = original })
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
 		return "result: " + prompt, nil
 	}
 
 	agent := &AgentDef{Name: "test"}
-	tool := newSubagentTool(agent, nil, nil)
+	tool := newSubagentTool(agent, nil, nil, "", "")
 
 	ctx := context.Background()
 	args := map[string]any{
@@ -302,12 +304,12 @@ func TestExecute_ChainMode(t *testing.T) {
 
 	t.Cleanup(func() { testRunSubagent = original })
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
 		return "result: " + prompt, nil
 	}
 
 	agent := &AgentDef{Name: "test"}
-	tool := newSubagentTool(agent, nil, nil)
+	tool := newSubagentTool(agent, nil, nil, "", "")
 
 	ctx := context.Background()
 	args := map[string]any{
@@ -330,24 +332,86 @@ func TestExecute_PromptMode_WithCWD(t *testing.T) {
 
 	var receivedCWD string
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
 		receivedCWD = cwd
 		return "done", nil
 	}
 
 	agent := &AgentDef{Name: "test"}
-	tool := newSubagentTool(agent, nil, nil)
+	tool := newSubagentTool(agent, nil, nil, "", "")
 
 	ctx := context.Background()
 	args := map[string]any{
 		"prompt": "hello",
-		"cwd":    "/tmp/testdir",
+		"cwd":    "testdata",
 	}
 
 	result, err := tool.Execute(ctx, args)
 	require.NoError(t, err)
 	assert.False(t, result.IsError)
-	assert.Equal(t, "/tmp/testdir", receivedCWD)
+	assert.Contains(t, receivedCWD, "testdata")
+}
+
+func TestResolveCWD_Valid(t *testing.T) {
+	parent, err := os.Getwd()
+	require.NoError(t, err)
+
+	resolved, err := resolveCWD("testdata")
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(parent, "testdata"), resolved)
+}
+
+func TestResolveCWD_Escapes(t *testing.T) {
+	_, err := resolveCWD("../..")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "escapes working directory")
+}
+
+func TestResolveCWD_AbsoluteEscapes(t *testing.T) {
+	_, err := resolveCWD("/")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "escapes working directory")
+}
+
+func TestResolveCWD_SymlinkInside(t *testing.T) {
+	tmpDir := t.TempDir()
+	subDir := filepath.Join(tmpDir, "subdir")
+	require.NoError(t, os.Mkdir(subDir, 0o755))
+
+	linkPath := filepath.Join(tmpDir, "link")
+	require.NoError(t, os.Symlink(subDir, linkPath))
+
+	oldWD, err := os.Getwd()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.Chdir(oldWD) })
+	require.NoError(t, os.Chdir(tmpDir))
+
+	// os.Getwd() may resolve symlinks in the path (e.g. /var -> /private/var on macOS).
+	// Construct expected path from the actual working directory.
+	actualWD, err := os.Getwd()
+	require.NoError(t, err)
+
+	expected := filepath.Join(actualWD, "link")
+
+	resolved, err := resolveCWD("link")
+	require.NoError(t, err)
+	// resolveCWD returns the cleaned path (not symlink-resolved).
+	assert.Equal(t, expected, resolved)
+}
+
+func TestResolveCWD_SymlinkEscapes(t *testing.T) {
+	tmpDir := t.TempDir()
+	linkPath := filepath.Join(tmpDir, "link")
+	require.NoError(t, os.Symlink("/", linkPath))
+
+	oldWD, err := os.Getwd()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.Chdir(oldWD) })
+	require.NoError(t, os.Chdir(tmpDir))
+
+	_, err = resolveCWD("link")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "escapes working directory")
 }
 
 func TestDirFromConfig_Nil(t *testing.T) {

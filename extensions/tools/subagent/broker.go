@@ -102,6 +102,13 @@ func (b *Broker) MonitorStdout(id string, stdout io.Reader) (string, error) {
 func (b *Broker) monitorStdout(id string, stdout io.Reader) (string, error) {
 	scanner := bufio.NewScanner(stdout)
 
+	// Increase buffer capacity to handle large JSON lines (e.g. message_end
+	// events with full assistant content). Default 64 KiB is too small.
+	const maxCapacity = 10 * 1024 * 1024 // 10 MB
+
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, maxCapacity)
+
 	var finalContent string
 
 	for scanner.Scan() {

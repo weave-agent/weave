@@ -39,19 +39,24 @@ func init() {
 
 		projectDir := dirFromConfig(cfg)
 
+		cfgPath := ""
+		if cfg != nil {
+			cfgPath = cfg.FilePath()
+		}
+
 		agents, err := DiscoverAgents(projectDir)
 		if err != nil {
 			return nil, fmt.Errorf("discover agents: %w", err)
 		}
 
 		broker := NewBroker()
-		mgr := newBackgroundManager(broker)
+		mgr := newBackgroundManager(broker, cfgPath, projectDir)
 
 		for _, agent := range agents {
 			a := agent // capture loop variable
 			toolName := "subagent_" + a.Name
 			sdk.RegisterTool(toolName, func(sdk.Config) (sdk.Tool, error) {
-				return newSubagentTool(a, mgr, broker), nil
+				return newSubagentTool(a, mgr, broker, cfgPath, projectDir), nil
 			})
 		}
 
@@ -109,13 +114,15 @@ func dirFromConfig(cfg sdk.Config) string {
 
 // subagentTool implements sdk.Tool for a single agent definition.
 type subagentTool struct {
-	agent  *AgentDef
-	mgr    *backgroundManager
-	broker *Broker
+	agent      *AgentDef
+	mgr        *backgroundManager
+	broker     *Broker
+	cfgPath    string
+	projectDir string
 }
 
-func newSubagentTool(agent *AgentDef, mgr *backgroundManager, broker *Broker) *subagentTool {
-	return &subagentTool{agent: agent, mgr: mgr, broker: broker}
+func newSubagentTool(agent *AgentDef, mgr *backgroundManager, broker *Broker, cfgPath, projectDir string) *subagentTool {
+	return &subagentTool{agent: agent, mgr: mgr, broker: broker, cfgPath: cfgPath, projectDir: projectDir}
 }
 
 func (t *subagentTool) Name() string {
@@ -168,6 +175,14 @@ func (t *subagentTool) Execute(ctx context.Context, args map[string]any) (sdk.To
 		cwd = v
 	}
 
+	if cwd != "" {
+		cwd, err = resolveCWD(cwd)
+		if err != nil {
+			//nolint:nilerr // tool protocol: errors in Content, not return
+			return sdk.ToolResult{Content: err.Error(), IsError: true}, nil
+		}
+	}
+
 	background := false
 	if v, ok := args[paramBackground].(bool); ok {
 		background = v
@@ -197,7 +212,7 @@ func (t *subagentTool) Execute(ctx context.Context, args map[string]any) (sdk.To
 			return sdk.ToolResult{Content: string(jsonBytes)}, nil
 		}
 
-		output, err := runSubagent(ctx, t.agent, prompt, cwd, subagentID, t.broker)
+		output, err := runSubagent(ctx, t.agent, prompt, cwd, subagentID, t.broker, t.cfgPath, t.projectDir)
 		if err != nil {
 			//nolint:nilerr // tool protocol: errors in Content, not return
 			return sdk.ToolResult{Content: err.Error(), IsError: true}, nil
@@ -211,7 +226,7 @@ func (t *subagentTool) Execute(ctx context.Context, args map[string]any) (sdk.To
 
 		tasks, _ := toAnySlice(args[paramTasks])
 
-		return runParallel(ctx, t.agent, tasks, cwd, t.broker)
+		return runParallel(ctx, t.agent, tasks, cwd, t.broker, t.cfgPath, t.projectDir)
 	case modeChain:
 		if background {
 			return sdk.ToolResult{Content: "background mode is not supported for chain execution", IsError: true}, nil
@@ -219,10 +234,47 @@ func (t *subagentTool) Execute(ctx context.Context, args map[string]any) (sdk.To
 
 		chain, _ := toAnySlice(args[paramChain])
 
-		return runChain(ctx, t.agent, chain, cwd, t.broker)
+		return runChain(ctx, t.agent, chain, cwd, t.broker, t.cfgPath, t.projectDir)
 	}
 
 	return sdk.ToolResult{Content: fmt.Sprintf("unknown mode: %s", m), IsError: true}, nil
+}
+
+// resolveCWD resolves a cwd parameter to an absolute path and validates
+// that it does not escape the current working directory.
+func resolveCWD(cwd string) (string, error) {
+	parentCWD, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("get working directory: %w", err)
+	}
+
+	parentCWD = filepath.Clean(parentCWD)
+
+	if !filepath.IsAbs(cwd) {
+		cwd = filepath.Join(parentCWD, cwd)
+	}
+
+	cwd = filepath.Clean(cwd)
+
+	// Resolve symlinks before containment check to prevent a symlink
+	// that points outside the project from bypassing the escape check.
+	// If the path does not exist, EvalSymlinks fails; fall back to the
+	// cleaned path since the subagent process will create it if needed.
+	resolved := cwd
+	if r, evalErr := filepath.EvalSymlinks(cwd); evalErr == nil {
+		resolved = r
+	}
+
+	rel, err := filepath.Rel(parentCWD, resolved)
+	if err != nil {
+		return "", fmt.Errorf("resolve cwd: %w", err)
+	}
+
+	if strings.HasPrefix(rel, "..") {
+		return "", fmt.Errorf("cwd escapes working directory: %s", resolved)
+	}
+
+	return cwd, nil
 }
 
 // mode represents which execution mode was requested.

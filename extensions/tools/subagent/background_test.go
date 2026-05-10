@@ -46,14 +46,14 @@ func TestBackgroundSpawn_ReturnsImmediately(t *testing.T) {
 	t.Cleanup(func() { testRunSubagent = original })
 
 	// Slow mock to prove we return before completion.
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
 		time.Sleep(200 * time.Millisecond)
 		return "done: " + prompt, nil
 	}
 
-	mgr := newBackgroundManager(nil)
+	mgr := newBackgroundManager(nil, "", "")
 	agent := &AgentDef{Name: "test"}
-	tool := newSubagentTool(agent, mgr, nil)
+	tool := newSubagentTool(agent, mgr, nil, "", "")
 
 	ctx := context.Background()
 	args := map[string]any{"prompt": "hello", "background": true}
@@ -88,13 +88,13 @@ func TestBackgroundSpawn_CompletesWithError(t *testing.T) {
 
 	t.Cleanup(func() { testRunSubagent = original })
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
 		return "", errors.New("mock failure")
 	}
 
-	mgr := newBackgroundManager(nil)
+	mgr := newBackgroundManager(nil, "", "")
 	agent := &AgentDef{Name: "test"}
-	tool := newSubagentTool(agent, mgr, nil)
+	tool := newSubagentTool(agent, mgr, nil, "", "")
 
 	ctx := context.Background()
 	args := map[string]any{"prompt": "hello", "background": true}
@@ -121,12 +121,12 @@ func TestCheckAgent_Pending(t *testing.T) {
 
 	t.Cleanup(func() { testRunSubagent = original })
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
 		time.Sleep(5 * time.Second)
 		return "never", nil
 	}
 
-	mgr := newBackgroundManager(nil)
+	mgr := newBackgroundManager(nil, "", "")
 	id := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
 
 	tool := &checkAgentTool{mgr: mgr}
@@ -146,11 +146,11 @@ func TestCheckAgent_Completed(t *testing.T) {
 
 	t.Cleanup(func() { testRunSubagent = original })
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
 		return "final result", nil
 	}
 
-	mgr := newBackgroundManager(nil)
+	mgr := newBackgroundManager(nil, "", "")
 	id := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
 
 	// Wait for completion.
@@ -169,7 +169,7 @@ func TestCheckAgent_Completed(t *testing.T) {
 }
 
 func TestCheckAgent_NotFound(t *testing.T) {
-	mgr := newBackgroundManager(nil)
+	mgr := newBackgroundManager(nil, "", "")
 	tool := &checkAgentTool{mgr: mgr}
 
 	result, err := tool.Execute(context.Background(), map[string]any{"id": "nonexistent"})
@@ -179,7 +179,7 @@ func TestCheckAgent_NotFound(t *testing.T) {
 }
 
 func TestCheckAgent_MissingID(t *testing.T) {
-	tool := &checkAgentTool{mgr: newBackgroundManager(nil)}
+	tool := &checkAgentTool{mgr: newBackgroundManager(nil, "", "")}
 
 	result, err := tool.Execute(context.Background(), map[string]any{})
 	require.NoError(t, err)
@@ -188,7 +188,7 @@ func TestCheckAgent_MissingID(t *testing.T) {
 }
 
 func TestCheckAgent_InvalidIDType(t *testing.T) {
-	tool := &checkAgentTool{mgr: newBackgroundManager(nil)}
+	tool := &checkAgentTool{mgr: newBackgroundManager(nil, "", "")}
 
 	result, err := tool.Execute(context.Background(), map[string]any{"id": 123})
 	require.NoError(t, err)
@@ -201,12 +201,12 @@ func TestAwaitAgent_BlocksUntilDone(t *testing.T) {
 
 	t.Cleanup(func() { testRunSubagent = original })
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
 		time.Sleep(100 * time.Millisecond)
 		return "final result", nil
 	}
 
-	mgr := newBackgroundManager(nil)
+	mgr := newBackgroundManager(nil, "", "")
 	id := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
 
 	tool := &awaitAgentTool{mgr: mgr}
@@ -230,12 +230,12 @@ func TestAwaitAgent_ContextCancellation(t *testing.T) {
 
 	t.Cleanup(func() { testRunSubagent = original })
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
 		time.Sleep(5 * time.Second)
 		return "never", nil
 	}
 
-	mgr := newBackgroundManager(nil)
+	mgr := newBackgroundManager(nil, "", "")
 	id := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
 
 	tool := &awaitAgentTool{mgr: mgr}
@@ -251,7 +251,7 @@ func TestAwaitAgent_ContextCancellation(t *testing.T) {
 }
 
 func TestAwaitAgent_NotFound(t *testing.T) {
-	mgr := newBackgroundManager(nil)
+	mgr := newBackgroundManager(nil, "", "")
 	tool := &awaitAgentTool{mgr: mgr}
 
 	result, err := tool.Execute(context.Background(), map[string]any{"id": "nonexistent"})
@@ -261,7 +261,7 @@ func TestAwaitAgent_NotFound(t *testing.T) {
 }
 
 func TestAwaitAgent_MissingID(t *testing.T) {
-	tool := &awaitAgentTool{mgr: newBackgroundManager(nil)}
+	tool := &awaitAgentTool{mgr: newBackgroundManager(nil, "", "")}
 
 	result, err := tool.Execute(context.Background(), map[string]any{})
 	require.NoError(t, err)
@@ -272,14 +272,14 @@ func TestAwaitAgent_MissingID(t *testing.T) {
 func TestBackgroundManager_NotifyDone(t *testing.T) {
 	bus := &testBus{}
 
-	mgr := newBackgroundManager(nil)
+	mgr := newBackgroundManager(nil, "", "")
 	mgr.setBus(bus)
 
 	original := testRunSubagent
 
 	t.Cleanup(func() { testRunSubagent = original })
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
 		return "result", nil
 	}
 
@@ -302,14 +302,14 @@ func TestBackgroundManager_NotifyDone(t *testing.T) {
 func TestBackgroundManager_NotifyDoneWithError(t *testing.T) {
 	bus := &testBus{}
 
-	mgr := newBackgroundManager(nil)
+	mgr := newBackgroundManager(nil, "", "")
 	mgr.setBus(bus)
 
 	original := testRunSubagent
 
 	t.Cleanup(func() { testRunSubagent = original })
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
 		return "", errors.New("failed")
 	}
 
@@ -327,14 +327,14 @@ func TestBackgroundManager_NotifyDoneWithError(t *testing.T) {
 }
 
 func TestBackgroundManager_NotifyDoneNoBus(t *testing.T) {
-	mgr := newBackgroundManager(nil)
+	mgr := newBackgroundManager(nil, "", "")
 	// No bus set.
 
 	original := testRunSubagent
 
 	t.Cleanup(func() { testRunSubagent = original })
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
 		return "result", nil
 	}
 
@@ -350,7 +350,7 @@ func TestBackgroundManager_NotifyDoneNoBus(t *testing.T) {
 
 func TestSubagentTool_BackgroundNotAvailable(t *testing.T) {
 	agent := &AgentDef{Name: "test"}
-	tool := newSubagentTool(agent, nil, nil) // nil manager
+	tool := newSubagentTool(agent, nil, nil, "", "") // nil manager
 
 	ctx := context.Background()
 	args := map[string]any{"prompt": "hello", "background": true}
@@ -362,9 +362,9 @@ func TestSubagentTool_BackgroundNotAvailable(t *testing.T) {
 }
 
 func TestSubagentTool_BackgroundParallelError(t *testing.T) {
-	mgr := newBackgroundManager(nil)
+	mgr := newBackgroundManager(nil, "", "")
 	agent := &AgentDef{Name: "test"}
-	tool := newSubagentTool(agent, mgr, nil)
+	tool := newSubagentTool(agent, mgr, nil, "", "")
 
 	ctx := context.Background()
 	args := map[string]any{
@@ -379,9 +379,9 @@ func TestSubagentTool_BackgroundParallelError(t *testing.T) {
 }
 
 func TestSubagentTool_BackgroundChainError(t *testing.T) {
-	mgr := newBackgroundManager(nil)
+	mgr := newBackgroundManager(nil, "", "")
 	agent := &AgentDef{Name: "test"}
-	tool := newSubagentTool(agent, mgr, nil)
+	tool := newSubagentTool(agent, mgr, nil, "", "")
 
 	ctx := context.Background()
 	args := map[string]any{
@@ -406,7 +406,7 @@ func TestGenerateAgentID(t *testing.T) {
 }
 
 func TestCheckAgentTool_Definition(t *testing.T) {
-	tool := &checkAgentTool{mgr: newBackgroundManager(nil)}
+	tool := &checkAgentTool{mgr: newBackgroundManager(nil, "", "")}
 	assert.Equal(t, "check_agent", tool.Name())
 
 	def := tool.Definition()
@@ -416,7 +416,7 @@ func TestCheckAgentTool_Definition(t *testing.T) {
 }
 
 func TestAwaitAgentTool_Definition(t *testing.T) {
-	tool := &awaitAgentTool{mgr: newBackgroundManager(nil)}
+	tool := &awaitAgentTool{mgr: newBackgroundManager(nil, "", "")}
 	assert.Equal(t, "await_agent", tool.Name())
 
 	def := tool.Definition()

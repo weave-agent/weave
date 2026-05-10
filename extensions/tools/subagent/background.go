@@ -29,22 +29,26 @@ type backgroundAgent struct {
 
 // backgroundManager tracks all running background agents.
 type backgroundManager struct {
-	mu     sync.RWMutex
-	agents map[string]*backgroundAgent
-	bus    sdk.Bus
-	broker *Broker
-	ctx    context.Context
-	cancel context.CancelFunc
+	mu         sync.RWMutex
+	agents     map[string]*backgroundAgent
+	bus        sdk.Bus
+	broker     *Broker
+	ctx        context.Context
+	cancel     context.CancelFunc
+	cfgPath    string
+	projectDir string
 }
 
-func newBackgroundManager(broker *Broker) *backgroundManager {
+func newBackgroundManager(broker *Broker, cfgPath, projectDir string) *backgroundManager {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &backgroundManager{
-		agents: make(map[string]*backgroundAgent),
-		broker: broker,
-		ctx:    ctx,
-		cancel: cancel,
+		agents:     make(map[string]*backgroundAgent),
+		broker:     broker,
+		ctx:        ctx,
+		cancel:     cancel,
+		cfgPath:    cfgPath,
+		projectDir: projectDir,
 	}
 }
 
@@ -79,7 +83,7 @@ func (bm *backgroundManager) spawn(agent *AgentDef, prompt, cwd, subagentID stri
 
 		// Use the manager's context so background agents are canceled
 		// when the extension is closed.
-		output, err := runSubagent(bm.ctx, agent, prompt, cwd, subagentID, bm.broker)
+		output, err := runSubagent(bm.ctx, agent, prompt, cwd, subagentID, bm.broker, bm.cfgPath, bm.projectDir)
 
 		bm.mu.Lock()
 		ba.finished = time.Now()
@@ -125,6 +129,20 @@ func (bm *backgroundManager) get(id string) (*backgroundAgent, bool) {
 	ba, ok := bm.agents[id]
 
 	return ba, ok
+}
+
+// getSnapshot returns a copy of the backgroundAgent under lock.
+// Use this for reads that must not race with the background goroutine.
+func (bm *backgroundManager) getSnapshot(id string) (backgroundAgent, bool) {
+	bm.mu.RLock()
+	defer bm.mu.RUnlock()
+
+	ba, ok := bm.agents[id]
+	if !ok {
+		return backgroundAgent{}, false
+	}
+
+	return *ba, true
 }
 
 func (bm *backgroundManager) await(ctx context.Context, id string) (*backgroundAgent, bool) {
@@ -185,7 +203,7 @@ func (t *checkAgentTool) Execute(ctx context.Context, args map[string]any) (sdk.
 		return sdk.ToolResult{Content: "id must be a non-empty string", IsError: true}, nil
 	}
 
-	ba, ok := t.mgr.get(id)
+	ba, ok := t.mgr.getSnapshot(id)
 	if !ok {
 		return sdk.ToolResult{Content: fmt.Sprintf("agent %q not found", id), IsError: true}, nil
 	}

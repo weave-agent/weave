@@ -32,12 +32,12 @@ type jsonEvent struct {
 // last "message_end" event is returned as the result.
 // When subagentID is non-empty and broker is provided, the broker routes
 // inter-agent messages and the child gets a stdin pipe for receiving them.
-func runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker) (string, error) {
+func runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
 	if testRunSubagent != nil {
-		return testRunSubagent(ctx, agent, prompt, cwd, subagentID, broker)
+		return testRunSubagent(ctx, agent, prompt, cwd, subagentID, broker, cfgPath, projectDir)
 	}
 
-	cmd, cleanup, err := buildCommand(ctx, agent, prompt, cwd, subagentID)
+	cmd, cleanup, err := buildCommand(ctx, agent, prompt, cwd, subagentID, cfgPath, projectDir)
 	if err != nil {
 		return "", err
 	}
@@ -117,7 +117,7 @@ func runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID s
 // When subagentID is non-empty, --weave-subagent-id is included to enable
 // inter-agent communication in the child process.
 // A cleanup function is returned that removes the temporary prompt file.
-func buildCommand(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (*exec.Cmd, func(), error) {
+func buildCommand(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID, cfgPath, projectDir string) (*exec.Cmd, func(), error) {
 	f, err := os.CreateTemp("", "weave-subagent-prompt-*")
 	if err != nil {
 		return nil, nil, fmt.Errorf("create prompt file: %w", err)
@@ -177,6 +177,14 @@ func buildCommand(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID 
 		args = append(args, "--weave-subagent-id="+subagentID)
 	}
 
+	if cfgPath != "" {
+		args = append(args, "--weave-config="+cfgPath)
+	}
+
+	if projectDir != "" {
+		args = append(args, "--weave-project-dir="+projectDir)
+	}
+
 	cmd := exec.CommandContext(ctx, exe, args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
@@ -191,6 +199,13 @@ func buildCommand(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID 
 // "message_end" event. Non-JSON lines and unrecognized event types are ignored.
 func parseJSONLines(r io.Reader) (string, error) {
 	scanner := bufio.NewScanner(r)
+
+	// Increase buffer capacity to handle large JSON lines (e.g. message_end
+	// events with full assistant content). Default 64 KiB is too small.
+	const maxCapacity = 10 * 1024 * 1024 // 10 MB
+
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, maxCapacity)
 
 	var finalContent string
 
@@ -227,4 +242,4 @@ func parseJSONLines(r io.Reader) (string, error) {
 }
 
 // testRunSubagent is swapped out in tests to avoid spawning real subprocesses.
-var testRunSubagent func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker) (string, error)
+var testRunSubagent func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error)
