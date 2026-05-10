@@ -93,6 +93,10 @@ func dirFromConfig(cfg sdk.Config) string {
 		return dir
 	}
 
+	if pd := cfg.ProjectDir(); pd != "" {
+		return pd
+	}
+
 	fp := cfg.FilePath()
 	if fp == "" {
 		dir, err := os.Getwd()

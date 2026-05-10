@@ -321,6 +321,65 @@ func TestBuildCommand_WithMessaging(t *testing.T) {
 	assert.True(t, slices.Contains(cmd.Args, "--weave-subagent-id=subagent_general_abc123"), "expected --weave-subagent-id flag with correct value")
 }
 
+func TestBuildCommand_MessagingAppendsTools(t *testing.T) {
+	agent := &AgentDef{
+		Name:      "general",
+		Tools:     []string{"bash", "read"},
+		Messaging: true,
+	}
+
+	cmd, cleanup, err := buildCommand(context.Background(), agent, "prompt", "", "subagent_general_abc123", "", "")
+	require.NoError(t, err)
+
+	defer cleanup()
+
+	var toolsArg string
+
+	for _, a := range cmd.Args {
+		if p, ok := strings.CutPrefix(a, "--weave-tools="); ok {
+			toolsArg = p
+			break
+		}
+	}
+
+	require.NotEmpty(t, toolsArg, "expected --weave-tools flag")
+
+	tools := strings.Split(toolsArg, ",")
+	assert.Contains(t, tools, "bash")
+	assert.Contains(t, tools, "read")
+	assert.Contains(t, tools, "send_message")
+	assert.Contains(t, tools, "broadcast_message")
+	assert.Contains(t, tools, "list_agents")
+}
+
+func TestBuildCommand_MessagingDedupesTools(t *testing.T) {
+	agent := &AgentDef{
+		Name:      "general",
+		Tools:     []string{"bash", "send_message"},
+		Messaging: true,
+	}
+
+	cmd, cleanup, err := buildCommand(context.Background(), agent, "prompt", "", "subagent_general_abc123", "", "")
+	require.NoError(t, err)
+
+	defer cleanup()
+
+	var toolsArg string
+
+	for _, a := range cmd.Args {
+		if p, ok := strings.CutPrefix(a, "--weave-tools="); ok {
+			toolsArg = p
+			break
+		}
+	}
+
+	require.NotEmpty(t, toolsArg, "expected --weave-tools flag")
+
+	// send_message should appear exactly once.
+	count := strings.Count(toolsArg, "send_message")
+	assert.Equal(t, 1, count)
+}
+
 func TestBuildCommand_WithoutMessaging(t *testing.T) {
 	agent := &AgentDef{
 		Name:      "explore",

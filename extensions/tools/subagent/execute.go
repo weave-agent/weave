@@ -161,8 +161,22 @@ func buildCommand(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID,
 
 	args = append(args, "--weave-output=json")
 
-	if len(agent.Tools) > 0 {
-		args = append(args, "--weave-tools="+strings.Join(agent.Tools, ","))
+	tools := agent.Tools
+	if agent.Messaging {
+		seen := make(map[string]bool, len(tools))
+		for _, t := range tools {
+			seen[t] = true
+		}
+
+		for _, mt := range []string{"send_message", "broadcast_message", "list_agents"} {
+			if !seen[mt] {
+				tools = append(tools, mt)
+			}
+		}
+	}
+
+	if len(tools) > 0 {
+		args = append(args, "--weave-tools="+strings.Join(tools, ","))
 	}
 
 	if agent.Sandbox != "" {
