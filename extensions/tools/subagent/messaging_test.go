@@ -507,3 +507,58 @@ func TestReadListAgentsResponse_NonJSONLines(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, result, "a1")
 }
+
+func TestListAgentsTool_Execute_NoRaceWithListener(t *testing.T) {
+	// Set up stdin listener.
+	pr, pw := io.Pipe()
+	oldStdin := stdinReader
+
+	stdinReader = pr
+	defer func() { stdinReader = oldStdin }()
+
+	t.Setenv("WEAVE_SUBAGENT_ID", "subagent_test_123")
+
+	bus := newMockBus()
+	startStdinListener(bus)
+
+	defer stopStdinListener()
+
+	// Set up stdout pipe to capture the request and immediately respond.
+	stdoutPR, stdoutPW := io.Pipe()
+	oldStdout := stdoutWriter
+
+	stdoutWriter = stdoutPW
+	defer func() { stdoutWriter = oldStdout }()
+
+	response := brokerMessage{
+		Type: "list_agents_response",
+		Agents: []agentInfo{
+			{ID: "agent1", Name: "explore", Status: "running"},
+		},
+	}
+	respData, _ := json.Marshal(response)
+
+	done := make(chan struct{})
+
+	go func() {
+		scanner := bufio.NewScanner(stdoutPR)
+		if scanner.Scan() {
+			_, _ = fmt.Fprintln(pw, string(respData))
+		}
+
+		close(done)
+	}()
+
+	tool := &listAgentsTool{}
+	result, err := tool.Execute(context.Background(), map[string]any{})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+	assert.Contains(t, result.Content, "agent1")
+	assert.Contains(t, result.Content, "explore")
+
+	_ = stdoutPW.Close()
+
+	<-done
+
+	_ = pw.Close()
+}

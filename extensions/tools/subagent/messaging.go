@@ -159,16 +159,25 @@ func (t *listAgentsTool) Definition() sdk.ToolDef {
 }
 
 func (t *listAgentsTool) Execute(ctx context.Context, _ map[string]any) (sdk.ToolResult, error) {
+	// Set up response channel first to avoid race with parent's response.
+	var respCh chan string
+	if sl := getStdinListener(); sl != nil {
+		respCh = make(chan string, 1)
+
+		sl.setResponseChannel(respCh)
+		defer sl.setResponseChannel(nil)
+	}
+
 	msg := brokerMessage{Type: msgTypeListAgents}
 
 	if err := writeBrokerMessage(stdoutWriter, msg); err != nil {
-		return sdk.ToolResult{Content: err.Error(), IsError: true}, nil //nolint:nilerr // tool protocol
+		return sdk.ToolResult{Content: err.Error(), IsError: true}, nil
 	}
 
 	// Read from stdin until we get a list_agents_response or context is canceled.
-	result, err := readListAgentsResponse(ctx, stdinReader)
+	result, err := readListAgentsResponseWithChannel(ctx, stdinReader, respCh)
 	if err != nil {
-		return sdk.ToolResult{Content: err.Error(), IsError: true}, nil //nolint:nilerr // tool protocol
+		return sdk.ToolResult{Content: err.Error(), IsError: true}, nil
 	}
 
 	return sdk.ToolResult{Content: result}, nil
@@ -192,15 +201,32 @@ func writeBrokerMessage(w io.Writer, msg brokerMessage) error {
 // If the stdin listener is running, it uses the listener's response channel.
 // Otherwise it scans r directly for the response.
 func readListAgentsResponse(ctx context.Context, r io.Reader) (string, error) {
+	return readListAgentsResponseWithChannel(ctx, r, nil)
+}
+
+// readListAgentsResponseWithChannel waits for a list_agents_response message.
+// If respCh is non-nil, it reads from that channel directly. Otherwise, if the
+// stdin listener is running, it uses the listener's response channel. If neither,
+// it scans r directly for the response.
+func readListAgentsResponseWithChannel(ctx context.Context, r io.Reader, respCh chan string) (string, error) {
+	if respCh != nil {
+		select {
+		case result := <-respCh:
+			return result, nil
+		case <-ctx.Done():
+			return "", fmt.Errorf("context canceled: %w", ctx.Err())
+		}
+	}
+
 	// Prefer the stdin listener if available.
 	if sl := getStdinListener(); sl != nil {
-		respCh := make(chan string, 1)
+		ch := make(chan string, 1)
 
-		sl.setResponseChannel(respCh)
+		sl.setResponseChannel(ch)
 		defer sl.setResponseChannel(nil)
 
 		select {
-		case result := <-respCh:
+		case result := <-ch:
 			return result, nil
 		case <-ctx.Done():
 			return "", fmt.Errorf("context canceled: %w", ctx.Err())
