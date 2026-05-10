@@ -93,14 +93,14 @@ Add a subagent system to Weave as a tool extension (`extensions/tools/subagent/`
 - [x] run tests — must pass before task 4
 
 ### Task 4: Subprocess execution engine
-- [ ] create `execute.go` with `runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd string) (string, error)`
-- [ ] build command: `weave -p --output json --tools <tools> [--sandbox <mode>] [--model <model>]` with prompt passed via `--weave-prompt-file`
-- [ ] spawn process via `exec.CommandContext`, pipe stdout
-- [ ] parse JSON lines from stdout — handle `message_start`, `message_update`, `tool_call`, `tool_result`, `message_end` event types
-- [ ] extract final content from `message_end` event as tool result
-- [ ] handle abort: ctx cancellation kills child process
-- [ ] write tests for JSON line parsing, command building, abort handling (mock exec.Command)
-- [ ] run tests — must pass before task 5
+- [x] create `execute.go` with `runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd string) (string, error)`
+- [x] build command: `weave -p --output json --tools <tools> [--sandbox <mode>] [--model <model>]` with prompt passed via `--weave-prompt-file`
+- [x] spawn process via `exec.CommandContext`, pipe stdout
+- [x] parse JSON lines from stdout — handle `message_start`, `message_update`, `tool_call`, `tool_result`, `message_end` event types
+- [x] extract final content from `message_end` event as tool result
+- [x] handle abort: ctx cancellation kills child process
+- [x] write tests for JSON line parsing, command building, abort handling (mock exec.Command)
+- [x] run tests — must pass before task 5
 
 ### Task 5: Execution modes (parallel and chain)
 - [ ] create `modes.go` with parallel and chain execution logic
