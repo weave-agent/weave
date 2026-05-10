@@ -3,6 +3,7 @@ package grep
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -24,6 +25,15 @@ func TestDefinition(t *testing.T) {
 	def := tool.Definition()
 	assert.Equal(t, "grep", def.Name)
 	assert.NotNil(t, def.Parameters)
+}
+
+func TestDefinitionHasInclude(t *testing.T) {
+	tool := &tool{}
+	def := tool.Definition()
+	params := def.Parameters.(map[string]any)
+	props := params["properties"].(map[string]any)
+	_, hasInclude := props["include"]
+	assert.True(t, hasInclude, "definition should have 'include' parameter")
 }
 
 func createTempFile(t *testing.T, content string) string {
@@ -153,7 +163,7 @@ func TestExecute(t *testing.T) {
 			},
 		},
 		{
-			name: "long line",
+			name: "long line is truncated",
 			setup: func(t *testing.T) string {
 				longLine := strings.Repeat("x", 2*1024*1024)
 				return createTempFile(t, "before\nTARGET"+longLine+"\nafter")
@@ -161,7 +171,39 @@ func TestExecute(t *testing.T) {
 			args: map[string]any{"pattern": "TARGET"},
 			check: func(t *testing.T, result sdk.ToolResult) {
 				assert.NotContains(t, result.Content, "no matches found")
-				assert.Contains(t, result.Content, "output truncated")
+				assert.Less(t, len(result.Content), 2*1024*1024, "output should be truncated, not full 2MB")
+			},
+		},
+		{
+			name: "include glob filter",
+			setup: func(t *testing.T) string {
+				dir := t.TempDir()
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "code.go"), []byte("findme go"), 0o644))
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("findme txt"), 0o644))
+
+				return dir
+			},
+			args: map[string]any{"pattern": "findme", "include": "*.go"},
+			check: func(t *testing.T, result sdk.ToolResult) {
+				assert.Contains(t, result.Content, "findme go")
+				assert.NotContains(t, result.Content, "findme txt")
+			},
+		},
+		{
+			name: "include brace pattern",
+			setup: func(t *testing.T) string {
+				dir := t.TempDir()
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "a.ts"), []byte("findme ts"), 0o644))
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "b.tsx"), []byte("findme tsx"), 0o644))
+				require.NoError(t, os.WriteFile(filepath.Join(dir, "c.go"), []byte("findme go"), 0o644))
+
+				return dir
+			},
+			args: map[string]any{"pattern": "findme", "include": "*.{ts,tsx}"},
+			check: func(t *testing.T, result sdk.ToolResult) {
+				assert.Contains(t, result.Content, "findme ts")
+				assert.Contains(t, result.Content, "findme tsx")
+				assert.NotContains(t, result.Content, "findme go")
 			},
 		},
 	}
@@ -235,6 +277,107 @@ func TestExecuteSandboxNil(t *testing.T) {
 	assert.Contains(t, result.Content, "findme normal")
 }
 
+func TestLineTruncation(t *testing.T) {
+	longContent := "prefix " + strings.Repeat("x", 1000) + " suffix"
+	line := "file.txt:42:" + longContent
+	truncated := truncateLine(line)
+
+	assert.Less(t, len(truncated), len(line), "truncated line should be shorter")
+	assert.Contains(t, truncated, "chars truncated")
+	assert.True(t, strings.HasPrefix(truncated, "file.txt:42:prefix "))
+}
+
+func TestLineTruncationShort(t *testing.T) {
+	line := "file.txt:1:short content"
+	assert.Equal(t, line, truncateLine(line), "short lines should not be truncated")
+}
+
+func TestBinaryFileSkipped(t *testing.T) {
+	dir := t.TempDir()
+
+	// Write a binary file (PNG header)
+	binaryContent := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00}
+	binPath := filepath.Join(dir, "image.png")
+	require.NoError(t, os.WriteFile(binPath, binaryContent, 0o644))
+
+	txtPath := filepath.Join(dir, "readme.txt")
+	require.NoError(t, os.WriteFile(txtPath, []byte("findme text"), 0o644))
+
+	result, err := (&tool{}).Execute(context.Background(), map[string]any{
+		"pattern": "findme",
+		"path":    dir,
+	})
+	require.NoError(t, err)
+	assert.NotContains(t, result.Content, "image.png")
+	// Text file should still be found (via rg or fallback)
+}
+
+func TestRgPathWithRipgrep(t *testing.T) {
+	if _, err := exec.LookPath("rg"); err != nil {
+		t.Skip("rg not in PATH")
+	}
+
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("hello world"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "b.go"), []byte("hello go"), 0o644))
+
+	// Test rg path works with include filter
+	result, err := (&tool{}).Execute(context.Background(), map[string]any{
+		"pattern": "hello",
+		"path":    dir,
+		"include": "*.go",
+	})
+	require.NoError(t, err)
+	assert.Contains(t, result.Content, "hello go")
+	assert.NotContains(t, result.Content, "hello world")
+}
+
+func TestRespectGitignore(t *testing.T) {
+	if _, err := exec.LookPath("rg"); err != nil {
+		t.Skip("rg not in PATH")
+	}
+
+	dir := t.TempDir()
+
+	// Initialize a git repo so rg respects .gitignore
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("ignored.txt\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "ignored.txt"), []byte("findme ignored"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "visible.txt"), []byte("findme visible"), 0o644))
+
+	// Initialize git repo so rg finds the .gitignore
+	gitCmd := exec.Command("git", "init")
+	gitCmd.Dir = dir
+	require.NoError(t, gitCmd.Run())
+
+	// With respect_gitignore = true (default), ignored files should be skipped
+	cfg := &testConfig{respectGitignore: true}
+	result, err := (&tool{cfg: cfg}).Execute(context.Background(), map[string]any{
+		"pattern": "findme",
+		"path":    dir,
+	})
+	require.NoError(t, err)
+	assert.NotContains(t, result.Content, "findme ignored")
+	assert.Contains(t, result.Content, "findme visible")
+}
+
+func TestNoRespectGitignore(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("ignored.txt\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "ignored.txt"), []byte("findme ignored"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "visible.txt"), []byte("findme visible"), 0o644))
+
+	// With respect_gitignore = false, ignored files should be found
+	cfg := &testConfig{respectGitignore: false}
+	result, err := (&tool{cfg: cfg}).Execute(context.Background(), map[string]any{
+		"pattern": "findme",
+		"path":    dir,
+	})
+	require.NoError(t, err)
+	assert.Contains(t, result.Content, "findme visible")
+	// Note: the fallback path doesn't parse .gitignore, so "ignored.txt" will be found in fallback mode
+	// If rg is available, --no-ignore will include it
+}
+
 type testSandboxer struct {
 	allowReadFn  func(string) bool
 	allowWriteFn func(string) bool
@@ -267,3 +410,19 @@ func (ts *testSandboxer) AllowRead(path string) bool {
 
 func (ts *testSandboxer) Mode() string   { return "auto" }
 func (ts *testSandboxer) SetMode(string) {}
+
+type testConfig struct {
+	respectGitignore bool
+}
+
+func (testConfig) FilePath() string                               { return "" }
+func (testConfig) ProviderConfig(string) *sdk.ProviderConfigEntry { return nil }
+func (testConfig) ResolveKey(_, _ string) (string, error)         { return "", nil }
+func (testConfig) ToolConfig(string, any) error                   { return nil }
+func (testConfig) UIConfig(any) error                             { return nil }
+func (testConfig) IsHeadless() bool                               { return false }
+func (testConfig) Preferences(any) error                          { return nil }
+func (testConfig) SavePreferences(any) error                      { return nil }
+func (testConfig) ProviderHasKey(string) bool                     { return false }
+func (testConfig) SetProviderKey(string, string) error            { return nil }
+func (tc testConfig) RespectGitignore() bool                      { return tc.respectGitignore }

@@ -54,14 +54,14 @@ Wire the new setting through the config system so tools can read it.
 
 Replace the pure Go grep implementation with rg-first, stdlib-fallback.
 
-- [ ] add `include` parameter to grep tool definition (glob filter like `*.ts`, `{pattern}`)
-- [ ] implement `searchWithRipgrep()` — shells out to `rg --json -H -n` with pattern, path, include glob, ignoreCase/literal flags; parses structured JSON output into match structs; passes `--no-ignore` when `respect_gitignore` is false
-- [ ] refactor `Execute()` to try rg first, fall back to current stdlib `searchDir`/`searchFile` on rg failure
-- [ ] add line truncation to grep output (cap individual lines to ~500 chars)
-- [ ] add binary file detection to fallback path (skip files where first 512 bytes fail `http.DetectContentType` text check)
-- [ ] update grep tool description to mention rg and new capabilities
-- [ ] write tests for rg path (skip if rg not in PATH), fallback path, new `include` param, line truncation, binary skipping
-- [ ] run tests — must pass before next task
+- [x] add `include` parameter to grep tool definition (glob filter like `*.ts`, `{pattern}`)
+- [x] implement `searchWithRipgrep()` — shells out to `rg --json -H -n` with pattern, path, include glob, ignoreCase/literal flags; parses structured JSON output into match structs; passes `--no-ignore` when `respect_gitignore` is false
+- [x] refactor `Execute()` to try rg first, fall back to current stdlib `searchDir`/`searchFile` on rg failure
+- [x] add line truncation to grep output (cap individual lines to ~500 chars)
+- [x] add binary file detection to fallback path (skip files where first 512 bytes fail `http.DetectContentType` text check)
+- [x] update grep tool description to mention rg and new capabilities
+- [x] write tests for rg path (skip if rg not in PATH), fallback path, new `include` param, line truncation, binary skipping
+- [x] run tests — must pass before next task
 
 ### Task 4: Refactor find to rg-first
 
