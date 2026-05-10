@@ -28,9 +28,18 @@ func TestExtensionRegistration(t *testing.T) {
 			a := agent
 			toolName := "subagent_" + a.Name
 			sdk.RegisterTool(toolName, func(sdk.Config) (sdk.Tool, error) {
-				return newSubagentTool(a), nil
+				return newSubagentTool(a, nil), nil
 			})
 		}
+
+		mgr := newBackgroundManager()
+
+		sdk.RegisterTool("check_agent", func(sdk.Config) (sdk.Tool, error) {
+			return &checkAgentTool{mgr: mgr}, nil
+		})
+		sdk.RegisterTool("await_agent", func(sdk.Config) (sdk.Tool, error) {
+			return &awaitAgentTool{mgr: mgr}, nil
+		})
 
 		return sdk.NewExtensionFunc("subagent", nil), nil
 	})
@@ -54,13 +63,22 @@ func TestExtensionFactoryRegistersTools(t *testing.T) {
 			return nil, err
 		}
 
+		mgr := newBackgroundManager()
+
 		for _, agent := range agents {
 			a := agent
 			toolName := "subagent_" + a.Name
 			sdk.RegisterTool(toolName, func(sdk.Config) (sdk.Tool, error) {
-				return newSubagentTool(a), nil
+				return newSubagentTool(a, mgr), nil
 			})
 		}
+
+		sdk.RegisterTool("check_agent", func(sdk.Config) (sdk.Tool, error) {
+			return &checkAgentTool{mgr: mgr}, nil
+		})
+		sdk.RegisterTool("await_agent", func(sdk.Config) (sdk.Tool, error) {
+			return &awaitAgentTool{mgr: mgr}, nil
+		})
 
 		return sdk.NewExtensionFunc("subagent", nil), nil
 	})
@@ -72,6 +90,8 @@ func TestExtensionFactoryRegistersTools(t *testing.T) {
 	assert.True(t, sdk.ToolRegistered("subagent_general"))
 	assert.True(t, sdk.ToolRegistered("subagent_explore"))
 	assert.True(t, sdk.ToolRegistered("subagent_plan"))
+	assert.True(t, sdk.ToolRegistered("check_agent"))
+	assert.True(t, sdk.ToolRegistered("await_agent"))
 
 	// Verify tool names and definitions.
 	tool, err := sdk.GetTool("subagent_explore", nil)
@@ -89,7 +109,7 @@ func TestSubagentTool_Definition(t *testing.T) {
 		Name:        "test",
 		Description: "A test agent",
 	}
-	tool := newSubagentTool(agent)
+	tool := newSubagentTool(agent, nil)
 
 	def := tool.Definition()
 	assert.Equal(t, "subagent_test", def.Name)
@@ -208,7 +228,7 @@ func TestValidateMode_TypedArrays(t *testing.T) {
 
 func TestExecute_ValidationError(t *testing.T) {
 	agent := &AgentDef{Name: "test"}
-	tool := newSubagentTool(agent)
+	tool := newSubagentTool(agent, nil)
 
 	ctx := context.Background()
 	args := map[string]any{"prompt": "hello", "tasks": []any{"task1"}}
@@ -220,7 +240,7 @@ func TestExecute_ValidationError(t *testing.T) {
 
 func TestExecute_MissingMode(t *testing.T) {
 	agent := &AgentDef{Name: "test"}
-	tool := newSubagentTool(agent)
+	tool := newSubagentTool(agent, nil)
 
 	ctx := context.Background()
 	args := map[string]any{}
@@ -239,7 +259,7 @@ func TestExecute_PromptMode(t *testing.T) {
 	}
 
 	agent := &AgentDef{Name: "test"}
-	tool := newSubagentTool(agent)
+	tool := newSubagentTool(agent, nil)
 
 	ctx := context.Background()
 	args := map[string]any{"prompt": "hello"}
@@ -258,7 +278,7 @@ func TestExecute_ParallelMode(t *testing.T) {
 	}
 
 	agent := &AgentDef{Name: "test"}
-	tool := newSubagentTool(agent)
+	tool := newSubagentTool(agent, nil)
 
 	ctx := context.Background()
 	args := map[string]any{
@@ -284,7 +304,7 @@ func TestExecute_ChainMode(t *testing.T) {
 	}
 
 	agent := &AgentDef{Name: "test"}
-	tool := newSubagentTool(agent)
+	tool := newSubagentTool(agent, nil)
 
 	ctx := context.Background()
 	args := map[string]any{
@@ -312,7 +332,7 @@ func TestExecute_PromptMode_WithCWD(t *testing.T) {
 	}
 
 	agent := &AgentDef{Name: "test"}
-	tool := newSubagentTool(agent)
+	tool := newSubagentTool(agent, nil)
 
 	ctx := context.Background()
 	args := map[string]any{

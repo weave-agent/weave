@@ -111,15 +111,15 @@ Add a subagent system to Weave as a tool extension (`extensions/tools/subagent/`
 - [x] run tests — must pass before task 6
 
 ### Task 6: Background execution
-- [ ] create `background.go` with background subagent management
-- [ ] when `background: true`, `Execute()` spawns the subprocess but returns immediately with `{"id":"subagent_explore_abc123","status":"running"}`
-- [ ] broker tracks background agents in `map[string]*backgroundAgent` (ID → process, status, result channel)
-- [ ] background agents emit `{"type":"agent_done","id":"...","status":"completed|failed","content":"..."}` when finished — broker receives and stores result
-- [ ] register `check_agent(id)` tool — returns current status and result (if done) of a background agent
-- [ ] register `await_agent(id)` tool — blocks until the specified background agent completes, then returns its result
-- [ ] broker publishes `subagent.done` event on parent bus when background agent finishes — agent loop can surface to LLM as injected context
-- [ ] write tests for background spawn (returns immediately), check_agent (pending/completed states), await_agent (blocks until done), agent_done notification
-- [ ] run tests — must pass before task 7
+- [x] create `background.go` with background subagent management
+- [x] when `background: true`, `Execute()` spawns the subprocess but returns immediately with `{"id":"subagent_explore_abc123","status":"running"}`
+- [x] broker tracks background agents in `map[string]*backgroundAgent` (ID → process, status, result channel)
+- [x] background agents emit `{"type":"agent_done","id":"...","status":"completed|failed","content":"..."}` when finished — broker receives and stores result
+- [x] register `check_agent(id)` tool — returns current status and result (if done) of a background agent
+- [x] register `await_agent(id)` tool — blocks until the specified background agent completes, then returns its result
+- [x] broker publishes `subagent.done` event on parent bus when background agent finishes — agent loop can surface to LLM as injected context
+- [x] write tests for background spawn (returns immediately), check_agent (pending/completed states), await_agent (blocks until done), agent_done notification
+- [x] run tests — must pass before task 7
 
 ### Task 7: CLI flag support (--output json, --tools, --subagent-id)
 - [ ] add `--output` flag to weave CLI — values: `text` (default), `json`

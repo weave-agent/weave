@@ -2,6 +2,7 @@ package subagent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -25,6 +26,8 @@ const (
 	paramChain      = "chain"
 	paramBackground = "background"
 	paramCWD        = "cwd"
+	propID          = "id"
+	propDescription = "description"
 )
 
 func init() {
@@ -36,15 +39,28 @@ func init() {
 			return nil, fmt.Errorf("discover agents: %w", err)
 		}
 
+		mgr := newBackgroundManager()
+
 		for _, agent := range agents {
 			a := agent // capture loop variable
 			toolName := "subagent_" + a.Name
 			sdk.RegisterTool(toolName, func(sdk.Config) (sdk.Tool, error) {
-				return newSubagentTool(a), nil
+				return newSubagentTool(a, mgr), nil
 			})
 		}
 
-		return sdk.NewExtensionFunc("subagent", nil), nil
+		// Register background management tools
+		sdk.RegisterTool("check_agent", func(sdk.Config) (sdk.Tool, error) {
+			return &checkAgentTool{mgr: mgr}, nil
+		})
+		sdk.RegisterTool("await_agent", func(sdk.Config) (sdk.Tool, error) {
+			return &awaitAgentTool{mgr: mgr}, nil
+		})
+
+		return sdk.NewExtensionFunc("subagent", func(bus sdk.Bus) error {
+			mgr.setBus(bus)
+			return nil
+		}), nil
 	})
 }
 
@@ -75,10 +91,11 @@ func dirFromConfig(cfg sdk.Config) string {
 // subagentTool implements sdk.Tool for a single agent definition.
 type subagentTool struct {
 	agent *AgentDef
+	mgr   *backgroundManager
 }
 
-func newSubagentTool(agent *AgentDef) *subagentTool {
-	return &subagentTool{agent: agent}
+func newSubagentTool(agent *AgentDef, mgr *backgroundManager) *subagentTool {
+	return &subagentTool{agent: agent, mgr: mgr}
 }
 
 func (t *subagentTool) Name() string {
@@ -93,26 +110,26 @@ func (t *subagentTool) Definition() sdk.ToolDef {
 			jsonType: jsonObject,
 			"properties": map[string]any{
 				paramPrompt: map[string]any{
-					jsonType:      jsonString,
-					"description": "Task for single mode",
+					jsonType:        jsonString,
+					propDescription: "Task for single mode",
 				},
 				paramTasks: map[string]any{
-					jsonType:      jsonArray,
-					"items":       map[string]any{jsonType: jsonObject},
-					"description": "For parallel mode",
+					jsonType:        jsonArray,
+					"items":         map[string]any{jsonType: jsonObject},
+					propDescription: "For parallel mode",
 				},
 				paramChain: map[string]any{
-					jsonType:      jsonArray,
-					"items":       map[string]any{jsonType: jsonObject},
-					"description": "For chain mode",
+					jsonType:        jsonArray,
+					"items":         map[string]any{jsonType: jsonObject},
+					propDescription: "For chain mode",
 				},
 				paramBackground: map[string]any{
-					jsonType:      jsonBool,
-					"description": "Run in background, return agent ID immediately",
+					jsonType:        jsonBool,
+					propDescription: "Run in background, return agent ID immediately",
 				},
 				paramCWD: map[string]any{
-					jsonType:      jsonString,
-					"description": "Working directory override",
+					jsonType:        jsonString,
+					propDescription: "Working directory override",
 				},
 			},
 		},
@@ -131,9 +148,26 @@ func (t *subagentTool) Execute(ctx context.Context, args map[string]any) (sdk.To
 		cwd = v
 	}
 
+	background := false
+	if v, ok := args[paramBackground].(bool); ok {
+		background = v
+	}
+
 	switch m {
 	case modePrompt:
 		prompt := args[paramPrompt].(string)
+
+		if background {
+			if t.mgr == nil {
+				return sdk.ToolResult{Content: "background manager not available", IsError: true}, nil
+			}
+
+			id := t.mgr.spawn(ctx, t.agent, prompt, cwd)
+			result := map[string]any{propID: id, "status": "running"}
+			jsonBytes, _ := json.Marshal(result)
+
+			return sdk.ToolResult{Content: string(jsonBytes)}, nil
+		}
 
 		output, err := runSubagent(ctx, t.agent, prompt, cwd)
 		if err != nil {
@@ -143,10 +177,20 @@ func (t *subagentTool) Execute(ctx context.Context, args map[string]any) (sdk.To
 
 		return sdk.ToolResult{Content: output}, nil
 	case modeParallel:
+		if background {
+			return sdk.ToolResult{Content: "background mode is not supported for parallel execution", IsError: true}, nil
+		}
+
 		tasks, _ := toAnySlice(args[paramTasks])
+
 		return runParallel(ctx, t.agent, tasks, cwd)
 	case modeChain:
+		if background {
+			return sdk.ToolResult{Content: "background mode is not supported for chain execution", IsError: true}, nil
+		}
+
 		chain, _ := toAnySlice(args[paramChain])
+
 		return runChain(ctx, t.agent, chain, cwd)
 	}
 
