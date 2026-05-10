@@ -136,9 +136,20 @@ func buildCommand(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID,
 	_ = os.Chmod(f.Name(), 0o600)
 
 	// Combine agent system prompt with the user's task prompt.
+	// Body is appended when both are present so that frontmatter system
+	// overrides and markdown body instructions are both preserved.
+	system := agent.System
+	if agent.Body != "" {
+		if system != "" {
+			system = system + "\n\n" + agent.Body
+		} else {
+			system = agent.Body
+		}
+	}
+
 	fullPrompt := prompt
-	if agent.System != "" {
-		fullPrompt = agent.System + "\n\n" + prompt
+	if system != "" {
+		fullPrompt = system + "\n\n" + prompt
 	}
 
 	if _, writeErr := f.WriteString(fullPrompt); writeErr != nil {

@@ -86,9 +86,14 @@ func (b *Broker) Register(id, name string, stdin io.Writer) {
 	roster := b.snapshotRosterLocked()
 	b.mu.Unlock()
 
-	if err := b.injectRoster(id, roster); err != nil {
-		log.Printf("broker: inject roster to %s failed: %v", id, err)
-	}
+	// Inject roster asynchronously so a slow or blocked child
+	// cannot stall the caller (which may hold no lock but could
+	// be on the critical path of spawning subagents).
+	go func() {
+		if err := b.injectRoster(id, roster); err != nil {
+			log.Printf("broker: inject roster to %s failed: %v", id, err)
+		}
+	}()
 }
 
 // Unregister removes a subagent from the broker's registry.

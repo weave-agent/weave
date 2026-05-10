@@ -108,8 +108,9 @@ func dirFromConfig(cfg sdk.Config) string {
 	}
 
 	// For .weave/config.yaml, project root is the parent of .weave/
-	if strings.Contains(fp, string(filepath.Separator)+".weave"+string(filepath.Separator)) {
-		return filepath.Dir(filepath.Dir(fp))
+	dir := filepath.Dir(fp)
+	if filepath.Base(dir) == ".weave" {
+		return filepath.Dir(dir)
 	}
 
 	// For .weave.yaml, project root is the directory containing it
