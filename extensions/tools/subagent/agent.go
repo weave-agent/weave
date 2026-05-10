@@ -24,7 +24,7 @@ type AgentDef struct {
 type agentFrontmatter struct {
 	Name        string `yaml:"name"`
 	Description string `yaml:"description"`
-	Tools       string `yaml:"tools"`
+	Tools       any    `yaml:"tools"`
 	Model       string `yaml:"model"`
 	Sandbox     string `yaml:"sandbox"`
 	Messaging   bool   `yaml:"messaging"`
@@ -82,10 +82,7 @@ func ParseAgent(data []byte) (*AgentDef, error) {
 		return nil, errors.New("agent name is required in frontmatter")
 	}
 
-	var tools []string
-	if fm.Tools != "" {
-		tools = parseTools(fm.Tools)
-	}
+	tools := parseToolsField(fm.Tools)
 
 	if fm.Sandbox != "" {
 		allowed := map[string]bool{"off": true, "readonly": true, "ask": true, "auto": true}
@@ -131,4 +128,34 @@ func parseTools(s string) []string {
 	}
 	// Fallback to whitespace-separated.
 	return strings.Fields(s)
+}
+
+// parseToolsField normalizes the Tools frontmatter field which may be a
+// string or a YAML array.
+func parseToolsField(v any) []string {
+	if v == nil {
+		return nil
+	}
+
+	if s, ok := v.(string); ok {
+		if s == "" {
+			return nil
+		}
+
+		return parseTools(s)
+	}
+
+	if arr, ok := v.([]any); ok {
+		var out []string
+
+		for _, item := range arr {
+			if s, ok := item.(string); ok && s != "" {
+				out = append(out, s)
+			}
+		}
+
+		return out
+	}
+
+	return nil
 }

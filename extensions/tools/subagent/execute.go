@@ -54,7 +54,10 @@ func runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID s
 		return "", fmt.Errorf("pipe stderr: %w", pipeErr)
 	}
 
-	go io.Copy(io.Discard, stderr) //nolint:errcheck // best-effort drain
+	var stderrBuf strings.Builder
+	go func() {
+		_, _ = io.Copy(&stderrBuf, stderr) // best-effort drain
+	}()
 
 	var stdin io.WriteCloser
 	if broker != nil && subagentID != "" {
@@ -81,7 +84,9 @@ func runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID s
 		select {
 		case <-ctx.Done():
 			if cmd.Process != nil {
-				_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+				if killErr := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL); killErr != nil {
+					_ = cmd.Process.Kill()
+				}
 			}
 		case <-done:
 		}
@@ -104,6 +109,10 @@ func runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID s
 	if waitErr != nil {
 		if ctx.Err() != nil {
 			return "", fmt.Errorf("subagent aborted: %w", ctx.Err())
+		}
+
+		if stderrStr := strings.TrimSpace(stderrBuf.String()); stderrStr != "" {
+			return "", fmt.Errorf("subagent exited with error: %w\nstderr: %s", waitErr, stderrStr)
 		}
 
 		return "", fmt.Errorf("subagent exited with error: %w", waitErr)

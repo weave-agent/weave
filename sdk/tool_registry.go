@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync"
 
 	"weave/sdk/registry"
 )
@@ -17,7 +18,13 @@ func RegisterTool(name string, factory func(Config) (Tool, error)) {
 }
 
 func GetTool(name string, cfg Config) (Tool, error) {
-	if len(toolFilter) > 0 && !toolFilter[name] {
+	toolFilterMu.RLock()
+
+	filter := toolFilter
+
+	toolFilterMu.RUnlock()
+
+	if len(filter) > 0 && !filter[name] {
 		return nil, fmt.Errorf("tool %q not in allowed list", name)
 	}
 
@@ -33,9 +40,15 @@ func ToolRegistered(name string) bool {
 	return toolReg.Exists(name)
 }
 
-var toolFilter map[string]bool
+var (
+	toolFilter   map[string]bool
+	toolFilterMu sync.RWMutex
+)
 
 func SetToolFilter(names []string) {
+	toolFilterMu.Lock()
+	defer toolFilterMu.Unlock()
+
 	toolFilter = make(map[string]bool, len(names))
 	for _, name := range names {
 		toolFilter[name] = true
@@ -43,14 +56,20 @@ func SetToolFilter(names []string) {
 }
 
 func ListTools() []string {
+	toolFilterMu.RLock()
+
+	filter := toolFilter
+
+	toolFilterMu.RUnlock()
+
 	all := toolReg.List()
-	if len(toolFilter) == 0 {
+	if len(filter) == 0 {
 		return all
 	}
 
-	filtered := make([]string, 0, len(toolFilter))
+	filtered := make([]string, 0, len(filter))
 	for _, name := range all {
-		if toolFilter[name] {
+		if filter[name] {
 			filtered = append(filtered, name)
 		}
 	}
@@ -61,5 +80,7 @@ func ListTools() []string {
 func ResetToolRegistry() {
 	toolReg.Reset()
 
+	toolFilterMu.Lock()
 	toolFilter = nil
+	toolFilterMu.Unlock()
 }

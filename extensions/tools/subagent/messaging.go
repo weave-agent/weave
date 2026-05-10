@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 
 	"weave/sdk"
 )
@@ -150,6 +151,8 @@ func (t *broadcastMessageTool) Execute(_ context.Context, args map[string]any) (
 // listAgentsTool implements the list_agents inter-agent tool.
 type listAgentsTool struct{}
 
+var listAgentsMu sync.Mutex
+
 func (t *listAgentsTool) Name() string { return msgTypeListAgents }
 
 func (t *listAgentsTool) Definition() sdk.ToolDef {
@@ -165,6 +168,11 @@ func (t *listAgentsTool) Definition() sdk.ToolDef {
 }
 
 func (t *listAgentsTool) Execute(ctx context.Context, _ map[string]any) (sdk.ToolResult, error) {
+	// Serialize list_agents calls to prevent concurrent executions from
+	// racing on the single shared response channel.
+	listAgentsMu.Lock()
+	defer listAgentsMu.Unlock()
+
 	// Set up response channel first to avoid race with parent's response.
 	var respCh chan string
 	if sl := getStdinListener(); sl != nil {
