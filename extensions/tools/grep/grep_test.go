@@ -411,6 +411,30 @@ func (ts *testSandboxer) AllowRead(path string) bool {
 func (ts *testSandboxer) Mode() string   { return "auto" }
 func (ts *testSandboxer) SetMode(string) {}
 
+func TestRgWithSandboxerFiltersDeniedPaths(t *testing.T) {
+	if _, err := exec.LookPath("rg"); err != nil {
+		t.Skip("rg not in PATH")
+	}
+
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "public.txt"), []byte("findme public"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "secret.txt"), []byte("findme secret"), 0o644))
+
+	sandboxer := &testSandboxer{allowReadFn: func(p string) bool {
+		return !strings.Contains(p, "secret")
+	}}
+	sdk.SetSandboxer(sandboxer)
+	t.Cleanup(func() { sdk.SetSandboxer(nil) })
+
+	result, err := (&tool{}).Execute(context.Background(), map[string]any{
+		"pattern": "findme",
+		"path":    dir,
+	})
+	require.NoError(t, err)
+	assert.Contains(t, result.Content, "findme public")
+	assert.NotContains(t, result.Content, "findme secret")
+}
+
 type testConfig struct {
 	respectGitignore bool
 }

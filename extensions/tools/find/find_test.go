@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"weave/sdk"
@@ -389,3 +390,27 @@ func (ts *testSandboxer) AllowRead(path string) bool {
 
 func (ts *testSandboxer) Mode() string   { return "auto" }
 func (ts *testSandboxer) SetMode(string) {}
+
+func TestRgWithSandboxerFiltersDeniedPaths(t *testing.T) {
+	if _, err := exec.LookPath("rg"); err != nil {
+		t.Skip("rg not in PATH")
+	}
+
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "public.go"), []byte("package main"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "secret.go"), []byte("package secret"), 0o644))
+
+	sandboxer := &testSandboxer{allowReadFn: func(p string) bool {
+		return !strings.Contains(p, "secret")
+	}}
+	sdk.SetSandboxer(sandboxer)
+	t.Cleanup(func() { sdk.SetSandboxer(nil) })
+
+	result, err := (&tool{}).Execute(context.Background(), map[string]any{
+		"pattern": "*.go",
+		"path":    dir,
+	})
+	require.NoError(t, err)
+	assert.Contains(t, result.Content, "public.go")
+	assert.NotContains(t, result.Content, "secret.go")
+}

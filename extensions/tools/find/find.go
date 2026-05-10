@@ -36,7 +36,7 @@ func (t *tool) Name() string { return "find" }
 func (t *tool) Definition() sdk.ToolDef {
 	return sdk.ToolDef{
 		Name:        "find",
-		Description: "Find files and directories matching a glob pattern. Uses ripgrep when available for .gitignore support and faster searches; falls back to pure Go when rg is absent. Supports **/ recursive patterns.",
+		Description: "Find files matching a glob pattern. Uses ripgrep when available for .gitignore support and faster searches; falls back to pure Go when rg is absent. Supports **/ recursive patterns.",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -106,6 +106,8 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 
 // find tries rg first, then falls back to stdlib.
 func (t *tool) find(ctx context.Context, absPath, pattern string, respectGitignore bool) []string {
+	// Use rg when available. Denied paths are filtered from results by
+	// AllowRead checks in filterResults.
 	if rgPath := ripgrep.Find(); rgPath != "" {
 		matches, err := findWithRipgrep(ctx, rgPath, absPath, pattern, respectGitignore)
 		if err == nil {
@@ -117,7 +119,7 @@ func (t *tool) find(ctx context.Context, absPath, pattern string, respectGitigno
 }
 
 func findWithRipgrep(ctx context.Context, rgPath, absPath, pattern string, respectGitignore bool) ([]string, error) {
-	args := []string{"--files", "--null"}
+	args := []string{"--files", "--null", "--hidden"}
 
 	if !respectGitignore {
 		args = append(args, "--no-ignore")

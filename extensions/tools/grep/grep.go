@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -156,6 +157,8 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 
 // search tries rg first, then falls back to stdlib.
 func (t *tool) search(ctx context.Context, absPath string, isDir bool, pattern, include string, ignoreCase, literal bool, contextLines int, respectGitignore bool) []string {
+	// Use rg when available. Matches from denied paths are filtered by
+	// AllowRead checks in parseRgJSON.
 	if rgPath := ripgrep.Find(); rgPath != "" {
 		matches, err := searchWithRipgrep(ctx, rgPath, absPath, isDir, pattern, include, ignoreCase, literal, contextLines, respectGitignore)
 		if err == nil {
@@ -198,7 +201,7 @@ func searchWithStdlib(absPath string, isDir bool, pattern, include string, ignor
 }
 
 func searchWithRipgrep(ctx context.Context, rgPath, absPath string, isDir bool, pattern, include string, ignoreCase, literal bool, contextLines int, respectGitignore bool) ([]string, error) {
-	args := []string{"--json", "-H", "-n"}
+	args := []string{"--json", "-H", "-n", "--hidden"}
 
 	if ignoreCase {
 		args = append(args, "-i")
@@ -208,9 +211,8 @@ func searchWithRipgrep(ctx context.Context, rgPath, absPath string, isDir bool, 
 		args = append(args, "-F")
 	}
 
-	if include != "" {
-		args = append(args, "--glob", include)
-	}
+	// Do not pass --glob to rg — it overrides gitignore logic.
+	// Instead, filter include in Go after parsing rg output.
 
 	if !respectGitignore {
 		args = append(args, "--no-ignore")
@@ -243,10 +245,10 @@ func searchWithRipgrep(ctx context.Context, rgPath, absPath string, isDir bool, 
 		return nil, fmt.Errorf("rg: %w", err)
 	}
 
-	return parseRgJSON(out, searchPath)
+	return parseRgJSON(out, searchPath, include, respectGitignore)
 }
 
-func parseRgJSON(data []byte, baseDir string) ([]string, error) {
+func parseRgJSON(data []byte, baseDir, include string, respectGitignore bool) ([]string, error) {
 	var matches []string
 
 	scanner := bufio.NewScanner(strings.NewReader(string(data)))
@@ -283,7 +285,16 @@ func parseRgJSON(data []byte, baseDir string) ([]string, error) {
 			relPath = filepath.Clean(relPath)
 		}
 
+		// Skip VCS and dependency directories (matches stdlib isSkipDir behavior)
+		if respectGitignore && isSkipPath(relPath) {
+			continue
+		}
+
 		if s := sdk.GetSandboxer(); s != nil && !s.AllowRead(filepath.Join(baseDir, relPath)) {
+			continue
+		}
+
+		if !fileMatchesInclude(include, filepath.Base(relPath)) {
 			continue
 		}
 
@@ -445,4 +456,9 @@ func truncateLine(line string) string {
 
 func isSkipDir(name string) bool {
 	return name == ".git" || name == "node_modules" || name == ".hg" || name == ".svn"
+}
+
+// isSkipPath returns true if the relative path is under a VCS or dependency directory.
+func isSkipPath(rel string) bool {
+	return slices.ContainsFunc(strings.Split(rel, string(filepath.Separator)), isSkipDir)
 }
