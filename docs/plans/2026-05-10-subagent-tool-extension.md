@@ -103,12 +103,12 @@ Add a subagent system to Weave as a tool extension (`extensions/tools/subagent/`
 - [x] run tests — must pass before task 5
 
 ### Task 5: Execution modes (parallel and chain)
-- [ ] create `modes.go` with parallel and chain execution logic
-- [ ] parallel mode: spawn N processes concurrently via goroutines, collect results, aggregate into single ToolResult
-- [ ] chain mode: spawn processes sequentially, substitute `{previous}` placeholder in each step's prompt with prior result
-- [ ] error handling: partial failures in parallel (collect all, report which succeeded/failed), chain stops on first error
-- [ ] write tests for parallel mode (mock subprocesses, verify concurrency), chain mode ({previous} substitution, early stop)
-- [ ] run tests — must pass before task 6
+- [x] create `modes.go` with parallel and chain execution logic
+- [x] parallel mode: spawn N processes concurrently via goroutines, collect results, aggregate into single ToolResult
+- [x] chain mode: spawn processes sequentially, substitute `{previous}` placeholder in each step's prompt with prior result
+- [x] error handling: partial failures in parallel (collect all, report which succeeded/failed), chain stops on first error
+- [x] write tests for parallel mode (mock subprocesses, verify concurrency), chain mode ({previous} substitution, early stop)
+- [x] run tests — must pass before task 6
 
 ### Task 6: Background execution
 - [ ] create `background.go` with background subagent management

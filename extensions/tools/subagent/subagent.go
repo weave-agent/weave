@@ -126,10 +126,31 @@ func (t *subagentTool) Execute(ctx context.Context, args map[string]any) (sdk.To
 		return sdk.ToolResult{Content: err.Error(), IsError: true}, nil //nolint:nilerr // tool protocol: errors in Content, not return
 	}
 
-	_ = m
+	cwd := ""
+	if v, ok := args[paramCWD].(string); ok {
+		cwd = v
+	}
 
-	// Stub: actual execution implemented in later tasks.
-	return sdk.ToolResult{Content: fmt.Sprintf("subagent %s: execution not yet implemented (mode: %s)", t.agent.Name, m)}, nil
+	switch m {
+	case modePrompt:
+		prompt := args[paramPrompt].(string)
+
+		output, err := runSubagent(ctx, t.agent, prompt, cwd)
+		if err != nil {
+			//nolint:nilerr // tool protocol: errors in Content, not return
+			return sdk.ToolResult{Content: err.Error(), IsError: true}, nil
+		}
+
+		return sdk.ToolResult{Content: output}, nil
+	case modeParallel:
+		tasks, _ := toAnySlice(args[paramTasks])
+		return runParallel(ctx, t.agent, tasks, cwd)
+	case modeChain:
+		chain, _ := toAnySlice(args[paramChain])
+		return runChain(ctx, t.agent, chain, cwd)
+	}
+
+	return sdk.ToolResult{Content: fmt.Sprintf("unknown mode: %s", m), IsError: true}, nil
 }
 
 // mode represents which execution mode was requested.

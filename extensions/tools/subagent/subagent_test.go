@@ -231,6 +231,13 @@ func TestExecute_MissingMode(t *testing.T) {
 }
 
 func TestExecute_PromptMode(t *testing.T) {
+	original := testRunSubagent
+	defer func() { testRunSubagent = original }()
+
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd string) (string, error) {
+		return "result: " + prompt, nil
+	}
+
 	agent := &AgentDef{Name: "test"}
 	tool := newSubagentTool(agent)
 
@@ -239,8 +246,84 @@ func TestExecute_PromptMode(t *testing.T) {
 	result, err := tool.Execute(ctx, args)
 	require.NoError(t, err)
 	assert.False(t, result.IsError)
-	assert.Contains(t, result.Content, "subagent test:")
-	assert.Contains(t, result.Content, "prompt")
+	assert.Equal(t, "result: hello", result.Content)
+}
+
+func TestExecute_ParallelMode(t *testing.T) {
+	original := testRunSubagent
+	defer func() { testRunSubagent = original }()
+
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd string) (string, error) {
+		return "result: " + prompt, nil
+	}
+
+	agent := &AgentDef{Name: "test"}
+	tool := newSubagentTool(agent)
+
+	ctx := context.Background()
+	args := map[string]any{
+		"tasks": []any{
+			map[string]any{"prompt": "task 1"},
+			map[string]any{"prompt": "task 2"},
+		},
+	}
+
+	result, err := tool.Execute(ctx, args)
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+	assert.Contains(t, result.Content, "result: task 1")
+	assert.Contains(t, result.Content, "result: task 2")
+}
+
+func TestExecute_ChainMode(t *testing.T) {
+	original := testRunSubagent
+	defer func() { testRunSubagent = original }()
+
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd string) (string, error) {
+		return "result: " + prompt, nil
+	}
+
+	agent := &AgentDef{Name: "test"}
+	tool := newSubagentTool(agent)
+
+	ctx := context.Background()
+	args := map[string]any{
+		"chain": []any{
+			map[string]any{"prompt": "step 1"},
+			map[string]any{"prompt": "step 2 with {previous}"},
+		},
+	}
+
+	result, err := tool.Execute(ctx, args)
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+	assert.Equal(t, "result: step 2 with result: step 1", result.Content)
+}
+
+func TestExecute_PromptMode_WithCWD(t *testing.T) {
+	original := testRunSubagent
+	defer func() { testRunSubagent = original }()
+
+	var receivedCWD string
+
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd string) (string, error) {
+		receivedCWD = cwd
+		return "done", nil
+	}
+
+	agent := &AgentDef{Name: "test"}
+	tool := newSubagentTool(agent)
+
+	ctx := context.Background()
+	args := map[string]any{
+		"prompt": "hello",
+		"cwd":    "/tmp/testdir",
+	}
+
+	result, err := tool.Execute(ctx, args)
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+	assert.Equal(t, "/tmp/testdir", receivedCWD)
 }
 
 func TestDirFromConfig_Nil(t *testing.T) {
