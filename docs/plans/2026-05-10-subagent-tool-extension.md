@@ -161,13 +161,13 @@ Add a subagent system to Weave as a tool extension (`extensions/tools/subagent/`
 - [x] run tests — must pass before task 11
 
 ### Task 11: Agent definition `messaging` field
-- [ ] add `Messaging bool` field to `AgentDef` struct (`messaging` in YAML frontmatter, default: false)
-- [ ] update `ParseAgent` to parse `messaging` field
-- [ ] update `general.md` built-in to set `messaging: true`
-- [ ] `explore.md` and `plan.md` keep `messaging: false` (simple agents don't need inter-agent comms)
-- [ ] when `messaging: true`, pass `--subagent-id` flag to child process and register inter-agent tools
-- [ ] write tests for messaging field parsing, tool registration conditional on messaging flag
-- [ ] run tests — must pass before task 12
+- [x] add `Messaging bool` field to `AgentDef` struct (`messaging` in YAML frontmatter, default: false)
+- [x] update `ParseAgent` to parse `messaging` field
+- [x] update `general.md` built-in to set `messaging: true`
+- [x] `explore.md` and `plan.md` keep `messaging: false` (simple agents don't need inter-agent comms)
+- [x] when `messaging: true`, pass `--subagent-id` flag to child process and register inter-agent tools
+- [x] write tests for messaging field parsing, tool registration conditional on messaging flag
+- [x] run tests — must pass before task 12
 
 ### Task 12: Integration and verification
 - [ ] verify all requirements from Overview are implemented

@@ -162,19 +162,24 @@ func (t *subagentTool) Execute(ctx context.Context, args map[string]any) (sdk.To
 	case modePrompt:
 		prompt := args[paramPrompt].(string)
 
+		var subagentID string
+		if t.agent.Messaging {
+			subagentID = generateAgentID(t.agent.Name)
+		}
+
 		if background {
 			if t.mgr == nil {
 				return sdk.ToolResult{Content: "background manager not available", IsError: true}, nil
 			}
 
-			id := t.mgr.spawn(ctx, t.agent, prompt, cwd)
+			id := t.mgr.spawn(ctx, t.agent, prompt, cwd, subagentID)
 			result := map[string]any{propID: id, "status": statusRunning}
 			jsonBytes, _ := json.Marshal(result)
 
 			return sdk.ToolResult{Content: string(jsonBytes)}, nil
 		}
 
-		output, err := runSubagent(ctx, t.agent, prompt, cwd)
+		output, err := runSubagent(ctx, t.agent, prompt, cwd, subagentID)
 		if err != nil {
 			//nolint:nilerr // tool protocol: errors in Content, not return
 			return sdk.ToolResult{Content: err.Error(), IsError: true}, nil

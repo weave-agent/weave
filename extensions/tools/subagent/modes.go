@@ -36,7 +36,12 @@ func runParallel(ctx context.Context, agent *AgentDef, tasks []any, cwd string) 
 		go func(idx int, p string) {
 			defer wg.Done()
 
-			output, err := runSubagent(ctx, agent, p, cwd)
+			var subagentID string
+			if agent.Messaging {
+				subagentID = generateAgentID(agent.Name)
+			}
+
+			output, err := runSubagent(ctx, agent, p, cwd, subagentID)
 			results[idx] = result{index: idx, output: output, err: err}
 		}(i, prompt)
 	}
@@ -86,7 +91,12 @@ func runChain(ctx context.Context, agent *AgentDef, chain []any, cwd string) (sd
 	for i, prompt := range prompts {
 		prompt = strings.ReplaceAll(prompt, "{previous}", previous)
 
-		output, err := runSubagent(ctx, agent, prompt, cwd)
+		var subagentID string
+		if agent.Messaging {
+			subagentID = generateAgentID(agent.Name)
+		}
+
+		output, err := runSubagent(ctx, agent, prompt, cwd, subagentID)
 		if err != nil {
 			return sdk.ToolResult{
 				Content: fmt.Sprintf("Chain step %d failed: %v", i+1, err),

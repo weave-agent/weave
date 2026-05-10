@@ -45,7 +45,7 @@ func TestBackgroundSpawn_ReturnsImmediately(t *testing.T) {
 	defer func() { testRunSubagent = original }()
 
 	// Slow mock to prove we return before completion.
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
 		time.Sleep(200 * time.Millisecond)
 		return "done: " + prompt, nil
 	}
@@ -86,7 +86,7 @@ func TestBackgroundSpawn_CompletesWithError(t *testing.T) {
 	original := testRunSubagent
 	defer func() { testRunSubagent = original }()
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
 		return "", errors.New("mock failure")
 	}
 
@@ -118,13 +118,13 @@ func TestCheckAgent_Pending(t *testing.T) {
 	original := testRunSubagent
 	defer func() { testRunSubagent = original }()
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
 		time.Sleep(5 * time.Second)
 		return "never", nil
 	}
 
 	mgr := newBackgroundManager()
-	id := mgr.spawn(context.Background(), &AgentDef{Name: "test"}, "prompt", "")
+	id := mgr.spawn(context.Background(), &AgentDef{Name: "test"}, "prompt", "", "")
 
 	tool := &checkAgentTool{mgr: mgr}
 	result, err := tool.Execute(context.Background(), map[string]any{"id": id})
@@ -142,12 +142,12 @@ func TestCheckAgent_Completed(t *testing.T) {
 	original := testRunSubagent
 	defer func() { testRunSubagent = original }()
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
 		return "final result", nil
 	}
 
 	mgr := newBackgroundManager()
-	id := mgr.spawn(context.Background(), &AgentDef{Name: "test"}, "prompt", "")
+	id := mgr.spawn(context.Background(), &AgentDef{Name: "test"}, "prompt", "", "")
 
 	// Wait for completion.
 	time.Sleep(50 * time.Millisecond)
@@ -196,13 +196,13 @@ func TestAwaitAgent_BlocksUntilDone(t *testing.T) {
 	original := testRunSubagent
 	defer func() { testRunSubagent = original }()
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
 		time.Sleep(100 * time.Millisecond)
 		return "final result", nil
 	}
 
 	mgr := newBackgroundManager()
-	id := mgr.spawn(context.Background(), &AgentDef{Name: "test"}, "prompt", "")
+	id := mgr.spawn(context.Background(), &AgentDef{Name: "test"}, "prompt", "", "")
 
 	tool := &awaitAgentTool{mgr: mgr}
 
@@ -224,13 +224,13 @@ func TestAwaitAgent_ContextCancellation(t *testing.T) {
 	original := testRunSubagent
 	defer func() { testRunSubagent = original }()
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
 		time.Sleep(5 * time.Second)
 		return "never", nil
 	}
 
 	mgr := newBackgroundManager()
-	id := mgr.spawn(context.Background(), &AgentDef{Name: "test"}, "prompt", "")
+	id := mgr.spawn(context.Background(), &AgentDef{Name: "test"}, "prompt", "", "")
 
 	tool := &awaitAgentTool{mgr: mgr}
 
@@ -272,11 +272,11 @@ func TestBackgroundManager_NotifyDone(t *testing.T) {
 	original := testRunSubagent
 	defer func() { testRunSubagent = original }()
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
 		return "result", nil
 	}
 
-	mgr.spawn(context.Background(), &AgentDef{Name: "test"}, "prompt", "")
+	mgr.spawn(context.Background(), &AgentDef{Name: "test"}, "prompt", "", "")
 
 	// Wait for completion.
 	time.Sleep(50 * time.Millisecond)
@@ -301,11 +301,11 @@ func TestBackgroundManager_NotifyDoneWithError(t *testing.T) {
 	original := testRunSubagent
 	defer func() { testRunSubagent = original }()
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
 		return "", errors.New("failed")
 	}
 
-	mgr.spawn(context.Background(), &AgentDef{Name: "test"}, "prompt", "")
+	mgr.spawn(context.Background(), &AgentDef{Name: "test"}, "prompt", "", "")
 
 	time.Sleep(50 * time.Millisecond)
 
@@ -325,12 +325,12 @@ func TestBackgroundManager_NotifyDoneNoBus(t *testing.T) {
 	original := testRunSubagent
 	defer func() { testRunSubagent = original }()
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
 		return "result", nil
 	}
 
 	// Should not panic.
-	id := mgr.spawn(context.Background(), &AgentDef{Name: "test"}, "prompt", "")
+	id := mgr.spawn(context.Background(), &AgentDef{Name: "test"}, "prompt", "", "")
 
 	time.Sleep(50 * time.Millisecond)
 

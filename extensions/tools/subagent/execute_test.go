@@ -76,7 +76,7 @@ func TestBuildCommand_BasicArgs(t *testing.T) {
 		Sandbox:     "readonly",
 	}
 
-	cmd, cleanup, err := buildCommand(context.Background(), agent, "search for TODOs", "")
+	cmd, cleanup, err := buildCommand(context.Background(), agent, "search for TODOs", "", "")
 	require.NoError(t, err)
 
 	defer cleanup()
@@ -121,7 +121,7 @@ func TestBuildCommand_NoOptionalFlags(t *testing.T) {
 		Description: "Minimal agent",
 	}
 
-	cmd, cleanup, err := buildCommand(context.Background(), agent, "hello", "")
+	cmd, cleanup, err := buildCommand(context.Background(), agent, "hello", "", "")
 	require.NoError(t, err)
 
 	defer cleanup()
@@ -143,7 +143,7 @@ func TestBuildCommand_NoOptionalFlags(t *testing.T) {
 func TestBuildCommand_CWD(t *testing.T) {
 	agent := &AgentDef{Name: "test"}
 
-	cmd, cleanup, err := buildCommand(context.Background(), agent, "prompt", "/tmp/workdir")
+	cmd, cleanup, err := buildCommand(context.Background(), agent, "prompt", "/tmp/workdir", "")
 	require.NoError(t, err)
 
 	defer cleanup()
@@ -154,7 +154,7 @@ func TestBuildCommand_CWD(t *testing.T) {
 func TestBuildCommand_PromptFileCreated(t *testing.T) {
 	agent := &AgentDef{Name: "test"}
 
-	cmd, cleanup, err := buildCommand(context.Background(), agent, "my test prompt", "")
+	cmd, cleanup, err := buildCommand(context.Background(), agent, "my test prompt", "", "")
 	require.NoError(t, err)
 
 	defer cleanup()
@@ -181,12 +181,12 @@ func TestRunSubagent_Mock(t *testing.T) {
 	original := testRunSubagent
 	defer func() { testRunSubagent = original }()
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
 		return "mocked result for " + agent.Name + ": " + prompt, nil
 	}
 
 	agent := &AgentDef{Name: "explore"}
-	result, err := runSubagent(context.Background(), agent, "find bugs", "")
+	result, err := runSubagent(context.Background(), agent, "find bugs", "", "")
 	require.NoError(t, err)
 	assert.Equal(t, "mocked result for explore: find bugs", result)
 }
@@ -195,12 +195,12 @@ func TestRunSubagent_MockError(t *testing.T) {
 	original := testRunSubagent
 	defer func() { testRunSubagent = original }()
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
 		return "", errors.New("mock failure")
 	}
 
 	agent := &AgentDef{Name: "explore"}
-	_, err := runSubagent(context.Background(), agent, "find bugs", "")
+	_, err := runSubagent(context.Background(), agent, "find bugs", "", "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "mock failure")
 }
@@ -216,7 +216,7 @@ func TestRunSubagent_Abort(t *testing.T) {
 	defer func() { testRunSubagent = original }()
 
 	// Override buildCommand to use "sleep" instead of the weave binary.
-	cmd, cleanup, err := buildCommand(context.Background(), &AgentDef{Name: "test"}, "prompt", "")
+	cmd, cleanup, err := buildCommand(context.Background(), &AgentDef{Name: "test"}, "prompt", "", "")
 	require.NoError(t, err)
 
 	defer cleanup()
@@ -300,11 +300,93 @@ func TestParseJSONLines_EmptyLinesBetweenJSON(t *testing.T) {
 func TestBuildCommand_ProcessGroup(t *testing.T) {
 	agent := &AgentDef{Name: "test"}
 
-	cmd, cleanup, err := buildCommand(context.Background(), agent, "prompt", "")
+	cmd, cleanup, err := buildCommand(context.Background(), agent, "prompt", "", "")
 	require.NoError(t, err)
 
 	defer cleanup()
 
 	require.NotNil(t, cmd.SysProcAttr)
 	assert.True(t, cmd.SysProcAttr.Setpgid)
+}
+
+func TestBuildCommand_WithMessaging(t *testing.T) {
+	agent := &AgentDef{
+		Name:      "general",
+		Messaging: true,
+	}
+
+	cmd, cleanup, err := buildCommand(context.Background(), agent, "prompt", "", "subagent_general_abc123")
+	require.NoError(t, err)
+
+	defer cleanup()
+
+	found := false
+
+	for i := range len(cmd.Args) - 1 {
+		if cmd.Args[i] == "--weave-subagent-id" && cmd.Args[i+1] == "subagent_general_abc123" {
+			found = true
+
+			break
+		}
+	}
+
+	assert.True(t, found, "expected --weave-subagent-id flag with correct value")
+}
+
+func TestBuildCommand_WithoutMessaging(t *testing.T) {
+	agent := &AgentDef{
+		Name:      "explore",
+		Messaging: false,
+	}
+
+	cmd, cleanup, err := buildCommand(context.Background(), agent, "prompt", "", "")
+	require.NoError(t, err)
+
+	defer cleanup()
+
+	for _, a := range cmd.Args {
+		assert.False(t, strings.HasPrefix(a, "--weave-subagent-id"), "unexpected --weave-subagent-id flag")
+	}
+}
+
+func TestBuildCommand_MessagingGeneratesID(t *testing.T) {
+	original := testRunSubagent
+	defer func() { testRunSubagent = original }()
+
+	var receivedID string
+
+	testRunSubagent = func(_ context.Context, _ *AgentDef, _, _, subagentID string) (string, error) {
+		receivedID = subagentID
+
+		return "ok", nil
+	}
+
+	agent := &AgentDef{Name: "test", Messaging: true}
+	tool := newSubagentTool(agent, nil)
+
+	ctx := context.Background()
+	args := map[string]any{"prompt": "hello"}
+	_, err := tool.Execute(ctx, args)
+	require.NoError(t, err)
+
+	assert.Contains(t, receivedID, "subagent_test_")
+}
+
+func TestBuildCommand_NoMessagingNoID(t *testing.T) {
+	original := testRunSubagent
+	defer func() { testRunSubagent = original }()
+
+	var receivedID string
+
+	testRunSubagent = func(_ context.Context, _ *AgentDef, _, _, subagentID string) (string, error) {
+		receivedID = subagentID
+
+		return "ok", nil
+	}
+
+	agent := &AgentDef{Name: "test", Messaging: false}
+	_, err := runSubagent(context.Background(), agent, "prompt", "", "")
+	require.NoError(t, err)
+
+	assert.Empty(t, receivedID)
 }

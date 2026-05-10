@@ -29,12 +29,14 @@ type jsonEvent struct {
 // runSubagent executes a single subagent subprocess and returns its final output.
 // The child process stdout is parsed as JSON lines; the content from the
 // last "message_end" event is returned as the result.
-func runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd string) (string, error) {
+// When subagentID is non-empty, it is passed to the child via --weave-subagent-id
+// to enable inter-agent communication.
+func runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
 	if testRunSubagent != nil {
-		return testRunSubagent(ctx, agent, prompt, cwd)
+		return testRunSubagent(ctx, agent, prompt, cwd, subagentID)
 	}
 
-	cmd, cleanup, err := buildCommand(ctx, agent, prompt, cwd)
+	cmd, cleanup, err := buildCommand(ctx, agent, prompt, cwd, subagentID)
 	if err != nil {
 		return "", err
 	}
@@ -93,8 +95,10 @@ func runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd string) (stri
 
 // buildCommand constructs an exec.Cmd that runs the weave binary as a subagent.
 // The prompt is written to a temporary file and passed via --weave-prompt-file.
+// When subagentID is non-empty, --weave-subagent-id is included to enable
+// inter-agent communication in the child process.
 // A cleanup function is returned that removes the temporary prompt file.
-func buildCommand(ctx context.Context, agent *AgentDef, prompt, cwd string) (*exec.Cmd, func(), error) {
+func buildCommand(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (*exec.Cmd, func(), error) {
 	f, err := os.CreateTemp("", "weave-subagent-prompt-*")
 	if err != nil {
 		return nil, nil, fmt.Errorf("create prompt file: %w", err)
@@ -144,6 +148,10 @@ func buildCommand(ctx context.Context, agent *AgentDef, prompt, cwd string) (*ex
 		args = append(args, "--model", agent.Model)
 	}
 
+	if subagentID != "" {
+		args = append(args, "--weave-subagent-id", subagentID)
+	}
+
 	cmd := exec.CommandContext(ctx, exe, args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
@@ -186,4 +194,4 @@ func parseJSONLines(r io.Reader) (string, error) {
 }
 
 // testRunSubagent is swapped out in tests to avoid spawning real subprocesses.
-var testRunSubagent func(ctx context.Context, agent *AgentDef, prompt, cwd string) (string, error)
+var testRunSubagent func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error)

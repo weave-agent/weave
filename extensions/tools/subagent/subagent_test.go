@@ -254,7 +254,7 @@ func TestExecute_PromptMode(t *testing.T) {
 	original := testRunSubagent
 	defer func() { testRunSubagent = original }()
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
 		return "result: " + prompt, nil
 	}
 
@@ -273,7 +273,7 @@ func TestExecute_ParallelMode(t *testing.T) {
 	original := testRunSubagent
 	defer func() { testRunSubagent = original }()
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
 		return "result: " + prompt, nil
 	}
 
@@ -299,7 +299,7 @@ func TestExecute_ChainMode(t *testing.T) {
 	original := testRunSubagent
 	defer func() { testRunSubagent = original }()
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
 		return "result: " + prompt, nil
 	}
 
@@ -326,7 +326,7 @@ func TestExecute_PromptMode_WithCWD(t *testing.T) {
 
 	var receivedCWD string
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
 		receivedCWD = cwd
 		return "done", nil
 	}

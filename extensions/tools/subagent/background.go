@@ -46,11 +46,13 @@ func (bm *backgroundManager) setBus(bus sdk.Bus) {
 	bm.bus = bus
 }
 
-func (bm *backgroundManager) spawn(ctx context.Context, agent *AgentDef, prompt, cwd string) string {
-	id := generateAgentID(agent.Name)
+func (bm *backgroundManager) spawn(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) string {
+	if subagentID == "" {
+		subagentID = generateAgentID(agent.Name)
+	}
 
 	ba := &backgroundAgent{
-		ID:      id,
+		ID:      subagentID,
 		Agent:   agent,
 		Prompt:  prompt,
 		CWD:     cwd,
@@ -60,13 +62,13 @@ func (bm *backgroundManager) spawn(ctx context.Context, agent *AgentDef, prompt,
 	}
 
 	bm.mu.Lock()
-	bm.agents[id] = ba
+	bm.agents[subagentID] = ba
 	bm.mu.Unlock()
 
 	go func() {
 		defer close(ba.done)
 
-		output, err := runSubagent(ctx, agent, prompt, cwd)
+		output, err := runSubagent(ctx, agent, prompt, cwd, subagentID)
 
 		bm.mu.Lock()
 		ba.finished = time.Now()
@@ -84,7 +86,7 @@ func (bm *backgroundManager) spawn(ctx context.Context, agent *AgentDef, prompt,
 		bm.notifyDone(ba)
 	}()
 
-	return id
+	return subagentID
 }
 
 func (bm *backgroundManager) notifyDone(ba *backgroundAgent) {
