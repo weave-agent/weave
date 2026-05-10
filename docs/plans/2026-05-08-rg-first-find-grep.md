@@ -85,14 +85,14 @@ Add the `utils/ripgrep` dependency to both tool modules.
 
 ### Task 6: Verify acceptance criteria
 
-- [ ] verify both tools use rg when available and fall back to stdlib when absent
-- [ ] verify `respect_gitignore` config key works (true/false/default)
-- [ ] verify grep has `include` glob filter parameter
-- [ ] verify find supports `**/` patterns via rg
-- [ ] verify binary files are skipped in grep fallback
-- [ ] verify line truncation in grep output
-- [ ] run full test suite for both modules
-- [ ] run `make lint` — all issues must be fixed
+- [x] verify both tools use rg when available and fall back to stdlib when absent
+- [x] verify `respect_gitignore` config key works (true/false/default)
+- [x] verify grep has `include` glob filter parameter
+- [x] verify find supports `**/` patterns via rg
+- [x] verify binary files are skipped in grep fallback
+- [x] verify line truncation in grep output
+- [x] run full test suite for both modules
+- [x] run `make lint` — all issues must be fixed
 
 ## Technical Details
 
