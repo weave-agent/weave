@@ -194,7 +194,7 @@ func searchWithStdlib(absPath string, isDir bool, pattern, include string, ignor
 		return nil
 	}
 
-	return searchFile(absPath, re, contextLines)
+	return searchFile(filepath.Base(absPath), absPath, re, contextLines)
 }
 
 func searchWithRipgrep(ctx context.Context, rgPath, absPath string, isDir bool, pattern, include string, ignoreCase, literal bool, contextLines int, respectGitignore bool) ([]string, error) {
@@ -323,7 +323,8 @@ func searchDir(root string, re *regexp.Regexp, contextLines int, include string,
 			return nil
 		}
 
-		fileMatches := searchFile(walkPath, re, contextLines)
+		relPath, _ := filepath.Rel(root, walkPath)
+		fileMatches := searchFile(relPath, walkPath, re, contextLines)
 		matches = append(matches, fileMatches...)
 
 		return nil
@@ -364,17 +365,17 @@ func fileMatchesInclude(include, name string) bool {
 	return false
 }
 
-func searchFile(path string, re *regexp.Regexp, contextLines int) []string {
-	fi, err := os.Stat(path)
+func searchFile(displayPath, filePath string, re *regexp.Regexp, contextLines int) []string {
+	fi, err := os.Stat(filePath)
 	if err != nil || fi.Size() > 10*1024*1024 {
 		return nil
 	}
 
-	if isBinaryFile(path) {
+	if isBinaryFile(filePath) {
 		return nil
 	}
 
-	f, err := os.Open(path)
+	f, err := os.Open(filePath)
 	if err != nil {
 		return nil
 	}
@@ -407,7 +408,7 @@ func searchFile(path string, re *regexp.Regexp, contextLines int) []string {
 
 	for i := range lines {
 		if matched[i] {
-			results = append(results, fmt.Sprintf("%s:%d:%s", path, i+1, lines[i]))
+			results = append(results, fmt.Sprintf("%s:%d:%s", displayPath, i+1, lines[i]))
 		}
 	}
 

@@ -374,8 +374,8 @@ func TestNoRespectGitignore(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Contains(t, result.Content, "findme visible")
-	// Note: the fallback path doesn't parse .gitignore, so "ignored.txt" will be found in fallback mode
-	// If rg is available, --no-ignore will include it
+	// Both rg (--no-ignore) and stdlib fallback (no .gitignore parsing) find the ignored file
+	assert.Contains(t, result.Content, "findme ignored")
 }
 
 type testSandboxer struct {
