@@ -15,6 +15,7 @@ type ProviderConfigEntry struct {
 // Config carries configuration data into extension factories.
 type Config interface {
 	FilePath() string
+	ProjectDir() string
 	ProviderConfig(name string) *ProviderConfigEntry
 	ResolveKey(providerName, envVar string) (string, error)
 	ToolConfig(name string, target any) error
@@ -30,6 +31,7 @@ type Config interface {
 type noopConfig struct{}
 
 func (noopConfig) FilePath() string                           { return "" }
+func (noopConfig) ProjectDir() string                         { return "" }
 func (noopConfig) ProviderConfig(string) *ProviderConfigEntry { return nil }
 func (noopConfig) ResolveKey(_, envVar string) (string, error) {
 	return os.Getenv(envVar), nil
@@ -47,6 +49,7 @@ func (noopConfig) RespectGitignore() bool              { return true }
 type FilePathConfig string
 
 func (f FilePathConfig) FilePath() string                           { return string(f) }
+func (f FilePathConfig) ProjectDir() string                         { return "" }
 func (f FilePathConfig) ProviderConfig(string) *ProviderConfigEntry { return nil }
 func (f FilePathConfig) ResolveKey(_, envVar string) (string, error) {
 	return os.Getenv(envVar), nil

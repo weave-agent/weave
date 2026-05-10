@@ -934,6 +934,7 @@ type mockConfig struct {
 }
 
 func (m *mockConfig) FilePath() string                               { return m.filePath }
+func (m *mockConfig) ProjectDir() string                             { return "" }
 func (m *mockConfig) ProviderConfig(string) *sdk.ProviderConfigEntry { return nil }
 func (m *mockConfig) ResolveKey(_, envVar string) (string, error)    { return "", nil }
 func (m *mockConfig) ToolConfig(string, any) error                   { return nil }

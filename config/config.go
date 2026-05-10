@@ -341,6 +341,8 @@ var _ sdk.Config = (*FullConfig)(nil)
 
 func (c *FullConfig) FilePath() string { return c.filePath }
 
+func (c *FullConfig) ProjectDir() string { return c.effectiveProjectDir() }
+
 func (c *FullConfig) ProviderConfig(name string) *sdk.ProviderConfigEntry {
 	e := c.file.ProviderConfig(name)
 	if e == nil {

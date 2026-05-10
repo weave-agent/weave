@@ -21,6 +21,7 @@ type preferences struct {
 type noopConfig struct{}
 
 func (noopConfig) FilePath() string                               { return "" }
+func (noopConfig) ProjectDir() string                             { return "" }
 func (noopConfig) ProviderConfig(string) *sdk.ProviderConfigEntry { return nil }
 func (noopConfig) ResolveKey(_, envVar string) (string, error)    { return os.Getenv(envVar), nil }
 func (noopConfig) ToolConfig(string, any) error                   { return nil }

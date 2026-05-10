@@ -26,6 +26,9 @@ var _ Config = &ConfigMock{}
 //			PreferencesFunc: func(target any) error {
 //				panic("mock out the Preferences method")
 //			},
+//			ProjectDirFunc: func() string {
+//				panic("mock out the ProjectDir method")
+//			},
 //			ProviderConfigFunc: func(name string) *ProviderConfigEntry {
 //				panic("mock out the ProviderConfig method")
 //			},
@@ -66,6 +69,9 @@ type ConfigMock struct {
 	// PreferencesFunc mocks the Preferences method.
 	PreferencesFunc func(target any) error
 
+	// ProjectDirFunc mocks the ProjectDir method.
+	ProjectDirFunc func() string
+
 	// ProviderConfigFunc mocks the ProviderConfig method.
 	ProviderConfigFunc func(name string) *ProviderConfigEntry
 
@@ -102,6 +108,9 @@ type ConfigMock struct {
 		Preferences []struct {
 			// Target is the target argument value.
 			Target any
+		}
+		// ProjectDir holds details about calls to the ProjectDir method.
+		ProjectDir []struct {
 		}
 		// ProviderConfig holds details about calls to the ProviderConfig method.
 		ProviderConfig []struct {
@@ -151,6 +160,7 @@ type ConfigMock struct {
 	lockFilePath         sync.RWMutex
 	lockIsHeadless       sync.RWMutex
 	lockPreferences      sync.RWMutex
+	lockProjectDir       sync.RWMutex
 	lockProviderConfig   sync.RWMutex
 	lockProviderHasKey   sync.RWMutex
 	lockResolveKey       sync.RWMutex
@@ -253,6 +263,36 @@ func (mock *ConfigMock) PreferencesCalls() []struct {
 	mock.lockPreferences.RLock()
 	calls = mock.calls.Preferences
 	mock.lockPreferences.RUnlock()
+	return calls
+}
+
+// ProjectDir calls ProjectDirFunc.
+func (mock *ConfigMock) ProjectDir() string {
+	callInfo := struct {
+	}{}
+	mock.lockProjectDir.Lock()
+	mock.calls.ProjectDir = append(mock.calls.ProjectDir, callInfo)
+	mock.lockProjectDir.Unlock()
+	if mock.ProjectDirFunc == nil {
+		var (
+			sOut string
+		)
+		return sOut
+	}
+	return mock.ProjectDirFunc()
+}
+
+// ProjectDirCalls gets all the calls that were made to ProjectDir.
+// Check the length with:
+//
+//	len(mockedConfig.ProjectDirCalls())
+func (mock *ConfigMock) ProjectDirCalls() []struct {
+} {
+	var calls []struct {
+	}
+	mock.lockProjectDir.RLock()
+	calls = mock.calls.ProjectDir
+	mock.lockProjectDir.RUnlock()
 	return calls
 }
 

@@ -347,6 +347,7 @@ type testConfig struct {
 }
 
 func (c *testConfig) FilePath() string                               { return "" }
+func (c *testConfig) ProjectDir() string                             { return "" }
 func (c *testConfig) ProviderConfig(string) *sdk.ProviderConfigEntry { return nil }
 func (c *testConfig) ResolveKey(_, envVar string) (string, error)    { return "", nil }
 func (c *testConfig) ToolConfig(string, any) error                   { return nil }

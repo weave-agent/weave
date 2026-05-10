@@ -440,6 +440,7 @@ type testConfig struct {
 }
 
 func (testConfig) FilePath() string                               { return "" }
+func (testConfig) ProjectDir() string                             { return "" }
 func (testConfig) ProviderConfig(string) *sdk.ProviderConfigEntry { return nil }
 func (testConfig) ResolveKey(_, _ string) (string, error)         { return "", nil }
 func (testConfig) ToolConfig(string, any) error                   { return nil }
