@@ -78,11 +78,11 @@ Add a subagent system to Weave as a tool extension (`extensions/tools/subagent/`
 - [x] run tests — must pass before task 2
 
 ### Task 2: Agent discovery
-- [ ] create `discovery.go` with `DiscoverAgents(projectDir string) ([]*AgentDef, error)` — walk `.weave/agents/` then `~/.weave/agents/`, dedup by name (project wins over global)
-- [ ] load embedded built-in agents from `agents/` directory using `embed.FS`
-- [ ] merge built-in + discovered agents (user agents override built-ins with same name)
-- [ ] write tests for discovery — mock filesystem, dedup precedence, missing dirs, invalid files skipped with warning
-- [ ] run tests — must pass before task 3
+- [x] create `discovery.go` with `DiscoverAgents(projectDir string) ([]*AgentDef, error)` — walk `.weave/agents/` then `~/.weave/agents/`, dedup by name (project wins over global)
+- [x] load embedded built-in agents from `agents/` directory using `embed.FS`
+- [x] merge built-in + discovered agents (user agents override built-ins with same name)
+- [x] write tests for discovery — mock filesystem, dedup precedence, missing dirs, invalid files skipped with warning
+- [x] run tests — must pass before task 3
 
 ### Task 3: Subagent tool registration
 - [ ] create `subagent.go` with `init()` calling `sdk.RegisterTool` for each discovered agent
