@@ -78,10 +78,10 @@ Replace the pure Go find implementation with rg-first, stdlib-fallback.
 
 Add the `utils/ripgrep` dependency to both tool modules.
 
-- [ ] update `extensions/tools/find/go.mod` — add replace directive for `utils/ripgrep`
-- [ ] update `extensions/tools/grep/go.mod` — add replace directive for `utils/ripgrep`
-- [ ] run `go mod tidy` in both directories
-- [ ] verify both modules build and test cleanly
+- [x] update `extensions/tools/find/go.mod` — existing `replace weave => ../../..` already covers `utils/ripgrep`, no change needed
+- [x] update `extensions/tools/grep/go.mod` — existing `replace weave => ../../..` already covers `utils/ripgrep`, no change needed
+- [x] run `go mod tidy` in both directories
+- [x] verify both modules build and test cleanly
 
 ### Task 6: Verify acceptance criteria
 
