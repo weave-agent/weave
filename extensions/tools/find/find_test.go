@@ -336,7 +336,9 @@ func TestDoubleStarPatternWithSlash(t *testing.T) {
 		"path":    dir,
 	})
 	require.NoError(t, err)
+	assert.Contains(t, result.Content, "pkg")
 	assert.Contains(t, result.Content, "handler.go")
+	assert.NotContains(t, result.Content, "lib")
 }
 
 type testConfig struct {

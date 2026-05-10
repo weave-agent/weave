@@ -113,7 +113,7 @@ func (t *tool) find(ctx context.Context, absPath, pattern string, respectGitigno
 		}
 	}
 
-	return findWithStdlib(absPath, pattern)
+	return findWithStdlib(absPath, pattern, respectGitignore)
 }
 
 func findWithRipgrep(ctx context.Context, rgPath, absPath, pattern string, respectGitignore bool) ([]string, error) {
@@ -174,7 +174,7 @@ func isSkipPath(rel string) bool {
 	return slices.ContainsFunc(strings.Split(rel, string(filepath.Separator)), isSkipDir)
 }
 
-func findWithStdlib(absPath, pattern string) []string {
+func findWithStdlib(absPath, pattern string, respectGitignore bool) []string {
 	var matches []string
 
 	err := filepath.WalkDir(absPath, func(walkPath string, d fs.DirEntry, walkErr error) error {
@@ -190,7 +190,7 @@ func findWithStdlib(absPath, pattern string) []string {
 
 		if d.IsDir() {
 			name := d.Name()
-			if isSkipDir(name) {
+			if respectGitignore && isSkipDir(name) {
 				return filepath.SkipDir
 			}
 

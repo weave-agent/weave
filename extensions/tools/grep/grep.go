@@ -163,10 +163,10 @@ func (t *tool) search(ctx context.Context, absPath string, isDir bool, pattern, 
 		}
 	}
 
-	return searchWithStdlib(absPath, isDir, pattern, include, ignoreCase, literal, contextLines)
+	return searchWithStdlib(absPath, isDir, pattern, include, ignoreCase, literal, contextLines, respectGitignore)
 }
 
-func searchWithStdlib(absPath string, isDir bool, pattern, include string, ignoreCase, literal bool, contextLines int) []string {
+func searchWithStdlib(absPath string, isDir bool, pattern, include string, ignoreCase, literal bool, contextLines int, respectGitignore bool) []string {
 	expr := pattern
 	if literal {
 		expr = regexp.QuoteMeta(pattern)
@@ -182,7 +182,7 @@ func searchWithStdlib(absPath string, isDir bool, pattern, include string, ignor
 	}
 
 	if isDir {
-		matches, dirErr := searchDir(absPath, re, contextLines, include)
+		matches, dirErr := searchDir(absPath, re, contextLines, include, respectGitignore)
 		if dirErr != nil {
 			return nil
 		}
@@ -243,10 +243,10 @@ func searchWithRipgrep(ctx context.Context, rgPath, absPath string, isDir bool, 
 		return nil, fmt.Errorf("rg: %w", err)
 	}
 
-	return parseRgJSON(out)
+	return parseRgJSON(out, searchPath)
 }
 
-func parseRgJSON(data []byte) ([]string, error) {
+func parseRgJSON(data []byte, baseDir string) ([]string, error) {
 	var matches []string
 
 	scanner := bufio.NewScanner(strings.NewReader(string(data)))
@@ -276,8 +276,6 @@ func parseRgJSON(data []byte) ([]string, error) {
 			continue
 		}
 
-		content := strings.TrimRight(entry.Data.Lines.Text, "\n\r")
-
 		relPath := entry.Data.Path.Text
 
 		// rg outputs paths relative to its CWD (baseDir), so clean directly
@@ -285,6 +283,11 @@ func parseRgJSON(data []byte) ([]string, error) {
 			relPath = filepath.Clean(relPath)
 		}
 
+		if s := sdk.GetSandboxer(); s != nil && !s.AllowRead(filepath.Join(baseDir, relPath)) {
+			continue
+		}
+
+		content := strings.TrimRight(entry.Data.Lines.Text, "\n\r")
 		matches = append(matches, fmt.Sprintf("%s:%d:%s", relPath, entry.Data.LineNumber, content))
 	}
 
@@ -295,7 +298,7 @@ func parseRgJSON(data []byte) ([]string, error) {
 	return matches, nil
 }
 
-func searchDir(root string, re *regexp.Regexp, contextLines int, include string) ([]string, error) {
+func searchDir(root string, re *regexp.Regexp, contextLines int, include string, respectGitignore bool) ([]string, error) {
 	var matches []string
 
 	err := filepath.WalkDir(root, func(walkPath string, d fs.DirEntry, walkErr error) error {
@@ -305,7 +308,7 @@ func searchDir(root string, re *regexp.Regexp, contextLines int, include string)
 
 		if d.IsDir() {
 			name := d.Name()
-			if name == ".git" || name == "node_modules" || name == ".hg" || name == ".svn" {
+			if respectGitignore && isSkipDir(name) {
 				return filepath.SkipDir
 			}
 
@@ -337,9 +340,28 @@ func fileMatchesInclude(include, name string) bool {
 		return true
 	}
 
-	matched, err := filepath.Match(include, name)
+	// Try direct match first
+	if matched, _ := filepath.Match(include, name); matched {
+		return true
+	}
 
-	return err == nil && matched
+	// Handle brace patterns like *.{ts,tsx} by expanding alternatives
+	if idx := strings.Index(include, "{"); idx != -1 {
+		closeIdx := strings.Index(include, "}")
+		if closeIdx > idx {
+			prefix := include[:idx]
+			suffix := include[closeIdx+1:]
+
+			for alt := range strings.SplitSeq(include[idx+1:closeIdx], ",") {
+				expanded := prefix + strings.TrimSpace(alt) + suffix
+				if matched, _ := filepath.Match(expanded, name); matched {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
 }
 
 func searchFile(path string, re *regexp.Regexp, contextLines int) []string {
@@ -418,4 +440,8 @@ func truncateLine(line string) string {
 	}
 
 	return string(runes[:maxLineLen]) + fmt.Sprintf("... [%d chars truncated]", len(runes)-maxLineLen)
+}
+
+func isSkipDir(name string) bool {
+	return name == ".git" || name == "node_modules" || name == ".hg" || name == ".svn"
 }
