@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"weave/sdk"
 )
@@ -64,7 +65,8 @@ func startStdinListener(bus sdk.Bus) {
 	go sl.run()
 }
 
-// stopStdinListener stops the stdin listener and waits for it to finish.
+// stopStdinListener stops the stdin listener. It uses a timeout because
+// the scanner may be blocked reading from stdin with no cancellation mechanism.
 func stopStdinListener() {
 	stdinListenerMu.Lock()
 	sl := stdinListenerInst
@@ -73,7 +75,11 @@ func stopStdinListener() {
 
 	if sl != nil {
 		sl.cancel()
-		<-sl.done
+
+		select {
+		case <-sl.done:
+		case <-time.After(2 * time.Second):
+		}
 	}
 }
 

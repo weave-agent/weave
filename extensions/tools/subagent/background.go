@@ -33,12 +33,18 @@ type backgroundManager struct {
 	agents map[string]*backgroundAgent
 	bus    sdk.Bus
 	broker *Broker
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 func newBackgroundManager(broker *Broker) *backgroundManager {
+	ctx, cancel := context.WithCancel(context.Background())
+
 	return &backgroundManager{
 		agents: make(map[string]*backgroundAgent),
 		broker: broker,
+		ctx:    ctx,
+		cancel: cancel,
 	}
 }
 
@@ -71,10 +77,9 @@ func (bm *backgroundManager) spawn(agent *AgentDef, prompt, cwd, subagentID stri
 	go func() {
 		defer close(ba.done)
 
-		// Use a detached context so the background agent outlives the tool call
-		// that spawned it.
-		ctx := context.Background()
-		output, err := runSubagent(ctx, agent, prompt, cwd, subagentID, bm.broker)
+		// Use the manager's context so background agents are canceled
+		// when the extension is closed.
+		output, err := runSubagent(bm.ctx, agent, prompt, cwd, subagentID, bm.broker)
 
 		bm.mu.Lock()
 		ba.finished = time.Now()

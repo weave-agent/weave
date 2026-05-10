@@ -29,29 +29,42 @@ func runParallel(ctx context.Context, agent *AgentDef, tasks []any, cwd string, 
 
 	results := make([]result, len(prompts))
 
-	var wg sync.WaitGroup
-
 	const maxConcurrent = 5
 
-	sem := make(chan struct{}, maxConcurrent)
+	type task struct {
+		idx    int
+		prompt string
+	}
 
-	for i, prompt := range prompts {
-		wg.Add(1)
+	taskCh := make(chan task, len(prompts))
+	for i, p := range prompts {
+		taskCh <- task{idx: i, prompt: p}
+	}
 
-		sem <- struct{}{}
+	close(taskCh)
 
-		go func(idx int, p string) {
-			defer wg.Done()
-			defer func() { <-sem }()
+	var wg sync.WaitGroup
 
-			var subagentID string
-			if agent.Messaging {
-				subagentID = generateAgentID(agent.Name)
+	workerCount := min(maxConcurrent, len(prompts))
+
+	for range workerCount {
+		wg.Go(func() {
+			for t := range taskCh {
+				if ctx.Err() != nil {
+					results[t.idx] = result{index: t.idx, err: ctx.Err()}
+
+					continue
+				}
+
+				var subagentID string
+				if agent.Messaging {
+					subagentID = generateAgentID(agent.Name)
+				}
+
+				output, err := runSubagent(ctx, agent, t.prompt, cwd, subagentID, broker)
+				results[t.idx] = result{index: t.idx, output: output, err: err}
 			}
-
-			output, err := runSubagent(ctx, agent, p, cwd, subagentID, broker)
-			results[idx] = result{index: idx, output: output, err: err}
-		}(i, prompt)
+		})
 	}
 
 	wg.Wait()

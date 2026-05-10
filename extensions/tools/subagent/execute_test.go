@@ -35,15 +35,15 @@ func TestParseJSONLines_MultipleMessageEnd_LastWins(t *testing.T) {
 }
 
 func TestParseJSONLines_EmptyInput(t *testing.T) {
-	result, err := parseJSONLines(strings.NewReader(""))
-	require.NoError(t, err)
-	assert.Empty(t, result)
+	_, err := parseJSONLines(strings.NewReader(""))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no valid JSON events")
 }
 
 func TestParseJSONLines_OnlyWhitespace(t *testing.T) {
-	result, err := parseJSONLines(strings.NewReader("\n\n  \n"))
-	require.NoError(t, err)
-	assert.Empty(t, result)
+	_, err := parseJSONLines(strings.NewReader("\n\n  \n"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no valid JSON events")
 }
 
 func TestParseJSONLines_NonJSONIgnored(t *testing.T) {

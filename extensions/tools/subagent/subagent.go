@@ -63,9 +63,14 @@ func init() {
 			return &awaitAgentTool{mgr: mgr}, nil
 		})
 
-		return sdk.NewExtensionFunc("subagent", func(bus sdk.Bus) error {
+		return sdk.NewExtensionFuncWithClose("subagent", func(bus sdk.Bus) error {
 			mgr.setBus(bus)
 			startStdinListener(bus)
+
+			return nil
+		}, func() error {
+			mgr.cancel()
+			stopStdinListener()
 
 			return nil
 		}), nil

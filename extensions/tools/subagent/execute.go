@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -193,6 +194,8 @@ func parseJSONLines(r io.Reader) (string, error) {
 
 	var finalContent string
 
+	var jsonLines int
+
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
@@ -205,6 +208,8 @@ func parseJSONLines(r io.Reader) (string, error) {
 			continue
 		}
 
+		jsonLines++
+
 		if evt.Type == "message_end" {
 			finalContent = evt.Content
 		}
@@ -212,6 +217,10 @@ func parseJSONLines(r io.Reader) (string, error) {
 
 	if err := scanner.Err(); err != nil {
 		return "", fmt.Errorf("read stdout: %w", err)
+	}
+
+	if jsonLines == 0 {
+		return "", errors.New("no valid JSON events from subagent")
 	}
 
 	return finalContent, nil

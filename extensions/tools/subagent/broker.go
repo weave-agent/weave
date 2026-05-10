@@ -74,7 +74,9 @@ func (b *Broker) Register(id, name string, stdin io.Writer) {
 	roster := b.snapshotRosterLocked()
 	b.mu.Unlock()
 
-	_ = b.injectRoster(id, roster)
+	if err := b.injectRoster(id, roster); err != nil {
+		log.Printf("broker: inject roster to %s failed: %v", id, err)
+	}
 }
 
 // Unregister removes a subagent from the broker's registry.
@@ -90,6 +92,8 @@ func (b *Broker) Unregister(id string) {
 // When the reader closes (process exits), the agent is automatically unregistered.
 func (b *Broker) MonitorStdout(id string, stdout io.Reader) (string, error) {
 	result, err := b.monitorStdout(id, stdout)
+	// Unregister this agent. If a new agent with the same ID was registered
+	// concurrently, the delete is a harmless no-op for the old caller.
 	b.Unregister(id)
 
 	return result, err

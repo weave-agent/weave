@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 )
@@ -26,7 +27,7 @@ func loadBuiltinAgents() ([]*AgentDef, error) {
 			continue
 		}
 
-		data, err := builtinAgentsFS.ReadFile(filepath.Join("agents", entry.Name()))
+		data, err := builtinAgentsFS.ReadFile(path.Join("agents", entry.Name()))
 		if err != nil {
 			log.Printf("warning: failed to read embedded agent %q: %v", entry.Name(), err)
 			continue
@@ -72,17 +73,17 @@ func discoverFilesystemAgents(dir string) ([]*AgentDef, error) {
 			continue
 		}
 
-		path := filepath.Join(dir, entry.Name())
+		agentPath := filepath.Join(dir, entry.Name())
 
-		data, err := os.ReadFile(path)
+		data, err := os.ReadFile(agentPath)
 		if err != nil {
-			log.Printf("warning: failed to read agent file %q: %v", path, err)
+			log.Printf("warning: failed to read agent file %q: %v", agentPath, err)
 			continue
 		}
 
 		agent, err := ParseAgent(data)
 		if err != nil {
-			log.Printf("warning: failed to parse agent file %q: %v", path, err)
+			log.Printf("warning: failed to parse agent file %q: %v", agentPath, err)
 			continue
 		}
 
