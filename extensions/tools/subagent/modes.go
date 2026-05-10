@@ -31,10 +31,18 @@ func runParallel(ctx context.Context, agent *AgentDef, tasks []any, cwd string, 
 
 	var wg sync.WaitGroup
 
+	const maxConcurrent = 5
+
+	sem := make(chan struct{}, maxConcurrent)
+
 	for i, prompt := range prompts {
 		wg.Add(1)
+
+		sem <- struct{}{}
+
 		go func(idx int, p string) {
 			defer wg.Done()
+			defer func() { <-sem }()
 
 			var subagentID string
 			if agent.Messaging {

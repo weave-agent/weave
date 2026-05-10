@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"weave/sdk"
@@ -48,7 +49,7 @@ func (bm *backgroundManager) setBus(bus sdk.Bus) {
 	bm.bus = bus
 }
 
-func (bm *backgroundManager) spawn(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) string {
+func (bm *backgroundManager) spawn(agent *AgentDef, prompt, cwd, subagentID string) string {
 	if subagentID == "" {
 		subagentID = generateAgentID(agent.Name)
 	}
@@ -70,6 +71,9 @@ func (bm *backgroundManager) spawn(ctx context.Context, agent *AgentDef, prompt,
 	go func() {
 		defer close(ba.done)
 
+		// Use a detached context so the background agent outlives the tool call
+		// that spawned it.
+		ctx := context.Background()
 		output, err := runSubagent(ctx, agent, prompt, cwd, subagentID, bm.broker)
 
 		bm.mu.Lock()
@@ -132,11 +136,13 @@ func (bm *backgroundManager) await(ctx context.Context, id string) (*backgroundA
 	}
 }
 
+var agentIDCounter atomic.Uint64
+
 func generateAgentID(name string) string {
 	b := make([]byte, 6)
 	if _, err := rand.Read(b); err != nil {
 		// Fallback to timestamp + counter on entropy failure.
-		return fmt.Sprintf("subagent_%s_%d", name, time.Now().UnixNano())
+		return fmt.Sprintf("subagent_%s_%d_%d", name, time.Now().UnixNano(), agentIDCounter.Add(1))
 	}
 
 	return fmt.Sprintf("subagent_%s_%s", name, hex.EncodeToString(b))

@@ -31,10 +31,12 @@ const (
 )
 
 func init() {
-	// Register child-side inter-agent tools when running as a subagent.
-	registerMessagingTools()
-
 	sdk.RegisterExtension("subagent", func(cfg sdk.Config) (sdk.Extension, error) {
+		// Register child-side inter-agent tools when running as a subagent.
+		// This is done inside the factory (not init) so that the env var is
+		// already set by the generated main before WireWithCore runs.
+		registerMessagingTools()
+
 		projectDir := dirFromConfig(cfg)
 
 		agents, err := DiscoverAgents(projectDir)
@@ -183,7 +185,7 @@ func (t *subagentTool) Execute(ctx context.Context, args map[string]any) (sdk.To
 				return sdk.ToolResult{Content: "background manager not available", IsError: true}, nil
 			}
 
-			id := t.mgr.spawn(ctx, t.agent, prompt, cwd, subagentID)
+			id := t.mgr.spawn(t.agent, prompt, cwd, subagentID)
 			result := map[string]any{propID: id, "status": statusRunning}
 			jsonBytes, _ := json.Marshal(result)
 

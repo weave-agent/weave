@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"strings"
 	"sync"
 )
@@ -70,9 +71,10 @@ func (b *Broker) Register(id, name string, stdin io.Writer) {
 		name:  name,
 		stdin: stdin,
 	}
+	roster := b.snapshotRosterLocked()
 	b.mu.Unlock()
 
-	b.injectRoster(id)
+	_ = b.injectRoster(id, roster)
 }
 
 // Unregister removes a subagent from the broker's registry.
@@ -112,11 +114,17 @@ func (b *Broker) monitorStdout(id string, stdout io.Reader) (string, error) {
 
 		switch msg.Type {
 		case msgTypeSend:
-			_ = b.routeSend(id, msg.To, msg.Content)
+			if err := b.routeSend(id, msg.To, msg.Content); err != nil {
+				log.Printf("broker: route send failed: %v", err)
+			}
 		case msgTypeBroadcast:
-			b.routeBroadcast(id, msg.Content)
+			for _, err := range b.routeBroadcast(id, msg.Content) {
+				log.Printf("broker: route broadcast failed: %v", err)
+			}
 		case msgTypeListAgents:
-			b.respondListAgents(id)
+			if err := b.respondListAgents(id); err != nil {
+				log.Printf("broker: respond list agents failed: %v", err)
+			}
 		case msgTypeMessageEnd:
 			finalContent = msg.Content
 		}
@@ -149,7 +157,8 @@ func (b *Broker) routeSend(fromID, toID, content string) error {
 }
 
 // routeBroadcast forwards a message from one agent to all other active agents.
-func (b *Broker) routeBroadcast(fromID, content string) {
+// Returns a slice of errors for each failed delivery.
+func (b *Broker) routeBroadcast(fromID, content string) []error {
 	b.mu.RLock()
 
 	var others []*subagentProc
@@ -168,13 +177,19 @@ func (b *Broker) routeBroadcast(fromID, content string) {
 		Content: content,
 	}
 
+	var errs []error
+
 	for _, proc := range others {
-		_ = b.writeMessage(proc.stdin, msg)
+		if err := b.writeMessage(proc.stdin, msg); err != nil {
+			errs = append(errs, fmt.Errorf("send to %s: %w", proc.id, err))
+		}
 	}
+
+	return errs
 }
 
 // respondListAgents writes the current roster back to the requesting agent.
-func (b *Broker) respondListAgents(requesterID string) {
+func (b *Broker) respondListAgents(requesterID string) error {
 	roster := b.Roster()
 
 	msg := brokerMessage{
@@ -186,9 +201,11 @@ func (b *Broker) respondListAgents(requesterID string) {
 	proc, ok := b.agents[requesterID]
 	b.mu.RUnlock()
 
-	if ok {
-		_ = b.writeMessage(proc.stdin, msg)
+	if !ok {
+		return fmt.Errorf("requester agent %q not found", requesterID)
 	}
+
+	return b.writeMessage(proc.stdin, msg)
 }
 
 // Inject sends an inject message to a specific subagent's stdin.
@@ -214,6 +231,10 @@ func (b *Broker) Roster() []agentInfo {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
+	return b.snapshotRosterLocked()
+}
+
+func (b *Broker) snapshotRosterLocked() []agentInfo {
 	roster := make([]agentInfo, 0, len(b.agents))
 
 	for id, proc := range b.agents {
@@ -227,11 +248,9 @@ func (b *Broker) Roster() []agentInfo {
 	return roster
 }
 
-// injectRoster sends the current agent roster to the specified agent's stdin
+// injectRoster sends the provided roster snapshot to the specified agent's stdin
 // as an initial context message (excluding the agent itself).
-func (b *Broker) injectRoster(id string) {
-	roster := b.Roster()
-
+func (b *Broker) injectRoster(id string, roster []agentInfo) error {
 	filtered := make([]agentInfo, 0, len(roster))
 
 	for _, a := range roster {
@@ -251,9 +270,11 @@ func (b *Broker) injectRoster(id string) {
 	proc, ok := b.agents[id]
 	b.mu.RUnlock()
 
-	if ok {
-		_ = b.writeMessage(proc.stdin, msg)
+	if !ok {
+		return fmt.Errorf("agent %q not found", id)
 	}
+
+	return b.writeMessage(proc.stdin, msg)
 }
 
 func (b *Broker) writeMessage(w io.Writer, msg brokerMessage) error {

@@ -127,7 +127,7 @@ func TestCheckAgent_Pending(t *testing.T) {
 	}
 
 	mgr := newBackgroundManager(nil)
-	id := mgr.spawn(context.Background(), &AgentDef{Name: "test"}, "prompt", "", "")
+	id := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
 
 	tool := &checkAgentTool{mgr: mgr}
 	result, err := tool.Execute(context.Background(), map[string]any{"id": id})
@@ -151,7 +151,7 @@ func TestCheckAgent_Completed(t *testing.T) {
 	}
 
 	mgr := newBackgroundManager(nil)
-	id := mgr.spawn(context.Background(), &AgentDef{Name: "test"}, "prompt", "", "")
+	id := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
 
 	// Wait for completion.
 	time.Sleep(50 * time.Millisecond)
@@ -207,7 +207,7 @@ func TestAwaitAgent_BlocksUntilDone(t *testing.T) {
 	}
 
 	mgr := newBackgroundManager(nil)
-	id := mgr.spawn(context.Background(), &AgentDef{Name: "test"}, "prompt", "", "")
+	id := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
 
 	tool := &awaitAgentTool{mgr: mgr}
 
@@ -236,7 +236,7 @@ func TestAwaitAgent_ContextCancellation(t *testing.T) {
 	}
 
 	mgr := newBackgroundManager(nil)
-	id := mgr.spawn(context.Background(), &AgentDef{Name: "test"}, "prompt", "", "")
+	id := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
 
 	tool := &awaitAgentTool{mgr: mgr}
 
@@ -283,7 +283,7 @@ func TestBackgroundManager_NotifyDone(t *testing.T) {
 		return "result", nil
 	}
 
-	mgr.spawn(context.Background(), &AgentDef{Name: "test"}, "prompt", "", "")
+	mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
 
 	// Wait for completion.
 	time.Sleep(50 * time.Millisecond)
@@ -313,7 +313,7 @@ func TestBackgroundManager_NotifyDoneWithError(t *testing.T) {
 		return "", errors.New("failed")
 	}
 
-	mgr.spawn(context.Background(), &AgentDef{Name: "test"}, "prompt", "", "")
+	mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
 
 	time.Sleep(50 * time.Millisecond)
 
@@ -339,7 +339,7 @@ func TestBackgroundManager_NotifyDoneNoBus(t *testing.T) {
 	}
 
 	// Should not panic.
-	id := mgr.spawn(context.Background(), &AgentDef{Name: "test"}, "prompt", "", "")
+	id := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
 
 	time.Sleep(50 * time.Millisecond)
 
