@@ -132,14 +132,14 @@ Add a subagent system to Weave as a tool extension (`extensions/tools/subagent/`
 - [x] run tests — must pass before task 8
 
 ### Task 8: Inter-agent communication — parent broker
-- [ ] create `broker.go` with `Broker` struct — holds registry of active subagent processes (`map[string]*subagentProc` where each has stdin pipe + stdout scanner)
-- [ ] implement routing: read `send` events from child stdout → find target by ID → write `agent_msg` to target's stdin
-- [ ] implement broadcast: read `broadcast` events from child stdout → write `agent_msg` to all active children's stdin
-- [ ] implement roster injection: when spawning a new subagent, inject current active agent list via stdin as initial context message
-- [ ] implement `inject` API: parent session can push context to any running child
-- [ ] implement `list_agents` request/response: child calls `list_agents` tool → broker writes roster back to child's stdin as tool result
-- [ ] write tests for broker routing (mock subagent processes), roster injection, broadcast fan-out, target-not-found handling
-- [ ] run tests — must pass before task 9
+- [x] create `broker.go` with `Broker` struct — holds registry of active subagent processes (`map[string]*subagentProc` where each has stdin pipe + stdout scanner)
+- [x] implement routing: read `send` events from child stdout → find target by ID → write `agent_msg` to target's stdin
+- [x] implement broadcast: read `broadcast` events from child stdout → write `agent_msg` to all active children's stdin
+- [x] implement roster injection: when spawning a new subagent, inject current active agent list via stdin as initial context message
+- [x] implement `inject` API: parent session can push context to any running child
+- [x] implement `list_agents` request/response: child calls `list_agents` tool → broker writes roster back to child's stdin as tool result
+- [x] write tests for broker routing (mock subagent processes), roster injection, broadcast fan-out, target-not-found handling
+- [x] run tests — must pass before task 9
 
 ### Task 9: Inter-agent communication — child subagent tools
 - [ ] create `messaging.go` with `send_message`, `broadcast_message`, `list_agents` tool implementations
