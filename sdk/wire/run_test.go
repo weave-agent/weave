@@ -156,6 +156,29 @@ func TestResolveProjectDir(t *testing.T) {
 	assert.Equal(t, "/", config.ProjectDirFromConfig("/.weave/config.yaml"))
 }
 
+func TestRun_SubagentFlagsParsed(t *testing.T) {
+	dir := t.TempDir()
+	cfgFile := dir + "/.weave.yaml"
+	require.NoError(t, os.WriteFile(cfgFile, []byte("ui: none\ncore:\n  agent_loop: loop\n"), 0o600))
+
+	_, cf, rest, err := config.LoadFromDir(dir, []string{
+		"-p", "test",
+		"--output", "json",
+		"--tools", "read,grep",
+		"--subagent-id", "abc123",
+		"--sandbox", "readonly",
+		"--model", "claude-haiku-4-5",
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, "json", cf.Output)
+	assert.Equal(t, "read,grep", cf.Tools)
+	assert.Equal(t, "abc123", cf.SubagentID)
+	assert.Equal(t, "readonly", cf.SandboxMode)
+	assert.Equal(t, "claude-haiku-4-5", cf.Model)
+	assert.Empty(t, rest, "all flags should be consumed by gonfig")
+}
+
 func TestRun_ProjectDirFromConfig(t *testing.T) {
 	// Create a project structure: /tmp/project/.weave.yaml and /tmp/project/subdir/
 	projectDir := t.TempDir()

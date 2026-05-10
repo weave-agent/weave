@@ -29,10 +29,33 @@ func ToolRegistered(name string) bool {
 	return toolReg.Exists(name)
 }
 
+var toolFilter map[string]bool
+
+func SetToolFilter(names []string) {
+	toolFilter = make(map[string]bool, len(names))
+	for _, name := range names {
+		toolFilter[name] = true
+	}
+}
+
 func ListTools() []string {
-	return toolReg.List()
+	all := toolReg.List()
+	if len(toolFilter) == 0 {
+		return all
+	}
+
+	filtered := make([]string, 0, len(toolFilter))
+	for _, name := range all {
+		if toolFilter[name] {
+			filtered = append(filtered, name)
+		}
+	}
+
+	return filtered
 }
 
 func ResetToolRegistry() {
 	toolReg.Reset()
+
+	toolFilter = nil
 }

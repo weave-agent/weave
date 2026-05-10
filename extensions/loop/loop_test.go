@@ -303,6 +303,13 @@ func TestLoop_ToolCallCycle(t *testing.T) {
 
 	b.Publish(sdk.NewEvent(TopicPrompt, "run echo"))
 
+	toolCallEvt, ok := waitForTopic(allCh, TopicToolCall, 2*time.Second)
+	require.True(t, ok, "timeout waiting for tool_call")
+
+	toolCallPayload, ok := toolCallEvt.Payload.(map[string]any)
+	require.True(t, ok, "tool_call payload type = %T", toolCallEvt.Payload)
+	assert.Equal(t, "bash", toolCallPayload["tool"])
+
 	toolResultEvt, ok := waitForTopic(allCh, TopicToolResult, 2*time.Second)
 	require.True(t, ok, "timeout waiting for tool_result")
 

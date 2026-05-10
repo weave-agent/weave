@@ -26,6 +26,7 @@ const (
 	TopicMsgStart          = "agent.message_start"
 	TopicMsgUpdate         = "agent.message_update"
 	TopicMsgEnd            = "agent.message_end"
+	TopicToolCall          = "agent.tool_call"
 	TopicToolResult        = "agent.tool_result"
 	TopicEnd               = "agent.end"
 	TopicModelChange       = "model.change"
@@ -356,6 +357,12 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 			messages = append(messages, resp)
 
 			for _, tc := range toolCalls {
+				bus.Publish(sdk.NewEvent(TopicToolCall, map[string]any{
+					"id":   tc.ID,
+					"tool": tc.Name,
+					"args": tc.Arguments,
+				}))
+
 				result, err := executeTool(turnCtx, l.cfg, tc)
 				if err != nil {
 					result = sdk.ToolResult{Content: err.Error(), IsError: true}

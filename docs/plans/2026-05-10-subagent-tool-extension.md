@@ -122,14 +122,14 @@ Add a subagent system to Weave as a tool extension (`extensions/tools/subagent/`
 - [x] run tests — must pass before task 7
 
 ### Task 7: CLI flag support (--output json, --tools, --subagent-id)
-- [ ] add `--output` flag to weave CLI — values: `text` (default), `json`
-- [ ] modify print mode in `sdk/wire/run.go` to emit JSON lines when `--output json` is set
-- [ ] define JSON event types: `message_start`, `message_update`, `message_end`, `tool_call`, `tool_result` — reuse existing bus event payloads
-- [ ] add `--tools` flag — comma-separated allowlist that filters tool registry before wiring in `sdk/wire/wire.go`
-- [ ] add `--subagent-id` flag — when set, enables subagent mode in child process (registers inter-agent tools, reads stdin for messages)
-- [ ] ensure `--sandbox` flag already works (verify passthrough, add if missing)
-- [ ] write tests for `--output json` flag (verify JSON line format), `--tools` filtering (only allowed tools wired), `--subagent-id` flag behavior
-- [ ] run tests — must pass before task 8
+- [x] add `--output` flag to weave CLI — values: `text` (default), `json`
+- [x] modify print mode in `sdk/wire/run.go` to emit JSON lines when `--output json` is set
+- [x] define JSON event types: `message_start`, `message_update`, `message_end`, `tool_call`, `tool_result` — reuse existing bus event payloads
+- [x] add `--tools` flag — comma-separated allowlist that filters tool registry before wiring in `sdk/wire/wire.go`
+- [x] add `--subagent-id` flag — when set, enables subagent mode in child process (registers inter-agent tools, reads stdin for messages)
+- [x] ensure `--sandbox` flag already works (verify passthrough, add if missing)
+- [x] write tests for `--output json` flag (verify JSON line format), `--tools` filtering (only allowed tools wired), `--subagent-id` flag behavior
+- [x] run tests — must pass before task 8
 
 ### Task 8: Inter-agent communication — parent broker
 - [ ] create `broker.go` with `Broker` struct — holds registry of active subagent processes (`map[string]*subagentProc` where each has stdin pipe + stdout scanner)

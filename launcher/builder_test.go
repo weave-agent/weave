@@ -285,8 +285,21 @@ func TestGenerateMainGo_Content(t *testing.T) {
 	assert.Contains(t, s, "os.Args = append([]string{os.Args[0]}, filtered...)")
 	assert.Contains(t, s, "--weave-headless=")
 	assert.Contains(t, s, "--weave-project-dir=")
+	assert.Contains(t, s, "--weave-output=")
+	assert.Contains(t, s, "--weave-tools=")
+	assert.Contains(t, s, "--weave-subagent-id=")
+	assert.Contains(t, s, "--weave-sandbox-mode=")
+	assert.Contains(t, s, "--weave-model=")
 	assert.Contains(t, s, "fullCfg.SetProjectDir(projectDir)")
 	assert.Contains(t, s, "sdk.HeadlessConfig")
+	assert.Contains(t, s, "sdk.SetToolFilter")
+	assert.Contains(t, s, `"encoding/json"`)
+	assert.Contains(t, s, `outputMode == "json"`)
+	assert.Contains(t, s, `"agent.message_start"`)
+	assert.Contains(t, s, `"agent.message_end"`)
+	assert.Contains(t, s, `"agent.tool_call"`)
+	assert.Contains(t, s, `"agent.tool_result"`)
+	assert.Contains(t, s, `"model.change"`)
 }
 
 func TestGenerateMainGo_CustomAgentLoopExcludesDefaultLoop(t *testing.T) {

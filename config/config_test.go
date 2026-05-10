@@ -157,6 +157,56 @@ func TestLoad_UIFlag(t *testing.T) {
 	assert.Equal(t, "none", cf.UI)
 }
 
+func TestLoad_OutputFlag(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".weave.yaml", "ui: tui\n")
+
+	_, cf, _, err := LoadFromDir(dir, []string{"--output", "json"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "json", cf.Output)
+}
+
+func TestLoad_ToolsFlag(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".weave.yaml", "ui: tui\n")
+
+	_, cf, _, err := LoadFromDir(dir, []string{"--tools", "read,grep,find"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "read,grep,find", cf.Tools)
+}
+
+func TestLoad_SubagentIDFlag(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".weave.yaml", "ui: tui\n")
+
+	_, cf, _, err := LoadFromDir(dir, []string{"--subagent-id", "subagent_explore_abc123"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "subagent_explore_abc123", cf.SubagentID)
+}
+
+func TestLoad_SandboxModeFlag(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".weave.yaml", "ui: tui\n")
+
+	_, cf, _, err := LoadFromDir(dir, []string{"--sandbox", "readonly"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "readonly", cf.SandboxMode)
+}
+
+func TestLoad_ModelFlag(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".weave.yaml", "ui: tui\n")
+
+	_, cf, _, err := LoadFromDir(dir, []string{"--model", "claude-haiku-4-5"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "claude-haiku-4-5", cf.Model)
+}
+
 func TestEnsureGlobalConfig_GeneratesFile(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

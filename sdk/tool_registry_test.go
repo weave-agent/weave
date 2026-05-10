@@ -92,5 +92,58 @@ func TestResetToolRegistry(t *testing.T) {
 	assert.Empty(t, ListTools())
 }
 
+func TestSetToolFilter(t *testing.T) {
+	ResetToolRegistry()
+
+	RegisterTool("bash", func(Config) (Tool, error) {
+		return &ToolMock{NameFunc: func() string { return "bash" }}, nil
+	})
+	RegisterTool("read", func(Config) (Tool, error) {
+		return &ToolMock{NameFunc: func() string { return "read" }}, nil
+	})
+	RegisterTool("edit", func(Config) (Tool, error) {
+		return &ToolMock{NameFunc: func() string { return "edit" }}, nil
+	})
+
+	SetToolFilter([]string{"bash", "read"})
+	defer func() { SetToolFilter(nil) }()
+
+	names := ListTools()
+	sort.Strings(names)
+	assert.Equal(t, []string{"bash", "read"}, names)
+}
+
+func TestSetToolFilter_EmptyAllowsAll(t *testing.T) {
+	ResetToolRegistry()
+
+	RegisterTool("bash", func(Config) (Tool, error) {
+		return &ToolMock{NameFunc: func() string { return "bash" }}, nil
+	})
+	RegisterTool("read", func(Config) (Tool, error) {
+		return &ToolMock{NameFunc: func() string { return "read" }}, nil
+	})
+
+	SetToolFilter([]string{})
+	defer func() { SetToolFilter(nil) }()
+
+	names := ListTools()
+	sort.Strings(names)
+	assert.Equal(t, []string{"bash", "read"}, names)
+}
+
+func TestSetToolFilter_UnknownToolIgnored(t *testing.T) {
+	ResetToolRegistry()
+
+	RegisterTool("bash", func(Config) (Tool, error) {
+		return &ToolMock{NameFunc: func() string { return "bash" }}, nil
+	})
+
+	SetToolFilter([]string{"bash", "nonexistent"})
+	defer func() { SetToolFilter(nil) }()
+
+	names := ListTools()
+	assert.Equal(t, []string{"bash"}, names)
+}
+
 // Suppress unused import warning.
 var _ = context.Background
