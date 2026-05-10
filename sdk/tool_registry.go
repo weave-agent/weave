@@ -17,6 +17,10 @@ func RegisterTool(name string, factory func(Config) (Tool, error)) {
 }
 
 func GetTool(name string, cfg Config) (Tool, error) {
+	if len(toolFilter) > 0 && !toolFilter[name] {
+		return nil, fmt.Errorf("tool %q not in allowed list", name)
+	}
+
 	factory, ok := toolReg.Get(name)
 	if !ok {
 		return nil, fmt.Errorf("tool %q not registered", name)
