@@ -54,7 +54,7 @@ func (bm *backgroundManager) spawn(ctx context.Context, agent *AgentDef, prompt,
 		Agent:   agent,
 		Prompt:  prompt,
 		CWD:     cwd,
-		Status:  "running",
+		Status:  statusRunning,
 		done:    make(chan struct{}),
 		started: time.Now(),
 	}
@@ -97,9 +97,9 @@ func (bm *backgroundManager) notifyDone(ba *backgroundAgent) {
 	}
 
 	payload := map[string]string{
-		propID:    ba.ID,
-		"status":  ba.Status,
-		"content": ba.Result,
+		propID:     ba.ID,
+		"status":   ba.Status,
+		keyContent: ba.Result,
 	}
 
 	bus.Publish(sdk.NewEvent("subagent.done", payload))
@@ -177,7 +177,7 @@ func (t *checkAgentTool) Execute(ctx context.Context, args map[string]any) (sdk.
 		"status": ba.Status,
 	}
 
-	if ba.Status != "running" {
+	if ba.Status != statusRunning {
 		result["content"] = ba.Result
 		if ba.Err != nil {
 			result["error"] = ba.Err.Error()
@@ -230,9 +230,9 @@ func (t *awaitAgentTool) Execute(ctx context.Context, args map[string]any) (sdk.
 	}
 
 	result := map[string]any{
-		propID:    ba.ID,
-		"status":  ba.Status,
-		"content": ba.Result,
+		propID:     ba.ID,
+		"status":   ba.Status,
+		keyContent: ba.Result,
 	}
 
 	if ba.Err != nil {

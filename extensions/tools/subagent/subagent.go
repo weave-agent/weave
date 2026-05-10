@@ -31,6 +31,9 @@ const (
 )
 
 func init() {
+	// Register child-side inter-agent tools when running as a subagent.
+	registerMessagingTools()
+
 	sdk.RegisterExtension("subagent", func(cfg sdk.Config) (sdk.Extension, error) {
 		projectDir := dirFromConfig(cfg)
 
@@ -163,7 +166,7 @@ func (t *subagentTool) Execute(ctx context.Context, args map[string]any) (sdk.To
 			}
 
 			id := t.mgr.spawn(ctx, t.agent, prompt, cwd)
-			result := map[string]any{propID: id, "status": "running"}
+			result := map[string]any{propID: id, "status": statusRunning}
 			jsonBytes, _ := json.Marshal(result)
 
 			return sdk.ToolResult{Content: string(jsonBytes)}, nil

@@ -9,6 +9,20 @@ import (
 	"sync"
 )
 
+// Protocol message type constants.
+const (
+	msgTypeSend           = "send"
+	msgTypeBroadcast      = "broadcast"
+	msgTypeListAgents     = "list_agents"
+	msgTypeListAgentsResp = "list_agents_response"
+	msgTypeAgentMsg       = "agent_msg"
+	msgTypeInject         = "inject"
+	msgTypeMessageEnd     = "message_end"
+	statusRunning         = "running"
+	keyTo                 = "to"
+	keyContent            = "content"
+)
+
 // brokerMessage represents a JSON message on the inter-agent protocol.
 type brokerMessage struct {
 	Type    string      `json:"type"`
@@ -96,13 +110,13 @@ func (b *Broker) monitorStdout(id string, stdout io.Reader) (string, error) {
 		}
 
 		switch msg.Type {
-		case "send":
+		case msgTypeSend:
 			_ = b.routeSend(id, msg.To, msg.Content)
-		case "broadcast":
+		case msgTypeBroadcast:
 			b.routeBroadcast(id, msg.Content)
-		case "list_agents":
+		case msgTypeListAgents:
 			b.respondListAgents(id)
-		case "message_end":
+		case msgTypeMessageEnd:
 			finalContent = msg.Content
 		}
 	}
@@ -125,7 +139,7 @@ func (b *Broker) routeSend(fromID, toID, content string) error {
 	}
 
 	msg := brokerMessage{
-		Type:    "agent_msg",
+		Type:    msgTypeAgentMsg,
 		From:    fromID,
 		Content: content,
 	}
@@ -148,7 +162,7 @@ func (b *Broker) routeBroadcast(fromID, content string) {
 	b.mu.RUnlock()
 
 	msg := brokerMessage{
-		Type:    "agent_msg",
+		Type:    msgTypeAgentMsg,
 		From:    fromID,
 		Content: content,
 	}
@@ -163,7 +177,7 @@ func (b *Broker) respondListAgents(requesterID string) {
 	roster := b.Roster()
 
 	msg := brokerMessage{
-		Type:   "list_agents_response",
+		Type:   msgTypeListAgentsResp,
 		Agents: roster,
 	}
 
@@ -187,7 +201,7 @@ func (b *Broker) Inject(id, content string) error {
 	}
 
 	msg := brokerMessage{
-		Type:    "inject",
+		Type:    msgTypeInject,
 		Content: content,
 	}
 
@@ -205,7 +219,7 @@ func (b *Broker) Roster() []agentInfo {
 		roster = append(roster, agentInfo{
 			ID:     id,
 			Name:   proc.name,
-			Status: "running",
+			Status: statusRunning,
 		})
 	}
 
@@ -226,7 +240,7 @@ func (b *Broker) injectRoster(id string) {
 	}
 
 	msg := brokerMessage{
-		Type:    "agent_msg",
+		Type:    msgTypeAgentMsg,
 		From:    "broker",
 		Content: formatRoster(filtered),
 		Agents:  filtered,

@@ -142,13 +142,13 @@ Add a subagent system to Weave as a tool extension (`extensions/tools/subagent/`
 - [x] run tests — must pass before task 9
 
 ### Task 9: Inter-agent communication — child subagent tools
-- [ ] create `messaging.go` with `send_message`, `broadcast_message`, `list_agents` tool implementations
-- [ ] `send_message(to, content)` — writes `{"type":"send","to":"...","content":"..."}` to stdout, returns tool result confirming delivery
-- [ ] `broadcast_message(content)` — writes `{"type":"broadcast","content":"..."}` to stdout, returns tool result with recipient count
-- [ ] `list_agents()` — writes `{"type":"list_agents"}` to stdout, blocks until broker responds via stdin with roster, returns formatted list
-- [ ] register these tools only when `--subagent-id` flag is set AND agent definition has `messaging: true`
-- [ ] write tests for each inter-agent tool (mock stdout writing, stdin response parsing)
-- [ ] run tests — must pass before task 10
+- [x] create `messaging.go` with `send_message`, `broadcast_message`, `list_agents` tool implementations
+- [x] `send_message(to, content)` — writes `{"type":"send","to":"...","content":"..."}` to stdout, returns tool result confirming delivery
+- [x] `broadcast_message(content)` — writes `{"type":"broadcast","content":"..."}` to stdout, returns tool result with recipient count
+- [x] `list_agents()` — writes `{"type":"list_agents"}` to stdout, blocks until broker responds via stdin with roster, returns formatted list
+- [x] register these tools only when `--subagent-id` flag is set AND agent definition has `messaging: true`
+- [x] write tests for each inter-agent tool (mock stdout writing, stdin response parsing)
+- [x] run tests — must pass before task 10
 
 ### Task 10: Inter-agent communication — stdin listener in child process
 - [ ] add stdin listener goroutine in child's agent loop when `--subagent-id` is set — reads JSON lines from stdin in background
