@@ -151,14 +151,14 @@ Add a subagent system to Weave as a tool extension (`extensions/tools/subagent/`
 - [x] run tests — must pass before task 10
 
 ### Task 10: Inter-agent communication — stdin listener in child process
-- [ ] add stdin listener goroutine in child's agent loop when `--subagent-id` is set — reads JSON lines from stdin in background
-- [ ] handle `inject` messages: queue as user messages in agent loop's conversation
-- [ ] handle `agent_msg` messages: queue as user messages with `[from <agent_id>]` prefix for context
-- [ ] handle `cancel` message: trigger agent loop cancellation
-- [ ] handle `list_agents_response`: deliver to waiting `list_agents` tool call
-- [ ] graceful shutdown: close stdin listener on context cancellation, drain remaining messages
-- [ ] write tests for stdin listener (mock stdin pipe, verify message queuing, cancel handling)
-- [ ] run tests — must pass before task 11
+- [x] add stdin listener goroutine in child's agent loop when `--subagent-id` is set — reads JSON lines from stdin in background
+- [x] handle `inject` messages: queue as user messages in agent loop's conversation
+- [x] handle `agent_msg` messages: queue as user messages with `[from <agent_id>]` prefix for context
+- [x] handle `cancel` message: trigger agent loop cancellation
+- [x] handle `list_agents_response`: deliver to waiting `list_agents` tool call
+- [x] graceful shutdown: close stdin listener on context cancellation, drain remaining messages
+- [x] write tests for stdin listener (mock stdin pipe, verify message queuing, cancel handling)
+- [x] run tests — must pass before task 11
 
 ### Task 11: Agent definition `messaging` field
 - [ ] add `Messaging bool` field to `AgentDef` struct (`messaging` in YAML frontmatter, default: false)

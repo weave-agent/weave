@@ -17,6 +17,7 @@ const (
 	msgTypeListAgentsResp = "list_agents_response"
 	msgTypeAgentMsg       = "agent_msg"
 	msgTypeInject         = "inject"
+	msgTypeCancel         = "cancel"
 	msgTypeMessageEnd     = "message_end"
 	statusRunning         = "running"
 	keyTo                 = "to"

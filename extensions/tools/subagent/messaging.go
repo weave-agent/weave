@@ -188,11 +188,26 @@ func writeBrokerMessage(w io.Writer, msg brokerMessage) error {
 	return nil
 }
 
-// readListAgentsResponse scans r for JSON lines and returns the content of the
-// first list_agents_response message. Non-JSON lines and other message types
-// are skipped. Returns an error if the context is canceled before a response
-// is received.
+// readListAgentsResponse waits for a list_agents_response message.
+// If the stdin listener is running, it uses the listener's response channel.
+// Otherwise it scans r directly for the response.
 func readListAgentsResponse(ctx context.Context, r io.Reader) (string, error) {
+	// Prefer the stdin listener if available.
+	if sl := getStdinListener(); sl != nil {
+		respCh := make(chan string, 1)
+
+		sl.setResponseChannel(respCh)
+		defer sl.setResponseChannel(nil)
+
+		select {
+		case result := <-respCh:
+			return result, nil
+		case <-ctx.Done():
+			return "", fmt.Errorf("context canceled: %w", ctx.Err())
+		}
+	}
+
+	// Fallback: scan the reader directly.
 	scanner := bufio.NewScanner(r)
 
 	done := make(chan struct{})

@@ -62,6 +62,8 @@ func init() {
 
 		return sdk.NewExtensionFunc("subagent", func(bus sdk.Bus) error {
 			mgr.setBus(bus)
+			startStdinListener(bus)
+
 			return nil
 		}), nil
 	})
