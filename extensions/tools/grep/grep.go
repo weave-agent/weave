@@ -92,7 +92,19 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 	ignoreCase, _ := args["ignoreCase"].(bool)
 	literal, _ := args["literal"].(bool)
 
-	contextLines := parseContextLines(args)
+	if include != "" {
+		if _, matchErr := filepath.Match(include, ""); matchErr != nil {
+			return sdk.ToolResult{Content: fmt.Sprintf("error: invalid include pattern: %s", matchErr), IsError: true}, nil
+		}
+	}
+
+	var contextLines int
+
+	if v, ok := args["context"]; ok {
+		if f, ok := v.(float64); ok && f >= 0 {
+			contextLines = min(int(f), 50)
+		}
+	}
 
 	absPath, err := filepath.Abs(path)
 	if err != nil {
@@ -142,16 +154,6 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 	return sdk.ToolResult{Content: result.Format(), IsError: false}, nil
 }
 
-func parseContextLines(args map[string]any) int {
-	if v, ok := args["context"]; ok {
-		if f, ok := v.(float64); ok && f >= 0 {
-			return min(int(f), 50)
-		}
-	}
-
-	return 0
-}
-
 // search tries rg first, then falls back to stdlib.
 func (t *tool) search(ctx context.Context, absPath string, isDir bool, pattern, include string, ignoreCase, literal bool, contextLines int, respectGitignore bool) []string {
 	if rgPath := ripgrep.Find(); rgPath != "" {
@@ -186,6 +188,10 @@ func searchWithStdlib(absPath string, isDir bool, pattern, include string, ignor
 		}
 
 		return matches
+	}
+
+	if !fileMatchesInclude(include, filepath.Base(absPath)) {
+		return nil
 	}
 
 	return searchFile(absPath, re, contextLines)
@@ -237,10 +243,10 @@ func searchWithRipgrep(ctx context.Context, rgPath, absPath string, isDir bool, 
 		return nil, fmt.Errorf("rg: %w", err)
 	}
 
-	return parseRgJSON(out, searchPath)
+	return parseRgJSON(out)
 }
 
-func parseRgJSON(data []byte, baseDir string) ([]string, error) {
+func parseRgJSON(data []byte) ([]string, error) {
 	var matches []string
 
 	scanner := bufio.NewScanner(strings.NewReader(string(data)))
@@ -274,8 +280,9 @@ func parseRgJSON(data []byte, baseDir string) ([]string, error) {
 
 		relPath := entry.Data.Path.Text
 
-		if rel, relErr := filepath.Rel(baseDir, entry.Data.Path.Text); relErr == nil {
-			relPath = rel
+		// rg outputs paths relative to its CWD (baseDir), so clean directly
+		if !filepath.IsAbs(relPath) {
+			relPath = filepath.Clean(relPath)
 		}
 
 		matches = append(matches, fmt.Sprintf("%s:%d:%s", relPath, entry.Data.LineNumber, content))
@@ -405,9 +412,10 @@ func isBinaryFile(path string) bool {
 }
 
 func truncateLine(line string) string {
-	if len(line) <= maxLineLen {
+	runes := []rune(line)
+	if len(runes) <= maxLineLen {
 		return line
 	}
 
-	return line[:maxLineLen] + fmt.Sprintf("... [%d chars truncated]", len(line)-maxLineLen)
+	return string(runes[:maxLineLen]) + fmt.Sprintf("... [%d chars truncated]", len(runes)-maxLineLen)
 }

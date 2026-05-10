@@ -148,10 +148,8 @@ func filterResults(data []byte, baseDir, pattern string) ([]string, error) {
 			continue
 		}
 
-		rel, relErr := filepath.Rel(baseDir, text)
-		if relErr != nil {
-			rel = text
-		}
+		// rg outputs paths relative to its CWD (baseDir), so clean the relative path directly
+		rel := filepath.Clean(text)
 
 		// Skip VCS and dependency directories (matches stdlib isSkipDir behavior)
 		if isSkipPath(rel) {
@@ -238,18 +236,43 @@ func matchName(pattern, name, rel string) bool {
 }
 
 func matchDoubleStar(pattern, rel string) bool {
-	// Strip leading **/ and split the suffix into components
-	suffix := strings.TrimPrefix(pattern, "**/")
+	// Split pattern into parts separated by **
+	// e.g. "src/**/*.go" -> ["src/", "*.go"]
+	// e.g. "**/pkg/*.go" -> ["", "pkg/*.go"]
+	parts := strings.SplitN(pattern, "**/", 2)
+	if len(parts) != 2 {
+		return false
+	}
+
+	prefix := parts[0]
+	suffix := parts[1]
+
+	relParts := strings.Split(rel, string(filepath.Separator))
 
 	suffixParts := strings.Split(suffix, "/")
 	if len(suffixParts) == 0 {
 		return false
 	}
 
-	// Split relative path into components
-	relParts := strings.Split(rel, string(filepath.Separator))
+	// Match prefix against leading path components
+	if prefix != "" {
+		prefixParts := strings.Split(strings.TrimSuffix(prefix, "/"), "/")
+		if len(relParts) < len(prefixParts) {
+			return false
+		}
 
-	// Try matching suffix at each position in the path
+		for i, pp := range prefixParts {
+			matched, _ := filepath.Match(pp, relParts[i])
+			if !matched {
+				return false
+			}
+		}
+
+		// Consume prefix parts and try matching suffix at every remaining position
+		relParts = relParts[len(prefixParts):]
+	}
+
+	// Try matching suffix at each position
 	for start := 0; start <= len(relParts)-len(suffixParts); start++ {
 		allMatch := true
 

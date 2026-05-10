@@ -105,9 +105,9 @@ rg --json -H -n [-i] [-F] [--glob <include>] [--no-ignore] <pattern> <path>
 
 **find:**
 ```
-rg --files --glob <pattern> --null [--no-ignore] <path>
-rg --files --glob <pattern> --null --full-path [--no-ignore] <path>  (when pattern contains /)
+rg --files --null [--no-ignore] .
 ```
+Go-side filtering via `matchName()` for simple globs and `matchDoubleStar()` for `**/` patterns. Does not use `--glob` to avoid overriding gitignore behavior.
 
 ### Config key
 
