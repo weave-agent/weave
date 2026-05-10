@@ -288,17 +288,25 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 		break
 	}
 
-	provider, err := sdk.GetProvider(l.providerName, l.cfg)
-	if err != nil {
-		msg := err.Error()
+	// Drain initial model/thinking changes before instantiating the provider.
+	// This ensures a subagent model override is applied before we try to
+	// create the default provider (which might not be configured).
+	provider := l.drainChanges(modelChangeCh, thinkingCh, bus, nil)
+	if provider == nil {
+		var err error
 
-		if !anyProviderHasKey(l.cfg) {
-			msg = "No providers configured. Set an API key via /providers or the environment variable."
+		provider, err = sdk.GetProvider(l.providerName, l.cfg)
+		if err != nil {
+			msg := err.Error()
+
+			if !anyProviderHasKey(l.cfg) {
+				msg = "No providers configured. Set an API key via /providers or the environment variable."
+			}
+
+			endPayload = msg
+
+			return
 		}
-
-		endPayload = msg
-
-		return
 	}
 
 	l.drainSkills(skillsCh)
