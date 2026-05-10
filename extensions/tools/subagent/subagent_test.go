@@ -28,11 +28,11 @@ func TestExtensionRegistration(t *testing.T) {
 			a := agent
 			toolName := "subagent_" + a.Name
 			sdk.RegisterTool(toolName, func(sdk.Config) (sdk.Tool, error) {
-				return newSubagentTool(a, nil), nil
+				return newSubagentTool(a, nil, nil), nil
 			})
 		}
 
-		mgr := newBackgroundManager()
+		mgr := newBackgroundManager(nil)
 
 		sdk.RegisterTool("check_agent", func(sdk.Config) (sdk.Tool, error) {
 			return &checkAgentTool{mgr: mgr}, nil
@@ -63,13 +63,13 @@ func TestExtensionFactoryRegistersTools(t *testing.T) {
 			return nil, err
 		}
 
-		mgr := newBackgroundManager()
+		mgr := newBackgroundManager(nil)
 
 		for _, agent := range agents {
 			a := agent
 			toolName := "subagent_" + a.Name
 			sdk.RegisterTool(toolName, func(sdk.Config) (sdk.Tool, error) {
-				return newSubagentTool(a, mgr), nil
+				return newSubagentTool(a, mgr, nil), nil
 			})
 		}
 
@@ -109,7 +109,7 @@ func TestSubagentTool_Definition(t *testing.T) {
 		Name:        "test",
 		Description: "A test agent",
 	}
-	tool := newSubagentTool(agent, nil)
+	tool := newSubagentTool(agent, nil, nil)
 
 	def := tool.Definition()
 	assert.Equal(t, "subagent_test", def.Name)
@@ -228,7 +228,7 @@ func TestValidateMode_TypedArrays(t *testing.T) {
 
 func TestExecute_ValidationError(t *testing.T) {
 	agent := &AgentDef{Name: "test"}
-	tool := newSubagentTool(agent, nil)
+	tool := newSubagentTool(agent, nil, nil)
 
 	ctx := context.Background()
 	args := map[string]any{"prompt": "hello", "tasks": []any{"task1"}}
@@ -240,7 +240,7 @@ func TestExecute_ValidationError(t *testing.T) {
 
 func TestExecute_MissingMode(t *testing.T) {
 	agent := &AgentDef{Name: "test"}
-	tool := newSubagentTool(agent, nil)
+	tool := newSubagentTool(agent, nil, nil)
 
 	ctx := context.Background()
 	args := map[string]any{}
@@ -252,14 +252,15 @@ func TestExecute_MissingMode(t *testing.T) {
 
 func TestExecute_PromptMode(t *testing.T) {
 	original := testRunSubagent
-	defer func() { testRunSubagent = original }()
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
+	t.Cleanup(func() { testRunSubagent = original })
+
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker) (string, error) {
 		return "result: " + prompt, nil
 	}
 
 	agent := &AgentDef{Name: "test"}
-	tool := newSubagentTool(agent, nil)
+	tool := newSubagentTool(agent, nil, nil)
 
 	ctx := context.Background()
 	args := map[string]any{"prompt": "hello"}
@@ -271,14 +272,15 @@ func TestExecute_PromptMode(t *testing.T) {
 
 func TestExecute_ParallelMode(t *testing.T) {
 	original := testRunSubagent
-	defer func() { testRunSubagent = original }()
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
+	t.Cleanup(func() { testRunSubagent = original })
+
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker) (string, error) {
 		return "result: " + prompt, nil
 	}
 
 	agent := &AgentDef{Name: "test"}
-	tool := newSubagentTool(agent, nil)
+	tool := newSubagentTool(agent, nil, nil)
 
 	ctx := context.Background()
 	args := map[string]any{
@@ -297,14 +299,15 @@ func TestExecute_ParallelMode(t *testing.T) {
 
 func TestExecute_ChainMode(t *testing.T) {
 	original := testRunSubagent
-	defer func() { testRunSubagent = original }()
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
+	t.Cleanup(func() { testRunSubagent = original })
+
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker) (string, error) {
 		return "result: " + prompt, nil
 	}
 
 	agent := &AgentDef{Name: "test"}
-	tool := newSubagentTool(agent, nil)
+	tool := newSubagentTool(agent, nil, nil)
 
 	ctx := context.Background()
 	args := map[string]any{
@@ -322,17 +325,18 @@ func TestExecute_ChainMode(t *testing.T) {
 
 func TestExecute_PromptMode_WithCWD(t *testing.T) {
 	original := testRunSubagent
-	defer func() { testRunSubagent = original }()
+
+	t.Cleanup(func() { testRunSubagent = original })
 
 	var receivedCWD string
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker) (string, error) {
 		receivedCWD = cwd
 		return "done", nil
 	}
 
 	agent := &AgentDef{Name: "test"}
-	tool := newSubagentTool(agent, nil)
+	tool := newSubagentTool(agent, nil, nil)
 
 	ctx := context.Background()
 	args := map[string]any{

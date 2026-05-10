@@ -10,7 +10,7 @@ import (
 )
 
 // runParallel executes multiple subagent tasks concurrently and aggregates results.
-func runParallel(ctx context.Context, agent *AgentDef, tasks []any, cwd string) (sdk.ToolResult, error) {
+func runParallel(ctx context.Context, agent *AgentDef, tasks []any, cwd string, broker *Broker) (sdk.ToolResult, error) {
 	prompts, err := extractPrompts(tasks)
 	if err != nil {
 		//nolint:nilerr // tool protocol: errors in Content, not return
@@ -41,7 +41,7 @@ func runParallel(ctx context.Context, agent *AgentDef, tasks []any, cwd string) 
 				subagentID = generateAgentID(agent.Name)
 			}
 
-			output, err := runSubagent(ctx, agent, p, cwd, subagentID)
+			output, err := runSubagent(ctx, agent, p, cwd, subagentID, broker)
 			results[idx] = result{index: idx, output: output, err: err}
 		}(i, prompt)
 	}
@@ -75,7 +75,7 @@ func runParallel(ctx context.Context, agent *AgentDef, tasks []any, cwd string) 
 }
 
 // runChain executes subagent tasks sequentially, substituting {previous} with prior result.
-func runChain(ctx context.Context, agent *AgentDef, chain []any, cwd string) (sdk.ToolResult, error) {
+func runChain(ctx context.Context, agent *AgentDef, chain []any, cwd string, broker *Broker) (sdk.ToolResult, error) {
 	prompts, err := extractPrompts(chain)
 	if err != nil {
 		//nolint:nilerr // tool protocol: errors in Content, not return
@@ -96,7 +96,7 @@ func runChain(ctx context.Context, agent *AgentDef, chain []any, cwd string) (sd
 			subagentID = generateAgentID(agent.Name)
 		}
 
-		output, err := runSubagent(ctx, agent, prompt, cwd, subagentID)
+		output, err := runSubagent(ctx, agent, prompt, cwd, subagentID, broker)
 		if err != nil {
 			return sdk.ToolResult{
 				Content: fmt.Sprintf("Chain step %d failed: %v", i+1, err),

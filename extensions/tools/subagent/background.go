@@ -31,11 +31,13 @@ type backgroundManager struct {
 	mu     sync.RWMutex
 	agents map[string]*backgroundAgent
 	bus    sdk.Bus
+	broker *Broker
 }
 
-func newBackgroundManager() *backgroundManager {
+func newBackgroundManager(broker *Broker) *backgroundManager {
 	return &backgroundManager{
 		agents: make(map[string]*backgroundAgent),
+		broker: broker,
 	}
 }
 
@@ -68,7 +70,7 @@ func (bm *backgroundManager) spawn(ctx context.Context, agent *AgentDef, prompt,
 	go func() {
 		defer close(ba.done)
 
-		output, err := runSubagent(ctx, agent, prompt, cwd, subagentID)
+		output, err := runSubagent(ctx, agent, prompt, cwd, subagentID, bm.broker)
 
 		bm.mu.Lock()
 		ba.finished = time.Now()
@@ -132,7 +134,10 @@ func (bm *backgroundManager) await(ctx context.Context, id string) (*backgroundA
 
 func generateAgentID(name string) string {
 	b := make([]byte, 6)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		// Fallback to timestamp + counter on entropy failure.
+		return fmt.Sprintf("subagent_%s_%d", name, time.Now().UnixNano())
+	}
 
 	return fmt.Sprintf("subagent_%s_%s", name, hex.EncodeToString(b))
 }

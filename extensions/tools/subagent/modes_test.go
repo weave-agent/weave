@@ -13,9 +13,10 @@ import (
 
 func TestRunParallel_Success(t *testing.T) {
 	original := testRunSubagent
-	defer func() { testRunSubagent = original }()
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
+	t.Cleanup(func() { testRunSubagent = original })
+
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker) (string, error) {
 		return "result for: " + prompt, nil
 	}
 
@@ -26,7 +27,7 @@ func TestRunParallel_Success(t *testing.T) {
 		map[string]any{"prompt": "task 3"},
 	}
 
-	result, err := runParallel(context.Background(), agent, tasks, "")
+	result, err := runParallel(context.Background(), agent, tasks, "", nil)
 	require.NoError(t, err)
 	assert.False(t, result.IsError)
 	assert.Contains(t, result.Content, "Task 1:")
@@ -39,9 +40,10 @@ func TestRunParallel_Success(t *testing.T) {
 
 func TestRunParallel_PartialFailure(t *testing.T) {
 	original := testRunSubagent
-	defer func() { testRunSubagent = original }()
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
+	t.Cleanup(func() { testRunSubagent = original })
+
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker) (string, error) {
 		if prompt == "fail" {
 			return "", errors.New("task failed")
 		}
@@ -56,7 +58,7 @@ func TestRunParallel_PartialFailure(t *testing.T) {
 		map[string]any{"prompt": "ok2"},
 	}
 
-	result, err := runParallel(context.Background(), agent, tasks, "")
+	result, err := runParallel(context.Background(), agent, tasks, "", nil)
 	require.NoError(t, err)
 	assert.True(t, result.IsError)
 	assert.Contains(t, result.Content, "ok: ok")
@@ -66,9 +68,10 @@ func TestRunParallel_PartialFailure(t *testing.T) {
 
 func TestRunParallel_AllFailure(t *testing.T) {
 	original := testRunSubagent
-	defer func() { testRunSubagent = original }()
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
+	t.Cleanup(func() { testRunSubagent = original })
+
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker) (string, error) {
 		return "", errors.New("all failed")
 	}
 
@@ -78,7 +81,7 @@ func TestRunParallel_AllFailure(t *testing.T) {
 		map[string]any{"prompt": "task 2"},
 	}
 
-	result, err := runParallel(context.Background(), agent, tasks, "")
+	result, err := runParallel(context.Background(), agent, tasks, "", nil)
 	require.NoError(t, err)
 	assert.True(t, result.IsError)
 	assert.Contains(t, result.Content, "ERROR: all failed")
@@ -86,14 +89,15 @@ func TestRunParallel_AllFailure(t *testing.T) {
 
 func TestRunParallel_Concurrency(t *testing.T) {
 	original := testRunSubagent
-	defer func() { testRunSubagent = original }()
+
+	t.Cleanup(func() { testRunSubagent = original })
 
 	var mu sync.Mutex
 
 	maxConcurrent := 0
 	currentConcurrent := 0
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker) (string, error) {
 		mu.Lock()
 
 		currentConcurrent++
@@ -118,7 +122,7 @@ func TestRunParallel_Concurrency(t *testing.T) {
 		map[string]any{"prompt": "task 3"},
 	}
 
-	_, err := runParallel(context.Background(), agent, tasks, "")
+	_, err := runParallel(context.Background(), agent, tasks, "", nil)
 	require.NoError(t, err)
 
 	assert.GreaterOrEqual(t, maxConcurrent, 2, "expected at least 2 concurrent executions")
@@ -126,7 +130,7 @@ func TestRunParallel_Concurrency(t *testing.T) {
 
 func TestRunParallel_EmptyTasks(t *testing.T) {
 	agent := &AgentDef{Name: "test"}
-	result, err := runParallel(context.Background(), agent, []any{}, "")
+	result, err := runParallel(context.Background(), agent, []any{}, "", nil)
 	require.NoError(t, err)
 	assert.False(t, result.IsError)
 	assert.Empty(t, result.Content)
@@ -138,7 +142,7 @@ func TestRunParallel_InvalidTaskType(t *testing.T) {
 		"not an object",
 	}
 
-	result, err := runParallel(context.Background(), agent, tasks, "")
+	result, err := runParallel(context.Background(), agent, tasks, "", nil)
 	require.NoError(t, err)
 	assert.True(t, result.IsError)
 	assert.Contains(t, result.Content, "expected object")
@@ -150,7 +154,7 @@ func TestRunParallel_MissingPromptField(t *testing.T) {
 		map[string]any{"other": "value"},
 	}
 
-	result, err := runParallel(context.Background(), agent, tasks, "")
+	result, err := runParallel(context.Background(), agent, tasks, "", nil)
 	require.NoError(t, err)
 	assert.True(t, result.IsError)
 	assert.Contains(t, result.Content, "missing \"prompt\" field")
@@ -158,9 +162,10 @@ func TestRunParallel_MissingPromptField(t *testing.T) {
 
 func TestRunChain_Success(t *testing.T) {
 	original := testRunSubagent
-	defer func() { testRunSubagent = original }()
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
+	t.Cleanup(func() { testRunSubagent = original })
+
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker) (string, error) {
 		return "processed: " + prompt, nil
 	}
 
@@ -171,7 +176,7 @@ func TestRunChain_Success(t *testing.T) {
 		map[string]any{"prompt": "step 3 with {previous}"},
 	}
 
-	result, err := runChain(context.Background(), agent, chain, "")
+	result, err := runChain(context.Background(), agent, chain, "", nil)
 	require.NoError(t, err)
 	assert.False(t, result.IsError)
 	assert.Equal(t, "processed: step 3 with processed: step 2 with processed: step 1", result.Content)
@@ -179,10 +184,11 @@ func TestRunChain_Success(t *testing.T) {
 
 func TestRunChain_StopsOnError(t *testing.T) {
 	original := testRunSubagent
-	defer func() { testRunSubagent = original }()
+
+	t.Cleanup(func() { testRunSubagent = original })
 
 	callCount := 0
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker) (string, error) {
 		callCount++
 		if callCount == 2 {
 			return "", errors.New("step 2 failed")
@@ -198,7 +204,7 @@ func TestRunChain_StopsOnError(t *testing.T) {
 		map[string]any{"prompt": "step 3"},
 	}
 
-	result, err := runChain(context.Background(), agent, chain, "")
+	result, err := runChain(context.Background(), agent, chain, "", nil)
 	require.NoError(t, err)
 	assert.True(t, result.IsError)
 	assert.Contains(t, result.Content, "Chain step 2 failed")
@@ -207,7 +213,7 @@ func TestRunChain_StopsOnError(t *testing.T) {
 
 func TestRunChain_EmptyChain(t *testing.T) {
 	agent := &AgentDef{Name: "test"}
-	result, err := runChain(context.Background(), agent, []any{}, "")
+	result, err := runChain(context.Background(), agent, []any{}, "", nil)
 	require.NoError(t, err)
 	assert.False(t, result.IsError)
 	assert.Empty(t, result.Content)
@@ -219,7 +225,7 @@ func TestRunChain_InvalidTaskType(t *testing.T) {
 		"not an object",
 	}
 
-	result, err := runChain(context.Background(), agent, chain, "")
+	result, err := runChain(context.Background(), agent, chain, "", nil)
 	require.NoError(t, err)
 	assert.True(t, result.IsError)
 	assert.Contains(t, result.Content, "expected object")

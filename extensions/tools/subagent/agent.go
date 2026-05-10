@@ -64,6 +64,13 @@ func ParseAgent(data []byte) (*AgentDef, error) {
 		tools = parseTools(fm.Tools)
 	}
 
+	if fm.Sandbox != "" {
+		allowed := map[string]bool{"off": true, "readonly": true, "ask": true, "auto": true}
+		if !allowed[fm.Sandbox] {
+			return nil, fmt.Errorf("invalid sandbox mode %q, must be one of: off, readonly, ask, auto", fm.Sandbox)
+		}
+	}
+
 	// Use body as system prompt fallback if no explicit system field.
 	system := fm.System
 	if system == "" && body != "" {

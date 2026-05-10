@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -87,9 +88,8 @@ func TestBuildCommand_BasicArgs(t *testing.T) {
 	args := cmd.Args
 	require.GreaterOrEqual(t, len(args), 2)
 
-	// First arg after binary is -p with dummy value.
-	assert.Equal(t, "-p", args[1])
-	assert.Equal(t, "subagent", args[2])
+	// First arg after binary is --weave-headless=true.
+	assert.Equal(t, "--weave-headless=true", args[1])
 
 	// Check for weave-prompt-file.
 	foundPromptFile := false
@@ -105,14 +105,10 @@ func TestBuildCommand_BasicArgs(t *testing.T) {
 	assert.True(t, foundPromptFile, "expected --weave-prompt-file flag")
 
 	// Verify extra flags.
-	assert.Contains(t, args, "--output")
-	assert.Contains(t, args, "json")
-	assert.Contains(t, args, "--tools")
-	assert.Contains(t, args, "read,grep,find")
-	assert.Contains(t, args, "--sandbox")
-	assert.Contains(t, args, "readonly")
-	assert.Contains(t, args, "--model")
-	assert.Contains(t, args, "claude-haiku-4-5")
+	assert.Contains(t, args, "--weave-output=json")
+	assert.Contains(t, args, "--weave-tools=read,grep,find")
+	assert.Contains(t, args, "--weave-sandbox-mode=readonly")
+	assert.Contains(t, args, "--weave-model=claude-haiku-4-5")
 }
 
 func TestBuildCommand_NoOptionalFlags(t *testing.T) {
@@ -128,16 +124,15 @@ func TestBuildCommand_NoOptionalFlags(t *testing.T) {
 
 	args := cmd.Args
 
-	// Should not have --tools, --sandbox, or --model when agent has none.
+	// Should not have --weave-tools, --weave-sandbox-mode, or --weave-model when agent has none.
 	for _, a := range args {
-		assert.False(t, strings.HasPrefix(a, "--tools="), "unexpected --tools flag")
-		assert.False(t, strings.HasPrefix(a, "--sandbox="), "unexpected --sandbox flag")
-		assert.False(t, strings.HasPrefix(a, "--model="), "unexpected --model flag")
+		assert.False(t, strings.HasPrefix(a, "--weave-tools="), "unexpected --weave-tools flag")
+		assert.False(t, strings.HasPrefix(a, "--weave-sandbox-mode="), "unexpected --weave-sandbox-mode flag")
+		assert.False(t, strings.HasPrefix(a, "--weave-model="), "unexpected --weave-model flag")
 	}
 
-	// --output json is always included.
-	assert.Contains(t, args, "--output")
-	assert.Contains(t, args, "json")
+	// --weave-output=json is always included.
+	assert.Contains(t, args, "--weave-output=json")
 }
 
 func TestBuildCommand_CWD(t *testing.T) {
@@ -179,28 +174,30 @@ func TestBuildCommand_PromptFileCreated(t *testing.T) {
 
 func TestRunSubagent_Mock(t *testing.T) {
 	original := testRunSubagent
-	defer func() { testRunSubagent = original }()
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
+	t.Cleanup(func() { testRunSubagent = original })
+
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker) (string, error) {
 		return "mocked result for " + agent.Name + ": " + prompt, nil
 	}
 
 	agent := &AgentDef{Name: "explore"}
-	result, err := runSubagent(context.Background(), agent, "find bugs", "", "")
+	result, err := runSubagent(context.Background(), agent, "find bugs", "", "", nil)
 	require.NoError(t, err)
 	assert.Equal(t, "mocked result for explore: find bugs", result)
 }
 
 func TestRunSubagent_MockError(t *testing.T) {
 	original := testRunSubagent
-	defer func() { testRunSubagent = original }()
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
+	t.Cleanup(func() { testRunSubagent = original })
+
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker) (string, error) {
 		return "", errors.New("mock failure")
 	}
 
 	agent := &AgentDef{Name: "explore"}
-	_, err := runSubagent(context.Background(), agent, "find bugs", "", "")
+	_, err := runSubagent(context.Background(), agent, "find bugs", "", "", nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "mock failure")
 }
@@ -213,7 +210,8 @@ func TestRunSubagent_Abort(t *testing.T) {
 	}
 
 	original := testRunSubagent
-	defer func() { testRunSubagent = original }()
+
+	t.Cleanup(func() { testRunSubagent = original })
 
 	// Override buildCommand to use "sleep" instead of the weave binary.
 	cmd, cleanup, err := buildCommand(context.Background(), &AgentDef{Name: "test"}, "prompt", "", "")
@@ -320,17 +318,7 @@ func TestBuildCommand_WithMessaging(t *testing.T) {
 
 	defer cleanup()
 
-	found := false
-
-	for i := range len(cmd.Args) - 1 {
-		if cmd.Args[i] == "--weave-subagent-id" && cmd.Args[i+1] == "subagent_general_abc123" {
-			found = true
-
-			break
-		}
-	}
-
-	assert.True(t, found, "expected --weave-subagent-id flag with correct value")
+	assert.True(t, slices.Contains(cmd.Args, "--weave-subagent-id=subagent_general_abc123"), "expected --weave-subagent-id flag with correct value")
 }
 
 func TestBuildCommand_WithoutMessaging(t *testing.T) {
@@ -351,18 +339,19 @@ func TestBuildCommand_WithoutMessaging(t *testing.T) {
 
 func TestBuildCommand_MessagingGeneratesID(t *testing.T) {
 	original := testRunSubagent
-	defer func() { testRunSubagent = original }()
+
+	t.Cleanup(func() { testRunSubagent = original })
 
 	var receivedID string
 
-	testRunSubagent = func(_ context.Context, _ *AgentDef, _, _, subagentID string) (string, error) {
+	testRunSubagent = func(_ context.Context, _ *AgentDef, _, _, subagentID string, _ *Broker) (string, error) {
 		receivedID = subagentID
 
 		return "ok", nil
 	}
 
 	agent := &AgentDef{Name: "test", Messaging: true}
-	tool := newSubagentTool(agent, nil)
+	tool := newSubagentTool(agent, nil, nil)
 
 	ctx := context.Background()
 	args := map[string]any{"prompt": "hello"}
@@ -374,18 +363,19 @@ func TestBuildCommand_MessagingGeneratesID(t *testing.T) {
 
 func TestBuildCommand_NoMessagingNoID(t *testing.T) {
 	original := testRunSubagent
-	defer func() { testRunSubagent = original }()
+
+	t.Cleanup(func() { testRunSubagent = original })
 
 	var receivedID string
 
-	testRunSubagent = func(_ context.Context, _ *AgentDef, _, _, subagentID string) (string, error) {
+	testRunSubagent = func(_ context.Context, _ *AgentDef, _, _, subagentID string, _ *Broker) (string, error) {
 		receivedID = subagentID
 
 		return "ok", nil
 	}
 
 	agent := &AgentDef{Name: "test", Messaging: false}
-	_, err := runSubagent(context.Background(), agent, "prompt", "", "")
+	_, err := runSubagent(context.Background(), agent, "prompt", "", "", nil)
 	require.NoError(t, err)
 
 	assert.Empty(t, receivedID)

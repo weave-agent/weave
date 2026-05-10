@@ -1,6 +1,7 @@
 package subagent
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -179,4 +180,29 @@ tools: read , grep , find
 	agent, err := ParseAgent(data)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"read", "grep", "find"}, agent.Tools)
+}
+
+func TestParseAgent_InvalidSandbox(t *testing.T) {
+	data := []byte(`---
+name: badbox
+description: Invalid sandbox
+sandbox: invalid
+---
+`)
+
+	_, err := ParseAgent(data)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid sandbox mode")
+}
+
+func TestParseAgent_ValidSandboxModes(t *testing.T) {
+	for _, mode := range []string{"off", "readonly", "ask", "auto"} {
+		t.Run(mode, func(t *testing.T) {
+			data := fmt.Appendf(nil, "---\nname: test\ndescription: Test\nsandbox: %s\n---\n", mode)
+
+			agent, err := ParseAgent(data)
+			require.NoError(t, err)
+			assert.Equal(t, mode, agent.Sandbox)
+		})
+	}
 }

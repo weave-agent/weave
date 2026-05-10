@@ -29,11 +29,11 @@ type jsonEvent struct {
 // runSubagent executes a single subagent subprocess and returns its final output.
 // The child process stdout is parsed as JSON lines; the content from the
 // last "message_end" event is returned as the result.
-// When subagentID is non-empty, it is passed to the child via --weave-subagent-id
-// to enable inter-agent communication.
-func runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
+// When subagentID is non-empty and broker is provided, the broker routes
+// inter-agent messages and the child gets a stdin pipe for receiving them.
+func runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker) (string, error) {
 	if testRunSubagent != nil {
-		return testRunSubagent(ctx, agent, prompt, cwd, subagentID)
+		return testRunSubagent(ctx, agent, prompt, cwd, subagentID, broker)
 	}
 
 	cmd, cleanup, err := buildCommand(ctx, agent, prompt, cwd, subagentID)
@@ -55,9 +55,21 @@ func runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID s
 
 	go io.Copy(io.Discard, stderr) //nolint:errcheck // best-effort drain
 
+	var stdin io.WriteCloser
+	if broker != nil && subagentID != "" {
+		stdin, err = cmd.StdinPipe()
+		if err != nil {
+			return "", fmt.Errorf("pipe stdin: %w", err)
+		}
+	}
+
 	startErr := cmd.Start()
 	if startErr != nil {
 		return "", fmt.Errorf("start subagent: %w", startErr)
+	}
+
+	if stdin != nil {
+		broker.Register(subagentID, agent.Name, stdin)
 	}
 
 	// Ensure the process and its process group are killed when the context is canceled.
@@ -74,7 +86,13 @@ func runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID s
 		}
 	}()
 
-	result, err := parseJSONLines(stdout)
+	var result string
+	if broker != nil && subagentID != "" {
+		result, err = broker.MonitorStdout(subagentID, stdout)
+	} else {
+		result, err = parseJSONLines(stdout)
+	}
+
 	if err != nil {
 		_ = cmd.Wait()
 
@@ -104,7 +122,16 @@ func buildCommand(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID 
 		return nil, nil, fmt.Errorf("create prompt file: %w", err)
 	}
 
-	if _, writeErr := f.WriteString(prompt); writeErr != nil {
+	// Restrict permissions on the prompt file since it may contain sensitive data.
+	_ = os.Chmod(f.Name(), 0o600)
+
+	// Combine agent system prompt with the user's task prompt.
+	fullPrompt := prompt
+	if agent.System != "" {
+		fullPrompt = agent.System + "\n\n" + prompt
+	}
+
+	if _, writeErr := f.WriteString(fullPrompt); writeErr != nil {
 		_ = f.Close()
 		_ = os.Remove(f.Name())
 
@@ -127,29 +154,26 @@ func buildCommand(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID 
 	}
 
 	args := []string{
-		"-p", "subagent", // dummy prompt to trigger headless mode
+		"--weave-headless=true",
 		"--weave-prompt-file=" + f.Name(),
 	}
 
-	// These flags require CLI support (Task 7). They are included now so the
-	// command builder is complete; actual passthrough will work once the flags
-	// are recognized by the weave CLI.
-	args = append(args, "--output", "json")
+	args = append(args, "--weave-output=json")
 
 	if len(agent.Tools) > 0 {
-		args = append(args, "--tools", strings.Join(agent.Tools, ","))
+		args = append(args, "--weave-tools="+strings.Join(agent.Tools, ","))
 	}
 
 	if agent.Sandbox != "" {
-		args = append(args, "--sandbox", agent.Sandbox)
+		args = append(args, "--weave-sandbox-mode="+agent.Sandbox)
 	}
 
 	if agent.Model != "" {
-		args = append(args, "--model", agent.Model)
+		args = append(args, "--weave-model="+agent.Model)
 	}
 
 	if subagentID != "" {
-		args = append(args, "--weave-subagent-id", subagentID)
+		args = append(args, "--weave-subagent-id="+subagentID)
 	}
 
 	cmd := exec.CommandContext(ctx, exe, args...)
@@ -194,4 +218,4 @@ func parseJSONLines(r io.Reader) (string, error) {
 }
 
 // testRunSubagent is swapped out in tests to avoid spawning real subprocesses.
-var testRunSubagent func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string) (string, error)
+var testRunSubagent func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker) (string, error)

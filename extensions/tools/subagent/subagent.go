@@ -42,13 +42,14 @@ func init() {
 			return nil, fmt.Errorf("discover agents: %w", err)
 		}
 
-		mgr := newBackgroundManager()
+		broker := NewBroker()
+		mgr := newBackgroundManager(broker)
 
 		for _, agent := range agents {
 			a := agent // capture loop variable
 			toolName := "subagent_" + a.Name
 			sdk.RegisterTool(toolName, func(sdk.Config) (sdk.Tool, error) {
-				return newSubagentTool(a, mgr), nil
+				return newSubagentTool(a, mgr, broker), nil
 			})
 		}
 
@@ -72,14 +73,20 @@ func init() {
 // dirFromConfig derives the project directory from config.
 func dirFromConfig(cfg sdk.Config) string {
 	if cfg == nil {
-		dir, _ := os.Getwd()
+		dir, err := os.Getwd()
+		if err != nil {
+			return ""
+		}
 
 		return dir
 	}
 
 	fp := cfg.FilePath()
 	if fp == "" {
-		dir, _ := os.Getwd()
+		dir, err := os.Getwd()
+		if err != nil {
+			return ""
+		}
 
 		return dir
 	}
@@ -95,12 +102,13 @@ func dirFromConfig(cfg sdk.Config) string {
 
 // subagentTool implements sdk.Tool for a single agent definition.
 type subagentTool struct {
-	agent *AgentDef
-	mgr   *backgroundManager
+	agent  *AgentDef
+	mgr    *backgroundManager
+	broker *Broker
 }
 
-func newSubagentTool(agent *AgentDef, mgr *backgroundManager) *subagentTool {
-	return &subagentTool{agent: agent, mgr: mgr}
+func newSubagentTool(agent *AgentDef, mgr *backgroundManager, broker *Broker) *subagentTool {
+	return &subagentTool{agent: agent, mgr: mgr, broker: broker}
 }
 
 func (t *subagentTool) Name() string {
@@ -160,7 +168,10 @@ func (t *subagentTool) Execute(ctx context.Context, args map[string]any) (sdk.To
 
 	switch m {
 	case modePrompt:
-		prompt := args[paramPrompt].(string)
+		prompt, ok := args[paramPrompt].(string)
+		if !ok {
+			return sdk.ToolResult{Content: "prompt must be a string", IsError: true}, nil
+		}
 
 		var subagentID string
 		if t.agent.Messaging {
@@ -179,7 +190,7 @@ func (t *subagentTool) Execute(ctx context.Context, args map[string]any) (sdk.To
 			return sdk.ToolResult{Content: string(jsonBytes)}, nil
 		}
 
-		output, err := runSubagent(ctx, t.agent, prompt, cwd, subagentID)
+		output, err := runSubagent(ctx, t.agent, prompt, cwd, subagentID, t.broker)
 		if err != nil {
 			//nolint:nilerr // tool protocol: errors in Content, not return
 			return sdk.ToolResult{Content: err.Error(), IsError: true}, nil
@@ -193,7 +204,7 @@ func (t *subagentTool) Execute(ctx context.Context, args map[string]any) (sdk.To
 
 		tasks, _ := toAnySlice(args[paramTasks])
 
-		return runParallel(ctx, t.agent, tasks, cwd)
+		return runParallel(ctx, t.agent, tasks, cwd, t.broker)
 	case modeChain:
 		if background {
 			return sdk.ToolResult{Content: "background mode is not supported for chain execution", IsError: true}, nil
@@ -201,7 +212,7 @@ func (t *subagentTool) Execute(ctx context.Context, args map[string]any) (sdk.To
 
 		chain, _ := toAnySlice(args[paramChain])
 
-		return runChain(ctx, t.agent, chain, cwd)
+		return runChain(ctx, t.agent, chain, cwd, t.broker)
 	}
 
 	return sdk.ToolResult{Content: fmt.Sprintf("unknown mode: %s", m), IsError: true}, nil
