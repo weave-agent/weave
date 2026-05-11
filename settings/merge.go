@@ -19,59 +19,98 @@ func MergeSettings(layers ...*Settings) *Settings {
 			continue
 		}
 
-		if layer.Provider != "" {
-			result.Provider = layer.Provider
-		}
-
-		if layer.Model != "" {
-			result.Model = layer.Model
-		}
-
-		if layer.ThinkingLevel != "" {
-			result.ThinkingLevel = layer.ThinkingLevel
-		}
+		mergeStringFields(result, layer)
 
 		if layer.RespectGitignore != nil {
 			result.RespectGitignore = layer.RespectGitignore
 		}
 
-		if layer.UI != nil {
-			if result.UI == nil {
-				result.UI = &UISettings{}
-			}
+		mergeUI(result, layer)
 
-			if layer.UI.Theme != "" {
-				result.UI.Theme = layer.UI.Theme
-			}
-
-			if layer.UI.EditorMaxLines != 0 {
-				result.UI.EditorMaxLines = layer.UI.EditorMaxLines
-			}
+		if len(layer.ExcludeExtensions) > 0 {
+			result.ExcludeExtensions = layer.ExcludeExtensions
 		}
 
-		if layer.Tools != nil {
-			if result.Tools == nil {
-				result.Tools = make(map[string]any, len(layer.Tools))
-			}
-
-			for k, v := range layer.Tools {
-				if existing, ok := result.Tools[k]; ok {
-					result.Tools[k] = deepMergeValues(existing, v)
-				} else {
-					result.Tools[k] = v
-				}
-			}
-		}
+		mergeProviders(result, layer)
+		mergeTools(result, layer)
 	}
 
 	return result
 }
 
-// LoadLayeredSettings loads settings from global, project, and local files,
-// then merges them in order (global → project → local).
-// Missing files are silently skipped. Local settings are loaded from the same
-// directory where project settings were found, or from projectDir directly if
-// no project settings file exists.
+func mergeStringFields(result, layer *Settings) {
+	if layer.AgentLoop != "" {
+		result.AgentLoop = layer.AgentLoop
+	}
+
+	if layer.UIExtension != "" {
+		result.UIExtension = layer.UIExtension
+	}
+
+	if layer.Provider != "" {
+		result.Provider = layer.Provider
+	}
+
+	if layer.Model != "" {
+		result.Model = layer.Model
+	}
+
+	if layer.ThinkingLevel != "" {
+		result.ThinkingLevel = layer.ThinkingLevel
+	}
+}
+
+func mergeUI(result, layer *Settings) {
+	if layer.UI == nil {
+		return
+	}
+
+	if result.UI == nil {
+		result.UI = &UISettings{}
+	}
+
+	if layer.UI.Theme != "" {
+		result.UI.Theme = layer.UI.Theme
+	}
+
+	if layer.UI.EditorMaxLines != 0 {
+		result.UI.EditorMaxLines = layer.UI.EditorMaxLines
+	}
+}
+
+func mergeProviders(result, layer *Settings) {
+	if len(layer.Providers) == 0 {
+		return
+	}
+
+	if result.Providers == nil {
+		result.Providers = make(map[string]any, len(layer.Providers))
+	}
+
+	maps.Copy(result.Providers, layer.Providers)
+}
+
+func mergeTools(result, layer *Settings) {
+	if layer.Tools == nil {
+		return
+	}
+
+	if result.Tools == nil {
+		result.Tools = make(map[string]any, len(layer.Tools))
+	}
+
+	for k, v := range layer.Tools {
+		if existing, ok := result.Tools[k]; ok {
+			result.Tools[k] = deepMergeValues(existing, v)
+		} else {
+			result.Tools[k] = v
+		}
+	}
+}
+
+// LoadLayeredSettings loads settings from global and local files,
+// then merges them in order (global → local).
+// Missing files are silently skipped.
 func LoadLayeredSettings(projectDir string) (*Settings, error) {
 	globalPath, err := SettingsPath()
 	if err != nil {
@@ -83,21 +122,12 @@ func LoadLayeredSettings(projectDir string) (*Settings, error) {
 		return nil, fmt.Errorf("load global settings: %w", err)
 	}
 
-	project, localDir, err := loadProjectSettings(projectDir)
-	if err != nil {
-		return nil, fmt.Errorf("load project settings: %w", err)
-	}
-
-	if localDir == "" {
-		localDir = projectDir
-	}
-
-	local, err := loadLocalSettings(localDir)
+	local, err := loadLocalSettings(projectDir)
 	if err != nil {
 		return nil, fmt.Errorf("load local settings: %w", err)
 	}
 
-	return MergeSettings(global, project, local), nil
+	return MergeSettings(global, local), nil
 }
 
 // loadSettingsFile reads and parses a single settings file.
@@ -120,24 +150,21 @@ func loadSettingsFile(path string) (*Settings, error) {
 	return &s, nil
 }
 
-// loadProjectSettings walks up from projectDir looking for .weave/settings.json.
-// Returns the settings and the directory where it was found (empty string if not found).
-// Stops before reaching the user's home directory to avoid treating global settings
-// (~/.weave/settings.json) as project-layer settings.
-func loadProjectSettings(projectDir string) (*Settings, string, error) {
+// loadLocalSettings walks up from dir looking for .weave/settings.local.json.
+// Missing files are silently skipped.
+func loadLocalSettings(startDir string) (*Settings, error) {
+	if startDir == "" {
+		return &Settings{}, nil
+	}
+
 	home, _ := os.UserHomeDir()
 
-	dir := projectDir
+	dir := startDir
 
 	for home == "" || dir != home {
-		candidate := filepath.Join(dir, ".weave", "settings.json")
-		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
-			s, err := loadSettingsFile(candidate)
-			if err != nil {
-				return nil, "", err
-			}
-
-			return s, dir, nil
+		path := filepath.Join(dir, ".weave", "settings.local.json")
+		if info, err := os.Stat(path); err == nil && !info.IsDir() {
+			return loadSettingsFile(path)
 		}
 
 		parent := filepath.Dir(dir)
@@ -148,19 +175,7 @@ func loadProjectSettings(projectDir string) (*Settings, string, error) {
 		dir = parent
 	}
 
-	return &Settings{}, "", nil
-}
-
-// loadLocalSettings loads .weave/settings.local.json from the given directory.
-// Missing files are silently skipped.
-func loadLocalSettings(dir string) (*Settings, error) {
-	if dir == "" {
-		return &Settings{}, nil
-	}
-
-	path := filepath.Join(dir, ".weave", "settings.local.json")
-
-	return loadSettingsFile(path)
+	return &Settings{}, nil
 }
 
 // deepMergeValues recursively merges two values. When both are map[string]any,

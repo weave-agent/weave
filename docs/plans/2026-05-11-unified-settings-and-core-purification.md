@@ -73,16 +73,16 @@ Rename package, update all imports, reconfigure gonfig for JSON-only, update fil
 
 Merge `File` struct (from `.weave.yaml`) into `Settings` struct (from `.weave/settings.json`). Single struct, single load path.
 
-- [ ] Add `File` fields (`AgentLoop`, `UI`, `ExcludeExtensions`, `Providers`, `Sandbox`) to `Settings` struct
-- [ ] Merge `CoreConfig`, `ProviderEntry`, `SandboxFileConfig` into `Settings` or extension-owned structs
-- [ ] Update `FullConfig` implementation to use unified `Settings`
-- [ ] Update `LoadLayeredSettings()` to load the unified struct
-- [ ] Remove separate `File` loading path
-- [ ] Update `sdk.Config` interface to reflect unified structure
-- [ ] Update all callers of `config.File` or `config.FullConfig`
-- [ ] Write tests for unified settings loading
-- [ ] Write tests for 2-layer merge (global + local)
-- [ ] Run `make test` — must pass
+- [x] Add `File` fields (`AgentLoop`, `UI`, `ExcludeExtensions`, `Providers`, `Sandbox`) to `Settings` struct
+- [x] Merge `CoreConfig`, `ProviderEntry`, `SandboxFileConfig` into `Settings` or extension-owned structs
+- [x] Update `FullConfig` implementation to use unified `Settings`
+- [x] Update `LoadLayeredSettings()` to load the unified struct
+- [x] Remove separate `File` loading path
+- [x] Update `sdk.Config` interface to reflect unified structure
+- [x] Update all callers of `config.File` or `config.FullConfig`
+- [x] Write tests for unified settings loading
+- [x] Write tests for 2-layer merge (global + local)
+- [x] Run `make test` — must pass
 
 ### Task 4: Remove extension-specific validation from settings
 

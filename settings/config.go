@@ -48,29 +48,12 @@ type SandboxFileConfig struct {
 	Network   *bool    `json:"network" description:"Allow network access in sandbox"`
 }
 
-type File struct {
-	Prompt            string            `short:"p" description:"Prompt to pass to the agent"`
-	UI                string            `default:"tui" description:"UI extension name (tui for interactive, none for headless)"`
-	Core              CoreConfig        `description:"Core agent configuration"`
-	Providers         map[string]any    `description:"Per-provider configuration"`
-	ExcludeExtensions []string          `json:"exclude_extensions" description:"Extensions to exclude from auto-discovery"`
-	Sandbox           SandboxFileConfig `description:"Sandbox configuration"`
-
-	// CLI-only flags (not read from config file).
-	Output      string `flag:"output" yaml:"-" json:"-" description:"Output format: text (default) or json"`
-	Tools       string `flag:"tools" yaml:"-" json:"-" description:"Comma-separated tool allowlist"`
-	ToolsSet    bool   `yaml:"-" json:"-" description:"True when --tools= was explicitly passed"`
-	SubagentID  string `flag:"subagent-id" yaml:"-" json:"-" description:"Subagent ID for inter-agent communication"`
-	SandboxMode string `flag:"sandbox" yaml:"-" json:"-" description:"Sandbox mode override: off, readonly, ask, auto"`
-	Model       string `flag:"model" yaml:"-" json:"-" description:"Model override for this session"`
-}
-
 // TypedProviders converts the Providers map[string]any to map[string]ProviderEntry
 // via JSON round-trip (gonfig supports map[string]any, not map[string]ProviderEntry).
-func (f *File) TypedProviders() map[string]ProviderEntry {
-	result := make(map[string]ProviderEntry, len(f.Providers))
+func (s *Settings) TypedProviders() map[string]ProviderEntry {
+	result := make(map[string]ProviderEntry, len(s.Providers))
 
-	for name, raw := range f.Providers {
+	for name, raw := range s.Providers {
 		jsonBytes, err := json.Marshal(raw)
 		if err != nil {
 			continue
@@ -88,8 +71,8 @@ func (f *File) TypedProviders() map[string]ProviderEntry {
 }
 
 // ProviderConfig returns the typed config entry for a named provider, or nil.
-func (f *File) ProviderConfig(name string) *ProviderEntry {
-	tp := f.TypedProviders()
+func (s *Settings) ProviderConfig(name string) *ProviderEntry {
+	tp := s.TypedProviders()
 
 	e, ok := tp[name]
 	if !ok {
@@ -99,21 +82,19 @@ func (f *File) ProviderConfig(name string) *ProviderEntry {
 	return &e
 }
 
-// DefaultFile returns a File with sensible defaults.
-func DefaultFile() *File {
-	return &File{
-		UI:   UIValueTUI,
-		Core: CoreConfig{AgentLoop: DefaultAgentLoop},
+// DefaultSettings returns a Settings with sensible defaults.
+func DefaultSettings() *Settings {
+	return &Settings{
+		UIExtension: "tui",
+		AgentLoop:   DefaultAgentLoop,
 	}
 }
 
 // DefaultConfigJSON returns the default config as formatted JSON.
 func DefaultConfigJSON() string {
 	return `{
-  "core": {
-    "agent_loop": "loop"
-  },
-  "ui": "tui"
+  "agent_loop": "loop",
+  "ui_extension": "tui"
 }`
 }
 
@@ -127,7 +108,7 @@ func GlobalConfigDir() (string, error) {
 	return filepath.Join(home, ".weave"), nil
 }
 
-// EnsureGlobalConfig writes a default config.json to ~/.weave/ if no global
+// EnsureGlobalConfig writes a default settings.json to ~/.weave/ if no global
 // config exists and no project-local config is found.
 // Returns the path to the newly created file, or "" if a config already exists.
 func EnsureGlobalConfig(projectDir string) (string, error) {
@@ -142,7 +123,7 @@ func EnsureGlobalConfig(projectDir string) (string, error) {
 		return "", err
 	}
 
-	globalPath := filepath.Join(globalDir, "config.json")
+	globalPath := filepath.Join(globalDir, "settings.json")
 	if _, statErr := os.Stat(globalPath); statErr == nil {
 		return "", nil
 	}
@@ -169,7 +150,7 @@ func FindConfigPath(startDir string) (string, error) {
 		return globalPath, nil
 	}
 
-	return "", errors.New("no .weave/config.json found")
+	return "", errors.New("no .weave/settings.json found")
 }
 
 func findGlobalConfig() (string, bool) {
@@ -178,7 +159,7 @@ func findGlobalConfig() (string, bool) {
 		return "", false
 	}
 
-	candidate := filepath.Join(globalDir, "config.json")
+	candidate := filepath.Join(globalDir, "settings.json")
 	if info, statErr := os.Stat(candidate); statErr == nil && !info.IsDir() {
 		return candidate, true
 	}
@@ -190,7 +171,7 @@ func findAnyConfigPath(startDir string) (string, bool) {
 	dir := startDir
 
 	for {
-		candidate := filepath.Join(dir, ".weave", "config.json")
+		candidate := filepath.Join(dir, ".weave", "settings.json")
 		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
 			return candidate, true
 		}
@@ -204,7 +185,7 @@ func findAnyConfigPath(startDir string) (string, bool) {
 	}
 }
 
-func Load(args []string) (string, *File, []string, error) {
+func Load(args []string) (string, *Settings, []string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return "", nil, nil, fmt.Errorf("get working dir: %w", err)
@@ -231,7 +212,18 @@ func parseConfigFlag(args []string) (configPath string, rest []string) {
 	return "", args
 }
 
-func LoadFromDir(dir string, args []string) (string, *File, []string, error) {
+// flagSet holds CLI-only flags parsed separately from the settings file.
+type flagSet struct {
+	Prompt      string `short:"p" description:"Prompt to pass to the agent"`
+	UI          string `flag:"ui" description:"UI extension name"`
+	Output      string `flag:"output" description:"Output format: text or json"`
+	Tools       string `flag:"tools" description:"Comma-separated tool allowlist"`
+	SubagentID  string `flag:"subagent-id" description:"Subagent ID for inter-agent communication"`
+	SandboxMode string `flag:"sandbox" description:"Sandbox mode override"`
+	Model       string `flag:"model" description:"Model override for this session"`
+}
+
+func LoadFromDir(dir string, args []string) (string, *Settings, []string, error) {
 	configPath, args := parseConfigFlag(args)
 
 	path := configPath
@@ -243,7 +235,7 @@ func LoadFromDir(dir string, args []string) (string, *File, []string, error) {
 		}
 	}
 
-	// Fall back to global config (~/.weave/config.json).
+	// Fall back to global config (~/.weave/settings.json).
 	if path == "" {
 		if globalPath, globalFound := findGlobalConfig(); globalFound {
 			path = globalPath
@@ -262,52 +254,77 @@ func LoadFromDir(dir string, args []string) (string, *File, []string, error) {
 
 	// Still nothing (shouldn't happen) — use in-memory defaults.
 	if path == "" {
-		return "", DefaultFile(), args, nil
+		return "", DefaultSettings(), args, nil
 	}
 
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(dir, path)
 	}
 
+	// Parse CLI flags separately to avoid conflicts with Settings JSON tags.
 	var (
-		f    File
-		rest []string
+		flags flagSet
+		rest  []string
 	)
-
 	if err := gonfig.Load(
-		&f,
-		gonfig.WithFile(path),
-		gonfig.WithEnvPrefix("WEAVE"),
+		&flags,
 		gonfig.WithFlags(args),
 		gonfig.WithRemainingArgs(&rest),
 	); err != nil {
 		return "", nil, nil, fmt.Errorf("load config: %w", err)
 	}
 
+	// Load settings from file (env vars and defaults applied by gonfig).
+	var s Settings
+	if err := gonfig.Load(
+		&s,
+		gonfig.WithFile(path),
+		gonfig.WithEnvPrefix("WEAVE"),
+	); err != nil {
+		return "", nil, nil, fmt.Errorf("load config: %w", err)
+	}
+
+	// Apply parsed CLI flags.
+	s.Prompt = flags.Prompt
+	if flags.UI != "" {
+		s.UIExtension = flags.UI
+	}
+
+	s.Output = flags.Output
+	s.ToolsFlag = flags.Tools
+	s.SubagentID = flags.SubagentID
+	s.SandboxMode = flags.SandboxMode
+	s.ModelFlag = flags.Model
+
 	// Detect explicitly empty --tools= so the launcher can forward it.
 	for _, a := range args {
 		if strings.HasPrefix(a, "--tools=") || a == "--tools" {
-			f.ToolsSet = true
+			s.ToolsSet = true
 			break
 		}
 	}
 
 	configDir := filepath.Dir(path)
-	if err := ValidateWithConfigDir(&f, configDir); err != nil {
+	if err := ValidateWithConfigDir(&s, configDir); err != nil {
 		return "", nil, nil, fmt.Errorf("validate config: %w", err)
 	}
 
-	return path, &f, rest, nil
+	return path, &s, rest, nil
 }
 
-// LoadFromFile loads a config file from the given path without discovery or generation.
-func LoadFromFile(path string) (*File, error) {
-	var f File
-	if err := gonfig.Load(&f, gonfig.WithFile(path)); err != nil {
-		return nil, fmt.Errorf("load config %s: %w", path, err)
+// LoadFromFile loads a settings file from the given path without discovery or generation.
+func LoadFromFile(path string) (*Settings, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read config %s: %w", path, err)
 	}
 
-	return &f, nil
+	var s Settings
+	if err := json.Unmarshal(data, &s); err != nil {
+		return nil, fmt.Errorf("parse config %s: %w", path, err)
+	}
+
+	return &s, nil
 }
 
 // LoadFullConfig loads the config file and auth file, returning a FullConfig
@@ -319,21 +336,21 @@ func LoadFullConfig(path string) (*FullConfig, error) {
 	}
 
 	if path == "" {
-		return &FullConfig{file: DefaultFile(), auth: auth}, nil
+		return &FullConfig{settings: DefaultSettings(), auth: auth}, nil
 	}
 
-	var f File
-	if err := gonfig.Load(&f, gonfig.WithFile(path), gonfig.WithEnvPrefix("WEAVE")); err != nil {
-		return nil, fmt.Errorf("load config: %w", err)
+	s, err := LoadFromFile(path)
+	if err != nil {
+		return nil, err
 	}
 
-	return &FullConfig{filePath: path, file: &f, auth: auth}, nil
+	return &FullConfig{filePath: path, settings: s, auth: auth}, nil
 }
 
 // FullConfig implements sdk.Config with auth resolution and provider config lookup.
 type FullConfig struct {
 	filePath   string
-	file       *File
+	settings   *Settings
 	auth       *AuthFile
 	projectDir string
 }
@@ -351,7 +368,7 @@ func (c *FullConfig) FilePath() string { return c.filePath }
 func (c *FullConfig) ProjectDir() string { return c.effectiveProjectDir() }
 
 func (c *FullConfig) ProviderConfig(name string) *sdk.ProviderConfigEntry {
-	e := c.file.ProviderConfig(name)
+	e := c.settings.ProviderConfig(name)
 	if e == nil {
 		return nil
 	}
@@ -381,11 +398,11 @@ func (c *FullConfig) ResolveKey(providerName, envVar string) (string, error) {
 		auth = c.auth // fall back to cached snapshot
 	}
 
-	return ResolveProviderKey(providerName, envVar, c.file.ProviderConfig(providerName), auth)
+	return ResolveProviderKey(providerName, envVar, c.settings.ProviderConfig(providerName), auth)
 }
 
 // ProjectDirFromConfig returns the project root directory for a config file path.
-// If the config file is inside .weave/ (e.g. .weave/config.json), returns the
+// If the config file is inside .weave/ (e.g. .weave/settings.json), returns the
 // parent directory so that layered settings look in the right place.
 func ProjectDirFromConfig(configPath string) string {
 	dir := filepath.Dir(configPath)
@@ -401,16 +418,16 @@ func (c *FullConfig) ToolConfig(name string, target any) error {
 
 	configDir := c.effectiveProjectDir()
 
-	settings, err := LoadLayeredSettings(configDir)
+	layered, err := LoadLayeredSettings(configDir)
 	if err != nil {
 		return fmt.Errorf("load settings for tool config: %w", err)
 	}
 
-	if settings.Tools == nil {
+	if layered.Tools == nil {
 		return nil
 	}
 
-	raw, ok := settings.Tools[name]
+	raw, ok := layered.Tools[name]
 	if !ok {
 		return nil
 	}
@@ -423,16 +440,16 @@ func (c *FullConfig) UIConfig(target any) error {
 
 	configDir := c.effectiveProjectDir()
 
-	settings, err := LoadLayeredSettings(configDir)
+	layered, err := LoadLayeredSettings(configDir)
 	if err != nil {
 		return fmt.Errorf("load settings for UI config: %w", err)
 	}
 
-	if settings.UI == nil {
+	if layered.UI == nil {
 		return nil
 	}
 
-	return populateConfig(settings.UI, target)
+	return populateConfig(layered.UI, target)
 }
 
 func (c *FullConfig) IsHeadless() bool { return false }
@@ -440,16 +457,16 @@ func (c *FullConfig) IsHeadless() bool { return false }
 func (c *FullConfig) RespectGitignore() bool {
 	configDir := c.effectiveProjectDir()
 
-	settings, err := LoadLayeredSettings(configDir)
+	layered, err := LoadLayeredSettings(configDir)
 	if err != nil {
 		return true
 	}
 
-	if settings.RespectGitignore == nil {
+	if layered.RespectGitignore == nil {
 		return true
 	}
 
-	return *settings.RespectGitignore
+	return *layered.RespectGitignore
 }
 
 func (c *FullConfig) Preferences(target any) error {
@@ -457,12 +474,12 @@ func (c *FullConfig) Preferences(target any) error {
 
 	configDir := c.effectiveProjectDir()
 
-	settings, err := LoadLayeredSettings(configDir)
+	layered, err := LoadLayeredSettings(configDir)
 	if err != nil {
 		return fmt.Errorf("load preferences: %w", err)
 	}
 
-	return populateConfig(settings, target)
+	return populateConfig(layered, target)
 }
 
 func (c *FullConfig) SavePreferences(target any) error {
@@ -514,7 +531,7 @@ func (c *FullConfig) SavePreferences(target any) error {
 
 func (c *FullConfig) ProviderHasKey(providerName string) bool {
 	// Check config file first.
-	if pc := c.file.ProviderConfig(providerName); pc != nil && pc.APIKey != "" {
+	if pc := c.settings.ProviderConfig(providerName); pc != nil && pc.APIKey != "" {
 		return true
 	}
 

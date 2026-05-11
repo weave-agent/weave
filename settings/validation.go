@@ -70,37 +70,37 @@ func (errs ValidationErrors) Error() string {
 	return strings.Join(msgs, "; ")
 }
 
-// Validate checks a File for configuration errors.
-func Validate(f *File) error {
-	return ValidateWithConfigDir(f, "")
+// Validate checks a Settings for configuration errors.
+func Validate(s *Settings) error {
+	return ValidateWithConfigDir(s, "")
 }
 
 // ValidateWithConfigDir validates the config and resolves path-based extension
 // entries relative to configDir. When configDir is empty, path existence
 // checks are skipped.
-func ValidateWithConfigDir(f *File, configDir string) error {
+func ValidateWithConfigDir(s *Settings, configDir string) error {
 	var errs ValidationErrors
 
-	if f.UI != UIValueTUI && f.UI != UIValueNone {
+	if s.UIExtension != UIValueTUI && s.UIExtension != UIValueNone {
 		errs = append(errs, ValidationError{
-			Field:   "ui",
-			Message: fmt.Sprintf("invalid value %q, must be \"tui\" or \"none\"", f.UI),
+			Field:   "ui_extension",
+			Message: fmt.Sprintf("invalid value %q, must be \"tui\" or \"none\"", s.UIExtension),
 		})
 	}
 
-	if strings.TrimSpace(f.Core.AgentLoop) == "" {
+	if strings.TrimSpace(s.AgentLoop) == "" {
 		errs = append(errs, ValidationError{
-			Field:   "core.agent_loop",
+			Field:   "agent_loop",
 			Message: "must not be empty",
 		})
-	} else if !validName.MatchString(f.Core.AgentLoop) {
+	} else if !validName.MatchString(s.AgentLoop) {
 		errs = append(errs, ValidationError{
-			Field:   "core.agent_loop",
-			Message: fmt.Sprintf("invalid agent_loop name %q (must match [a-zA-Z0-9_-]+)", f.Core.AgentLoop),
+			Field:   "agent_loop",
+			Message: fmt.Sprintf("invalid agent_loop name %q (must match [a-zA-Z0-9_-]+)", s.AgentLoop),
 		})
 	}
 
-	for i, name := range f.ExcludeExtensions {
+	for i, name := range s.ExcludeExtensions {
 		if !validName.MatchString(name) {
 			errs = append(errs, ValidationError{
 				Field:   fmt.Sprintf("exclude_extensions[%d]", i),
@@ -109,16 +109,16 @@ func ValidateWithConfigDir(f *File, configDir string) error {
 		}
 	}
 
-	for name, raw := range f.Providers {
+	for name, raw := range s.Providers {
 		validateProviderEntry(&errs, name, raw)
 	}
 
-	validateSandbox(&errs, &f.Sandbox)
+	validateSandbox(&errs, &s.Sandbox)
 
-	if f.Output != "" && f.Output != "text" && f.Output != "json" {
+	if s.Output != "" && s.Output != "text" && s.Output != "json" {
 		errs = append(errs, ValidationError{
 			Field:   "output",
-			Message: fmt.Sprintf("invalid value %q, must be \"text\" or \"json\"", f.Output),
+			Message: fmt.Sprintf("invalid value %q, must be \"text\" or \"json\"", s.Output),
 		})
 	}
 

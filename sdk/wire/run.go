@@ -69,7 +69,7 @@ func run(ctx context.Context, args ...string) (exitCode int) {
 		}
 	}
 
-	if cf.Prompt == "" && (cf.UI == "" || cf.UI == settings.UIValueNone) {
+	if cf.Prompt == "" && (cf.UIExtension == "" || cf.UIExtension == settings.UIValueNone) {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", errNoInput)
 		return 1
 	}
@@ -92,8 +92,8 @@ func run(ctx context.Context, args ...string) (exitCode int) {
 		rest = append(rest, "--weave-output="+cf.Output)
 	}
 
-	if cf.ToolsSet || cf.Tools != "" {
-		rest = append(rest, "--weave-tools="+cf.Tools)
+	if cf.ToolsSet || cf.ToolsFlag != "" {
+		rest = append(rest, "--weave-tools="+cf.ToolsFlag)
 	}
 
 	if cf.SubagentID != "" {
@@ -104,14 +104,14 @@ func run(ctx context.Context, args ...string) (exitCode int) {
 		rest = append(rest, "--weave-sandbox-mode="+cf.SandboxMode)
 	}
 
-	if cf.Model != "" {
-		rest = append(rest, "--weave-model="+cf.Model)
+	if cf.ModelFlag != "" {
+		rest = append(rest, "--weave-model="+cf.ModelFlag)
 	}
 
 	cache := launcher.NewCache(cacheDir)
 	l := launcher.NewLauncher(cache, moduleRoot)
 
-	if err := l.Run(ctx, projectDir, rest, configFile, cf.Core.AgentLoop, headless, cf.ExcludeExtensions); err != nil {
+	if err := l.Run(ctx, projectDir, rest, configFile, cf.AgentLoop, headless, cf.ExcludeExtensions); err != nil {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", err)
 		return 1
 	}

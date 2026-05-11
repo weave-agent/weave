@@ -7,73 +7,73 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func validFile() *File {
-	return &File{
-		UI:   "tui",
-		Core: CoreConfig{AgentLoop: "loop"},
+func validSettings() *Settings {
+	return &Settings{
+		UIExtension: "tui",
+		AgentLoop:   "loop",
 	}
 }
 
 func TestValidate_ValidConfig(t *testing.T) {
-	err := Validate(validFile())
+	err := Validate(validSettings())
 	assert.NoError(t, err)
 }
 
 func TestValidate_ValidNoneUI(t *testing.T) {
-	f := validFile()
-	f.UI = "none"
+	f := validSettings()
+	f.UIExtension = "none"
 	err := Validate(f)
 	assert.NoError(t, err)
 }
 
 func TestValidate_InvalidUI(t *testing.T) {
-	f := validFile()
-	f.UI = "web"
+	f := validSettings()
+	f.UIExtension = "web"
 	err := Validate(f)
 	require.Error(t, err)
 
 	var errs ValidationErrors
 	require.ErrorAs(t, err, &errs)
 	require.Len(t, errs, 1)
-	assert.Equal(t, "ui", errs[0].Field)
+	assert.Equal(t, "ui_extension", errs[0].Field)
 	assert.Contains(t, errs[0].Message, "web")
 	assert.Contains(t, errs[0].Message, `"tui" or "none"`)
 }
 
 func TestValidate_EmptyAgentLoop(t *testing.T) {
-	f := validFile()
-	f.Core.AgentLoop = ""
+	f := validSettings()
+	f.AgentLoop = ""
 	err := Validate(f)
 	require.Error(t, err)
 
 	var errs ValidationErrors
 	require.ErrorAs(t, err, &errs)
 	require.Len(t, errs, 1)
-	assert.Equal(t, "core.agent_loop", errs[0].Field)
+	assert.Equal(t, "agent_loop", errs[0].Field)
 }
 
 func TestValidate_InvalidAgentLoopChars(t *testing.T) {
-	f := validFile()
-	f.Core.AgentLoop = "my loop!"
+	f := validSettings()
+	f.AgentLoop = "my loop!"
 	err := Validate(f)
 	require.Error(t, err)
 
 	var errs ValidationErrors
 	require.ErrorAs(t, err, &errs)
 	require.Len(t, errs, 1)
-	assert.Equal(t, "core.agent_loop", errs[0].Field)
+	assert.Equal(t, "agent_loop", errs[0].Field)
 	assert.Contains(t, errs[0].Message, "my loop!")
 }
 
 func TestValidate_ExcludeExtensionsValid(t *testing.T) {
-	f := validFile()
+	f := validSettings()
 	f.ExcludeExtensions = []string{"bash", "custom-ext"}
 	err := Validate(f)
 	assert.NoError(t, err)
 }
 
 func TestValidate_ExcludeExtensionsInvalidName(t *testing.T) {
-	f := validFile()
+	f := validSettings()
 	f.ExcludeExtensions = []string{"bad ext!"}
 	err := Validate(f)
 	require.Error(t, err)
@@ -86,7 +86,7 @@ func TestValidate_ExcludeExtensionsInvalidName(t *testing.T) {
 }
 
 func TestValidate_ProviderEntryValid(t *testing.T) {
-	f := validFile()
+	f := validSettings()
 	f.Providers = map[string]any{
 		"anthropic": map[string]any{
 			"api_key": "test-key",
@@ -99,7 +99,7 @@ func TestValidate_ProviderEntryValid(t *testing.T) {
 }
 
 func TestValidate_ProviderEntryInvalidType(t *testing.T) {
-	f := validFile()
+	f := validSettings()
 	f.Providers = map[string]any{
 		"custom": "not-an-object",
 	}
@@ -115,9 +115,9 @@ func TestValidate_ProviderEntryInvalidType(t *testing.T) {
 }
 
 func TestValidate_MultipleErrors(t *testing.T) {
-	f := &File{
-		UI:                "web",
-		Core:              CoreConfig{AgentLoop: ""},
+	f := &Settings{
+		UIExtension:       "web",
+		AgentLoop:         "",
 		ExcludeExtensions: []string{"bad!name"},
 	}
 
@@ -133,36 +133,36 @@ func TestValidate_MultipleErrors(t *testing.T) {
 		fields[i] = e.Field
 	}
 
-	assert.Contains(t, fields, "ui")
-	assert.Contains(t, fields, "core.agent_loop")
+	assert.Contains(t, fields, "ui_extension")
+	assert.Contains(t, fields, "agent_loop")
 	assert.Contains(t, fields, "exclude_extensions[0]")
 }
 
 func TestValidationError_ErrorFormat(t *testing.T) {
-	e := ValidationError{Field: "ui", Message: `invalid value "web"`}
-	assert.Equal(t, `settings.ui: invalid value "web"`, e.Error())
+	e := ValidationError{Field: "ui_extension", Message: `invalid value "web"`}
+	assert.Equal(t, `settings.ui_extension: invalid value "web"`, e.Error())
 }
 
 func TestValidationErrors_ErrorFormat(t *testing.T) {
 	errs := ValidationErrors{
-		{Field: "ui", Message: "bad ui"},
-		{Field: "core.agent_loop", Message: "empty"},
+		{Field: "ui_extension", Message: "bad ui"},
+		{Field: "agent_loop", Message: "empty"},
 	}
-	assert.Equal(t, "settings.ui: bad ui; settings.core.agent_loop: empty", errs.Error())
+	assert.Equal(t, "settings.ui_extension: bad ui; settings.agent_loop: empty", errs.Error())
 }
 
 func TestValidateWithConfigDir_IntegratedWithLoad(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave/config.json", `{"ui":"web"}`)
+	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"web"}`)
 
 	_, _, _, err := LoadFromDir(dir, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "validate config")
-	assert.Contains(t, err.Error(), "ui")
+	assert.Contains(t, err.Error(), "ui_extension")
 }
 
 func TestValidate_SandboxDefaultsValid(t *testing.T) {
-	f := validFile()
+	f := validSettings()
 	// Empty/zero sandbox config is valid (defaults apply at runtime).
 	err := Validate(f)
 	assert.NoError(t, err)
@@ -171,7 +171,7 @@ func TestValidate_SandboxDefaultsValid(t *testing.T) {
 func TestValidate_SandboxValidModes(t *testing.T) {
 	for _, mode := range []string{"off", "readonly", "ask", "auto"} {
 		t.Run(mode, func(t *testing.T) {
-			f := validFile()
+			f := validSettings()
 			f.Sandbox.Mode = mode
 			err := Validate(f)
 			assert.NoError(t, err)
@@ -180,7 +180,7 @@ func TestValidate_SandboxValidModes(t *testing.T) {
 }
 
 func TestValidate_SandboxInvalidMode(t *testing.T) {
-	f := validFile()
+	f := validSettings()
 	f.Sandbox.Mode = "strict"
 	err := Validate(f)
 	require.Error(t, err)
@@ -194,7 +194,7 @@ func TestValidate_SandboxInvalidMode(t *testing.T) {
 }
 
 func TestValidate_SandboxValidPaths(t *testing.T) {
-	f := validFile()
+	f := validSettings()
 	f.Sandbox.Writable = []string{".", "/tmp/build"}
 	f.Sandbox.DenyWrite = []string{"~/.ssh"}
 	f.Sandbox.DenyRead = []string{"~/.aws/credentials"}
@@ -203,7 +203,7 @@ func TestValidate_SandboxValidPaths(t *testing.T) {
 }
 
 func TestValidate_SandboxEmptyWritablePath(t *testing.T) {
-	f := validFile()
+	f := validSettings()
 	f.Sandbox.Writable = []string{"", "."}
 	err := Validate(f)
 	require.Error(t, err)
@@ -216,7 +216,7 @@ func TestValidate_SandboxEmptyWritablePath(t *testing.T) {
 }
 
 func TestValidate_SandboxEmptyDenyWritePath(t *testing.T) {
-	f := validFile()
+	f := validSettings()
 	f.Sandbox.DenyWrite = []string{"  "}
 	err := Validate(f)
 	require.Error(t, err)
@@ -228,7 +228,7 @@ func TestValidate_SandboxEmptyDenyWritePath(t *testing.T) {
 }
 
 func TestValidate_SandboxEmptyDenyReadPath(t *testing.T) {
-	f := validFile()
+	f := validSettings()
 	f.Sandbox.DenyRead = []string{" "}
 	err := Validate(f)
 	require.Error(t, err)
@@ -240,7 +240,7 @@ func TestValidate_SandboxEmptyDenyReadPath(t *testing.T) {
 }
 
 func TestValidate_SandboxMultipleErrors(t *testing.T) {
-	f := validFile()
+	f := validSettings()
 	f.Sandbox.Mode = "invalid"
 	f.Sandbox.Writable = []string{""}
 	f.Sandbox.DenyWrite = []string{""}
@@ -264,9 +264,9 @@ func TestValidate_SandboxMultipleErrors(t *testing.T) {
 }
 
 func TestValidate_SandboxCombinedWithOtherErrors(t *testing.T) {
-	f := &File{
-		UI:   "web",
-		Core: CoreConfig{AgentLoop: "loop"},
+	f := &Settings{
+		UIExtension: "web",
+		AgentLoop:   "loop",
 		Sandbox: SandboxFileConfig{
 			Mode: "bogus",
 		},
@@ -283,6 +283,6 @@ func TestValidate_SandboxCombinedWithOtherErrors(t *testing.T) {
 		fields[i] = e.Field
 	}
 
-	assert.Contains(t, fields, "ui")
+	assert.Contains(t, fields, "ui_extension")
 	assert.Contains(t, fields, "sandbox.mode")
 }

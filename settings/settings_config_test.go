@@ -25,11 +25,11 @@ func TestToolConfig_PopulatedStruct(t *testing.T) {
 			"bash": map[string]any{"timeout": 60},
 		},
 	}
-	writeJSON(t, filepath.Join(projectWeave, "settings.json"), &settings)
+	writeJSON(t, filepath.Join(projectWeave, "settings.local.json"), &settings)
 
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
-		file:     DefaultFile(),
+		settings: DefaultSettings(),
 		auth:     &AuthFile{},
 	}
 
@@ -55,11 +55,11 @@ func TestToolConfig_DefaultsApplied(t *testing.T) {
 			"bash": map[string]any{},
 		},
 	}
-	writeJSON(t, filepath.Join(projectWeave, "settings.json"), &settings)
+	writeJSON(t, filepath.Join(projectWeave, "settings.local.json"), &settings)
 
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
-		file:     DefaultFile(),
+		settings: DefaultSettings(),
 		auth:     &AuthFile{},
 	}
 
@@ -80,7 +80,7 @@ func TestToolConfig_MissingSection(t *testing.T) {
 
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
-		file:     DefaultFile(),
+		settings: DefaultSettings(),
 		auth:     &AuthFile{},
 	}
 
@@ -106,11 +106,11 @@ func TestToolConfig_MissingToolName(t *testing.T) {
 			"grep": map[string]any{"context": 3},
 		},
 	}
-	writeJSON(t, filepath.Join(projectWeave, "settings.json"), &settings)
+	writeJSON(t, filepath.Join(projectWeave, "settings.local.json"), &settings)
 
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
-		file:     DefaultFile(),
+		settings: DefaultSettings(),
 		auth:     &AuthFile{},
 	}
 
@@ -137,11 +137,11 @@ func TestUIConfig_PopulatedStruct(t *testing.T) {
 			EditorMaxLines: 40,
 		},
 	}
-	writeJSON(t, filepath.Join(projectWeave, "settings.json"), &settings)
+	writeJSON(t, filepath.Join(projectWeave, "settings.local.json"), &settings)
 
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
-		file:     DefaultFile(),
+		settings: DefaultSettings(),
 		auth:     &AuthFile{},
 	}
 
@@ -164,11 +164,11 @@ func TestUIConfig_DefaultsApplied(t *testing.T) {
 	settings := Settings{
 		UI: &UISettings{},
 	}
-	writeJSON(t, filepath.Join(projectWeave, "settings.json"), &settings)
+	writeJSON(t, filepath.Join(projectWeave, "settings.local.json"), &settings)
 
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
-		file:     DefaultFile(),
+		settings: DefaultSettings(),
 		auth:     &AuthFile{},
 	}
 
@@ -191,7 +191,7 @@ func TestUIConfig_MissingSection(t *testing.T) {
 
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
-		file:     DefaultFile(),
+		settings: DefaultSettings(),
 		auth:     &AuthFile{},
 	}
 
@@ -284,13 +284,6 @@ func TestLayeredSettings_IntegrationWithToolConfig(t *testing.T) {
 	projectWeave := filepath.Join(projectDir, ".weave")
 	require.NoError(t, os.MkdirAll(projectWeave, 0o750))
 
-	// Project overrides bash timeout to 60
-	writeJSON(t, filepath.Join(projectWeave, "settings.json"), &Settings{
-		Tools: map[string]any{
-			"bash": map[string]any{"timeout": 60},
-		},
-	})
-
 	// Local overrides bash timeout to 30
 	writeJSON(t, filepath.Join(projectWeave, "settings.local.json"), &Settings{
 		Tools: map[string]any{
@@ -300,7 +293,7 @@ func TestLayeredSettings_IntegrationWithToolConfig(t *testing.T) {
 
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
-		file:     DefaultFile(),
+		settings: DefaultSettings(),
 		auth:     &AuthFile{},
 	}
 
@@ -308,7 +301,7 @@ func TestLayeredSettings_IntegrationWithToolConfig(t *testing.T) {
 		Timeout int `json:"timeout"`
 	}
 	require.NoError(t, cfg.ToolConfig("bash", &target))
-	assert.Equal(t, 30, target.Timeout, "local layer should override global and project")
+	assert.Equal(t, 30, target.Timeout, "local layer should override global")
 }
 
 func TestToolConfig_LocalOnlyFromWeaveDir(t *testing.T) {
@@ -330,7 +323,7 @@ func TestToolConfig_LocalOnlyFromWeaveDir(t *testing.T) {
 
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
-		file:     DefaultFile(),
+		settings: DefaultSettings(),
 		auth:     &AuthFile{},
 	}
 

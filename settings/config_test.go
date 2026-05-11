@@ -13,39 +13,39 @@ import (
 
 func TestFindConfigPath_WeaveYaml(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave/config.json", `{"ui":"tui"}`)
+	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
 
 	got, err := FindConfigPath(dir)
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(dir, ".weave", "config.json"), got)
+	assert.Equal(t, filepath.Join(dir, ".weave", "settings.json"), got)
 }
 
 func TestFindConfigPath_ConfigDir(t *testing.T) {
 	dir := t.TempDir()
 	configDir := filepath.Join(dir, ".weave")
 	mkdir(t, configDir)
-	writeFile(t, configDir, "config.json", `{"ui":"tui"}`)
+	writeFile(t, configDir, "settings.json", `{"ui_extension":"tui"}`)
 
 	got, err := FindConfigPath(dir)
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(configDir, "config.json"), got)
+	assert.Equal(t, filepath.Join(configDir, "settings.json"), got)
 }
 
 func TestFindConfigPath_WalkUp(t *testing.T) {
 	root := t.TempDir()
 	child := filepath.Join(root, "a", "b", "c")
 	mkdir(t, child)
-	writeFile(t, root, ".weave/config.json", `{"ui":"tui"}`)
+	writeFile(t, root, ".weave/settings.json", `{"ui_extension":"tui"}`)
 
 	got, err := FindConfigPath(child)
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(root, ".weave", "config.json"), got)
+	assert.Equal(t, filepath.Join(root, ".weave", "settings.json"), got)
 }
 
 func TestFindConfigPath_NotFound(t *testing.T) {
 	// Only valid when no global config exists
 	globalDir, _ := GlobalConfigDir()
-	if _, err := os.Stat(filepath.Join(globalDir, "config.json")); err == nil {
+	if _, err := os.Stat(filepath.Join(globalDir, "settings.json")); err == nil {
 		t.Skip("skipping: global config exists, so FindConfigPath always succeeds")
 	}
 
@@ -59,36 +59,36 @@ func TestFindConfigPath_ConfigJSON(t *testing.T) {
 	dir := t.TempDir()
 	configDir := filepath.Join(dir, ".weave")
 	mkdir(t, configDir)
-	writeFile(t, configDir, "config.json", `{"ui":"tui"}`)
+	writeFile(t, configDir, "settings.json", `{"ui_extension":"tui"}`)
 
 	got, err := FindConfigPath(dir)
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(configDir, "config.json"), got)
+	assert.Equal(t, filepath.Join(configDir, "settings.json"), got)
 }
 
 func TestLoad_CoreDefaults(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave/config.json", `{"ui":"tui"}`)
+	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
 
 	_, cf, _, err := LoadFromDir(dir, nil)
 	require.NoError(t, err)
 
-	assert.Equal(t, "loop", cf.Core.AgentLoop)
+	assert.Equal(t, "loop", cf.AgentLoop)
 }
 
 func TestLoad_CoreOverride(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave/config.json", `{"core":{"agent_loop":"custom-loop"}}`)
+	writeFile(t, dir, ".weave/settings.json", `{"agent_loop":"custom-loop"}`)
 
 	_, cf, _, err := LoadFromDir(dir, nil)
 	require.NoError(t, err)
 
-	assert.Equal(t, "custom-loop", cf.Core.AgentLoop)
+	assert.Equal(t, "custom-loop", cf.AgentLoop)
 }
 
 func TestLoad_ExcludeExtensions(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave/config.json", `{"exclude_extensions":["bash","grep"]}`)
+	writeFile(t, dir, ".weave/settings.json", `{"exclude_extensions":["bash","grep"]}`)
 
 	_, cf, _, err := LoadFromDir(dir, nil)
 	require.NoError(t, err)
@@ -106,10 +106,10 @@ func TestLoad_MissingFile(t *testing.T) {
 	path, cf, _, err := LoadFromDir(projectDir, nil)
 	require.NoError(t, err)
 
-	// Should generate a global config in ~/.weave/config.json
+	// Should generate a global config in ~/.weave/settings.json
 	assert.NotEmpty(t, path, "should have generated a global config")
-	assert.Equal(t, "tui", cf.UI)
-	assert.Equal(t, "loop", cf.Core.AgentLoop)
+	assert.Equal(t, "tui", cf.UIExtension)
+	assert.Equal(t, "loop", cf.AgentLoop)
 
 	_, statErr := os.Stat(path)
 	require.NoError(t, statErr)
@@ -117,37 +117,37 @@ func TestLoad_MissingFile(t *testing.T) {
 
 func TestLoad_UIDefault(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave/config.json", `{"ui":"tui"}`)
+	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
 
 	_, cf, _, err := LoadFromDir(dir, nil)
 	require.NoError(t, err)
 
-	assert.Equal(t, "tui", cf.UI, "default ui should be 'tui'")
+	assert.Equal(t, "tui", cf.UIExtension, "default ui should be 'tui'")
 }
 
 func TestLoad_UIOverride(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave/config.json", `{"ui":"none"}`)
+	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"none"}`)
 
 	_, cf, _, err := LoadFromDir(dir, nil)
 	require.NoError(t, err)
 
-	assert.Equal(t, "none", cf.UI)
+	assert.Equal(t, "none", cf.UIExtension)
 }
 
 func TestLoad_UIFlag(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave/config.json", `{"ui":"tui"}`)
+	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
 
 	_, cf, _, err := LoadFromDir(dir, []string{"--ui", "none"})
 	require.NoError(t, err)
 
-	assert.Equal(t, "none", cf.UI)
+	assert.Equal(t, "none", cf.UIExtension)
 }
 
 func TestLoad_OutputFlag(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave/config.json", `{"ui":"tui"}`)
+	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
 
 	_, cf, _, err := LoadFromDir(dir, []string{"--output", "json"})
 	require.NoError(t, err)
@@ -157,40 +157,40 @@ func TestLoad_OutputFlag(t *testing.T) {
 
 func TestLoad_ToolsFlag(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave/config.json", `{"ui":"tui"}`)
+	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
 
 	_, cf, _, err := LoadFromDir(dir, []string{"--tools", "read,grep,find"})
 	require.NoError(t, err)
 
-	assert.Equal(t, "read,grep,find", cf.Tools)
+	assert.Equal(t, "read,grep,find", cf.ToolsFlag)
 	assert.True(t, cf.ToolsSet, "ToolsSet should be true when --tools is passed")
 }
 
 func TestLoad_ToolsFlagEmpty(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave/config.json", `{"ui":"tui"}`)
+	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
 
 	_, cf, _, err := LoadFromDir(dir, []string{"--tools="})
 	require.NoError(t, err)
 
-	assert.Empty(t, cf.Tools)
+	assert.Empty(t, cf.ToolsFlag)
 	assert.True(t, cf.ToolsSet, "ToolsSet should be true for explicit --tools=")
 }
 
 func TestLoad_ToolsFlagNotSet(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave/config.json", `{"ui":"tui"}`)
+	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
 
 	_, cf, _, err := LoadFromDir(dir, nil)
 	require.NoError(t, err)
 
-	assert.Empty(t, cf.Tools)
+	assert.Empty(t, cf.ToolsFlag)
 	assert.False(t, cf.ToolsSet, "ToolsSet should be false when --tools is omitted")
 }
 
 func TestLoad_SubagentIDFlag(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave/config.json", `{"ui":"tui"}`)
+	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
 
 	_, cf, _, err := LoadFromDir(dir, []string{"--subagent-id", "subagent_explore_abc123"})
 	require.NoError(t, err)
@@ -200,7 +200,7 @@ func TestLoad_SubagentIDFlag(t *testing.T) {
 
 func TestLoad_SandboxModeFlag(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave/config.json", `{"ui":"tui"}`)
+	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
 
 	_, cf, _, err := LoadFromDir(dir, []string{"--sandbox", "readonly"})
 	require.NoError(t, err)
@@ -210,12 +210,12 @@ func TestLoad_SandboxModeFlag(t *testing.T) {
 
 func TestLoad_ModelFlag(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave/config.json", `{"ui":"tui"}`)
+	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
 
 	_, cf, _, err := LoadFromDir(dir, []string{"--model", "claude-haiku-4-5"})
 	require.NoError(t, err)
 
-	assert.Equal(t, "claude-haiku-4-5", cf.Model)
+	assert.Equal(t, "claude-haiku-4-5", cf.ModelFlag)
 }
 
 func TestEnsureGlobalConfig_GeneratesFile(t *testing.T) {
@@ -225,7 +225,7 @@ func TestEnsureGlobalConfig_GeneratesFile(t *testing.T) {
 
 	path, err := EnsureGlobalConfig(projectDir)
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(home, ".weave", "config.json"), path)
+	assert.Equal(t, filepath.Join(home, ".weave", "settings.json"), path)
 
 	data, readErr := os.ReadFile(path)
 	require.NoError(t, readErr)
@@ -237,7 +237,7 @@ func TestEnsureGlobalConfig_SkipsIfProjectConfigExists(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	projectDir := t.TempDir()
-	writeFile(t, projectDir, ".weave/config.json", `{"ui":"none"}`)
+	writeFile(t, projectDir, ".weave/settings.json", `{"ui_extension":"none"}`)
 
 	path, err := EnsureGlobalConfig(projectDir)
 	require.NoError(t, err)
@@ -249,7 +249,7 @@ func TestEnsureGlobalConfig_SkipsIfGlobalConfigExists(t *testing.T) {
 	t.Setenv("HOME", home)
 	globalDir := filepath.Join(home, ".weave")
 	mkdir(t, globalDir)
-	writeFile(t, globalDir, "config.json", `{"ui":"none"}`)
+	writeFile(t, globalDir, "settings.json", `{"ui_extension":"none"}`)
 	projectDir := t.TempDir()
 
 	path, err := EnsureGlobalConfig(projectDir)
@@ -275,15 +275,15 @@ func TestDefaultConfigJSON(t *testing.T) {
 	j := DefaultConfigJSON()
 	assert.Contains(t, j, `"agent_loop"`)
 	assert.Contains(t, j, `"loop"`)
-	assert.Contains(t, j, `"ui"`)
+	assert.Contains(t, j, `"ui_extension"`)
 }
 
-func TestDefaultFile(t *testing.T) {
-	f := DefaultFile()
-	assert.Equal(t, "tui", f.UI)
-	assert.Equal(t, "loop", f.Core.AgentLoop)
-	assert.Empty(t, f.ExcludeExtensions)
-	assert.Nil(t, f.Providers)
+func TestDefaultSettings(t *testing.T) {
+	s := DefaultSettings()
+	assert.Equal(t, "tui", s.UIExtension)
+	assert.Equal(t, "loop", s.AgentLoop)
+	assert.Empty(t, s.ExcludeExtensions)
+	assert.Nil(t, s.Providers)
 }
 
 func writeFile(t *testing.T, dir, name, content string) {
@@ -321,14 +321,14 @@ func TestPreferences_LoadsMergedSettings(t *testing.T) {
 		Provider: "anthropic",
 		Model:    "claude-sonnet-4-6",
 	})
-	writeJSON(t, filepath.Join(projectWeave, "settings.json"), &Settings{
+	writeJSON(t, filepath.Join(projectWeave, "settings.local.json"), &Settings{
 		Model:         "gpt-5.5",
 		ThinkingLevel: "high",
 	})
 
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
-		file:     DefaultFile(),
+		settings: DefaultSettings(),
 		auth:     &AuthFile{},
 	}
 
@@ -339,7 +339,7 @@ func TestPreferences_LoadsMergedSettings(t *testing.T) {
 	}
 	require.NoError(t, cfg.Preferences(&prefs))
 	assert.Equal(t, "anthropic", prefs.Provider, "global provider should be preserved")
-	assert.Equal(t, "gpt-5.5", prefs.Model, "project model should override global")
+	assert.Equal(t, "gpt-5.5", prefs.Model, "local model should override global")
 	assert.Equal(t, "high", prefs.ThinkingLevel)
 }
 
@@ -353,7 +353,7 @@ func TestPreferences_NoSettingsFile(t *testing.T) {
 
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
-		file:     DefaultFile(),
+		settings: DefaultSettings(),
 		auth:     &AuthFile{},
 	}
 
@@ -380,7 +380,7 @@ func TestSavePreferences_MergesIntoGlobal(t *testing.T) {
 
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
-		file:     DefaultFile(),
+		settings: DefaultSettings(),
 		auth:     &AuthFile{},
 	}
 
@@ -408,7 +408,7 @@ func TestSavePreferences_CreatesFileIfMissing(t *testing.T) {
 
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
-		file:     DefaultFile(),
+		settings: DefaultSettings(),
 		auth:     &AuthFile{},
 	}
 
@@ -435,8 +435,8 @@ func TestProviderHasKey_EnvVar(t *testing.T) {
 	t.Cleanup(func() { model.ResetProviderEnvVarRegistry() })
 
 	cfg := &FullConfig{
-		file: DefaultFile(),
-		auth: &AuthFile{},
+		settings: DefaultSettings(),
+		auth:     &AuthFile{},
 	}
 
 	assert.True(t, cfg.ProviderHasKey("anthropic"))
@@ -454,8 +454,8 @@ func TestProviderHasKey_AuthFile(t *testing.T) {
 	require.NoError(t, SetProviderKey("anthropic", "sk-from-auth"))
 
 	cfg := &FullConfig{
-		file: DefaultFile(),
-		auth: &AuthFile{},
+		settings: DefaultSettings(),
+		auth:     &AuthFile{},
 	}
 
 	assert.True(t, cfg.ProviderHasKey("anthropic"))
@@ -466,8 +466,8 @@ func TestProviderHasKey_NotFound(t *testing.T) {
 	t.Setenv("HOME", home)
 
 	cfg := &FullConfig{
-		file: DefaultFile(),
-		auth: &AuthFile{},
+		settings: DefaultSettings(),
+		auth:     &AuthFile{},
 	}
 
 	assert.False(t, cfg.ProviderHasKey("anthropic"))
@@ -478,8 +478,8 @@ func TestSetProviderKey_Delegates(t *testing.T) {
 	t.Setenv("HOME", home)
 
 	cfg := &FullConfig{
-		file: DefaultFile(),
-		auth: &AuthFile{},
+		settings: DefaultSettings(),
+		auth:     &AuthFile{},
 	}
 
 	require.NoError(t, cfg.SetProviderKey("openai", "sk-openai-key"))
@@ -514,7 +514,7 @@ func TestSavePreferences_PreservesUIFields(t *testing.T) {
 
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
-		file:     DefaultFile(),
+		settings: DefaultSettings(),
 		auth:     &AuthFile{},
 	}
 
@@ -561,7 +561,7 @@ func TestSavePreferences_DeepMergesNestedFields(t *testing.T) {
 	projectDir := t.TempDir()
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
-		file:     DefaultFile(),
+		settings: DefaultSettings(),
 		auth:     &AuthFile{},
 	}
 
@@ -605,7 +605,7 @@ func TestSavePreferences_DeepMergesNestedFields(t *testing.T) {
 
 func TestProviderHasKey_ConfigFileAPIKey(t *testing.T) {
 	cfg := &FullConfig{
-		file: &File{
+		settings: &Settings{
 			Providers: map[string]any{
 				"anthropic": map[string]any{"api_key": "sk-config-key"},
 			},
@@ -629,7 +629,7 @@ func TestProviderHasKey_LoadAuthFails_FallsBackToCachedAuth(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(home, ".weave", "auth.json"), []byte("not-json"), 0o600))
 
 	cfg := &FullConfig{
-		file: DefaultFile(),
+		settings: DefaultSettings(),
 		auth: &AuthFile{
 			//nolint:gosec // test credential, not a real secret
 			Providers: map[string]ProviderAuth{
@@ -654,8 +654,8 @@ func TestProviderHasKey_LoadAuthFails_NoCachedAuth(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(home, ".weave", "auth.json"), []byte("not-json"), 0o600))
 
 	cfg := &FullConfig{
-		file: DefaultFile(),
-		auth: &AuthFile{},
+		settings: DefaultSettings(),
+		auth:     &AuthFile{},
 	}
 
 	assert.False(t, cfg.ProviderHasKey("anthropic"), "should return false when auth load fails and no cached auth")
@@ -671,7 +671,7 @@ func TestRespectGitignore_DefaultTrue(t *testing.T) {
 
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
-		file:     DefaultFile(),
+		settings: DefaultSettings(),
 		auth:     &AuthFile{},
 	}
 
@@ -689,13 +689,13 @@ func TestRespectGitignore_ExplicitTrue(t *testing.T) {
 	require.NoError(t, os.MkdirAll(projectWeave, 0o750))
 
 	v := true
-	writeJSON(t, filepath.Join(projectWeave, "settings.json"), &Settings{
+	writeJSON(t, filepath.Join(projectWeave, "settings.local.json"), &Settings{
 		RespectGitignore: &v,
 	})
 
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
-		file:     DefaultFile(),
+		settings: DefaultSettings(),
 		auth:     &AuthFile{},
 	}
 
@@ -713,13 +713,13 @@ func TestRespectGitignore_ExplicitFalse(t *testing.T) {
 	require.NoError(t, os.MkdirAll(projectWeave, 0o750))
 
 	v := false
-	writeJSON(t, filepath.Join(projectWeave, "settings.json"), &Settings{
+	writeJSON(t, filepath.Join(projectWeave, "settings.local.json"), &Settings{
 		RespectGitignore: &v,
 	})
 
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
-		file:     DefaultFile(),
+		settings: DefaultSettings(),
 		auth:     &AuthFile{},
 	}
 
@@ -742,15 +742,15 @@ func TestRespectGitignore_LocalOverridesGlobal(t *testing.T) {
 	require.NoError(t, os.MkdirAll(projectWeave, 0o750))
 
 	localVal := false
-	writeJSON(t, filepath.Join(projectWeave, "settings.json"), &Settings{
+	writeJSON(t, filepath.Join(projectWeave, "settings.local.json"), &Settings{
 		RespectGitignore: &localVal,
 	})
 
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
-		file:     DefaultFile(),
+		settings: DefaultSettings(),
 		auth:     &AuthFile{},
 	}
 
-	assert.False(t, cfg.RespectGitignore(), "project layer should override global")
+	assert.False(t, cfg.RespectGitignore(), "local layer should override global")
 }

@@ -52,36 +52,36 @@ func TestRunMissingConfig(t *testing.T) {
 func TestRunCoreDefaultsUsed(t *testing.T) {
 	dir := t.TempDir()
 
-	cfgFile := dir + "/.weave/config.json"
+	cfgFile := dir + "/.weave/settings.json"
 	require.NoError(t, os.MkdirAll(filepath.Dir(cfgFile), 0o750))
-	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui":"tui","core":{"agent_loop":"loop"}}`), 0o600))
+	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"tui","agent_loop":"loop"}`), 0o600))
 
 	_, cf, _, err := settings.LoadFromDir(dir, nil)
 	require.NoError(t, err)
 
-	assert.Equal(t, "loop", cf.Core.AgentLoop, "default agent_loop should be 'loop'")
-	assert.Equal(t, "tui", cf.UI, "default ui should be 'tui'")
+	assert.Equal(t, "loop", cf.AgentLoop, "default agent_loop should be 'loop'")
+	assert.Equal(t, "tui", cf.UIExtension, "default ui should be 'tui'")
 }
 
 func TestValidateCoreConfig(t *testing.T) {
 	tests := []struct {
 		name    string
-		config  *settings.File
+		config  *settings.Settings
 		wantErr error
 	}{
 		{
 			"valid defaults",
-			&settings.File{Core: settings.CoreConfig{AgentLoop: "loop"}, UI: "tui"},
+			&settings.Settings{AgentLoop: "loop", UIExtension: "tui"},
 			nil,
 		},
 		{
 			"empty agent_loop",
-			&settings.File{Core: settings.CoreConfig{AgentLoop: ""}, UI: "tui"},
+			&settings.Settings{AgentLoop: "", UIExtension: "tui"},
 			errors.New("agent_loop"),
 		},
 		{
 			"invalid agent_loop chars",
-			&settings.File{Core: settings.CoreConfig{AgentLoop: "bad loop!"}, UI: "tui"},
+			&settings.Settings{AgentLoop: "bad loop!", UIExtension: "tui"},
 			errors.New("agent_loop"),
 		},
 	}
@@ -159,9 +159,9 @@ func TestResolveProjectDir(t *testing.T) {
 
 func TestRun_SubagentFlagsParsed(t *testing.T) {
 	dir := t.TempDir()
-	cfgFile := dir + "/.weave/config.json"
+	cfgFile := dir + "/.weave/settings.json"
 	require.NoError(t, os.MkdirAll(filepath.Dir(cfgFile), 0o750))
-	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui":"none","core":{"agent_loop":"loop"}}`), 0o600))
+	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"none","agent_loop":"loop"}`), 0o600))
 
 	_, cf, rest, err := settings.LoadFromDir(dir, []string{
 		"-p", "test",
@@ -174,19 +174,19 @@ func TestRun_SubagentFlagsParsed(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "json", cf.Output)
-	assert.Equal(t, "read,grep", cf.Tools)
+	assert.Equal(t, "read,grep", cf.ToolsFlag)
 	assert.True(t, cf.ToolsSet)
 	assert.Equal(t, "abc123", cf.SubagentID)
 	assert.Equal(t, "readonly", cf.SandboxMode)
-	assert.Equal(t, "claude-haiku-4-5", cf.Model)
+	assert.Equal(t, "claude-haiku-4-5", cf.ModelFlag)
 	assert.Empty(t, rest, "all flags should be consumed by gonfig")
 }
 
 func TestRun_EmptyToolsFlagForwarded(t *testing.T) {
 	dir := t.TempDir()
-	cfgFile := dir + "/.weave/config.json"
+	cfgFile := dir + "/.weave/settings.json"
 	require.NoError(t, os.MkdirAll(filepath.Dir(cfgFile), 0o750))
-	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui":"none","core":{"agent_loop":"loop"}}`), 0o600))
+	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"none","agent_loop":"loop"}`), 0o600))
 
 	_, cf, rest, err := settings.LoadFromDir(dir, []string{
 		"-p", "test",
@@ -194,7 +194,7 @@ func TestRun_EmptyToolsFlagForwarded(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Empty(t, cf.Tools)
+	assert.Empty(t, cf.ToolsFlag)
 	assert.True(t, cf.ToolsSet, "explicit --tools= should set ToolsSet")
 	assert.Empty(t, rest, "all flags should be consumed by gonfig")
 }
@@ -205,9 +205,9 @@ func TestRun_ProjectDirFromConfig(t *testing.T) {
 	subDir := filepath.Join(projectDir, "subdir")
 	require.NoError(t, os.MkdirAll(subDir, 0o750))
 
-	cfgFile := filepath.Join(projectDir, ".weave", "config.json")
+	cfgFile := filepath.Join(projectDir, ".weave", "settings.json")
 	require.NoError(t, os.MkdirAll(filepath.Dir(cfgFile), 0o750))
-	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui":"none","core":{"agent_loop":"loop"}}`), 0o600))
+	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"none","agent_loop":"loop"}`), 0o600))
 
 	// Loading from subdir should find the config at project root.
 	_, cf, _, err := settings.LoadFromDir(subDir, []string{"-p", "hello"})
@@ -215,7 +215,7 @@ func TestRun_ProjectDirFromConfig(t *testing.T) {
 	assert.Equal(t, projectDir, settings.ProjectDirFromConfig(cfgFile))
 
 	// Verify the config was found and parsed.
-	assert.Equal(t, "none", cf.UI)
+	assert.Equal(t, "none", cf.UIExtension)
 }
 
 func TestRun_ProjectDirNotUsedForGlobalConfig(t *testing.T) {

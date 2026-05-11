@@ -10,14 +10,32 @@ import (
 	"sync"
 )
 
-// Settings holds user preferences that persist across sessions.
+// Settings holds all configuration — project-level settings and user preferences
+// unified into a single struct.
 type Settings struct {
+	// Project-level config fields.
+	AgentLoop         string            `json:"agent_loop,omitempty" default:"loop" description:"Agent loop extension name"`
+	UIExtension       string            `json:"ui_extension,omitempty" default:"tui" description:"UI extension name"`
+	Providers         map[string]any    `json:"providers,omitempty" description:"Per-provider configuration"`
+	ExcludeExtensions []string          `json:"exclude_extensions,omitempty" description:"Extensions to exclude from auto-discovery"`
+	Sandbox           SandboxFileConfig `json:"sandbox" description:"Sandbox configuration"`
+
+	// User preference fields.
 	Provider         string         `json:"provider,omitempty"`
 	Model            string         `json:"model,omitempty"`
 	ThinkingLevel    string         `json:"thinking_level,omitempty"`
 	RespectGitignore *bool          `json:"respect_gitignore,omitempty"`
 	UI               *UISettings    `json:"ui,omitempty"`
 	Tools            map[string]any `json:"tools,omitempty"`
+
+	// CLI-only flags (not persisted).
+	Prompt      string `short:"p" json:"-" description:"Prompt to pass to the agent"`
+	Output      string `flag:"output" json:"-" description:"Output format: text or json"`
+	ToolsFlag   string `flag:"tools" json:"-" description:"Comma-separated tool allowlist"`
+	ToolsSet    bool   `json:"-" description:"True when --tools= was explicitly passed"`
+	SubagentID  string `flag:"subagent-id" json:"-" description:"Subagent ID for inter-agent communication"`
+	SandboxMode string `flag:"sandbox" json:"-" description:"Sandbox mode override"`
+	ModelFlag   string `flag:"model" json:"-" description:"Model override for this session"`
 }
 
 // UISettings holds UI-specific preferences.

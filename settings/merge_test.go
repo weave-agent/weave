@@ -211,13 +211,9 @@ func TestLoadLayeredSettings_AllLayers(t *testing.T) {
 	projectWeave := filepath.Join(projectDir, ".weave")
 	require.NoError(t, os.MkdirAll(projectWeave, 0o750))
 
-	projectSettings := Settings{
-		Model: "claude-opus-4-7",
-	}
-	writeJSON(t, filepath.Join(projectWeave, "settings.json"), &projectSettings)
-
 	localSettings := Settings{
-		UI: &UISettings{EditorMaxLines: 20},
+		Model: "claude-opus-4-7",
+		UI:    &UISettings{EditorMaxLines: 20},
 	}
 	writeJSON(t, filepath.Join(projectWeave, "settings.local.json"), &localSettings)
 
@@ -231,7 +227,7 @@ func TestLoadLayeredSettings_AllLayers(t *testing.T) {
 	assert.Equal(t, 20, result.UI.EditorMaxLines)
 }
 
-func TestLoadLayeredSettings_ProjectOverridesGlobal(t *testing.T) {
+func TestLoadLayeredSettings_LocalOverridesGlobal(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	globalDir := filepath.Join(home, ".weave")
@@ -246,7 +242,7 @@ func TestLoadLayeredSettings_ProjectOverridesGlobal(t *testing.T) {
 	projectWeave := filepath.Join(projectDir, ".weave")
 	require.NoError(t, os.MkdirAll(projectWeave, 0o750))
 
-	writeJSON(t, filepath.Join(projectWeave, "settings.json"), &Settings{
+	writeJSON(t, filepath.Join(projectWeave, "settings.local.json"), &Settings{
 		Provider: "openai",
 	})
 
@@ -257,18 +253,20 @@ func TestLoadLayeredSettings_ProjectOverridesGlobal(t *testing.T) {
 	assert.Equal(t, "medium", result.ThinkingLevel)
 }
 
-func TestLoadLayeredSettings_LocalOverridesProject(t *testing.T) {
+func TestLoadLayeredSettings_LocalOverridesGlobalValues(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	globalDir := filepath.Join(home, ".weave")
+	require.NoError(t, os.MkdirAll(globalDir, 0o750))
+
+	writeJSON(t, filepath.Join(globalDir, "settings.json"), &Settings{
+		ThinkingLevel: "medium",
+		UI:            &UISettings{EditorMaxLines: 30},
+	})
 
 	projectDir := t.TempDir()
 	projectWeave := filepath.Join(projectDir, ".weave")
 	require.NoError(t, os.MkdirAll(projectWeave, 0o750))
-
-	writeJSON(t, filepath.Join(projectWeave, "settings.json"), &Settings{
-		ThinkingLevel: "medium",
-		UI:            &UISettings{EditorMaxLines: 30},
-	})
 
 	writeJSON(t, filepath.Join(projectWeave, "settings.local.json"), &Settings{
 		ThinkingLevel: "high",
@@ -282,7 +280,7 @@ func TestLoadLayeredSettings_LocalOverridesProject(t *testing.T) {
 	assert.Equal(t, 30, result.UI.EditorMaxLines)
 }
 
-func TestLoadLayeredSettings_LocalWithoutProject(t *testing.T) {
+func TestLoadLayeredSettings_OnlyLocal(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
