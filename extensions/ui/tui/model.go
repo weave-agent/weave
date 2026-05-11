@@ -15,6 +15,7 @@ import (
 	"weave/ext/ui/tui/components/messages"
 	"weave/ext/ui/tui/components/overlays"
 	"weave/ext/ui/tui/palette"
+	"weave/extensions/sandbox"
 	"weave/internal/auth"
 	"weave/sdk"
 	sdkmodel "weave/sdk/model"
@@ -1496,7 +1497,7 @@ func (m Model) cycleSandboxMode() (tea.Model, tea.Cmd) {
 	}
 
 	current := sb.Mode()
-	next := sdk.NextSandboxMode(current)
+	next := sandbox.NextSandboxMode(current)
 	sb.SetMode(next)
 
 	if m.bus != nil {

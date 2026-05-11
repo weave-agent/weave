@@ -1177,7 +1177,7 @@ func TestLoop_SystemPromptWithSkills(t *testing.T) {
 	require.NoError(t, l.Subscribe(b))
 
 	skillsXML := "<available_skills>\n<skill>\n<name>test-skill</name>\n<description>A test skill</description>\n<location>/path/to/test-skill/SKILL.md</location>\n</skill>\n</available_skills>"
-	b.Publish(sdk.NewEvent(sdk.TopicSkillsLoaded, skillsXML))
+	b.Publish(sdk.NewEvent(TopicSkillsLoaded, skillsXML))
 
 	// Give the goroutine time to process the skills event before sending prompt
 	time.Sleep(50 * time.Millisecond)
@@ -1224,7 +1224,7 @@ func TestLoop_SkillsUpdateViaBus(t *testing.T) {
 
 	// First turn with initial skills
 	skillsV1 := "<available_skills><skill><name>v1</name></skill></available_skills>"
-	b.Publish(sdk.NewEvent(sdk.TopicSkillsLoaded, skillsV1))
+	b.Publish(sdk.NewEvent(TopicSkillsLoaded, skillsV1))
 
 	// Give the goroutine time to process the skills event before sending prompt
 	time.Sleep(50 * time.Millisecond)
@@ -1240,7 +1240,7 @@ func TestLoop_SkillsUpdateViaBus(t *testing.T) {
 
 	// Update skills before second turn
 	skillsV2 := "<available_skills><skill><name>v2</name></skill></available_skills>"
-	b.Publish(sdk.NewEvent(sdk.TopicSkillsLoaded, skillsV2))
+	b.Publish(sdk.NewEvent(TopicSkillsLoaded, skillsV2))
 
 	b.Publish(sdk.NewEvent(TopicFollowup, "second turn"))
 
@@ -1287,7 +1287,7 @@ func TestLoop_InstructionsOnlySystemPrompt(t *testing.T) {
 	require.NoError(t, l.Subscribe(b))
 
 	instructions := "# Project Context\n\nSome project instructions"
-	b.Publish(sdk.NewEvent(sdk.TopicInstructionsLoaded, instructions))
+	b.Publish(sdk.NewEvent(TopicInstructionsLoaded, instructions))
 
 	time.Sleep(50 * time.Millisecond)
 	b.Publish(sdk.NewEvent(TopicPrompt, "test"))
@@ -1336,8 +1336,8 @@ func TestLoop_InstructionsCombinedWithSkills(t *testing.T) {
 	instructions := "# Project Context\n\nSome instructions"
 	skillsXML := "<available_skills><skill><name>test</name></skill></available_skills>"
 
-	b.Publish(sdk.NewEvent(sdk.TopicInstructionsLoaded, instructions))
-	b.Publish(sdk.NewEvent(sdk.TopicSkillsLoaded, skillsXML))
+	b.Publish(sdk.NewEvent(TopicInstructionsLoaded, instructions))
+	b.Publish(sdk.NewEvent(TopicSkillsLoaded, skillsXML))
 
 	time.Sleep(50 * time.Millisecond)
 	b.Publish(sdk.NewEvent(TopicPrompt, "test"))
@@ -1385,7 +1385,7 @@ func TestLoop_InstructionsUpdateViaBus(t *testing.T) {
 	require.NoError(t, l.Subscribe(b))
 
 	instrV1 := "# Context v1"
-	b.Publish(sdk.NewEvent(sdk.TopicInstructionsLoaded, instrV1))
+	b.Publish(sdk.NewEvent(TopicInstructionsLoaded, instrV1))
 
 	time.Sleep(50 * time.Millisecond)
 	b.Publish(sdk.NewEvent(TopicPrompt, "first turn"))
@@ -1399,7 +1399,7 @@ func TestLoop_InstructionsUpdateViaBus(t *testing.T) {
 	mu.Unlock()
 
 	instrV2 := "# Context v2"
-	b.Publish(sdk.NewEvent(sdk.TopicInstructionsLoaded, instrV2))
+	b.Publish(sdk.NewEvent(TopicInstructionsLoaded, instrV2))
 
 	b.Publish(sdk.NewEvent(TopicFollowup, "second turn"))
 

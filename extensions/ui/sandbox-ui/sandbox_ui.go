@@ -1,6 +1,7 @@
 package sandboxui
 
 import (
+	"weave/extensions/sandbox"
 	"weave/sdk"
 )
 
@@ -40,7 +41,7 @@ func (s *SandboxUI) RegisterWithBus(ui sdk.UI, bus sdk.Bus) {
 func currentMode() string {
 	sb := sdk.GetSandboxer()
 	if sb == nil {
-		return sdk.SandboxOff
+		return sandbox.SandboxOff
 	}
 
 	return sb.Mode()

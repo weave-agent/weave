@@ -124,12 +124,12 @@ TUI extension defines its own config struct; core settings holds opaque data.
 
 Move extension-specific types out of `sdk/`.
 
-- [ ] Move `TopicSkillsLoaded` to `extensions/skills/`
-- [ ] Move `TopicInstructionsLoaded` to `extensions/instructions/`
-- [ ] Move sandbox mode constants (`SandboxOff`, etc.) and `NextSandboxMode()` to `extensions/sandbox/`
-- [ ] Move `SandboxModes` slice to `extensions/sandbox/`
-- [ ] Update all imports across codebase
-- [ ] Run `make test` — must pass
+- [x] Move `TopicSkillsLoaded` to `extensions/skills/`
+- [x] Move `TopicInstructionsLoaded` to `extensions/instructions/`
+- [x] Move sandbox mode constants (`SandboxOff`, etc.) and `NextSandboxMode()` to `extensions/sandbox/`
+- [x] Move `SandboxModes` slice to `extensions/sandbox/`
+- [x] Update all imports across codebase
+- [x] Run `make test` — must pass
 
 ### Task 8: Launcher cleanup
 

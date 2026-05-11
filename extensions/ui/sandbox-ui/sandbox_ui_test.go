@@ -3,6 +3,7 @@ package sandboxui
 import (
 	"testing"
 
+	"weave/extensions/sandbox"
 	"weave/sdk"
 
 	"github.com/stretchr/testify/assert"
@@ -104,7 +105,7 @@ func TestCurrentMode_NoSandboxer(t *testing.T) {
 	defer sdk.SetSandboxer(nil)
 
 	sdk.SetSandboxer(nil)
-	assert.Equal(t, sdk.SandboxOff, currentMode())
+	assert.Equal(t, sandbox.SandboxOff, currentMode())
 }
 
 func TestCurrentMode_WithSandboxer(t *testing.T) {

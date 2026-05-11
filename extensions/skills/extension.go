@@ -9,6 +9,9 @@ import (
 	"weave/sdk"
 )
 
+// TopicSkillsLoaded is the bus topic for when skills have been discovered and loaded.
+const TopicSkillsLoaded = "skills.loaded"
+
 type SkillsExtension struct {
 	cfg            sdk.Config
 	discoveryPaths []string
@@ -34,7 +37,7 @@ func (e *SkillsExtension) Subscribe(bus sdk.Bus) error {
 		bus.Publish(sdk.NewEvent("skills.error", err.Error()))
 	}
 
-	bus.Publish(sdk.NewEvent(sdk.TopicSkillsLoaded, formatSkillsPrompt(skills)))
+	bus.Publish(sdk.NewEvent(TopicSkillsLoaded, formatSkillsPrompt(skills)))
 
 	ui, err := sdk.GetUI("tui")
 	if err != nil {

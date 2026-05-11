@@ -14,6 +14,32 @@ import (
 	"weave/sdk"
 )
 
+// Sandbox modes.
+const (
+	SandboxOff      = "off"
+	SandboxReadonly = "readonly"
+	SandboxAsk      = "ask"
+	SandboxAuto     = "auto"
+)
+
+// SandboxModes is the ordered cycle of sandbox modes.
+var SandboxModes = []string{SandboxOff, SandboxReadonly, SandboxAsk, SandboxAuto}
+
+// NextSandboxMode returns the next mode in the cycle order.
+func NextSandboxMode(current string) string {
+	for i, m := range SandboxModes {
+		if m == current {
+			if i+1 < len(SandboxModes) {
+				return SandboxModes[i+1]
+			}
+
+			return SandboxModes[0]
+		}
+	}
+
+	return SandboxModes[0]
+}
+
 // SandboxConfig holds user-configurable sandbox settings loaded via gonfig.
 type SandboxConfig struct {
 	Mode      string   `json:"mode" default:"auto" description:"Sandbox mode: off, readonly, ask, auto"`
@@ -63,7 +89,7 @@ func NewSandbox(cfg sdk.Config) (*Sandbox, error) {
 
 	sc := c.Sandbox
 	if sc.Mode == "" {
-		sc.Mode = sdk.SandboxAuto
+		sc.Mode = SandboxAuto
 	}
 
 	headless := cfg == nil || cfg.IsHeadless()
@@ -95,7 +121,7 @@ func (s *Sandbox) Subscribe(bus sdk.Bus) error {
 		s.mu.Lock()
 		s.cfg.Mode = mode
 
-		if mode != sdk.SandboxAsk {
+		if mode != SandboxAsk {
 			for _, p := range s.pending {
 				select {
 				case p.result <- false:
@@ -202,13 +228,13 @@ func (s *Sandbox) WrapCommand(cmd, dir string) (string, error) {
 	s.mu.RUnlock()
 
 	switch cfg.Mode {
-	case sdk.SandboxOff:
+	case SandboxOff:
 		return cmd, nil
-	case sdk.SandboxAuto:
+	case SandboxAuto:
 		return wrapCommandPlatformWithConfig(cmd, dir, cfg)
-	case sdk.SandboxReadonly:
+	case SandboxReadonly:
 		return s.wrapCommandReadonly(cmd, dir)
-	case sdk.SandboxAsk:
+	case SandboxAsk:
 		return s.wrapCommandAsk(cmd)
 	default:
 		return cmd, nil
@@ -221,11 +247,11 @@ func (s *Sandbox) AllowWrite(path string) bool {
 	cfg := s.cfg
 	s.mu.RUnlock()
 
-	if cfg.Mode == sdk.SandboxOff {
+	if cfg.Mode == SandboxOff {
 		return true
 	}
 
-	if cfg.Mode == sdk.SandboxReadonly {
+	if cfg.Mode == SandboxReadonly {
 		return false
 	}
 
@@ -248,7 +274,7 @@ func (s *Sandbox) AllowWrite(path string) bool {
 	}
 
 	// Ask mode: enforce writable-path policy, then prompt in interactive.
-	if cfg.Mode == sdk.SandboxAsk {
+	if cfg.Mode == SandboxAsk {
 		if s.headless {
 			return false
 		}
@@ -292,7 +318,7 @@ func (s *Sandbox) AllowRead(path string) bool {
 	cfg := s.cfg
 	s.mu.RUnlock()
 
-	if cfg.Mode == sdk.SandboxOff {
+	if cfg.Mode == SandboxOff {
 		return true
 	}
 
@@ -466,7 +492,7 @@ func (s *Sandbox) SetMode(mode string) {
 	s.mu.Lock()
 	s.cfg.Mode = mode
 
-	if mode != sdk.SandboxAsk {
+	if mode != SandboxAsk {
 		for _, p := range s.pending {
 			select {
 			case p.result <- false:
@@ -482,7 +508,7 @@ func (s *Sandbox) SetMode(mode string) {
 
 func isValidMode(mode string) bool {
 	switch mode {
-	case sdk.SandboxOff, sdk.SandboxReadonly, sdk.SandboxAsk, sdk.SandboxAuto:
+	case SandboxOff, SandboxReadonly, SandboxAsk, SandboxAuto:
 		return true
 	default:
 		return false

@@ -4,17 +4,6 @@ import "sync"
 
 //go:generate moq -fmt goimports -out sandbox_mock_test.go . Sandboxer
 
-// Sandbox modes.
-const (
-	SandboxOff      = "off"
-	SandboxReadonly = "readonly"
-	SandboxAsk      = "ask"
-	SandboxAuto     = "auto"
-)
-
-// SandboxModes is the ordered cycle of sandbox modes.
-var SandboxModes = []string{SandboxOff, SandboxReadonly, SandboxAsk, SandboxAuto}
-
 // Sandboxer wraps tool execution with OS-level sandboxing and path-based
 // access policy. Extensions register a Sandboxer via SetSandboxer; tools
 // query it via GetSandboxer (nil-safe).
@@ -54,19 +43,4 @@ func GetSandboxer() Sandboxer {
 	defer sandboxerMu.RUnlock()
 
 	return sandboxer
-}
-
-// NextSandboxMode returns the next mode in the cycle order.
-func NextSandboxMode(current string) string {
-	for i, m := range SandboxModes {
-		if m == current {
-			if i+1 < len(SandboxModes) {
-				return SandboxModes[i+1]
-			}
-
-			return SandboxModes[0]
-		}
-	}
-
-	return SandboxModes[0]
 }

@@ -55,7 +55,7 @@ func TestNewSandbox_DefaultConfig(t *testing.T) {
 
 	require.NotNil(t, s)
 	assert.Equal(t, "sandbox", s.Name())
-	assert.Equal(t, sdk.SandboxAuto, s.Mode())
+	assert.Equal(t, SandboxAuto, s.Mode())
 
 	assert.Equal(t, s, sdk.GetSandboxer())
 }
@@ -72,7 +72,7 @@ func TestNewSandbox_SetsGlobalSandboxer(t *testing.T) {
 }
 
 func TestSandbox_ModeOff_WrapCommand(t *testing.T) {
-	s := &Sandbox{cfg: SandboxConfig{Mode: sdk.SandboxOff}}
+	s := &Sandbox{cfg: SandboxConfig{Mode: SandboxOff}}
 
 	wrapped, err := s.WrapCommand("ls -la", "/tmp")
 	require.NoError(t, err)
@@ -80,14 +80,14 @@ func TestSandbox_ModeOff_WrapCommand(t *testing.T) {
 }
 
 func TestSandbox_ModeOff_AllowWrite(t *testing.T) {
-	s := &Sandbox{cfg: SandboxConfig{Mode: sdk.SandboxOff}}
+	s := &Sandbox{cfg: SandboxConfig{Mode: SandboxOff}}
 
 	assert.True(t, s.AllowWrite("/any/path"))
 	assert.True(t, s.AllowWrite("~/.ssh/config"))
 }
 
 func TestSandbox_ModeOff_AllowRead(t *testing.T) {
-	s := &Sandbox{cfg: SandboxConfig{Mode: sdk.SandboxOff}}
+	s := &Sandbox{cfg: SandboxConfig{Mode: SandboxOff}}
 
 	assert.True(t, s.AllowRead("/any/path"))
 	assert.True(t, s.AllowRead("~/.ssh/id_rsa"))
@@ -95,7 +95,7 @@ func TestSandbox_ModeOff_AllowRead(t *testing.T) {
 
 func TestSandbox_ModeAuto_AllowWrite_MandatoryDeny(t *testing.T) {
 	s := &Sandbox{cfg: SandboxConfig{
-		Mode:     sdk.SandboxAuto,
+		Mode:     SandboxAuto,
 		Writable: []string{"."},
 	}}
 
@@ -110,7 +110,7 @@ func TestSandbox_ModeAuto_AllowWrite_MandatoryDeny(t *testing.T) {
 
 func TestSandbox_ModeAuto_AllowRead_MandatoryDeny(t *testing.T) {
 	s := &Sandbox{cfg: SandboxConfig{
-		Mode:     sdk.SandboxAuto,
+		Mode:     SandboxAuto,
 		Writable: []string{"."},
 	}}
 
@@ -125,7 +125,7 @@ func TestSandbox_ModeAuto_AllowRead_MandatoryDeny(t *testing.T) {
 
 func TestSandbox_ModeAuto_AllowWrite_WritablePaths(t *testing.T) {
 	s := &Sandbox{cfg: SandboxConfig{
-		Mode:     sdk.SandboxAuto,
+		Mode:     SandboxAuto,
 		Writable: []string{"/project"},
 	}}
 
@@ -136,7 +136,7 @@ func TestSandbox_ModeAuto_AllowWrite_WritablePaths(t *testing.T) {
 
 func TestSandbox_ModeAuto_AllowWrite_DenyWriteOverrides(t *testing.T) {
 	s := &Sandbox{cfg: SandboxConfig{
-		Mode:      sdk.SandboxAuto,
+		Mode:      SandboxAuto,
 		Writable:  []string{"/project"},
 		DenyWrite: []string{"/project/secret"},
 	}}
@@ -147,7 +147,7 @@ func TestSandbox_ModeAuto_AllowWrite_DenyWriteOverrides(t *testing.T) {
 
 func TestSandbox_ModeAuto_AllowRead_DenyReadOverrides(t *testing.T) {
 	s := &Sandbox{cfg: SandboxConfig{
-		Mode:     sdk.SandboxAuto,
+		Mode:     SandboxAuto,
 		DenyRead: []string{"/project/secrets"},
 	}}
 
@@ -158,7 +158,7 @@ func TestSandbox_ModeAuto_AllowRead_DenyReadOverrides(t *testing.T) {
 func TestSandbox_ModeAuto_AllowWrite_NoWritableConfig(t *testing.T) {
 	cwd, _ := os.Getwd()
 	s := &Sandbox{
-		cfg: SandboxConfig{Mode: sdk.SandboxAuto},
+		cfg: SandboxConfig{Mode: SandboxAuto},
 		cwd: cwd,
 	}
 
@@ -167,7 +167,7 @@ func TestSandbox_ModeAuto_AllowWrite_NoWritableConfig(t *testing.T) {
 }
 
 func TestSandbox_Subscribe_ModeChange(t *testing.T) {
-	s := &Sandbox{cfg: SandboxConfig{Mode: sdk.SandboxAuto}}
+	s := &Sandbox{cfg: SandboxConfig{Mode: SandboxAuto}}
 	bus := newStubBus()
 
 	err := s.Subscribe(bus)
@@ -176,15 +176,15 @@ func TestSandbox_Subscribe_ModeChange(t *testing.T) {
 	handler, ok := bus.handlers["sandbox.mode.change"]
 	require.True(t, ok, "expected handler for sandbox.mode.change")
 
-	require.NoError(t, handler(sdk.NewEvent("sandbox.mode.change", sdk.SandboxReadonly)))
-	assert.Equal(t, sdk.SandboxReadonly, s.Mode())
+	require.NoError(t, handler(sdk.NewEvent("sandbox.mode.change", SandboxReadonly)))
+	assert.Equal(t, SandboxReadonly, s.Mode())
 
-	require.NoError(t, handler(sdk.NewEvent("sandbox.mode.change", sdk.SandboxOff)))
-	assert.Equal(t, sdk.SandboxOff, s.Mode())
+	require.NoError(t, handler(sdk.NewEvent("sandbox.mode.change", SandboxOff)))
+	assert.Equal(t, SandboxOff, s.Mode())
 }
 
 func TestSandbox_Subscribe_InvalidPayload(t *testing.T) {
-	s := &Sandbox{cfg: SandboxConfig{Mode: sdk.SandboxAuto}}
+	s := &Sandbox{cfg: SandboxConfig{Mode: SandboxAuto}}
 	bus := newStubBus()
 
 	err := s.Subscribe(bus)
@@ -194,35 +194,35 @@ func TestSandbox_Subscribe_InvalidPayload(t *testing.T) {
 	require.True(t, ok)
 
 	require.NoError(t, handler(sdk.NewEvent("sandbox.mode.change", 42)))
-	assert.Equal(t, sdk.SandboxAuto, s.Mode())
+	assert.Equal(t, SandboxAuto, s.Mode())
 }
 
 func TestSandbox_Close(t *testing.T) {
-	s := &Sandbox{cfg: SandboxConfig{Mode: sdk.SandboxAuto}}
+	s := &Sandbox{cfg: SandboxConfig{Mode: SandboxAuto}}
 	assert.NoError(t, s.Close())
 }
 
 func TestSandbox_SetMode(t *testing.T) {
-	s := &Sandbox{cfg: SandboxConfig{Mode: sdk.SandboxAuto}}
+	s := &Sandbox{cfg: SandboxConfig{Mode: SandboxAuto}}
 
-	s.SetMode(sdk.SandboxReadonly)
-	assert.Equal(t, sdk.SandboxReadonly, s.Mode())
+	s.SetMode(SandboxReadonly)
+	assert.Equal(t, SandboxReadonly, s.Mode())
 
-	s.SetMode(sdk.SandboxAsk)
-	assert.Equal(t, sdk.SandboxAsk, s.Mode())
+	s.SetMode(SandboxAsk)
+	assert.Equal(t, SandboxAsk, s.Mode())
 }
 
 // --- Mode-specific WrapCommand tests ---
 
 func TestWrapCommand_ModeOff_ReturnsUnchanged(t *testing.T) {
-	s := &Sandbox{cfg: SandboxConfig{Mode: sdk.SandboxOff}}
+	s := &Sandbox{cfg: SandboxConfig{Mode: SandboxOff}}
 	wrapped, err := s.WrapCommand("rm -rf /", "/tmp")
 	require.NoError(t, err)
 	assert.Equal(t, "rm -rf /", wrapped)
 }
 
 func TestWrapCommand_ModeAuto_WrapsPlatform(t *testing.T) {
-	s := &Sandbox{cfg: SandboxConfig{Mode: sdk.SandboxAuto, Network: true}}
+	s := &Sandbox{cfg: SandboxConfig{Mode: SandboxAuto, Network: true}}
 	wrapped, err := s.WrapCommand("ls -la", "/tmp")
 	require.NoError(t, err)
 	// On darwin, should be wrapped with sandbox-exec if available
@@ -232,7 +232,7 @@ func TestWrapCommand_ModeAuto_WrapsPlatform(t *testing.T) {
 
 func TestWrapCommand_ModeReadonly_WrapsWithNoWritable(t *testing.T) {
 	s := &Sandbox{cfg: SandboxConfig{
-		Mode:     sdk.SandboxReadonly,
+		Mode:     SandboxReadonly,
 		Writable: []string{"/project"},
 		Network:  true,
 	}}
@@ -248,7 +248,7 @@ func TestWrapCommand_ModeReadonly_WrapsWithNoWritable(t *testing.T) {
 
 func TestWrapCommand_ModeReadonly_BlocksAllWrites(t *testing.T) {
 	s := &Sandbox{cfg: SandboxConfig{
-		Mode:     sdk.SandboxReadonly,
+		Mode:     SandboxReadonly,
 		Writable: []string{"/project"},
 	}}
 	assert.False(t, s.AllowWrite("/project/file.go"), "readonly should block all writes")
@@ -258,7 +258,7 @@ func TestWrapCommand_ModeReadonly_BlocksAllWrites(t *testing.T) {
 
 func TestWrapCommand_ModeReadonly_AllowsRead(t *testing.T) {
 	s := &Sandbox{cfg: SandboxConfig{
-		Mode:     sdk.SandboxReadonly,
+		Mode:     SandboxReadonly,
 		Writable: []string{"/project"},
 	}}
 	assert.True(t, s.AllowRead("/project/main.go"))
@@ -266,14 +266,14 @@ func TestWrapCommand_ModeReadonly_AllowsRead(t *testing.T) {
 }
 
 func TestWrapCommand_ModeAsk_Headless_Denies(t *testing.T) {
-	s := &Sandbox{cfg: SandboxConfig{Mode: sdk.SandboxAsk}, headless: true}
+	s := &Sandbox{cfg: SandboxConfig{Mode: SandboxAsk}, headless: true}
 	_, err := s.WrapCommand("rm -rf /", "/tmp")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "headless mode")
 }
 
 func TestWrapCommand_ModeAsk_NoBus_Denies(t *testing.T) {
-	s := &Sandbox{cfg: SandboxConfig{Mode: sdk.SandboxAsk}, headless: false}
+	s := &Sandbox{cfg: SandboxConfig{Mode: SandboxAsk}, headless: false}
 	_, err := s.WrapCommand("echo hello", "/tmp")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "bus not available")
@@ -281,7 +281,7 @@ func TestWrapCommand_ModeAsk_NoBus_Denies(t *testing.T) {
 
 func TestWrapCommand_ModeAsk_Approved(t *testing.T) {
 	bus := newStubBus()
-	s := &Sandbox{cfg: SandboxConfig{Mode: sdk.SandboxAsk}, headless: false}
+	s := &Sandbox{cfg: SandboxConfig{Mode: SandboxAsk}, headless: false}
 	s.bus = bus
 
 	// Use Subscribe to register approval handlers on the bus.
@@ -329,7 +329,7 @@ func TestWrapCommand_ModeAsk_Approved(t *testing.T) {
 
 func TestWrapCommand_ModeAsk_Denied(t *testing.T) {
 	bus := newStubBus()
-	s := &Sandbox{cfg: SandboxConfig{Mode: sdk.SandboxAsk}, headless: false}
+	s := &Sandbox{cfg: SandboxConfig{Mode: SandboxAsk}, headless: false}
 	s.bus = bus
 
 	require.NoError(t, s.Subscribe(bus))
@@ -372,7 +372,7 @@ func TestWrapCommand_ModeAsk_Denied(t *testing.T) {
 
 func TestWrapCommand_ModeAsk_PublishesCommandEvent(t *testing.T) {
 	bus := newStubBus()
-	s := &Sandbox{cfg: SandboxConfig{Mode: sdk.SandboxAsk}, headless: false}
+	s := &Sandbox{cfg: SandboxConfig{Mode: SandboxAsk}, headless: false}
 	s.bus = bus
 
 	require.NoError(t, s.Subscribe(bus))
@@ -411,7 +411,7 @@ func TestWrapCommand_ModeAsk_PublishesCommandEvent(t *testing.T) {
 }
 
 func TestSandbox_Subscribe_ApprovalHandlers(t *testing.T) {
-	s := &Sandbox{cfg: SandboxConfig{Mode: sdk.SandboxAsk}, headless: false}
+	s := &Sandbox{cfg: SandboxConfig{Mode: SandboxAsk}, headless: false}
 	bus := newStubBus()
 
 	err := s.Subscribe(bus)
@@ -619,7 +619,7 @@ func TestSandbox_ModeAsk_DenyWriteOverridesApproval(t *testing.T) {
 	bus := newStubBus()
 	s := &Sandbox{
 		cfg: SandboxConfig{
-			Mode:      sdk.SandboxAsk,
+			Mode:      SandboxAsk,
 			DenyWrite: []string{"/project/secret"},
 		},
 		headless: false,

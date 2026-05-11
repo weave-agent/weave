@@ -15,6 +15,7 @@ import (
 	"weave/ext/ui/tui/components/attachments"
 	"weave/ext/ui/tui/components/messages"
 	"weave/ext/ui/tui/components/overlays"
+	"weave/extensions/sandbox"
 	"weave/sdk"
 	sdkmodel "weave/sdk/model"
 
@@ -2239,7 +2240,7 @@ func addTestAttachment(m Model, path, content string, lines int) Model {
 func TestModel_CycleSandboxMode(t *testing.T) {
 	defer sdk.SetSandboxer(nil)
 
-	sb := &mockSandboxer{mode: sdk.SandboxAuto}
+	sb := &mockSandboxer{mode: sandbox.SandboxAuto}
 	sdk.SetSandboxer(sb)
 
 	m := newModel(nil, nil, nil)
@@ -2249,13 +2250,13 @@ func TestModel_CycleSandboxMode(t *testing.T) {
 	model, _ := m.dispatchBinding(ActionSandboxCycle)
 	m = model.(Model)
 
-	assert.Equal(t, sdk.SandboxOff, sb.mode, "auto -> off")
+	assert.Equal(t, sandbox.SandboxOff, sb.mode, "auto -> off")
 	assert.Contains(t, m.statusMsg, "Sandbox mode: off")
 
 	model, _ = m.dispatchBinding(ActionSandboxCycle)
 	m = model.(Model)
 
-	assert.Equal(t, sdk.SandboxReadonly, sb.mode, "off -> readonly")
+	assert.Equal(t, sandbox.SandboxReadonly, sb.mode, "off -> readonly")
 	assert.Contains(t, m.statusMsg, "Sandbox mode: readonly")
 }
 
@@ -2280,7 +2281,7 @@ func TestModel_CycleSandboxMode_UpdatesMode(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	sb := &mockSandboxer{mode: sdk.SandboxAuto}
+	sb := &mockSandboxer{mode: sandbox.SandboxAuto}
 	sdk.SetSandboxer(sb)
 
 	m := newModel(b, nil, nil)
@@ -2290,15 +2291,15 @@ func TestModel_CycleSandboxMode_UpdatesMode(t *testing.T) {
 	model, _ := m.dispatchBinding(ActionSandboxCycle)
 	_ = model.(Model)
 
-	assert.Equal(t, sdk.SandboxOff, sb.mode)
+	assert.Equal(t, sandbox.SandboxOff, sb.mode)
 }
 
 func TestNextSandboxMode(t *testing.T) {
-	assert.Equal(t, sdk.SandboxReadonly, sdk.NextSandboxMode(sdk.SandboxOff))
-	assert.Equal(t, sdk.SandboxAsk, sdk.NextSandboxMode(sdk.SandboxReadonly))
-	assert.Equal(t, sdk.SandboxAuto, sdk.NextSandboxMode(sdk.SandboxAsk))
-	assert.Equal(t, sdk.SandboxOff, sdk.NextSandboxMode(sdk.SandboxAuto))
-	assert.Equal(t, sdk.SandboxOff, sdk.NextSandboxMode("unknown"))
+	assert.Equal(t, sandbox.SandboxReadonly, sandbox.NextSandboxMode(sandbox.SandboxOff))
+	assert.Equal(t, sandbox.SandboxAsk, sandbox.NextSandboxMode(sandbox.SandboxReadonly))
+	assert.Equal(t, sandbox.SandboxAuto, sandbox.NextSandboxMode(sandbox.SandboxAsk))
+	assert.Equal(t, sandbox.SandboxOff, sandbox.NextSandboxMode(sandbox.SandboxAuto))
+	assert.Equal(t, sandbox.SandboxOff, sandbox.NextSandboxMode("unknown"))
 }
 
 type mockSandboxer struct {

@@ -9,6 +9,9 @@ import (
 
 //go:generate moq -fmt goimports -skip-ensure -pkg instructions -out mock_test.go ../../sdk Bus
 
+// TopicInstructionsLoaded is the bus topic for when instructions have been discovered and loaded.
+const TopicInstructionsLoaded = "instructions.loaded"
+
 type InstructionsExtension struct {
 	cfg sdk.Config
 }
@@ -39,7 +42,7 @@ func (e *InstructionsExtension) Subscribe(bus sdk.Bus) error {
 	systemBase, systemAppend := loadSystemPrompt(projectDir, globalDir)
 	prompt := formatInstructionsPrompt(contextFiles, systemBase, systemAppend)
 
-	bus.Publish(sdk.NewEvent(sdk.TopicInstructionsLoaded, prompt))
+	bus.Publish(sdk.NewEvent(TopicInstructionsLoaded, prompt))
 
 	return nil
 }

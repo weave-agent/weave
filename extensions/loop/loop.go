@@ -32,6 +32,9 @@ const (
 	TopicModelChange       = "model.change"
 	TopicModelChangeFailed = "model.change_failed"
 	TopicThinkingChange    = "thinking.change"
+
+	TopicSkillsLoaded       = "skills.loaded"
+	TopicInstructionsLoaded = "instructions.loaded"
 )
 
 // Loop is the agent-loop extension that drives the LLM conversation cycle.
@@ -182,9 +185,9 @@ func (l *Loop) Subscribe(bus sdk.Bus) error {
 			ch = modelChangeCh
 		case TopicThinkingChange:
 			ch = thinkingCh
-		case sdk.TopicSkillsLoaded:
+		case TopicSkillsLoaded:
 			ch = skillsCh
-		case sdk.TopicInstructionsLoaded:
+		case TopicInstructionsLoaded:
 			ch = instructionsCh
 		}
 

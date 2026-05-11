@@ -276,7 +276,7 @@ func TestSubscribe_PublishesInstructionsLoaded(t *testing.T) {
 
 	require.Len(t, bus.PublishCalls(), 1)
 	call := bus.PublishCalls()[0]
-	assert.Equal(t, sdk.TopicInstructionsLoaded, call.Event.Topic)
+	assert.Equal(t, TopicInstructionsLoaded, call.Event.Topic)
 
 	payload, ok := call.Event.Payload.(string)
 	require.True(t, ok, "payload should be a string")
@@ -303,6 +303,6 @@ func TestSubscribe_NoFilesPublishesEmpty(t *testing.T) {
 
 	require.Len(t, bus.PublishCalls(), 1)
 	call := bus.PublishCalls()[0]
-	assert.Equal(t, sdk.TopicInstructionsLoaded, call.Event.Topic)
+	assert.Equal(t, TopicInstructionsLoaded, call.Event.Topic)
 	assert.Empty(t, call.Event.Payload)
 }

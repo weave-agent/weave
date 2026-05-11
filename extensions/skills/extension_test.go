@@ -41,7 +41,7 @@ func TestSkillsExtension_Subscribe_DiscoversSkills(t *testing.T) {
 
 	require.Len(t, bus.PublishCalls(), 1)
 	call := bus.PublishCalls()[0]
-	assert.Equal(t, sdk.TopicSkillsLoaded, call.Event.Topic)
+	assert.Equal(t, TopicSkillsLoaded, call.Event.Topic)
 	assert.Contains(t, call.Event.Payload.(string), "<name>test-skill</name>")
 }
 
@@ -88,7 +88,7 @@ func TestSkillsExtension_Subscribe_HeadlessMode(t *testing.T) {
 	require.NoError(t, ext.Subscribe(bus))
 
 	require.Len(t, bus.PublishCalls(), 1)
-	assert.Equal(t, sdk.TopicSkillsLoaded, bus.PublishCalls()[0].Event.Topic)
+	assert.Equal(t, TopicSkillsLoaded, bus.PublishCalls()[0].Event.Topic)
 }
 
 func TestSkillsExtension_Subscribe_ProjectLocalSkills(t *testing.T) {
