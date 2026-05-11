@@ -314,6 +314,8 @@ func TestGenerateMainGo_Content(t *testing.T) {
 	assert.Contains(t, s, "--weave-model=")
 	assert.Contains(t, s, "--weave-messaging=")
 	assert.Contains(t, s, "WEAVE_MESSAGING")
+	assert.Contains(t, s, "os.Unsetenv(\"WEAVE_SUBAGENT_ID\")")
+	assert.Contains(t, s, "os.Unsetenv(\"WEAVE_MESSAGING\")")
 	assert.Contains(t, s, "fullCfg.SetProjectDir(projectDir)")
 	assert.Contains(t, s, "sdk.HeadlessConfig")
 	assert.Contains(t, s, "sdk.SetToolFilter")
@@ -331,6 +333,9 @@ func TestGenerateMainGo_Content(t *testing.T) {
 	assert.Contains(t, s, `"agent.tool_call"`)
 	assert.Contains(t, s, `"agent.tool_result"`)
 	assert.Contains(t, s, `"model.change"`)
+	assert.Contains(t, s, `jsonQueue = make(chan map[string]any, 10000)`)
+	assert.Contains(t, s, `jsonWg.Wait()`)
+	assert.Contains(t, s, `close(jsonQueue)`)
 }
 
 func TestGenerateMainGo_CustomSubagentNotTreatedAsBuiltin(t *testing.T) {
