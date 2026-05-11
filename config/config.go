@@ -59,6 +59,7 @@ type File struct {
 	// CLI-only flags (not read from config file).
 	Output      string `flag:"output" yaml:"-" json:"-" description:"Output format: text (default) or json"`
 	Tools       string `flag:"tools" yaml:"-" json:"-" description:"Comma-separated tool allowlist"`
+	ToolsSet    bool   `yaml:"-" json:"-" description:"True when --tools= was explicitly passed"`
 	SubagentID  string `flag:"subagent-id" yaml:"-" json:"-" description:"Subagent ID for inter-agent communication"`
 	SandboxMode string `flag:"sandbox" yaml:"-" json:"-" description:"Sandbox mode override: off, readonly, ask, auto"`
 	Model       string `flag:"model" yaml:"-" json:"-" description:"Model override for this session"`
@@ -283,6 +284,14 @@ func LoadFromDir(dir string, args []string) (string, *File, []string, error) {
 		gonfig.WithRemainingArgs(&rest),
 	); err != nil {
 		return "", nil, nil, fmt.Errorf("load config: %w", err)
+	}
+
+	// Detect explicitly empty --tools= so the launcher can forward it.
+	for _, a := range args {
+		if strings.HasPrefix(a, "--tools=") || a == "--tools" {
+			f.ToolsSet = true
+			break
+		}
 	}
 
 	configDir := filepath.Dir(path)

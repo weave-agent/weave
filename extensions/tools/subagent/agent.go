@@ -115,7 +115,7 @@ func parseTools(s string) []string {
 	if strings.Contains(s, ",") {
 		parts := strings.Split(s, ",")
 
-		var out []string
+		out := make([]string, 0, len(parts))
 
 		for _, p := range parts {
 			p = strings.TrimSpace(p)
@@ -127,7 +127,12 @@ func parseTools(s string) []string {
 		return out
 	}
 	// Fallback to whitespace-separated.
-	return strings.Fields(s)
+	result := strings.Fields(s)
+	if result == nil {
+		return []string{}
+	}
+
+	return result
 }
 
 // parseToolsField normalizes the Tools frontmatter field which may be a
@@ -138,15 +143,11 @@ func parseToolsField(v any) []string {
 	}
 
 	if s, ok := v.(string); ok {
-		if s == "" {
-			return nil
-		}
-
 		return parseTools(s)
 	}
 
 	if arr, ok := v.([]any); ok {
-		var out []string
+		out := make([]string, 0, len(arr))
 
 		for _, item := range arr {
 			if s, ok := item.(string); ok && s != "" {
@@ -157,5 +158,5 @@ func parseToolsField(v any) []string {
 		return out
 	}
 
-	return nil
+	return []string{}
 }

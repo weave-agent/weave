@@ -182,6 +182,56 @@ tools: read , grep , find
 	assert.Equal(t, []string{"read", "grep", "find"}, agent.Tools)
 }
 
+func TestParseAgent_EmptyToolsExplicitlyBlocksAll(t *testing.T) {
+	cases := []struct {
+		name  string
+		tools string
+	}{
+		{"comma_only", "tools: \",\"\n"},
+		{"empty_array", "tools: []\n"},
+		{"array_with_empty_string", "tools: [\"\"]\n"},
+		{"empty_string", "tools: \"\"\n"},
+		{"whitespace_only", "tools: \"   \"\n"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			data := []byte("---\nname: test\ndescription: Test\n" + tc.tools + "---\n")
+
+			agent, err := ParseAgent(data)
+			require.NoError(t, err)
+			assert.Empty(t, agent.Tools)
+			assert.NotNil(t, agent.Tools, "Tools should be non-nil empty slice, not nil")
+		})
+	}
+}
+
+func TestParseAgent_InvalidToolsTypeBlocksAll(t *testing.T) {
+	data := []byte(`---
+name: test
+description: Test
+tools: 123
+---
+`)
+
+	agent, err := ParseAgent(data)
+	require.NoError(t, err)
+	assert.Empty(t, agent.Tools)
+	assert.NotNil(t, agent.Tools, "Tools should be non-nil empty slice for invalid type, not nil")
+}
+
+func TestParseAgent_OmittedToolsIsNil(t *testing.T) {
+	data := []byte(`---
+name: test
+description: Test
+---
+`)
+
+	agent, err := ParseAgent(data)
+	require.NoError(t, err)
+	assert.Nil(t, agent.Tools, "Omitted tools field should be nil")
+}
+
 func TestParseAgent_InvalidSandbox(t *testing.T) {
 	data := []byte(`---
 name: badbox

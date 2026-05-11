@@ -21,10 +21,11 @@ func GetTool(name string, cfg Config) (Tool, error) {
 	toolFilterMu.RLock()
 
 	filter := toolFilter
+	active := toolFilter != nil
 
 	toolFilterMu.RUnlock()
 
-	if len(filter) > 0 && !filter[name] {
+	if active && !filter[name] {
 		return nil, fmt.Errorf("tool %q not in allowed list", name)
 	}
 
@@ -49,6 +50,11 @@ func SetToolFilter(names []string) {
 	toolFilterMu.Lock()
 	defer toolFilterMu.Unlock()
 
+	if names == nil {
+		toolFilter = nil
+		return
+	}
+
 	toolFilter = make(map[string]bool, len(names))
 	for _, name := range names {
 		toolFilter[name] = true
@@ -59,11 +65,12 @@ func ListTools() []string {
 	toolFilterMu.RLock()
 
 	filter := toolFilter
+	active := toolFilter != nil
 
 	toolFilterMu.RUnlock()
 
 	all := toolReg.List()
-	if len(filter) == 0 {
+	if !active {
 		return all
 	}
 

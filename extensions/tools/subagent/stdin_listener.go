@@ -30,6 +30,7 @@ type stdinListener struct {
 	mu     sync.Mutex
 	respCh chan string // channel for list_agents_response delivery
 
+	ctx    context.Context
 	cancel context.CancelFunc
 	done   chan struct{}
 }
@@ -54,10 +55,11 @@ func startStdinListener(bus sdk.Bus) {
 		return
 	}
 
-	_, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 	sl := &stdinListener{
 		bus:    bus,
 		reader: stdinReader,
+		ctx:    ctx,
 		cancel: cancel,
 		done:   make(chan struct{}),
 	}
@@ -66,8 +68,9 @@ func startStdinListener(bus sdk.Bus) {
 	go sl.run()
 }
 
-// stopStdinListener stops the stdin listener. It uses a timeout because
-// the scanner may be blocked reading from stdin with no cancellation mechanism.
+// stopStdinListener stops the stdin listener. The context cancel unblocks
+// run() immediately; the scanner goroutine will exit when the parent closes
+// the child's stdin pipe after process shutdown.
 func stopStdinListener() {
 	stdinListenerMu.Lock()
 	sl := stdinListenerInst
@@ -76,11 +79,7 @@ func stopStdinListener() {
 
 	if sl != nil {
 		sl.cancel()
-
-		select {
-		case <-sl.done:
-		case <-time.After(2 * time.Second):
-		}
+		<-sl.done
 	}
 }
 
@@ -89,13 +88,38 @@ func (sl *stdinListener) run() {
 	defer close(sl.done)
 
 	scanner := bufio.NewScanner(sl.reader)
+	// Increase buffer capacity to handle large JSON lines (e.g. agent_msg
+	// or inject events with large content). Default 64 KiB is too small.
+	const maxCapacity = 10 * 1024 * 1024 // 10 MB
 
-	for scanner.Scan() {
-		sl.handleLine(strings.TrimSpace(scanner.Text()))
-	}
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, maxCapacity)
 
-	if err := scanner.Err(); err != nil {
-		log.Printf("stdin listener: scanner error: %v", err)
+	scanDone := make(chan struct{})
+	go func() {
+		defer close(scanDone)
+
+		for scanner.Scan() {
+			sl.handleLine(strings.TrimSpace(scanner.Text()))
+		}
+	}()
+
+	select {
+	case <-scanDone:
+		if err := scanner.Err(); err != nil {
+			log.Printf("stdin listener: scanner error: %v", err)
+		}
+	case <-sl.ctx.Done():
+		// Give the scanner a brief moment to finish if stdin was just
+		// closed. In tests the pipe closes before stopStdinListener,
+		// so scanDone typically fires within microseconds.
+		select {
+		case <-scanDone:
+			if err := scanner.Err(); err != nil {
+				log.Printf("stdin listener: scanner error: %v", err)
+			}
+		case <-time.After(50 * time.Millisecond):
+		}
 	}
 }
 

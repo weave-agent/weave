@@ -180,6 +180,27 @@ func TestComputeHash_HeadlessDiffers(t *testing.T) {
 	assert.NotEqual(t, h1, h2, "headless flag must affect hash")
 }
 
+func TestComputeHash_MdFilesChangeHash(t *testing.T) {
+	dir := t.TempDir()
+
+	f := filepath.Join(dir, "ext.go")
+	require.NoError(t, os.WriteFile(f, []byte("package ext"), 0o600))
+
+	exts := []ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f}}}
+
+	h1, err := ComputeHash(exts, "", false)
+	require.NoError(t, err)
+
+	mdFile := filepath.Join(dir, "agents", "test.md")
+	require.NoError(t, os.MkdirAll(filepath.Dir(mdFile), 0o755))
+	require.NoError(t, os.WriteFile(mdFile, []byte("# Test Agent\n"), 0o600))
+
+	h2, err := ComputeHash(exts, "", false)
+	require.NoError(t, err)
+
+	assert.NotEqual(t, h1, h2, ".md file change should produce different hash")
+}
+
 func TestGenerateMainGo_UIExtFilteredByBuild(t *testing.T) {
 	// Build() filters UI extensions before calling GenerateMainGo,
 	// so GenerateMainGo only receives non-UI extensions.
@@ -296,14 +317,55 @@ func TestGenerateMainGo_Content(t *testing.T) {
 	assert.Contains(t, s, "fullCfg.SetProjectDir(projectDir)")
 	assert.Contains(t, s, "sdk.HeadlessConfig")
 	assert.Contains(t, s, "sdk.SetToolFilter")
+	assert.Contains(t, s, "toolNames = []string{}", "empty --weave-tools= should pass empty slice, not nil")
 	assert.Contains(t, s, "model.GetModel")
 	assert.Contains(t, s, `"encoding/json"`)
+	assert.Contains(t, s, `"sync"`)
+	assert.Contains(t, s, `"io"`)
+	assert.Contains(t, s, `type syncWriter struct`)
+	assert.Contains(t, s, `fmt.Fprintln(jsonOut, string(data))`)
 	assert.Contains(t, s, `outputMode == "json"`)
+	assert.Contains(t, s, `b.OnAll(`)
 	assert.Contains(t, s, `"agent.message_start"`)
 	assert.Contains(t, s, `"agent.message_end"`)
 	assert.Contains(t, s, `"agent.tool_call"`)
 	assert.Contains(t, s, `"agent.tool_result"`)
 	assert.Contains(t, s, `"model.change"`)
+}
+
+func TestGenerateMainGo_CustomSubagentNotTreatedAsBuiltin(t *testing.T) {
+	dir := t.TempDir()
+	exts := []ExtensionInfo{
+		{Name: "subagent", Dir: "/tmp/exts/custom/subagent", ModulePath: "weave/ext/custom/subagent"},
+	}
+
+	require.NoError(t, GenerateMainGo(dir, exts, "loop"))
+
+	content, err := os.ReadFile(filepath.Join(dir, "main.go"))
+	require.NoError(t, err)
+
+	s := string(content)
+	// Custom subagent should be blank-imported, not aliased.
+	assert.Contains(t, s, `_ "weave/ext/custom/subagent"`)
+	assert.NotContains(t, s, `subagentext`)
+	assert.NotContains(t, s, `SetStdoutWriter`)
+}
+
+func TestGenerateMainGo_WithSubagent(t *testing.T) {
+	dir := t.TempDir()
+	exts := []ExtensionInfo{
+		{Name: "subagent", Dir: "/tmp/exts/tools/subagent", ModulePath: "weave/ext/tools/subagent"},
+	}
+
+	require.NoError(t, GenerateMainGo(dir, exts, "loop"))
+
+	content, err := os.ReadFile(filepath.Join(dir, "main.go"))
+	require.NoError(t, err)
+
+	s := string(content)
+	assert.Contains(t, s, `subagentext "weave/ext/tools/subagent"`)
+	assert.Contains(t, s, `subagentext.SetStdoutWriter(jsonOut)`)
+	assert.Contains(t, s, `jsonOut := &syncWriter{w: os.Stdout}`)
 }
 
 func TestGenerateMainGo_CustomAgentLoopExcludesDefaultLoop(t *testing.T) {

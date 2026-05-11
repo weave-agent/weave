@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"runtime"
 	"sort"
 	"strconv"
@@ -52,6 +53,32 @@ func ComputeHash(exts []ExtensionInfo, moduleRoot string, headless bool, coreDir
 
 			h.Write(data)
 		}
+
+		// Hash embedded resource files (e.g., go:embed agents/*.md).
+		// These affect the compiled binary but are not .go files.
+		_ = filepath.WalkDir(ext.Dir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return nil
+			}
+			if !strings.HasSuffix(d.Name(), ".md") {
+				return nil
+			}
+			// Skip files already hashed as .go files.
+			if slices.Contains(ext.GoFiles, path) {
+				return nil
+			}
+			rel, relErr := filepath.Rel(ext.Dir, path)
+			if relErr != nil {
+				rel = path
+			}
+			h.Write([]byte(rel + "\n"))
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return nil
+			}
+			h.Write(data)
+			return nil
+		})
 
 		goModPath := filepath.Join(ext.Dir, "go.mod")
 		if data, err := os.ReadFile(goModPath); err == nil {
@@ -380,6 +407,8 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 	b.WriteString("\t\"strconv\"\n")
 	b.WriteString("\t\"strings\"\n")
 	b.WriteString("\t\"syscall\"\n")
+	b.WriteString("\t\"io\"\n")
+	b.WriteString("\t\"sync\"\n")
 	b.WriteString("\n")
 	b.WriteString("\t\"weave/bus\"\n")
 	b.WriteString("\t\"weave/config\"\n")
@@ -387,12 +416,32 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 	b.WriteString("\t\"weave/sdk/model\"\n")
 	b.WriteString("\t\"weave/sdk/wire\"\n")
 
+	hasSubagent := false
+
+	const builtinSubagentModulePath = "weave/ext/tools/subagent"
+
 	for _, ext := range exts {
 		b.WriteString("\n")
-		b.WriteString("\t_ \"" + extModulePath(ext) + "\"\n")
+
+		if ext.Name == "subagent" && ext.ModulePath == builtinSubagentModulePath {
+			hasSubagent = true
+
+			b.WriteString("\tsubagentext \"" + extModulePath(ext) + "\"\n")
+		} else {
+			b.WriteString("\t_ \"" + extModulePath(ext) + "\"\n")
+		}
 	}
 
 	b.WriteString(")\n\n")
+	b.WriteString("type syncWriter struct {\n")
+	b.WriteString("\tmu sync.Mutex\n")
+	b.WriteString("\tw  io.Writer\n")
+	b.WriteString("}\n\n")
+	b.WriteString("func (sw *syncWriter) Write(p []byte) (int, error) {\n")
+	b.WriteString("\tsw.mu.Lock()\n")
+	b.WriteString("\tdefer sw.mu.Unlock()\n")
+	b.WriteString("\treturn sw.w.Write(p)\n")
+	b.WriteString("}\n\n")
 	b.WriteString("func main() {\n")
 	b.WriteString("\tvar cfgPath string\n")
 	b.WriteString("\tvar promptFilePath string\n")
@@ -401,6 +450,7 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 	b.WriteString("\tvar projectDir string\n")
 	b.WriteString("\tvar outputMode string\n")
 	b.WriteString("\tvar toolsList string\n")
+	b.WriteString("\tvar toolsSet bool\n")
 	b.WriteString("\tvar subagentID string\n")
 	b.WriteString("\tvar sandboxMode string\n")
 	b.WriteString("\tvar modelOverride string\n")
@@ -421,6 +471,7 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 	b.WriteString("\t\t\toutputMode = p\n")
 	b.WriteString("\t\t} else if p, ok := strings.CutPrefix(a, \"--weave-tools=\"); ok {\n")
 	b.WriteString("\t\t\ttoolsList = p\n")
+	b.WriteString("\t\t\ttoolsSet = true\n")
 	b.WriteString("\t\t} else if p, ok := strings.CutPrefix(a, \"--weave-subagent-id=\"); ok {\n")
 	b.WriteString("\t\t\tsubagentID = p\n")
 	b.WriteString("\t\t} else if p, ok := strings.CutPrefix(a, \"--weave-sandbox-mode=\"); ok {\n")
@@ -507,14 +558,23 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 	b.WriteString("\t}\n")
 	b.WriteString("\tif subagentID != \"\" {\n")
 	b.WriteString("\t\tos.Setenv(\"WEAVE_SUBAGENT_ID\", subagentID)\n")
+	b.WriteString("\t} else {\n")
+	b.WriteString("\t\tos.Unsetenv(\"WEAVE_SUBAGENT_ID\")\n")
 	b.WriteString("\t}\n")
 	b.WriteString("\tif messaging != \"\" {\n")
 	b.WriteString("\t\tos.Setenv(\"WEAVE_MESSAGING\", messaging)\n")
+	b.WriteString("\t} else {\n")
+	b.WriteString("\t\tos.Unsetenv(\"WEAVE_MESSAGING\")\n")
 	b.WriteString("\t}\n")
-	b.WriteString("\tif toolsList != \"\" {\n")
-	b.WriteString("\t\ttoolNames := strings.Split(toolsList, \",\")\n")
-	b.WriteString("\t\tfor i := range toolNames {\n")
-	b.WriteString("\t\t\ttoolNames[i] = strings.TrimSpace(toolNames[i])\n")
+	b.WriteString("\tif toolsSet {\n")
+	b.WriteString("\t\tvar toolNames []string\n")
+	b.WriteString("\t\tif toolsList != \"\" {\n")
+	b.WriteString("\t\t\ttoolNames = strings.Split(toolsList, \",\")\n")
+	b.WriteString("\t\t\tfor i := range toolNames {\n")
+	b.WriteString("\t\t\t\ttoolNames[i] = strings.TrimSpace(toolNames[i])\n")
+	b.WriteString("\t\t\t}\n")
+	b.WriteString("\t\t} else {\n")
+	b.WriteString("\t\t\ttoolNames = []string{}\n")
 	b.WriteString("\t\t}\n")
 	b.WriteString("\t\tsdk.SetToolFilter(toolNames)\n")
 	b.WriteString("\t}\n")
@@ -527,62 +587,65 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 	b.WriteString("\t\tos.Exit(1)\n")
 	b.WriteString("\t}\n")
 	b.WriteString("\n")
+	b.WriteString("\tjsonOut := &syncWriter{w: os.Stdout}\n")
+	b.WriteString("\tvar jsonQueue chan map[string]any\n")
+	b.WriteString("\tvar jsonWg sync.WaitGroup\n")
+
+	if hasSubagent {
+		b.WriteString("\tsubagentext.SetStdoutWriter(jsonOut)\n")
+	}
+
+	b.WriteString("\n")
 	b.WriteString("\tif outputMode == \"json\" {\n")
-	b.WriteString("\t\tb.On(\"agent.message_start\", func(e sdk.Event) error {\n")
-	b.WriteString("\t\t\tpayload := map[string]any{\"type\": \"message_start\"}\n")
-	b.WriteString("\t\t\tif m, ok := e.Payload.(string); ok && m != \"\" {\n")
-	b.WriteString("\t\t\t\tpayload[\"model\"] = m\n")
-	b.WriteString("\t\t\t}\n")
-	b.WriteString("\t\t\tif data, err := json.Marshal(payload); err == nil {\n")
-	b.WriteString("\t\t\t\tfmt.Println(string(data))\n")
-	b.WriteString("\t\t\t}\n")
-	b.WriteString("\t\t\treturn nil\n")
-	b.WriteString("\t\t})\n")
-	b.WriteString("\t\tb.On(\"agent.message_update\", func(e sdk.Event) error {\n")
-	b.WriteString("\t\t\tpayload := map[string]any{\"type\": \"message_update\"}\n")
-	b.WriteString("\t\t\tif s, ok := e.Payload.(string); ok {\n")
-	b.WriteString("\t\t\t\tpayload[\"content\"] = s\n")
-	b.WriteString("\t\t\t}\n")
-	b.WriteString("\t\t\tif data, err := json.Marshal(payload); err == nil {\n")
-	b.WriteString("\t\t\t\tfmt.Println(string(data))\n")
-	b.WriteString("\t\t\t}\n")
-	b.WriteString("\t\t\treturn nil\n")
-	b.WriteString("\t\t})\n")
-	b.WriteString("\t\tb.On(\"agent.tool_call\", func(e sdk.Event) error {\n")
-	b.WriteString("\t\t\tpayload := map[string]any{\"type\": \"tool_call\"}\n")
-	b.WriteString("\t\t\tif m, ok := e.Payload.(map[string]any); ok {\n")
-	b.WriteString("\t\t\t\tpayload[\"tool\"] = m[\"tool\"]\n")
-	b.WriteString("\t\t\t\tpayload[\"args\"] = m[\"args\"]\n")
-	b.WriteString("\t\t\t}\n")
-	b.WriteString("\t\t\tif data, err := json.Marshal(payload); err == nil {\n")
-	b.WriteString("\t\t\t\tfmt.Println(string(data))\n")
-	b.WriteString("\t\t\t}\n")
-	b.WriteString("\t\t\treturn nil\n")
-	b.WriteString("\t\t})\n")
-	b.WriteString("\t\tb.On(\"agent.tool_result\", func(e sdk.Event) error {\n")
-	b.WriteString("\t\t\tpayload := map[string]any{\"type\": \"tool_result\"}\n")
-	b.WriteString("\t\t\tif m, ok := e.Payload.(map[string]any); ok {\n")
-	b.WriteString("\t\t\t\tpayload[\"tool\"] = m[\"tool\"]\n")
-	b.WriteString("\t\t\t\tif result, ok := m[\"result\"].(sdk.ToolResult); ok {\n")
-	b.WriteString("\t\t\t\t\tpayload[\"output\"] = result.Content\n")
+	b.WriteString("\t\tjsonQueue = make(chan map[string]any, 10000)\n")
+	b.WriteString("\t\tjsonWg.Add(1)\n")
+	b.WriteString("\t\tgo func() {\n")
+	b.WriteString("\t\t\tdefer jsonWg.Done()\n")
+	b.WriteString("\t\t\tfor payload := range jsonQueue {\n")
+	b.WriteString("\t\t\t\tif data, err := json.Marshal(payload); err == nil {\n")
+	b.WriteString("\t\t\t\t\tfmt.Fprintln(jsonOut, string(data))\n")
 	b.WriteString("\t\t\t\t}\n")
 	b.WriteString("\t\t\t}\n")
-	b.WriteString("\t\t\tif data, err := json.Marshal(payload); err == nil {\n")
-	b.WriteString("\t\t\t\tfmt.Println(string(data))\n")
-	b.WriteString("\t\t\t}\n")
-	b.WriteString("\t\t\treturn nil\n")
-	b.WriteString("\t\t})\n")
-	b.WriteString("\t\tb.On(\"agent.message_end\", func(e sdk.Event) error {\n")
-	b.WriteString("\t\t\tpayload := map[string]any{\"type\": \"message_end\"}\n")
-	b.WriteString("\t\t\tif m, ok := e.Payload.(map[string]any); ok {\n")
-	b.WriteString("\t\t\t\tpayload[\"content\"] = m[\"content\"]\n")
-	b.WriteString("\t\t\t\tif thinking, ok := m[\"thinking\"].(string); ok && thinking != \"\" {\n")
-	b.WriteString("\t\t\t\t\tpayload[\"thinking\"] = thinking\n")
+	b.WriteString("\t\t}()\n")
+	b.WriteString("\t\tb.OnAll(func(e sdk.Event) error {\n")
+	b.WriteString("\t\t\tvar payload map[string]any\n")
+	b.WriteString("\t\t\tswitch e.Topic {\n")
+	b.WriteString("\t\t\tcase \"agent.message_start\":\n")
+	b.WriteString("\t\t\t\tpayload = map[string]any{\"type\": \"message_start\"}\n")
+	b.WriteString("\t\t\t\tif m, ok := e.Payload.(string); ok && m != \"\" {\n")
+	b.WriteString("\t\t\t\t\tpayload[\"model\"] = m\n")
 	b.WriteString("\t\t\t\t}\n")
+	b.WriteString("\t\t\tcase \"agent.message_update\":\n")
+	b.WriteString("\t\t\t\tpayload = map[string]any{\"type\": \"message_update\"}\n")
+	b.WriteString("\t\t\t\tif s, ok := e.Payload.(string); ok {\n")
+	b.WriteString("\t\t\t\t\tpayload[\"content\"] = s\n")
+	b.WriteString("\t\t\t\t}\n")
+	b.WriteString("\t\t\tcase \"agent.tool_call\":\n")
+	b.WriteString("\t\t\t\tpayload = map[string]any{\"type\": \"tool_call\"}\n")
+	b.WriteString("\t\t\t\tif m, ok := e.Payload.(map[string]any); ok {\n")
+	b.WriteString("\t\t\t\t\tpayload[\"tool\"] = m[\"tool\"]\n")
+	b.WriteString("\t\t\t\t\tpayload[\"args\"] = m[\"args\"]\n")
+	b.WriteString("\t\t\t\t}\n")
+	b.WriteString("\t\t\tcase \"agent.tool_result\":\n")
+	b.WriteString("\t\t\t\tpayload = map[string]any{\"type\": \"tool_result\"}\n")
+	b.WriteString("\t\t\t\tif m, ok := e.Payload.(map[string]any); ok {\n")
+	b.WriteString("\t\t\t\t\tpayload[\"tool\"] = m[\"tool\"]\n")
+	b.WriteString("\t\t\t\t\tif result, ok := m[\"result\"].(sdk.ToolResult); ok {\n")
+	b.WriteString("\t\t\t\t\t\tpayload[\"output\"] = result.Content\n")
+	b.WriteString("\t\t\t\t\t}\n")
+	b.WriteString("\t\t\t\t}\n")
+	b.WriteString("\t\t\tcase \"agent.message_end\":\n")
+	b.WriteString("\t\t\t\tpayload = map[string]any{\"type\": \"message_end\"}\n")
+	b.WriteString("\t\t\t\tif m, ok := e.Payload.(map[string]any); ok {\n")
+	b.WriteString("\t\t\t\t\tpayload[\"content\"] = m[\"content\"]\n")
+	b.WriteString("\t\t\t\t\tif thinking, ok := m[\"thinking\"].(string); ok && thinking != \"\" {\n")
+	b.WriteString("\t\t\t\t\t\tpayload[\"thinking\"] = thinking\n")
+	b.WriteString("\t\t\t\t\t}\n")
+	b.WriteString("\t\t\t\t}\n")
+	b.WriteString("\t\t\tdefault:\n")
+	b.WriteString("\t\t\t\treturn nil\n")
 	b.WriteString("\t\t\t}\n")
-	b.WriteString("\t\t\tif data, err := json.Marshal(payload); err == nil {\n")
-	b.WriteString("\t\t\t\tfmt.Println(string(data))\n")
-	b.WriteString("\t\t\t}\n")
+	b.WriteString("\t\t\tjsonQueue <- payload\n")
 	b.WriteString("\t\t\treturn nil\n")
 	b.WriteString("\t\t})\n")
 	b.WriteString("\t}\n")
@@ -609,6 +672,10 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 	b.WriteString("\tif err := wired.Close(); err != nil {\n")
 	b.WriteString("\t\tfmt.Fprintf(os.Stderr, \"weave: shutdown error: %v\\n\", err)\n")
 	b.WriteString("\t\tos.Exit(1)\n")
+	b.WriteString("\t}\n")
+	b.WriteString("\tif jsonQueue != nil {\n")
+	b.WriteString("\t\tclose(jsonQueue)\n")
+	b.WriteString("\t\tjsonWg.Wait()\n")
 	b.WriteString("\t}\n")
 	b.WriteString("\tif endErr != \"\" {\n")
 	b.WriteString("\t\tfmt.Fprintf(os.Stderr, \"weave: %s\\n\", endErr)\n")

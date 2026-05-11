@@ -113,7 +113,7 @@ func TestSetToolFilter(t *testing.T) {
 	assert.Equal(t, []string{"bash", "read"}, names)
 }
 
-func TestSetToolFilter_EmptyAllowsAll(t *testing.T) {
+func TestSetToolFilter_EmptyBlocksAll(t *testing.T) {
 	ResetToolRegistry()
 
 	RegisterTool("bash", func(Config) (Tool, error) {
@@ -127,8 +127,10 @@ func TestSetToolFilter_EmptyAllowsAll(t *testing.T) {
 	defer func() { SetToolFilter(nil) }()
 
 	names := ListTools()
-	sort.Strings(names)
-	assert.Equal(t, []string{"bash", "read"}, names)
+	assert.Empty(t, names)
+
+	_, err := GetTool("bash", nil)
+	require.Error(t, err)
 }
 
 func TestSetToolFilter_UnknownToolIgnored(t *testing.T) {
@@ -143,6 +145,27 @@ func TestSetToolFilter_UnknownToolIgnored(t *testing.T) {
 
 	names := ListTools()
 	assert.Equal(t, []string{"bash"}, names)
+}
+
+func TestSetToolFilter_NilClearsFilter(t *testing.T) {
+	ResetToolRegistry()
+
+	RegisterTool("bash", func(Config) (Tool, error) {
+		return &ToolMock{NameFunc: func() string { return "bash" }}, nil
+	})
+	RegisterTool("read", func(Config) (Tool, error) {
+		return &ToolMock{NameFunc: func() string { return "read" }}, nil
+	})
+
+	SetToolFilter([]string{"bash"})
+
+	names := ListTools()
+	assert.Equal(t, []string{"bash"}, names)
+
+	SetToolFilter(nil)
+
+	names = ListTools()
+	assert.Equal(t, []string{"bash", "read"}, names)
 }
 
 // Suppress unused import warning.

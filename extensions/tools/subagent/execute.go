@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"syscall"
 )
 
@@ -32,7 +33,7 @@ type jsonEvent struct {
 // last "message_end" event is returned as the result.
 // When subagentID is non-empty and broker is provided, the broker routes
 // inter-agent messages and the child gets a stdin pipe for receiving them.
-func runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) { //nolint:gocyclo // central subprocess coordination with many error paths
+func runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
 	if testRunSubagent != nil {
 		return testRunSubagent(ctx, agent, prompt, cwd, subagentID, broker, cfgPath, projectDir)
 	}
@@ -55,9 +56,11 @@ func runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID s
 	}
 
 	var stderrBuf strings.Builder
-	go func() {
+
+	var stderrWg sync.WaitGroup
+	stderrWg.Go(func() {
 		_, _ = io.Copy(&stderrBuf, stderr) // best-effort drain
-	}()
+	})
 
 	var stdin io.WriteCloser
 	if broker != nil && subagentID != "" {
@@ -76,25 +79,6 @@ func runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID s
 		broker.Register(subagentID, agent.Name, stdin)
 	}
 
-	// Ensure the process and its process group are killed when the context is canceled.
-	done := make(chan struct{})
-	defer close(done)
-
-	go func() {
-		select {
-		case <-ctx.Done():
-			// Only kill if the process has started and Wait() has not
-			// yet returned (ProcessState is nil). After Wait() returns
-			// the PID may have been reused by the OS.
-			if cmd.Process != nil && cmd.ProcessState == nil {
-				if killErr := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL); killErr != nil {
-					_ = cmd.Process.Kill()
-				}
-			}
-		case <-done:
-		}
-	}()
-
 	var result string
 	if broker != nil && subagentID != "" {
 		result, err = broker.MonitorStdout(subagentID, stdout)
@@ -104,6 +88,7 @@ func runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID s
 
 	if err != nil {
 		_ = cmd.Wait()
+		stderrWg.Wait()
 
 		if stderrStr := strings.TrimSpace(stderrBuf.String()); stderrStr != "" {
 			return "", fmt.Errorf("%w\nstderr: %s", err, stderrStr)
@@ -113,6 +98,8 @@ func runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID s
 	}
 
 	waitErr := cmd.Wait()
+	stderrWg.Wait()
+
 	if waitErr != nil {
 		if ctx.Err() != nil {
 			return "", fmt.Errorf("subagent aborted: %w", ctx.Err())
@@ -133,7 +120,7 @@ func runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID s
 // When subagentID is non-empty, --weave-subagent-id is included to enable
 // inter-agent communication in the child process.
 // A cleanup function is returned that removes the temporary prompt file.
-func buildCommand(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID, cfgPath, projectDir string) (*exec.Cmd, func(), error) {
+func buildCommand(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID, cfgPath, projectDir string) (*exec.Cmd, func(), error) { //nolint:gocyclo // command construction with many conditional flags
 	f, err := os.CreateTemp("", "weave-subagent-prompt-*")
 	if err != nil {
 		return nil, nil, fmt.Errorf("create prompt file: %w", err)
@@ -190,7 +177,9 @@ func buildCommand(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID,
 
 	args = append(args, "--weave-output=json")
 
-	tools := agent.Tools
+	tools := make([]string, 0, len(agent.Tools))
+	tools = append(tools, agent.Tools...)
+
 	if agent.Messaging {
 		args = append(args, "--weave-messaging=true")
 
@@ -206,7 +195,7 @@ func buildCommand(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID,
 		}
 	}
 
-	if len(tools) > 0 {
+	if agent.Tools != nil {
 		args = append(args, "--weave-tools="+strings.Join(tools, ","))
 	}
 
@@ -232,6 +221,13 @@ func buildCommand(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID,
 
 	cmd := exec.CommandContext(ctx, exe, args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return nil
+		}
+
+		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	}
 
 	if cwd != "" {
 		cmd.Dir = cwd

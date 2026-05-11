@@ -91,7 +91,7 @@ func run(ctx context.Context, args ...string) (exitCode int) {
 		rest = append(rest, "--weave-output="+cf.Output)
 	}
 
-	if cf.Tools != "" {
+	if cf.ToolsSet || cf.Tools != "" {
 		rest = append(rest, "--weave-tools="+cf.Tools)
 	}
 

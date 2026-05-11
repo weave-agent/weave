@@ -175,6 +175,29 @@ func TestLoad_ToolsFlag(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "read,grep,find", cf.Tools)
+	assert.True(t, cf.ToolsSet, "ToolsSet should be true when --tools is passed")
+}
+
+func TestLoad_ToolsFlagEmpty(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".weave.yaml", "ui: tui\n")
+
+	_, cf, _, err := LoadFromDir(dir, []string{"--tools="})
+	require.NoError(t, err)
+
+	assert.Empty(t, cf.Tools)
+	assert.True(t, cf.ToolsSet, "ToolsSet should be true for explicit --tools=")
+}
+
+func TestLoad_ToolsFlagNotSet(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".weave.yaml", "ui: tui\n")
+
+	_, cf, _, err := LoadFromDir(dir, nil)
+	require.NoError(t, err)
+
+	assert.Empty(t, cf.Tools)
+	assert.False(t, cf.ToolsSet, "ToolsSet should be false when --tools is omitted")
 }
 
 func TestLoad_SubagentIDFlag(t *testing.T) {

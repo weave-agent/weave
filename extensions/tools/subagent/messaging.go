@@ -20,6 +20,13 @@ var (
 	stdinReader  io.Reader = os.Stdin
 )
 
+// SetStdoutWriter sets the writer used by inter-agent messaging tools for
+// stdout output. Used by the generated subagent main to ensure all JSON
+// protocol writes share the same serialization.
+func SetStdoutWriter(w io.Writer) {
+	stdoutWriter = w
+}
+
 // registerMessagingTools registers the child-side inter-agent communication
 // tools when running as a subagent with messaging enabled.
 // Messaging is enabled when WEAVE_SUBAGENT_ID is set AND WEAVE_MESSAGING is "true".
