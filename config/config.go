@@ -57,11 +57,11 @@ type File struct {
 	Sandbox           SandboxFileConfig `description:"Sandbox configuration"`
 
 	// CLI-only flags (not read from config file).
-	Output      string `flag:"output" description:"Output format: text (default) or json"`
-	Tools       string `flag:"tools" description:"Comma-separated tool allowlist"`
-	SubagentID  string `flag:"subagent-id" description:"Subagent ID for inter-agent communication"`
-	SandboxMode string `flag:"sandbox" description:"Sandbox mode override: off, readonly, ask, auto"`
-	Model       string `flag:"model" description:"Model override for this session"`
+	Output      string `flag:"output" yaml:"-" json:"-" description:"Output format: text (default) or json"`
+	Tools       string `flag:"tools" yaml:"-" json:"-" description:"Comma-separated tool allowlist"`
+	SubagentID  string `flag:"subagent-id" yaml:"-" json:"-" description:"Subagent ID for inter-agent communication"`
+	SandboxMode string `flag:"sandbox" yaml:"-" json:"-" description:"Sandbox mode override: off, readonly, ask, auto"`
+	Model       string `flag:"model" yaml:"-" json:"-" description:"Model override for this session"`
 }
 
 // TypedProviders converts the Providers map[string]any to map[string]ProviderEntry

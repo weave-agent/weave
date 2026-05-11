@@ -50,7 +50,8 @@ type subagentProc struct {
 	id    string
 	name  string
 	stdin io.WriteCloser
-	gen   uint64 // monotonic generation to distinguish re-registrations
+	gen   uint64     // monotonic generation to distinguish re-registrations
+	mu    sync.Mutex // protects stdin writes
 }
 
 // Broker routes inter-agent messages between running subagent processes.
@@ -182,7 +183,7 @@ func (b *Broker) monitorStdout(id string, stdout io.Reader) (string, error) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		return "", fmt.Errorf("read stdout: %w", err)
+		return "", fmt.Errorf("subagent output line exceeded %d bytes: %w", maxCapacity, err)
 	}
 
 	if !sawMessageEnd {
@@ -208,7 +209,7 @@ func (b *Broker) routeSend(fromID, toID, content string) error {
 		Content: content,
 	}
 
-	if err := b.writeMessage(target.stdin, msg); err != nil {
+	if err := target.write(msg); err != nil {
 		b.Unregister(toID, target.gen)
 		return fmt.Errorf("route send: %w", err)
 	}
@@ -240,7 +241,7 @@ func (b *Broker) routeBroadcast(fromID, content string) []error {
 	var errs []error
 
 	for _, proc := range others {
-		if err := b.writeMessage(proc.stdin, msg); err != nil {
+		if err := proc.write(msg); err != nil {
 			b.Unregister(proc.id, proc.gen)
 			errs = append(errs, fmt.Errorf("send to %s: %w", proc.id, err))
 		}
@@ -266,7 +267,7 @@ func (b *Broker) respondListAgents(requesterID string) error {
 		return fmt.Errorf("requester agent %q not found", requesterID)
 	}
 
-	if err := b.writeMessage(proc.stdin, msg); err != nil {
+	if err := proc.write(msg); err != nil {
 		b.Unregister(requesterID, proc.gen)
 		return fmt.Errorf("respond list agents: %w", err)
 	}
@@ -289,7 +290,7 @@ func (b *Broker) Inject(id, content string) error {
 		Content: content,
 	}
 
-	if err := b.writeMessage(proc.stdin, msg); err != nil {
+	if err := proc.write(msg); err != nil {
 		b.Unregister(id, proc.gen)
 		return fmt.Errorf("inject: %w", err)
 	}
@@ -345,7 +346,7 @@ func (b *Broker) injectRoster(id string, roster []agentInfo) error {
 		return fmt.Errorf("agent %q not found", id)
 	}
 
-	if err := b.writeMessage(proc.stdin, msg); err != nil {
+	if err := proc.write(msg); err != nil {
 		b.Unregister(id, proc.gen)
 		return fmt.Errorf("inject roster: %w", err)
 	}
@@ -353,13 +354,16 @@ func (b *Broker) injectRoster(id string, roster []agentInfo) error {
 	return nil
 }
 
-func (b *Broker) writeMessage(w io.Writer, msg brokerMessage) error {
+func (p *subagentProc) write(msg brokerMessage) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	data, err := json.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("marshal message: %w", err)
 	}
 
-	if _, err = fmt.Fprintln(w, string(data)); err != nil {
+	if _, err = fmt.Fprintln(p.stdin, string(data)); err != nil {
 		return fmt.Errorf("write message: %w", err)
 	}
 

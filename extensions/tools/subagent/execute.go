@@ -105,6 +105,10 @@ func runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID s
 	if err != nil {
 		_ = cmd.Wait()
 
+		if stderrStr := strings.TrimSpace(stderrBuf.String()); stderrStr != "" {
+			return "", fmt.Errorf("%w\nstderr: %s", err, stderrStr)
+		}
+
 		return "", err
 	}
 
@@ -275,7 +279,7 @@ func parseJSONLines(r io.Reader) (string, error) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		return "", fmt.Errorf("read stdout: %w", err)
+		return "", fmt.Errorf("subagent output line exceeded %d bytes: %w", maxCapacity, err)
 	}
 
 	if jsonLines == 0 {
