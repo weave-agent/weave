@@ -10,8 +10,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"slices"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -56,29 +56,7 @@ func ComputeHash(exts []ExtensionInfo, moduleRoot string, headless bool, coreDir
 
 		// Hash embedded resource files (e.g., go:embed agents/*.md).
 		// These affect the compiled binary but are not .go files.
-		_ = filepath.WalkDir(ext.Dir, func(path string, d fs.DirEntry, err error) error {
-			if err != nil || d.IsDir() {
-				return nil
-			}
-			if !strings.HasSuffix(d.Name(), ".md") {
-				return nil
-			}
-			// Skip files already hashed as .go files.
-			if slices.Contains(ext.GoFiles, path) {
-				return nil
-			}
-			rel, relErr := filepath.Rel(ext.Dir, path)
-			if relErr != nil {
-				rel = path
-			}
-			h.Write([]byte(rel + "\n"))
-			data, err := os.ReadFile(path)
-			if err != nil {
-				return nil
-			}
-			h.Write(data)
-			return nil
-		})
+		_ = hashMdFiles(h, ext)
 
 		goModPath := filepath.Join(ext.Dir, "go.mod")
 		if data, err := os.ReadFile(goModPath); err == nil {
@@ -142,6 +120,47 @@ func ComputeHash(exts []ExtensionInfo, moduleRoot string, headless bool, coreDir
 	}
 
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// hashMdFiles walks the extension directory and hashes any .md files that
+// are embedded into the binary via go:embed. These files affect the compiled
+// output but are not .go files, so they must be included in the cache hash.
+func hashMdFiles(h hash.Hash, ext ExtensionInfo) error {
+	if err := filepath.WalkDir(ext.Dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil //nolint:nilerr // skip unreadable entries
+		}
+
+		if !strings.HasSuffix(d.Name(), ".md") {
+			return nil
+		}
+
+		// Skip files already hashed as .go files.
+		if slices.Contains(ext.GoFiles, path) {
+			return nil
+		}
+
+		rel, relErr := filepath.Rel(ext.Dir, path)
+		if relErr != nil {
+			rel = path
+		}
+
+		h.Write([]byte(rel + "\n"))
+
+		// Build root-scoped path to avoid symlink TOCTOU (gosec G122).
+		data, readErr := os.ReadFile(filepath.Join(ext.Dir, rel))
+		if readErr != nil {
+			return nil //nolint:nilerr // skip unreadable files
+		}
+
+		h.Write(data)
+
+		return nil
+	}); err != nil {
+		return fmt.Errorf("hash md files in %s: %w", ext.Dir, err)
+	}
+
+	return nil
 }
 
 // HashModuleGraph writes the root go.mod and go.sum contents into the hash,
@@ -671,6 +690,10 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 	b.WriteString("\t}\n")
 	b.WriteString("\tif err := wired.Close(); err != nil {\n")
 	b.WriteString("\t\tfmt.Fprintf(os.Stderr, \"weave: shutdown error: %v\\n\", err)\n")
+	b.WriteString("\t\tos.Exit(1)\n")
+	b.WriteString("\t}\n")
+	b.WriteString("\tif err := b.Close(); err != nil {\n")
+	b.WriteString("\t\tfmt.Fprintf(os.Stderr, \"weave: bus close error: %v\\n\", err)\n")
 	b.WriteString("\t\tos.Exit(1)\n")
 	b.WriteString("\t}\n")
 	b.WriteString("\tif jsonQueue != nil {\n")
