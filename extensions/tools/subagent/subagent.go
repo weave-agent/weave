@@ -107,7 +107,7 @@ func dirFromConfig(cfg sdk.Config) string {
 		return dir
 	}
 
-	// For .weave/config.yaml, project root is the parent of .weave/
+	// For .weave/settings.json, project root is the parent of .weave/
 	dir := filepath.Dir(fp)
 	if filepath.Base(dir) == ".weave" {
 		return filepath.Dir(dir)

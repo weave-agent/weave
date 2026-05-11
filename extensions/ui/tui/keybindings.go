@@ -257,7 +257,7 @@ func loadKeybindings(configPath string) string {
 	if configPath != "" {
 		dir := filepath.Dir(configPath)
 
-		// Check next to the config file (works for .weave/config.yaml)
+		// Check next to the config file (works for .weave/settings.json)
 		candidate := filepath.Join(dir, "keybindings.yaml")
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate

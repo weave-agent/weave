@@ -325,7 +325,7 @@ func TestPreferences_LoadsMergedSettings(t *testing.T) {
 	})
 
 	cfg := &FullConfig{
-		filePath: filepath.Join(projectDir, ".weave", "config.json"),
+		filePath: filepath.Join(projectDir, ".weave", "settings.json"),
 		settings: DefaultSettings(),
 	}
 
@@ -349,7 +349,7 @@ func TestPreferences_NoSettingsFile(t *testing.T) {
 	projectDir := t.TempDir()
 
 	cfg := &FullConfig{
-		filePath: filepath.Join(projectDir, ".weave", "config.json"),
+		filePath: filepath.Join(projectDir, ".weave", "settings.json"),
 		settings: DefaultSettings(),
 	}
 
@@ -375,7 +375,7 @@ func TestSavePreferences_MergesIntoGlobal(t *testing.T) {
 	projectDir := t.TempDir()
 
 	cfg := &FullConfig{
-		filePath: filepath.Join(projectDir, ".weave", "config.json"),
+		filePath: filepath.Join(projectDir, ".weave", "settings.json"),
 		settings: DefaultSettings(),
 	}
 
@@ -402,7 +402,7 @@ func TestSavePreferences_CreatesFileIfMissing(t *testing.T) {
 	projectDir := t.TempDir()
 
 	cfg := &FullConfig{
-		filePath: filepath.Join(projectDir, ".weave", "config.json"),
+		filePath: filepath.Join(projectDir, ".weave", "settings.json"),
 		settings: DefaultSettings(),
 	}
 
@@ -442,7 +442,7 @@ func TestSavePreferences_PreservesUIFields(t *testing.T) {
 	projectDir := t.TempDir()
 
 	cfg := &FullConfig{
-		filePath: filepath.Join(projectDir, ".weave", "config.json"),
+		filePath: filepath.Join(projectDir, ".weave", "settings.json"),
 		settings: DefaultSettings(),
 	}
 
@@ -488,7 +488,7 @@ func TestSavePreferences_DeepMergesNestedFields(t *testing.T) {
 
 	projectDir := t.TempDir()
 	cfg := &FullConfig{
-		filePath: filepath.Join(projectDir, ".weave", "config.json"),
+		filePath: filepath.Join(projectDir, ".weave", "settings.json"),
 		settings: DefaultSettings(),
 	}
 
@@ -539,7 +539,7 @@ func TestRespectGitignore_DefaultTrue(t *testing.T) {
 	projectDir := t.TempDir()
 
 	cfg := &FullConfig{
-		filePath: filepath.Join(projectDir, ".weave", "config.json"),
+		filePath: filepath.Join(projectDir, ".weave", "settings.json"),
 		settings: DefaultSettings(),
 	}
 
@@ -562,7 +562,7 @@ func TestRespectGitignore_ExplicitTrue(t *testing.T) {
 	})
 
 	cfg := &FullConfig{
-		filePath: filepath.Join(projectDir, ".weave", "config.json"),
+		filePath: filepath.Join(projectDir, ".weave", "settings.json"),
 		settings: DefaultSettings(),
 	}
 
@@ -585,7 +585,7 @@ func TestRespectGitignore_ExplicitFalse(t *testing.T) {
 	})
 
 	cfg := &FullConfig{
-		filePath: filepath.Join(projectDir, ".weave", "config.json"),
+		filePath: filepath.Join(projectDir, ".weave", "settings.json"),
 		settings: DefaultSettings(),
 	}
 
@@ -613,7 +613,7 @@ func TestRespectGitignore_LocalOverridesGlobal(t *testing.T) {
 	})
 
 	cfg := &FullConfig{
-		filePath: filepath.Join(projectDir, ".weave", "config.json"),
+		filePath: filepath.Join(projectDir, ".weave", "settings.json"),
 		settings: DefaultSettings(),
 	}
 

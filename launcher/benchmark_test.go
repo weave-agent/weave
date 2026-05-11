@@ -229,7 +229,7 @@ func BenchmarkWarmBuild_NoTUI(b *testing.B) {
 
 // End-to-end: measures the full `go run ./cmd/weave/ -p "hello"` path.
 // Includes go run compilation + launcher pipeline (discover -> hash -> build -> cache).
-// Uses a project-local .weave/config.yaml to control extensions.
+// Uses a project-local .weave/settings.json to control extensions.
 // This is what you actually experience at the terminal.
 
 func goRunEndToEnd(b *testing.B, extYAML string) {
@@ -249,7 +249,7 @@ func goRunEndToEnd(b *testing.B, extYAML string) {
 		b.Fatalf("mkdir .weave: %v", err)
 	}
 
-	configPath := filepath.Join(configDir, "config.json")
+	configPath := filepath.Join(configDir, "settings.json")
 
 	if err := os.WriteFile(configPath, []byte(extYAML), 0o600); err != nil {
 		b.Fatalf("write config: %v", err)

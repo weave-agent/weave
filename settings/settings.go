@@ -211,8 +211,8 @@ func EnsureLocalSettingsExcluded(configDir string) {
 			}
 
 			// configDir is the directory containing the config file.
-			// For .weave/config.json at project root: configDir = project root, local settings at .weave/settings.local.json
-			// For .weave/config.json inside .weave/: configDir = .weave/ dir, local settings at settings.local.json
+			// For .weave/settings.json at project root: configDir = project root, local settings at .weave/settings.local.json
+			// For .weave/settings.json inside .weave/: configDir = .weave/ dir, local settings at settings.local.json
 			var entry string
 			if filepath.Base(configDir) == ".weave" {
 				entry = filepath.Join(rel, "settings.local.json")

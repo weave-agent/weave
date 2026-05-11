@@ -39,8 +39,8 @@ func TestDefinition(t *testing.T) {
 }
 
 func TestDirFromConfig(t *testing.T) {
-	t.Run("resolves project root from .weave/config.yaml", func(t *testing.T) {
-		cfg := sdk.FilePathConfig("/project/.weave/config.yaml")
+	t.Run("resolves project root from .weave/settings.json", func(t *testing.T) {
+		cfg := sdk.FilePathConfig("/project/.weave/settings.json")
 		dir := dirFromConfig(cfg)
 		assert.Equal(t, "/project", dir)
 	})

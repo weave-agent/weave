@@ -431,8 +431,8 @@ func TestDirFromConfig_WeaveYaml(t *testing.T) {
 	assert.Equal(t, "/project", dir)
 }
 
-func TestDirFromConfig_WeaveConfigYaml(t *testing.T) {
-	cfg := sdk.FilePathConfig("/project/.weave/config.yaml")
+func TestDirFromConfig_WeaveSettingsJson(t *testing.T) {
+	cfg := sdk.FilePathConfig("/project/.weave/settings.json")
 	dir := dirFromConfig(cfg)
 	assert.Equal(t, "/project", dir)
 }

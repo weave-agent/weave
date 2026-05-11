@@ -15,10 +15,6 @@ import (
 	"weave/sdk"
 )
 
-type CoreConfig struct {
-	AgentLoop string `default:"loop" description:"Agent loop extension name"`
-}
-
 // ProviderEntry holds per-provider configuration from the config file.
 type ProviderEntry struct {
 	APIKey    string `json:"api_key" description:"API key (literal, env var name, or !command)"`

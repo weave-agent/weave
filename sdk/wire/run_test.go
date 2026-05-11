@@ -199,7 +199,7 @@ func TestRun_EmptyToolsFlagForwarded(t *testing.T) {
 }
 
 func TestRun_ProjectDirFromConfig(t *testing.T) {
-	// Create a project structure: /tmp/project/.weave/config.json and /tmp/project/subdir/
+	// Create a project structure: /tmp/project/.weave/settings.json and /tmp/project/subdir/
 	projectDir := t.TempDir()
 	subDir := filepath.Join(projectDir, "subdir")
 	require.NoError(t, os.MkdirAll(subDir, 0o750))

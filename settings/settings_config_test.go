@@ -96,7 +96,7 @@ func TestToolConfig_PopulatedStruct(t *testing.T) {
 	writeJSON(t, filepath.Join(projectWeave, "settings.local.json"), &settings)
 
 	cfg := &FullConfig{
-		filePath: filepath.Join(projectDir, ".weave", "config.json"),
+		filePath: filepath.Join(projectDir, ".weave", "settings.json"),
 		settings: DefaultSettings(),
 	}
 
@@ -125,7 +125,7 @@ func TestToolConfig_DefaultsApplied(t *testing.T) {
 	writeJSON(t, filepath.Join(projectWeave, "settings.local.json"), &settings)
 
 	cfg := &FullConfig{
-		filePath: filepath.Join(projectDir, ".weave", "config.json"),
+		filePath: filepath.Join(projectDir, ".weave", "settings.json"),
 		settings: DefaultSettings(),
 	}
 
@@ -145,7 +145,7 @@ func TestToolConfig_MissingSection(t *testing.T) {
 	projectDir := t.TempDir()
 
 	cfg := &FullConfig{
-		filePath: filepath.Join(projectDir, ".weave", "config.json"),
+		filePath: filepath.Join(projectDir, ".weave", "settings.json"),
 		settings: DefaultSettings(),
 	}
 
@@ -174,7 +174,7 @@ func TestToolConfig_MissingToolName(t *testing.T) {
 	writeJSON(t, filepath.Join(projectWeave, "settings.local.json"), &settings)
 
 	cfg := &FullConfig{
-		filePath: filepath.Join(projectDir, ".weave", "config.json"),
+		filePath: filepath.Join(projectDir, ".weave", "settings.json"),
 		settings: DefaultSettings(),
 	}
 
@@ -204,7 +204,7 @@ func TestUIConfig_PopulatedStruct(t *testing.T) {
 	writeJSON(t, filepath.Join(projectWeave, "settings.local.json"), &settings)
 
 	cfg := &FullConfig{
-		filePath: filepath.Join(projectDir, ".weave", "config.json"),
+		filePath: filepath.Join(projectDir, ".weave", "settings.json"),
 		settings: DefaultSettings(),
 	}
 
@@ -233,7 +233,7 @@ func TestUIConfig_DefaultsApplied(t *testing.T) {
 	writeJSON(t, filepath.Join(projectWeave, "settings.local.json"), &settings)
 
 	cfg := &FullConfig{
-		filePath: filepath.Join(projectDir, ".weave", "config.json"),
+		filePath: filepath.Join(projectDir, ".weave", "settings.json"),
 		settings: DefaultSettings(),
 	}
 
@@ -255,7 +255,7 @@ func TestUIConfig_MissingSection(t *testing.T) {
 	projectDir := t.TempDir()
 
 	cfg := &FullConfig{
-		filePath: filepath.Join(projectDir, ".weave", "config.json"),
+		filePath: filepath.Join(projectDir, ".weave", "settings.json"),
 		settings: DefaultSettings(),
 	}
 
@@ -356,7 +356,7 @@ func TestLayeredSettings_IntegrationWithToolConfig(t *testing.T) {
 	})
 
 	cfg := &FullConfig{
-		filePath: filepath.Join(projectDir, ".weave", "config.json"),
+		filePath: filepath.Join(projectDir, ".weave", "settings.json"),
 		settings: DefaultSettings(),
 	}
 
@@ -385,7 +385,7 @@ func TestToolConfig_LocalOnlyFromWeaveDir(t *testing.T) {
 	})
 
 	cfg := &FullConfig{
-		filePath: filepath.Join(projectDir, ".weave", "config.json"),
+		filePath: filepath.Join(projectDir, ".weave", "settings.json"),
 		settings: DefaultSettings(),
 	}
 
@@ -402,10 +402,10 @@ func TestProjectDirFromConfig(t *testing.T) {
 		path     string
 		expected string
 	}{
-		{"config.json at root", "/project/.weave/config.json", "/project"},
-		{"config.json inside weave", "/project/.weave/config.json", "/project"},
-		{"json inside weave", "/project/.weave/config.json", "/project"},
-		{"nested project", "/a/b/c/.weave/config.json", "/a/b/c"},
+		{"settings.json at root", "/project/.weave/settings.json", "/project"},
+		{"settings.json inside weave", "/project/.weave/settings.json", "/project"},
+		{"json inside weave", "/project/.weave/settings.json", "/project"},
+		{"nested project", "/a/b/c/.weave/settings.json", "/a/b/c"},
 	}
 
 	for _, tt := range tests {

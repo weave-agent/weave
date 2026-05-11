@@ -504,7 +504,7 @@ func TestIsDeniedWrite_ProjectRoot(t *testing.T) {
 	}{
 		{"/project/.git/hooks/pre-commit", "/project", true},
 		{"/project/.git/config", "/project", true},
-		{"/project/.weave/config.yaml", "/project", true},
+		{"/project/.weave/settings.json", "/project", true},
 		{"/project/src/main.go", "/project", false},
 		{"/other/.git/hooks/pre-commit", "/project", false},
 	}

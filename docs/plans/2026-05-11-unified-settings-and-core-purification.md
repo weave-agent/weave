@@ -59,8 +59,8 @@ Rename package, update all imports, reconfigure gonfig for JSON-only, update fil
 - [x] Update package declaration in all files
 - [x] Update all imports (`weave/config` → `weave/settings`) across ~16 files
 - [x] Update `gonfig` usage to read JSON files
-- [x] Update `FindConfigPath()` to look for `.weave/config.json` walked up from cwd
-- [x] Update `EnsureGlobalConfig()` to create `~/.weave/config.json`
+- [x] Update `FindConfigPath()` to look for `.weave/settings.json` walked up from cwd
+- [x] Update `EnsureGlobalConfig()` to create `~/.weave/settings.json`
 - [x] Remove YAML tag support from structs (keep JSON tags)
 - [x] Update `launcher/builder.go` generated code to import `weave/settings`
 - [x] Update `sdk/wire/run.go` to use `settings.LoadFromDir()`
