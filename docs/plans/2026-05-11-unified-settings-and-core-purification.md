@@ -88,14 +88,14 @@ Merge `File` struct (from `.weave.yaml`) into `Settings` struct (from `.weave/se
 
 Remove hardcoded extension names, sandbox modes, UI values, provider schemas from validation.
 
-- [ ] Remove `UIValueTUI`, `UIValueNone`, `DefaultAgentLoop`, `ExtBash` constants
-- [ ] Remove UI value validation (accept any string, runtime resolves via `sdk.GetUI()`)
-- [ ] Remove agent loop validation (accept any string, runtime resolves)
-- [ ] Remove `validateSandbox()` and `validSandboxModes`
-- [ ] Remove `validateProviderEntry()` — providers validate own config
-- [ ] Remove `exclude_extensions` entry validation (keep type check only)
-- [ ] Update validation tests
-- [ ] Run `make test` — must pass
+- [x] Remove `UIValueTUI`, `UIValueNone`, `DefaultAgentLoop`, `ExtBash` constants
+- [x] Remove UI value validation (accept any string, runtime resolves via `sdk.GetUI()`)
+- [x] Remove agent loop validation (accept any string, runtime resolves)
+- [x] Remove `validateSandbox()` and `validSandboxModes`
+- [x] Remove `validateProviderEntry()` — providers validate own config
+- [x] Remove `exclude_extensions` entry validation (keep type check only)
+- [x] Update validation tests
+- [x] Run `make test` — must pass
 
 ### Task 5: Move auth out of settings
 

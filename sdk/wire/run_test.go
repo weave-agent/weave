@@ -2,7 +2,6 @@ package wire
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -77,12 +76,12 @@ func TestValidateCoreConfig(t *testing.T) {
 		{
 			"empty agent_loop",
 			&settings.Settings{AgentLoop: "", UIExtension: "tui"},
-			errors.New("agent_loop"),
+			nil,
 		},
 		{
 			"invalid agent_loop chars",
 			&settings.Settings{AgentLoop: "bad loop!", UIExtension: "tui"},
-			errors.New("agent_loop"),
+			nil,
 		},
 	}
 

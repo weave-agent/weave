@@ -1,7 +1,6 @@
 package settings
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -81,40 +80,6 @@ func Validate(s *Settings) error {
 func ValidateWithConfigDir(s *Settings, configDir string) error {
 	var errs ValidationErrors
 
-	if s.UIExtension != UIValueTUI && s.UIExtension != UIValueNone {
-		errs = append(errs, ValidationError{
-			Field:   "ui_extension",
-			Message: fmt.Sprintf("invalid value %q, must be \"tui\" or \"none\"", s.UIExtension),
-		})
-	}
-
-	if strings.TrimSpace(s.AgentLoop) == "" {
-		errs = append(errs, ValidationError{
-			Field:   "agent_loop",
-			Message: "must not be empty",
-		})
-	} else if !validName.MatchString(s.AgentLoop) {
-		errs = append(errs, ValidationError{
-			Field:   "agent_loop",
-			Message: fmt.Sprintf("invalid agent_loop name %q (must match [a-zA-Z0-9_-]+)", s.AgentLoop),
-		})
-	}
-
-	for i, name := range s.ExcludeExtensions {
-		if !validName.MatchString(name) {
-			errs = append(errs, ValidationError{
-				Field:   fmt.Sprintf("exclude_extensions[%d]", i),
-				Message: fmt.Sprintf("invalid extension name %q (must match [a-zA-Z0-9_-]+)", name),
-			})
-		}
-	}
-
-	for name, raw := range s.Providers {
-		validateProviderEntry(&errs, name, raw)
-	}
-
-	validateSandbox(&errs, &s.Sandbox)
-
 	if s.Output != "" && s.Output != "text" && s.Output != "json" {
 		errs = append(errs, ValidationError{
 			Field:   "output",
@@ -127,65 +92,4 @@ func ValidateWithConfigDir(s *Settings, configDir string) error {
 	}
 
 	return nil
-}
-
-func validateProviderEntry(errs *ValidationErrors, name string, raw any) {
-	m, ok := raw.(map[string]any)
-	if !ok {
-		*errs = append(*errs, ValidationError{
-			Field:   "providers." + name,
-			Message: fmt.Sprintf("expected object, got %T", raw),
-		})
-
-		return
-	}
-
-	jsonBytes, err := json.Marshal(m)
-	if err != nil {
-		*errs = append(*errs, ValidationError{
-			Field:   "providers." + name,
-			Message: fmt.Sprintf("invalid config: %v", err),
-		})
-
-		return
-	}
-
-	var entry ProviderEntry
-	if err := json.Unmarshal(jsonBytes, &entry); err != nil {
-		*errs = append(*errs, ValidationError{
-			Field:   "providers." + name,
-			Message: fmt.Sprintf("invalid config: %v", err),
-		})
-	}
-}
-
-var validSandboxModes = map[string]bool{
-	"off":      true,
-	"readonly": true,
-	"ask":      true,
-	"auto":     true,
-}
-
-func validateSandbox(errs *ValidationErrors, sc *SandboxFileConfig) {
-	if sc.Mode != "" && !validSandboxModes[sc.Mode] {
-		*errs = append(*errs, ValidationError{
-			Field:   "sandbox.mode",
-			Message: fmt.Sprintf("invalid value %q, must be one of: off, readonly, ask, auto", sc.Mode),
-		})
-	}
-
-	validatePathSlice(errs, "sandbox.writable", sc.Writable)
-	validatePathSlice(errs, "sandbox.deny_write", sc.DenyWrite)
-	validatePathSlice(errs, "sandbox.deny_read", sc.DenyRead)
-}
-
-func validatePathSlice(errs *ValidationErrors, prefix string, paths []string) {
-	for i, p := range paths {
-		if strings.TrimSpace(p) == "" {
-			*errs = append(*errs, ValidationError{
-				Field:   fmt.Sprintf("%s[%d]", prefix, i),
-				Message: "path must not be empty",
-			})
-		}
-	}
 }

@@ -16,17 +16,6 @@ import (
 	"weave/sdk/model"
 )
 
-// String constants used across config validation and defaults.
-const (
-	UIValueTUI  = "tui"
-	UIValueNone = "none"
-
-	// DefaultAgentLoop is the default agent loop extension name.
-	DefaultAgentLoop = "loop"
-	// ExtBash is the bash tool extension name.
-	ExtBash = "bash"
-)
-
 type CoreConfig struct {
 	AgentLoop string `default:"loop" description:"Agent loop extension name"`
 }
@@ -86,7 +75,7 @@ func (s *Settings) ProviderConfig(name string) *ProviderEntry {
 func DefaultSettings() *Settings {
 	return &Settings{
 		UIExtension: "tui",
-		AgentLoop:   DefaultAgentLoop,
+		AgentLoop:   "loop",
 	}
 }
 

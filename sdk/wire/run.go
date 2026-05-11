@@ -69,7 +69,7 @@ func run(ctx context.Context, args ...string) (exitCode int) {
 		}
 	}
 
-	if cf.Prompt == "" && (cf.UIExtension == "" || cf.UIExtension == settings.UIValueNone) {
+	if cf.Prompt == "" && (cf.UIExtension == "" || cf.UIExtension == "none") {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", errNoInput)
 		return 1
 	}
