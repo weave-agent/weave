@@ -178,12 +178,12 @@ Remove extension-specific timing and CLI forwarding from wire.
 
 ### Task 12: Final verification
 
-- [ ] Run `make test` — full suite must pass
-- [ ] Run `make lint` — all issues fixed
-- [ ] Run `make fmt` — formatting clean
-- [ ] Verify no hardcoded extension names remain in core packages
-- [ ] Update README.md if settings file format changed
-- [ ] Update CLAUDE.md with new architecture boundaries
+- [x] Run `make test` — full suite must pass
+- [x] Run `make lint` — all issues fixed
+- [x] Run `make fmt` — formatting clean
+- [x] Verify no hardcoded extension names remain in core packages (remaining references are defaults in config structs and test data; business logic leakage removed)
+- [x] Update README.md if settings file format changed (no README.md at root; design.md uses .agent.yaml as design concept, not implementation)
+- [x] Update CLAUDE.md with new architecture boundaries
 
 ## Technical Details
 
