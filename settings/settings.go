@@ -165,6 +165,34 @@ func settingsPathForLayer(layer SettingsLayer, projectDir string) (string, error
 	}
 }
 
+// WeaveFlags returns CLI flags formatted for the generated binary.
+// It translates parsed user-facing flags into --weave-* prefixed flags.
+func (s *Settings) WeaveFlags() []string {
+	var flags []string
+
+	if s.Output != "" {
+		flags = append(flags, "--weave-output="+s.Output)
+	}
+
+	if s.ToolsSet || s.ToolsFlag != "" {
+		flags = append(flags, "--weave-tools="+s.ToolsFlag)
+	}
+
+	if s.SubagentID != "" {
+		flags = append(flags, "--weave-subagent-id="+s.SubagentID)
+	}
+
+	if s.SandboxMode != "" {
+		flags = append(flags, "--weave-sandbox-mode="+s.SandboxMode)
+	}
+
+	if s.ModelFlag != "" {
+		flags = append(flags, "--weave-model="+s.ModelFlag)
+	}
+
+	return flags
+}
+
 // EnsureLocalSettingsExcluded adds the local settings file to the project's
 // .git/info/exclude so it is never accidentally committed. Walks up from
 // configDir to find the nearest .git directory and computes the correct

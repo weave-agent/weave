@@ -87,26 +87,8 @@ func run(ctx context.Context, args ...string) (exitCode int) {
 		rest = append([]string{"--weave-prompt-file=" + promptFile}, rest...)
 	}
 
-	// Pass CLI-only flags through to the generated binary.
-	if cf.Output != "" {
-		rest = append(rest, "--weave-output="+cf.Output)
-	}
-
-	if cf.ToolsSet || cf.ToolsFlag != "" {
-		rest = append(rest, "--weave-tools="+cf.ToolsFlag)
-	}
-
-	if cf.SubagentID != "" {
-		rest = append(rest, "--weave-subagent-id="+cf.SubagentID)
-	}
-
-	if cf.SandboxMode != "" {
-		rest = append(rest, "--weave-sandbox-mode="+cf.SandboxMode)
-	}
-
-	if cf.ModelFlag != "" {
-		rest = append(rest, "--weave-model="+cf.ModelFlag)
-	}
+	// Forward CLI flags to the generated binary.
+	rest = append(rest, cf.WeaveFlags()...)
 
 	cache := launcher.NewCache(cacheDir)
 	l := launcher.NewLauncher(cache, moduleRoot)

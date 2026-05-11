@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -453,6 +454,63 @@ func TestWire_MultipleExtensionsRegisterHandlers(t *testing.T) {
 
 	onAllCalls := bus.OnAllCalls()
 	require.Len(t, onAllCalls, 1)
+}
+
+func TestWireWithCore_PublishesAppStarted(t *testing.T) {
+	sdk.ResetRegistry()
+
+	sdk.ResetAppStartedHandlers()
+	defer sdk.ResetAppStartedHandlers()
+
+	var handlerCalled atomic.Bool
+
+	sdk.OnAppStarted(func(bus sdk.Bus, cfg sdk.Config) {
+		handlerCalled.Store(true)
+	})
+
+	sdk.RegisterExtension("loop", func(sdk.Config) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("loop", func(sdk.Bus) error { return nil }), nil
+	})
+
+	realBus := eventbus.New()
+	defer realBus.Close()
+
+	_, err := WireWithCore(coreCfg(), nil, realBus, sdk.FilePathConfig(""))
+	require.NoError(t, err, "WireWithCore")
+
+	// Wait for the async publish + handler to run.
+	require.Eventually(t, handlerCalled.Load, 100*time.Millisecond, 5*time.Millisecond, "app.started handler should be called")
+}
+
+func TestWireWithCore_AppStartedNotCalledWhenHeadless(t *testing.T) {
+	sdk.ResetRegistry()
+
+	sdk.ResetAppStartedHandlers()
+	defer sdk.ResetAppStartedHandlers()
+
+	var handlerCalled atomic.Bool
+
+	sdk.OnAppStarted(func(bus sdk.Bus, cfg sdk.Config) {
+		if cfg != nil && cfg.IsHeadless() {
+			return
+		}
+
+		handlerCalled.Store(true)
+	})
+
+	sdk.RegisterExtension("loop", func(sdk.Config) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("loop", func(sdk.Bus) error { return nil }), nil
+	})
+
+	realBus := eventbus.New()
+	defer realBus.Close()
+
+	headlessCfg := sdk.HeadlessConfig{Config: sdk.FilePathConfig(""), Headless: true}
+	_, err := WireWithCore(coreCfg(), nil, realBus, headlessCfg)
+	require.NoError(t, err, "WireWithCore")
+
+	// Give the async handler a chance to run, then verify it was skipped.
+	assert.Never(t, handlerCalled.Load, 50*time.Millisecond, 5*time.Millisecond, "app.started handler should NOT be called when headless")
 }
 
 func TestWireWithCore_ExtensionUsesBusOn(t *testing.T) {

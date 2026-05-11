@@ -170,11 +170,11 @@ Remove provider-specific defaults from shared libraries.
 
 Remove extension-specific timing and CLI forwarding from wire.
 
-- [ ] Move TUI-specific update check timing to generic lifecycle event (`app.started`)
-- [ ] Update TUI extension to subscribe to lifecycle event
-- [ ] Replace hardcoded CLI flag forwarding with generic mechanism or extension self-parsing
-- [ ] Update `sdk/wire/run_test.go`
-- [ ] Run `make test ./sdk/wire/...` — must pass
+- [x] Move TUI-specific update check timing to generic lifecycle event (`app.started`)
+- [x] Update TUI extension to subscribe to lifecycle event
+- [x] Replace hardcoded CLI flag forwarding with generic mechanism or extension self-parsing
+- [x] Update `sdk/wire/run_test.go`
+- [x] Run `make test ./sdk/wire/...` — must pass
 
 ### Task 12: Final verification
 

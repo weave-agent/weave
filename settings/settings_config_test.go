@@ -10,6 +10,74 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestSettingsWeaveFlags(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings Settings
+		want     []string
+	}{
+		{
+			name:     "no flags",
+			settings: Settings{},
+			want:     nil,
+		},
+		{
+			name:     "output flag",
+			settings: Settings{Output: "json"},
+			want:     []string{"--weave-output=json"},
+		},
+		{
+			name:     "tools flag",
+			settings: Settings{ToolsFlag: "read,grep"},
+			want:     []string{"--weave-tools=read,grep"},
+		},
+		{
+			name:     "empty tools flag with ToolsSet",
+			settings: Settings{ToolsFlag: "", ToolsSet: true},
+			want:     []string{"--weave-tools="},
+		},
+		{
+			name:     "subagent id flag",
+			settings: Settings{SubagentID: "abc123"},
+			want:     []string{"--weave-subagent-id=abc123"},
+		},
+		{
+			name:     "sandbox mode flag",
+			settings: Settings{SandboxMode: "readonly"},
+			want:     []string{"--weave-sandbox-mode=readonly"},
+		},
+		{
+			name:     "model flag",
+			settings: Settings{ModelFlag: "claude-sonnet-4-6"},
+			want:     []string{"--weave-model=claude-sonnet-4-6"},
+		},
+		{
+			name: "multiple flags",
+			settings: Settings{
+				Output:      "json",
+				ToolsFlag:   "read",
+				SubagentID:  "id1",
+				SandboxMode: "auto",
+				ModelFlag:   "gpt-5.5",
+			},
+			want: []string{
+				"--weave-output=json",
+				"--weave-tools=read",
+				"--weave-subagent-id=id1",
+				"--weave-sandbox-mode=auto",
+				"--weave-model=gpt-5.5",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.settings.WeaveFlags()
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestToolConfig_PopulatedStruct(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
