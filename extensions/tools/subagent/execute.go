@@ -87,6 +87,10 @@ func runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID s
 	}
 
 	if err != nil {
+		_ = cmd.Cancel()
+		// Drain stdout asynchronously so the child is not blocked on a full pipe.
+		go func() { _, _ = io.Copy(io.Discard, stdout) }()
+
 		_ = cmd.Wait()
 		stderrWg.Wait()
 
