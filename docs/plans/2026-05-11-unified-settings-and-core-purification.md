@@ -148,12 +148,12 @@ Remove extension-specific logic from launcher generated code.
 
 Make diagnostic topics configurable instead of hardcoded.
 
-- [ ] Add `DiagnosticTopics []string` field to `Bus` struct
-- [ ] Update `invokeHandler()` to use configurable topics instead of hardcoded `extension.panic`/`extension.error`
-- [ ] Update `publishDiagnostic()` similarly
-- [ ] Provide defaults in `NewBus()` or constructor
-- [ ] Update bus tests to not hardcode topic names
-- [ ] Run `make test ./bus/...` — must pass
+- [x] Add `DiagnosticTopics []string` field to `Bus` struct
+- [x] Update `invokeHandler()` to use configurable topics instead of hardcoded `extension.panic`/`extension.error`
+- [x] Update `publishDiagnostic()` similarly
+- [x] Provide defaults in `NewBus()` or constructor
+- [x] Update bus tests to not hardcode topic names
+- [x] Run `make test ./bus/...` — must pass
 
 ### Task 10: Utils and model cleanup
 

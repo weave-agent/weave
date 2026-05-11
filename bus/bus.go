@@ -5,6 +5,7 @@ import (
 	"log"
 	"reflect"
 	"runtime/debug"
+	"slices"
 	"sync"
 
 	"weave/sdk"
@@ -27,18 +28,20 @@ type handlerSlot struct {
 }
 
 type Bus struct {
-	mu      sync.RWMutex
-	topicOn map[string][]*handlerSlot
-	allOn   []*handlerSlot
-	closed  bool
-	closeMu sync.RWMutex
-	wg      sync.WaitGroup
+	mu               sync.RWMutex
+	topicOn          map[string][]*handlerSlot
+	allOn            []*handlerSlot
+	closed           bool
+	closeMu          sync.RWMutex
+	wg               sync.WaitGroup
+	DiagnosticTopics []string
 }
 
 // New creates a new event bus ready for use.
 func New() *Bus {
 	return &Bus{
-		topicOn: make(map[string][]*handlerSlot),
+		topicOn:          make(map[string][]*handlerSlot),
+		DiagnosticTopics: []string{"extension.panic", "extension.error"},
 	}
 }
 
@@ -53,7 +56,7 @@ func handlerID(h sdk.Handler) uintptr {
 // On registers a handler for a specific topic. Each handler runs in its own
 // goroutine with a 64-event buffer. Delivery is non-blocking; if the buffer is
 // full the event is dropped and a warning is logged. Handler panics are
-// recovered and re-published as extension.panic diagnostic events. No-op if
+// recovered and re-published on the configured panic diagnostic topic. No-op if
 // called after Close.
 func (b *Bus) On(topic string, h sdk.Handler) {
 	b.closeMu.RLock()
@@ -203,18 +206,38 @@ func (b *Bus) Publish(e sdk.Event) {
 	}
 }
 
+func (b *Bus) panicTopic() string {
+	if len(b.DiagnosticTopics) > 0 {
+		return b.DiagnosticTopics[0]
+	}
+
+	return "extension.panic"
+}
+
+func (b *Bus) errorTopic() string {
+	if len(b.DiagnosticTopics) > 1 {
+		return b.DiagnosticTopics[1]
+	}
+
+	return "extension.error"
+}
+
+func (b *Bus) isDiagnosticTopic(topic string) bool {
+	return slices.Contains(b.DiagnosticTopics, topic)
+}
+
 // invokeHandler calls h(e) with panic/error recovery. Panics are logged and
-// re-published as extension.panic; errors are logged and re-published as
-// extension.error. Diagnostic events for extension.panic/error topics are
-// suppressed to prevent infinite recursion.
+// re-published on the configured panic diagnostic topic; errors are logged and
+// re-published on the configured error diagnostic topic. Events whose topic is
+// in DiagnosticTopics are suppressed to prevent infinite recursion.
 func (b *Bus) invokeHandler(e sdk.Event, h sdk.Handler) {
 	defer func() {
 		if r := recover(); r != nil {
 			stack := debug.Stack()
 			log.Printf("[bus] panic in handler on topic %q: %v\n%s", e.Topic, r, stack)
 
-			if e.Topic != "extension.panic" && e.Topic != "extension.error" {
-				b.publishDiagnostic("extension.panic", fmt.Sprintf("panic: %v", r))
+			if !b.isDiagnosticTopic(e.Topic) {
+				b.publishDiagnostic(b.panicTopic(), fmt.Sprintf("panic: %v", r))
 			}
 		}
 	}()
@@ -222,16 +245,16 @@ func (b *Bus) invokeHandler(e sdk.Event, h sdk.Handler) {
 	if err := h(e); err != nil {
 		log.Printf("[bus] handler error on topic %q: %v", e.Topic, err)
 
-		if e.Topic != "extension.panic" && e.Topic != "extension.error" {
-			b.publishDiagnostic("extension.error", err.Error())
+		if !b.isDiagnosticTopic(e.Topic) {
+			b.publishDiagnostic(b.errorTopic(), err.Error())
 		}
 	}
 }
 
-// publishDiagnostic emits a diagnostic event (extension.panic or
-// extension.error). It is only called from invokeHandler which already runs
-// inside a recover-wrapped context, so the closeMu check is sufficient — no
-// additional recover is needed here.
+// publishDiagnostic emits a diagnostic event on the given topic. It is only
+// called from invokeHandler which already runs inside a recover-wrapped
+// context, so the closeMu check is sufficient — no additional recover is
+// needed here.
 func (b *Bus) publishDiagnostic(topic, msg string) {
 	ev := sdk.Event{
 		Topic:   topic,

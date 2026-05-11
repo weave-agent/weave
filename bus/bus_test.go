@@ -98,7 +98,8 @@ func TestPanicRecovery(t *testing.T) {
 
 	var panicEvent atomic.Value
 
-	b.On("extension.panic", func(e sdk.Event) error {
+	panicTopic := b.DiagnosticTopics[0]
+	b.On(panicTopic, func(e sdk.Event) error {
 		panicEvent.Store(e)
 		return nil
 	})
@@ -111,8 +112,8 @@ func TestPanicRecovery(t *testing.T) {
 
 	assert.Eventually(t, func() bool {
 		v, ok := panicEvent.Load().(sdk.Event)
-		return ok && v.Topic == "extension.panic"
-	}, 2*time.Second, 10*time.Millisecond, "expected extension.panic diagnostic event")
+		return ok && v.Topic == panicTopic
+	}, 2*time.Second, 10*time.Millisecond, "expected panic diagnostic event")
 
 	// Bus should still be usable after panic
 	require.NoError(t, b.Close())
@@ -123,7 +124,8 @@ func TestErrorHandler(t *testing.T) {
 
 	var errEvent atomic.Value
 
-	b.On("extension.error", func(e sdk.Event) error {
+	errTopic := b.DiagnosticTopics[1]
+	b.On(errTopic, func(e sdk.Event) error {
 		errEvent.Store(e)
 		return nil
 	})
@@ -136,8 +138,8 @@ func TestErrorHandler(t *testing.T) {
 
 	assert.Eventually(t, func() bool {
 		v, ok := errEvent.Load().(sdk.Event)
-		return ok && v.Topic == "extension.error"
-	}, 2*time.Second, 10*time.Millisecond, "expected extension.error diagnostic event")
+		return ok && v.Topic == errTopic
+	}, 2*time.Second, 10*time.Millisecond, "expected error diagnostic event")
 
 	require.NoError(t, b.Close())
 }
@@ -356,7 +358,8 @@ func TestPublishDiagnosticRecoverOnPanic(t *testing.T) {
 	var panicCount atomic.Int32
 
 	// Diagnostic handler that panics
-	b.On("extension.error", func(e sdk.Event) error {
+	errTopic := b.DiagnosticTopics[1]
+	b.On(errTopic, func(e sdk.Event) error {
 		panicCount.Add(1)
 		panic("diagnostic handler broke")
 	})
@@ -365,7 +368,7 @@ func TestPublishDiagnosticRecoverOnPanic(t *testing.T) {
 	// (the panic is recovered by invokeHandler, not publishDiagnostic)
 	var secondReceived atomic.Bool
 
-	b.On("extension.error", func(e sdk.Event) error {
+	b.On(errTopic, func(e sdk.Event) error {
 		secondReceived.Store(true)
 		return nil
 	})
@@ -378,7 +381,7 @@ func TestPublishDiagnosticRecoverOnPanic(t *testing.T) {
 	b.Publish(sdk.NewEvent("fail.topic", nil))
 
 	// Bus should not deadlock and the second handler should eventually receive
-	assert.Eventually(t, secondReceived.Load, 2*time.Second, 10*time.Millisecond, "second extension.error handler should receive event despite first handler panicking")
+	assert.Eventually(t, secondReceived.Load, 2*time.Second, 10*time.Millisecond, "second error diagnostic handler should receive event despite first handler panicking")
 
 	require.NoError(t, b.Close())
 }
@@ -510,23 +513,25 @@ func TestPanicOnDiagnosticTopicNoRecurse(t *testing.T) {
 
 	var panicCount atomic.Int32
 
-	// Handler on extension.panic that itself panics
-	b.On("extension.panic", func(e sdk.Event) error {
+	panicTopic := b.DiagnosticTopics[0]
+
+	// Handler on panic diagnostic topic that itself panics
+	b.On(panicTopic, func(e sdk.Event) error {
 		panicCount.Add(1)
 		panic("diagnostic panic")
 	})
 
-	// Trigger a panic that generates extension.panic
+	// Trigger a panic that generates a panic diagnostic event
 	b.On("trigger", func(e sdk.Event) error {
 		panic("original panic")
 	})
 
 	b.Publish(sdk.NewEvent("trigger", nil))
 
-	// Should receive exactly one extension.panic — no recursion
+	// Should receive exactly one panic diagnostic event — no recursion
 	assert.Eventually(t, func() bool {
 		return panicCount.Load() == 1
-	}, 2*time.Second, 10*time.Millisecond, "expected exactly 1 extension.panic event, no recursion")
+	}, 2*time.Second, 10*time.Millisecond, "expected exactly 1 panic diagnostic event, no recursion")
 
 	// Bus should still be usable
 	var after atomic.Bool
@@ -547,13 +552,15 @@ func TestErrorOnDiagnosticTopicNoRecurse(t *testing.T) {
 
 	var errCount atomic.Int32
 
-	// Handler on extension.error that itself returns an error
-	b.On("extension.error", func(e sdk.Event) error {
+	errTopic := b.DiagnosticTopics[1]
+
+	// Handler on error diagnostic topic that itself returns an error
+	b.On(errTopic, func(e sdk.Event) error {
 		errCount.Add(1)
 		return assert.AnError
 	})
 
-	// Trigger an error that generates extension.error
+	// Trigger an error that generates an error diagnostic event
 	b.On("trigger", func(e sdk.Event) error {
 		return assert.AnError
 	})
@@ -562,7 +569,7 @@ func TestErrorOnDiagnosticTopicNoRecurse(t *testing.T) {
 
 	assert.Eventually(t, func() bool {
 		return errCount.Load() == 1
-	}, 2*time.Second, 10*time.Millisecond, "expected exactly 1 extension.error event, no recursion")
+	}, 2*time.Second, 10*time.Millisecond, "expected exactly 1 error diagnostic event, no recursion")
 
 	require.NoError(t, b.Close())
 }
@@ -761,7 +768,8 @@ func TestNilHandlerOn(t *testing.T) {
 
 	var panicEvent atomic.Bool
 
-	b.On("extension.panic", func(e sdk.Event) error {
+	panicTopic := b.DiagnosticTopics[0]
+	b.On(panicTopic, func(e sdk.Event) error {
 		panicEvent.Store(true)
 		return nil
 	})
@@ -770,7 +778,7 @@ func TestNilHandlerOn(t *testing.T) {
 	b.Publish(sdk.NewEvent("nil.topic", nil))
 
 	assert.Eventually(t, panicEvent.Load, 2*time.Second, 10*time.Millisecond,
-		"nil handler should trigger extension.panic")
+		"nil handler should trigger panic diagnostic event")
 
 	require.NoError(t, b.Close())
 }
@@ -829,8 +837,77 @@ func TestOnAllReceivesDiagnosticEvents(t *testing.T) {
 	copy(topics, events)
 	mu.Unlock()
 
+	panicTopic := b.DiagnosticTopics[0]
+
 	assert.Contains(t, topics, "crash")
-	assert.Contains(t, topics, "extension.panic")
+	assert.Contains(t, topics, panicTopic)
+
+	require.NoError(t, b.Close())
+}
+
+func TestCustomDiagnosticTopics(t *testing.T) {
+	b := New()
+	b.DiagnosticTopics = []string{"custom.panic", "custom.error"}
+
+	var panicEvent, errEvent atomic.Value
+
+	b.On("custom.panic", func(e sdk.Event) error {
+		panicEvent.Store(e)
+		return nil
+	})
+
+	b.On("custom.error", func(e sdk.Event) error {
+		errEvent.Store(e)
+		return nil
+	})
+
+	b.On("crash.topic", func(e sdk.Event) error {
+		panic("custom panic")
+	})
+
+	b.On("fail.topic", func(e sdk.Event) error {
+		return assert.AnError
+	})
+
+	b.Publish(sdk.NewEvent("crash.topic", nil))
+	b.Publish(sdk.NewEvent("fail.topic", nil))
+
+	assert.Eventually(t, func() bool {
+		v, ok := panicEvent.Load().(sdk.Event)
+		return ok && v.Topic == "custom.panic"
+	}, 2*time.Second, 10*time.Millisecond, "expected custom.panic diagnostic event")
+
+	assert.Eventually(t, func() bool {
+		v, ok := errEvent.Load().(sdk.Event)
+		return ok && v.Topic == "custom.error"
+	}, 2*time.Second, 10*time.Millisecond, "expected custom.error diagnostic event")
+
+	require.NoError(t, b.Close())
+}
+
+func TestCustomDiagnosticTopicNoRecurse(t *testing.T) {
+	b := New()
+	b.DiagnosticTopics = []string{"diag.panic", "diag.error"}
+
+	var panicCount atomic.Int32
+
+	// Handler on custom panic diagnostic topic that itself panics
+	b.On("diag.panic", func(e sdk.Event) error {
+		panicCount.Add(1)
+		panic("recursive panic")
+	})
+
+	// Trigger a panic
+	b.On("trigger", func(e sdk.Event) error {
+		panic("original")
+	})
+
+	b.Publish(sdk.NewEvent("trigger", nil))
+
+	// Should receive exactly one diag.panic — no recursion
+	assert.Eventually(t, func() bool {
+		return panicCount.Load() == 1
+	}, 2*time.Second, 10*time.Millisecond, "expected exactly 1 diag.panic event, no recursion")
 
 	require.NoError(t, b.Close())
 }
