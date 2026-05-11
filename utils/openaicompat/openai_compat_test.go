@@ -524,34 +524,6 @@ func TestStream_MixedTextAndToolCalls(t *testing.T) {
 	assert.Equal(t, "bash", toolCalls[0].Name)
 }
 
-func TestStream_DefaultModel(t *testing.T) {
-	var receivedBody ChatRequest
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewDecoder(r.Body).Decode(&receivedBody)
-
-		w.Header().Set("Content-Type", "text/event-stream")
-		_, _ = fmt.Fprint(w, sseStream(
-			sseChunk(ChunkDelta{Content: "ok"}, nil),
-			sseChunk(ChunkDelta{}, new("stop")),
-			sseDone(),
-		))
-	}))
-	defer server.Close()
-
-	ch, err := Stream(context.Background(), server.Client(), ProviderConfig{
-		BaseURL: server.URL,
-		APIKey:  "test-key",
-		Model:   "",
-	}, sdk.ProviderRequest{
-		Messages: []sdk.Message{sdk.NewUserMessage("hi")},
-	})
-	require.NoError(t, err)
-	collectEvents(ch)
-
-	assert.Equal(t, "gpt-5.5", receivedBody.Model)
-}
-
 func TestStream_PartialJSONArguments(t *testing.T) {
 	// Simulate real-world streaming where JSON arguments arrive in fragments
 	stream := sseStream(
@@ -676,61 +648,6 @@ func TestStream_WithModelOverride(t *testing.T) {
 	collectEvents(ch)
 
 	assert.Equal(t, "gpt-4.1", receivedBody.Model)
-}
-
-func TestStream_WithThinkingLevel_SetsReasoningEffort(t *testing.T) {
-	tests := []struct {
-		level   model.ThinkingLevel
-		want    string
-		wantNot string
-	}{
-		{model.ThinkingOff, "", "reasoning_effort"},
-		{model.ThinkingMinimal, "low", ""},
-		{model.ThinkingLow, "low", ""},
-		{model.ThinkingMedium, "medium", ""},
-		{model.ThinkingHigh, "high", ""},
-		{model.ThinkingXHigh, "high", ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(string(tt.level), func(t *testing.T) {
-			var receivedBody ChatRequest
-
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				_ = json.NewDecoder(r.Body).Decode(&receivedBody)
-
-				w.Header().Set("Content-Type", "text/event-stream")
-				_, _ = fmt.Fprint(w, sseStream(
-					sseChunk(ChunkDelta{Content: "ok"}, nil),
-					sseChunk(ChunkDelta{}, new("stop")),
-					sseDone(),
-				))
-			}))
-			defer server.Close()
-
-			// Use a reasoning model so reasoning_effort is actually set.
-			model.ResetModelRegistry()
-			model.RegisterModel(model.ModelDef{ID: "test-reasoning", Reasoning: true})
-			t.Cleanup(func() { model.ResetModelRegistry() })
-
-			ch, err := Stream(context.Background(), server.Client(), ProviderConfig{
-				BaseURL: server.URL,
-				APIKey:  "test-key",
-				Model:   "test-reasoning",
-			}, sdk.ProviderRequest{
-				Messages: []sdk.Message{sdk.NewUserMessage("hi")},
-			}, model.WithThinkingLevel(tt.level))
-			require.NoError(t, err)
-			collectEvents(ch)
-
-			assert.Equal(t, tt.want, receivedBody.ReasoningEffort)
-
-			if tt.wantNot != "" {
-				raw, _ := json.Marshal(receivedBody)
-				assert.NotContains(t, string(raw), tt.wantNot)
-			}
-		})
-	}
 }
 
 func TestStream_ReasoningContentEmitted(t *testing.T) {

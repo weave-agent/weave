@@ -8,6 +8,7 @@ import (
 
 	"weave/sdk"
 	sdkmodel "weave/sdk/model"
+	"weave/settings"
 )
 
 // preferences mirrors the settings fields used by the TUI for model/thinking persistence.
@@ -206,7 +207,7 @@ func initialThinkingLevel(cfg sdk.Config) sdkmodel.ThinkingLevel {
 		}
 	}
 
-	return sdkmodel.DefaultThinkingLevel()
+	return settings.DefaultThinkingLevel()
 }
 
 // saveSettings persists the current model and thinking level to the global

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"weave/sdk"
+	sdkmodel "weave/sdk/model"
 	"weave/utils/openaicompat"
 
 	"github.com/stretchr/testify/assert"
@@ -25,9 +26,10 @@ func newTestProvider(server *httptest.Server, model string) sdk.Provider {
 	return &provider{
 		client: server.Client(),
 		config: openaicompat.ProviderConfig{
-			BaseURL: server.URL,
-			APIKey:  "test-key",
-			Model:   model,
+			BaseURL:       server.URL,
+			APIKey:        "test-key",
+			Model:         model,
+			ModifyRequest: modifyRequest(model),
 		},
 	}
 }
@@ -331,6 +333,60 @@ func TestStream_SendsCorrectBaseURL(t *testing.T) {
 	collectEvents(t, ch)
 
 	assert.Equal(t, "/chat/completions", receivedPath)
+}
+
+func TestStream_WithThinkingLevel_SetsReasoningEffort(t *testing.T) {
+	tests := []struct {
+		level   sdkmodel.ThinkingLevel
+		want    string
+		wantNot string
+	}{
+		{sdkmodel.ThinkingOff, "", "reasoning_effort"},
+		{sdkmodel.ThinkingMinimal, "low", ""},
+		{sdkmodel.ThinkingLow, "low", ""},
+		{sdkmodel.ThinkingMedium, "medium", ""},
+		{sdkmodel.ThinkingHigh, "high", ""},
+		{sdkmodel.ThinkingXHigh, "high", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.level), func(t *testing.T) {
+			var receivedBody map[string]any
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_ = json.NewDecoder(r.Body).Decode(&receivedBody)
+
+				w.Header().Set("Content-Type", "text/event-stream")
+				_, _ = fmt.Fprint(w, sseStream(
+					sseChunk(openaicompat.ChunkDelta{Content: "ok"}, nil),
+					sseChunk(openaicompat.ChunkDelta{}, new("stop")),
+					sseDone(),
+				))
+			}))
+			defer server.Close()
+
+			// Use a reasoning model so reasoning_effort is actually set.
+			sdkmodel.ResetModelRegistry()
+			sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "test-reasoning", Reasoning: true})
+			t.Cleanup(func() { sdkmodel.ResetModelRegistry() })
+
+			p := newTestProvider(server, "test-reasoning")
+			ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
+				Messages: []sdk.Message{sdk.NewUserMessage("hi")},
+			}, sdkmodel.WithThinkingLevel(tt.level))
+			require.NoError(t, err)
+			collectEvents(t, ch)
+
+			if tt.want != "" {
+				assert.Equal(t, tt.want, receivedBody["reasoning_effort"])
+			}
+
+			if tt.wantNot != "" {
+				raw, _ := json.Marshal(receivedBody)
+				assert.NotContains(t, string(raw), tt.wantNot)
+			}
+		})
+	}
 }
 
 func TestRegister(t *testing.T) {

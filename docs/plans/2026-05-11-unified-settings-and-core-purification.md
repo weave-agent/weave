@@ -159,12 +159,12 @@ Make diagnostic topics configurable instead of hardcoded.
 
 Remove provider-specific defaults from shared libraries.
 
-- [ ] Remove `defaultModel = "gpt-5.5"` from `utils/openaicompat/openai_compat.go`
-- [ ] Update callers to ensure `cfg.Model` is populated before calling `Stream()`
-- [ ] Move OpenAI-specific reasoning effort mapping from `openaicompat/` to `extensions/providers/openai/`
-- [ ] Move `DefaultThinkingLevel()` env var read from `sdk/model/types.go` to `settings/` or `extensions/loop/`
-- [ ] Update tests
-- [ ] Run `make test` — must pass
+- [x] Remove `defaultModel = "gpt-5.5"` from `utils/openaicompat/openai_compat.go`
+- [x] Update callers to ensure `cfg.Model` is populated before calling `Stream()`
+- [x] Move OpenAI-specific reasoning effort mapping from `openaicompat/` to `extensions/providers/openai/`
+- [x] Move `DefaultThinkingLevel()` env var read from `sdk/model/types.go` to `settings/`
+- [x] Update tests
+- [x] Run `make test` — must pass
 
 ### Task 11: Wire cleanup
 

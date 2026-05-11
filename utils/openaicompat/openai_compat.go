@@ -16,8 +16,6 @@ import (
 	"weave/sdk/model"
 )
 
-const defaultModel = "gpt-5.5"
-
 // ErrorType categorizes an error from the OpenAI-compatible API.
 type ErrorType string
 
@@ -65,12 +63,11 @@ type ProviderConfig struct {
 
 // ChatRequest is the request body sent to the chat completions endpoint.
 type ChatRequest struct {
-	Model           string        `json:"model"`
-	Messages        []ChatMessage `json:"messages"`
-	Stream          bool          `json:"stream"`
-	MaxTokens       int64         `json:"max_tokens,omitempty"`
-	Tools           []Tool        `json:"tools,omitempty"`
-	ReasoningEffort string        `json:"reasoning_effort,omitempty"`
+	Model     string        `json:"model"`
+	Messages  []ChatMessage `json:"messages"`
+	Stream    bool          `json:"stream"`
+	MaxTokens int64         `json:"max_tokens,omitempty"`
+	Tools     []Tool        `json:"tools,omitempty"`
 }
 
 // ChatMessage represents a single message in the OpenAI chat format.
@@ -155,10 +152,6 @@ func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sd
 		mdl = cfg.Model
 	}
 
-	if mdl == "" {
-		mdl = defaultModel
-	}
-
 	chatReq := ChatRequest{
 		Model:    mdl,
 		Messages: ConvertMessages(req.Messages),
@@ -168,22 +161,6 @@ func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sd
 
 	if so.MaxTokens > 0 {
 		chatReq.MaxTokens = so.MaxTokens
-	}
-
-	effortMap := map[model.ThinkingLevel]string{
-		model.ThinkingMinimal: "low",
-		model.ThinkingLow:     "low",
-		model.ThinkingMedium:  "medium",
-		model.ThinkingHigh:    "high",
-		model.ThinkingXHigh:   "high",
-	}
-
-	if so.ThinkingLevel != model.ThinkingOff {
-		if m, ok := model.GetModel(mdl); !ok || m.Reasoning {
-			if effort, ok := effortMap[so.ThinkingLevel]; ok {
-				chatReq.ReasoningEffort = effort
-			}
-		}
 	}
 
 	if req.SystemPrompt != "" {

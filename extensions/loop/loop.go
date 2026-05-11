@@ -12,6 +12,7 @@ import (
 
 	"weave/sdk"
 	"weave/sdk/model"
+	"weave/settings"
 )
 
 // Bus topics
@@ -119,7 +120,7 @@ func resolveThinkingLevel(cfg sdk.Config) model.ThinkingLevel {
 		}
 	}
 
-	return model.DefaultThinkingLevel()
+	return settings.DefaultThinkingLevel()
 }
 
 func NewLoop(cfg sdk.Config, providerName string) (*Loop, error) {

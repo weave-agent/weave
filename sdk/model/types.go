@@ -2,7 +2,6 @@ package model
 
 import (
 	"fmt"
-	"os"
 )
 
 // ThinkingLevel represents the reasoning depth for a model request.
@@ -79,18 +78,6 @@ func ClampForModel(level ThinkingLevel, m ModelDef) ThinkingLevel {
 	}
 
 	return level
-}
-
-// DefaultThinkingLevel reads the initial thinking level from WEAVE_THINKING_LEVEL,
-// falling back to ThinkingMedium.
-func DefaultThinkingLevel() ThinkingLevel {
-	if v := os.Getenv("WEAVE_THINKING_LEVEL"); v != "" {
-		if lvl, err := ParseThinkingLevel(v); err == nil {
-			return lvl
-		}
-	}
-
-	return ThinkingMedium
 }
 
 // ParseThinkingLevel converts a string to a ThinkingLevel, returning an error if invalid.

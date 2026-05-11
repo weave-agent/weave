@@ -55,12 +55,43 @@ func init() {
 		return &provider{
 			client: &http.Client{},
 			config: openaicompat.ProviderConfig{
-				BaseURL: baseURL,
-				APIKey:  apiKey,
-				Model:   modelName,
+				BaseURL:       baseURL,
+				APIKey:        apiKey,
+				Model:         modelName,
+				ModifyRequest: modifyRequest(modelName),
 			},
 		}, nil
 	})
+}
+
+// modifyRequest sets OpenAI-specific fields on the request body map.
+func modifyRequest(modelName string) func(body map[string]any, so *model.StreamOptions) {
+	return func(body map[string]any, so *model.StreamOptions) {
+		mdl := so.Model
+		if mdl == "" {
+			mdl = modelName
+		}
+
+		if so.ThinkingLevel == model.ThinkingOff {
+			return
+		}
+
+		if m, ok := model.GetModel(mdl); ok && !m.Reasoning {
+			return
+		}
+
+		effortMap := map[model.ThinkingLevel]string{
+			model.ThinkingMinimal: "low",
+			model.ThinkingLow:     "low",
+			model.ThinkingMedium:  "medium",
+			model.ThinkingHigh:    "high",
+			model.ThinkingXHigh:   "high",
+		}
+
+		if effort, ok := effortMap[so.ThinkingLevel]; ok {
+			body["reasoning_effort"] = effort
+		}
+	}
 }
 
 func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest, opts ...model.StreamOption) (<-chan sdk.ProviderEvent, error) {
