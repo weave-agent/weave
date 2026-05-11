@@ -30,6 +30,7 @@ func (noopConfig) UIConfig(any) error                             { return nil }
 func (noopConfig) IsHeadless() bool                               { return true }
 func (noopConfig) Preferences(any) error                          { return nil }
 func (noopConfig) SavePreferences(any) error                      { return nil }
+func (noopConfig) SaveProviderKey(_, _ string) error              { return nil }
 func (noopConfig) RespectGitignore() bool                         { return true }
 
 // providerHasKey checks whether a provider has a configured API key by

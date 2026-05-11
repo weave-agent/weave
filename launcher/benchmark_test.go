@@ -187,7 +187,7 @@ func warmPipeline(b *testing.B, moduleRoot string, extNames []string) {
 			}
 		}
 
-		hash, err := ComputeHash(exts, moduleRoot, false)
+		hash, err := ComputeHash(exts, moduleRoot, false, "")
 		if err != nil {
 			b.Fatalf("ComputeHash: %v", err)
 		}

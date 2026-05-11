@@ -92,9 +92,14 @@ func WireWithCore(core CoreWireConfig, optExts []string, bus sdk.Bus, cfg sdk.Co
 		})
 	}
 
+	wired, err := Wire(extNames, bus, cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	go bus.Publish(sdk.NewEvent("app.started", nil))
 
-	return Wire(extNames, bus, cfg)
+	return wired, nil
 }
 
 func (w *Wired) Close() error {

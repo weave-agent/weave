@@ -9,9 +9,11 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/nniel-ape/gonfig"
 
+	"weave/internal/auth"
 	"weave/sdk"
 )
 
@@ -328,15 +330,29 @@ func LoadFullConfig(path string) (*FullConfig, error) {
 
 // FullConfig implements sdk.Config with auth resolution and provider config lookup.
 type FullConfig struct {
-	filePath   string
-	settings   *Settings
-	projectDir string
+	filePath    string
+	settings    *Settings
+	projectDir  string
+	layeredOnce sync.Once
+	layered     *Settings
+	layeredErr  error
 }
 
 // SetProjectDir overrides the project directory used for layered settings resolution.
 // When set, it takes precedence over the directory derived from the config file path.
 func (c *FullConfig) SetProjectDir(dir string) {
 	c.projectDir = dir
+	c.layeredOnce = sync.Once{}
+	c.layered = nil
+	c.layeredErr = nil
+}
+
+func (c *FullConfig) getLayeredSettings() (*Settings, error) {
+	c.layeredOnce.Do(func() {
+		c.layered, c.layeredErr = LoadLayeredSettings(c.effectiveProjectDir())
+	})
+
+	return c.layered, c.layeredErr
 }
 
 var _ sdk.Config = (*FullConfig)(nil)
@@ -388,9 +404,7 @@ func ProjectDirFromConfig(configPath string) string {
 func (c *FullConfig) ToolConfig(name string, target any) error {
 	applyDefaults(target)
 
-	configDir := c.effectiveProjectDir()
-
-	layered, err := LoadLayeredSettings(configDir)
+	layered, err := c.getLayeredSettings()
 	if err != nil {
 		return fmt.Errorf("load settings for tool config: %w", err)
 	}
@@ -410,9 +424,7 @@ func (c *FullConfig) ToolConfig(name string, target any) error {
 func (c *FullConfig) UIConfig(target any) error {
 	applyDefaults(target)
 
-	configDir := c.effectiveProjectDir()
-
-	layered, err := LoadLayeredSettings(configDir)
+	layered, err := c.getLayeredSettings()
 	if err != nil {
 		return fmt.Errorf("load settings for UI config: %w", err)
 	}
@@ -427,9 +439,7 @@ func (c *FullConfig) UIConfig(target any) error {
 func (c *FullConfig) IsHeadless() bool { return false }
 
 func (c *FullConfig) RespectGitignore() bool {
-	configDir := c.effectiveProjectDir()
-
-	layered, err := LoadLayeredSettings(configDir)
+	layered, err := c.getLayeredSettings()
 	if err != nil {
 		return true
 	}
@@ -444,14 +454,20 @@ func (c *FullConfig) RespectGitignore() bool {
 func (c *FullConfig) Preferences(target any) error {
 	applyDefaults(target)
 
-	configDir := c.effectiveProjectDir()
-
-	layered, err := LoadLayeredSettings(configDir)
+	layered, err := c.getLayeredSettings()
 	if err != nil {
 		return fmt.Errorf("load preferences: %w", err)
 	}
 
 	return populateConfig(layered, target)
+}
+
+func (c *FullConfig) SaveProviderKey(providerName, apiKey string) error {
+	if err := auth.SetProviderKey(providerName, apiKey); err != nil {
+		return fmt.Errorf("save provider key: %w", err)
+	}
+
+	return nil
 }
 
 func (c *FullConfig) SavePreferences(target any) error {

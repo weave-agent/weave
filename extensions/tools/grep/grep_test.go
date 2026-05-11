@@ -448,6 +448,5 @@ func (testConfig) UIConfig(any) error                             { return nil }
 func (testConfig) IsHeadless() bool                               { return false }
 func (testConfig) Preferences(any) error                          { return nil }
 func (testConfig) SavePreferences(any) error                      { return nil }
-func (testConfig) ProviderHasKey(string) bool                     { return false }
-func (testConfig) SetProviderKey(string, string) error            { return nil }
+func (testConfig) SaveProviderKey(_, _ string) error              { return nil }
 func (tc testConfig) RespectGitignore() bool                      { return tc.respectGitignore }

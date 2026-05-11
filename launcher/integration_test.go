@@ -122,7 +122,7 @@ func TestIntegration_FullPipeline(t *testing.T) {
 	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 	require.NoError(t, err, "AutoDiscover")
 
-	hash, err := ComputeHash(exts, "", false)
+	hash, err := ComputeHash(exts, "", false, "")
 	require.NoError(t, err, "ComputeHash")
 
 	cacheDir := t.TempDir()
@@ -164,7 +164,7 @@ func TestIntegration_CacheHitOnSecondRun(t *testing.T) {
 	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 	require.NoError(t, err)
 
-	hash, err := ComputeHash(exts, "", false)
+	hash, err := ComputeHash(exts, "", false, "")
 	require.NoError(t, err)
 
 	cacheDir := t.TempDir()

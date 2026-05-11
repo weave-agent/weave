@@ -18,14 +18,15 @@ import (
 )
 
 // ComputeHash returns a deterministic SHA256 hex string for the given extensions.
-// The hash covers the Go version, the headless flag, the root module's go.mod and go.sum,
+// The hash covers the Go version, the headless flag, the agent loop, the root module's go.mod and go.sum,
 // the sorted contents of all extension .go files, and the contents of any additional core
 // package directories.
-func ComputeHash(exts []ExtensionInfo, moduleRoot string, headless bool, coreDirs ...string) (string, error) {
+func ComputeHash(exts []ExtensionInfo, moduleRoot string, headless bool, agentLoop string, coreDirs ...string) (string, error) {
 	h := sha256.New()
 
 	h.Write([]byte("go" + runtime.Version() + "\n"))
 	h.Write([]byte("headless:" + strconv.FormatBool(headless) + "\n"))
+	h.Write([]byte("agentLoop:" + agentLoop + "\n"))
 
 	HashModuleGraph(h, moduleRoot)
 

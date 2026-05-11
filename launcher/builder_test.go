@@ -21,10 +21,10 @@ func TestComputeHash_Deterministic(t *testing.T) {
 		{Name: "alpha", Dir: dir, GoFiles: []string{f1}},
 	}
 
-	h1, err := ComputeHash(exts, "", false)
+	h1, err := ComputeHash(exts, "", false, "")
 	require.NoError(t, err)
 
-	h2, err := ComputeHash(exts, "", false)
+	h2, err := ComputeHash(exts, "", false, "")
 	require.NoError(t, err)
 
 	assert.Equal(t, h1, h2)
@@ -47,10 +47,10 @@ func TestComputeHash_SortedByName(t *testing.T) {
 		{Name: "alpha", Dir: dir, GoFiles: []string{f1}},
 	}
 
-	h1, err := ComputeHash(exts1, "", false)
+	h1, err := ComputeHash(exts1, "", false, "")
 	require.NoError(t, err)
 
-	h2, err := ComputeHash(exts2, "", false)
+	h2, err := ComputeHash(exts2, "", false, "")
 	require.NoError(t, err)
 
 	assert.Equal(t, h1, h2)
@@ -64,10 +64,10 @@ func TestComputeHash_DifferentContent(t *testing.T) {
 	require.NoError(t, os.WriteFile(f1, []byte("package a"), 0o600))
 	require.NoError(t, os.WriteFile(f2, []byte("package different"), 0o600))
 
-	h1, err := ComputeHash([]ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f1}}}, "", false)
+	h1, err := ComputeHash([]ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f1}}}, "", false, "")
 	require.NoError(t, err)
 
-	h2, err := ComputeHash([]ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f2}}}, "", false)
+	h2, err := ComputeHash([]ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f2}}}, "", false, "")
 	require.NoError(t, err)
 
 	assert.NotEqual(t, h1, h2)
@@ -79,10 +79,10 @@ func TestComputeHash_DifferentNames(t *testing.T) {
 	f := filepath.Join(dir, "ext.go")
 	require.NoError(t, os.WriteFile(f, []byte("package ext"), 0o600))
 
-	h1, err := ComputeHash([]ExtensionInfo{{Name: "alpha", Dir: dir, GoFiles: []string{f}}}, "", false)
+	h1, err := ComputeHash([]ExtensionInfo{{Name: "alpha", Dir: dir, GoFiles: []string{f}}}, "", false, "")
 	require.NoError(t, err)
 
-	h2, err := ComputeHash([]ExtensionInfo{{Name: "beta", Dir: dir, GoFiles: []string{f}}}, "", false)
+	h2, err := ComputeHash([]ExtensionInfo{{Name: "beta", Dir: dir, GoFiles: []string{f}}}, "", false, "")
 	require.NoError(t, err)
 
 	assert.NotEqual(t, h1, h2)
@@ -93,7 +93,7 @@ func TestComputeHash_ReadError(t *testing.T) {
 		{Name: "x", Dir: "/nonexistent", GoFiles: []string{"/nonexistent/missing.go"}},
 	}
 
-	_, err := ComputeHash(exts, "", false)
+	_, err := ComputeHash(exts, "", false, "")
 	require.Error(t, err)
 }
 
@@ -105,13 +105,13 @@ func TestComputeHash_GoModChangesHash(t *testing.T) {
 
 	exts := []ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f}}}
 
-	h1, err := ComputeHash(exts, "", false)
+	h1, err := ComputeHash(exts, "", false, "")
 	require.NoError(t, err)
 
 	goMod := filepath.Join(dir, "go.mod")
 	require.NoError(t, os.WriteFile(goMod, []byte("module weave/ext/x\ngo 1.22\n"), 0o600))
 
-	h2, err := ComputeHash(exts, "", false)
+	h2, err := ComputeHash(exts, "", false, "")
 	require.NoError(t, err)
 
 	assert.NotEqual(t, h1, h2)
@@ -128,13 +128,13 @@ func TestComputeHash_GoSumChangesHash(t *testing.T) {
 
 	exts := []ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f}}}
 
-	h1, err := ComputeHash(exts, "", false)
+	h1, err := ComputeHash(exts, "", false, "")
 	require.NoError(t, err)
 
 	goSum := filepath.Join(dir, "go.sum")
 	require.NoError(t, os.WriteFile(goSum, []byte("example.com/pkg v1.0.0 h1:abc123\n"), 0o600))
 
-	h2, err := ComputeHash(exts, "", false)
+	h2, err := ComputeHash(exts, "", false, "")
 	require.NoError(t, err)
 
 	assert.NotEqual(t, h1, h2, "go.sum change should produce different hash")
@@ -151,13 +151,13 @@ func TestComputeHash_GoSumIgnoredForShim(t *testing.T) {
 
 	exts := []ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f}}}
 
-	h1, err := ComputeHash(exts, "", false)
+	h1, err := ComputeHash(exts, "", false, "")
 	require.NoError(t, err)
 
 	goSum := filepath.Join(dir, "go.sum")
 	require.NoError(t, os.WriteFile(goSum, []byte("example.com/pkg v1.0.0 h1:abc123\n"), 0o600))
 
-	h2, err := ComputeHash(exts, "", false)
+	h2, err := ComputeHash(exts, "", false, "")
 	require.NoError(t, err)
 
 	assert.Equal(t, h1, h2, "go.sum should not affect hash for shim go.mod extensions")
@@ -171,13 +171,30 @@ func TestComputeHash_HeadlessDiffers(t *testing.T) {
 
 	exts := []ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f}}}
 
-	h1, err := ComputeHash(exts, "", false)
+	h1, err := ComputeHash(exts, "", false, "")
 	require.NoError(t, err)
 
-	h2, err := ComputeHash(exts, "", true)
+	h2, err := ComputeHash(exts, "", true, "")
 	require.NoError(t, err)
 
 	assert.NotEqual(t, h1, h2, "headless flag must affect hash")
+}
+
+func TestComputeHash_AgentLoopDiffers(t *testing.T) {
+	dir := t.TempDir()
+
+	f := filepath.Join(dir, "ext.go")
+	require.NoError(t, os.WriteFile(f, []byte("package ext"), 0o600))
+
+	exts := []ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f}}}
+
+	h1, err := ComputeHash(exts, "", false, "loop")
+	require.NoError(t, err)
+
+	h2, err := ComputeHash(exts, "", false, "custom-loop")
+	require.NoError(t, err)
+
+	assert.NotEqual(t, h1, h2, "agent loop must affect hash")
 }
 
 func TestComputeHash_MdFilesChangeHash(t *testing.T) {
@@ -188,14 +205,14 @@ func TestComputeHash_MdFilesChangeHash(t *testing.T) {
 
 	exts := []ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f}}}
 
-	h1, err := ComputeHash(exts, "", false)
+	h1, err := ComputeHash(exts, "", false, "")
 	require.NoError(t, err)
 
 	mdFile := filepath.Join(dir, "agents", "test.md")
 	require.NoError(t, os.MkdirAll(filepath.Dir(mdFile), 0o755))
 	require.NoError(t, os.WriteFile(mdFile, []byte("# Test Agent\n"), 0o600))
 
-	h2, err := ComputeHash(exts, "", false)
+	h2, err := ComputeHash(exts, "", false, "")
 	require.NoError(t, err)
 
 	assert.NotEqual(t, h1, h2, ".md file change should produce different hash")

@@ -48,7 +48,7 @@ func (l *Launcher) Run(ctx context.Context, projectDir string, args []string, co
 		return fmt.Errorf("launcher: auto-discover: %w", err)
 	}
 
-	hash, err := ComputeHash(exts, l.ModuleRoot, headless, l.coreDirs()...)
+	hash, err := ComputeHash(exts, l.ModuleRoot, headless, agentLoop, l.coreDirs()...)
 	if err != nil {
 		return fmt.Errorf("launcher: hash: %w", err)
 	}

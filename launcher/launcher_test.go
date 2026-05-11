@@ -41,7 +41,7 @@ func TestRun_CacheHit(t *testing.T) {
 	exts, err := AutoDiscover(projectDir, t.TempDir(), "", nil)
 	require.NoError(t, err)
 
-	hash, err := ComputeHash(exts, "", false)
+	hash, err := ComputeHash(exts, "", false, "")
 	require.NoError(t, err)
 
 	fakeBin := filepath.Join(cacheDir, hash, "weave")
@@ -78,7 +78,7 @@ func TestRun_FullPipelineWithMockBuild(t *testing.T) {
 	exts, err := AutoDiscover(projectDir, t.TempDir(), "", nil)
 	require.NoError(t, err, "AutoDiscover")
 
-	hash, err := ComputeHash(exts, "", false)
+	hash, err := ComputeHash(exts, "", false, "")
 	require.NoError(t, err, "ComputeHash")
 
 	_, found := l.Cache.Lookup(hash)
@@ -125,7 +125,7 @@ func TestRun_SecondRunUsesCache(t *testing.T) {
 	exts, err := AutoDiscover(projectDir, t.TempDir(), "", nil)
 	require.NoError(t, err)
 
-	hash, err := ComputeHash(exts, "", false)
+	hash, err := ComputeHash(exts, "", false, "")
 	require.NoError(t, err)
 
 	_, err = l.buildAndCache(hash, "loop", false, exts)

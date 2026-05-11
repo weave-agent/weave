@@ -32,7 +32,7 @@ func init() {
 		}
 
 		if apiKey == "" {
-			return nil, errors.New("zai: API key required (set ZAI_API_KEY, add to ~/.weave/auth.json, or configure in .weave.yaml)")
+			return nil, errors.New("zai: API key required (set ZAI_API_KEY, add to ~/.weave/auth.json, or configure in .weave/settings.json)")
 		}
 
 		modelName := defaultModel

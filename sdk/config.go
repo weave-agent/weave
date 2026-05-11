@@ -1,6 +1,9 @@
 package sdk
 
-import "os"
+import (
+	"fmt"
+	"os"
+)
 
 //go:generate moq -fmt goimports -stub -out config_mock_test.go . Config
 
@@ -23,6 +26,7 @@ type Config interface {
 	IsHeadless() bool
 	Preferences(target any) error
 	SavePreferences(target any) error
+	SaveProviderKey(providerName, apiKey string) error
 	RespectGitignore() bool
 }
 
@@ -34,12 +38,13 @@ func (noopConfig) ProviderConfig(string) *ProviderConfigEntry { return nil }
 func (noopConfig) ResolveKey(_, envVar string) (string, error) {
 	return os.Getenv(envVar), nil
 }
-func (noopConfig) ToolConfig(string, any) error { return nil }
-func (noopConfig) UIConfig(any) error           { return nil }
-func (noopConfig) IsHeadless() bool             { return true }
-func (noopConfig) Preferences(any) error        { return nil }
-func (noopConfig) SavePreferences(any) error    { return nil }
-func (noopConfig) RespectGitignore() bool       { return true }
+func (noopConfig) ToolConfig(string, any) error      { return nil }
+func (noopConfig) UIConfig(any) error                { return nil }
+func (noopConfig) IsHeadless() bool                  { return true }
+func (noopConfig) Preferences(any) error             { return nil }
+func (noopConfig) SavePreferences(any) error         { return nil }
+func (noopConfig) SaveProviderKey(_, _ string) error { return nil }
+func (noopConfig) RespectGitignore() bool            { return true }
 
 // FilePathConfig is a Config that returns the given path from FilePath().
 type FilePathConfig string
@@ -50,12 +55,13 @@ func (f FilePathConfig) ProviderConfig(string) *ProviderConfigEntry { return nil
 func (f FilePathConfig) ResolveKey(_, envVar string) (string, error) {
 	return os.Getenv(envVar), nil
 }
-func (f FilePathConfig) ToolConfig(string, any) error { return nil }
-func (f FilePathConfig) UIConfig(any) error           { return nil }
-func (f FilePathConfig) IsHeadless() bool             { return true }
-func (f FilePathConfig) Preferences(any) error        { return nil }
-func (f FilePathConfig) SavePreferences(any) error    { return nil }
-func (f FilePathConfig) RespectGitignore() bool       { return true }
+func (f FilePathConfig) ToolConfig(string, any) error      { return nil }
+func (f FilePathConfig) UIConfig(any) error                { return nil }
+func (f FilePathConfig) IsHeadless() bool                  { return true }
+func (f FilePathConfig) Preferences(any) error             { return nil }
+func (f FilePathConfig) SavePreferences(any) error         { return nil }
+func (f FilePathConfig) SaveProviderKey(_, _ string) error { return nil }
+func (f FilePathConfig) RespectGitignore() bool            { return true }
 
 func configOrDefault(cfg Config) Config {
 	if cfg != nil {
@@ -72,3 +78,11 @@ type HeadlessConfig struct {
 }
 
 func (h HeadlessConfig) IsHeadless() bool { return h.Headless }
+
+func (h HeadlessConfig) SaveProviderKey(p, k string) error {
+	if err := h.Config.SaveProviderKey(p, k); err != nil {
+		return fmt.Errorf("save provider key: %w", err)
+	}
+
+	return nil
+}

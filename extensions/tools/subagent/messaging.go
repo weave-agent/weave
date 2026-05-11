@@ -278,6 +278,12 @@ func readListAgentsResponseWithChannel(ctx context.Context, r io.Reader, respCh 
 		defer close(done)
 
 		for scanner.Scan() {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
 			line := strings.TrimSpace(scanner.Text())
 			if line == "" {
 				continue

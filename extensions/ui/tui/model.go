@@ -16,7 +16,6 @@ import (
 	"weave/ext/ui/tui/components/overlays"
 	"weave/ext/ui/tui/palette"
 	"weave/extensions/sandbox"
-	"weave/internal/auth"
 	"weave/sdk"
 	sdkmodel "weave/sdk/model"
 
@@ -1224,7 +1223,7 @@ func (m Model) onKeyInputDialogDone(result overlays.DialogResult, pendingCmd tea
 		return m, pendingCmd
 	}
 
-	err := auth.SetProviderKey(providerName, apiKey)
+	err := m.cfg.SaveProviderKey(providerName, apiKey)
 
 	am := messages.NewAssistantMessage()
 	if err != nil {

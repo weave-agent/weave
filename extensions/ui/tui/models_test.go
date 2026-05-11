@@ -981,6 +981,5 @@ func (m *mockConfig) SavePreferences(target any) error {
 
 	return nil
 }
-func (m *mockConfig) ProviderHasKey(string) bool          { return true }
-func (m *mockConfig) SetProviderKey(string, string) error { return nil }
-func (m *mockConfig) RespectGitignore() bool              { return true }
+func (m *mockConfig) SaveProviderKey(_, _ string) error { return nil }
+func (m *mockConfig) RespectGitignore() bool            { return true }

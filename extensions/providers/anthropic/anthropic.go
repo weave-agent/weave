@@ -36,7 +36,7 @@ func init() {
 		}
 
 		if apiKey == "" {
-			return nil, errors.New("anthropic: API key required (set ANTHROPIC_API_KEY, add to ~/.weave/auth.json, or configure in .weave.yaml)")
+			return nil, errors.New("anthropic: API key required (set ANTHROPIC_API_KEY, add to ~/.weave/auth.json, or configure in .weave/settings.json)")
 		}
 
 		modelName := defaultModel
