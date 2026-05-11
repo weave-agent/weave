@@ -113,12 +113,12 @@ Move provider credential management to a dedicated location.
 
 TUI extension defines its own config struct; core settings holds opaque data.
 
-- [ ] Remove `UISettings` from `settings/settings.go`
-- [ ] Create `extensions/ui/tui/settings.go` with TUI's own struct
-- [ ] Update TUI to use its local struct (already partially done via `uiSettings`)
-- [ ] Update `settings.Config.UIConfig()` to unmarshal opaque JSON into any target
-- [ ] Update merge logic to handle `ui.*` fields opaquely
-- [ ] Run `make test` — must pass
+- [x] Remove `UISettings` from `settings/settings.go`
+- [x] Create `extensions/ui/tui/settings.go` with TUI's own struct
+- [x] Update TUI to use its local struct (already partially done via `uiSettings`)
+- [x] Update `settings.Config.UIConfig()` to unmarshal opaque JSON into any target
+- [x] Update merge logic to handle `ui.*` fields opaquely
+- [x] Run `make test` — must pass
 
 ### Task 7: SDK cleanup — topics, sandbox modes, outdated types
 

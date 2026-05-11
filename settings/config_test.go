@@ -428,9 +428,9 @@ func TestSavePreferences_PreservesUIFields(t *testing.T) {
 	writeJSON(t, filepath.Join(globalDir, "settings.json"), &Settings{
 		Provider: "anthropic",
 		Model:    "claude-sonnet-4-6",
-		UI: &UISettings{
-			Theme:          "dark",
-			EditorMaxLines: 30,
+		UI: map[string]any{
+			"theme":            "dark",
+			"editor_max_lines": 30,
 		},
 		Tools: map[string]any{
 			"bash": map[string]any{
@@ -459,8 +459,8 @@ func TestSavePreferences_PreservesUIFields(t *testing.T) {
 	assert.Equal(t, "anthropic", loaded.Provider, "existing provider should be preserved")
 	assert.Equal(t, "gpt-5.5", loaded.Model, "model should be updated")
 	require.NotNil(t, loaded.UI)
-	assert.Equal(t, "dark", loaded.UI.Theme, "ui.theme should be preserved")
-	assert.Equal(t, 30, loaded.UI.EditorMaxLines, "ui.editor_max_lines should be preserved")
+	assert.Equal(t, "dark", loaded.UI["theme"], "ui.theme should be preserved")
+	assert.InDelta(t, float64(30), loaded.UI["editor_max_lines"], 0, "ui.editor_max_lines should be preserved")
 	require.NotNil(t, loaded.Tools)
 	bashConfig, ok := loaded.Tools["bash"].(map[string]any)
 	require.True(t, ok, "tools.bash should be preserved")
@@ -474,9 +474,9 @@ func TestSavePreferences_DeepMergesNestedFields(t *testing.T) {
 	require.NoError(t, os.MkdirAll(globalDir, 0o750))
 
 	writeJSON(t, filepath.Join(globalDir, "settings.json"), &Settings{
-		UI: &UISettings{
-			Theme:          "dark",
-			EditorMaxLines: 30,
+		UI: map[string]any{
+			"theme":            "dark",
+			"editor_max_lines": 30,
 		},
 		Tools: map[string]any{
 			"bash": map[string]any{
@@ -521,8 +521,8 @@ func TestSavePreferences_DeepMergesNestedFields(t *testing.T) {
 	loaded, err := LoadSettings()
 	require.NoError(t, err)
 	require.NotNil(t, loaded.UI)
-	assert.Equal(t, "light", loaded.UI.Theme, "ui.theme should be updated")
-	assert.Equal(t, 30, loaded.UI.EditorMaxLines, "ui.editor_max_lines should be preserved")
+	assert.Equal(t, "light", loaded.UI["theme"], "ui.theme should be updated")
+	assert.InDelta(t, float64(30), loaded.UI["editor_max_lines"], 0, "ui.editor_max_lines should be preserved")
 	require.NotNil(t, loaded.Tools)
 	bashConfig, ok := loaded.Tools["bash"].(map[string]any)
 	require.True(t, ok, "tools.bash should be preserved")

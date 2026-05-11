@@ -25,7 +25,7 @@ type Settings struct {
 	Model            string         `json:"model,omitempty"`
 	ThinkingLevel    string         `json:"thinking_level,omitempty"`
 	RespectGitignore *bool          `json:"respect_gitignore,omitempty"`
-	UI               *UISettings    `json:"ui,omitempty"`
+	UI               map[string]any `json:"ui,omitempty"`
 	Tools            map[string]any `json:"tools,omitempty"`
 
 	// CLI-only flags (not persisted).
@@ -36,12 +36,6 @@ type Settings struct {
 	SubagentID  string `flag:"subagent-id" json:"-" description:"Subagent ID for inter-agent communication"`
 	SandboxMode string `flag:"sandbox" json:"-" description:"Sandbox mode override"`
 	ModelFlag   string `flag:"model" json:"-" description:"Model override for this session"`
-}
-
-// UISettings holds UI-specific preferences.
-type UISettings struct {
-	Theme          string `json:"theme,omitempty"`
-	EditorMaxLines int    `json:"editor_max_lines,omitempty"`
 }
 
 // SettingsLayer identifies which settings file to read or write.

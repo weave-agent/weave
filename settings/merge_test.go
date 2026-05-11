@@ -25,9 +25,9 @@ func TestMergeSettings_SingleLayer(t *testing.T) {
 		Provider:      "anthropic",
 		Model:         "claude-opus-4-7",
 		ThinkingLevel: "high",
-		UI: &UISettings{
-			Theme:          "dark",
-			EditorMaxLines: 30,
+		UI: map[string]any{
+			"theme":            "dark",
+			"editor_max_lines": 30,
 		},
 		Tools: map[string]any{
 			"bash": map[string]any{"timeout": 60},
@@ -51,34 +51,34 @@ func TestMergeSettings_PrimitiveOverride(t *testing.T) {
 
 func TestMergeSettings_UIDeepMerge(t *testing.T) {
 	layer1 := &Settings{
-		UI: &UISettings{
-			Theme:          "dark",
-			EditorMaxLines: 20,
+		UI: map[string]any{
+			"theme":            "dark",
+			"editor_max_lines": 20,
 		},
 	}
 	layer2 := &Settings{
-		UI: &UISettings{
-			EditorMaxLines: 40,
+		UI: map[string]any{
+			"editor_max_lines": 40,
 		},
 	}
 
 	result := MergeSettings(layer1, layer2)
 
 	require.NotNil(t, result.UI)
-	assert.Equal(t, "dark", result.UI.Theme)
-	assert.Equal(t, 40, result.UI.EditorMaxLines)
+	assert.Equal(t, "dark", result.UI["theme"])
+	assert.Equal(t, 40, result.UI["editor_max_lines"])
 }
 
 func TestMergeSettings_UINilToNonNil(t *testing.T) {
 	layer1 := &Settings{Provider: "anthropic"}
 	layer2 := &Settings{
-		UI: &UISettings{Theme: "light"},
+		UI: map[string]any{"theme": "light"},
 	}
 
 	result := MergeSettings(layer1, layer2)
 
 	require.NotNil(t, result.UI)
-	assert.Equal(t, "light", result.UI.Theme)
+	assert.Equal(t, "light", result.UI["theme"])
 }
 
 func TestMergeSettings_ToolsMergeByKey(t *testing.T) {
@@ -117,13 +117,13 @@ func TestMergeSettings_NilInMiddle(t *testing.T) {
 func TestMergeSettings_ThreeLayers(t *testing.T) {
 	global := &Settings{
 		ThinkingLevel: "medium",
-		UI:            &UISettings{Theme: "dark"},
+		UI:            map[string]any{"theme": "dark"},
 	}
 	project := &Settings{
 		Model: "claude-opus-4-7",
 	}
 	local := &Settings{
-		UI: &UISettings{EditorMaxLines: 20},
+		UI: map[string]any{"editor_max_lines": 20},
 	}
 
 	result := MergeSettings(global, project, local)
@@ -131,8 +131,8 @@ func TestMergeSettings_ThreeLayers(t *testing.T) {
 	assert.Equal(t, "medium", result.ThinkingLevel)
 	assert.Equal(t, "claude-opus-4-7", result.Model)
 	require.NotNil(t, result.UI)
-	assert.Equal(t, "dark", result.UI.Theme)
-	assert.Equal(t, 20, result.UI.EditorMaxLines)
+	assert.Equal(t, "dark", result.UI["theme"])
+	assert.Equal(t, 20, result.UI["editor_max_lines"])
 }
 
 func TestMergeSettings_RespectGitignore(t *testing.T) {
@@ -203,7 +203,7 @@ func TestLoadLayeredSettings_AllLayers(t *testing.T) {
 
 	globalSettings := Settings{
 		ThinkingLevel: "medium",
-		UI:            &UISettings{Theme: "dark"},
+		UI:            map[string]any{"theme": "dark"},
 	}
 	writeJSON(t, filepath.Join(globalDir, "settings.json"), &globalSettings)
 
@@ -213,7 +213,7 @@ func TestLoadLayeredSettings_AllLayers(t *testing.T) {
 
 	localSettings := Settings{
 		Model: "claude-opus-4-7",
-		UI:    &UISettings{EditorMaxLines: 20},
+		UI:    map[string]any{"editor_max_lines": 20},
 	}
 	writeJSON(t, filepath.Join(projectWeave, "settings.local.json"), &localSettings)
 
@@ -223,8 +223,8 @@ func TestLoadLayeredSettings_AllLayers(t *testing.T) {
 	assert.Equal(t, "medium", result.ThinkingLevel)
 	assert.Equal(t, "claude-opus-4-7", result.Model)
 	require.NotNil(t, result.UI)
-	assert.Equal(t, "dark", result.UI.Theme)
-	assert.Equal(t, 20, result.UI.EditorMaxLines)
+	assert.Equal(t, "dark", result.UI["theme"])
+	assert.InDelta(t, float64(20), result.UI["editor_max_lines"], 0)
 }
 
 func TestLoadLayeredSettings_LocalOverridesGlobal(t *testing.T) {
@@ -261,7 +261,7 @@ func TestLoadLayeredSettings_LocalOverridesGlobalValues(t *testing.T) {
 
 	writeJSON(t, filepath.Join(globalDir, "settings.json"), &Settings{
 		ThinkingLevel: "medium",
-		UI:            &UISettings{EditorMaxLines: 30},
+		UI:            map[string]any{"editor_max_lines": 30},
 	})
 
 	projectDir := t.TempDir()
@@ -277,7 +277,7 @@ func TestLoadLayeredSettings_LocalOverridesGlobalValues(t *testing.T) {
 
 	assert.Equal(t, "high", result.ThinkingLevel)
 	require.NotNil(t, result.UI)
-	assert.Equal(t, 30, result.UI.EditorMaxLines)
+	assert.InDelta(t, float64(30), result.UI["editor_max_lines"], 0)
 }
 
 func TestLoadLayeredSettings_OnlyLocal(t *testing.T) {

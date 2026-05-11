@@ -61,20 +61,20 @@ func mergeStringFields(result, layer *Settings) {
 }
 
 func mergeUI(result, layer *Settings) {
-	if layer.UI == nil {
+	if len(layer.UI) == 0 {
 		return
 	}
 
 	if result.UI == nil {
-		result.UI = &UISettings{}
+		result.UI = make(map[string]any, len(layer.UI))
 	}
 
-	if layer.UI.Theme != "" {
-		result.UI.Theme = layer.UI.Theme
-	}
-
-	if layer.UI.EditorMaxLines != 0 {
-		result.UI.EditorMaxLines = layer.UI.EditorMaxLines
+	for k, v := range layer.UI {
+		if existing, ok := result.UI[k]; ok {
+			result.UI[k] = deepMergeValues(existing, v)
+		} else {
+			result.UI[k] = v
+		}
 	}
 }
 

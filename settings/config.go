@@ -421,7 +421,7 @@ func (c *FullConfig) UIConfig(target any) error {
 		return fmt.Errorf("load settings for UI config: %w", err)
 	}
 
-	if layered.UI == nil {
+	if len(layered.UI) == 0 {
 		return nil
 	}
 

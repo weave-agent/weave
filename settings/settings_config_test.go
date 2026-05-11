@@ -128,9 +128,9 @@ func TestUIConfig_PopulatedStruct(t *testing.T) {
 	require.NoError(t, os.MkdirAll(projectWeave, 0o750))
 
 	settings := Settings{
-		UI: &UISettings{
-			Theme:          "dark",
-			EditorMaxLines: 40,
+		UI: map[string]any{
+			"theme":            "dark",
+			"editor_max_lines": 40,
 		},
 	}
 	writeJSON(t, filepath.Join(projectWeave, "settings.local.json"), &settings)
@@ -140,7 +140,10 @@ func TestUIConfig_PopulatedStruct(t *testing.T) {
 		settings: DefaultSettings(),
 	}
 
-	var target UISettings
+	var target struct {
+		Theme          string `json:"theme,omitempty"`
+		EditorMaxLines int    `json:"editor_max_lines,omitempty"`
+	}
 	require.NoError(t, cfg.UIConfig(&target))
 	assert.Equal(t, "dark", target.Theme)
 	assert.Equal(t, 40, target.EditorMaxLines)
@@ -157,7 +160,7 @@ func TestUIConfig_DefaultsApplied(t *testing.T) {
 	require.NoError(t, os.MkdirAll(projectWeave, 0o750))
 
 	settings := Settings{
-		UI: &UISettings{},
+		UI: map[string]any{},
 	}
 	writeJSON(t, filepath.Join(projectWeave, "settings.local.json"), &settings)
 
@@ -350,7 +353,7 @@ func TestSettingsJSONRoundTrip(t *testing.T) {
 		Provider:      "anthropic",
 		Model:         "opus",
 		ThinkingLevel: "high",
-		UI:            &UISettings{Theme: "dark", EditorMaxLines: 40},
+		UI:            map[string]any{"theme": "dark", "editor_max_lines": 40},
 		Tools:         map[string]any{"bash": map[string]any{"timeout": 60}},
 	}
 
@@ -364,7 +367,7 @@ func TestSettingsJSONRoundTrip(t *testing.T) {
 	assert.Equal(t, s.Model, back.Model)
 	assert.Equal(t, s.ThinkingLevel, back.ThinkingLevel)
 	require.NotNil(t, back.UI)
-	assert.Equal(t, "dark", back.UI.Theme)
-	assert.Equal(t, 40, back.UI.EditorMaxLines)
+	assert.Equal(t, "dark", back.UI["theme"])
+	assert.InDelta(t, float64(40), back.UI["editor_max_lines"], 0)
 	assert.Equal(t, map[string]any{"timeout": float64(60)}, back.Tools["bash"])
 }
