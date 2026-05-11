@@ -1,4 +1,4 @@
-package settings
+package auth
 
 import (
 	"encoding/json"
@@ -12,13 +12,13 @@ type ProviderAuth struct {
 	APIKey string `json:"api_key,omitempty"`
 }
 
-// AuthFile represents ~/.weave/auth.json.
-type AuthFile struct {
+// File represents ~/.weave/auth.json.
+type File struct {
 	Providers map[string]ProviderAuth `json:"providers"`
 }
 
-// AuthPath returns the path to the auth file (~/.weave/auth.json).
-func AuthPath() (string, error) {
+// Path returns the path to the auth file (~/.weave/auth.json).
+func Path() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("auth path: %w", err)
@@ -27,23 +27,23 @@ func AuthPath() (string, error) {
 	return filepath.Join(home, ".weave", "auth.json"), nil
 }
 
-// LoadAuth reads and parses the auth file. Returns an empty AuthFile if not found.
-func LoadAuth() (*AuthFile, error) {
-	path, err := AuthPath()
+// Load reads and parses the auth file. Returns an empty File if not found.
+func Load() (*File, error) {
+	p, err := Path()
 	if err != nil {
 		return nil, err
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(p)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return &AuthFile{Providers: make(map[string]ProviderAuth)}, nil
+			return &File{Providers: make(map[string]ProviderAuth)}, nil
 		}
 
 		return nil, fmt.Errorf("read auth: %w", err)
 	}
 
-	var auth AuthFile
+	var auth File
 	if err := json.Unmarshal(data, &auth); err != nil {
 		return nil, fmt.Errorf("parse auth: %w", err)
 	}
@@ -55,14 +55,14 @@ func LoadAuth() (*AuthFile, error) {
 	return &auth, nil
 }
 
-// SaveAuth writes the auth file with 0600 permissions.
-func SaveAuth(auth *AuthFile) error {
-	path, err := AuthPath()
+// Save writes the auth file with 0600 permissions.
+func Save(auth *File) error {
+	p, err := Path()
 	if err != nil {
 		return err
 	}
 
-	dir := filepath.Dir(path)
+	dir := filepath.Dir(p)
 	if mkdirErr := os.MkdirAll(dir, 0o700); mkdirErr != nil {
 		return fmt.Errorf("create auth dir: %w", mkdirErr)
 	}
@@ -72,7 +72,7 @@ func SaveAuth(auth *AuthFile) error {
 		return fmt.Errorf("marshal auth: %w", err)
 	}
 
-	if err := os.WriteFile(path, data, 0o600); err != nil {
+	if err := os.WriteFile(p, data, 0o600); err != nil {
 		return fmt.Errorf("write auth: %w", err)
 	}
 
@@ -80,7 +80,7 @@ func SaveAuth(auth *AuthFile) error {
 }
 
 // GetProviderKey returns the stored API key for a provider, or "" if not set.
-func (a *AuthFile) GetProviderKey(providerName string) string {
+func (a *File) GetProviderKey(providerName string) string {
 	p, ok := a.Providers[providerName]
 	if !ok {
 		return ""
@@ -91,12 +91,12 @@ func (a *AuthFile) GetProviderKey(providerName string) string {
 
 // SetProviderKey updates or adds a provider key in the auth file and saves.
 func SetProviderKey(providerName, apiKey string) error {
-	auth, err := LoadAuth()
+	auth, err := Load()
 	if err != nil {
 		return err
 	}
 
 	auth.Providers[providerName] = ProviderAuth{APIKey: apiKey}
 
-	return SaveAuth(auth)
+	return Save(auth)
 }

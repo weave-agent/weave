@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+
+	"weave/internal/auth"
 )
 
 var commandCache sync.Map
@@ -44,15 +46,16 @@ func ResolveValue(raw string) (string, error) {
 //  1. Environment variable (e.g. ANTHROPIC_API_KEY)
 //  2. Auth file (~/.weave/auth.json)
 //  3. Config file provider entry (providers.anthropic.api_key) via ResolveValue
-func ResolveProviderKey(providerName, envVar string, cfgEntry *ProviderEntry, auth *AuthFile) (string, error) {
+func ResolveProviderKey(providerName, envVar string, cfgEntry *ProviderEntry) (string, error) {
 	// 1. Environment variable (highest priority)
 	if v := os.Getenv(envVar); v != "" {
 		return v, nil
 	}
 
 	// 2. Auth file
-	if auth != nil {
-		if v := auth.GetProviderKey(providerName); v != "" {
+	authFile, _ := auth.Load()
+	if authFile != nil {
+		if v := authFile.GetProviderKey(providerName); v != "" {
 			return v, nil
 		}
 	}

@@ -5,6 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"weave/internal/auth"
 )
 
 func TestResolveValue_Literal(t *testing.T) {
@@ -52,19 +54,18 @@ func TestResolveValue_CommandFailure(t *testing.T) {
 func TestResolveProviderKey_EnvVar(t *testing.T) {
 	t.Setenv("TEST_API_KEY", "from-env")
 
-	got, err := ResolveProviderKey("test", "TEST_API_KEY", nil, nil)
+	got, err := ResolveProviderKey("test", "TEST_API_KEY", nil)
 	require.NoError(t, err)
 	assert.Equal(t, "from-env", got)
 }
 
 func TestResolveProviderKey_AuthFile(t *testing.T) {
-	auth := &AuthFile{
-		Providers: map[string]ProviderAuth{
-			"test": {APIKey: "from-auth"},
-		},
-	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
 
-	got, err := ResolveProviderKey("test", "UNSET_TEST_VAR", nil, auth)
+	require.NoError(t, auth.SetProviderKey("test", "from-auth"))
+
+	got, err := ResolveProviderKey("test", "UNSET_TEST_VAR", nil)
 	require.NoError(t, err)
 	assert.Equal(t, "from-auth", got)
 }
@@ -72,7 +73,7 @@ func TestResolveProviderKey_AuthFile(t *testing.T) {
 func TestResolveProviderKey_ConfigEntry(t *testing.T) {
 	entry := &ProviderEntry{APIKey: "from-config"}
 
-	got, err := ResolveProviderKey("test", "UNSET_TEST_VAR", entry, &AuthFile{Providers: map[string]ProviderAuth{}})
+	got, err := ResolveProviderKey("test", "UNSET_TEST_VAR", entry)
 	require.NoError(t, err)
 	assert.Equal(t, "from-config", got)
 }
@@ -80,7 +81,7 @@ func TestResolveProviderKey_ConfigEntry(t *testing.T) {
 func TestResolveProviderKey_ConfigEntryCommand(t *testing.T) {
 	entry := &ProviderEntry{APIKey: "!echo from-command"}
 
-	got, err := ResolveProviderKey("test", "UNSET_TEST_VAR", entry, &AuthFile{Providers: map[string]ProviderAuth{}})
+	got, err := ResolveProviderKey("test", "UNSET_TEST_VAR", entry)
 	require.NoError(t, err)
 	assert.Equal(t, "from-command", got)
 }
@@ -88,37 +89,33 @@ func TestResolveProviderKey_ConfigEntryCommand(t *testing.T) {
 func TestResolveProviderKey_Priority(t *testing.T) {
 	t.Setenv("TEST_PRIORITY_KEY", "from-env")
 
-	auth := &AuthFile{
-		Providers: map[string]ProviderAuth{
-			"test": {APIKey: "from-auth"},
-		},
-	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	require.NoError(t, auth.SetProviderKey("test", "from-auth"))
 
 	entry := &ProviderEntry{APIKey: "from-config"}
 
 	// Env var should win over auth and config
-	got, err := ResolveProviderKey("test", "TEST_PRIORITY_KEY", entry, auth)
+	got, err := ResolveProviderKey("test", "TEST_PRIORITY_KEY", entry)
 	require.NoError(t, err)
 	assert.Equal(t, "from-env", got)
 }
 
 func TestResolveProviderKey_AuthOverConfig(t *testing.T) {
-	auth := &AuthFile{
-		Providers: map[string]ProviderAuth{
-			"test": {APIKey: "from-auth"},
-		},
-	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	require.NoError(t, auth.SetProviderKey("test", "from-auth"))
 
 	entry := &ProviderEntry{APIKey: "from-config"}
 
 	// Auth should win over config when no env var
-	got, err := ResolveProviderKey("test", "UNSET_TEST_VAR", entry, auth)
+	got, err := ResolveProviderKey("test", "UNSET_TEST_VAR", entry)
 	require.NoError(t, err)
 	assert.Equal(t, "from-auth", got)
 }
 
 func TestResolveProviderKey_NotFound(t *testing.T) {
-	got, err := ResolveProviderKey("test", "UNSET_TEST_VAR", nil, &AuthFile{Providers: map[string]ProviderAuth{}})
+	got, err := ResolveProviderKey("test", "UNSET_TEST_VAR", nil)
 	require.NoError(t, err)
 	assert.Empty(t, got)
 }

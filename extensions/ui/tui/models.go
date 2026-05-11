@@ -29,16 +29,16 @@ func (noopConfig) UIConfig(any) error                             { return nil }
 func (noopConfig) IsHeadless() bool                               { return true }
 func (noopConfig) Preferences(any) error                          { return nil }
 func (noopConfig) SavePreferences(any) error                      { return nil }
-func (noopConfig) ProviderHasKey(providerName string) bool {
-	envVar := sdkmodel.ProviderEnvVar(providerName)
-	if envVar == "" {
-		return false
-	}
+func (noopConfig) RespectGitignore() bool                         { return true }
 
-	return os.Getenv(envVar) != ""
+// providerHasKey checks whether a provider has a configured API key by
+// attempting resolution through the config's ResolveKey method.
+func providerHasKey(cfg sdk.Config, providerName string) bool {
+	envVar := sdkmodel.ProviderEnvVar(providerName)
+	key, _ := cfg.ResolveKey(providerName, envVar)
+
+	return key != ""
 }
-func (noopConfig) SetProviderKey(string, string) error { return nil }
-func (noopConfig) RespectGitignore() bool              { return true }
 
 // effectiveConfig returns cfg if non-nil, otherwise a no-op implementation.
 func effectiveConfig(cfg sdk.Config) sdk.Config {
@@ -88,7 +88,7 @@ func listModels(cfg sdk.Config) []ModelEntry {
 			continue
 		}
 
-		if !cfg.ProviderHasKey(md.Provider) {
+		if !providerHasKey(cfg, md.Provider) {
 			continue
 		}
 

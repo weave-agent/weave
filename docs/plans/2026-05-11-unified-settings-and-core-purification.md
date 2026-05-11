@@ -101,13 +101,13 @@ Remove hardcoded extension names, sandbox modes, UI values, provider schemas fro
 
 Move provider credential management to a dedicated location.
 
-- [ ] Move `settings/auth.go` → `cmd/weave/extmanage/auth.go` or `internal/auth/`
-- [ ] Move `settings/auth_test.go` → matching location
-- [ ] Remove `ProviderHasKey()` and `SetProviderKey()` from `sdk.Config` interface
-- [ ] Update `ResolveProviderKey()` to use auth package directly
-- [ ] Update all callers
-- [ ] Regenerate `sdk.Config` mock if needed
-- [ ] Run `make test` — must pass
+- [x] Move `settings/auth.go` → `internal/auth/`
+- [x] Move `settings/auth_test.go` → `internal/auth/auth_test.go`
+- [x] Remove `ProviderHasKey()` and `SetProviderKey()` from `sdk.Config` interface
+- [x] Update `ResolveProviderKey()` to use auth package directly
+- [x] Update all callers
+- [x] Regenerate `sdk.Config` mock if needed
+- [x] Run `make test` — must pass
 
 ### Task 6: Move UISettings to TUI extension
 

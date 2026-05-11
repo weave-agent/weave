@@ -13,7 +13,6 @@ import (
 	"github.com/nniel-ape/gonfig"
 
 	"weave/sdk"
-	"weave/sdk/model"
 )
 
 type CoreConfig struct {
@@ -316,16 +315,11 @@ func LoadFromFile(path string) (*Settings, error) {
 	return &s, nil
 }
 
-// LoadFullConfig loads the config file and auth file, returning a FullConfig
+// LoadFullConfig loads the config file, returning a FullConfig
 // that implements sdk.Config with full key resolution.
 func LoadFullConfig(path string) (*FullConfig, error) {
-	auth, err := LoadAuth()
-	if err != nil {
-		return nil, fmt.Errorf("load auth: %w", err)
-	}
-
 	if path == "" {
-		return &FullConfig{settings: DefaultSettings(), auth: auth}, nil
+		return &FullConfig{settings: DefaultSettings()}, nil
 	}
 
 	s, err := LoadFromFile(path)
@@ -333,14 +327,13 @@ func LoadFullConfig(path string) (*FullConfig, error) {
 		return nil, err
 	}
 
-	return &FullConfig{filePath: path, settings: s, auth: auth}, nil
+	return &FullConfig{filePath: path, settings: s}, nil
 }
 
 // FullConfig implements sdk.Config with auth resolution and provider config lookup.
 type FullConfig struct {
 	filePath   string
 	settings   *Settings
-	auth       *AuthFile
 	projectDir string
 }
 
@@ -381,13 +374,7 @@ func (c *FullConfig) effectiveProjectDir() string {
 }
 
 func (c *FullConfig) ResolveKey(providerName, envVar string) (string, error) {
-	// Re-read auth file so keys set via /providers after startup are visible.
-	auth, err := LoadAuth()
-	if err != nil {
-		auth = c.auth // fall back to cached snapshot
-	}
-
-	return ResolveProviderKey(providerName, envVar, c.settings.ProviderConfig(providerName), auth)
+	return ResolveProviderKey(providerName, envVar, c.settings.ProviderConfig(providerName))
 }
 
 // ProjectDirFromConfig returns the project root directory for a config file path.
@@ -516,33 +503,6 @@ func (c *FullConfig) SavePreferences(target any) error {
 	}
 
 	return SaveSettingsGlobal(&final)
-}
-
-func (c *FullConfig) ProviderHasKey(providerName string) bool {
-	// Check config file first.
-	if pc := c.settings.ProviderConfig(providerName); pc != nil && pc.APIKey != "" {
-		return true
-	}
-
-	envVar := model.ProviderEnvVar(providerName)
-	if v := os.Getenv(envVar); v != "" {
-		return true
-	}
-
-	auth, err := LoadAuth()
-	if err != nil {
-		auth = c.auth // fall back to cached snapshot
-	}
-
-	if auth == nil {
-		return false
-	}
-
-	return auth.GetProviderKey(providerName) != ""
-}
-
-func (c *FullConfig) SetProviderKey(providerName, apiKey string) error {
-	return SetProviderKey(providerName, apiKey)
 }
 
 // populateConfig JSON round-trips a map/struct into target and applies default

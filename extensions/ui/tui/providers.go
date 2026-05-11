@@ -35,7 +35,7 @@ func listProviders(cfg sdk.Config) []ProviderEntry {
 		seen[name] = true
 		entries = append(entries, ProviderEntry{
 			Name:   name,
-			HasKey: cfg.ProviderHasKey(name),
+			HasKey: providerHasKey(cfg, name),
 		})
 	}
 
@@ -44,7 +44,7 @@ func listProviders(cfg sdk.Config) []ProviderEntry {
 			seen[md.Provider] = true
 			entries = append(entries, ProviderEntry{
 				Name:   md.Provider,
-				HasKey: cfg.ProviderHasKey(md.Provider),
+				HasKey: providerHasKey(cfg, md.Provider),
 			})
 		}
 	}

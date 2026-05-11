@@ -7,8 +7,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"weave/sdk/model"
 )
 
 func TestFindConfigPath_WeaveYaml(t *testing.T) {
@@ -329,7 +327,6 @@ func TestPreferences_LoadsMergedSettings(t *testing.T) {
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
 		settings: DefaultSettings(),
-		auth:     &AuthFile{},
 	}
 
 	var prefs struct {
@@ -354,7 +351,6 @@ func TestPreferences_NoSettingsFile(t *testing.T) {
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
 		settings: DefaultSettings(),
-		auth:     &AuthFile{},
 	}
 
 	var prefs struct {
@@ -381,7 +377,6 @@ func TestSavePreferences_MergesIntoGlobal(t *testing.T) {
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
 		settings: DefaultSettings(),
-		auth:     &AuthFile{},
 	}
 
 	prefs := struct {
@@ -409,7 +404,6 @@ func TestSavePreferences_CreatesFileIfMissing(t *testing.T) {
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
 		settings: DefaultSettings(),
-		auth:     &AuthFile{},
 	}
 
 	prefs := struct {
@@ -422,71 +416,6 @@ func TestSavePreferences_CreatesFileIfMissing(t *testing.T) {
 	loaded, err := LoadSettings()
 	require.NoError(t, err)
 	assert.Equal(t, "opus", loaded.Model)
-}
-
-func TestProviderHasKey_EnvVar(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-
-	t.Setenv("ANTHROPIC_API_KEY", "sk-test-key")
-
-	// Register the env var mapping.
-	model.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
-	t.Cleanup(func() { model.ResetProviderEnvVarRegistry() })
-
-	cfg := &FullConfig{
-		settings: DefaultSettings(),
-		auth:     &AuthFile{},
-	}
-
-	assert.True(t, cfg.ProviderHasKey("anthropic"))
-}
-
-func TestProviderHasKey_AuthFile(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-
-	// Register but don't set env var.
-	model.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
-	t.Cleanup(func() { model.ResetProviderEnvVarRegistry() })
-
-	require.NoError(t, os.MkdirAll(filepath.Join(home, ".weave"), 0o750))
-	require.NoError(t, SetProviderKey("anthropic", "sk-from-auth"))
-
-	cfg := &FullConfig{
-		settings: DefaultSettings(),
-		auth:     &AuthFile{},
-	}
-
-	assert.True(t, cfg.ProviderHasKey("anthropic"))
-}
-
-func TestProviderHasKey_NotFound(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-
-	cfg := &FullConfig{
-		settings: DefaultSettings(),
-		auth:     &AuthFile{},
-	}
-
-	assert.False(t, cfg.ProviderHasKey("anthropic"))
-}
-
-func TestSetProviderKey_Delegates(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-
-	cfg := &FullConfig{
-		settings: DefaultSettings(),
-		auth:     &AuthFile{},
-	}
-
-	require.NoError(t, cfg.SetProviderKey("openai", "sk-openai-key"))
-
-	auth, err := LoadAuth()
-	require.NoError(t, err)
-	assert.Equal(t, "sk-openai-key", auth.GetProviderKey("openai"))
 }
 
 func TestSavePreferences_PreservesUIFields(t *testing.T) {
@@ -515,7 +444,6 @@ func TestSavePreferences_PreservesUIFields(t *testing.T) {
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
 		settings: DefaultSettings(),
-		auth:     &AuthFile{},
 	}
 
 	// Save only model change — UI and tools should be preserved
@@ -562,7 +490,6 @@ func TestSavePreferences_DeepMergesNestedFields(t *testing.T) {
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
 		settings: DefaultSettings(),
-		auth:     &AuthFile{},
 	}
 
 	// Save a partial UI update — only theme changes, editor_max_lines must survive
@@ -603,64 +530,6 @@ func TestSavePreferences_DeepMergesNestedFields(t *testing.T) {
 	assert.Equal(t, "fish", bashConfig["shell"], "tools.bash.shell should be preserved")
 }
 
-func TestProviderHasKey_ConfigFileAPIKey(t *testing.T) {
-	cfg := &FullConfig{
-		settings: &Settings{
-			Providers: map[string]any{
-				"anthropic": map[string]any{"api_key": "sk-config-key"},
-			},
-		},
-		auth: &AuthFile{},
-	}
-
-	assert.True(t, cfg.ProviderHasKey("anthropic"), "should return true when API key is in config file")
-}
-
-func TestProviderHasKey_LoadAuthFails_FallsBackToCachedAuth(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-
-	// Register env var but don't set it
-	model.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
-	t.Cleanup(func() { model.ResetProviderEnvVarRegistry() })
-
-	// Create a corrupted auth file so LoadAuth fails
-	require.NoError(t, os.MkdirAll(filepath.Join(home, ".weave"), 0o750))
-	require.NoError(t, os.WriteFile(filepath.Join(home, ".weave", "auth.json"), []byte("not-json"), 0o600))
-
-	cfg := &FullConfig{
-		settings: DefaultSettings(),
-		auth: &AuthFile{
-			//nolint:gosec // test credential, not a real secret
-			Providers: map[string]ProviderAuth{
-				"anthropic": {APIKey: "cached-auth-key"},
-			},
-		},
-	}
-
-	assert.True(t, cfg.ProviderHasKey("anthropic"), "should fall back to cached auth when LoadAuth fails")
-}
-
-func TestProviderHasKey_LoadAuthFails_NoCachedAuth(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-
-	// Register env var but don't set it
-	model.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
-	t.Cleanup(func() { model.ResetProviderEnvVarRegistry() })
-
-	// Create a corrupted auth file so LoadAuth fails
-	require.NoError(t, os.MkdirAll(filepath.Join(home, ".weave"), 0o750))
-	require.NoError(t, os.WriteFile(filepath.Join(home, ".weave", "auth.json"), []byte("not-json"), 0o600))
-
-	cfg := &FullConfig{
-		settings: DefaultSettings(),
-		auth:     &AuthFile{},
-	}
-
-	assert.False(t, cfg.ProviderHasKey("anthropic"), "should return false when auth load fails and no cached auth")
-}
-
 func TestRespectGitignore_DefaultTrue(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -672,7 +541,6 @@ func TestRespectGitignore_DefaultTrue(t *testing.T) {
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
 		settings: DefaultSettings(),
-		auth:     &AuthFile{},
 	}
 
 	assert.True(t, cfg.RespectGitignore(), "default should be true when no settings file")
@@ -696,7 +564,6 @@ func TestRespectGitignore_ExplicitTrue(t *testing.T) {
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
 		settings: DefaultSettings(),
-		auth:     &AuthFile{},
 	}
 
 	assert.True(t, cfg.RespectGitignore())
@@ -720,7 +587,6 @@ func TestRespectGitignore_ExplicitFalse(t *testing.T) {
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
 		settings: DefaultSettings(),
-		auth:     &AuthFile{},
 	}
 
 	assert.False(t, cfg.RespectGitignore())
@@ -749,7 +615,6 @@ func TestRespectGitignore_LocalOverridesGlobal(t *testing.T) {
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
 		settings: DefaultSettings(),
-		auth:     &AuthFile{},
 	}
 
 	assert.False(t, cfg.RespectGitignore(), "local layer should override global")

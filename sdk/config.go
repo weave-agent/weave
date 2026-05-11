@@ -23,8 +23,6 @@ type Config interface {
 	IsHeadless() bool
 	Preferences(target any) error
 	SavePreferences(target any) error
-	ProviderHasKey(providerName string) bool
-	SetProviderKey(providerName, apiKey string) error
 	RespectGitignore() bool
 }
 
@@ -36,14 +34,12 @@ func (noopConfig) ProviderConfig(string) *ProviderConfigEntry { return nil }
 func (noopConfig) ResolveKey(_, envVar string) (string, error) {
 	return os.Getenv(envVar), nil
 }
-func (noopConfig) ToolConfig(string, any) error        { return nil }
-func (noopConfig) UIConfig(any) error                  { return nil }
-func (noopConfig) IsHeadless() bool                    { return true }
-func (noopConfig) Preferences(any) error               { return nil }
-func (noopConfig) SavePreferences(any) error           { return nil }
-func (noopConfig) ProviderHasKey(string) bool          { return false }
-func (noopConfig) SetProviderKey(string, string) error { return nil }
-func (noopConfig) RespectGitignore() bool              { return true }
+func (noopConfig) ToolConfig(string, any) error { return nil }
+func (noopConfig) UIConfig(any) error           { return nil }
+func (noopConfig) IsHeadless() bool             { return true }
+func (noopConfig) Preferences(any) error        { return nil }
+func (noopConfig) SavePreferences(any) error    { return nil }
+func (noopConfig) RespectGitignore() bool       { return true }
 
 // FilePathConfig is a Config that returns the given path from FilePath().
 type FilePathConfig string
@@ -54,14 +50,12 @@ func (f FilePathConfig) ProviderConfig(string) *ProviderConfigEntry { return nil
 func (f FilePathConfig) ResolveKey(_, envVar string) (string, error) {
 	return os.Getenv(envVar), nil
 }
-func (f FilePathConfig) ToolConfig(string, any) error        { return nil }
-func (f FilePathConfig) UIConfig(any) error                  { return nil }
-func (f FilePathConfig) IsHeadless() bool                    { return true }
-func (f FilePathConfig) Preferences(any) error               { return nil }
-func (f FilePathConfig) SavePreferences(any) error           { return nil }
-func (f FilePathConfig) ProviderHasKey(string) bool          { return false }
-func (f FilePathConfig) SetProviderKey(string, string) error { return nil }
-func (f FilePathConfig) RespectGitignore() bool              { return true }
+func (f FilePathConfig) ToolConfig(string, any) error { return nil }
+func (f FilePathConfig) UIConfig(any) error           { return nil }
+func (f FilePathConfig) IsHeadless() bool             { return true }
+func (f FilePathConfig) Preferences(any) error        { return nil }
+func (f FilePathConfig) SavePreferences(any) error    { return nil }
+func (f FilePathConfig) RespectGitignore() bool       { return true }
 
 func configOrDefault(cfg Config) Config {
 	if cfg != nil {

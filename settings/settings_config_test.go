@@ -30,7 +30,6 @@ func TestToolConfig_PopulatedStruct(t *testing.T) {
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
 		settings: DefaultSettings(),
-		auth:     &AuthFile{},
 	}
 
 	var target struct {
@@ -60,7 +59,6 @@ func TestToolConfig_DefaultsApplied(t *testing.T) {
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
 		settings: DefaultSettings(),
-		auth:     &AuthFile{},
 	}
 
 	var target struct {
@@ -81,7 +79,6 @@ func TestToolConfig_MissingSection(t *testing.T) {
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
 		settings: DefaultSettings(),
-		auth:     &AuthFile{},
 	}
 
 	var target struct {
@@ -111,7 +108,6 @@ func TestToolConfig_MissingToolName(t *testing.T) {
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
 		settings: DefaultSettings(),
-		auth:     &AuthFile{},
 	}
 
 	var target struct {
@@ -142,7 +138,6 @@ func TestUIConfig_PopulatedStruct(t *testing.T) {
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
 		settings: DefaultSettings(),
-		auth:     &AuthFile{},
 	}
 
 	var target UISettings
@@ -169,7 +164,6 @@ func TestUIConfig_DefaultsApplied(t *testing.T) {
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
 		settings: DefaultSettings(),
-		auth:     &AuthFile{},
 	}
 
 	var target struct {
@@ -192,7 +186,6 @@ func TestUIConfig_MissingSection(t *testing.T) {
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
 		settings: DefaultSettings(),
-		auth:     &AuthFile{},
 	}
 
 	var target struct {
@@ -294,7 +287,6 @@ func TestLayeredSettings_IntegrationWithToolConfig(t *testing.T) {
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
 		settings: DefaultSettings(),
-		auth:     &AuthFile{},
 	}
 
 	var target struct {
@@ -324,7 +316,6 @@ func TestToolConfig_LocalOnlyFromWeaveDir(t *testing.T) {
 	cfg := &FullConfig{
 		filePath: filepath.Join(projectDir, ".weave", "config.json"),
 		settings: DefaultSettings(),
-		auth:     &AuthFile{},
 	}
 
 	var target struct {
