@@ -115,6 +115,13 @@ func ValidateWithConfigDir(f *File, configDir string) error {
 
 	validateSandbox(&errs, &f.Sandbox)
 
+	if f.Output != "" && f.Output != "text" && f.Output != "json" {
+		errs = append(errs, ValidationError{
+			Field:   "output",
+			Message: fmt.Sprintf("invalid value %q, must be \"text\" or \"json\"", f.Output),
+		})
+	}
+
 	if len(errs) > 0 {
 		return errs
 	}

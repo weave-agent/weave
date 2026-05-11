@@ -32,7 +32,7 @@ type jsonEvent struct {
 // last "message_end" event is returned as the result.
 // When subagentID is non-empty and broker is provided, the broker routes
 // inter-agent messages and the child gets a stdin pipe for receiving them.
-func runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+func runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) { //nolint:gocyclo // central subprocess coordination with many error paths
 	if testRunSubagent != nil {
 		return testRunSubagent(ctx, agent, prompt, cwd, subagentID, broker, cfgPath, projectDir)
 	}
@@ -83,7 +83,10 @@ func runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID s
 	go func() {
 		select {
 		case <-ctx.Done():
-			if cmd.Process != nil {
+			// Only kill if the process has started and Wait() has not
+			// yet returned (ProcessState is nil). After Wait() returns
+			// the PID may have been reused by the OS.
+			if cmd.Process != nil && cmd.ProcessState == nil {
 				if killErr := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL); killErr != nil {
 					_ = cmd.Process.Kill()
 				}
@@ -138,8 +141,10 @@ func buildCommand(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID,
 	// Combine agent system prompt with the user's task prompt.
 	// Body is appended when both are present so that frontmatter system
 	// overrides and markdown body instructions are both preserved.
+	// If Body was already used as the System fallback in ParseAgent,
+	// do not append it again.
 	system := agent.System
-	if agent.Body != "" {
+	if agent.Body != "" && agent.System != agent.Body {
 		if system != "" {
 			system = system + "\n\n" + agent.Body
 		} else {

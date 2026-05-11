@@ -147,8 +147,11 @@ func TestBroker_Broadcast(t *testing.T) {
 
 	// Agent1 should NOT receive its own broadcast.
 	select {
-	case <-a1Drain:
-		t.Fatal("agent1 should not receive its own broadcast")
+	case msg, ok := <-a1Drain:
+		if ok && msg.Type != "" {
+			t.Fatal("agent1 should not receive its own broadcast")
+		}
+		// Channel closed due to unregistration — expected.
 	case <-time.After(50 * time.Millisecond):
 		// Expected.
 	}

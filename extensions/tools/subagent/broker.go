@@ -49,7 +49,7 @@ var brokerGenCounter atomic.Uint64
 type subagentProc struct {
 	id    string
 	name  string
-	stdin io.Writer
+	stdin io.WriteCloser
 	gen   uint64 // monotonic generation to distinguish re-registrations
 }
 
@@ -69,7 +69,7 @@ func NewBroker() *Broker {
 // Register adds a subagent process to the broker's registry.
 // The caller must supply a writer connected to the child's stdin.
 // After registration, the current roster is injected into the new agent.
-func (b *Broker) Register(id, name string, stdin io.Writer) {
+func (b *Broker) Register(id, name string, stdin io.WriteCloser) {
 	if stdin == nil {
 		log.Printf("broker: refusing to register %s with nil stdin", id)
 
@@ -105,6 +105,10 @@ func (b *Broker) Unregister(id string, gen uint64) {
 	defer b.mu.Unlock()
 
 	if p, ok := b.agents[id]; ok && p.gen == gen {
+		if p.stdin != nil {
+			_ = p.stdin.Close()
+		}
+
 		delete(b.agents, id)
 	}
 }
@@ -204,7 +208,12 @@ func (b *Broker) routeSend(fromID, toID, content string) error {
 		Content: content,
 	}
 
-	return b.writeMessage(target.stdin, msg)
+	if err := b.writeMessage(target.stdin, msg); err != nil {
+		b.Unregister(toID, target.gen)
+		return fmt.Errorf("route send: %w", err)
+	}
+
+	return nil
 }
 
 // routeBroadcast forwards a message from one agent to all other active agents.
@@ -232,6 +241,7 @@ func (b *Broker) routeBroadcast(fromID, content string) []error {
 
 	for _, proc := range others {
 		if err := b.writeMessage(proc.stdin, msg); err != nil {
+			b.Unregister(proc.id, proc.gen)
 			errs = append(errs, fmt.Errorf("send to %s: %w", proc.id, err))
 		}
 	}
@@ -256,7 +266,12 @@ func (b *Broker) respondListAgents(requesterID string) error {
 		return fmt.Errorf("requester agent %q not found", requesterID)
 	}
 
-	return b.writeMessage(proc.stdin, msg)
+	if err := b.writeMessage(proc.stdin, msg); err != nil {
+		b.Unregister(requesterID, proc.gen)
+		return fmt.Errorf("respond list agents: %w", err)
+	}
+
+	return nil
 }
 
 // Inject sends an inject message to a specific subagent's stdin.
@@ -274,7 +289,12 @@ func (b *Broker) Inject(id, content string) error {
 		Content: content,
 	}
 
-	return b.writeMessage(proc.stdin, msg)
+	if err := b.writeMessage(proc.stdin, msg); err != nil {
+		b.Unregister(id, proc.gen)
+		return fmt.Errorf("inject: %w", err)
+	}
+
+	return nil
 }
 
 // Roster returns a snapshot of all currently registered agents.
@@ -325,7 +345,12 @@ func (b *Broker) injectRoster(id string, roster []agentInfo) error {
 		return fmt.Errorf("agent %q not found", id)
 	}
 
-	return b.writeMessage(proc.stdin, msg)
+	if err := b.writeMessage(proc.stdin, msg); err != nil {
+		b.Unregister(id, proc.gen)
+		return fmt.Errorf("inject roster: %w", err)
+	}
+
+	return nil
 }
 
 func (b *Broker) writeMessage(w io.Writer, msg brokerMessage) error {
