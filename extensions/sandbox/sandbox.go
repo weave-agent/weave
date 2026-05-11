@@ -90,6 +90,9 @@ func NewSandbox(cfg sdk.Config) (*Sandbox, error) {
 	sc := c.Sandbox
 	if sc.Mode == "" {
 		sc.Mode = SandboxAuto
+	} else if !isValidMode(sc.Mode) {
+		slog.Warn("sandbox: invalid mode in config, falling back to auto", "mode", sc.Mode)
+		sc.Mode = SandboxAuto
 	}
 
 	headless := cfg == nil || cfg.IsHeadless()

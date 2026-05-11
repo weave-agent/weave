@@ -69,13 +69,15 @@ func (e *SkillsExtension) resolvePaths() []string {
 		paths = append(paths, filepath.Join(home, ".weave", "skills"))
 	}
 
-	if e.cfg.FilePath() != "" {
-		projectRoot := filepath.Dir(e.cfg.FilePath())
-
+	projectRoot := e.cfg.ProjectDir()
+	if projectRoot == "" && e.cfg.FilePath() != "" {
+		projectRoot = filepath.Dir(e.cfg.FilePath())
 		if filepath.Base(projectRoot) == ".weave" {
 			projectRoot = filepath.Dir(projectRoot)
 		}
+	}
 
+	if projectRoot != "" {
 		paths = append(paths, filepath.Join(projectRoot, ".weave", "skills"))
 	}
 

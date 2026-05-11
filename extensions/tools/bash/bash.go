@@ -49,6 +49,10 @@ func init() {
 }
 
 func dirFromConfig(cfg sdk.Config) string {
+	if pd := cfg.ProjectDir(); pd != "" {
+		return pd
+	}
+
 	if fp := cfg.FilePath(); fp != "" {
 		dir := filepath.Dir(fp)
 		// If config is inside .weave/ directory, go up one level to project root.

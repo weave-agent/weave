@@ -52,6 +52,10 @@ func (e *InstructionsExtension) Close() error {
 }
 
 func (e *InstructionsExtension) projectDir() string {
+	if pd := e.cfg.ProjectDir(); pd != "" {
+		return pd
+	}
+
 	fp := e.cfg.FilePath()
 	if fp == "" {
 		return ""
