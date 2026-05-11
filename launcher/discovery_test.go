@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"weave/sdk"
 )
 
 func createExtension(t *testing.T, dir, name, content string) {
@@ -199,12 +201,7 @@ func TestAutoDetectUIExtension_DetectsRegisterUIExtension(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.go"), []byte("package x\n\nfunc init() { RegisterUIExtension(\"x\", nil) }\n"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "b.go"), []byte("package x\n"), 0o600))
 
-	goFiles := []string{
-		filepath.Join(dir, "a.go"),
-		filepath.Join(dir, "b.go"),
-	}
-
-	assert.True(t, detectUIExtension(goFiles))
+	assert.True(t, sdk.IsUIExtension(dir))
 }
 
 func TestAutoDetectUIExtension_NoRegisterUIExtension(t *testing.T) {
@@ -212,9 +209,7 @@ func TestAutoDetectUIExtension_NoRegisterUIExtension(t *testing.T) {
 
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.go"), []byte("package x\n\nfunc init() { RegisterExtension(\"x\", nil) }\n"), 0o600))
 
-	goFiles := []string{filepath.Join(dir, "a.go")}
-
-	assert.False(t, detectUIExtension(goFiles))
+	assert.False(t, sdk.IsUIExtension(dir))
 }
 
 func TestAutoDetectUIExtension_DetectsRegisterUI(t *testing.T) {
@@ -222,9 +217,7 @@ func TestAutoDetectUIExtension_DetectsRegisterUI(t *testing.T) {
 
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "ui.go"), []byte("package x\n\nfunc init() { RegisterUI(\"tui\", nil) }\n"), 0o600))
 
-	goFiles := []string{filepath.Join(dir, "ui.go")}
-
-	assert.True(t, detectUIExtension(goFiles))
+	assert.True(t, sdk.IsUIExtension(dir))
 }
 
 func TestAutoDiscover_ExcludeList(t *testing.T) {

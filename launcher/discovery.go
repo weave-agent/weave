@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"weave/sdk"
 	"weave/settings"
 )
 
@@ -98,7 +99,7 @@ func AutoDiscover(projectDir, homeDir, moduleRoot string, exclude []string) ([]E
 
 			seen[name] = true
 
-			isUI := detectUIExtension(goFiles)
+			isUI := sdk.IsUIExtension(path)
 
 			exts = append(exts, ExtensionInfo{
 				Name:    name,
@@ -138,25 +139,6 @@ func AutoDiscover(projectDir, homeDir, moduleRoot string, exclude []string) ([]E
 	})
 
 	return exts, nil
-}
-
-// detectUIExtension scans the .go files for UI-related registrations:
-// RegisterUIExtension (TUI plugins) and RegisterUI (the TUI itself).
-// Any extension matching these patterns is excluded from headless builds.
-func detectUIExtension(goFiles []string) bool {
-	for _, f := range goFiles {
-		data, err := os.ReadFile(f)
-		if err != nil {
-			continue
-		}
-
-		src := string(data)
-		if strings.Contains(src, "RegisterUIExtension(") || strings.Contains(src, "RegisterUI(") {
-			return true
-		}
-	}
-
-	return false
 }
 
 func collectGoFiles(dir string) ([]string, error) {

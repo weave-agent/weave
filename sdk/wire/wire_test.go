@@ -536,4 +536,19 @@ func TestMergeCoreAndOptional_EmptyOptExts(t *testing.T) {
 	assert.Equal(t, []string{"loop"}, result)
 }
 
+func TestMergeCoreAndOptional_FiltersAgentLoopFromOptExts(t *testing.T) {
+	result := mergeCoreAndOptional("my-loop", []string{"bash", "my-loop", "read"})
+	assert.Equal(t, []string{"my-loop", "bash", "read"}, result)
+}
+
+func TestMergeCoreAndOptional_FiltersDefaultLoopWhenCustomLoop(t *testing.T) {
+	result := mergeCoreAndOptional("my-loop", []string{"bash", "loop", "read"})
+	assert.Equal(t, []string{"my-loop", "bash", "read"}, result)
+}
+
+func TestMergeCoreAndOptional_KeepsDefaultLoopWhenDefaultLoop(t *testing.T) {
+	result := mergeCoreAndOptional("loop", []string{"bash", "loop", "read"})
+	assert.Equal(t, []string{"loop", "bash", "read"}, result)
+}
+
 var _ = strings.TrimSpace

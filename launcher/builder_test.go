@@ -338,7 +338,7 @@ func TestGenerateMainGo_Content(t *testing.T) {
 	assert.Contains(t, s, `close(jsonQueue)`)
 }
 
-func TestGenerateMainGo_CustomSubagentNotTreatedAsBuiltin(t *testing.T) {
+func TestGenerateMainGo_AllExtensionsBlankImported(t *testing.T) {
 	dir := t.TempDir()
 	exts := []ExtensionInfo{
 		{Name: "subagent", Dir: "/tmp/exts/custom/subagent", ModulePath: "weave/ext/custom/subagent"},
@@ -350,13 +350,13 @@ func TestGenerateMainGo_CustomSubagentNotTreatedAsBuiltin(t *testing.T) {
 	require.NoError(t, err)
 
 	s := string(content)
-	// Custom subagent should be blank-imported, not aliased.
+	// All extensions are blank-imported; no special-casing for subagent.
 	assert.Contains(t, s, `_ "weave/ext/custom/subagent"`)
 	assert.NotContains(t, s, `subagentext`)
-	assert.NotContains(t, s, `SetStdoutWriter`)
+	assert.Contains(t, s, `sdk.SetOutputWriters(jsonOut)`)
 }
 
-func TestGenerateMainGo_WithSubagent(t *testing.T) {
+func TestGenerateMainGo_OutputWriterSetterCalled(t *testing.T) {
 	dir := t.TempDir()
 	exts := []ExtensionInfo{
 		{Name: "subagent", Dir: "/tmp/exts/tools/subagent", ModulePath: "weave/ext/tools/subagent"},
@@ -368,12 +368,14 @@ func TestGenerateMainGo_WithSubagent(t *testing.T) {
 	require.NoError(t, err)
 
 	s := string(content)
-	assert.Contains(t, s, `subagentext "weave/ext/tools/subagent"`)
-	assert.Contains(t, s, `subagentext.SetStdoutWriter(jsonOut)`)
+	// Generic hook is used instead of named import.
+	assert.Contains(t, s, `sdk.SetOutputWriters(jsonOut)`)
 	assert.Contains(t, s, `jsonOut := &syncWriter{w: os.Stdout}`)
+	assert.NotContains(t, s, `subagentext`)
+	assert.NotContains(t, s, `SetStdoutWriter`)
 }
 
-func TestGenerateMainGo_CustomAgentLoopExcludesDefaultLoop(t *testing.T) {
+func TestGenerateMainGo_CustomAgentLoopIncludesAllExtensions(t *testing.T) {
 	dir := t.TempDir()
 	exts := []ExtensionInfo{
 		{Name: "loop", Dir: "/tmp/exts/loop", ModulePath: "weave/ext/loop"},
@@ -387,9 +389,8 @@ func TestGenerateMainGo_CustomAgentLoopExcludesDefaultLoop(t *testing.T) {
 	require.NoError(t, err)
 
 	s := string(content)
-	// optExts should only contain "bash" — both "loop" and "my-loop" are excluded.
-	assert.Contains(t, s, `optExts = []string{"bash"}`, "optExts should only have bash")
-	assert.NotContains(t, s, `optExts = []string{"loop"`, "loop should not be in optExts")
+	// optExts includes all extensions; filtering happens at runtime in WireWithCore.
+	assert.Contains(t, s, `optExts = []string{"loop", "my-loop", "bash"}`)
 	// Blank imports still include all extensions for registration.
 	assert.Contains(t, s, `_ "weave/ext/loop"`)
 	assert.Contains(t, s, `_ "weave/ext/my-loop"`)

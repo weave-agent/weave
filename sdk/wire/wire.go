@@ -12,6 +12,8 @@ import (
 	"weave/sdk"
 )
 
+const defaultAgentLoop = "loop"
+
 type CoreWireConfig struct {
 	AgentLoop  string
 	SingleTurn bool
@@ -123,6 +125,17 @@ func mergeCoreAndOptional(agentLoop string, optExts []string) []string {
 	}
 
 	for _, name := range optExts {
+		// The agent loop is handled as core, not optional.
+		if name == agentLoop {
+			continue
+		}
+
+		// When using a custom agent loop, skip the default "loop" to prevent
+		// concurrent turn execution.
+		if name == defaultAgentLoop && agentLoop != defaultAgentLoop {
+			continue
+		}
+
 		if !seen[name] {
 			seen[name] = true
 			result = append(result, name)

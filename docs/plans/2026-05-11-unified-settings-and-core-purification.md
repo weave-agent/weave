@@ -135,14 +135,14 @@ Move extension-specific types out of `sdk/`.
 
 Remove extension-specific logic from launcher generated code.
 
-- [ ] Create generic hook system in `sdk/` for output writer setters (`sdk.RegisterOutputWriterSetter`)
-- [ ] Update subagent extension to register via hook instead of named import
-- [ ] Remove subagent named import from `launcher/builder.go`
-- [ ] Remove `subagentext.SetStdoutWriter()` call from generated main
-- [ ] Move loop exclusion logic from `launcher/builder.go` to `sdk/wire/` or extension conflict metadata
-- [ ] Replace UI extension string scanning with `sdk.IsUIExtension(dir)` function
-- [ ] Update `launcher/builder_test.go`
-- [ ] Run `make test ./launcher/...` — must pass
+- [x] Create generic hook system in `sdk/` for output writer setters (`sdk.RegisterOutputWriterSetter`)
+- [x] Update subagent extension to register via hook instead of named import
+- [x] Remove subagent named import from `launcher/builder.go`
+- [x] Remove `subagentext.SetStdoutWriter()` call from generated main
+- [x] Move loop exclusion logic from `launcher/builder.go` to `sdk/wire/` or extension conflict metadata
+- [x] Replace UI extension string scanning with `sdk.IsUIExtension(dir)` function
+- [x] Update `launcher/builder_test.go`
+- [x] Run `make test ./launcher/...` — must pass
 
 ### Task 9: Bus cleanup
 

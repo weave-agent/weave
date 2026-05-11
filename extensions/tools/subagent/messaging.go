@@ -20,9 +20,13 @@ var (
 	stdinReader  io.Reader = os.Stdin
 )
 
+func init() {
+	sdk.RegisterOutputWriterSetter(SetStdoutWriter)
+}
+
 // SetStdoutWriter sets the writer used by inter-agent messaging tools for
-// stdout output. Used by the generated subagent main to ensure all JSON
-// protocol writes share the same serialization.
+// stdout output. Registered via sdk.RegisterOutputWriterSetter so the
+// generated main can call it generically without a named import.
 func SetStdoutWriter(w io.Writer) {
 	stdoutWriter = w
 }

@@ -435,20 +435,9 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 	b.WriteString("\t\"weave/sdk/model\"\n")
 	b.WriteString("\t\"weave/sdk/wire\"\n")
 
-	hasSubagent := false
-
-	const builtinSubagentModulePath = "weave/ext/tools/subagent"
-
 	for _, ext := range exts {
 		b.WriteString("\n")
-
-		if ext.Name == "subagent" && ext.ModulePath == builtinSubagentModulePath {
-			hasSubagent = true
-
-			b.WriteString("\tsubagentext \"" + extModulePath(ext) + "\"\n")
-		} else {
-			b.WriteString("\t_ \"" + extModulePath(ext) + "\"\n")
-		}
+		b.WriteString("\t_ \"" + extModulePath(ext) + "\"\n")
 	}
 
 	b.WriteString(")\n\n")
@@ -547,17 +536,6 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 
 	optExtNames := make([]string, 0, len(exts))
 	for _, ext := range exts {
-		// The agent loop is handled by WireWithCore, not passed as optional.
-		if ext.Name == agentLoop {
-			continue
-		}
-
-		// When using a custom agent loop, also exclude the default "loop" —
-		// it subscribes to agent.prompt and would run turns concurrently.
-		if ext.Name == "loop" && agentLoop != "loop" {
-			continue
-		}
-
 		optExtNames = append(optExtNames, `"`+ext.Name+`"`)
 	}
 
@@ -610,10 +588,7 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 	b.WriteString("\tvar jsonQueue chan map[string]any\n")
 	b.WriteString("\tvar jsonWg sync.WaitGroup\n")
 
-	if hasSubagent {
-		b.WriteString("\tsubagentext.SetStdoutWriter(jsonOut)\n")
-	}
-
+	b.WriteString("\tsdk.SetOutputWriters(jsonOut)\n")
 	b.WriteString("\n")
 	b.WriteString("\tif outputMode == \"json\" {\n")
 	b.WriteString("\t\tjsonQueue = make(chan map[string]any, 10000)\n")
