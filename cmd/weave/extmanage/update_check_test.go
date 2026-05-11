@@ -1,4 +1,4 @@
-package wire
+package extmanage
 
 import (
 	"os"
@@ -12,16 +12,35 @@ import (
 	"weave/sdk"
 )
 
-// newRecorderBus returns a BusMock that records published events.
-func newRecorderBus(t *testing.T) (*BusMock, func() []sdk.Event) {
+// busMock is a simple mock of sdk.Bus for testing.
+type busMock struct {
+	publishFunc func(ev sdk.Event)
+}
+
+func (m *busMock) Publish(event sdk.Event) {
+	if m.publishFunc != nil {
+		m.publishFunc(event)
+	}
+}
+
+func (m *busMock) On(topic string, h sdk.Handler) {}
+
+func (m *busMock) OnAll(h sdk.Handler) {}
+
+func (m *busMock) Off(h sdk.Handler) {}
+
+func (m *busMock) Close() error { return nil }
+
+// newRecorderBus returns a busMock that records published events.
+func newRecorderBus(t *testing.T) (*busMock, func() []sdk.Event) {
 	t.Helper()
 
 	var mu sync.Mutex
 
 	var recorded []sdk.Event
 
-	bus := &BusMock{
-		PublishFunc: func(ev sdk.Event) {
+	bus := &busMock{
+		publishFunc: func(ev sdk.Event) {
 			mu.Lock()
 
 			recorded = append(recorded, ev)
@@ -78,7 +97,7 @@ func TestFireUpdateCheck_OutdatedExtension(t *testing.T) {
 	require.Len(t, evts, 1)
 	assert.Equal(t, "extension.outdated", evts[0].Topic)
 
-	payload, ok := evts[0].Payload.(sdk.OutdatedEvent)
+	payload, ok := evts[0].Payload.(OutdatedEvent)
 	require.True(t, ok)
 	require.Len(t, payload.Extensions, 1)
 	assert.Equal(t, "my-tool", payload.Extensions[0].Name)
@@ -150,7 +169,7 @@ func TestFireUpdateCheck_MixedExtensions(t *testing.T) {
 	evts := events()
 	require.Len(t, evts, 1)
 
-	payload, ok := evts[0].Payload.(sdk.OutdatedEvent)
+	payload, ok := evts[0].Payload.(OutdatedEvent)
 	require.True(t, ok)
 	require.Len(t, payload.Extensions, 1)
 	assert.Equal(t, "outdated-tool", payload.Extensions[0].Name)

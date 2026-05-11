@@ -1,4 +1,4 @@
-package wire
+package extmanage
 
 import (
 	"fmt"
@@ -29,7 +29,7 @@ func FireUpdateCheck(bus sdk.Bus) {
 	var (
 		wg       sync.WaitGroup
 		mu       sync.Mutex
-		outdated []sdk.OutdatedInfo
+		outdated []OutdatedInfo
 	)
 
 	for i := range exts {
@@ -50,7 +50,7 @@ func FireUpdateCheck(bus sdk.Bus) {
 			if exts[i].Outdated {
 				mu.Lock()
 
-				outdated = append(outdated, sdk.OutdatedInfo{
+				outdated = append(outdated, OutdatedInfo{
 					Name:       exts[i].Name,
 					LocalHead:  exts[i].LocalHead,
 					RemoteHead: exts[i].RemoteHead,
@@ -63,7 +63,7 @@ func FireUpdateCheck(bus sdk.Bus) {
 	wg.Wait()
 
 	if len(outdated) > 0 {
-		bus.Publish(sdk.NewEvent("extension.outdated", sdk.OutdatedEvent{Extensions: outdated}))
+		bus.Publish(sdk.NewEvent("extension.outdated", OutdatedEvent{Extensions: outdated}))
 	}
 
 	fmt.Fprintf(os.Stderr, "weave: update check complete (%d outdated)\n", len(outdated))

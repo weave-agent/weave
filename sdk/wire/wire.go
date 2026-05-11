@@ -8,6 +8,7 @@ import (
 	"os"
 	"slices"
 
+	"weave/cmd/weave/extmanage"
 	"weave/sdk"
 )
 
@@ -81,7 +82,7 @@ func WireWithCore(core CoreWireConfig, optExts []string, bus sdk.Bus, cfg sdk.Co
 	// Fire update check before Subscribe calls — the TUI blocks in Subscribe,
 	// so deferring this past WireWithCore means it never runs during interactive use.
 	if cfg != nil && !cfg.IsHeadless() {
-		go FireUpdateCheck(bus)
+		go extmanage.FireUpdateCheck(bus)
 	}
 
 	return Wire(extNames, bus, cfg)

@@ -5,6 +5,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"weave/cmd/weave/extmanage"
 	"weave/sdk"
 	sdkmodel "weave/sdk/model"
 
@@ -110,7 +111,7 @@ type ThinkingLevelSetMsg struct {
 
 // OutdatedNotificationMsg is sent when outdated extensions are detected at startup.
 type OutdatedNotificationMsg struct {
-	Extensions []sdk.OutdatedInfo
+	Extensions []extmanage.OutdatedInfo
 }
 
 // ProviderListResultMsg carries the result of listing providers with key status.
@@ -198,7 +199,7 @@ func translateModelChangeFailed(payload any) ModelChangeFailedMsg {
 }
 
 func translateExtOutdated(payload any) OutdatedNotificationMsg {
-	evt, ok := payload.(sdk.OutdatedEvent)
+	evt, ok := payload.(extmanage.OutdatedEvent)
 	if !ok {
 		return OutdatedNotificationMsg{}
 	}

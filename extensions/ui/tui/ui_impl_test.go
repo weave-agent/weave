@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"weave/bus"
+	"weave/cmd/weave/extmanage"
 	"weave/ext/ui/tui/components/messages"
 	"weave/ext/ui/tui/components/overlays"
 	"weave/sdk"
@@ -663,7 +664,7 @@ func TestModel_OutdatedNotificationAddsBanner(t *testing.T) {
 	m.chat = m.chat.SetSize(80, 10)
 
 	msg := OutdatedNotificationMsg{
-		Extensions: []sdk.OutdatedInfo{
+		Extensions: []extmanage.OutdatedInfo{
 			{Name: "mcp", LocalHead: "abc", RemoteHead: "def"},
 			{Name: "diff-viewer", LocalHead: "111", RemoteHead: "222"},
 		},
@@ -702,7 +703,7 @@ func TestModel_OutdatedNotificationSingleExtension(t *testing.T) {
 	m.chat = m.chat.SetSize(80, 10)
 
 	msg := OutdatedNotificationMsg{
-		Extensions: []sdk.OutdatedInfo{
+		Extensions: []extmanage.OutdatedInfo{
 			{Name: "mcp", LocalHead: "abc", RemoteHead: "def"},
 		},
 	}

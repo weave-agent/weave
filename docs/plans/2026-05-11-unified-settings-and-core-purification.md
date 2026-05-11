@@ -38,18 +38,18 @@ This plan addresses two architectural goals:
 
 Move `weave list/install/update/uninstall` commands from `sdk/wire/` to `cmd/weave/extmanage/`. Keep `sdk/wire/wire.go` and `sdk/wire/run.go` for runtime wiring only.
 
-- [ ] Create `cmd/weave/extmanage/` package
-- [ ] Move `sdk/wire/extmanage.go` → `cmd/weave/extmanage/list.go`, `cmd/weave/extmanage/update.go`, `cmd/weave/extmanage/uninstall.go`
-- [ ] Move `sdk/wire/install.go` → `cmd/weave/extmanage/install.go`
-- [ ] Move `sdk/wire/update_check.go` → `cmd/weave/extmanage/update_check.go`
-- [ ] Move `sdk/wire/extmanage_test.go` → `cmd/weave/extmanage/list_test.go` etc.
-- [ ] Move `sdk/wire/install_test.go` → `cmd/weave/extmanage/install_test.go`
-- [ ] Move `sdk/wire/update_check_test.go` → `cmd/weave/extmanage/update_check_test.go`
-- [ ] Move `OutdatedInfo`/`OutdatedEvent` from `sdk/event.go` to `cmd/weave/extmanage/`
-- [ ] Update `sdk/wire/run.go` to delegate subcommands to `cmd/weave/extmanage/`
-- [ ] Update imports across codebase
-- [ ] Run tests for moved packages
-- [ ] Run `make test` — must pass
+- [x] Create `cmd/weave/extmanage/` package
+- [x] Move `sdk/wire/extmanage.go` → `cmd/weave/extmanage/list.go`, `cmd/weave/extmanage/update.go`, `cmd/weave/extmanage/uninstall.go`
+- [x] Move `sdk/wire/install.go` → `cmd/weave/extmanage/install.go`
+- [x] Move `sdk/wire/update_check.go` → `cmd/weave/extmanage/update_check.go`
+- [x] Move `sdk/wire/extmanage_test.go` → `cmd/weave/extmanage/list_test.go` etc.
+- [x] Move `sdk/wire/install_test.go` → `cmd/weave/extmanage/install_test.go`
+- [x] Move `sdk/wire/update_check_test.go` → `cmd/weave/extmanage/update_check_test.go`
+- [x] Move `OutdatedInfo`/`OutdatedEvent` from `sdk/event.go` to `cmd/weave/extmanage/`
+- [x] Update `sdk/wire/run.go` to delegate subcommands to `cmd/weave/extmanage/`
+- [x] Update imports across codebase
+- [x] Run tests for moved packages
+- [x] Run `make test` — must pass
 
 ### Task 2: Rename config/ → settings/ and drop YAML support
 

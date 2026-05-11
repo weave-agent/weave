@@ -1,4 +1,4 @@
-package wire
+package extmanage
 
 import (
 	"os"
@@ -157,8 +157,8 @@ func TestDeriveNameFromURL(t *testing.T) {
 }
 
 func TestRunInstall_MissingSource(t *testing.T) {
-	assert.Equal(t, 1, runInstall(nil))
-	assert.Equal(t, 1, runInstall([]string{}))
+	assert.Equal(t, 1, RunInstall(nil))
+	assert.Equal(t, 1, RunInstall([]string{}))
 }
 
 func TestRunInstall_NameWithoutValue(t *testing.T) {
@@ -167,7 +167,7 @@ func TestRunInstall_NameWithoutValue(t *testing.T) {
 	require.NoError(t, os.MkdirAll(extDir, 0o750))
 	require.NoError(t, os.WriteFile(filepath.Join(extDir, "main.go"), []byte("package main\n"), 0o600))
 
-	assert.Equal(t, 1, runInstall([]string{extDir, "--name"}))
+	assert.Equal(t, 1, RunInstall([]string{extDir, "--name"}))
 }
 
 func TestRunInstall_UnknownArg(t *testing.T) {
@@ -176,7 +176,7 @@ func TestRunInstall_UnknownArg(t *testing.T) {
 	require.NoError(t, os.MkdirAll(extDir, 0o750))
 	require.NoError(t, os.WriteFile(filepath.Join(extDir, "main.go"), []byte("package main\n"), 0o600))
 
-	assert.Equal(t, 1, runInstall([]string{extDir, "--unknown-flag"}))
+	assert.Equal(t, 1, RunInstall([]string{extDir, "--unknown-flag"}))
 }
 
 func TestRunInstall_NameWithEqualsForm(t *testing.T) {
@@ -189,7 +189,7 @@ func TestRunInstall_NameWithEqualsForm(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
-	code := runInstall([]string{extDir, "--name=equals-form"})
+	code := RunInstall([]string{extDir, "--name=equals-form"})
 	assert.Equal(t, 0, code)
 
 	destDir := filepath.Join(homeDir, ".weave", "extensions", "equals-form")
@@ -204,7 +204,7 @@ func TestRunInstall_InvalidName(t *testing.T) {
 	require.NoError(t, os.MkdirAll(extDir, 0o750))
 	require.NoError(t, os.WriteFile(filepath.Join(extDir, "main.go"), []byte("package main\n"), 0o600))
 
-	code := runInstall([]string{dir, "--name", "invalid name!"})
+	code := RunInstall([]string{dir, "--name", "invalid name!"})
 	assert.Equal(t, 1, code)
 }
 
@@ -218,7 +218,7 @@ func TestRunInstall_LocalPath(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
-	code := runInstall([]string{extDir})
+	code := RunInstall([]string{extDir})
 	assert.Equal(t, 0, code)
 
 	destDir := filepath.Join(homeDir, ".weave", "extensions", "my-tool")
@@ -241,7 +241,7 @@ func TestRunInstall_LocalPathWithExplicitName(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
-	code := runInstall([]string{extDir, "--name", "custom-name"})
+	code := RunInstall([]string{extDir, "--name", "custom-name"})
 	assert.Equal(t, 0, code)
 
 	destDir := filepath.Join(homeDir, ".weave", "extensions", "custom-name")
@@ -259,7 +259,7 @@ func TestRunInstall_LocalPathNoGoFiles(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
-	code := runInstall([]string{extDir})
+	code := RunInstall([]string{extDir})
 	assert.Equal(t, 1, code)
 
 	destDir := filepath.Join(homeDir, ".weave", "extensions", "empty-ext")
@@ -276,7 +276,7 @@ func TestRunInstall_LocalPathNoGoMod(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
-	code := runInstall([]string{extDir})
+	code := RunInstall([]string{extDir})
 	assert.Equal(t, 1, code)
 
 	destDir := filepath.Join(homeDir, ".weave", "extensions", "no-mod-ext")
@@ -294,12 +294,12 @@ func TestRunInstall_OverwriteExisting(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
-	code := runInstall([]string{extDir})
+	code := RunInstall([]string{extDir})
 	assert.Equal(t, 0, code)
 
 	require.NoError(t, os.WriteFile(filepath.Join(extDir, "main.go"), []byte("package main // v3\n"), 0o600))
 
-	code = runInstall([]string{extDir})
+	code = RunInstall([]string{extDir})
 	assert.Equal(t, 0, code)
 
 	data, err := os.ReadFile(filepath.Join(homeDir, ".weave", "extensions", "my-tool", "main.go"))
@@ -319,7 +319,7 @@ func TestRunInstall_SkipsHiddenDirs(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
-	code := runInstall([]string{extDir})
+	code := RunInstall([]string{extDir})
 	assert.Equal(t, 0, code)
 
 	destDir := filepath.Join(homeDir, ".weave", "extensions", "my-tool")
@@ -342,7 +342,7 @@ func TestRunInstall_FailedValidationPreservesExisting(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
-	require.Equal(t, 0, runInstall([]string{goodExt}))
+	require.Equal(t, 0, RunInstall([]string{goodExt}))
 
 	destDir := filepath.Join(homeDir, ".weave", "extensions", "my-tool")
 	require.FileExists(t, filepath.Join(destDir, "main.go"))
@@ -352,7 +352,7 @@ func TestRunInstall_FailedValidationPreservesExisting(t *testing.T) {
 	require.NoError(t, os.MkdirAll(badExt, 0o750))
 	require.NoError(t, os.WriteFile(filepath.Join(badExt, "README.md"), []byte("# readme\n"), 0o600))
 
-	require.Equal(t, 1, runInstall([]string{badExt}))
+	require.Equal(t, 1, RunInstall([]string{badExt}))
 
 	data, err := os.ReadFile(filepath.Join(destDir, "main.go"))
 	require.NoError(t, err)
@@ -374,11 +374,11 @@ func TestRunInstall_RejectsSelfInstall(t *testing.T) {
 	require.NoError(t, os.MkdirAll(destDir, 0o750))
 	require.NoError(t, os.WriteFile(filepath.Join(destDir, "main.go"), []byte("package main\n"), 0o600))
 
-	code := runInstall([]string{destDir})
+	code := RunInstall([]string{destDir})
 	assert.Equal(t, 1, code)
 
 	parent := filepath.Join(homeDir, ".weave", "extensions")
-	code = runInstall([]string{parent, "--name", "my-tool"})
+	code = RunInstall([]string{parent, "--name", "my-tool"})
 	assert.Equal(t, 1, code)
 
 	data, err := os.ReadFile(filepath.Join(destDir, "main.go"))

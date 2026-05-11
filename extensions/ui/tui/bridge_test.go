@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"weave/bus"
+	"weave/cmd/weave/extmanage"
 	"weave/sdk"
 
 	tea "charm.land/bubbletea/v2"
@@ -160,8 +161,8 @@ func TestTranslateEvent_TurnStart_NonIntPayload(t *testing.T) {
 }
 
 func TestTranslateEvent_ExtOutdated(t *testing.T) {
-	payload := sdk.OutdatedEvent{
-		Extensions: []sdk.OutdatedInfo{
+	payload := extmanage.OutdatedEvent{
+		Extensions: []extmanage.OutdatedInfo{
 			{Name: "mcp", LocalHead: "abc123", RemoteHead: "def456"},
 			{Name: "diff-viewer", LocalHead: "111", RemoteHead: "222"},
 		},

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"weave/cmd/weave/extmanage"
 	"weave/config"
 	"weave/launcher"
 )
@@ -20,13 +21,13 @@ func Run(ctx context.Context, args []string) int {
 	if len(args) > 0 {
 		switch args[0] {
 		case "install":
-			return runInstall(args[1:])
+			return extmanage.RunInstall(args[1:])
 		case "list":
-			return runList(args[1:])
+			return extmanage.RunList(args[1:])
 		case "update":
-			return runUpdate(args[1:])
+			return extmanage.RunUpdate(args[1:])
 		case "uninstall":
-			return runUninstall(args[1:])
+			return extmanage.RunUninstall(args[1:])
 		}
 	}
 

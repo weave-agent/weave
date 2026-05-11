@@ -1,4 +1,4 @@
-package wire
+package extmanage
 
 import (
 	"context"
@@ -32,7 +32,8 @@ type parsedSource struct {
 	rawName  string
 }
 
-func runInstall(args []string) int {
+// RunInstall installs an extension from a git URL, GitHub shorthand, or local path.
+func RunInstall(args []string) int {
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "weave install: missing source argument")
 		fmt.Fprintln(os.Stderr, "usage: weave install <source> [--name <name>]")
