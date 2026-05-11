@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"weave/config"
+	"weave/settings"
 )
 
 const cloneTimeout = 5 * time.Minute
@@ -75,7 +75,7 @@ func RunInstall(args []string) int {
 		extName = parsed.rawName
 	}
 
-	if !config.ValidExtName(extName) {
+	if !settings.ValidExtName(extName) {
 		fmt.Fprintf(os.Stderr, "weave install: invalid extension name %q (must match [a-zA-Z0-9_-]+)\n", extName)
 		return 1
 	}
@@ -236,8 +236,8 @@ func parseSource(source string) (parsedSource, error) {
 		}, nil
 	}
 
-	if config.IsPathEntry(source) || filepath.IsAbs(source) {
-		abs, err := config.ResolveExtPath(source, "")
+	if settings.IsPathEntry(source) || filepath.IsAbs(source) {
+		abs, err := settings.ResolveExtPath(source, "")
 		if err != nil {
 			return parsedSource{}, fmt.Errorf("resolve path: %w", err)
 		}

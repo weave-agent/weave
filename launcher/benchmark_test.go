@@ -249,7 +249,7 @@ func goRunEndToEnd(b *testing.B, extYAML string) {
 		b.Fatalf("mkdir .weave: %v", err)
 	}
 
-	configPath := filepath.Join(configDir, "config.yaml")
+	configPath := filepath.Join(configDir, "config.json")
 
 	if err := os.WriteFile(configPath, []byte(extYAML), 0o600); err != nil {
 		b.Fatalf("write config: %v", err)
@@ -280,11 +280,11 @@ func goRunEndToEnd(b *testing.B, extYAML string) {
 }
 
 func BenchmarkGoRun_NoTUI(b *testing.B) {
-	goRunEndToEnd(b, "core:\n  agent_loop: loop\nui: none\n")
+	goRunEndToEnd(b, `{"core":{"agent_loop":"loop"},"ui":"none"}`)
 }
 
 func BenchmarkGoRun_TUI(b *testing.B) {
-	goRunEndToEnd(b, "core:\n  agent_loop: loop\nui: tui\n")
+	goRunEndToEnd(b, `{"core":{"agent_loop":"loop"},"ui":"tui"}`)
 }
 
 // Partial builds: Go cache primed with full build, but one extension source changed.

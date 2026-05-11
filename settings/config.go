@@ -1,4 +1,4 @@
-package config
+package settings
 
 import (
 	"encoding/json"
@@ -41,11 +41,11 @@ type ProviderEntry struct {
 
 // SandboxFileConfig holds sandbox configuration from the config file.
 type SandboxFileConfig struct {
-	Mode      string   `yaml:"mode" json:"mode" description:"Sandbox mode: off, readonly, ask, auto"`
-	Writable  []string `yaml:"writable" json:"writable" description:"Paths allowed for writes (default: CWD)"`
-	DenyWrite []string `yaml:"deny_write" json:"deny_write" description:"Additional paths to block from writes"`
-	DenyRead  []string `yaml:"deny_read" json:"deny_read" description:"Paths to block from reading"`
-	Network   *bool    `yaml:"network" json:"network" description:"Allow network access in sandbox"`
+	Mode      string   `json:"mode" description:"Sandbox mode: off, readonly, ask, auto"`
+	Writable  []string `json:"writable" description:"Paths allowed for writes (default: CWD)"`
+	DenyWrite []string `json:"deny_write" description:"Additional paths to block from writes"`
+	DenyRead  []string `json:"deny_read" description:"Paths to block from reading"`
+	Network   *bool    `json:"network" description:"Allow network access in sandbox"`
 }
 
 type File struct {
@@ -53,7 +53,7 @@ type File struct {
 	UI                string            `default:"tui" description:"UI extension name (tui for interactive, none for headless)"`
 	Core              CoreConfig        `description:"Core agent configuration"`
 	Providers         map[string]any    `description:"Per-provider configuration"`
-	ExcludeExtensions []string          `yaml:"exclude_extensions" description:"Extensions to exclude from auto-discovery"`
+	ExcludeExtensions []string          `json:"exclude_extensions" description:"Extensions to exclude from auto-discovery"`
 	Sandbox           SandboxFileConfig `description:"Sandbox configuration"`
 
 	// CLI-only flags (not read from config file).
@@ -169,7 +169,7 @@ func FindConfigPath(startDir string) (string, error) {
 		return globalPath, nil
 	}
 
-	return "", errors.New("no .weave.yaml, .weave/config.yaml, or .weave/config.json found")
+	return "", errors.New("no .weave/config.json found")
 }
 
 func findGlobalConfig() (string, bool) {
@@ -190,11 +190,9 @@ func findAnyConfigPath(startDir string) (string, bool) {
 	dir := startDir
 
 	for {
-		for _, name := range []string{".weave.yaml", ".weave/config.yaml", ".weave/config.json"} {
-			candidate := filepath.Join(dir, name)
-			if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
-				return candidate, true
-			}
+		candidate := filepath.Join(dir, ".weave", "config.json")
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			return candidate, true
 		}
 
 		parent := filepath.Dir(dir)
@@ -387,7 +385,7 @@ func (c *FullConfig) ResolveKey(providerName, envVar string) (string, error) {
 }
 
 // ProjectDirFromConfig returns the project root directory for a config file path.
-// If the config file is inside .weave/ (e.g. .weave/config.yaml), returns the
+// If the config file is inside .weave/ (e.g. .weave/config.json), returns the
 // parent directory so that layered settings look in the right place.
 func ProjectDirFromConfig(configPath string) string {
 	dir := filepath.Dir(configPath)

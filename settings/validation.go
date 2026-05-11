@@ -1,4 +1,4 @@
-package config
+package settings
 
 import (
 	"encoding/json"
@@ -55,7 +55,7 @@ type ValidationError struct {
 }
 
 func (e ValidationError) Error() string {
-	return fmt.Sprintf("config.%s: %s", e.Field, e.Message)
+	return fmt.Sprintf("settings.%s: %s", e.Field, e.Message)
 }
 
 // ValidationErrors holds multiple validation failures.

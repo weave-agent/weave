@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"weave/config"
+	"weave/settings"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,10 +52,11 @@ func TestRunMissingConfig(t *testing.T) {
 func TestRunCoreDefaultsUsed(t *testing.T) {
 	dir := t.TempDir()
 
-	cfgFile := dir + "/.weave.yaml"
-	require.NoError(t, os.WriteFile(cfgFile, []byte("{}\n"), 0o600))
+	cfgFile := dir + "/.weave/config.json"
+	require.NoError(t, os.MkdirAll(filepath.Dir(cfgFile), 0o750))
+	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui":"tui","core":{"agent_loop":"loop"}}`), 0o600))
 
-	_, cf, _, err := config.LoadFromDir(dir, nil)
+	_, cf, _, err := settings.LoadFromDir(dir, nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, "loop", cf.Core.AgentLoop, "default agent_loop should be 'loop'")
@@ -65,29 +66,29 @@ func TestRunCoreDefaultsUsed(t *testing.T) {
 func TestValidateCoreConfig(t *testing.T) {
 	tests := []struct {
 		name    string
-		config  *config.File
+		config  *settings.File
 		wantErr error
 	}{
 		{
 			"valid defaults",
-			&config.File{Core: config.CoreConfig{AgentLoop: "loop"}, UI: "tui"},
+			&settings.File{Core: settings.CoreConfig{AgentLoop: "loop"}, UI: "tui"},
 			nil,
 		},
 		{
 			"empty agent_loop",
-			&config.File{Core: config.CoreConfig{AgentLoop: ""}, UI: "tui"},
+			&settings.File{Core: settings.CoreConfig{AgentLoop: ""}, UI: "tui"},
 			errors.New("agent_loop"),
 		},
 		{
 			"invalid agent_loop chars",
-			&config.File{Core: config.CoreConfig{AgentLoop: "bad loop!"}, UI: "tui"},
+			&settings.File{Core: settings.CoreConfig{AgentLoop: "bad loop!"}, UI: "tui"},
 			errors.New("agent_loop"),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := config.Validate(tt.config)
+			err := settings.Validate(tt.config)
 			if tt.wantErr == nil {
 				assert.NoError(t, err)
 			} else {
@@ -151,17 +152,18 @@ func TestWritePromptFile(t *testing.T) {
 }
 
 func TestResolveProjectDir(t *testing.T) {
-	assert.Equal(t, "/project", config.ProjectDirFromConfig("/project/.weave/config.yaml"))
-	assert.Equal(t, "/project", config.ProjectDirFromConfig("/project/config.yaml"))
-	assert.Equal(t, "/", config.ProjectDirFromConfig("/.weave/config.yaml"))
+	assert.Equal(t, "/project", settings.ProjectDirFromConfig("/project/.weave/settings.yaml"))
+	assert.Equal(t, "/project", settings.ProjectDirFromConfig("/project/settings.yaml"))
+	assert.Equal(t, "/", settings.ProjectDirFromConfig("/.weave/settings.yaml"))
 }
 
 func TestRun_SubagentFlagsParsed(t *testing.T) {
 	dir := t.TempDir()
-	cfgFile := dir + "/.weave.yaml"
-	require.NoError(t, os.WriteFile(cfgFile, []byte("ui: none\ncore:\n  agent_loop: loop\n"), 0o600))
+	cfgFile := dir + "/.weave/config.json"
+	require.NoError(t, os.MkdirAll(filepath.Dir(cfgFile), 0o750))
+	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui":"none","core":{"agent_loop":"loop"}}`), 0o600))
 
-	_, cf, rest, err := config.LoadFromDir(dir, []string{
+	_, cf, rest, err := settings.LoadFromDir(dir, []string{
 		"-p", "test",
 		"--output", "json",
 		"--tools", "read,grep",
@@ -182,10 +184,11 @@ func TestRun_SubagentFlagsParsed(t *testing.T) {
 
 func TestRun_EmptyToolsFlagForwarded(t *testing.T) {
 	dir := t.TempDir()
-	cfgFile := dir + "/.weave.yaml"
-	require.NoError(t, os.WriteFile(cfgFile, []byte("ui: none\ncore:\n  agent_loop: loop\n"), 0o600))
+	cfgFile := dir + "/.weave/config.json"
+	require.NoError(t, os.MkdirAll(filepath.Dir(cfgFile), 0o750))
+	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui":"none","core":{"agent_loop":"loop"}}`), 0o600))
 
-	_, cf, rest, err := config.LoadFromDir(dir, []string{
+	_, cf, rest, err := settings.LoadFromDir(dir, []string{
 		"-p", "test",
 		"--tools=",
 	})
@@ -197,18 +200,19 @@ func TestRun_EmptyToolsFlagForwarded(t *testing.T) {
 }
 
 func TestRun_ProjectDirFromConfig(t *testing.T) {
-	// Create a project structure: /tmp/project/.weave.yaml and /tmp/project/subdir/
+	// Create a project structure: /tmp/project/.weave/config.json and /tmp/project/subdir/
 	projectDir := t.TempDir()
 	subDir := filepath.Join(projectDir, "subdir")
 	require.NoError(t, os.MkdirAll(subDir, 0o750))
 
-	cfgFile := filepath.Join(projectDir, ".weave.yaml")
-	require.NoError(t, os.WriteFile(cfgFile, []byte("ui: none\ncore:\n  agent_loop: loop\n"), 0o600))
+	cfgFile := filepath.Join(projectDir, ".weave", "config.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(cfgFile), 0o750))
+	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui":"none","core":{"agent_loop":"loop"}}`), 0o600))
 
 	// Loading from subdir should find the config at project root.
-	_, cf, _, err := config.LoadFromDir(subDir, []string{"-p", "hello"})
+	_, cf, _, err := settings.LoadFromDir(subDir, []string{"-p", "hello"})
 	require.NoError(t, err)
-	assert.Equal(t, projectDir, config.ProjectDirFromConfig(cfgFile))
+	assert.Equal(t, projectDir, settings.ProjectDirFromConfig(cfgFile))
 
 	// Verify the config was found and parsed.
 	assert.Equal(t, "none", cf.UI)
@@ -218,22 +222,22 @@ func TestRun_ProjectDirNotUsedForGlobalConfig(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
-	// Create a global config but no project config.
+	// Create a global config but no project settings.
 	globalDir := filepath.Join(homeDir, ".weave")
 	require.NoError(t, os.MkdirAll(globalDir, 0o750))
-	require.NoError(t, os.WriteFile(filepath.Join(globalDir, "config.json"), []byte("{}\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(globalDir, "settings.json"), []byte("{}\n"), 0o600))
 
-	globalConfigPath := filepath.Join(globalDir, "config.json")
+	globalConfigPath := filepath.Join(globalDir, "settings.json")
 
 	// Verify the global config path is detected as being inside the global dir.
-	globalDirResult, _ := config.GlobalConfigDir()
+	globalDirResult, _ := settings.GlobalConfigDir()
 	require.NotEmpty(t, globalDirResult)
 	assert.True(t, strings.HasPrefix(globalConfigPath, globalDirResult+string(os.PathSeparator)),
 		"global config path should be inside the global config directory")
 
 	// When a project-local config exists, it should resolve to the project dir.
 	projectDir := t.TempDir()
-	localConfigPath := filepath.Join(projectDir, ".weave", "config.json")
+	localConfigPath := filepath.Join(projectDir, ".weave", "settings.json")
 	require.NoError(t, os.MkdirAll(filepath.Dir(localConfigPath), 0o750))
 	require.NoError(t, os.WriteFile(localConfigPath, []byte("{}\n"), 0o600))
 
@@ -242,5 +246,5 @@ func TestRun_ProjectDirNotUsedForGlobalConfig(t *testing.T) {
 		"project-local config should not be classified as global")
 
 	// Verify ProjectDirFromConfig gives the right directory for each.
-	assert.Equal(t, projectDir, config.ProjectDirFromConfig(localConfigPath))
+	assert.Equal(t, projectDir, settings.ProjectDirFromConfig(localConfigPath))
 }

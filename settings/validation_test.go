@@ -1,4 +1,4 @@
-package config
+package settings
 
 import (
 	"testing"
@@ -140,7 +140,7 @@ func TestValidate_MultipleErrors(t *testing.T) {
 
 func TestValidationError_ErrorFormat(t *testing.T) {
 	e := ValidationError{Field: "ui", Message: `invalid value "web"`}
-	assert.Equal(t, `config.ui: invalid value "web"`, e.Error())
+	assert.Equal(t, `settings.ui: invalid value "web"`, e.Error())
 }
 
 func TestValidationErrors_ErrorFormat(t *testing.T) {
@@ -148,12 +148,12 @@ func TestValidationErrors_ErrorFormat(t *testing.T) {
 		{Field: "ui", Message: "bad ui"},
 		{Field: "core.agent_loop", Message: "empty"},
 	}
-	assert.Equal(t, "config.ui: bad ui; config.core.agent_loop: empty", errs.Error())
+	assert.Equal(t, "settings.ui: bad ui; settings.core.agent_loop: empty", errs.Error())
 }
 
 func TestValidateWithConfigDir_IntegratedWithLoad(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave.yaml", "ui: web\n")
+	writeFile(t, dir, ".weave/config.json", `{"ui":"web"}`)
 
 	_, _, _, err := LoadFromDir(dir, nil)
 	require.Error(t, err)

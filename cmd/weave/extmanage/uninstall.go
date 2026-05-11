@@ -5,12 +5,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"weave/config"
+	"weave/settings"
 )
 
 // uninstallExtension removes an extension directory from ~/.weave/extensions/.
 func uninstallExtension(name string) error {
-	if !config.ValidExtName(name) {
+	if !settings.ValidExtName(name) {
 		return fmt.Errorf("invalid extension name %q", name)
 	}
 

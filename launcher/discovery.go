@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"weave/config"
+	"weave/settings"
 )
 
 type ExtensionInfo struct {
@@ -87,7 +87,7 @@ func AutoDiscover(projectDir, homeDir, moduleRoot string, exclude []string) ([]E
 			}
 
 			name := filepath.Base(path)
-			if !config.ValidExtName(name) {
+			if !settings.ValidExtName(name) {
 				fmt.Fprintf(os.Stderr, "warning: auto-discover: skipping %q: invalid extension name\n", name)
 				return nil
 			}

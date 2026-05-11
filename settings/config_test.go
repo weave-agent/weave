@@ -1,4 +1,4 @@
-package config
+package settings
 
 import (
 	"os"
@@ -13,33 +13,33 @@ import (
 
 func TestFindConfigPath_WeaveYaml(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave.yaml", "ui: tui\n")
+	writeFile(t, dir, ".weave/config.json", `{"ui":"tui"}`)
 
 	got, err := FindConfigPath(dir)
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(dir, ".weave.yaml"), got)
+	assert.Equal(t, filepath.Join(dir, ".weave", "config.json"), got)
 }
 
 func TestFindConfigPath_ConfigDir(t *testing.T) {
 	dir := t.TempDir()
 	configDir := filepath.Join(dir, ".weave")
 	mkdir(t, configDir)
-	writeFile(t, configDir, "config.yaml", "ui: tui\n")
+	writeFile(t, configDir, "config.json", `{"ui":"tui"}`)
 
 	got, err := FindConfigPath(dir)
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(configDir, "config.yaml"), got)
+	assert.Equal(t, filepath.Join(configDir, "config.json"), got)
 }
 
 func TestFindConfigPath_WalkUp(t *testing.T) {
 	root := t.TempDir()
 	child := filepath.Join(root, "a", "b", "c")
 	mkdir(t, child)
-	writeFile(t, root, ".weave.yaml", "ui: tui\n")
+	writeFile(t, root, ".weave/config.json", `{"ui":"tui"}`)
 
 	got, err := FindConfigPath(child)
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(root, ".weave.yaml"), got)
+	assert.Equal(t, filepath.Join(root, ".weave", "config.json"), got)
 }
 
 func TestFindConfigPath_NotFound(t *testing.T) {
@@ -66,21 +66,9 @@ func TestFindConfigPath_ConfigJSON(t *testing.T) {
 	assert.Equal(t, filepath.Join(configDir, "config.json"), got)
 }
 
-func TestFindConfigPath_PrefersWeaveYaml(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, ".weave.yaml", "ui: tui\n")
-	configDir := filepath.Join(dir, ".weave")
-	mkdir(t, configDir)
-	writeFile(t, configDir, "config.yaml", "ui: none\n")
-
-	got, err := FindConfigPath(dir)
-	require.NoError(t, err)
-	assert.Equal(t, ".weave.yaml", filepath.Base(got))
-}
-
 func TestLoad_CoreDefaults(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave.yaml", "ui: tui\n")
+	writeFile(t, dir, ".weave/config.json", `{"ui":"tui"}`)
 
 	_, cf, _, err := LoadFromDir(dir, nil)
 	require.NoError(t, err)
@@ -90,7 +78,7 @@ func TestLoad_CoreDefaults(t *testing.T) {
 
 func TestLoad_CoreOverride(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave.yaml", "core:\n  agent_loop: custom-loop\n")
+	writeFile(t, dir, ".weave/config.json", `{"core":{"agent_loop":"custom-loop"}}`)
 
 	_, cf, _, err := LoadFromDir(dir, nil)
 	require.NoError(t, err)
@@ -100,7 +88,7 @@ func TestLoad_CoreOverride(t *testing.T) {
 
 func TestLoad_ExcludeExtensions(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave.yaml", "exclude_extensions:\n  - bash\n  - grep\n")
+	writeFile(t, dir, ".weave/config.json", `{"exclude_extensions":["bash","grep"]}`)
 
 	_, cf, _, err := LoadFromDir(dir, nil)
 	require.NoError(t, err)
@@ -129,7 +117,7 @@ func TestLoad_MissingFile(t *testing.T) {
 
 func TestLoad_UIDefault(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave.yaml", "ui: tui\n")
+	writeFile(t, dir, ".weave/config.json", `{"ui":"tui"}`)
 
 	_, cf, _, err := LoadFromDir(dir, nil)
 	require.NoError(t, err)
@@ -139,7 +127,7 @@ func TestLoad_UIDefault(t *testing.T) {
 
 func TestLoad_UIOverride(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave.yaml", "ui: none\n")
+	writeFile(t, dir, ".weave/config.json", `{"ui":"none"}`)
 
 	_, cf, _, err := LoadFromDir(dir, nil)
 	require.NoError(t, err)
@@ -149,7 +137,7 @@ func TestLoad_UIOverride(t *testing.T) {
 
 func TestLoad_UIFlag(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave.yaml", "ui: tui\n")
+	writeFile(t, dir, ".weave/config.json", `{"ui":"tui"}`)
 
 	_, cf, _, err := LoadFromDir(dir, []string{"--ui", "none"})
 	require.NoError(t, err)
@@ -159,7 +147,7 @@ func TestLoad_UIFlag(t *testing.T) {
 
 func TestLoad_OutputFlag(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave.yaml", "ui: tui\n")
+	writeFile(t, dir, ".weave/config.json", `{"ui":"tui"}`)
 
 	_, cf, _, err := LoadFromDir(dir, []string{"--output", "json"})
 	require.NoError(t, err)
@@ -169,7 +157,7 @@ func TestLoad_OutputFlag(t *testing.T) {
 
 func TestLoad_ToolsFlag(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave.yaml", "ui: tui\n")
+	writeFile(t, dir, ".weave/config.json", `{"ui":"tui"}`)
 
 	_, cf, _, err := LoadFromDir(dir, []string{"--tools", "read,grep,find"})
 	require.NoError(t, err)
@@ -180,7 +168,7 @@ func TestLoad_ToolsFlag(t *testing.T) {
 
 func TestLoad_ToolsFlagEmpty(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave.yaml", "ui: tui\n")
+	writeFile(t, dir, ".weave/config.json", `{"ui":"tui"}`)
 
 	_, cf, _, err := LoadFromDir(dir, []string{"--tools="})
 	require.NoError(t, err)
@@ -191,7 +179,7 @@ func TestLoad_ToolsFlagEmpty(t *testing.T) {
 
 func TestLoad_ToolsFlagNotSet(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave.yaml", "ui: tui\n")
+	writeFile(t, dir, ".weave/config.json", `{"ui":"tui"}`)
 
 	_, cf, _, err := LoadFromDir(dir, nil)
 	require.NoError(t, err)
@@ -202,7 +190,7 @@ func TestLoad_ToolsFlagNotSet(t *testing.T) {
 
 func TestLoad_SubagentIDFlag(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave.yaml", "ui: tui\n")
+	writeFile(t, dir, ".weave/config.json", `{"ui":"tui"}`)
 
 	_, cf, _, err := LoadFromDir(dir, []string{"--subagent-id", "subagent_explore_abc123"})
 	require.NoError(t, err)
@@ -212,7 +200,7 @@ func TestLoad_SubagentIDFlag(t *testing.T) {
 
 func TestLoad_SandboxModeFlag(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave.yaml", "ui: tui\n")
+	writeFile(t, dir, ".weave/config.json", `{"ui":"tui"}`)
 
 	_, cf, _, err := LoadFromDir(dir, []string{"--sandbox", "readonly"})
 	require.NoError(t, err)
@@ -222,7 +210,7 @@ func TestLoad_SandboxModeFlag(t *testing.T) {
 
 func TestLoad_ModelFlag(t *testing.T) {
 	dir := t.TempDir()
-	writeFile(t, dir, ".weave.yaml", "ui: tui\n")
+	writeFile(t, dir, ".weave/config.json", `{"ui":"tui"}`)
 
 	_, cf, _, err := LoadFromDir(dir, []string{"--model", "claude-haiku-4-5"})
 	require.NoError(t, err)
@@ -249,7 +237,7 @@ func TestEnsureGlobalConfig_SkipsIfProjectConfigExists(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	projectDir := t.TempDir()
-	writeFile(t, projectDir, ".weave.yaml", "ui: none\n")
+	writeFile(t, projectDir, ".weave/config.json", `{"ui":"none"}`)
 
 	path, err := EnsureGlobalConfig(projectDir)
 	require.NoError(t, err)
@@ -301,7 +289,12 @@ func TestDefaultFile(t *testing.T) {
 func writeFile(t *testing.T, dir, name, content string) {
 	t.Helper()
 
-	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
+	path := filepath.Join(dir, name)
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatalf("mkdir %s: %v", name, err)
+	}
+
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatalf("write %s: %v", name, err)
 	}
 }
@@ -334,7 +327,7 @@ func TestPreferences_LoadsMergedSettings(t *testing.T) {
 	})
 
 	cfg := &FullConfig{
-		filePath: filepath.Join(projectDir, ".weave", "config.yaml"),
+		filePath: filepath.Join(projectDir, ".weave", "config.json"),
 		file:     DefaultFile(),
 		auth:     &AuthFile{},
 	}
@@ -359,7 +352,7 @@ func TestPreferences_NoSettingsFile(t *testing.T) {
 	projectDir := t.TempDir()
 
 	cfg := &FullConfig{
-		filePath: filepath.Join(projectDir, ".weave", "config.yaml"),
+		filePath: filepath.Join(projectDir, ".weave", "config.json"),
 		file:     DefaultFile(),
 		auth:     &AuthFile{},
 	}
@@ -386,7 +379,7 @@ func TestSavePreferences_MergesIntoGlobal(t *testing.T) {
 	projectDir := t.TempDir()
 
 	cfg := &FullConfig{
-		filePath: filepath.Join(projectDir, ".weave", "config.yaml"),
+		filePath: filepath.Join(projectDir, ".weave", "config.json"),
 		file:     DefaultFile(),
 		auth:     &AuthFile{},
 	}
@@ -414,7 +407,7 @@ func TestSavePreferences_CreatesFileIfMissing(t *testing.T) {
 	projectDir := t.TempDir()
 
 	cfg := &FullConfig{
-		filePath: filepath.Join(projectDir, ".weave", "config.yaml"),
+		filePath: filepath.Join(projectDir, ".weave", "config.json"),
 		file:     DefaultFile(),
 		auth:     &AuthFile{},
 	}
@@ -520,7 +513,7 @@ func TestSavePreferences_PreservesUIFields(t *testing.T) {
 	projectDir := t.TempDir()
 
 	cfg := &FullConfig{
-		filePath: filepath.Join(projectDir, ".weave", "config.yaml"),
+		filePath: filepath.Join(projectDir, ".weave", "config.json"),
 		file:     DefaultFile(),
 		auth:     &AuthFile{},
 	}
@@ -567,7 +560,7 @@ func TestSavePreferences_DeepMergesNestedFields(t *testing.T) {
 
 	projectDir := t.TempDir()
 	cfg := &FullConfig{
-		filePath: filepath.Join(projectDir, ".weave", "config.yaml"),
+		filePath: filepath.Join(projectDir, ".weave", "config.json"),
 		file:     DefaultFile(),
 		auth:     &AuthFile{},
 	}
@@ -677,7 +670,7 @@ func TestRespectGitignore_DefaultTrue(t *testing.T) {
 	projectDir := t.TempDir()
 
 	cfg := &FullConfig{
-		filePath: filepath.Join(projectDir, ".weave", "config.yaml"),
+		filePath: filepath.Join(projectDir, ".weave", "config.json"),
 		file:     DefaultFile(),
 		auth:     &AuthFile{},
 	}
@@ -701,7 +694,7 @@ func TestRespectGitignore_ExplicitTrue(t *testing.T) {
 	})
 
 	cfg := &FullConfig{
-		filePath: filepath.Join(projectDir, ".weave", "config.yaml"),
+		filePath: filepath.Join(projectDir, ".weave", "config.json"),
 		file:     DefaultFile(),
 		auth:     &AuthFile{},
 	}
@@ -725,7 +718,7 @@ func TestRespectGitignore_ExplicitFalse(t *testing.T) {
 	})
 
 	cfg := &FullConfig{
-		filePath: filepath.Join(projectDir, ".weave", "config.yaml"),
+		filePath: filepath.Join(projectDir, ".weave", "config.json"),
 		file:     DefaultFile(),
 		auth:     &AuthFile{},
 	}
@@ -754,7 +747,7 @@ func TestRespectGitignore_LocalOverridesGlobal(t *testing.T) {
 	})
 
 	cfg := &FullConfig{
-		filePath: filepath.Join(projectDir, ".weave", "config.yaml"),
+		filePath: filepath.Join(projectDir, ".weave", "config.json"),
 		file:     DefaultFile(),
 		auth:     &AuthFile{},
 	}

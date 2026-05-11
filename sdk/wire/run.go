@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"weave/cmd/weave/extmanage"
-	"weave/config"
 	"weave/launcher"
+	"weave/settings"
 )
 
 var errNoInput = errors.New("no prompt provided and ui is disabled — use -p to provide a prompt or set ui: tui")
@@ -35,7 +35,7 @@ func Run(ctx context.Context, args []string) int {
 }
 
 func run(ctx context.Context, args ...string) (exitCode int) {
-	configFile, cf, rest, err := config.Load(args)
+	configFile, cf, rest, err := settings.Load(args)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", err)
 		return 1
@@ -63,13 +63,13 @@ func run(ctx context.Context, args ...string) (exitCode int) {
 	// project directory from the config file path. This ensures auto-discovery
 	// scans the correct .weave/extensions/ directory when running from a subdir.
 	if configFile != "" {
-		globalDir, _ := config.GlobalConfigDir()
+		globalDir, _ := settings.GlobalConfigDir()
 		if globalDir == "" || !strings.HasPrefix(configFile, globalDir+string(os.PathSeparator)) {
-			projectDir = config.ProjectDirFromConfig(configFile)
+			projectDir = settings.ProjectDirFromConfig(configFile)
 		}
 	}
 
-	if cf.Prompt == "" && (cf.UI == "" || cf.UI == config.UIValueNone) {
+	if cf.Prompt == "" && (cf.UI == "" || cf.UI == settings.UIValueNone) {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", errNoInput)
 		return 1
 	}

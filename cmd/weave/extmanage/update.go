@@ -7,12 +7,12 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"weave/config"
+	"weave/settings"
 )
 
 // updateExtension runs git pull --ff-only in the extension directory.
 func updateExtension(name string) error {
-	if !config.ValidExtName(name) {
+	if !settings.ValidExtName(name) {
 		return fmt.Errorf("invalid extension name %q", name)
 	}
 

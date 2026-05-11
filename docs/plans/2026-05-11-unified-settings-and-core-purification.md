@@ -55,19 +55,19 @@ Move `weave list/install/update/uninstall` commands from `sdk/wire/` to `cmd/wea
 
 Rename package, update all imports, reconfigure gonfig for JSON-only, update file discovery.
 
-- [ ] Rename directory `config/` → `settings/`
-- [ ] Update package declaration in all files
-- [ ] Update all imports (`weave/config` → `weave/settings`) across ~16 files
-- [ ] Update `gonfig` usage to read JSON files
-- [ ] Update `FindConfigPath()` to look for `.weave/settings.local.json` (project) walked up from cwd
-- [ ] Update `EnsureGlobalConfig()` to create `~/.weave/settings.json`
-- [ ] Remove YAML tag support from structs (keep JSON tags)
-- [ ] Update `launcher/builder.go` generated code to import `weave/settings`
-- [ ] Update `sdk/wire/run.go` to use `settings.Load()`
-- [ ] Regenerate MOQ mocks if `sdk.Config` interface changes
-- [ ] Update all tests referencing `config.` package
-- [ ] Run `make test` — must pass
-- [ ] Run `make lint` — must pass
+- [x] Rename directory `config/` → `settings/`
+- [x] Update package declaration in all files
+- [x] Update all imports (`weave/config` → `weave/settings`) across ~16 files
+- [x] Update `gonfig` usage to read JSON files
+- [x] Update `FindConfigPath()` to look for `.weave/config.json` walked up from cwd
+- [x] Update `EnsureGlobalConfig()` to create `~/.weave/config.json`
+- [x] Remove YAML tag support from structs (keep JSON tags)
+- [x] Update `launcher/builder.go` generated code to import `weave/settings`
+- [x] Update `sdk/wire/run.go` to use `settings.LoadFromDir()`
+- [x] Regenerate MOQ mocks if `sdk.Config` interface changes (no changes needed)
+- [x] Update all tests referencing `config.` package
+- [x] Run `make test` — must pass
+- [x] Run `make lint` — must pass
 
 ### Task 3: Unify File and Settings structs
 
