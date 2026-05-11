@@ -263,7 +263,7 @@ func loadKeybindings(configPath string) string {
 			return candidate
 		}
 
-		// Check .weave/ subdirectory (works when config is .weave.yaml in project root)
+		// Check .weave/ subdirectory (works when config is .weave/settings.json)
 		weaveDir := filepath.Join(dir, ".weave", "keybindings.yaml")
 		if _, err := os.Stat(weaveDir); err == nil {
 			return weaveDir

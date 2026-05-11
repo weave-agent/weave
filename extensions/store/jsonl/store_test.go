@@ -490,9 +490,11 @@ func (m *mockConfig) RespectGitignore() bool                         { return tr
 
 func TestNewStore_LoadsNestedDir(t *testing.T) {
 	dir := t.TempDir()
-	configPath := filepath.Join(dir, ".weave.yaml")
+	configPath := filepath.Join(dir, ".weave", "settings.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(configPath), 0o755))
+
 	sessionDir := filepath.Join(dir, "sessions")
-	configContent := "extensions:\n  - jsonl\njsonl:\n  dir: " + sessionDir + "\n"
+	configContent := `{"exclude_extensions":["jsonl"],"jsonl":{"dir":"` + sessionDir + `"}}`
 	require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0o644))
 
 	s, err := NewStore(&mockConfig{path: configPath})
@@ -505,8 +507,9 @@ func TestNewStore_LoadsNestedDir(t *testing.T) {
 
 func TestNewStore_DefaultDir(t *testing.T) {
 	dir := t.TempDir()
-	configPath := filepath.Join(dir, ".weave.yaml")
-	require.NoError(t, os.WriteFile(configPath, []byte("extensions:\n  - jsonl\n"), 0o644))
+	configPath := filepath.Join(dir, ".weave", "settings.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(configPath), 0o755))
+	require.NoError(t, os.WriteFile(configPath, []byte(`{"exclude_extensions":["jsonl"]}`), 0o644))
 
 	s, err := NewStore(&mockConfig{path: configPath})
 	require.NoError(t, err)

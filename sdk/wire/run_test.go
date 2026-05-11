@@ -151,9 +151,9 @@ func TestWritePromptFile(t *testing.T) {
 }
 
 func TestResolveProjectDir(t *testing.T) {
-	assert.Equal(t, "/project", settings.ProjectDirFromConfig("/project/.weave/settings.yaml"))
-	assert.Equal(t, "/project", settings.ProjectDirFromConfig("/project/settings.yaml"))
-	assert.Equal(t, "/", settings.ProjectDirFromConfig("/.weave/settings.yaml"))
+	assert.Equal(t, "/project", settings.ProjectDirFromConfig("/project/.weave/settings.json"))
+	assert.Equal(t, "/project", settings.ProjectDirFromConfig("/project/settings.json"))
+	assert.Equal(t, "/", settings.ProjectDirFromConfig("/.weave/settings.json"))
 }
 
 func TestRun_SubagentFlagsParsed(t *testing.T) {

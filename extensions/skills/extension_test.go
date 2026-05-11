@@ -100,8 +100,9 @@ func TestSkillsExtension_Subscribe_ProjectLocalSkills(t *testing.T) {
 		PublishFunc: func(event sdk.Event) {},
 	}
 
-	configPath := filepath.Join(projectDir, ".weave.yaml")
-	require.NoError(t, os.WriteFile(configPath, []byte("core:\n  agent_loop: loop\n"), 0o644))
+	configPath := filepath.Join(projectDir, ".weave", "settings.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(configPath), 0o755))
+	require.NoError(t, os.WriteFile(configPath, []byte(`{"agent_loop":"loop"}`), 0o644))
 
 	ext, err := NewSkillsExtension(sdk.FilePathConfig(configPath))
 	require.NoError(t, err)

@@ -113,8 +113,7 @@ func dirFromConfig(cfg sdk.Config) string {
 		return filepath.Dir(dir)
 	}
 
-	// For .weave.yaml, project root is the directory containing it
-	return filepath.Dir(fp)
+	return dir
 }
 
 // subagentTool implements sdk.Tool for a single agent definition.

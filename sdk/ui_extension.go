@@ -40,6 +40,13 @@ func IsUIExtension(dir string) bool {
 			rel = path
 		}
 
+		const maxFileSize = 10 << 20 // 10 MB
+
+		info, statErr := os.Stat(filepath.Join(dir, rel))
+		if statErr != nil || info.Size() > maxFileSize {
+			return nil //nolint:nilerr // skip unreadable or oversized files
+		}
+
 		data, readErr := os.ReadFile(filepath.Join(dir, rel))
 		if readErr != nil {
 			return nil //nolint:nilerr // skip unreadable files

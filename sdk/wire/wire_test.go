@@ -135,13 +135,13 @@ func TestWire_PassesConfigToFactory(t *testing.T) {
 		return sdk.NewExtensionFunc("cfg-ext", func(sdk.Bus) error { return nil }), nil
 	})
 
-	cfg := sdk.FilePathConfig("/test/.weave.yaml")
+	cfg := sdk.FilePathConfig("/test/.weave/settings.json")
 	bus := &BusMock{}
 
 	_, err := Wire([]string{"cfg-ext"}, bus, cfg)
 	require.NoError(t, err)
 	require.NotNil(t, receivedCfg)
-	assert.Equal(t, "/test/.weave.yaml", receivedCfg.FilePath())
+	assert.Equal(t, "/test/.weave/settings.json", receivedCfg.FilePath())
 }
 
 func TestWire_FactoryError(t *testing.T) {
@@ -375,14 +375,14 @@ func TestWireWithCore_PassesConfigToFactories(t *testing.T) {
 		return sdk.NewExtensionFunc("loop", func(sdk.Bus) error { return nil }), nil
 	})
 
-	cfg := sdk.FilePathConfig("/test/.weave.yaml")
+	cfg := sdk.FilePathConfig("/test/.weave/settings.json")
 	bus := &BusMock{}
 
 	_, err := WireWithCore(coreCfg(), nil, bus, cfg)
 	require.NoError(t, err, "WireWithCore")
 
 	require.NotNil(t, receivedCfg)
-	assert.Equal(t, "/test/.weave.yaml", receivedCfg.FilePath())
+	assert.Equal(t, "/test/.weave/settings.json", receivedCfg.FilePath())
 }
 
 func TestWire_ExtensionCallsBusOn(t *testing.T) {

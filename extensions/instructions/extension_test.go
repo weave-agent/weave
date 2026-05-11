@@ -259,8 +259,9 @@ func TestSubscribe_PublishesInstructionsLoaded(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(projectDir, "CLAUDE.md"), []byte("project context"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(fakeGlobalDir, "APPEND_SYSTEM.md"), []byte("append text"), 0o644))
 
-	configPath := filepath.Join(projectDir, ".weave.yaml")
-	require.NoError(t, os.WriteFile(configPath, []byte("core:\n  agent_loop: loop\n"), 0o644))
+	configPath := filepath.Join(projectDir, ".weave", "settings.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(configPath), 0o755))
+	require.NoError(t, os.WriteFile(configPath, []byte(`{"agent_loop":"loop"}`), 0o644))
 
 	ext, err := NewInstructionsExtension(sdk.FilePathConfig(configPath))
 	require.NoError(t, err)
@@ -289,8 +290,9 @@ func TestSubscribe_NoFilesPublishesEmpty(t *testing.T) {
 	fakeHome := t.TempDir()
 	t.Setenv("HOME", fakeHome)
 
-	configPath := filepath.Join(projectDir, ".weave.yaml")
-	require.NoError(t, os.WriteFile(configPath, []byte("core:\n  agent_loop: loop\n"), 0o644))
+	configPath := filepath.Join(projectDir, ".weave", "settings.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(configPath), 0o755))
+	require.NoError(t, os.WriteFile(configPath, []byte(`{"agent_loop":"loop"}`), 0o644))
 
 	ext, err := NewInstructionsExtension(sdk.FilePathConfig(configPath))
 	require.NoError(t, err)

@@ -25,8 +25,8 @@ func TestEventNilPayload(t *testing.T) {
 }
 
 func TestConfigInterface(t *testing.T) {
-	cfg := FilePathConfig("/path/to/.weave.yaml")
-	assert.Equal(t, "/path/to/.weave.yaml", cfg.FilePath())
+	cfg := FilePathConfig("/path/to/.weave/settings.json")
+	assert.Equal(t, "/path/to/.weave/settings.json", cfg.FilePath())
 }
 
 func TestExtensionFunc(t *testing.T) {

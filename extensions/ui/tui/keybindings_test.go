@@ -210,7 +210,7 @@ func TestKeyString_EscapePassthrough(t *testing.T) {
 
 func TestLoadKeybindings_ProjectConfig(t *testing.T) {
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, ".weave.yaml")
+	cfgPath := filepath.Join(dir, ".weave", "settings.json")
 
 	// No keybindings file -> empty
 	result := loadKeybindings(cfgPath)
@@ -219,8 +219,10 @@ func TestLoadKeybindings_ProjectConfig(t *testing.T) {
 
 func TestLoadKeybindings_NearConfigFile(t *testing.T) {
 	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, ".weave.yaml")
-	kbPath := filepath.Join(dir, "keybindings.yaml")
+	cfgPath := filepath.Join(dir, ".weave", "settings.json")
+	kbPath := filepath.Join(dir, ".weave", "keybindings.yaml")
+
+	require.NoError(t, os.MkdirAll(filepath.Dir(cfgPath), 0o755))
 
 	err := os.WriteFile(kbPath, []byte("keybindings: {}\n"), 0o644)
 	require.NoError(t, err)

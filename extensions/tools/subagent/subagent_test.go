@@ -425,8 +425,8 @@ func TestDirFromConfig_EmptyFilePath(t *testing.T) {
 	assert.NotEmpty(t, dir)
 }
 
-func TestDirFromConfig_WeaveYaml(t *testing.T) {
-	cfg := sdk.FilePathConfig("/project/.weave.yaml")
+func TestDirFromConfig_PlainPath(t *testing.T) {
+	cfg := sdk.FilePathConfig("/project/settings.json")
 	dir := dirFromConfig(cfg)
 	assert.Equal(t, "/project", dir)
 }

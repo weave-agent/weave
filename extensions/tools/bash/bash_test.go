@@ -45,8 +45,8 @@ func TestDirFromConfig(t *testing.T) {
 		assert.Equal(t, "/project", dir)
 	})
 
-	t.Run("uses parent dir for .weave.yaml", func(t *testing.T) {
-		cfg := sdk.FilePathConfig("/project/.weave.yaml")
+	t.Run("resolves plain settings.json path", func(t *testing.T) {
+		cfg := sdk.FilePathConfig("/project/settings.json")
 		dir := dirFromConfig(cfg)
 		assert.Equal(t, "/project", dir)
 	})

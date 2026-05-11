@@ -65,7 +65,9 @@ func (s *Settings) ProviderConfig(name string) *ProviderEntry {
 		return nil
 	}
 
-	return &e
+	entry := e
+
+	return &entry
 }
 
 // DefaultSettings returns a Settings with sensible defaults.
