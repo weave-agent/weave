@@ -409,9 +409,7 @@ func validate(target any) error {
 	}
 
 	var errs ValidationErrors
-	if err := validateStruct(v, "", &errs); err != nil {
-		return err
-	}
+	validateStruct(v, "", &errs)
 
 	// Check for custom Validate() error interface.
 	if validator, ok := target.(interface{ Validate() error }); ok {
@@ -430,7 +428,7 @@ func validate(target any) error {
 	return nil
 }
 
-func validateStruct(v reflect.Value, prefix string, errs *ValidationErrors) error {
+func validateStruct(v reflect.Value, prefix string, errs *ValidationErrors) {
 	t := v.Type()
 
 	for i := range v.NumField() {
@@ -443,9 +441,7 @@ func validateStruct(v reflect.Value, prefix string, errs *ValidationErrors) erro
 		}
 
 		if field.Kind() == reflect.Struct {
-			if err := validateStruct(field, fieldName, errs); err != nil {
-				return err
-			}
+			validateStruct(field, fieldName, errs)
 
 			continue
 		}
@@ -470,8 +466,6 @@ func validateStruct(v reflect.Value, prefix string, errs *ValidationErrors) erro
 			}
 		}
 	}
-
-	return nil
 }
 
 const ruleRequired = "required"

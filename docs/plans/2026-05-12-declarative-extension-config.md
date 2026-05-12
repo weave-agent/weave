@@ -200,6 +200,6 @@ defaults → JSON data → env vars → CLI flags → validation
 
 ## Post-Completion
 
-- Update CLAUDE.md to document the new declarative config pattern
-- Verify extension development docs mention config struct tags
+- [x] Update CLAUDE.md to document the new declarative config pattern
+- [x] Verify extension development docs mention config struct tags
 - Consider adding a `weave config --schema` command to dump registered schemas as JSON (future enhancement)

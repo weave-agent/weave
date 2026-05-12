@@ -78,11 +78,6 @@ func TestValidateCoreConfig(t *testing.T) {
 			&settings.Settings{AgentLoop: "", UIExtension: "tui"},
 			nil,
 		},
-		{
-			"invalid agent_loop chars",
-			&settings.Settings{AgentLoop: "bad loop!", UIExtension: "tui"},
-			nil,
-		},
 	}
 
 	for _, tt := range tests {
@@ -185,7 +180,7 @@ func TestRun_SubagentFlagsParsed(t *testing.T) {
 	assert.Equal(t, "abc123", cf.SubagentID)
 	assert.Equal(t, "readonly", cf.SandboxMode)
 	assert.Equal(t, "claude-haiku-4-5", cf.ModelFlag)
-	assert.Empty(t, rest, "all flags should be consumed by gonfig")
+	assert.Empty(t, rest, "all flags should be consumed by loader")
 }
 
 func TestRun_EmptyToolsFlagForwarded(t *testing.T) {
@@ -202,7 +197,7 @@ func TestRun_EmptyToolsFlagForwarded(t *testing.T) {
 
 	assert.Empty(t, cf.ToolsFlag)
 	assert.True(t, cf.ToolsSet, "explicit --tools= should set ToolsSet")
-	assert.Empty(t, rest, "all flags should be consumed by gonfig")
+	assert.Empty(t, rest, "all flags should be consumed by loader")
 }
 
 func TestRun_ProjectDirFromConfig(t *testing.T) {

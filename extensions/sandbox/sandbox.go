@@ -38,7 +38,7 @@ func NextSandboxMode(current string) string {
 	return SandboxModes[0]
 }
 
-// SandboxConfig holds user-configurable sandbox settings loaded via gonfig.
+// SandboxConfig holds user-configurable sandbox settings.
 type SandboxConfig struct {
 	Mode      string   `json:"mode" default:"auto" env:"MODE" description:"Sandbox mode: off, readonly, ask, auto"`
 	Writable  []string `json:"writable" env:"WRITABLE" description:"Paths allowed for writes (default: CWD)"`
