@@ -50,7 +50,7 @@ func (l *Loader) Load(target any) error {
 	}
 
 	if len(l.Args) > 0 {
-		if err := applyFlags(target, l.Args); err != nil {
+		if _, err := applyFlags(target, l.Args); err != nil {
 			return fmt.Errorf("apply flags: %w", err)
 		}
 	}
@@ -214,19 +214,20 @@ func applyEnv(target any, prefix string) {
 }
 
 // applyFlags overrides fields from CLI flags using `flag` and `short` struct tags.
-func applyFlags(target any, args []string) error {
+// Returns the remaining non-flag args.
+func applyFlags(target any, args []string) ([]string, error) {
 	if target == nil || len(args) == 0 {
-		return nil
+		return args, nil
 	}
 
 	v := reflect.ValueOf(target)
 	if v.Kind() != reflect.Pointer || v.IsNil() {
-		return errors.New("target must be a non-nil pointer")
+		return nil, errors.New("target must be a non-nil pointer")
 	}
 
 	v = v.Elem()
 	if v.Kind() != reflect.Struct {
-		return errors.New("target must point to a struct")
+		return nil, errors.New("target must point to a struct")
 	}
 
 	fs := flag.NewFlagSet("", flag.ContinueOnError)
@@ -269,25 +270,35 @@ func applyFlags(target any, args []string) error {
 	}
 
 	if len(knownFlags) == 0 {
-		return nil
+		return args, nil
 	}
 
-	// Filter args to only include known flags.
-	filtered := filterKnownFlags(args, knownFlags)
+	// Filter args to only include known flags, tracking consumed indices.
+	filtered, consumed := filterKnownFlags(args, knownFlags)
 	if len(filtered) == 0 {
-		return nil
+		return args, nil
 	}
 
 	if err := fs.Parse(filtered); err != nil {
-		return fmt.Errorf("parse flags: %w", err)
+		return nil, fmt.Errorf("parse flags: %w", err)
 	}
 
-	return nil
+	// Return original args minus consumed flags and their values.
+	var remaining []string
+	for i, arg := range args {
+		if !consumed[i] {
+			remaining = append(remaining, arg)
+		}
+	}
+
+	return remaining, nil
 }
 
-// filterKnownFlags returns only args that match known flags or their values.
-func filterKnownFlags(args []string, known map[string]bool) []string {
+// filterKnownFlags returns args that match known flags (or their values) and a
+// map of consumed indices.
+func filterKnownFlags(args []string, known map[string]bool) ([]string, map[int]bool) {
 	var result []string
+	consumed := make(map[int]bool)
 
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
@@ -295,6 +306,7 @@ func filterKnownFlags(args []string, known map[string]bool) []string {
 		if eqIdx := strings.Index(arg, "="); eqIdx > 0 {
 			if known[arg[:eqIdx]] {
 				result = append(result, arg)
+				consumed[i] = true
 			}
 
 			continue
@@ -302,9 +314,11 @@ func filterKnownFlags(args []string, known map[string]bool) []string {
 
 		if known[arg] {
 			result = append(result, arg)
+			consumed[i] = true
 			// Include the next arg as the value if it doesn't start with -.
 			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
 				result = append(result, args[i+1])
+				consumed[i+1] = true
 				i++
 			}
 
@@ -312,7 +326,7 @@ func filterKnownFlags(args []string, known map[string]bool) []string {
 		}
 	}
 
-	return result
+	return result, consumed
 }
 
 // validate runs all validation rules on the target struct.

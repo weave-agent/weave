@@ -3,13 +3,12 @@ package settings
 import (
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
-
-	"github.com/nniel-ape/gonfig"
 
 	"weave/internal/auth"
 	"weave/sdk"
@@ -165,36 +164,75 @@ type flagSet struct {
 	Model       string `flag:"model" description:"Model override for this session"`
 }
 
-func LoadFromDir(dir string, args []string) (string, *Settings, []string, error) {
-	configPath, args := parseConfigFlag(args)
+func wantsHelp(args []string) bool {
+	for _, a := range args {
+		if a == "--help" || a == "-h" {
+			return true
+		}
+	}
 
+	return false
+}
+
+func loadSettingsFromFile(path string) (Settings, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return Settings{}, fmt.Errorf("read config %s: %w", path, err)
+	}
+
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return Settings{}, fmt.Errorf("parse config %s: %w", path, err)
+	}
+
+	var s Settings
+
+	loader := Loader{
+		Data:      raw,
+		EnvPrefix: "WEAVE",
+	}
+	if err := loader.Load(&s); err != nil {
+		return Settings{}, fmt.Errorf("load config: %w", err)
+	}
+
+	return s, nil
+}
+
+func resolveConfigPath(dir, configPath string) (string, error) {
 	path := configPath
 
 	if path == "" {
-		foundPath, found := findAnyConfigPath(dir)
-		if found {
+		if foundPath, found := findAnyConfigPath(dir); found {
 			path = foundPath
 		}
 	}
 
-	// Fall back to global config (~/.weave/settings.json).
 	if path == "" {
 		if globalPath, globalFound := findGlobalConfig(); globalFound {
 			path = globalPath
 		}
 	}
 
-	// No config anywhere — generate a default global config.
 	if path == "" {
-		generatedPath, genErr := EnsureGlobalConfig(dir)
-		if genErr != nil {
-			return "", nil, nil, fmt.Errorf("generate default config: %w", genErr)
+		generatedPath, err := EnsureGlobalConfig(dir)
+		if err != nil {
+			return "", fmt.Errorf("generate default config: %w", err)
 		}
 
 		path = generatedPath
 	}
 
-	// Still nothing (shouldn't happen) — use in-memory defaults.
+	return path, nil
+}
+
+func LoadFromDir(dir string, args []string) (string, *Settings, []string, error) {
+	configPath, args := parseConfigFlag(args)
+
+	path, err := resolveConfigPath(dir, configPath)
+	if err != nil {
+		return "", nil, nil, err
+	}
+
 	if path == "" {
 		return "", DefaultSettings(), args, nil
 	}
@@ -203,27 +241,26 @@ func LoadFromDir(dir string, args []string) (string, *Settings, []string, error)
 		path = filepath.Join(dir, path)
 	}
 
-	// Parse CLI flags separately to avoid conflicts with Settings JSON tags.
-	var (
-		flags flagSet
-		rest  []string
-	)
-	if err := gonfig.Load(
-		&flags,
-		gonfig.WithFlags(args),
-		gonfig.WithRemainingArgs(&rest),
-	); err != nil {
+	if wantsHelp(args) {
+		return "", nil, nil, flag.ErrHelp
+	}
+
+	var flags flagSet
+
+	rest, err := applyFlags(&flags, args)
+	if err != nil {
 		return "", nil, nil, fmt.Errorf("load config: %w", err)
 	}
 
-	// Load settings from file (env vars and defaults applied by gonfig).
 	var s Settings
-	if err := gonfig.Load(
-		&s,
-		gonfig.WithFile(path),
-		gonfig.WithEnvPrefix("WEAVE"),
-	); err != nil {
-		return "", nil, nil, fmt.Errorf("load config: %w", err)
+
+	if path != "" {
+		s, err = loadSettingsFromFile(path)
+		if err != nil {
+			return "", nil, nil, err
+		}
+	} else {
+		s = *DefaultSettings()
 	}
 
 	// Apply parsed CLI flags.

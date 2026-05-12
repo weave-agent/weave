@@ -81,12 +81,12 @@ Key changes:
 
 ### Task 5: Top-level flag parsing without gonfig
 
-- [ ] Replace `gonfig.Load(&flags, WithFlags(args))` in `LoadFromDir` with custom flag parsing using `flag` package
-- [ ] Parse `-p`, `--output`, `--tools`, `--model`, `--sandbox`, `--subagent-id`, `--ui` flags
-- [ ] Keep `--help` / `-h` detection
-- [ ] Update `flagSet` struct tags if needed
-- [ ] Remove gonfig from `settings/config.go` imports
-- [ ] Run `go test ./settings/...` — must pass
+- [x] Replace `gonfig.Load(&flags, WithFlags(args))` in `LoadFromDir` with custom flag parsing using `flag` package
+- [x] Parse `-p`, `--output`, `--tools`, `--model`, `--sandbox`, `--subagent-id`, `--ui` flags
+- [x] Keep `--help` / `-h` detection
+- [x] Update `flagSet` struct tags if needed
+- [x] Remove gonfig from `settings/config.go` imports
+- [x] Run `go test ./settings/...` — must pass
 
 ### Task 6: Full-tree help generation
 

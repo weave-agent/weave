@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"flag"
 	"os"
 	"path/filepath"
 	"testing"
@@ -214,6 +215,55 @@ func TestLoad_ModelFlag(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "claude-haiku-4-5", cf.ModelFlag)
+}
+
+func TestLoad_PromptFlag(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
+
+	_, cf, rest, err := LoadFromDir(dir, []string{"-p", "hello world"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "hello world", cf.Prompt)
+	assert.Empty(t, rest, "rest should not contain consumed flag args")
+}
+
+func TestLoad_PromptFlagWithRemainingArgs(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
+
+	_, cf, rest, err := LoadFromDir(dir, []string{"-p", "hello", "extra", "args"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "hello", cf.Prompt)
+	assert.Equal(t, []string{"extra", "args"}, rest)
+}
+
+func TestLoad_HelpFlag(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
+
+	_, _, _, err := LoadFromDir(dir, []string{"--help"})
+	require.ErrorIs(t, err, flag.ErrHelp)
+}
+
+func TestLoad_HelpShortFlag(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
+
+	_, _, _, err := LoadFromDir(dir, []string{"-h"})
+	require.ErrorIs(t, err, flag.ErrHelp)
+}
+
+func TestLoad_EnvOverride(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui","provider":"anthropic"}`)
+	t.Setenv("WEAVE_PROVIDER", "openai")
+
+	_, cf, _, err := LoadFromDir(dir, nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, "openai", cf.Provider, "env var should override file setting")
 }
 
 func TestEnsureGlobalConfig_GeneratesFile(t *testing.T) {

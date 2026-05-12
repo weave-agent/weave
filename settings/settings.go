@@ -14,17 +14,17 @@ import (
 // unified into a single struct.
 type Settings struct {
 	// Project-level config fields.
-	AgentLoop         string            `json:"agent_loop,omitempty" default:"loop" description:"Agent loop extension name"`
-	UIExtension       string            `json:"ui_extension,omitempty" default:"tui" description:"UI extension name"`
+	AgentLoop         string            `json:"agent_loop,omitempty" default:"loop" env:"AGENT_LOOP" description:"Agent loop extension name"`
+	UIExtension       string            `json:"ui_extension,omitempty" default:"tui" env:"UI_EXTENSION" description:"UI extension name"`
 	Providers         map[string]any    `json:"providers,omitempty" description:"Per-provider configuration"`
-	ExcludeExtensions []string          `json:"exclude_extensions,omitempty" description:"Extensions to exclude from auto-discovery"`
+	ExcludeExtensions []string          `json:"exclude_extensions,omitempty" env:"EXCLUDE_EXTENSIONS" description:"Extensions to exclude from auto-discovery"`
 	Sandbox           SandboxFileConfig `json:"sandbox" description:"Sandbox configuration"`
 
 	// User preference fields.
-	Provider         string         `json:"provider,omitempty"`
-	Model            string         `json:"model,omitempty"`
-	ThinkingLevel    string         `json:"thinking_level,omitempty"`
-	RespectGitignore *bool          `json:"respect_gitignore,omitempty"`
+	Provider         string         `json:"provider,omitempty" env:"PROVIDER"`
+	Model            string         `json:"model,omitempty" env:"MODEL"`
+	ThinkingLevel    string         `json:"thinking_level,omitempty" env:"THINKING_LEVEL"`
+	RespectGitignore *bool          `json:"respect_gitignore,omitempty" env:"RESPECT_GITIGNORE"`
 	UI               map[string]any `json:"ui,omitempty"`
 	Tools            map[string]any `json:"tools,omitempty"`
 
