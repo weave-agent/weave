@@ -23,7 +23,7 @@ const (
 type provider struct {
 	client    anthropic.Client
 	model     string
-	maxTokens int64
+	maxTokens int
 }
 
 func init() {
@@ -40,14 +40,14 @@ func init() {
 		}
 
 		modelName := defaultModel
-		maxTokens := int64(defaultMaxTokens)
+		maxTokens := defaultMaxTokens
 
 		if v := os.Getenv("ANTHROPIC_MODEL"); v != "" {
 			modelName = v
 		}
 
 		if v := os.Getenv("ANTHROPIC_MAX_TOKENS"); v != "" {
-			if n, parseErr := strconv.ParseInt(v, 10, 64); parseErr == nil && n > 0 {
+			if n, parseErr := strconv.Atoi(v); parseErr == nil && n > 0 {
 				maxTokens = n
 			}
 		}
@@ -157,10 +157,10 @@ func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest, opts ...
 	return ch, nil
 }
 
-func (p *provider) buildParams(req sdk.ProviderRequest, mdl string, maxTokens int64, thinkingLevel model.ThinkingLevel) anthropic.MessageNewParams {
+func (p *provider) buildParams(req sdk.ProviderRequest, mdl string, maxTokens int, thinkingLevel model.ThinkingLevel) anthropic.MessageNewParams {
 	params := anthropic.MessageNewParams{
 		Model:     mdl,
-		MaxTokens: maxTokens,
+		MaxTokens: int64(maxTokens),
 		Messages:  convertMessages(req.Messages),
 	}
 

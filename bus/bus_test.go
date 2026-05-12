@@ -912,6 +912,34 @@ func TestCustomDiagnosticTopicNoRecurse(t *testing.T) {
 	require.NoError(t, b.Close())
 }
 
+func TestPartialDiagnosticTopicsNoRecurseOnFallback(t *testing.T) {
+	b := New()
+	// Only configure the panic topic — error topic falls back to "extension.error"
+	b.DiagnosticTopics = []string{"custom.panic"}
+
+	var errCount atomic.Int32
+
+	// Handler on fallback error diagnostic topic that itself returns an error
+	b.On("extension.error", func(e sdk.Event) error {
+		errCount.Add(1)
+		return assert.AnError
+	})
+
+	// Trigger an error
+	b.On("trigger", func(e sdk.Event) error {
+		return assert.AnError
+	})
+
+	b.Publish(sdk.NewEvent("trigger", nil))
+
+	// Should receive exactly one extension.error — no recursion
+	assert.Eventually(t, func() bool {
+		return errCount.Load() == 1
+	}, 2*time.Second, 10*time.Millisecond, "expected exactly 1 extension.error event, no recursion")
+
+	require.NoError(t, b.Close())
+}
+
 func TestEventFieldsPreserved(t *testing.T) {
 	b := New()
 	defer b.Close()

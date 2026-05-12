@@ -66,7 +66,7 @@ type ChatRequest struct {
 	Model     string        `json:"model"`
 	Messages  []ChatMessage `json:"messages"`
 	Stream    bool          `json:"stream"`
-	MaxTokens int64         `json:"max_tokens,omitempty"`
+	MaxTokens int           `json:"max_tokens,omitempty"`
 	Tools     []Tool        `json:"tools,omitempty"`
 }
 

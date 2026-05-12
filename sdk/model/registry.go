@@ -1,9 +1,10 @@
 package model
 
 import (
+	"cmp"
 	"log"
 	"os"
-	"sort"
+	"slices"
 
 	"weave/sdk/registry"
 )
@@ -35,7 +36,7 @@ func ListModelsForProvider(provider string) []ModelDef {
 		}
 	}
 
-	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })
+	slices.SortFunc(result, func(a, b ModelDef) int { return cmp.Compare(a.ID, b.ID) })
 
 	return result
 }

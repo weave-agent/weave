@@ -21,7 +21,7 @@ import (
 type ProviderEntry struct {
 	APIKey    string `json:"api_key" description:"API key (literal, env var name, or !command)"`
 	Model     string `json:"model" description:"Default model for this provider"`
-	MaxTokens int64  `json:"max_tokens" description:"Max tokens for this provider"`
+	MaxTokens int    `json:"max_tokens" description:"Max tokens for this provider"`
 	BaseURL   string `json:"base_url" description:"Custom base URL (for OpenAI-compat providers)"`
 }
 
@@ -351,7 +351,27 @@ func (c *FullConfig) SetProjectDir(dir string) {
 
 func (c *FullConfig) getLayeredSettings() (*Settings, error) {
 	c.layeredOnce.Do(func() {
-		c.layered, c.layeredErr = LoadLayeredSettings(c.effectiveProjectDir())
+		projectDir := c.effectiveProjectDir()
+
+		globalPath, err := SettingsPath()
+		if err != nil {
+			c.layered, c.layeredErr = nil, fmt.Errorf("global settings path: %w", err)
+			return
+		}
+
+		global, err := loadSettingsFile(globalPath)
+		if err != nil {
+			c.layered, c.layeredErr = nil, fmt.Errorf("load global settings: %w", err)
+			return
+		}
+
+		local, err := loadLocalSettings(projectDir)
+		if err != nil {
+			c.layered, c.layeredErr = nil, fmt.Errorf("load local settings: %w", err)
+			return
+		}
+
+		c.layered = MergeSettings(global, c.settings, local)
 	})
 
 	return c.layered, c.layeredErr
@@ -363,8 +383,7 @@ func (c *FullConfig) FilePath() string { return c.filePath }
 
 func (c *FullConfig) ProjectDir() string { return c.effectiveProjectDir() }
 
-func (c *FullConfig) ProviderConfig(name string) *sdk.ProviderConfigEntry {
-	e := c.settings.ProviderConfig(name)
+func providerEntryToSDK(e *ProviderEntry) *sdk.ProviderConfigEntry {
 	if e == nil {
 		return nil
 	}
@@ -375,6 +394,17 @@ func (c *FullConfig) ProviderConfig(name string) *sdk.ProviderConfigEntry {
 		BaseURL:   e.BaseURL,
 		APIKey:    e.APIKey,
 	}
+}
+
+func (c *FullConfig) ProviderConfig(name string) *sdk.ProviderConfigEntry {
+	layered, err := c.getLayeredSettings()
+	if err == nil {
+		if e := layered.ProviderConfig(name); e != nil {
+			return providerEntryToSDK(e)
+		}
+	}
+
+	return providerEntryToSDK(c.settings.ProviderConfig(name))
 }
 
 // effectiveProjectDir returns the override project dir if set, otherwise derives
@@ -388,6 +418,13 @@ func (c *FullConfig) effectiveProjectDir() string {
 }
 
 func (c *FullConfig) ResolveKey(providerName, envVar string) (string, error) {
+	layered, err := c.getLayeredSettings()
+	if err == nil {
+		if entry := layered.ProviderConfig(providerName); entry != nil {
+			return ResolveProviderKey(providerName, envVar, entry)
+		}
+	}
+
 	return ResolveProviderKey(providerName, envVar, c.settings.ProviderConfig(providerName))
 }
 

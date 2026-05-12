@@ -118,5 +118,5 @@ func (r *Registry[T]) Reset() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.items = make(map[string]T)
+	clear(r.items)
 }

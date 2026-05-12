@@ -619,3 +619,162 @@ func TestRespectGitignore_LocalOverridesGlobal(t *testing.T) {
 
 	assert.False(t, cfg.RespectGitignore(), "local layer should override global")
 }
+
+func TestPreferences_IncludesProjectConfig(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	globalDir := filepath.Join(home, ".weave")
+	require.NoError(t, os.MkdirAll(globalDir, 0o750))
+
+	projectDir := t.TempDir()
+	projectWeave := filepath.Join(projectDir, ".weave")
+	require.NoError(t, os.MkdirAll(projectWeave, 0o750))
+
+	writeJSON(t, filepath.Join(globalDir, "settings.json"), &Settings{
+		Provider: "anthropic",
+	})
+	writeJSON(t, filepath.Join(projectWeave, "settings.json"), &Settings{
+		Model: "project-model",
+	})
+
+	cfg := &FullConfig{
+		filePath: filepath.Join(projectWeave, "settings.json"),
+		settings: mustLoadSettings(t, filepath.Join(projectWeave, "settings.json")),
+	}
+
+	var prefs struct {
+		Provider string `json:"provider"`
+		Model    string `json:"model"`
+	}
+	require.NoError(t, cfg.Preferences(&prefs))
+	assert.Equal(t, "anthropic", prefs.Provider, "global provider should be preserved")
+	assert.Equal(t, "project-model", prefs.Model, "project model should be included")
+}
+
+func TestPreferences_LocalOverridesProject(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	globalDir := filepath.Join(home, ".weave")
+	require.NoError(t, os.MkdirAll(globalDir, 0o750))
+
+	projectDir := t.TempDir()
+	projectWeave := filepath.Join(projectDir, ".weave")
+	require.NoError(t, os.MkdirAll(projectWeave, 0o750))
+
+	writeJSON(t, filepath.Join(projectWeave, "settings.json"), &Settings{
+		Provider: "openai",
+		Model:    "project-model",
+	})
+	writeJSON(t, filepath.Join(projectWeave, "settings.local.json"), &Settings{
+		Model: "local-model",
+	})
+
+	cfg := &FullConfig{
+		filePath: filepath.Join(projectWeave, "settings.json"),
+		settings: mustLoadSettings(t, filepath.Join(projectWeave, "settings.json")),
+	}
+
+	var prefs struct {
+		Provider string `json:"provider"`
+		Model    string `json:"model"`
+	}
+	require.NoError(t, cfg.Preferences(&prefs))
+	assert.Equal(t, "openai", prefs.Provider, "project provider should be preserved")
+	assert.Equal(t, "local-model", prefs.Model, "local model should override project")
+}
+
+func TestProviderConfig_UsesLayeredSettings(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	globalDir := filepath.Join(home, ".weave")
+	require.NoError(t, os.MkdirAll(globalDir, 0o750))
+
+	projectDir := t.TempDir()
+	projectWeave := filepath.Join(projectDir, ".weave")
+	require.NoError(t, os.MkdirAll(projectWeave, 0o750))
+
+	writeJSON(t, filepath.Join(globalDir, "settings.json"), &Settings{
+		Providers: map[string]any{
+			"openai": map[string]any{"base_url": "https://global.example.com"},
+		},
+	})
+	writeJSON(t, filepath.Join(projectWeave, "settings.json"), &Settings{
+		Providers: map[string]any{
+			"openai": map[string]any{"model": "gpt-project"},
+		},
+	})
+	writeJSON(t, filepath.Join(projectWeave, "settings.local.json"), &Settings{
+		Providers: map[string]any{
+			"openai": map[string]any{"base_url": "https://local.example.com"},
+		},
+	})
+
+	cfg := &FullConfig{
+		filePath: filepath.Join(projectWeave, "settings.json"),
+		settings: mustLoadSettings(t, filepath.Join(projectWeave, "settings.json")),
+	}
+
+	pc := cfg.ProviderConfig("openai")
+	require.NotNil(t, pc)
+	assert.Equal(t, "gpt-project", pc.Model, "project model should be preserved")
+	assert.Equal(t, "https://local.example.com", pc.BaseURL, "local base_url should override global and project")
+}
+
+func TestProviderConfig_FallbackToProjectWhenNoLayered(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	projectDir := t.TempDir()
+	projectWeave := filepath.Join(projectDir, ".weave")
+	require.NoError(t, os.MkdirAll(projectWeave, 0o750))
+
+	writeJSON(t, filepath.Join(projectWeave, "settings.json"), &Settings{
+		Providers: map[string]any{
+			"anthropic": map[string]any{"model": "claude-project"},
+		},
+	})
+
+	cfg := &FullConfig{
+		filePath: filepath.Join(projectWeave, "settings.json"),
+		settings: mustLoadSettings(t, filepath.Join(projectWeave, "settings.json")),
+	}
+
+	pc := cfg.ProviderConfig("anthropic")
+	require.NotNil(t, pc)
+	assert.Equal(t, "claude-project", pc.Model)
+}
+
+func TestResolveKey_UsesLayeredProviderConfig(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	globalDir := filepath.Join(home, ".weave")
+	require.NoError(t, os.MkdirAll(globalDir, 0o750))
+
+	projectDir := t.TempDir()
+	projectWeave := filepath.Join(projectDir, ".weave")
+	require.NoError(t, os.MkdirAll(projectWeave, 0o750))
+
+	writeJSON(t, filepath.Join(projectWeave, "settings.json"), &Settings{
+		Providers: map[string]any{
+			"test": map[string]any{"api_key": "project-key"},
+		},
+	})
+
+	cfg := &FullConfig{
+		filePath: filepath.Join(projectWeave, "settings.json"),
+		settings: mustLoadSettings(t, filepath.Join(projectWeave, "settings.json")),
+	}
+
+	got, err := cfg.ResolveKey("test", "UNSET_TEST_VAR")
+	require.NoError(t, err)
+	assert.Equal(t, "project-key", got)
+}
+
+func mustLoadSettings(t *testing.T, path string) *Settings {
+	t.Helper()
+
+	s, err := LoadFromFile(path)
+	require.NoError(t, err)
+
+	return s
+}

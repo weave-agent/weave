@@ -1,6 +1,8 @@
 package settings
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -118,4 +120,19 @@ func TestResolveProviderKey_NotFound(t *testing.T) {
 	got, err := ResolveProviderKey("test", "UNSET_TEST_VAR", nil)
 	require.NoError(t, err)
 	assert.Empty(t, got)
+}
+
+func TestResolveProviderKey_AuthFileError(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	authDir := filepath.Join(home, ".weave")
+	require.NoError(t, os.MkdirAll(authDir, 0o750))
+
+	// Write malformed auth file
+	require.NoError(t, os.WriteFile(filepath.Join(authDir, "auth.json"), []byte("not-json"), 0o600))
+
+	_, err := ResolveProviderKey("test", "UNSET_TEST_VAR", nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "load auth file")
 }

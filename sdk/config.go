@@ -7,7 +7,7 @@ import "os"
 // ProviderConfigEntry holds per-provider configuration from the config file.
 type ProviderConfigEntry struct {
 	Model     string
-	MaxTokens int64
+	MaxTokens int
 	BaseURL   string
 	APIKey    string // raw value (may be !command or literal)
 }

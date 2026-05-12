@@ -223,7 +223,13 @@ func (b *Bus) errorTopic() string {
 }
 
 func (b *Bus) isDiagnosticTopic(topic string) bool {
-	return slices.Contains(b.DiagnosticTopics, topic)
+	if slices.Contains(b.DiagnosticTopics, topic) {
+		return true
+	}
+
+	// Fallback topics are also diagnostic to prevent recursion when only
+	// a subset of DiagnosticTopics is configured.
+	return topic == "extension.panic" || topic == "extension.error"
 }
 
 // invokeHandler calls h(e) with panic/error recovery. Panics are logged and

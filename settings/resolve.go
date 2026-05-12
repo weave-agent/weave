@@ -11,7 +11,10 @@ import (
 	"weave/internal/auth"
 )
 
-var commandCache sync.Map
+var (
+	commandCache   = make(map[string]string)
+	commandCacheMu sync.Mutex
+)
 
 // ResolveValue resolves a config value string. The string can be:
 //   - "!command args..." → execute command via sh and capture stdout (trimmed, cached per process)
@@ -27,9 +30,12 @@ func ResolveValue(raw string) (string, error) {
 
 	cmd := raw[1:]
 
-	if cached, ok := commandCache.Load(cmd); ok {
-		return cached.(string), nil
+	commandCacheMu.Lock()
+	if cached, ok := commandCache[cmd]; ok {
+		commandCacheMu.Unlock()
+		return cached, nil
 	}
+	commandCacheMu.Unlock()
 
 	out, err := exec.CommandContext(context.Background(), "sh", "-c", cmd).Output()
 	if err != nil {
@@ -37,7 +43,10 @@ func ResolveValue(raw string) (string, error) {
 	}
 
 	result := strings.TrimSpace(string(out))
-	commandCache.Store(cmd, result)
+
+	commandCacheMu.Lock()
+	commandCache[cmd] = result
+	commandCacheMu.Unlock()
 
 	return result, nil
 }
@@ -53,11 +62,13 @@ func ResolveProviderKey(providerName, envVar string, cfgEntry *ProviderEntry) (s
 	}
 
 	// 2. Auth file
-	authFile, _ := auth.Load()
-	if authFile != nil {
-		if v := authFile.GetProviderKey(providerName); v != "" {
-			return v, nil
-		}
+	authFile, err := auth.Load()
+	if err != nil {
+		return "", fmt.Errorf("load auth file: %w", err)
+	}
+
+	if v := authFile.GetProviderKey(providerName); v != "" {
+		return v, nil
 	}
 
 	// 3. Config file entry

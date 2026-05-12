@@ -38,7 +38,7 @@ type ModelDef struct {
 type StreamOptions struct {
 	Model         string
 	ThinkingLevel ThinkingLevel
-	MaxTokens     int64
+	MaxTokens     int
 }
 
 // StreamOption is a functional option for configuring per-request stream behavior.
@@ -67,7 +67,7 @@ func WithThinkingLevel(level ThinkingLevel) StreamOption {
 }
 
 // WithMaxTokens sets the max output tokens for this request.
-func WithMaxTokens(n int64) StreamOption {
+func WithMaxTokens(n int) StreamOption {
 	return func(o *StreamOptions) { o.MaxTokens = n }
 }
 
