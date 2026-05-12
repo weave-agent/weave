@@ -586,13 +586,11 @@ func TestLoader_SliceFieldDefaults(t *testing.T) {
 		Paths []string `json:"paths" default:"a,b"`
 	}
 
-	// Note: default tag for slices is not supported by setFieldFromString
-	// since it only handles scalar types. This test documents that behavior.
 	l := Loader{}
 
 	var cfg sliceConfig
 	require.NoError(t, l.Load(&cfg))
-	assert.Nil(t, cfg.Paths)
+	assert.Equal(t, []string{"a", "b"}, cfg.Paths)
 }
 
 func TestLoader_SliceValidationMinMax(t *testing.T) {
@@ -637,6 +635,80 @@ func TestLoader_SliceValidationMax(t *testing.T) {
 	require.ErrorAs(t, err, &errs)
 	require.Len(t, errs, 1)
 	assert.Contains(t, errs[0].Message, "at most")
+}
+
+func TestLoader_SliceEnv(t *testing.T) {
+	type sliceConfig struct {
+		Paths []string `json:"paths" env:"PATHS"`
+	}
+
+	t.Setenv("WEAVE_PATHS", "/tmp,/var")
+
+	l := Loader{EnvPrefix: "WEAVE"}
+
+	var cfg sliceConfig
+	require.NoError(t, l.Load(&cfg))
+	assert.Equal(t, []string{"/tmp", "/var"}, cfg.Paths)
+}
+
+func TestLoader_SliceEnvSingleValue(t *testing.T) {
+	type sliceConfig struct {
+		Paths []string `json:"paths" env:"PATHS"`
+	}
+
+	t.Setenv("WEAVE_PATHS", "/tmp")
+
+	l := Loader{EnvPrefix: "WEAVE"}
+
+	var cfg sliceConfig
+	require.NoError(t, l.Load(&cfg))
+	assert.Equal(t, []string{"/tmp"}, cfg.Paths)
+}
+
+func TestLoader_SliceFlags(t *testing.T) {
+	type sliceConfig struct {
+		Paths []string `json:"paths" flag:"paths"`
+	}
+
+	l := Loader{
+		Args: []string{"--paths", "/tmp,/var"},
+	}
+
+	var cfg sliceConfig
+	require.NoError(t, l.Load(&cfg))
+	assert.Equal(t, []string{"/tmp", "/var"}, cfg.Paths)
+}
+
+func TestLoader_SliceFlagsRepeated(t *testing.T) {
+	type sliceConfig struct {
+		Paths []string `json:"paths" flag:"paths"`
+	}
+
+	l := Loader{
+		Args: []string{"--paths", "/tmp", "--paths", "/var"},
+	}
+
+	var cfg sliceConfig
+	require.NoError(t, l.Load(&cfg))
+	// Repeated flags replace; last value wins (same as scalar flags).
+	assert.Equal(t, []string{"/var"}, cfg.Paths)
+}
+
+func TestLoader_SliceFlagsOverrideEnv(t *testing.T) {
+	type sliceConfig struct {
+		Paths []string `json:"paths" env:"PATHS" flag:"paths"`
+	}
+
+	t.Setenv("WEAVE_PATHS", "/env1,/env2")
+
+	l := Loader{
+		EnvPrefix: "WEAVE",
+		Args:      []string{"--paths", "/flag1,/flag2"},
+	}
+
+	var cfg sliceConfig
+	require.NoError(t, l.Load(&cfg))
+	assert.Equal(t, []string{"/flag1", "/flag2"}, cfg.Paths)
 }
 
 func TestLoader_ValidValidConfig(t *testing.T) {
@@ -703,4 +775,112 @@ func TestLoader_FlagBoolNoValue(t *testing.T) {
 	var cfg testConfig
 	require.NoError(t, l.Load(&cfg))
 	assert.True(t, cfg.Verbose)
+}
+
+func TestLoader_FlagBoolSplitFalse(t *testing.T) {
+	l := Loader{
+		Args: []string{"--verbose", "false"},
+	}
+
+	var cfg testConfig
+	require.NoError(t, l.Load(&cfg))
+	assert.False(t, cfg.Verbose, "split bool false should be parsed correctly")
+}
+
+func TestLoader_FlagBoolSplitTrue(t *testing.T) {
+	l := Loader{
+		Args: []string{"--verbose", "true"},
+	}
+
+	var cfg testConfig
+	require.NoError(t, l.Load(&cfg))
+	assert.True(t, cfg.Verbose, "split bool true should be parsed correctly")
+}
+
+func TestLoader_FlagBoolShortSplit(t *testing.T) {
+	l := Loader{
+		Args: []string{"-v", "false"},
+	}
+
+	var cfg testConfig
+	require.NoError(t, l.Load(&cfg))
+	assert.False(t, cfg.Verbose, "short split bool false should be parsed correctly")
+}
+
+func TestLoader_FlagBoolSplitZero(t *testing.T) {
+	l := Loader{
+		Args: []string{"--verbose", "0"},
+	}
+
+	var cfg testConfig
+	require.NoError(t, l.Load(&cfg))
+	assert.False(t, cfg.Verbose, "split bool 0 should be parsed as false")
+}
+
+func TestLoader_FlagBoolSplitOne(t *testing.T) {
+	l := Loader{
+		Args: []string{"--verbose", "1"},
+	}
+
+	var cfg testConfig
+	require.NoError(t, l.Load(&cfg))
+	assert.True(t, cfg.Verbose, "split bool 1 should be parsed as true")
+}
+
+func TestLoader_FlagBoolSplitUppercase(t *testing.T) {
+	l := Loader{
+		Args: []string{"--verbose", "FALSE"},
+	}
+
+	var cfg testConfig
+	require.NoError(t, l.Load(&cfg))
+	assert.False(t, cfg.Verbose, "split bool FALSE should be parsed as false")
+}
+
+func TestLoader_FlagBoolSplitMixedCase(t *testing.T) {
+	l := Loader{
+		Args: []string{"--verbose", "True"},
+	}
+
+	var cfg testConfig
+	require.NoError(t, l.Load(&cfg))
+	assert.True(t, cfg.Verbose, "split bool True should be parsed as true")
+}
+
+func TestLoader_SliceEnvFiltersEmpty(t *testing.T) {
+	type sliceConfig struct {
+		Paths []string `json:"paths" env:"PATHS"`
+	}
+
+	t.Setenv("WEAVE_PATHS", "/tmp,,/var")
+
+	l := Loader{EnvPrefix: "WEAVE"}
+
+	var cfg sliceConfig
+	require.NoError(t, l.Load(&cfg))
+	assert.Equal(t, []string{"/tmp", "/var"}, cfg.Paths)
+}
+
+func TestLoader_SliceFlagsFiltersEmpty(t *testing.T) {
+	type sliceConfig struct {
+		Paths []string `json:"paths" flag:"paths"`
+	}
+
+	l := Loader{
+		Args: []string{"--paths", "/tmp,,/var"},
+	}
+
+	var cfg sliceConfig
+	require.NoError(t, l.Load(&cfg))
+	assert.Equal(t, []string{"/tmp", "/var"}, cfg.Paths)
+}
+
+func TestLoader_FlagBoolSplitFalseWithRemaining(t *testing.T) {
+	l := Loader{
+		Args: []string{"--verbose", "false", "positional"},
+	}
+
+	var cfg testConfig
+	require.NoError(t, l.Load(&cfg))
+	assert.False(t, cfg.Verbose)
 }

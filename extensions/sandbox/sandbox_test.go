@@ -483,6 +483,14 @@ func TestPathMatches_ProjectRoot(t *testing.T) {
 	assert.False(t, got, "pathMatches outside project root")
 }
 
+func TestPathMatches_EmptyPatternMatchesCWD(t *testing.T) {
+	got := pathMatches("/project/file.go", "", "/project")
+	assert.True(t, got, "empty pattern matches cwd")
+
+	got = pathMatches("/other/file.go", "", "/project")
+	assert.False(t, got, "empty pattern does not match outside cwd")
+}
+
 func TestIsDeniedWrite(t *testing.T) {
 	home := homeDir(t)
 

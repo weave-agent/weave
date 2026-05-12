@@ -315,6 +315,7 @@ func TestGenerateMainGo_Content(t *testing.T) {
 	assert.Contains(t, s, `AgentLoop: "loop"`)
 	assert.Contains(t, s, "strings.CutPrefix")
 	assert.Contains(t, s, "settings.LoadFullConfig")
+	assert.Contains(t, s, "fullCfg.SetArgs(filtered)")
 	assert.Contains(t, s, "settings.EnsureLocalSettingsExcluded")
 	assert.Contains(t, s, "settings.ProjectDirFromConfig")
 	assert.Contains(t, s, "signal.Notify")
