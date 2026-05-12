@@ -141,14 +141,14 @@ Key changes:
 
 ### Task 11: Verify acceptance criteria
 
-- [ ] All root module tests pass (`go test ./...` from root)
-- [ ] All extension module tests pass (`cd extensions/* && go test ./...` for each)
-- [ ] `make lint` passes
-- [ ] `make fmt` produces no changes
-- [ ] `--help` outputs full tree with all extension flags
-- [ ] Extension configs load from JSON + env + defaults correctly
-- [ ] Provider configs are typed per-provider (no `ProviderEntry`)
-- [ ] No `ToolConfig`/`UIConfig`/`ProviderConfig` calls remain in extension code
+- [x] All root module tests pass (`go test ./...` from root)
+- [x] All extension module tests pass (`cd extensions/* && go test ./...` for each)
+- [x] `make lint` passes
+- [x] `make fmt` produces no changes
+- [x] `--help` outputs full tree with all extension flags
+- [x] Extension configs load from JSON + env + defaults correctly
+- [x] Provider configs are typed per-provider (no `ProviderEntry`)
+- [x] No `ToolConfig`/`UIConfig`/`ProviderConfig` calls remain in extension code
 
 ## Technical Details
 
