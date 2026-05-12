@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A coding agent framework written in Go — event-driven, extension-based, with dynamic compilation of selected extensions at runtime. Agent-loop, providers (Anthropic, OpenAI, Z.ai), tools (bash, read, edit, write, grep, find, ls, subagent), and a terminal UI (TUI) are implemented as independent extension modules.
+A coding agent framework written in Go — event-driven, extension-based, with dynamic compilation of selected extensions at runtime. Agent-loop, providers (Anthropic, OpenAI, Z.ai, Kimi), tools (bash, read, edit, write, grep, find, ls, subagent), and a terminal UI (TUI) are implemented as independent extension modules.
 
 ## Commands
 
@@ -50,7 +50,7 @@ Standard library as much as possible. Every replaceable component is an extensio
 - `extensions/tools/{bash,read,edit,write,grep,find,ls}/` — individual tool extension modules, each an independent Go module self-registering via `sdk.RegisterTool`; find and grep use an rg-first pattern (shell out to `rg` when available for .gitignore support and faster searches, fall back to pure Go stdlib when absent), share binary detection via `utils/ripgrep.Find()`, and read `sdk.Config.RespectGitignore()` to toggle .gitignore honoring (default: true); grep supports an `include` glob filter parameter and per-line truncation; find supports `**/` recursive patterns via component-wise segment matching
 - `extensions/tools/subagent/` — subagent tool extension; spawns isolated `weave -p --output json` subprocesses with restricted tool allowlists and optional sandbox mode. Agent definitions are markdown files with YAML frontmatter (name, description, tools, model, sandbox, messaging, system) discovered from embedded built-ins (`agents/general.md`, `explore.md`, `plan.md`), `.weave/agents/`, and `~/.weave/agents/` (project > global > built-in precedence). Each discovered agent registers as `subagent_<name>` tool. Three execution modes: single (`prompt`), parallel (`tasks`), chain (`chain` with `{previous}` substitution). Background mode spawns without blocking; `check_agent(id)` and `await_agent(id)` query results. Inter-agent communication via parent `Broker` routes `send_message`, `broadcast_message`, and `list_agents` between children when `messaging: true`. Broker registers agents by ID, monitors stdout for JSON routing events, and writes `agent_msg`/`inject`/`list_agents_response` to target stdin pipes. Child-side `stdin_listener.go` reads stdin JSON lines and queues them as user messages when `--weave-subagent-id` is set. Subagent uses `testRunSubagent` hook for mocking in tests
 - `extensions/providers/openai-compat/` — shared library for OpenAI-compatible providers (SSE parsing, message/tool conversion); reused by `openai` and `zai` providers; import as `openaicompat` package
-- `extensions/providers/{anthropic,openai,zai}/` — provider extension modules; Anthropic uses official SDK, OpenAI and Z.ai delegate to `openai-compat`
+- `extensions/providers/{anthropic,openai,zai,kimi}/` — provider extension modules; Anthropic and Kimi use official SDKs (Kimi uses Anthropic SDK with custom base URL), OpenAI and Z.ai delegate to `openai-compat`
 - `extensions/store/jsonl/` — session persistence extension; subscribes to bus events and writes JSONL files to `~/.weave/sessions/`; implements Create, Append, Load, History, List, Compact internally with no SDK interface
 - `extensions/sandbox/` — OS-level tool execution guard; wraps bash commands in Seatbelt (macOS) or bubblewrap (Linux) sandbox profiles; enforces path-based access policy on file tools via `Sandboxer` interface; four modes: `off` (no restrictions), `readonly` (no writes), `ask` (prompt per command), `auto` (sandbox wraps all commands); mandatory deny paths hardcoded (sensitive dotfiles, SSH keys, AWS credentials, .env files); subscribes to `sandbox.mode.change` for mid-session mode switching; publishes `sandbox.approve`/`sandbox.approved`/`sandbox.denied`/`sandbox.trust` events for ask-mode approval flow; self-registers via `sdk.RegisterExtension("sandbox", ...)`
 - `extensions/ui/sandbox/` — TUI extension for sandbox mode indicator and ask-mode approval dialog; registers `Ctrl+S` keybinding to cycle sandbox modes; displays current mode in footer status pill (`SB:auto`, `SB:off`, etc.); implements `ApproveDialog` with approve/deny/trust-for-session options integrated into TUI `DialogStack` overlay system; self-registers via `sdk.RegisterUIExtension`
@@ -88,7 +88,12 @@ Unified settings JSON format (single file — project `~/.weave/settings.json` o
   "agent_loop": "loop",
   "ui_extension": "tui",
   "exclude_extensions": [],
-  "providers": {},
+  "providers": {
+    "kimi": {
+      "model": "kimi-for-coding",
+      "max_tokens": 32768
+    }
+  },
   "sandbox": { "mode": "auto", "writable": ["."] },
   "provider": "anthropic",
   "model": "claude-sonnet-4-6",
@@ -120,6 +125,12 @@ Settings JSON format:
   },
   "tools": {
     "bash": { "timeout": 120 }
+  },
+  "providers": {
+    "kimi": {
+      "model": "kimi-for-coding",
+      "max_tokens": 32768
+    }
   }
 }
 ```
@@ -159,6 +170,7 @@ Built-in bindings: Escape=interrupt, Ctrl+C=double-press (first clears editor, s
 - `ANTHROPIC_API_KEY` — required for Anthropic provider (default model: `claude-sonnet-4-6`, override with `ANTHROPIC_MODEL`)
 - `OPENAI_API_KEY` — required for OpenAI provider (default model: `gpt-5.5`, override with `OPENAI_MODEL`)
 - `ZAI_API_KEY` — required for Z.ai provider (default model: `glm-5.1`, override with `ZAI_MODEL`)
+- `KIMI_API_KEY` — required for Kimi provider (default model: `kimi-for-coding`, override with `KIMI_MODEL`)
 - `WEAVE_PROVIDER` — override the active provider at runtime (e.g., `openai`, `zai`); highest priority, overrides settings.json preference
 - `WEAVE_THINKING_LEVEL` — initial thinking level (default: `medium`)
 - `WEAVE_OFFLINE` — set to `1` to skip the startup extension update check (for offline/air-gapped environments)

@@ -95,8 +95,8 @@ Add a built-in provider for [Kimi](https://www.moonshot.cn/) (Moonshot AI) codin
 - [x] run linter — all issues must be fixed
 
 ### Task 5: Update documentation
-- [ ] update CLAUDE.md provider section with Kimi env var (`KIMI_API_KEY`) and model info
-- [ ] update settings.json example with `providers.kimi` config block
+- [x] update CLAUDE.md provider section with Kimi env var (`KIMI_API_KEY`) and model info
+- [x] update settings.json example with `providers.kimi` config block
 
 ## Technical Details
 
