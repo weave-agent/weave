@@ -160,7 +160,7 @@ func TestProviderInit_WithAPIKey(t *testing.T) {
 	require.NoError(t, err)
 	collectEvents(t, ch)
 
-	assert.Equal(t, "KimiCLI/1.5", receivedUserAgent)
+	assert.Equal(t, "weave/0.1.0", receivedUserAgent)
 }
 
 func TestProviderInit_DefaultModel(t *testing.T) {
@@ -205,7 +205,7 @@ func TestProviderInit_ModelFromEnv(t *testing.T) {
 
 	RegisterModels()
 
-	t.Setenv("KIMI_MODEL", "k2p6")
+	t.Setenv("KIMI_MODEL", "kimi-test-model")
 
 	var receivedBody string
 
@@ -232,7 +232,7 @@ func TestProviderInit_ModelFromEnv(t *testing.T) {
 	require.NoError(t, err)
 	collectEvents(t, ch)
 
-	assert.Contains(t, receivedBody, "k2p6")
+	assert.Contains(t, receivedBody, "kimi-test-model")
 }
 
 func TestProviderInit_MaxTokensFromEnv(t *testing.T) {
@@ -291,7 +291,7 @@ func TestProviderInit_ConfigOverrides(t *testing.T) {
 	cfg := &mockConfig{
 		resolveKey: "test-api-key",
 		providerConfig: &sdk.ProviderConfigEntry{
-			Model:     "kimi-k2-thinking",
+			Model:     "kimi-test-model",
 			MaxTokens: 16000,
 			BaseURL:   server.URL,
 		},
@@ -307,7 +307,7 @@ func TestProviderInit_ConfigOverrides(t *testing.T) {
 	require.NoError(t, err)
 	collectEvents(t, ch)
 
-	assert.Contains(t, receivedBody, "kimi-k2-thinking")
+	assert.Contains(t, receivedBody, "kimi-test-model")
 	assert.Contains(t, receivedBody, "16000")
 }
 
@@ -704,6 +704,8 @@ func TestStream_AuthError(t *testing.T) {
 }
 
 func TestStream_NetworkError(t *testing.T) {
+	handlerErr := make(chan error, 1)
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
@@ -711,7 +713,8 @@ func TestStream_NetworkError(t *testing.T) {
 
 		flusher, ok := w.(http.Flusher)
 		if !ok {
-			t.Fatal("streaming not supported")
+			handlerErr <- errors.New("streaming not supported")
+			return
 		}
 
 		// Write partial SSE then close connection by hijacking
@@ -721,12 +724,14 @@ func TestStream_NetworkError(t *testing.T) {
 
 		hijacker, ok := w.(http.Hijacker)
 		if !ok {
-			t.Fatal("server must support hijacking")
+			handlerErr <- errors.New("server must support hijacking")
+			return
 		}
 
 		conn, _, err := hijacker.Hijack()
 		if err != nil {
-			t.Fatalf("hijack failed: %v", err)
+			handlerErr <- fmt.Errorf("hijack failed: %w", err)
+			return
 		}
 
 		_ = conn.Close()
@@ -742,6 +747,12 @@ func TestStream_NetworkError(t *testing.T) {
 	require.NoError(t, err)
 
 	events := collectEvents(t, ch)
+
+	select {
+	case err := <-handlerErr:
+		t.Fatalf("handler error: %v", err)
+	default:
+	}
 
 	var errorMsgs []string
 
@@ -1145,11 +1156,11 @@ func TestStream_WithModelOverride(t *testing.T) {
 	p := newTestProvider(server)
 	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
 		Messages: []sdk.Message{sdk.NewUserMessage("hello")},
-	}, model.WithModel("k2p6"))
+	}, model.WithModel("kimi-test-model"))
 	require.NoError(t, err)
 	collectEvents(t, ch)
 
-	assert.Contains(t, receivedBody, "k2p6")
+	assert.Contains(t, receivedBody, "kimi-test-model")
 }
 
 func TestProviderInit_InvalidMaxTokensEnv_String(t *testing.T) {

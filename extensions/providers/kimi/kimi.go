@@ -72,7 +72,7 @@ func init() {
 		client := anthropic.NewClient(
 			option.WithAPIKey(apiKey),
 			option.WithBaseURL(baseURL),
-			option.WithHeader("User-Agent", "KimiCLI/1.5"),
+			option.WithHeader("User-Agent", "weave/0.1.0"),
 		)
 
 		return &provider{

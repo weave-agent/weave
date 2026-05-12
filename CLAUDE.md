@@ -188,8 +188,8 @@ Built-in bindings: Escape=interrupt, Ctrl+C=double-press (first clears editor, s
 | ID | Display Name | Context | Max Tokens | Reasoning | Default |
 |---|---|---|---|---|---|
 | `kimi-for-coding` | Kimi For Coding | 262144 | 32768 | yes | yes |
-| `k2p6` | Kimi K2.6 | 262144 | 32768 | yes | no |
-| `kimi-k2-thinking` | Kimi K2 Thinking | 262144 | 32768 | yes | no |
+
+The Kimi API uses `kimi-for-coding` as the stable model identifier; the backend maps it to the current model version.
 
 **Extension management:**
 - `weave install <source> [--name <name>]` — install an extension from a git URL, GitHub shorthand, or local path into `~/.weave/extensions/<name>/`
