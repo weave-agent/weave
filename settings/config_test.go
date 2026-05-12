@@ -833,3 +833,81 @@ func mustLoadSettings(t *testing.T, path string) *Settings {
 
 	return s
 }
+
+func TestFilterExtensionArgs_Basic(t *testing.T) {
+	args := []string{"--bash-timeout", "60", "--model", "claude"}
+	got := filterExtensionArgs(args, "bash")
+	assert.Equal(t, []string{"--timeout", "60"}, got)
+}
+
+func TestFilterExtensionArgs_EqualsForm(t *testing.T) {
+	args := []string{"--bash-timeout=120", "--model", "claude"}
+	got := filterExtensionArgs(args, "bash")
+	assert.Equal(t, []string{"--timeout=120"}, got)
+}
+
+func TestFilterExtensionArgs_MultipleArgs(t *testing.T) {
+	args := []string{"--bash-timeout", "60", "--bash-shell", "fish", "--model", "claude"}
+	got := filterExtensionArgs(args, "bash")
+	assert.Equal(t, []string{"--timeout", "60", "--shell", "fish"}, got)
+}
+
+func TestFilterExtensionArgs_NonMatchingPrefix(t *testing.T) {
+	args := []string{"--grep-pattern", "foo", "--model", "claude"}
+	got := filterExtensionArgs(args, "bash")
+	assert.Nil(t, got)
+}
+
+func TestFilterExtensionArgs_EmptyArgs(t *testing.T) {
+	got := filterExtensionArgs(nil, "bash")
+	assert.Nil(t, got)
+
+	got = filterExtensionArgs([]string{}, "bash")
+	assert.Nil(t, got)
+}
+
+func TestFilterExtensionArgs_MixedWithOtherFlags(t *testing.T) {
+	args := []string{"--model", "claude", "--bash-timeout", "90", "--output", "json"}
+	got := filterExtensionArgs(args, "bash")
+	assert.Equal(t, []string{"--timeout", "90"}, got)
+}
+
+func TestToMapAny_Nil(t *testing.T) {
+	got, err := toMapAny(nil)
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}
+
+func TestToMapAny_AlreadyMap(t *testing.T) {
+	input := map[string]any{"key": "value"}
+	got, err := toMapAny(input)
+	require.NoError(t, err)
+	assert.Equal(t, input, got)
+}
+
+func TestToMapAny_Struct(t *testing.T) {
+	type testStruct struct {
+		Name  string `json:"name"`
+		Value int    `json:"value"`
+	}
+
+	input := testStruct{Name: "test", Value: 42}
+	got, err := toMapAny(input)
+	require.NoError(t, err)
+	assert.Equal(t, "test", got["name"])
+	assert.InDelta(t, float64(42), got["value"], 0)
+}
+
+func TestToMapAny_ErrorOnNonSerializable(t *testing.T) {
+	// Struct with a function field cannot be JSON serialized.
+	type badStruct struct {
+		Name string `json:"name"`
+		Fn   func() `json:"fn"`
+	}
+
+	input := badStruct{Name: "test", Fn: func() {}}
+
+	_, err := toMapAny(input)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "marshal")
+}

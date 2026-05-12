@@ -113,9 +113,9 @@ func TestExtractSchema_SkipsJSONIgnore(t *testing.T) {
 	assert.Equal(t, "visible", schema.Fields[0].JSONName)
 }
 
-func TestJsonFieldName(t *testing.T) {
-	assert.Equal(t, "name", jsonFieldName("name", "Fallback"))
-	assert.Equal(t, "name", jsonFieldName("name,omitempty", "Fallback"))
-	assert.Equal(t, "Fallback", jsonFieldName("", "Fallback"))
-	assert.Equal(t, "-", jsonFieldName("-", "Fallback"))
+func TestJSONFieldName(t *testing.T) {
+	assert.Equal(t, "name", JSONFieldName("name", "Fallback"))
+	assert.Equal(t, "name", JSONFieldName("name,omitempty", "Fallback"))
+	assert.Equal(t, "Fallback", JSONFieldName("", "Fallback"))
+	assert.Equal(t, "-", JSONFieldName("-", "Fallback"))
 }

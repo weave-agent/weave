@@ -398,6 +398,42 @@ func TestExtensionConfig_ToolLocalOnlyFromWeaveDir(t *testing.T) {
 	assert.Equal(t, 45, target.Timeout, "local settings should be found when config is inside .weave/")
 }
 
+func TestExtensionConfig_SandboxScope(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".weave", "settings.json")
+	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui","sandbox":{"mode":"readonly","writable":["/tmp"]}}`)
+
+	cfg := &FullConfig{
+		filePath: path,
+		settings: mustLoadSettings(t, path),
+	}
+
+	var target struct {
+		Mode     string   `json:"mode" default:"auto"`
+		Writable []string `json:"writable"`
+	}
+	require.NoError(t, cfg.ExtensionConfig("sandbox", "", &target, ""))
+	assert.Equal(t, "readonly", target.Mode)
+	assert.Equal(t, []string{"/tmp"}, target.Writable)
+}
+
+func TestExtensionConfig_JSONLScope(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".weave", "settings.json")
+	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui","jsonl":{"dir":"/custom/sessions"}}`)
+
+	cfg := &FullConfig{
+		filePath: path,
+		settings: mustLoadSettings(t, path),
+	}
+
+	var target struct {
+		Dir string `json:"dir" default:"~/.weave/sessions"`
+	}
+	require.NoError(t, cfg.ExtensionConfig("jsonl", "", &target, ""))
+	assert.Equal(t, "/custom/sessions", target.Dir)
+}
+
 func TestProjectDirFromConfig(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -172,6 +172,24 @@ func TestGenerateFullHelp_SortsWithinScope(t *testing.T) {
 	require.Less(t, alphaIdx, zedIdx, "entries should be sorted alphabetically")
 }
 
+func TestGenerateFullHelp_WithUISchemas(t *testing.T) {
+	resetAllRegistries(t)
+
+	type testUIConfig struct {
+		Theme string `json:"theme" default:"dark" description:"UI theme"`
+	}
+
+	sdk.RegisterExtensionWithScope("tui", "ui", func(_ sdk.Config, _ testUIConfig) (sdk.Extension, error) {
+		return dummyExtension{}, nil
+	})
+
+	text := GenerateFullHelp()
+	assert.Contains(t, text, "UI options:")
+	assert.Contains(t, text, "tui")
+	assert.Contains(t, text, "--tui-theme")
+	assert.Contains(t, text, "UI theme")
+}
+
 func TestGenerateFullHelp_SkipsEmptySchemas(t *testing.T) {
 	resetAllRegistries(t)
 

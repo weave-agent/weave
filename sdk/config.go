@@ -25,19 +25,22 @@ type Config interface {
 	RespectGitignore() bool
 }
 
-type noopConfig struct{}
+// NoopConfig is a nil-safe Config implementation that returns empty/zero values.
+type NoopConfig struct{}
 
-func (noopConfig) FilePath() string   { return "" }
-func (noopConfig) ProjectDir() string { return "" }
-func (noopConfig) ResolveKey(_, envVar string) (string, error) {
+func (NoopConfig) FilePath() string   { return "" }
+func (NoopConfig) ProjectDir() string { return "" }
+func (NoopConfig) ResolveKey(_, envVar string) (string, error) {
 	return os.Getenv(envVar), nil
 }
-func (noopConfig) ExtensionConfig(_, _ string, _ any, _ string) error { return nil }
-func (noopConfig) IsHeadless() bool                                   { return true }
-func (noopConfig) Preferences(any) error                              { return nil }
-func (noopConfig) SavePreferences(any) error                          { return nil }
-func (noopConfig) SaveProviderKey(_, _ string) error                  { return nil }
-func (noopConfig) RespectGitignore() bool                             { return true }
+func (NoopConfig) ExtensionConfig(_, _ string, _ any, _ string) error { return nil }
+func (NoopConfig) IsHeadless() bool                                   { return true }
+func (NoopConfig) Preferences(any) error                              { return nil }
+func (NoopConfig) SavePreferences(any) error                          { return nil }
+func (NoopConfig) SaveProviderKey(_, _ string) error                  { return nil }
+func (NoopConfig) RespectGitignore() bool                             { return true }
+
+type noopConfig = NoopConfig
 
 // FilePathConfig is a Config that returns the given path from FilePath().
 type FilePathConfig string

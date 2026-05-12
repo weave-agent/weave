@@ -54,7 +54,7 @@ func extractSchema(t reflect.Type) Schema {
 		if f.Type.Kind() == reflect.Struct {
 			nested := extractSchema(f.Type)
 
-			prefix := jsonFieldName(jsonTag, f.Name)
+			prefix := JSONFieldName(jsonTag, f.Name)
 			for _, nf := range nested.Fields {
 				fields = append(fields, SchemaField{
 					Name:        f.Name + "." + nf.Name,
@@ -74,7 +74,7 @@ func extractSchema(t reflect.Type) Schema {
 
 		fields = append(fields, SchemaField{
 			Name:        f.Name,
-			JSONName:    jsonFieldName(jsonTag, f.Name),
+			JSONName:    JSONFieldName(jsonTag, f.Name),
 			Type:        f.Type.String(),
 			Default:     f.Tag.Get("default"),
 			Description: f.Tag.Get("description"),
@@ -88,8 +88,8 @@ func extractSchema(t reflect.Type) Schema {
 	return Schema{Fields: fields}
 }
 
-// jsonFieldName extracts the JSON field name from a json struct tag.
-func jsonFieldName(tag, fallback string) string {
+// JSONFieldName extracts the JSON field name from a json struct tag.
+func JSONFieldName(tag, fallback string) string {
 	if tag == "" {
 		return fallback
 	}

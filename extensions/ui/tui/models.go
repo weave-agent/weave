@@ -18,19 +18,6 @@ type preferences struct {
 	ThinkingLevel string `json:"thinking_level,omitempty"`
 }
 
-// noopConfig provides a nil-safe default Config for TUI functions.
-type noopConfig struct{}
-
-func (noopConfig) FilePath() string                                   { return "" }
-func (noopConfig) ProjectDir() string                                 { return "" }
-func (noopConfig) ResolveKey(_, envVar string) (string, error)        { return os.Getenv(envVar), nil }
-func (noopConfig) ExtensionConfig(_, _ string, _ any, _ string) error { return nil }
-func (noopConfig) IsHeadless() bool                                   { return true }
-func (noopConfig) Preferences(any) error                              { return nil }
-func (noopConfig) SavePreferences(any) error                          { return nil }
-func (noopConfig) SaveProviderKey(_, _ string) error                  { return nil }
-func (noopConfig) RespectGitignore() bool                             { return true }
-
 // providerHasKey checks whether a provider has a configured API key by
 // attempting resolution through the config's ResolveKey method.
 func providerHasKey(cfg sdk.Config, providerName string) bool {
@@ -46,7 +33,7 @@ func effectiveConfig(cfg sdk.Config) sdk.Config {
 		return cfg
 	}
 
-	return noopConfig{}
+	return sdk.NoopConfig{}
 }
 
 // ModelEntry describes a provider + model combination.

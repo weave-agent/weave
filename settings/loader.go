@@ -11,6 +11,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"weave/sdk"
 )
 
 // Loader loads configuration into a target struct from multiple sources.
@@ -147,7 +149,7 @@ func applyData(target any, data map[string]any) error {
 			continue
 		}
 
-		name := jsonFieldName(jsonTag, ft.Name)
+		name := sdk.JSONFieldName(jsonTag, ft.Name)
 
 		raw, ok := data[name]
 		if !ok {
@@ -301,7 +303,7 @@ func applyFlags(target any, args []string) ([]string, error) {
 		if flagTag == "" {
 			jsonTag := ft.Tag.Get("json")
 			if jsonTag != "-" {
-				flagTag = jsonFieldName(jsonTag, ft.Name)
+				flagTag = sdk.JSONFieldName(jsonTag, ft.Name)
 			}
 		}
 
@@ -930,19 +932,6 @@ func setMapFromAny(field reflect.Value, raw any) error {
 	field.Set(result)
 
 	return nil
-}
-
-// jsonFieldName extracts the JSON field name from a json struct tag.
-func jsonFieldName(tag, fallback string) string {
-	if tag == "" {
-		return fallback
-	}
-
-	if before, _, ok := strings.Cut(tag, ","); ok {
-		return before
-	}
-
-	return tag
 }
 
 // defineFlag defines a flag in a FlagSet for the given pointer value.
