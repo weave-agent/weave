@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"weave/cmd/weave/extmanage"
-	"weave/launcher"
+	"weave/internal/extmanage"
+	"weave/internal/launcher"
 	"weave/settings"
 )
 

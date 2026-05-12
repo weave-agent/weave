@@ -1,4 +1,4 @@
-GO_FILES ?= ./bus/... ./cmd/... ./settings/... ./launcher/... ./sdk/...
+GO_FILES ?= ./bus/... ./cmd/... ./settings/... ./internal/... ./sdk/...
 GOLANGCI_LINT ?= golangci-lint
 EXT_DIRS := $(sort $(dir $(wildcard extensions/*/*/go.mod extensions/*/go.mod)))
 
@@ -65,4 +65,4 @@ test: ## Run all tests (root + extension modules)
 
 ##@ Benchmarking
 bench: ## Run build benchmarks (cold/warm/partial, with and without TUI)
-	go test -bench=. -benchmem -run=NONE -timeout 600s ./launcher/
+	go test -bench=. -benchmem -run=NONE -timeout 600s ./internal/launcher/
