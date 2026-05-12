@@ -242,9 +242,6 @@ func emitContentBlocks(blocks []anthropic.ContentBlockUnion, send func(sdk.Provi
 			}
 		case anthropic.ToolUseBlock:
 			args := parseToolArgs(b.Name, b.JSON.Input.Raw(), send)
-			if args == nil {
-				return
-			}
 
 			if !send(sdk.ProviderEvent{
 				Type: sdk.ProviderEventToolCall,
@@ -273,7 +270,7 @@ func parseToolArgs(toolName, raw string, send func(sdk.ProviderEvent) bool) map[
 			Content: fmt.Sprintf("anthropic: parse tool call arguments for %s: %v", toolName, err),
 		})
 
-		return nil
+		return make(map[string]any)
 	}
 
 	return args

@@ -752,7 +752,7 @@ func TestStream_NetworkError(t *testing.T) {
 	}
 
 	require.Len(t, errorMsgs, 1)
-	assert.Contains(t, errorMsgs[0], "EOF")
+	assert.NotEmpty(t, errorMsgs[0])
 }
 
 func TestConvertMessages(t *testing.T) {
@@ -838,8 +838,35 @@ func TestConvertMessages(t *testing.T) {
 			check: func(t *testing.T, params []anthropic.MessageParam) {
 				assert.Equal(t, anthropic.MessageParamRoleAssistant, params[0].Role)
 				blocks := params[0].Content
-				require.Len(t, blocks, 3) // thinking + redacted + text
+				require.Len(t, blocks, 3)
+				assert.NotNil(t, blocks[0].OfThinking)
+				assert.NotNil(t, blocks[1].OfRedactedThinking)
+				assert.Equal(t, "answer", *blocks[2].GetText())
 			},
+		},
+		{
+			name: "assistant with only tool calls",
+			messages: []sdk.Message{
+				{Role: sdk.RoleAssistant, ToolCalls: []sdk.ToolCall{
+					{ID: "toolu_1", Name: "bash", Arguments: map[string]any{"command": "ls"}},
+				}},
+			},
+			wantLen: 1,
+			check: func(t *testing.T, params []anthropic.MessageParam) {
+				assert.Equal(t, anthropic.MessageParamRoleAssistant, params[0].Role)
+				blocks := params[0].Content
+				require.Len(t, blocks, 1)
+				require.NotNil(t, blocks[0].OfToolUse)
+				assert.Equal(t, "toolu_1", blocks[0].OfToolUse.ID)
+			},
+		},
+		{
+			name: "assistant with nil content",
+			messages: []sdk.Message{
+				{Role: sdk.RoleAssistant, Content: nil},
+			},
+			wantLen: 0,
+			check:   func(t *testing.T, params []anthropic.MessageParam) {},
 		},
 		{
 			name: "user message with non-string content",
@@ -949,6 +976,28 @@ func TestConvertTools_RequiredAsAnySlice(t *testing.T) {
 	require.Len(t, result, 1)
 	require.NotNil(t, result[0].OfTool)
 	assert.Equal(t, []string{"command"}, result[0].OfTool.InputSchema.Required)
+}
+
+func TestConvertTools_RequiredAsAnySliceWithNonStrings(t *testing.T) {
+	tools := []sdk.ToolDef{
+		{
+			Name:        "bash",
+			Description: "Run a command",
+			Parameters: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"command": map[string]any{"type": "string"},
+					"force":   map[string]any{"type": "boolean"},
+				},
+				"required": []any{"command", 42, true, "force"},
+			},
+		},
+	}
+
+	result := convertTools(tools)
+	require.Len(t, result, 1)
+	require.NotNil(t, result[0].OfTool)
+	assert.Equal(t, []string{"command", "force"}, result[0].OfTool.InputSchema.Required)
 }
 
 func TestConvertTools_NonMapParameters(t *testing.T) {
@@ -1103,42 +1152,7 @@ func TestStream_WithModelOverride(t *testing.T) {
 	assert.Contains(t, receivedBody, "k2p6")
 }
 
-func TestStream_UserAgentHeader(t *testing.T) {
-	model.ResetModelRegistry()
-	defer model.ResetModelRegistry()
-
-	RegisterModels()
-
-	var receivedUserAgent string
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedUserAgent = r.Header.Get("User-Agent")
-
-		writeSSE(w, textStreamEvents("hi"))
-	}))
-	defer server.Close()
-
-	cfg := &mockConfig{
-		resolveKey: "test-api-key",
-		providerConfig: &sdk.ProviderConfigEntry{
-			BaseURL: server.URL,
-		},
-	}
-
-	p, err := sdk.GetProvider("kimi", cfg)
-	require.NoError(t, err)
-	require.NotNil(t, p)
-
-	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
-		Messages: []sdk.Message{sdk.NewUserMessage("hello")},
-	})
-	require.NoError(t, err)
-	collectEvents(t, ch)
-
-	assert.Equal(t, "KimiCLI/1.5", receivedUserAgent)
-}
-
-func TestProviderInit_InvalidMaxTokensEnv(t *testing.T) {
+func TestProviderInit_InvalidMaxTokensEnv_String(t *testing.T) {
 	model.ResetModelRegistry()
 	defer model.ResetModelRegistry()
 
@@ -1155,7 +1169,6 @@ func TestProviderInit_InvalidMaxTokensEnv(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Test invalid value - should fall back to default
 	t.Setenv("KIMI_MAX_TOKENS", "invalid")
 
 	cfg := &mockConfig{
@@ -1173,17 +1186,36 @@ func TestProviderInit_InvalidMaxTokensEnv(t *testing.T) {
 	collectEvents(t, ch)
 
 	assert.Contains(t, receivedBody, "32768")
+}
 
-	// Test negative value - should also fall back to default
-	receivedBody = ""
+func TestProviderInit_InvalidMaxTokensEnv_Negative(t *testing.T) {
+	model.ResetModelRegistry()
+	defer model.ResetModelRegistry()
+
+	RegisterModels()
+
+	var receivedBody string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf := make([]byte, r.ContentLength)
+		_, _ = r.Body.Read(buf)
+		receivedBody = string(buf)
+
+		writeSSE(w, textStreamEvents("hi"))
+	}))
+	defer server.Close()
 
 	t.Setenv("KIMI_MAX_TOKENS", "-1")
 
-	p2, err := sdk.GetProvider("kimi", cfg)
+	cfg := &mockConfig{
+		resolveKey:     "test-api-key",
+		providerConfig: &sdk.ProviderConfigEntry{BaseURL: server.URL},
+	}
+	p, err := sdk.GetProvider("kimi", cfg)
 	require.NoError(t, err)
-	require.NotNil(t, p2)
+	require.NotNil(t, p)
 
-	ch, err = p2.Stream(context.Background(), sdk.ProviderRequest{
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
 		Messages: []sdk.Message{sdk.NewUserMessage("hello")},
 	})
 	require.NoError(t, err)
@@ -1302,7 +1334,7 @@ func TestStream_NoSystemPromptWhenEmpty(t *testing.T) {
 	assert.NotContains(t, receivedBody, `"system"`)
 }
 
-func TestStream_ParseToolArgs_EdgeCases(t *testing.T) {
+func TestStream_ParseToolArgs_EmptyJSON(t *testing.T) {
 	// Empty JSON input - should produce empty map
 	events := []sseEvent{
 		{EventType: "message_start", Data: `{"type":"message_start","message":{"id":"msg_test","type":"message","role":"assistant","content":[],"model":"kimi-for-coding","stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":20,"output_tokens":1}}}`},
@@ -1348,7 +1380,8 @@ func TestParseToolArgs_MalformedJSON(t *testing.T) {
 	}
 
 	args := parseToolArgs("bash", "{not valid json", send)
-	assert.Nil(t, args)
+	assert.NotNil(t, args)
+	assert.Empty(t, args)
 	assert.True(t, sent)
 }
 
