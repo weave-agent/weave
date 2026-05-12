@@ -1443,8 +1443,8 @@ func (m *mockConfig) ExtensionConfig(scope, name string, target any, _ string) e
 	return nil
 }
 func (m *mockConfig) ResolveKey(_, _ string) (string, error) { return m.resolveKey, m.resolveErr }
-func (m *mockConfig) IsHeadless() bool                        { return true }
-func (m *mockConfig) Preferences(_ any) error                 { return nil }
-func (m *mockConfig) SavePreferences(_ any) error             { return nil }
-func (m *mockConfig) SaveProviderKey(_, _ string) error       { return nil }
-func (m *mockConfig) RespectGitignore() bool                  { return true }
+func (m *mockConfig) IsHeadless() bool                       { return true }
+func (m *mockConfig) Preferences(_ any) error                { return nil }
+func (m *mockConfig) SavePreferences(_ any) error            { return nil }
+func (m *mockConfig) SaveProviderKey(_, _ string) error      { return nil }
+func (m *mockConfig) RespectGitignore() bool                 { return true }

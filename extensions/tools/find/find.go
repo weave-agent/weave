@@ -26,7 +26,7 @@ type tool struct {
 }
 
 func init() {
-	sdk.RegisterTool("find", func(cfg sdk.Config) (sdk.Tool, error) {
+	sdk.RegisterTool[struct{}]("find", func(cfg sdk.Config, _ struct{}) (sdk.Tool, error) {
 		return &tool{cfg: cfg}, nil
 	})
 }

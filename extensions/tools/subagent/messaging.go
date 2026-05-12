@@ -49,13 +49,13 @@ func registerMessagingTools() {
 		return
 	}
 
-	sdk.RegisterTool("send_message", func(sdk.Config) (sdk.Tool, error) {
+	sdk.RegisterTool[struct{}]("send_message", func(_ sdk.Config, _ struct{}) (sdk.Tool, error) {
 		return &sendMessageTool{}, nil
 	})
-	sdk.RegisterTool("broadcast_message", func(sdk.Config) (sdk.Tool, error) {
+	sdk.RegisterTool[struct{}]("broadcast_message", func(_ sdk.Config, _ struct{}) (sdk.Tool, error) {
 		return &broadcastMessageTool{}, nil
 	})
-	sdk.RegisterTool(msgTypeListAgents, func(sdk.Config) (sdk.Tool, error) {
+	sdk.RegisterTool[struct{}](msgTypeListAgents, func(_ sdk.Config, _ struct{}) (sdk.Tool, error) {
 		return &listAgentsTool{}, nil
 	})
 }

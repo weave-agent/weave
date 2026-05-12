@@ -110,16 +110,16 @@ Key changes:
 
 ### Task 8: Tool extensions
 
-- [ ] **Bash:** Update to `RegisterTool[BashConfig]`, remove `cfg.ToolConfig` call
-- [ ] **Grep:** Update to `RegisterTool[struct{}]` (or define `GrepConfig` if needed), keep `cfg` for `RespectGitignore`
-- [ ] **Find:** Update to `RegisterTool[struct{}]`
-- [ ] **Read:** Update to `RegisterTool[struct{}]`
-- [ ] **Edit:** Update to `RegisterTool[struct{}]`
-- [ ] **Write:** Update to `RegisterTool[struct{}]`
-- [ ] **LS:** Update to `RegisterTool[struct{}]`
-- [ ] **Subagent:** Update dynamic tool registrations to generic
-- [ ] Update tool test mocks (remove `ToolConfig`, `UIConfig`, `ProviderConfig` from mock `Config` implementations)
-- [ ] Run tests for each tool module
+- [x] **Bash:** Update to `RegisterTool[BashConfig]`, remove `cfg.ToolConfig` call
+- [x] **Grep:** Update to `RegisterTool[struct{}]` (or define `GrepConfig` if needed), keep `cfg` for `RespectGitignore`
+- [x] **Find:** Update to `RegisterTool[struct{}]`
+- [x] **Read:** Update to `RegisterTool[struct{}]`
+- [x] **Edit:** Update to `RegisterTool[struct{}]`
+- [x] **Write:** Update to `RegisterTool[struct{}]`
+- [x] **LS:** Update to `RegisterTool[struct{}]`
+- [x] **Subagent:** Update dynamic tool registrations to generic
+- [x] Update tool test mocks (remove `ToolConfig`, `UIConfig`, `ProviderConfig` from mock `Config` implementations)
+- [x] Run tests for each tool module
 
 ### Task 9: Other extensions
 

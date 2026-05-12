@@ -34,7 +34,7 @@ type tool struct {
 }
 
 func init() {
-	sdk.RegisterTool("grep", func(cfg sdk.Config) (sdk.Tool, error) {
+	sdk.RegisterTool[struct{}]("grep", func(cfg sdk.Config, _ struct{}) (sdk.Tool, error) {
 		return &tool{cfg: cfg}, nil
 	})
 }

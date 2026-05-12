@@ -30,13 +30,7 @@ type tool struct {
 }
 
 func init() {
-	sdk.RegisterTool("bash", func(cfg sdk.Config) (sdk.Tool, error) {
-		var bc BashConfig
-
-		if err := cfg.ToolConfig("bash", &bc); err != nil {
-			return nil, fmt.Errorf("load bash config: %w", err)
-		}
-
+	sdk.RegisterTool[BashConfig]("bash", func(cfg sdk.Config, bc BashConfig) (sdk.Tool, error) {
 		timeout := time.Duration(bc.Timeout) * time.Second
 		if timeout <= 0 {
 			timeout = defaultTimeout

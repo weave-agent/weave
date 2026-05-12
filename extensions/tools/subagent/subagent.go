@@ -31,7 +31,7 @@ const (
 )
 
 func init() {
-	sdk.RegisterExtension("subagent", func(cfg sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("subagent", func(cfg sdk.Config, _ struct{}) (sdk.Extension, error) {
 		// Register child-side inter-agent tools when running as a subagent.
 		// This is done inside the factory (not init) so that the env var is
 		// already set by the generated main before WireWithCore runs.
@@ -55,16 +55,16 @@ func init() {
 		for _, agent := range agents {
 			a := agent // capture loop variable
 			toolName := "subagent_" + a.Name
-			sdk.RegisterTool(toolName, func(sdk.Config) (sdk.Tool, error) {
+			sdk.RegisterTool[struct{}](toolName, func(_ sdk.Config, _ struct{}) (sdk.Tool, error) {
 				return newSubagentTool(a, mgr, broker, cfgPath, projectDir), nil
 			})
 		}
 
 		// Register background management tools
-		sdk.RegisterTool("check_agent", func(sdk.Config) (sdk.Tool, error) {
+		sdk.RegisterTool[struct{}]("check_agent", func(_ sdk.Config, _ struct{}) (sdk.Tool, error) {
 			return &checkAgentTool{mgr: mgr}, nil
 		})
-		sdk.RegisterTool("await_agent", func(sdk.Config) (sdk.Tool, error) {
+		sdk.RegisterTool[struct{}]("await_agent", func(_ sdk.Config, _ struct{}) (sdk.Tool, error) {
 			return &awaitAgentTool{mgr: mgr}, nil
 		})
 

@@ -19,7 +19,7 @@ const (
 type tool struct{}
 
 func init() {
-	sdk.RegisterTool("write", func(_ sdk.Config) (sdk.Tool, error) {
+	sdk.RegisterTool[struct{}]("write", func(_ sdk.Config, _ struct{}) (sdk.Tool, error) {
 		return &tool{}, nil
 	})
 }

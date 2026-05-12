@@ -24,7 +24,7 @@ const (
 type tool struct{}
 
 func init() {
-	sdk.RegisterTool("edit", func(_ sdk.Config) (sdk.Tool, error) {
+	sdk.RegisterTool[struct{}]("edit", func(_ sdk.Config, _ struct{}) (sdk.Tool, error) {
 		return &tool{}, nil
 	})
 }

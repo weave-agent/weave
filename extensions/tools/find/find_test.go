@@ -346,17 +346,15 @@ type testConfig struct {
 	respectGitignore bool
 }
 
-func (c *testConfig) FilePath() string                               { return "" }
-func (c *testConfig) ProjectDir() string                             { return "" }
-func (c *testConfig) ProviderConfig(string) *sdk.ProviderConfigEntry { return nil }
-func (c *testConfig) ResolveKey(_, envVar string) (string, error)    { return "", nil }
-func (c *testConfig) ToolConfig(string, any) error                   { return nil }
-func (c *testConfig) UIConfig(any) error                             { return nil }
-func (c *testConfig) IsHeadless() bool                               { return false }
-func (c *testConfig) RespectGitignore() bool                         { return c.respectGitignore }
-func (c *testConfig) Preferences(any) error                          { return nil }
-func (c *testConfig) SavePreferences(any) error                      { return nil }
-func (c *testConfig) SaveProviderKey(_, _ string) error              { return nil }
+func (c *testConfig) FilePath() string                                   { return "" }
+func (c *testConfig) ProjectDir() string                                 { return "" }
+func (c *testConfig) ResolveKey(_, envVar string) (string, error)        { return "", nil }
+func (c *testConfig) ExtensionConfig(_, _ string, _ any, _ string) error { return nil }
+func (c *testConfig) IsHeadless() bool                                   { return false }
+func (c *testConfig) RespectGitignore() bool                             { return c.respectGitignore }
+func (c *testConfig) Preferences(any) error                              { return nil }
+func (c *testConfig) SavePreferences(any) error                          { return nil }
+func (c *testConfig) SaveProviderKey(_, _ string) error                  { return nil }
 
 type testSandboxer struct {
 	allowReadFn  func(string) bool
