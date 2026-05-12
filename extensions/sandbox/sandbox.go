@@ -40,11 +40,11 @@ func NextSandboxMode(current string) string {
 
 // SandboxConfig holds user-configurable sandbox settings loaded via gonfig.
 type SandboxConfig struct {
-	Mode      string   `json:"mode" default:"auto" description:"Sandbox mode: off, readonly, ask, auto"`
-	Writable  []string `json:"writable" description:"Paths allowed for writes (default: CWD)"`
-	DenyWrite []string `json:"deny_write" description:"Additional paths to block from writes"`
-	DenyRead  []string `json:"deny_read" description:"Paths to block from reading"`
-	Network   bool     `json:"network" default:"true" description:"Allow network access in sandbox"`
+	Mode      string   `json:"mode" default:"auto" env:"MODE" description:"Sandbox mode: off, readonly, ask, auto"`
+	Writable  []string `json:"writable" env:"WRITABLE" description:"Paths allowed for writes (default: CWD)"`
+	DenyWrite []string `json:"deny_write" env:"DENY_WRITE" description:"Additional paths to block from writes"`
+	DenyRead  []string `json:"deny_read" env:"DENY_READ" description:"Paths to block from reading"`
+	Network   bool     `json:"network" default:"true" env:"NETWORK" description:"Allow network access in sandbox"`
 }
 
 const keyCommand = "command"

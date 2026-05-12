@@ -521,6 +521,7 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 	b.WriteString("\t\tos.Exit(1)\n")
 	b.WriteString("\t}\n")
 	b.WriteString("\tcfg = fullCfg\n")
+	b.WriteString("\tfullCfg.SetArgs(filtered)\n")
 	b.WriteString("\tif projectDir != \"\" {\n")
 	b.WriteString("\t\tfullCfg.SetProjectDir(projectDir)\n")
 	b.WriteString("\t}\n")

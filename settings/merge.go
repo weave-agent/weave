@@ -27,12 +27,15 @@ func MergeSettings(layers ...*Settings) *Settings {
 
 		mergeUI(result, layer)
 
-		if len(layer.ExcludeExtensions) > 0 {
+		if layer.ExcludeExtensions != nil {
 			result.ExcludeExtensions = layer.ExcludeExtensions
 		}
 
 		mergeProviders(result, layer)
 		mergeTools(result, layer)
+		mergeSandbox(result, layer)
+		mergeJSONL(result, layer)
+		mergeExtensions(result, layer)
 	}
 
 	return result
@@ -61,7 +64,7 @@ func mergeStringFields(result, layer *Settings) {
 }
 
 func mergeUI(result, layer *Settings) {
-	if len(layer.UI) == 0 {
+	if layer.UI == nil {
 		return
 	}
 
@@ -79,7 +82,7 @@ func mergeUI(result, layer *Settings) {
 }
 
 func mergeProviders(result, layer *Settings) {
-	if len(layer.Providers) == 0 {
+	if layer.Providers == nil {
 		return
 	}
 
@@ -110,6 +113,52 @@ func mergeTools(result, layer *Settings) {
 			result.Tools[k] = deepMergeValues(existing, v)
 		} else {
 			result.Tools[k] = v
+		}
+	}
+}
+
+func mergeSandbox(result, layer *Settings) {
+	if layer.Sandbox.Mode != "" {
+		result.Sandbox.Mode = layer.Sandbox.Mode
+	}
+
+	if layer.Sandbox.Writable != nil {
+		result.Sandbox.Writable = layer.Sandbox.Writable
+	}
+
+	if layer.Sandbox.DenyWrite != nil {
+		result.Sandbox.DenyWrite = layer.Sandbox.DenyWrite
+	}
+
+	if layer.Sandbox.DenyRead != nil {
+		result.Sandbox.DenyRead = layer.Sandbox.DenyRead
+	}
+
+	if layer.Sandbox.Network != nil {
+		result.Sandbox.Network = layer.Sandbox.Network
+	}
+}
+
+func mergeJSONL(result, layer *Settings) {
+	if layer.JSONL.Dir != "" {
+		result.JSONL.Dir = layer.JSONL.Dir
+	}
+}
+
+func mergeExtensions(result, layer *Settings) {
+	if layer.Extensions == nil {
+		return
+	}
+
+	if result.Extensions == nil {
+		result.Extensions = make(map[string]any, len(layer.Extensions))
+	}
+
+	for k, v := range layer.Extensions {
+		if existing, ok := result.Extensions[k]; ok {
+			result.Extensions[k] = deepMergeValues(existing, v)
+		} else {
+			result.Extensions[k] = v
 		}
 	}
 }

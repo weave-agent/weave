@@ -24,6 +24,7 @@ type Settings struct {
 	Providers         map[string]any    `json:"providers,omitempty" description:"Per-provider configuration"`
 	ExcludeExtensions []string          `json:"exclude_extensions,omitempty" env:"EXCLUDE_EXTENSIONS" description:"Extensions to exclude from auto-discovery"`
 	Sandbox           SandboxFileConfig `json:"sandbox" description:"Sandbox configuration"`
+	Extensions        map[string]any    `json:"extensions,omitempty" description:"Per-extension configuration"`
 
 	// User preference fields.
 	Provider         string         `json:"provider,omitempty" env:"PROVIDER"`

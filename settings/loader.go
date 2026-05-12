@@ -232,6 +232,30 @@ func applyEnv(target any, prefix string) error {
 	return nil
 }
 
+// registerFlag registers a single field as a CLI flag, tracking known and boolean flags.
+func registerFlag(knownFlags, boolFlags map[string]bool, fs *flag.FlagSet, field reflect.Value, flagTag, shortTag string) {
+	ptr := field.Addr().Interface()
+	isBool := field.Kind() == reflect.Bool
+
+	if flagTag != "" {
+		knownFlags["--"+flagTag] = true
+		if isBool {
+			boolFlags["--"+flagTag] = true
+		}
+
+		defineFlag(fs, flagTag, ptr)
+	}
+
+	if shortTag != "" {
+		knownFlags["-"+shortTag] = true
+		if isBool {
+			boolFlags["-"+shortTag] = true
+		}
+
+		defineFlag(fs, shortTag, ptr)
+	}
+}
+
 // applyFlags overrides fields from CLI flags using `flag` and `short` struct tags.
 // Returns the remaining non-flag args.
 func applyFlags(target any, args []string) ([]string, error) {
@@ -255,6 +279,8 @@ func applyFlags(target any, args []string) ([]string, error) {
 	t := v.Type()
 	knownFlags := make(map[string]bool)
 
+	boolFlags := make(map[string]bool)
+
 	for i := range v.NumField() {
 		field := v.Field(i)
 		if !field.CanSet() {
@@ -269,23 +295,19 @@ func applyFlags(target any, args []string) ([]string, error) {
 		}
 
 		flagTag := ft.Tag.Get("flag")
+		if flagTag == "" {
+			jsonTag := ft.Tag.Get("json")
+			if jsonTag != "-" {
+				flagTag = jsonFieldName(jsonTag, ft.Name)
+			}
+		}
 
 		shortTag := ft.Tag.Get("short")
 		if flagTag == "" && shortTag == "" {
 			continue
 		}
 
-		ptr := field.Addr().Interface()
-
-		if flagTag != "" {
-			knownFlags["--"+flagTag] = true
-			defineFlag(fs, flagTag, ptr)
-		}
-
-		if shortTag != "" {
-			knownFlags["-"+shortTag] = true
-			defineFlag(fs, shortTag, ptr)
-		}
+		registerFlag(knownFlags, boolFlags, fs, field, flagTag, shortTag)
 	}
 
 	if len(knownFlags) == 0 {
@@ -293,7 +315,7 @@ func applyFlags(target any, args []string) ([]string, error) {
 	}
 
 	// Filter args to only include known flags, tracking consumed indices.
-	filtered, consumed := filterKnownFlags(args, knownFlags)
+	filtered, consumed := filterKnownFlags(args, knownFlags, boolFlags)
 	if len(filtered) == 0 {
 		return args, nil
 	}
@@ -315,8 +337,9 @@ func applyFlags(target any, args []string) ([]string, error) {
 }
 
 // filterKnownFlags returns args that match known flags (or their values) and a
-// map of consumed indices.
-func filterKnownFlags(args []string, known map[string]bool) ([]string, map[int]bool) {
+// map of consumed indices. For boolean flags followed by "true" or "false",
+// converts to --flag=value form so Go's flag package parses them correctly.
+func filterKnownFlags(args []string, known, boolFlags map[string]bool) ([]string, map[int]bool) {
 	var result []string
 
 	consumed := make(map[int]bool)
@@ -334,8 +357,22 @@ func filterKnownFlags(args []string, known map[string]bool) ([]string, map[int]b
 		}
 
 		if known[arg] {
-			result = append(result, arg)
 			consumed[i] = true
+			// For boolean flags with an explicit true/false value, convert to
+			// =value form so Go's flag package does not treat the value as a
+			// positional argument.
+			if boolFlags[arg] && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				next := args[i+1]
+				if _, err := strconv.ParseBool(next); err == nil {
+					result = append(result, arg+"="+next)
+					consumed[i+1] = true
+					i++
+
+					continue
+				}
+			}
+
+			result = append(result, arg)
 			// Include the next arg as the value if it doesn't start with -.
 			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
 				result = append(result, args[i+1])
@@ -662,9 +699,45 @@ func setFieldFromString(field reflect.Value, s string) error {
 		}
 
 		field.SetBool(b)
+	case reflect.Pointer:
+		elemType := field.Type().Elem()
+
+		elem := reflect.New(elemType)
+		if err := setFieldFromString(elem.Elem(), s); err != nil {
+			return err
+		}
+
+		field.Set(elem)
+	case reflect.Slice:
+		if err := setSliceFromString(field, s); err != nil {
+			return err
+		}
 	default:
 		// Unsupported kind for default tag; skip.
 	}
+
+	return nil
+}
+
+// setSliceFromString sets a slice field from a comma-separated string.
+func setSliceFromString(field reflect.Value, s string) error {
+	elemType := field.Type().Elem()
+
+	if elemType.Kind() != reflect.String {
+		return fmt.Errorf("unsupported slice element type: %s", elemType.Kind())
+	}
+
+	parts := strings.Split(s, ",")
+
+	var result []string
+
+	for _, p := range parts {
+		if trimmed := strings.TrimSpace(p); trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+
+	field.Set(reflect.ValueOf(result))
 
 	return nil
 }
@@ -763,8 +836,21 @@ func setFieldFromAny(field reflect.Value, raw any) error {
 		default:
 			return fmt.Errorf("cannot convert %T to bool", raw)
 		}
+	case reflect.Pointer:
+		elemType := field.Type().Elem()
+
+		elem := reflect.New(elemType)
+		if err := setFieldFromAny(elem.Elem(), raw); err != nil {
+			return err
+		}
+
+		field.Set(elem)
+
+		return nil
 	case reflect.Slice:
 		return setSliceFromAny(field, raw)
+	case reflect.Map:
+		return setMapFromAny(field, raw)
 	default:
 		return fmt.Errorf("unsupported field kind: %s", field.Kind())
 	}
@@ -806,6 +892,43 @@ func setSliceFromAny(field reflect.Value, raw any) error {
 	return nil
 }
 
+func setMapFromAny(field reflect.Value, raw any) error {
+	if raw == nil {
+		return nil
+	}
+
+	rawVal := reflect.ValueOf(raw)
+	if rawVal.Kind() != reflect.Map {
+		return fmt.Errorf("cannot convert %T to map", raw)
+	}
+
+	if rawVal.Type().AssignableTo(field.Type()) {
+		field.Set(rawVal)
+
+		return nil
+	}
+
+	if field.Type().Key().Kind() != reflect.String || rawVal.Type().Key().Kind() != reflect.String {
+		return errors.New("unsupported map key type")
+	}
+
+	result := reflect.MakeMap(field.Type())
+	elemType := field.Type().Elem()
+
+	for _, key := range rawVal.MapKeys() {
+		elem := reflect.New(elemType).Elem()
+		if err := setFieldFromAny(elem, rawVal.MapIndex(key).Interface()); err != nil {
+			return fmt.Errorf("map key %q: %w", key.String(), err)
+		}
+
+		result.SetMapIndex(key, elem)
+	}
+
+	field.Set(result)
+
+	return nil
+}
+
 // jsonFieldName extracts the JSON field name from a json struct tag.
 func jsonFieldName(tag, fallback string) string {
 	if tag == "" {
@@ -836,5 +959,37 @@ func defineFlag(fs *flag.FlagSet, name string, ptr any) {
 		fs.Float64Var(p, name, *p, "")
 	case *bool:
 		fs.BoolVar(p, name, *p, "")
+	case *[]string:
+		fs.Var(&stringSliceFlag{ptr: p}, name, "")
 	}
+}
+
+// stringSliceFlag implements flag.Value for *[]string.
+// Supports comma-separated values; repeated uses append.
+type stringSliceFlag struct {
+	ptr *[]string
+}
+
+func (f *stringSliceFlag) String() string {
+	if f.ptr == nil || *f.ptr == nil {
+		return ""
+	}
+
+	return strings.Join(*f.ptr, ",")
+}
+
+func (f *stringSliceFlag) Set(s string) error {
+	parts := strings.Split(s, ",")
+
+	var result []string
+
+	for _, p := range parts {
+		if trimmed := strings.TrimSpace(p); trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+
+	*f.ptr = result
+
+	return nil
 }

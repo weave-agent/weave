@@ -13,6 +13,9 @@ import (
 	"weave/sdk"
 )
 
+// DefaultEnvPrefix is the standard environment variable prefix for weave settings.
+const DefaultEnvPrefix = "WEAVE"
+
 // SandboxFileConfig holds sandbox configuration from the config file.
 type SandboxFileConfig struct {
 	Mode      string   `json:"mode" description:"Sandbox mode: off, readonly, ask, auto"`
@@ -154,7 +157,7 @@ func parseConfigFlag(args []string) (configPath string, rest []string) {
 
 // flagSet holds CLI-only flags parsed separately from the settings file.
 type flagSet struct {
-	Prompt      string `short:"p" description:"Prompt to pass to the agent"`
+	Prompt      string `flag:"prompt" short:"p" description:"Prompt to pass to the agent"`
 	UI          string `flag:"ui" description:"UI extension name"`
 	Output      string `flag:"output" description:"Output format: text or json"`
 	Tools       string `flag:"tools" description:"Comma-separated tool allowlist"`
@@ -188,7 +191,7 @@ func loadSettingsFromFile(path string) (Settings, error) {
 
 	loader := Loader{
 		Data:      raw,
-		EnvPrefix: "WEAVE",
+		EnvPrefix: DefaultEnvPrefix,
 	}
 	if err := loader.Load(&s); err != nil {
 		return Settings{}, fmt.Errorf("load config: %w", err)
@@ -325,6 +328,7 @@ type FullConfig struct {
 	filePath    string
 	settings    *Settings
 	projectDir  string
+	args        []string
 	layeredOnce sync.Once
 	layered     *Settings
 	layeredErr  error
@@ -337,6 +341,11 @@ func (c *FullConfig) SetProjectDir(dir string) {
 	c.layeredOnce = sync.Once{}
 	c.layered = nil
 	c.layeredErr = nil
+}
+
+// SetArgs stores remaining CLI args for extension-specific flag parsing.
+func (c *FullConfig) SetArgs(args []string) {
+	c.args = args
 }
 
 func (c *FullConfig) getLayeredSettings() (*Settings, error) {
@@ -456,7 +465,9 @@ func (c *FullConfig) ExtensionConfig(scope, name string, target any, envPrefix s
 	case "jsonl":
 		raw = layered.JSONL
 	case "extensions":
-		return errors.New("extensions scope not yet supported")
+		if layered.Extensions != nil {
+			raw = layered.Extensions[name]
+		}
 	default:
 		return fmt.Errorf("unknown config scope %q", scope)
 	}
@@ -469,9 +480,48 @@ func (c *FullConfig) ExtensionConfig(scope, name string, target any, envPrefix s
 	loader := Loader{
 		Data:      data,
 		EnvPrefix: envPrefix,
+		Args:      filterExtensionArgs(c.args, name),
 	}
 
 	return loader.Load(target)
+}
+
+// filterExtensionArgs strips extension-specific prefixes from CLI args.
+// Flags like --bash-timeout are transformed to --timeout for the extension's loader.
+func filterExtensionArgs(args []string, name string) []string {
+	if len(args) == 0 {
+		return nil
+	}
+
+	prefix := "--" + name + "-"
+
+	var result []string
+
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+
+		// Handle --ext-flag=value form.
+		if eqIdx := strings.Index(arg, "="); eqIdx > 0 {
+			if strings.HasPrefix(arg[:eqIdx], prefix) {
+				result = append(result, "--"+arg[len(prefix):])
+			}
+
+			continue
+		}
+
+		// Handle --ext-flag value form.
+		if strings.HasPrefix(arg, prefix) {
+			result = append(result, "--"+arg[len(prefix):])
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				result = append(result, args[i+1])
+				i++
+			}
+
+			continue
+		}
+	}
+
+	return result
 }
 
 func toMapAny(raw any) (map[string]any, error) {
