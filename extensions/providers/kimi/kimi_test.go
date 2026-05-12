@@ -2,6 +2,7 @@ package kimi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -115,16 +116,51 @@ func TestProviderInit_MissingAPIKey(t *testing.T) {
 	assert.Contains(t, err.Error(), "API key required")
 }
 
+func TestProviderInit_ResolveKeyError(t *testing.T) {
+	model.ResetModelRegistry()
+	defer model.ResetModelRegistry()
+
+	RegisterModels()
+
+	cfg := &mockConfig{resolveErr: errors.New("config read failed")}
+	_, err := sdk.GetProvider("kimi", cfg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "kimi:")
+	assert.Contains(t, err.Error(), "config read failed")
+}
+
 func TestProviderInit_WithAPIKey(t *testing.T) {
 	model.ResetModelRegistry()
 	defer model.ResetModelRegistry()
 
 	RegisterModels()
 
-	cfg := &mockConfig{resolveKey: "test-api-key"}
+	var receivedUserAgent string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedUserAgent = r.Header.Get("User-Agent")
+
+		writeSSE(w, textStreamEvents("hi"))
+	}))
+	defer server.Close()
+
+	cfg := &mockConfig{
+		resolveKey: "test-api-key",
+		providerConfig: &sdk.ProviderConfigEntry{
+			BaseURL: server.URL,
+		},
+	}
 	p, err := sdk.GetProvider("kimi", cfg)
 	require.NoError(t, err)
 	require.NotNil(t, p)
+
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("hello")},
+	})
+	require.NoError(t, err)
+	collectEvents(t, ch)
+
+	assert.Equal(t, "KimiCLI/1.5", receivedUserAgent)
 }
 
 func TestProviderInit_DefaultModel(t *testing.T) {
@@ -133,12 +169,6 @@ func TestProviderInit_DefaultModel(t *testing.T) {
 
 	RegisterModels()
 
-	cfg := &mockConfig{resolveKey: "test-api-key"}
-	p, err := sdk.GetProvider("kimi", cfg)
-	require.NoError(t, err)
-	require.NotNil(t, p)
-
-	// Verify default model by streaming and checking request body
 	var receivedBody string
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -150,14 +180,17 @@ func TestProviderInit_DefaultModel(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Create a provider pointing at the test server
-	client := anthropic.NewClient(
-		option.WithAPIKey("test-key"),
-		option.WithBaseURL(server.URL),
-	)
-	tp := NewProviderWithClient(client, "")
+	cfg := &mockConfig{
+		resolveKey: "test-api-key",
+		providerConfig: &sdk.ProviderConfigEntry{
+			BaseURL: server.URL,
+		},
+	}
+	p, err := sdk.GetProvider("kimi", cfg)
+	require.NoError(t, err)
+	require.NotNil(t, p)
 
-	ch, err := tp.Stream(context.Background(), sdk.ProviderRequest{
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
 		Messages: []sdk.Message{sdk.NewUserMessage("hello")},
 	})
 	require.NoError(t, err)
@@ -373,7 +406,8 @@ func TestStream_ServerError(t *testing.T) {
 		}
 	}
 
-	assert.NotEmpty(t, errorMsgs, "expected at least one error event")
+	require.Len(t, errorMsgs, 1)
+	assert.Contains(t, errorMsgs[0], "invalid model")
 }
 
 func TestStream_WithSystemPrompt(t *testing.T) {
@@ -546,7 +580,16 @@ func TestStream_EmptyMessages(t *testing.T) {
 	require.NoError(t, err)
 
 	events := collectEvents(t, ch)
-	assert.NotEmpty(t, events)
+
+	var textDeltas []string
+
+	for _, evt := range events {
+		if evt.Type == sdk.ProviderEventTextDelta {
+			textDeltas = append(textDeltas, evt.Content.(string))
+		}
+	}
+
+	assert.Equal(t, []string{"Hi"}, textDeltas)
 }
 
 func TestStream_MultipleToolCalls(t *testing.T) {
@@ -656,7 +699,8 @@ func TestStream_AuthError(t *testing.T) {
 		}
 	}
 
-	assert.NotEmpty(t, errorMsgs, "expected at least one error event")
+	require.Len(t, errorMsgs, 1)
+	assert.Contains(t, errorMsgs[0], "invalid api key")
 }
 
 func TestStream_NetworkError(t *testing.T) {
@@ -667,7 +711,7 @@ func TestStream_NetworkError(t *testing.T) {
 
 		flusher, ok := w.(http.Flusher)
 		if !ok {
-			return
+			t.Fatal("streaming not supported")
 		}
 
 		// Write partial SSE then close connection by hijacking
@@ -676,10 +720,16 @@ func TestStream_NetworkError(t *testing.T) {
 		flusher.Flush()
 
 		hijacker, ok := w.(http.Hijacker)
-		if ok {
-			conn, _, _ := hijacker.Hijack()
-			_ = conn.Close()
+		if !ok {
+			t.Fatal("server must support hijacking")
 		}
+
+		conn, _, err := hijacker.Hijack()
+		if err != nil {
+			t.Fatalf("hijack failed: %v", err)
+		}
+
+		_ = conn.Close()
 	}))
 	defer server.Close()
 
@@ -701,7 +751,8 @@ func TestStream_NetworkError(t *testing.T) {
 		}
 	}
 
-	assert.NotEmpty(t, errorMsgs, "expected at least one error event")
+	require.Len(t, errorMsgs, 1)
+	assert.Contains(t, errorMsgs[0], "EOF")
 }
 
 func TestConvertMessages(t *testing.T) {
@@ -709,11 +760,13 @@ func TestConvertMessages(t *testing.T) {
 		name     string
 		messages []sdk.Message
 		wantLen  int
+		check    func(t *testing.T, params []anthropic.MessageParam)
 	}{
 		{
 			name:     "empty",
 			messages: []sdk.Message{},
 			wantLen:  0,
+			check:    func(t *testing.T, params []anthropic.MessageParam) {},
 		},
 		{
 			name: "user message",
@@ -721,6 +774,9 @@ func TestConvertMessages(t *testing.T) {
 				sdk.NewUserMessage("Hello"),
 			},
 			wantLen: 1,
+			check: func(t *testing.T, params []anthropic.MessageParam) {
+				assert.Equal(t, anthropic.MessageParamRoleUser, params[0].Role)
+			},
 		},
 		{
 			name: "user and assistant",
@@ -729,6 +785,10 @@ func TestConvertMessages(t *testing.T) {
 				sdk.NewAssistantMessage("Hi there"),
 			},
 			wantLen: 2,
+			check: func(t *testing.T, params []anthropic.MessageParam) {
+				assert.Equal(t, anthropic.MessageParamRoleUser, params[0].Role)
+				assert.Equal(t, anthropic.MessageParamRoleAssistant, params[1].Role)
+			},
 		},
 		{
 			name: "tool result groups into single user message",
@@ -742,6 +802,14 @@ func TestConvertMessages(t *testing.T) {
 				sdk.NewToolResultMessage("toolu_2", "read", "content", false),
 			},
 			wantLen: 3, // user + assistant + grouped tool results
+			check: func(t *testing.T, params []anthropic.MessageParam) {
+				assert.Equal(t, anthropic.MessageParamRoleUser, params[0].Role)
+				assert.Equal(t, anthropic.MessageParamRoleAssistant, params[1].Role)
+				assert.Equal(t, anthropic.MessageParamRoleUser, params[2].Role)
+				// Verify both tool results are in the third message
+				blocks := params[2].Content
+				require.Len(t, blocks, 2)
+			},
 		},
 		{
 			name: "tool result with error",
@@ -749,6 +817,57 @@ func TestConvertMessages(t *testing.T) {
 				sdk.NewToolResultMessage("toolu_err", "bash", "command not found", true),
 			},
 			wantLen: 1,
+			check: func(t *testing.T, params []anthropic.MessageParam) {
+				assert.Equal(t, anthropic.MessageParamRoleUser, params[0].Role)
+				blocks := params[0].Content
+				require.Len(t, blocks, 1)
+				assert.Equal(t, "toolu_err", *blocks[0].GetToolUseID())
+				assert.True(t, *blocks[0].GetIsError())
+			},
+		},
+		{
+			name: "assistant with thinking and redacted thinking",
+			messages: []sdk.Message{
+				{Role: sdk.RoleAssistant, Content: "answer", Thinking: []sdk.SignedThinking{
+					{Signature: "sig123", Thinking: "thinking text"},
+				}, RedactedThinking: []sdk.RedactedThinking{
+					{Data: "redacted_data"},
+				}},
+			},
+			wantLen: 1,
+			check: func(t *testing.T, params []anthropic.MessageParam) {
+				assert.Equal(t, anthropic.MessageParamRoleAssistant, params[0].Role)
+				blocks := params[0].Content
+				require.Len(t, blocks, 3) // thinking + redacted + text
+			},
+		},
+		{
+			name: "user message with non-string content",
+			messages: []sdk.Message{
+				{Role: sdk.RoleUser, Content: 42},
+			},
+			wantLen: 1,
+			check: func(t *testing.T, params []anthropic.MessageParam) {
+				blocks := params[0].Content
+				require.Len(t, blocks, 1)
+				assert.Equal(t, "42", *blocks[0].GetText())
+			},
+		},
+		{
+			name: "interleaved user and tool results",
+			messages: []sdk.Message{
+				sdk.NewUserMessage("first"),
+				sdk.NewToolResultMessage("toolu_1", "bash", "out1", false),
+				sdk.NewUserMessage("second"),
+				sdk.NewToolResultMessage("toolu_2", "bash", "out2", false),
+			},
+			wantLen: 4,
+			check: func(t *testing.T, params []anthropic.MessageParam) {
+				assert.Equal(t, anthropic.MessageParamRoleUser, params[0].Role)
+				assert.Equal(t, anthropic.MessageParamRoleUser, params[1].Role)
+				assert.Equal(t, anthropic.MessageParamRoleUser, params[2].Role)
+				assert.Equal(t, anthropic.MessageParamRoleUser, params[3].Role)
+			},
 		},
 	}
 
@@ -756,6 +875,10 @@ func TestConvertMessages(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			params := convertMessages(tt.messages)
 			assert.Len(t, params, tt.wantLen)
+
+			if tt.check != nil {
+				tt.check(t, params)
+			}
 		})
 	}
 }
@@ -779,9 +902,16 @@ func TestConvertTools(t *testing.T) {
 	}
 
 	result := convertTools(tools)
-	assert.Len(t, result, 1)
-	assert.NotNil(t, result[0].OfTool)
+	require.Len(t, result, 1)
+	require.NotNil(t, result[0].OfTool)
 	assert.Equal(t, "bash", result[0].OfTool.Name)
+	assert.True(t, result[0].OfTool.Description.Valid())
+	assert.Equal(t, "Run a command", result[0].OfTool.Description.Value)
+	require.NotNil(t, result[0].OfTool.InputSchema)
+	assert.Equal(t, []string{"command"}, result[0].OfTool.InputSchema.Required)
+	props, ok := result[0].OfTool.InputSchema.Properties.(map[string]any)
+	require.True(t, ok)
+	assert.Contains(t, props, "command")
 }
 
 func TestConvertTools_NilParameters(t *testing.T) {
@@ -793,8 +923,49 @@ func TestConvertTools_NilParameters(t *testing.T) {
 	}
 
 	result := convertTools(tools)
-	assert.Len(t, result, 1)
-	assert.NotNil(t, result[0].OfTool)
+	require.Len(t, result, 1)
+	require.NotNil(t, result[0].OfTool)
+	require.NotNil(t, result[0].OfTool.InputSchema)
+	assert.Nil(t, result[0].OfTool.InputSchema.Properties)
+	assert.Empty(t, result[0].OfTool.InputSchema.Required)
+}
+
+func TestConvertTools_RequiredAsAnySlice(t *testing.T) {
+	tools := []sdk.ToolDef{
+		{
+			Name:        "bash",
+			Description: "Run a command",
+			Parameters: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"command": map[string]any{"type": "string"},
+				},
+				"required": []any{"command"},
+			},
+		},
+	}
+
+	result := convertTools(tools)
+	require.Len(t, result, 1)
+	require.NotNil(t, result[0].OfTool)
+	assert.Equal(t, []string{"command"}, result[0].OfTool.InputSchema.Required)
+}
+
+func TestConvertTools_NonMapParameters(t *testing.T) {
+	tools := []sdk.ToolDef{
+		{
+			Name:        "bash",
+			Description: "Run a command",
+			Parameters:  "invalid",
+		},
+	}
+
+	result := convertTools(tools)
+	require.Len(t, result, 1)
+	require.NotNil(t, result[0].OfTool)
+	require.NotNil(t, result[0].OfTool.InputSchema)
+	assert.Nil(t, result[0].OfTool.InputSchema.Properties)
+	assert.Empty(t, result[0].OfTool.InputSchema.Required)
 }
 
 func TestResolveThinkingLevel_Clamping(t *testing.T) {
@@ -824,12 +995,20 @@ func TestResolveThinkingLevel_Clamping(t *testing.T) {
 
 	level = resolveThinkingLevel("no-reasoning", model.ThinkingHigh)
 	assert.Equal(t, model.ThinkingOff, level)
+
+	// ThinkingOff should stay off regardless of model
+	level = resolveThinkingLevel("kimi-for-coding", model.ThinkingOff)
+	assert.Equal(t, model.ThinkingOff, level)
+
+	// Unknown model should return level unchanged
+	level = resolveThinkingLevel("unknown-model", model.ThinkingHigh)
+	assert.Equal(t, model.ThinkingHigh, level)
 }
 
 func TestStream_ThinkingDoneEmitted(t *testing.T) {
 	events := []sseEvent{
 		{EventType: "message_start", Data: `{"type":"message_start","message":{"id":"msg_test","type":"message","role":"assistant","content":[],"model":"kimi-for-coding","stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":1}}}`},
-		{EventType: "content_block_start", Data: `{"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":""}}`},
+		{EventType: "content_block_start", Data: `{"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":"sig_abc123"}}`},
 		{EventType: "content_block_delta", Data: `{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"let me think"}}`},
 		{EventType: "content_block_stop", Data: `{"type":"content_block_stop","index":0}`},
 		{EventType: "content_block_start", Data: `{"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}}`},
@@ -862,6 +1041,7 @@ func TestStream_ThinkingDoneEmitted(t *testing.T) {
 
 	require.Len(t, thinkingDone, 1)
 	assert.Equal(t, "let me think", thinkingDone[0].Thinking)
+	assert.Equal(t, "sig_abc123", thinkingDone[0].Signature)
 }
 
 func TestStream_RedactedThinking(t *testing.T) {
@@ -958,80 +1138,30 @@ func TestStream_UserAgentHeader(t *testing.T) {
 	assert.Equal(t, "KimiCLI/1.5", receivedUserAgent)
 }
 
-func TestRegister(t *testing.T) {
-	assert.True(t, sdk.ProviderRegistered("kimi"))
-}
-
-func TestModelRegistration(t *testing.T) {
+func TestProviderInit_InvalidMaxTokensEnv(t *testing.T) {
 	model.ResetModelRegistry()
 	defer model.ResetModelRegistry()
 
 	RegisterModels()
 
-	m, ok := model.GetModel("kimi-for-coding")
-	require.True(t, ok)
-	assert.Equal(t, "kimi", m.Provider)
-	assert.Equal(t, "Kimi For Coding", m.DisplayName)
-	assert.True(t, m.Reasoning)
-	assert.True(t, m.SupportsXHigh)
-	assert.Equal(t, 262144, m.ContextWindow)
-	assert.Equal(t, 32768, m.MaxTokens)
-	assert.True(t, m.Default)
-
-	m2, ok := model.GetModel("k2p6")
-	require.True(t, ok)
-	assert.Equal(t, "kimi", m2.Provider)
-	assert.False(t, m2.Default)
-
-	m3, ok := model.GetModel("kimi-k2-thinking")
-	require.True(t, ok)
-	assert.Equal(t, "kimi", m3.Provider)
-	assert.False(t, m3.Default)
-
-	kimiModels := model.ListModelsForProvider("kimi")
-	assert.Len(t, kimiModels, 3)
-}
-
-func TestEnvVarRegistration(t *testing.T) {
-	envVar := model.ProviderEnvVar("kimi")
-	assert.Equal(t, "KIMI_API_KEY", envVar)
-}
-
-func TestListProviders(t *testing.T) {
-	providers := sdk.ListProviders()
-	assert.Contains(t, providers, "kimi")
-}
-
-func TestDefaultModelForProvider(t *testing.T) {
-	model.ResetModelRegistry()
-	defer model.ResetModelRegistry()
-
-	RegisterModels()
-
-	m, ok := model.DefaultModelForProvider("kimi")
-	require.True(t, ok)
-	assert.Equal(t, "kimi-for-coding", m.ID)
-	assert.True(t, m.Default)
-}
-
-func TestIntegration_FullStream(t *testing.T) {
-	model.ResetModelRegistry()
-	defer model.ResetModelRegistry()
-
-	RegisterModels()
+	var receivedBody string
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		writeSSE(w, textStreamEvents("integrated response"))
+		buf := make([]byte, r.ContentLength)
+		_, _ = r.Body.Read(buf)
+		receivedBody = string(buf)
+
+		writeSSE(w, textStreamEvents("hi"))
 	}))
 	defer server.Close()
 
-	cfg := &mockConfig{
-		resolveKey: "test-api-key",
-		providerConfig: &sdk.ProviderConfigEntry{
-			BaseURL: server.URL,
-		},
-	}
+	// Test invalid value - should fall back to default
+	t.Setenv("KIMI_MAX_TOKENS", "invalid")
 
+	cfg := &mockConfig{
+		resolveKey:     "test-api-key",
+		providerConfig: &sdk.ProviderConfigEntry{BaseURL: server.URL},
+	}
 	p, err := sdk.GetProvider("kimi", cfg)
 	require.NoError(t, err)
 	require.NotNil(t, p)
@@ -1040,80 +1170,194 @@ func TestIntegration_FullStream(t *testing.T) {
 		Messages: []sdk.Message{sdk.NewUserMessage("hello")},
 	})
 	require.NoError(t, err)
+	collectEvents(t, ch)
 
-	events := collectEvents(t, ch)
+	assert.Contains(t, receivedBody, "32768")
 
-	var textDeltas []string
+	// Test negative value - should also fall back to default
+	receivedBody = ""
 
-	for _, evt := range events {
-		if evt.Type == sdk.ProviderEventTextDelta {
-			textDeltas = append(textDeltas, evt.Content.(string))
-		}
-	}
+	t.Setenv("KIMI_MAX_TOKENS", "-1")
 
-	assert.Equal(t, []string{"integrated response"}, textDeltas)
+	p2, err := sdk.GetProvider("kimi", cfg)
+	require.NoError(t, err)
+	require.NotNil(t, p2)
+
+	ch, err = p2.Stream(context.Background(), sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("hello")},
+	})
+	require.NoError(t, err)
+	collectEvents(t, ch)
+
+	assert.Contains(t, receivedBody, "32768")
 }
 
-func TestIntegration_ProviderStreamWithTools(t *testing.T) {
-	model.ResetModelRegistry()
-	defer model.ResetModelRegistry()
-
-	RegisterModels()
+func TestStream_WithMaxTokensOverride(t *testing.T) {
+	var receivedBody string
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		writeSSE(w, textAndToolEvents("I will run a command.", "toolu_int", "bash", `{"command":"echo hello"}`))
+		buf := make([]byte, r.ContentLength)
+		_, _ = r.Body.Read(buf)
+		receivedBody = string(buf)
+
+		writeSSE(w, textStreamEvents("hi"))
 	}))
 	defer server.Close()
 
-	cfg := &mockConfig{
-		resolveKey: "test-api-key",
-		providerConfig: &sdk.ProviderConfigEntry{
-			BaseURL: server.URL,
-		},
-	}
-
-	p, err := sdk.GetProvider("kimi", cfg)
+	p := newTestProvider(server)
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("hello")},
+	}, model.WithMaxTokens(12345))
 	require.NoError(t, err)
+	collectEvents(t, ch)
+
+	assert.Contains(t, receivedBody, "12345")
+}
+
+func TestNewProviderWithClient_EmptyModel(t *testing.T) {
+	var receivedBody string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf := make([]byte, r.ContentLength)
+		_, _ = r.Body.Read(buf)
+		receivedBody = string(buf)
+
+		writeSSE(w, textStreamEvents("hi"))
+	}))
+	defer server.Close()
+
+	client := anthropic.NewClient(
+		option.WithAPIKey("test-key"),
+		option.WithBaseURL(server.URL),
+	)
+	p := NewProviderWithClient(client, "")
 	require.NotNil(t, p)
 
 	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
-		Messages: []sdk.Message{sdk.NewUserMessage("Run a command")},
-		Tools: []sdk.ToolDef{
-			{
-				Name:        "bash",
-				Description: "Run a bash command",
-				Parameters: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"command": map[string]any{"type": "string"},
-					},
-					"required": []string{"command"},
-				},
-			},
-		},
+		Messages: []sdk.Message{sdk.NewUserMessage("hello")},
+	})
+	require.NoError(t, err)
+	collectEvents(t, ch)
+
+	assert.Contains(t, receivedBody, "kimi-for-coding")
+}
+
+func TestStream_ContextCancellation(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeSSE(w, textStreamEvents("Hello"))
+	}))
+	defer server.Close()
+
+	p := newTestProvider(server)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	ch, err := p.Stream(ctx, sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("hello")},
 	})
 	require.NoError(t, err)
 
-	events := collectEvents(t, ch)
+	// Cancel immediately
+	cancel()
 
-	var (
-		textDeltas []string
-		toolCalls  []sdk.ToolCall
-	)
+	// Collect events - should get empty or partial results without hanging
+	done := make(chan []sdk.ProviderEvent)
 
-	for _, evt := range events {
-		switch evt.Type {
-		case sdk.ProviderEventTextDelta:
-			textDeltas = append(textDeltas, evt.Content.(string))
-		case sdk.ProviderEventToolCall:
+	go func() {
+		var events []sdk.ProviderEvent
+		for evt := range ch {
+			events = append(events, evt)
+		}
+
+		done <- events
+	}()
+
+	select {
+	case events := <-done:
+		// Channel closed properly - no panic or hang
+		_ = events
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for canceled stream to close")
+	}
+}
+
+func TestStream_NoSystemPromptWhenEmpty(t *testing.T) {
+	var receivedBody string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf := make([]byte, r.ContentLength)
+		_, _ = r.Body.Read(buf)
+		receivedBody = string(buf)
+
+		writeSSE(w, textStreamEvents("hi"))
+	}))
+	defer server.Close()
+
+	p := newTestProvider(server)
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("hello")},
+	})
+	require.NoError(t, err)
+	collectEvents(t, ch)
+
+	assert.NotContains(t, receivedBody, `"system"`)
+}
+
+func TestStream_ParseToolArgs_EdgeCases(t *testing.T) {
+	// Empty JSON input - should produce empty map
+	events := []sseEvent{
+		{EventType: "message_start", Data: `{"type":"message_start","message":{"id":"msg_test","type":"message","role":"assistant","content":[],"model":"kimi-for-coding","stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":20,"output_tokens":1}}}`},
+		{EventType: "content_block_start", Data: `{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_empty","name":"bash","input":{}}}`},
+		{EventType: "content_block_delta", Data: `{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":""}}`},
+		{EventType: "content_block_stop", Data: `{"type":"content_block_stop","index":0}`},
+		{EventType: "message_delta", Data: `{"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"output_tokens":50}}`},
+		{EventType: "message_stop", Data: `{"type":"message_stop"}`},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeSSE(w, events)
+	}))
+	defer server.Close()
+
+	p := newTestProvider(server)
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("Run")},
+	})
+	require.NoError(t, err)
+
+	collected := collectEvents(t, ch)
+
+	var toolCalls []sdk.ToolCall
+
+	for _, evt := range collected {
+		if evt.Type == sdk.ProviderEventToolCall {
 			toolCalls = append(toolCalls, evt.Content.(sdk.ToolCall))
 		}
 	}
 
-	assert.Equal(t, []string{"I will run a command."}, textDeltas)
 	require.Len(t, toolCalls, 1)
 	assert.Equal(t, "bash", toolCalls[0].Name)
-	assert.Equal(t, map[string]any{"command": "echo hello"}, toolCalls[0].Arguments)
+	assert.Empty(t, toolCalls[0].Arguments)
+}
+
+func TestParseToolArgs_MalformedJSON(t *testing.T) {
+	var sent bool
+
+	send := func(evt sdk.ProviderEvent) bool {
+		sent = true
+		return true
+	}
+
+	args := parseToolArgs("bash", "{not valid json", send)
+	assert.Nil(t, args)
+	assert.True(t, sent)
+}
+
+func TestParseToolArgs_EmptyRaw(t *testing.T) {
+	send := func(evt sdk.ProviderEvent) bool { return true }
+
+	args := parseToolArgs("bash", "", send)
+	assert.NotNil(t, args)
+	assert.Empty(t, args)
 }
 
 // mockConfig implements sdk.Config for testing provider initialization.

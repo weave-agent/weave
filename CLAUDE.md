@@ -91,7 +91,8 @@ Unified settings JSON format (single file — project `~/.weave/settings.json` o
   "providers": {
     "kimi": {
       "model": "kimi-for-coding",
-      "max_tokens": 32768
+      "max_tokens": 32768,
+      "base_url": "https://api.kimi.com/coding"
     }
   },
   "sandbox": { "mode": "auto", "writable": ["."] },
@@ -129,7 +130,8 @@ Settings JSON format:
   "providers": {
     "kimi": {
       "model": "kimi-for-coding",
-      "max_tokens": 32768
+      "max_tokens": 32768,
+      "base_url": "https://api.kimi.com/coding"
     }
   }
 }
@@ -171,6 +173,7 @@ Built-in bindings: Escape=interrupt, Ctrl+C=double-press (first clears editor, s
 - `OPENAI_API_KEY` — required for OpenAI provider (default model: `gpt-5.5`, override with `OPENAI_MODEL`)
 - `ZAI_API_KEY` — required for Z.ai provider (default model: `glm-5.1`, override with `ZAI_MODEL`)
 - `KIMI_API_KEY` — required for Kimi provider (default model: `kimi-for-coding`, override with `KIMI_MODEL`)
+- `KIMI_MAX_TOKENS` — override the default max tokens (32768) for Kimi provider
 - `WEAVE_PROVIDER` — override the active provider at runtime (e.g., `openai`, `zai`); highest priority, overrides settings.json preference
 - `WEAVE_THINKING_LEVEL` — initial thinking level (default: `medium`)
 - `WEAVE_OFFLINE` — set to `1` to skip the startup extension update check (for offline/air-gapped environments)
@@ -180,6 +183,13 @@ Built-in bindings: Escape=interrupt, Ctrl+C=double-press (first clears editor, s
 2. `settings.json` `"provider"` field (persisted user preference)
 3. Alphabetically first registered provider (`sdk.ListProviders()[0]`)
 4. `"anthropic"` (ultimate fallback)
+
+**Kimi models:**
+| ID | Display Name | Context | Max Tokens | Reasoning | Default |
+|---|---|---|---|---|---|
+| `kimi-for-coding` | Kimi For Coding | 262144 | 32768 | yes | yes |
+| `k2p6` | Kimi K2.6 | 262144 | 32768 | yes | no |
+| `kimi-k2-thinking` | Kimi K2 Thinking | 262144 | 32768 | yes | no |
 
 **Extension management:**
 - `weave install <source> [--name <name>]` — install an extension from a git URL, GitHub shorthand, or local path into `~/.weave/extensions/<name>/`
