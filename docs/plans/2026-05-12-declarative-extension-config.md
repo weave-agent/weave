@@ -59,14 +59,14 @@ Key changes:
 
 ### Task 3: Add generic registration + schema capture
 
-- [ ] Change `RegisterTool` to generic: `RegisterTool[T any](name string, factory func(Config, T) (Tool, error))`
-- [ ] Change `RegisterProvider` to generic: `RegisterProvider[T any](name string, factory func(Config, T) (Provider, error))`
-- [ ] Change `RegisterExtension` to generic: `RegisterExtension[T any](name string, factory func(Config, T) (Extension, error))`
-- [ ] Add schema extraction at registration time (`extractSchema` reflection)
-- [ ] Store schemas in `sdk` registry for help generation
-- [ ] Update `GetTool`/`GetProvider`/`GetExtension` to populate config via `ExtensionConfig` before calling factory
-- [ ] Update `sdk/tool_registry_test.go`, `sdk/provider_registry_test.go`, `sdk/registry_test.go`
-- [ ] Run `go test ./sdk/...` — must pass
+- [x] Change `RegisterTool` to generic: `RegisterTool[T any](name string, factory func(Config, T) (Tool, error))`
+- [x] Change `RegisterProvider` to generic: `RegisterProvider[T any](name string, factory func(Config, T) (Provider, error))`
+- [x] Change `RegisterExtension` to generic: `RegisterExtension[T any](name string, factory func(Config, T) (Extension, error))`
+- [x] Add schema extraction at registration time (`extractSchema` reflection)
+- [x] Store schemas in `sdk` registry for help generation
+- [x] Update `GetTool`/`GetProvider`/`GetExtension` to populate config via `ExtensionConfig` before calling factory
+- [x] Update `sdk/tool_registry_test.go`, `sdk/provider_registry_test.go`, `sdk/registry_test.go`
+- [x] Run `go test ./sdk/...` — must pass
 
 ### Task 4: Settings cleanup + loader integration
 

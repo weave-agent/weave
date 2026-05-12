@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"reflect"
+	"strings"
 	"sync"
 
 	"weave/sdk/registry"
@@ -13,8 +15,27 @@ var toolReg = registry.New[func(Config) (Tool, error)](
 	registry.WithWarn[func(Config) (Tool, error)](log.New(os.Stderr, "weave: ", 0), "tool"),
 )
 
-func RegisterTool(name string, factory func(Config) (Tool, error)) {
-	toolReg.Register(name, factory)
+// RegisterTool registers a tool factory with a typed configuration struct.
+// The framework will automatically populate the config struct from settings, env vars,
+// and CLI flags before calling the factory.
+func RegisterTool[T any](name string, factory func(Config, T) (Tool, error)) {
+	var zero T
+
+	schema := extractSchema(reflect.TypeOf(zero))
+	storeSchema("tools", name, schema)
+
+	wrapper := func(cfg Config) (Tool, error) {
+		var t T
+
+		envPrefix := "WEAVE_" + strings.ToUpper(name)
+		if err := cfg.ExtensionConfig("tools", name, &t, envPrefix); err != nil {
+			return nil, fmt.Errorf("load tool config: %w", err)
+		}
+
+		return factory(configOrDefault(cfg), t)
+	}
+
+	toolReg.Register(name, wrapper)
 }
 
 func GetTool(name string, cfg Config) (Tool, error) {

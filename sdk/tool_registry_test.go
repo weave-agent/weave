@@ -13,7 +13,7 @@ import (
 func TestRegisterAndRetrieveTool(t *testing.T) {
 	ResetToolRegistry()
 
-	RegisterTool("bash", func(Config) (Tool, error) {
+	RegisterTool[struct{}]("bash", func(Config, struct{}) (Tool, error) {
 		return &ToolMock{
 			NameFunc: func() string { return "bash" },
 			DefinitionFunc: func() ToolDef {
@@ -30,12 +30,12 @@ func TestRegisterAndRetrieveTool(t *testing.T) {
 func TestDuplicateToolRegistration(t *testing.T) {
 	ResetToolRegistry()
 
-	RegisterTool("dup", func(Config) (Tool, error) {
+	RegisterTool[struct{}]("dup", func(Config, struct{}) (Tool, error) {
 		return &ToolMock{NameFunc: func() string { return "first" }}, nil
 	})
 
 	// Second registration should be a no-op with a warning (no panic).
-	RegisterTool("dup", func(Config) (Tool, error) {
+	RegisterTool[struct{}]("dup", func(Config, struct{}) (Tool, error) {
 		return &ToolMock{NameFunc: func() string { return "second" }}, nil
 	})
 
@@ -55,7 +55,7 @@ func TestMissingTool(t *testing.T) {
 func TestGetTool_FactoryError(t *testing.T) {
 	ResetToolRegistry()
 
-	RegisterTool("fail", func(Config) (Tool, error) {
+	RegisterTool[struct{}]("fail", func(Config, struct{}) (Tool, error) {
 		return nil, errors.New("factory error")
 	})
 
@@ -67,10 +67,10 @@ func TestGetTool_FactoryError(t *testing.T) {
 func TestListTools(t *testing.T) {
 	ResetToolRegistry()
 
-	RegisterTool("bash", func(Config) (Tool, error) {
+	RegisterTool[struct{}]("bash", func(Config, struct{}) (Tool, error) {
 		return &ToolMock{NameFunc: func() string { return "bash" }}, nil
 	})
-	RegisterTool("file", func(Config) (Tool, error) {
+	RegisterTool[struct{}]("file", func(Config, struct{}) (Tool, error) {
 		return &ToolMock{NameFunc: func() string { return "file" }}, nil
 	})
 
@@ -83,7 +83,7 @@ func TestListTools(t *testing.T) {
 func TestResetToolRegistry(t *testing.T) {
 	ResetToolRegistry()
 
-	RegisterTool("temp", func(Config) (Tool, error) {
+	RegisterTool[struct{}]("temp", func(Config, struct{}) (Tool, error) {
 		return &ToolMock{NameFunc: func() string { return "temp" }}, nil
 	})
 
@@ -95,13 +95,13 @@ func TestResetToolRegistry(t *testing.T) {
 func TestSetToolFilter(t *testing.T) {
 	ResetToolRegistry()
 
-	RegisterTool("bash", func(Config) (Tool, error) {
+	RegisterTool[struct{}]("bash", func(Config, struct{}) (Tool, error) {
 		return &ToolMock{NameFunc: func() string { return "bash" }}, nil
 	})
-	RegisterTool("read", func(Config) (Tool, error) {
+	RegisterTool[struct{}]("read", func(Config, struct{}) (Tool, error) {
 		return &ToolMock{NameFunc: func() string { return "read" }}, nil
 	})
-	RegisterTool("edit", func(Config) (Tool, error) {
+	RegisterTool[struct{}]("edit", func(Config, struct{}) (Tool, error) {
 		return &ToolMock{NameFunc: func() string { return "edit" }}, nil
 	})
 
@@ -116,10 +116,10 @@ func TestSetToolFilter(t *testing.T) {
 func TestSetToolFilter_EmptyBlocksAll(t *testing.T) {
 	ResetToolRegistry()
 
-	RegisterTool("bash", func(Config) (Tool, error) {
+	RegisterTool[struct{}]("bash", func(Config, struct{}) (Tool, error) {
 		return &ToolMock{NameFunc: func() string { return "bash" }}, nil
 	})
-	RegisterTool("read", func(Config) (Tool, error) {
+	RegisterTool[struct{}]("read", func(Config, struct{}) (Tool, error) {
 		return &ToolMock{NameFunc: func() string { return "read" }}, nil
 	})
 
@@ -136,7 +136,7 @@ func TestSetToolFilter_EmptyBlocksAll(t *testing.T) {
 func TestSetToolFilter_UnknownToolIgnored(t *testing.T) {
 	ResetToolRegistry()
 
-	RegisterTool("bash", func(Config) (Tool, error) {
+	RegisterTool[struct{}]("bash", func(Config, struct{}) (Tool, error) {
 		return &ToolMock{NameFunc: func() string { return "bash" }}, nil
 	})
 
@@ -150,10 +150,10 @@ func TestSetToolFilter_UnknownToolIgnored(t *testing.T) {
 func TestSetToolFilter_NilClearsFilter(t *testing.T) {
 	ResetToolRegistry()
 
-	RegisterTool("bash", func(Config) (Tool, error) {
+	RegisterTool[struct{}]("bash", func(Config, struct{}) (Tool, error) {
 		return &ToolMock{NameFunc: func() string { return "bash" }}, nil
 	})
-	RegisterTool("read", func(Config) (Tool, error) {
+	RegisterTool[struct{}]("read", func(Config, struct{}) (Tool, error) {
 		return &ToolMock{NameFunc: func() string { return "read" }}, nil
 	})
 
@@ -166,6 +166,85 @@ func TestSetToolFilter_NilClearsFilter(t *testing.T) {
 
 	names = ListTools()
 	assert.Equal(t, []string{"bash", "read"}, names)
+}
+
+// Test config population via ExtensionConfig in generic registration.
+
+type testToolConfig struct {
+	Timeout int    `json:"timeout" default:"120"`
+	Shell   string `json:"shell" default:"bash"`
+}
+
+func TestRegisterTool_ConfigPopulation(t *testing.T) {
+	ResetToolRegistry()
+	ResetSchemas()
+
+	var receivedConfig testToolConfig
+
+	RegisterTool("bash", func(cfg Config, bc testToolConfig) (Tool, error) {
+		receivedConfig = bc
+		return &ToolMock{NameFunc: func() string { return "bash" }}, nil
+	})
+
+	mock := &ConfigMock{
+		ExtensionConfigFunc: func(scope, name string, target any, envPrefix string) error {
+			// Simulate populating the config
+			if tc, ok := target.(*testToolConfig); ok {
+				tc.Timeout = 60
+				tc.Shell = "zsh"
+			}
+
+			return nil
+		},
+	}
+
+	got, err := GetTool("bash", mock)
+	require.NoError(t, err)
+	assert.Equal(t, "bash", got.Name())
+	assert.Equal(t, 60, receivedConfig.Timeout)
+	assert.Equal(t, "zsh", receivedConfig.Shell)
+}
+
+func TestRegisterTool_ConfigPopulationError(t *testing.T) {
+	ResetToolRegistry()
+
+	RegisterTool("bash", func(cfg Config, bc testToolConfig) (Tool, error) {
+		return &ToolMock{NameFunc: func() string { return "bash" }}, nil
+	})
+
+	mock := &ConfigMock{
+		ExtensionConfigFunc: func(scope, name string, target any, envPrefix string) error {
+			return errors.New("config error")
+		},
+	}
+
+	_, err := GetTool("bash", mock)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "config error")
+}
+
+func TestRegisterTool_SchemaExtraction(t *testing.T) {
+	ResetToolRegistry()
+	ResetSchemas()
+
+	RegisterTool("bash", func(cfg Config, bc testToolConfig) (Tool, error) {
+		return &ToolMock{NameFunc: func() string { return "bash" }}, nil
+	})
+
+	schema, scope, ok := GetSchema("bash")
+	require.True(t, ok)
+	assert.Equal(t, "tools", scope)
+	require.Len(t, schema.Fields, 2)
+
+	fieldMap := make(map[string]SchemaField)
+	for _, f := range schema.Fields {
+		fieldMap[f.JSONName] = f
+	}
+
+	assert.Equal(t, "int", fieldMap["timeout"].Type)
+	assert.Equal(t, "120", fieldMap["timeout"].Default)
+	assert.Equal(t, "string", fieldMap["shell"].Type)
+	assert.Equal(t, "bash", fieldMap["shell"].Default)
 }
 
 // Suppress unused import warning.

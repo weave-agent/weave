@@ -12,7 +12,7 @@ import (
 func TestRegisterAndRetrieveProvider(t *testing.T) {
 	ResetProviderRegistry()
 
-	RegisterProvider("mock", func(Config) (Provider, error) {
+	RegisterProvider[struct{}]("mock", func(Config, struct{}) (Provider, error) {
 		return &ProviderMock{}, nil
 	})
 
@@ -24,12 +24,12 @@ func TestRegisterAndRetrieveProvider(t *testing.T) {
 func TestDuplicateProviderRegistration(t *testing.T) {
 	ResetProviderRegistry()
 
-	RegisterProvider("dup", func(Config) (Provider, error) {
+	RegisterProvider[struct{}]("dup", func(Config, struct{}) (Provider, error) {
 		return &ProviderMock{}, nil
 	})
 
 	// Second registration should be a no-op with a warning (no panic).
-	RegisterProvider("dup", func(Config) (Provider, error) {
+	RegisterProvider[struct{}]("dup", func(Config, struct{}) (Provider, error) {
 		return &ProviderMock{}, nil
 	})
 
@@ -49,7 +49,7 @@ func TestMissingProvider(t *testing.T) {
 func TestGetProvider_FactoryError(t *testing.T) {
 	ResetProviderRegistry()
 
-	RegisterProvider("fail", func(Config) (Provider, error) {
+	RegisterProvider[struct{}]("fail", func(Config, struct{}) (Provider, error) {
 		return nil, errors.New("factory error")
 	})
 
@@ -61,10 +61,10 @@ func TestGetProvider_FactoryError(t *testing.T) {
 func TestListProviders(t *testing.T) {
 	ResetProviderRegistry()
 
-	RegisterProvider("anthropic", func(Config) (Provider, error) {
+	RegisterProvider[struct{}]("anthropic", func(Config, struct{}) (Provider, error) {
 		return &ProviderMock{}, nil
 	})
-	RegisterProvider("openai", func(Config) (Provider, error) {
+	RegisterProvider[struct{}]("openai", func(Config, struct{}) (Provider, error) {
 		return &ProviderMock{}, nil
 	})
 
@@ -77,7 +77,7 @@ func TestListProviders(t *testing.T) {
 func TestResetProviderRegistry(t *testing.T) {
 	ResetProviderRegistry()
 
-	RegisterProvider("temp", func(Config) (Provider, error) {
+	RegisterProvider[struct{}]("temp", func(Config, struct{}) (Provider, error) {
 		return &ProviderMock{}, nil
 	})
 

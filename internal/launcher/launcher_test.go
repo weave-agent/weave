@@ -236,7 +236,7 @@ func createModuleRoot(t *testing.T) string {
 	t.Helper()
 
 	root := t.TempDir()
-	for _, dir := range []string{"sdk", "bus", "settings", "utils/truncate", "launcher", "internal/auth", "cmd/weave/extmanage"} {
+	for _, dir := range []string{"sdk", "bus", "settings", "utils/truncate", "internal/launcher", "internal/auth", "internal/extmanage"} {
 		require.NoError(t, os.MkdirAll(filepath.Join(root, dir), 0o750))
 	}
 

@@ -43,13 +43,13 @@ func TestWire_SubscribesAllExtensions(t *testing.T) {
 
 	var subscribed atomic.Int32
 
-	sdk.RegisterExtension("ext-a", func(sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("ext-a", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFunc("ext-a", func(bus sdk.Bus) error {
 			subscribed.Add(1)
 			return nil
 		}), nil
 	})
-	sdk.RegisterExtension("ext-b", func(sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("ext-b", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFunc("ext-b", func(bus sdk.Bus) error {
 			subscribed.Add(1)
 			return nil
@@ -81,7 +81,7 @@ func TestWire_ReceiveBusInSubscribe(t *testing.T) {
 
 	var receivedBus sdk.Bus
 
-	sdk.RegisterExtension("ext-c", func(sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("ext-c", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFunc("ext-c", func(bus sdk.Bus) error {
 			receivedBus = bus
 			return nil
@@ -98,7 +98,7 @@ func TestWire_ReceiveBusInSubscribe(t *testing.T) {
 func TestWire_PartialMissing(t *testing.T) {
 	sdk.ResetRegistry()
 
-	sdk.RegisterExtension("good", func(sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("good", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFunc("good", func(bus sdk.Bus) error { return nil }), nil
 	})
 
@@ -130,7 +130,7 @@ func TestWire_PassesConfigToFactory(t *testing.T) {
 
 	var receivedCfg sdk.Config
 
-	sdk.RegisterExtension("cfg-ext", func(cfg sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("cfg-ext", func(cfg sdk.Config, _ struct{}) (sdk.Extension, error) {
 		receivedCfg = cfg
 		return sdk.NewExtensionFunc("cfg-ext", func(sdk.Bus) error { return nil }), nil
 	})
@@ -147,7 +147,7 @@ func TestWire_PassesConfigToFactory(t *testing.T) {
 func TestWire_FactoryError(t *testing.T) {
 	sdk.ResetRegistry()
 
-	sdk.RegisterExtension("bad", func(sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("bad", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return nil, errors.New("init failed")
 	})
 
@@ -162,13 +162,13 @@ func TestWired_Close(t *testing.T) {
 
 	var closed atomic.Int32
 
-	sdk.RegisterExtension("a", func(sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("a", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFuncWithClose("a", func(sdk.Bus) error { return nil }, func() error {
 			closed.Add(1)
 			return nil
 		}), nil
 	})
-	sdk.RegisterExtension("b", func(sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("b", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFuncWithClose("b", func(sdk.Bus) error { return nil }, func() error {
 			closed.Add(1)
 			return nil
@@ -189,13 +189,13 @@ func TestWired_CloseReverseOrder(t *testing.T) {
 
 	var order []string
 
-	sdk.RegisterExtension("first", func(sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("first", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFuncWithClose("first", func(sdk.Bus) error { return nil }, func() error {
 			order = append(order, "first")
 			return nil
 		}), nil
 	})
-	sdk.RegisterExtension("second", func(sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("second", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFuncWithClose("second", func(sdk.Bus) error { return nil }, func() error {
 			order = append(order, "second")
 			return nil
@@ -217,7 +217,7 @@ func TestWireWithCore_MergesCoreAndOptional(t *testing.T) {
 	var names []string
 
 	reg := func(n string) {
-		sdk.RegisterExtension(n, func(sdk.Config) (sdk.Extension, error) {
+		sdk.RegisterExtension(n, func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 			return sdk.NewExtensionFunc(n, func(sdk.Bus) error {
 				names = append(names, n)
 				return nil
@@ -247,7 +247,7 @@ func TestWireWithCore_Deduplicates(t *testing.T) {
 	var subscribed atomic.Int32
 
 	reg := func(n string) {
-		sdk.RegisterExtension(n, func(sdk.Config) (sdk.Extension, error) {
+		sdk.RegisterExtension(n, func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 			return sdk.NewExtensionFunc(n, func(sdk.Bus) error {
 				subscribed.Add(1)
 				return nil
@@ -276,7 +276,7 @@ func TestWireWithCore_CoreOnly(t *testing.T) {
 	var names []string
 
 	reg := func(n string) {
-		sdk.RegisterExtension(n, func(sdk.Config) (sdk.Extension, error) {
+		sdk.RegisterExtension(n, func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 			return sdk.NewExtensionFunc(n, func(sdk.Bus) error {
 				names = append(names, n)
 				return nil
@@ -307,7 +307,7 @@ func TestWireWithCore_ErrMissingAgentLoop(t *testing.T) {
 func TestWireWithCore_NoProviderRequired(t *testing.T) {
 	sdk.ResetRegistry()
 
-	sdk.RegisterExtension("loop", func(sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("loop", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFunc("loop", func(sdk.Bus) error { return nil }), nil
 	})
 
@@ -322,13 +322,13 @@ func TestWireWithCore_FactoryErrorRollback(t *testing.T) {
 
 	var closed atomic.Int32
 
-	sdk.RegisterExtension("loop", func(sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("loop", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFuncWithClose("loop", func(sdk.Bus) error { return nil }, func() error {
 			closed.Add(1)
 			return nil
 		}), nil
 	})
-	sdk.RegisterExtension("bad", func(sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("bad", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return nil, errors.New("init failed")
 	})
 
@@ -343,12 +343,12 @@ func TestWireWithCore_FactoryErrorRollback(t *testing.T) {
 func TestWired_CloseErrorAggregation(t *testing.T) {
 	sdk.ResetRegistry()
 
-	sdk.RegisterExtension("a", func(sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("a", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFuncWithClose("a", func(sdk.Bus) error { return nil }, func() error {
 			return errors.New("a failed")
 		}), nil
 	})
-	sdk.RegisterExtension("b", func(sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("b", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFuncWithClose("b", func(sdk.Bus) error { return nil }, func() error {
 			return errors.New("b failed")
 		}), nil
@@ -370,7 +370,7 @@ func TestWireWithCore_PassesConfigToFactories(t *testing.T) {
 
 	var receivedCfg sdk.Config
 
-	sdk.RegisterExtension("loop", func(cfg sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("loop", func(cfg sdk.Config, _ struct{}) (sdk.Extension, error) {
 		receivedCfg = cfg
 		return sdk.NewExtensionFunc("loop", func(sdk.Bus) error { return nil }), nil
 	})
@@ -388,7 +388,7 @@ func TestWireWithCore_PassesConfigToFactories(t *testing.T) {
 func TestWire_ExtensionCallsBusOn(t *testing.T) {
 	sdk.ResetRegistry()
 
-	sdk.RegisterExtension("on-ext", func(sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("on-ext", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFunc("on-ext", func(bus sdk.Bus) error {
 			bus.On("test.topic", func(e sdk.Event) error { return nil })
 			return nil
@@ -408,7 +408,7 @@ func TestWire_ExtensionCallsBusOn(t *testing.T) {
 func TestWire_ExtensionCallsBusOnAll(t *testing.T) {
 	sdk.ResetRegistry()
 
-	sdk.RegisterExtension("onall-ext", func(sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("onall-ext", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFunc("onall-ext", func(bus sdk.Bus) error {
 			bus.OnAll(func(e sdk.Event) error { return nil })
 			return nil
@@ -427,7 +427,7 @@ func TestWire_ExtensionCallsBusOnAll(t *testing.T) {
 func TestWire_MultipleExtensionsRegisterHandlers(t *testing.T) {
 	sdk.ResetRegistry()
 
-	sdk.RegisterExtension("ext-1", func(sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("ext-1", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFunc("ext-1", func(bus sdk.Bus) error {
 			bus.On("topic.a", func(e sdk.Event) error { return nil })
 			bus.On("topic.b", func(e sdk.Event) error { return nil })
@@ -435,7 +435,7 @@ func TestWire_MultipleExtensionsRegisterHandlers(t *testing.T) {
 			return nil
 		}), nil
 	})
-	sdk.RegisterExtension("ext-2", func(sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("ext-2", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFunc("ext-2", func(bus sdk.Bus) error {
 			bus.OnAll(func(e sdk.Event) error { return nil })
 			return nil
@@ -468,7 +468,7 @@ func TestWireWithCore_PublishesAppStarted(t *testing.T) {
 		handlerCalled.Store(true)
 	})
 
-	sdk.RegisterExtension("loop", func(sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("loop", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFunc("loop", func(sdk.Bus) error { return nil }), nil
 	})
 
@@ -498,7 +498,7 @@ func TestWireWithCore_AppStartedNotCalledWhenHeadless(t *testing.T) {
 		handlerCalled.Store(true)
 	})
 
-	sdk.RegisterExtension("loop", func(sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("loop", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFunc("loop", func(sdk.Bus) error { return nil }), nil
 	})
 
@@ -516,7 +516,7 @@ func TestWireWithCore_AppStartedNotCalledWhenHeadless(t *testing.T) {
 func TestWireWithCore_ExtensionUsesBusOn(t *testing.T) {
 	sdk.ResetRegistry()
 
-	sdk.RegisterExtension("loop", func(sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("loop", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFunc("loop", func(bus sdk.Bus) error {
 			bus.On("agent.prompt", func(e sdk.Event) error { return nil })
 			return nil
@@ -538,7 +538,7 @@ func TestWire_WireSubscribesExtensionsInProcess(t *testing.T) {
 
 	var subscribeCalled bool
 
-	sdk.RegisterExtension("noop", func(cfg sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("noop", func(cfg sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFunc("noop", func(b sdk.Bus) error {
 			subscribeCalled = true
 

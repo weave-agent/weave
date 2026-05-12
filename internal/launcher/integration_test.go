@@ -22,13 +22,13 @@ import (
 )
 
 func init() {
-	sdk.RegisterExtension("noop", func(cfg sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("noop", func(cfg sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFunc("noop", func(b sdk.Bus) error {
 			b.Publish(sdk.NewEvent("noop.ready", "noop extension active"))
 			return nil
 		}), nil
 	})
-	sdk.RegisterProvider("noop", func(cfg sdk.Config) (sdk.Provider, error) {
+	sdk.RegisterProvider[struct{}]("noop", func(cfg sdk.Config, _ struct{}) (sdk.Provider, error) {
 		return &noopProvider{}, nil
 	})
 }
