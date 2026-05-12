@@ -12,8 +12,8 @@ import (
 )
 
 func init() {
-	sdk.RegisterExtension("tui", func(cfg sdk.Config) (sdk.Extension, error) {
-		t, err := NewTUI(cfg)
+	sdk.RegisterExtensionWithScope[TUIConfig]("tui", "ui", func(cfg sdk.Config, tuiCfg TUIConfig) (sdk.Extension, error) {
+		t, err := NewTUI(cfg, tuiCfg)
 		if err != nil {
 			return nil, err
 		}
@@ -26,7 +26,8 @@ func init() {
 
 // TUI is the terminal UI extension.
 type TUI struct {
-	cfg sdk.Config
+	cfg    sdk.Config
+	tuiCfg TUIConfig
 
 	mu      sync.Mutex
 	program *tea.Program
@@ -36,7 +37,7 @@ type TUI struct {
 
 // NewTUI creates a new TUI extension.
 // Returns ErrNoTTY if stdin is not a terminal.
-func NewTUI(cfg sdk.Config) (*TUI, error) {
+func NewTUI(cfg sdk.Config, tuiCfg TUIConfig) (*TUI, error) {
 	if !isTerminal() {
 		return nil, ErrNoTTY
 	}
@@ -44,9 +45,10 @@ func NewTUI(cfg sdk.Config) (*TUI, error) {
 	ui := NewTUIImpl(nil, nil)
 
 	return &TUI{
-		cfg:  cfg,
-		done: make(chan struct{}),
-		ui:   ui,
+		cfg:    cfg,
+		done:   make(chan struct{}),
+		ui:     ui,
+		tuiCfg: tuiCfg,
 	}, nil
 }
 
@@ -92,7 +94,7 @@ func (t *TUI) Subscribe(bus sdk.Bus) error {
 		return nil
 	})
 
-	model := newModel(bus, t.cfg, t.ui)
+	model := newModelWithConfig(bus, t.cfg, t.ui, t.tuiCfg)
 
 	t.mu.Lock()
 	t.program = tea.NewProgram(model)

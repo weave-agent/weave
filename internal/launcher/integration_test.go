@@ -53,7 +53,7 @@ import (
 )
 
 func init() {
-	sdk.RegisterExtension("noop", func(cfg sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("noop", func(cfg sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFunc("noop", func(b sdk.Bus) error {
 			marker := os.Getenv("WEAVE_NOOP_MARKER")
 			if marker != "" {
@@ -62,7 +62,7 @@ func init() {
 			return nil
 		}), nil
 	})
-	sdk.RegisterProvider("noop", func(cfg sdk.Config) (sdk.Provider, error) {
+	sdk.RegisterProvider[struct{}]("noop", func(cfg sdk.Config, _ struct{}) (sdk.Provider, error) {
 		return &noopProvider{}, nil
 	})
 }

@@ -12,11 +12,6 @@ import (
 	openaicompat "weave/utils/openaicompat"
 )
 
-const (
-	defaultModel   = "glm-5.1"
-	defaultBaseURL = "https://api.z.ai/api/coding/paas/v4"
-)
-
 // ZaiConfig holds per-provider configuration for the Z.ai provider.
 type ZaiConfig struct {
 	Model   string `json:"model" default:"glm-5.1" description:"Model name"`

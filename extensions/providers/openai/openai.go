@@ -12,11 +12,6 @@ import (
 	"weave/utils/openaicompat"
 )
 
-const (
-	defaultModel   = "gpt-5.5"
-	defaultBaseURL = "https://api.openai.com/v1"
-)
-
 // OpenAIConfig holds per-provider configuration for the OpenAI provider.
 type OpenAIConfig struct {
 	Model   string `json:"model" default:"gpt-5.5" description:"Model name"`

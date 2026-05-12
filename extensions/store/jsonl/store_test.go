@@ -19,7 +19,7 @@ func newTestStore(t *testing.T) *Store {
 	t.Helper()
 	dir := t.TempDir()
 
-	return &Store{cfg: Config{JSONL: JSONLOpts{Dir: dir}}}
+	return &Store{cfg: JSONLOpts{Dir: dir}}
 }
 
 func TestGenerateID(t *testing.T) {
@@ -43,7 +43,7 @@ func TestCreate(t *testing.T) {
 	assert.Equal(t, "/tmp/project", sess.Header.CWD)
 	assert.False(t, sess.Header.Timestamp.IsZero())
 
-	path := filepath.Join(s.cfg.JSONL.Dir, sess.Header.ID+".jsonl")
+	path := filepath.Join(s.cfg.Dir, sess.Header.ID+".jsonl")
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 
@@ -303,7 +303,7 @@ func TestCompact_PreservesHeader(t *testing.T) {
 
 func TestList_IgnoresNonJSONL(t *testing.T) {
 	s := newTestStore(t)
-	require.NoError(t, os.WriteFile(filepath.Join(s.cfg.JSONL.Dir, "other.txt"), []byte("data"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(s.cfg.Dir, "other.txt"), []byte("data"), 0o644))
 
 	infos, err := s.List()
 	require.NoError(t, err)
@@ -319,7 +319,7 @@ func TestSessionPath_InvalidID(t *testing.T) {
 
 func TestLoad_EmptyFile(t *testing.T) {
 	s := newTestStore(t)
-	path := filepath.Join(s.cfg.JSONL.Dir, "empty.jsonl")
+	path := filepath.Join(s.cfg.Dir, "empty.jsonl")
 	require.NoError(t, os.WriteFile(path, []byte(""), 0o644))
 	_, err := loadFromFile(path)
 	require.Error(t, err)
@@ -334,7 +334,7 @@ func TestList_SkipsCorruptedFile(t *testing.T) {
 	_, err = s.Append(sess.Header.ID, Entry{Type: "message", Turn: 1, Data: json.RawMessage(`{}`)})
 	require.NoError(t, err)
 
-	require.NoError(t, os.WriteFile(filepath.Join(s.cfg.JSONL.Dir, "corrupt.jsonl"), []byte("not json\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(s.cfg.Dir, "corrupt.jsonl"), []byte("not json\n"), 0o644))
 
 	infos, err := s.List()
 	require.NoError(t, err)
@@ -472,22 +472,6 @@ func TestSubscribe_CloseCancelsGoroutine(t *testing.T) {
 	require.NotEmpty(t, sessionID)
 }
 
-type mockConfig struct {
-	path string
-}
-
-func (m *mockConfig) FilePath() string                               { return m.path }
-func (m *mockConfig) ProjectDir() string                             { return "" }
-func (m *mockConfig) ProviderConfig(string) *sdk.ProviderConfigEntry { return nil }
-func (m *mockConfig) ResolveKey(_, envVar string) (string, error)    { return os.Getenv(envVar), nil }
-func (m *mockConfig) ToolConfig(string, any) error                   { return nil }
-func (m *mockConfig) UIConfig(any) error                             { return nil }
-func (m *mockConfig) IsHeadless() bool                               { return false }
-func (m *mockConfig) Preferences(any) error                          { return nil }
-func (m *mockConfig) SavePreferences(any) error                      { return nil }
-func (m *mockConfig) SaveProviderKey(_, _ string) error              { return nil }
-func (m *mockConfig) RespectGitignore() bool                         { return true }
-
 func TestNewStore_LoadsNestedDir(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, ".weave", "settings.json")
@@ -497,7 +481,7 @@ func TestNewStore_LoadsNestedDir(t *testing.T) {
 	configContent := `{"exclude_extensions":["jsonl"],"jsonl":{"dir":"` + sessionDir + `"}}`
 	require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0o644))
 
-	s, err := NewStore(&mockConfig{path: configPath})
+	s, err := NewStore(JSONLOpts{Dir: sessionDir})
 	require.NoError(t, err)
 
 	got, err := s.sessionDir()
@@ -506,12 +490,7 @@ func TestNewStore_LoadsNestedDir(t *testing.T) {
 }
 
 func TestNewStore_DefaultDir(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, ".weave", "settings.json")
-	require.NoError(t, os.MkdirAll(filepath.Dir(configPath), 0o755))
-	require.NoError(t, os.WriteFile(configPath, []byte(`{"exclude_extensions":["jsonl"]}`), 0o644))
-
-	s, err := NewStore(&mockConfig{path: configPath})
+	s, err := NewStore(JSONLOpts{})
 	require.NoError(t, err)
 
 	got, err := s.sessionDir()

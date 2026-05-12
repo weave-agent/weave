@@ -13,8 +13,8 @@ func TestTUI_ExtensionRegistration(t *testing.T) {
 	sdk.ResetRegistry()
 	defer sdk.ResetRegistry()
 
-	sdk.RegisterExtension("tui", func(cfg sdk.Config) (sdk.Extension, error) {
-		return NewTUI(cfg)
+	sdk.RegisterExtensionWithScope[TUIConfig]("tui", "ui", func(cfg sdk.Config, _ TUIConfig) (sdk.Extension, error) {
+		return NewTUI(cfg, TUIConfig{})
 	})
 
 	ext, err := sdk.GetExtension("tui", nil)
@@ -26,13 +26,13 @@ func TestTUI_ExtensionRegistration(t *testing.T) {
 }
 
 func TestTUI_Name(t *testing.T) {
-	tui, err := NewTUI(nil)
+	tui, err := NewTUI(nil, TUIConfig{})
 	require.NoError(t, err)
 	assert.Equal(t, "tui", tui.Name())
 }
 
 func TestTUI_CloseWithoutSubscribe(t *testing.T) {
-	tui, err := NewTUI(nil)
+	tui, err := NewTUI(nil, TUIConfig{})
 	require.NoError(t, err)
 
 	// Close without Subscribe should not panic or block
@@ -82,7 +82,7 @@ func TestTUI_WireUIExtensions(t *testing.T) {
 	ext := &mockUIExtension{name: "test-ext"}
 	sdk.RegisterUIExtension(ext)
 
-	tui, err := NewTUI(nil)
+	tui, err := NewTUI(nil, TUIConfig{})
 	require.NoError(t, err)
 
 	tui.wireUIExtensions(nil)
@@ -101,7 +101,7 @@ func TestTUI_WireUIExtensions_Multiple(t *testing.T) {
 	sdk.RegisterUIExtension(ext1)
 	sdk.RegisterUIExtension(ext2)
 
-	tui, err := NewTUI(nil)
+	tui, err := NewTUI(nil, TUIConfig{})
 	require.NoError(t, err)
 
 	tui.wireUIExtensions(nil)
@@ -116,7 +116,7 @@ func TestTUI_WireUIExtensions_EmptyRegistry(t *testing.T) {
 	sdk.ResetUIExtensionRegistry()
 	defer sdk.ResetUIExtensionRegistry()
 
-	tui, err := NewTUI(nil)
+	tui, err := NewTUI(nil, TUIConfig{})
 	require.NoError(t, err)
 
 	// Should not panic with empty registry
@@ -163,7 +163,7 @@ func TestTUI_WireUIExtensions_WithBus(t *testing.T) {
 	ext := &mockUIExtensionWithBus{name: "bus-ext"}
 	sdk.RegisterUIExtension(ext)
 
-	tui, err := NewTUI(nil)
+	tui, err := NewTUI(nil, TUIConfig{})
 	require.NoError(t, err)
 
 	bus := &mockBus{}
@@ -182,7 +182,7 @@ func TestTUI_WireUIExtensions_PlainExtension_NoBus(t *testing.T) {
 	ext := &mockUIExtension{name: "plain-ext"}
 	sdk.RegisterUIExtension(ext)
 
-	tui, err := NewTUI(nil)
+	tui, err := NewTUI(nil, TUIConfig{})
 	require.NoError(t, err)
 
 	// Should not panic even with a bus when extension doesn't implement UIExtensionWithBus

@@ -451,6 +451,10 @@ func (c *FullConfig) ExtensionConfig(scope, name string, target any, envPrefix s
 		}
 	case "ui":
 		raw = layered.UI
+	case "sandbox":
+		raw = layered.Sandbox
+	case "jsonl":
+		raw = layered.JSONL
 	case "extensions":
 		// Extensions config not yet supported in layered settings.
 		return nil

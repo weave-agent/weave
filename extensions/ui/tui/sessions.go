@@ -11,7 +11,6 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/nniel-ape/gonfig"
 )
 
 const entryTypeMessage = "message"
@@ -41,20 +40,41 @@ func sessionDir() (string, error) {
 // resolveSessionDir loads the session directory from config (matching the jsonl store's
 // resolution), falling back to env var and default.
 func resolveSessionDir(cfgPath string) string {
-	if cfgPath != "" {
-		var c struct {
-			JSONL struct {
-				Dir string `default:""`
-			}
-		}
-
-		if err := gonfig.Load(&c, gonfig.WithEnvPrefix("WEAVE"), gonfig.WithFile(cfgPath)); err == nil && c.JSONL.Dir != "" {
-			return c.JSONL.Dir
-		}
+	dir := resolveSessionDirFromConfig(cfgPath)
+	if dir != "" {
+		return dir
 	}
 
 	dir, err := sessionDir()
 	if err != nil {
+		return ""
+	}
+
+	return dir
+}
+
+func resolveSessionDirFromConfig(cfgPath string) string {
+	if cfgPath == "" {
+		return ""
+	}
+
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		return ""
+	}
+
+	var raw map[string]any
+	if json.Unmarshal(data, &raw) != nil {
+		return ""
+	}
+
+	jsonl, ok := raw["jsonl"].(map[string]any)
+	if !ok {
+		return ""
+	}
+
+	dir, ok := jsonl["dir"].(string)
+	if !ok {
 		return ""
 	}
 

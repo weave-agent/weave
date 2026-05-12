@@ -17,17 +17,25 @@ var extReg = registry.New[func(Config) (Extension, error)](
 // RegisterExtension registers an extension factory with a typed configuration struct.
 // The framework will automatically populate the config struct from settings, env vars,
 // and CLI flags before calling the factory.
+// Config is loaded from the "extensions" scope.
 func RegisterExtension[T any](name string, factory func(Config, T) (Extension, error)) {
+	RegisterExtensionWithScope[T](name, "extensions", factory)
+}
+
+// RegisterExtensionWithScope registers an extension factory with a typed configuration
+// struct and a custom config scope. The scope determines which settings subtree is
+// used to populate the config struct (e.g. "ui" for TUI, "sandbox" for sandbox).
+func RegisterExtensionWithScope[T any](name, scope string, factory func(Config, T) (Extension, error)) {
 	var zero T
 
 	schema := extractSchema(reflect.TypeOf(zero))
-	storeSchema("extensions", name, schema)
+	storeSchema(scope, name, schema)
 
 	wrapper := func(cfg Config) (Extension, error) {
 		var t T
 
 		envPrefix := "WEAVE_" + strings.ToUpper(name)
-		if err := cfg.ExtensionConfig("extensions", name, &t, envPrefix); err != nil {
+		if err := cfg.ExtensionConfig(scope, name, &t, envPrefix); err != nil {
 			return nil, fmt.Errorf("load extension config: %w", err)
 		}
 

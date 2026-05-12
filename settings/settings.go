@@ -10,6 +10,11 @@ import (
 	"sync"
 )
 
+// JSONLConfig holds jsonl store configuration from the config file.
+type JSONLConfig struct {
+	Dir string `json:"dir" description:"Session directory (default: ~/.weave/sessions)"`
+}
+
 // Settings holds all configuration — project-level settings and user preferences
 // unified into a single struct.
 type Settings struct {
@@ -27,6 +32,7 @@ type Settings struct {
 	RespectGitignore *bool          `json:"respect_gitignore,omitempty" env:"RESPECT_GITIGNORE"`
 	UI               map[string]any `json:"ui,omitempty"`
 	Tools            map[string]any `json:"tools,omitempty"`
+	JSONL            JSONLConfig    `json:"jsonl"`
 
 	// CLI-only flags (not persisted).
 	Prompt      string `short:"p" json:"-" description:"Prompt to pass to the agent"`

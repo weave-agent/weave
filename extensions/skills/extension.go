@@ -18,7 +18,7 @@ type SkillsExtension struct {
 }
 
 func init() {
-	sdk.RegisterExtension("skills", func(cfg sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("skills", func(cfg sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return NewSkillsExtension(cfg)
 	})
 }

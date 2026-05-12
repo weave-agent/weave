@@ -48,7 +48,7 @@ func (b *stubBus) Off(h sdk.Handler)              {}
 func (b *stubBus) Close() error                   { return nil }
 
 func TestNewSandbox_DefaultConfig(t *testing.T) {
-	s, err := NewSandbox(nil)
+	s, err := NewSandbox(nil, SandboxConfig{})
 	require.NoError(t, err)
 
 	defer sdk.SetSandboxer(nil)
@@ -63,7 +63,7 @@ func TestNewSandbox_DefaultConfig(t *testing.T) {
 func TestNewSandbox_SetsGlobalSandboxer(t *testing.T) {
 	defer sdk.SetSandboxer(nil)
 
-	s, err := NewSandbox(nil)
+	s, err := NewSandbox(nil, SandboxConfig{})
 	require.NoError(t, err)
 
 	got := sdk.GetSandboxer()
@@ -436,7 +436,7 @@ func TestSandbox_Subscribe_ApprovalHandlers(t *testing.T) {
 func TestNewSandbox_Headless_NilConfig(t *testing.T) {
 	defer sdk.SetSandboxer(nil)
 
-	s, err := NewSandbox(nil)
+	s, err := NewSandbox(nil, SandboxConfig{})
 	require.NoError(t, err)
 	assert.True(t, s.headless, "nil config should be headless")
 }
@@ -444,7 +444,7 @@ func TestNewSandbox_Headless_NilConfig(t *testing.T) {
 func TestNewSandbox_Headless_HeadlessConfig(t *testing.T) {
 	defer sdk.SetSandboxer(nil)
 
-	s, err := NewSandbox(sdk.HeadlessConfig{Config: sdk.FilePathConfig(""), Headless: true})
+	s, err := NewSandbox(sdk.HeadlessConfig{Config: sdk.FilePathConfig(""), Headless: true}, SandboxConfig{})
 	require.NoError(t, err)
 	assert.True(t, s.headless)
 }
@@ -452,7 +452,7 @@ func TestNewSandbox_Headless_HeadlessConfig(t *testing.T) {
 func TestNewSandbox_NotHeadless(t *testing.T) {
 	defer sdk.SetSandboxer(nil)
 
-	s, err := NewSandbox(sdk.HeadlessConfig{Config: sdk.FilePathConfig(""), Headless: false})
+	s, err := NewSandbox(sdk.HeadlessConfig{Config: sdk.FilePathConfig(""), Headless: false}, SandboxConfig{})
 	require.NoError(t, err)
 	assert.False(t, s.headless)
 }

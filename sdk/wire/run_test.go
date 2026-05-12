@@ -113,6 +113,13 @@ func TestRun_InstallSubcommand(t *testing.T) {
 }
 
 func TestRun_DefaultRoute(t *testing.T) {
+	dir := t.TempDir()
+	origWd, _ := os.Getwd()
+
+	require.NoError(t, os.Chdir(dir))
+
+	defer func() { _ = os.Chdir(origWd) }()
+
 	code := Run(context.Background(), []string{"-xyz"})
 	assert.Equal(t, 1, code)
 }

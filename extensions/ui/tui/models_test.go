@@ -154,7 +154,7 @@ func TestModel_DefaultFooterModel(t *testing.T) {
 	sdkmodel.ResetModelRegistry()
 	sdk.ResetProviderRegistry()
 	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "claude-sonnet-4-6", Provider: "anthropic", Reasoning: true, Default: true})
-	sdk.RegisterProvider("anthropic", func(_ sdk.Config) (sdk.Provider, error) { return nil, nil }) //nolint:nilnil // stub
+	sdk.RegisterProvider[struct{}]("anthropic", func(_ sdk.Config, _ struct{}) (sdk.Provider, error) { return nil, nil }) //nolint:nilnil // stub
 	sdkmodel.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
 	t.Setenv("ANTHROPIC_API_KEY", "test-key")
 
@@ -494,9 +494,9 @@ func TestListModelsWithRegistry(t *testing.T) {
 	}
 
 	// Register providers so their models are included.
-	sdk.RegisterProvider("anthropic", func(_ sdk.Config) (sdk.Provider, error) { return nil, nil }) //nolint:nilnil // stub registration for model list tests
-	sdk.RegisterProvider("openai", func(_ sdk.Config) (sdk.Provider, error) { return nil, nil })    //nolint:nilnil // stub registration for model list tests
-	sdk.RegisterProvider("zai", func(_ sdk.Config) (sdk.Provider, error) { return nil, nil })       //nolint:nilnil // stub registration for model list tests
+	sdk.RegisterProvider[struct{}]("anthropic", func(_ sdk.Config, _ struct{}) (sdk.Provider, error) { return nil, nil }) //nolint:nilnil // stub registration for model list tests
+	sdk.RegisterProvider[struct{}]("openai", func(_ sdk.Config, _ struct{}) (sdk.Provider, error) { return nil, nil })    //nolint:nilnil // stub registration for model list tests
+	sdk.RegisterProvider[struct{}]("zai", func(_ sdk.Config, _ struct{}) (sdk.Provider, error) { return nil, nil })       //nolint:nilnil // stub registration for model list tests
 
 	// Register env vars and set test API keys so providers appear configured.
 	sdkmodel.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
@@ -553,7 +553,7 @@ func TestListModelsIgnoresEnvOverrides(t *testing.T) {
 		sdkmodel.RegisterModel(def)
 	}
 
-	sdk.RegisterProvider("anthropic", func(_ sdk.Config) (sdk.Provider, error) { return nil, nil }) //nolint:nilnil // stub registration for model list tests
+	sdk.RegisterProvider[struct{}]("anthropic", func(_ sdk.Config, _ struct{}) (sdk.Provider, error) { return nil, nil }) //nolint:nilnil // stub registration for model list tests
 	sdkmodel.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
 
 	t.Setenv("ANTHROPIC_API_KEY", "test-key")
@@ -661,8 +661,8 @@ func TestStatusMessageOnModelCycle(t *testing.T) {
 	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "claude-opus-4-7", Provider: "anthropic", Reasoning: true, SupportsXHigh: true})
 	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "gpt-5.5", Provider: "openai", Reasoning: true})
 
-	sdk.RegisterProvider("anthropic", func(_ sdk.Config) (sdk.Provider, error) { return nil, nil }) //nolint:nilnil // stub registration for model list tests
-	sdk.RegisterProvider("openai", func(_ sdk.Config) (sdk.Provider, error) { return nil, nil })    //nolint:nilnil // stub registration for model list tests
+	sdk.RegisterProvider[struct{}]("anthropic", func(_ sdk.Config, _ struct{}) (sdk.Provider, error) { return nil, nil }) //nolint:nilnil // stub registration for model list tests
+	sdk.RegisterProvider[struct{}]("openai", func(_ sdk.Config, _ struct{}) (sdk.Provider, error) { return nil, nil })    //nolint:nilnil // stub registration for model list tests
 	sdkmodel.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
 	sdkmodel.RegisterProviderEnvVar("openai", "OPENAI_API_KEY")
 
@@ -891,31 +891,13 @@ func TestSaveSettings_PreservesUIFields(t *testing.T) {
 }
 
 func TestNewModel_ReadsUISettings(t *testing.T) {
-	mockCfg := &mockConfig{
-		uiConfig: map[string]any{
-			"editor_max_lines": 25,
-		},
-	}
-
-	m := newModel(nil, mockCfg, nil)
+	m := newModelWithConfig(nil, nil, nil, TUIConfig{EditorMaxLines: 25})
 	assert.Equal(t, 25, m.editor.MaxHeight())
 }
 
 func TestNewModel_DefaultEditorHeightWhenNoSettings(t *testing.T) {
 	m := newModel(nil, nil, nil)
 	assert.Equal(t, 15, m.editor.MaxHeight()) // default
-}
-
-func TestNewModel_UIConfigErrorUsesDefault(t *testing.T) {
-	mockCfg := &mockConfig{
-		uiConfig: map[string]any{
-			"editor_max_lines": 25,
-		},
-	}
-	mockCfg.uiConfig = make(chan int) // channels can't be JSON-marshaled
-
-	m := newModel(nil, mockCfg, nil)
-	assert.Equal(t, 15, m.editor.MaxHeight()) // default when UIConfig errors
 }
 
 func TestSaveSettings_NilConfig(t *testing.T) {
@@ -933,12 +915,10 @@ type mockConfig struct {
 	uiConfig        any // JSON-marshalable value returned by UIConfig
 }
 
-func (m *mockConfig) FilePath() string                               { return m.filePath }
-func (m *mockConfig) ProjectDir() string                             { return "" }
-func (m *mockConfig) ProviderConfig(string) *sdk.ProviderConfigEntry { return nil }
-func (m *mockConfig) ResolveKey(_, envVar string) (string, error)    { return "", nil }
-func (m *mockConfig) ToolConfig(string, any) error                   { return nil }
-func (m *mockConfig) UIConfig(target any) error {
+func (m *mockConfig) FilePath() string                            { return m.filePath }
+func (m *mockConfig) ProjectDir() string                          { return "" }
+func (m *mockConfig) ResolveKey(_, envVar string) (string, error) { return "", nil }
+func (m *mockConfig) ExtensionConfig(_, _ string, target any, _ string) error {
 	if m.uiConfig == nil {
 		return nil
 	}

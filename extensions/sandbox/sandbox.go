@@ -9,8 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nniel-ape/gonfig"
-
 	"weave/sdk"
 )
 
@@ -51,11 +49,6 @@ type SandboxConfig struct {
 
 const keyCommand = "command"
 
-// config wraps SandboxConfig for gonfig loading.
-type config struct {
-	Sandbox SandboxConfig
-}
-
 // Sandbox implements sdk.Sandboxer with configurable modes and path policies.
 type Sandbox struct {
 	cfg       SandboxConfig
@@ -69,25 +62,13 @@ type Sandbox struct {
 }
 
 func init() {
-	sdk.RegisterExtension("sandbox", func(cfg sdk.Config) (sdk.Extension, error) {
-		return NewSandbox(cfg)
+	sdk.RegisterExtensionWithScope[SandboxConfig]("sandbox", "sandbox", func(cfg sdk.Config, sc SandboxConfig) (sdk.Extension, error) {
+		return NewSandbox(cfg, sc)
 	})
 }
 
-// NewSandbox creates a new Sandbox extension, loading config via gonfig.
-func NewSandbox(cfg sdk.Config) (*Sandbox, error) {
-	var c config
-
-	opts := []gonfig.Option{gonfig.WithEnvPrefix("WEAVE")}
-	if cfg != nil && cfg.FilePath() != "" {
-		opts = append(opts, gonfig.WithFile(cfg.FilePath()))
-	}
-
-	if err := gonfig.Load(&c, opts...); err != nil {
-		return nil, fmt.Errorf("sandbox config: %w", err)
-	}
-
-	sc := c.Sandbox
+// NewSandbox creates a new Sandbox extension with the given config.
+func NewSandbox(cfg sdk.Config, sc SandboxConfig) (*Sandbox, error) {
 	if sc.Mode == "" {
 		sc.Mode = SandboxAuto
 	} else if !isValidMode(sc.Mode) {

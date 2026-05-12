@@ -117,13 +117,13 @@ func setupLoop(t *testing.T, providerName string) (*Loop, *bus.Bus, func()) {
 }
 
 func registerMockProvider(_ string, mp *ProviderMock) {
-	sdk.RegisterProvider("anthropic", func(sdk.Config) (sdk.Provider, error) {
+	sdk.RegisterProvider[struct{}]("anthropic", func(sdk.Config, struct{}) (sdk.Provider, error) {
 		return mp, nil
 	})
 }
 
 func registerMockTool(mt *ToolMock) {
-	sdk.RegisterTool(mt.NameFunc(), func(sdk.Config) (sdk.Tool, error) {
+	sdk.RegisterTool[struct{}](mt.NameFunc(), func(sdk.Config, struct{}) (sdk.Tool, error) {
 		return mt, nil
 	})
 }
@@ -194,6 +194,8 @@ type mockPrefsConfig struct {
 	thinkingLevel string
 	prefsErr      error
 }
+
+func (m *mockPrefsConfig) ExtensionConfig(_, _ string, _ any, _ string) error { return nil }
 
 func (m *mockPrefsConfig) Preferences(target any) error {
 	if m.prefsErr != nil {
@@ -662,7 +664,7 @@ func TestLoop_RegisterAsExtension(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	sdk.RegisterExtension("loop", func(cfg sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("loop", func(cfg sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return NewLoop(cfg, "anthropic")
 	})
 
@@ -1024,10 +1026,10 @@ func TestLoop_ModelChangeDifferentProvider(t *testing.T) {
 		{textDeltas: []string{"openai response"}},
 	})
 
-	sdk.RegisterProvider("anthropic", func(sdk.Config) (sdk.Provider, error) {
+	sdk.RegisterProvider[struct{}]("anthropic", func(sdk.Config, struct{}) (sdk.Provider, error) {
 		return anthropicMock, nil
 	})
-	sdk.RegisterProvider("openai", func(sdk.Config) (sdk.Provider, error) {
+	sdk.RegisterProvider[struct{}]("openai", func(sdk.Config, struct{}) (sdk.Provider, error) {
 		return openaiMock, nil
 	})
 
@@ -1436,7 +1438,7 @@ func TestResolveProviderName_EnvVarHighest(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	sdk.RegisterProvider("anthropic", func(sdk.Config) (sdk.Provider, error) {
+	sdk.RegisterProvider[struct{}]("anthropic", func(sdk.Config, struct{}) (sdk.Provider, error) {
 		return &ProviderMock{}, nil
 	})
 
@@ -1450,7 +1452,7 @@ func TestResolveProviderName_SettingsPreference(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	sdk.RegisterProvider("anthropic", func(sdk.Config) (sdk.Provider, error) {
+	sdk.RegisterProvider[struct{}]("anthropic", func(sdk.Config, struct{}) (sdk.Provider, error) {
 		return &ProviderMock{}, nil
 	})
 
@@ -1464,10 +1466,10 @@ func TestResolveProviderName_FirstRegistered(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	sdk.RegisterProvider("zai", func(sdk.Config) (sdk.Provider, error) {
+	sdk.RegisterProvider[struct{}]("zai", func(sdk.Config, struct{}) (sdk.Provider, error) {
 		return &ProviderMock{}, nil
 	})
-	sdk.RegisterProvider("openai", func(sdk.Config) (sdk.Provider, error) {
+	sdk.RegisterProvider[struct{}]("openai", func(sdk.Config, struct{}) (sdk.Provider, error) {
 		return &ProviderMock{}, nil
 	})
 
@@ -1491,7 +1493,7 @@ func TestResolveProviderName_PrefsErrorFallsThrough(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	sdk.RegisterProvider("openai", func(sdk.Config) (sdk.Provider, error) {
+	sdk.RegisterProvider[struct{}]("openai", func(sdk.Config, struct{}) (sdk.Provider, error) {
 		return &ProviderMock{}, nil
 	})
 

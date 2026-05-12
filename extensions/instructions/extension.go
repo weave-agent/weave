@@ -17,7 +17,7 @@ type InstructionsExtension struct {
 }
 
 func init() {
-	sdk.RegisterExtension("instructions", func(cfg sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("instructions", func(cfg sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return NewInstructionsExtension(cfg)
 	})
 }

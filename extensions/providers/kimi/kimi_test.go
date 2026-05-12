@@ -1432,9 +1432,11 @@ func (m *mockConfig) ExtensionConfig(scope, name string, target any, _ string) e
 		if m.providerConfig.Model != "" {
 			cfg.Model = m.providerConfig.Model
 		}
+
 		if m.providerConfig.MaxTokens > 0 {
 			cfg.MaxTokens = m.providerConfig.MaxTokens
 		}
+
 		if m.providerConfig.BaseURL != "" {
 			cfg.BaseURL = m.providerConfig.BaseURL
 		}

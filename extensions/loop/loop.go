@@ -55,7 +55,7 @@ type Loop struct {
 }
 
 func init() {
-	sdk.RegisterExtension("loop", func(cfg sdk.Config) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("loop", func(cfg sdk.Config, _ struct{}) (sdk.Extension, error) {
 		provider := resolveProviderName(os.Getenv("WEAVE_PROVIDER"), cfg)
 
 		return NewLoop(cfg, provider)

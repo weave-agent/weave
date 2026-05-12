@@ -14,8 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nniel-ape/gonfig"
-
 	"weave/sdk"
 )
 
@@ -52,15 +50,11 @@ type SessionInfo struct {
 }
 
 type JSONLOpts struct {
-	Dir string `default:"" description:"Session directory (default: ~/.weave/sessions)"`
-}
-
-type Config struct {
-	JSONL JSONLOpts
+	Dir string `json:"dir" default:"" description:"Session directory (default: ~/.weave/sessions)"`
 }
 
 type Store struct {
-	cfg Config
+	cfg JSONLOpts
 
 	mu        sync.Mutex
 	sessionID string
@@ -71,24 +65,13 @@ type Store struct {
 }
 
 func init() {
-	sdk.RegisterExtension("jsonl", func(cfg sdk.Config) (sdk.Extension, error) {
-		return NewStore(cfg)
+	sdk.RegisterExtensionWithScope[JSONLOpts]("jsonl", "jsonl", func(_ sdk.Config, opts JSONLOpts) (sdk.Extension, error) {
+		return NewStore(opts)
 	})
 }
 
-func NewStore(cfg sdk.Config) (*Store, error) {
-	var c Config
-
-	opts := []gonfig.Option{gonfig.WithEnvPrefix("WEAVE")}
-	if cfg != nil && cfg.FilePath() != "" {
-		opts = append(opts, gonfig.WithFile(cfg.FilePath()))
-	}
-
-	if err := gonfig.Load(&c, opts...); err != nil {
-		return nil, fmt.Errorf("jsonl config: %w", err)
-	}
-
-	return &Store{cfg: c}, nil
+func NewStore(opts JSONLOpts) (*Store, error) {
+	return &Store{cfg: opts}, nil
 }
 
 func (s *Store) Name() string { return "jsonl" }
@@ -376,8 +359,8 @@ func generateID() (string, error) {
 }
 
 func (s *Store) sessionDir() (string, error) {
-	if s.cfg.JSONL.Dir != "" {
-		return s.cfg.JSONL.Dir, nil
+	if s.cfg.Dir != "" {
+		return s.cfg.Dir, nil
 	}
 
 	home, err := os.UserHomeDir()

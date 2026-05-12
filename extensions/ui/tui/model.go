@@ -105,7 +105,14 @@ type Model struct {
 // newModel creates a new root model.
 // If ui is non-nil, it is reused (production path) so that renderers registered
 // via sdk.UI are visible to the model. If nil, a fresh TUIImpl is created (tests).
+//
+//nolint:unparam // cfg is always nil in tests; kept for API consistency with newModelWithConfig.
 func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
+	return newModelWithConfig(bus, cfg, ui, TUIConfig{})
+}
+
+// newModelWithConfig creates a new root model with explicit TUI configuration.
+func newModelWithConfig(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl, tuiCfg TUIConfig) Model {
 	var cfgPath string
 	if cfg != nil {
 		cfgPath = cfg.FilePath()
@@ -139,14 +146,8 @@ func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
 
 	editor := components.NewEditorModel()
 
-	// Read UI settings from layered config
-	var us Settings
-	if cfg != nil {
-		_ = cfg.UIConfig(&us)
-	}
-
-	if us.EditorMaxLines > 0 {
-		editor = editor.SetMaxHeight(us.EditorMaxLines)
+	if tuiCfg.EditorMaxLines > 0 {
+		editor = editor.SetMaxHeight(tuiCfg.EditorMaxLines)
 	}
 
 	effectiveCfg := effectiveConfig(cfg)

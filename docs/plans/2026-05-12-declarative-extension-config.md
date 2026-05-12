@@ -123,14 +123,14 @@ Key changes:
 
 ### Task 9: Other extensions
 
-- [ ] **TUI:** Define `TUIConfig`, update to `RegisterExtension[TUIConfig]`, remove `cfg.UIConfig` call
-- [ ] **Loop:** Update to `RegisterExtension[struct{}]` (or define `LoopConfig` if needed)
-- [ ] **Sandbox:** Define `SandboxConfig`, update to `RegisterExtension[SandboxConfig]`, remove direct `gonfig.Load`
-- [ ] **Store/JSONL:** Define `JSONLOpts`, update to `RegisterExtension[JSONLOpts]`, remove direct `gonfig.Load`
-- [ ] **Skills:** Update to `RegisterExtension[struct{}]`
-- [ ] **Instructions:** Update to `RegisterExtension[struct{}]`
-- [ ] Update extension test mocks
-- [ ] Run tests for each extension module
+- [x] **TUI:** Define `TUIConfig`, update to `RegisterExtension[TUIConfig]`, remove `cfg.UIConfig` call
+- [x] **Loop:** Update to `RegisterExtension[struct{}]` (or define `LoopConfig` if needed)
+- [x] **Sandbox:** Define `SandboxConfig`, update to `RegisterExtension[SandboxConfig]`, remove direct `gonfig.Load`
+- [x] **Store/JSONL:** Define `JSONLOpts`, update to `RegisterExtension[JSONLOpts]`, remove direct `gonfig.Load`
+- [x] **Skills:** Update to `RegisterExtension[struct{}]`
+- [x] **Instructions:** Update to `RegisterExtension[struct{}]`
+- [x] Update extension test mocks
+- [x] Run tests for each extension module
 
 ### Task 10: Remove gonfig dependency
 
