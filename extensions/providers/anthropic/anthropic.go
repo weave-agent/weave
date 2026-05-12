@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"strconv"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
@@ -22,8 +20,8 @@ const (
 
 // AnthropicConfig holds per-provider configuration for the Anthropic provider.
 type AnthropicConfig struct {
-	Model     string `json:"model" default:"claude-sonnet-4-6" description:"Model name"`
-	MaxTokens int    `json:"max_tokens" default:"16384" description:"Maximum tokens"`
+	Model     string `json:"model" default:"claude-sonnet-4-6" env:"ANTHROPIC_MODEL" description:"Model name"`
+	MaxTokens int    `json:"max_tokens" default:"16384" env:"ANTHROPIC_MAX_TOKENS" validate:"gt=0" description:"Maximum tokens"`
 }
 
 type provider struct {
@@ -45,25 +43,12 @@ func init() {
 			return nil, errors.New("anthropic: API key required (set ANTHROPIC_API_KEY, add to ~/.weave/auth.json, or configure in .weave/settings.json)")
 		}
 
-		modelName := ac.Model
-		maxTokens := ac.MaxTokens
-
-		if v := os.Getenv("ANTHROPIC_MODEL"); v != "" {
-			modelName = v
-		}
-
-		if v := os.Getenv("ANTHROPIC_MAX_TOKENS"); v != "" {
-			if n, parseErr := strconv.Atoi(v); parseErr == nil && n > 0 {
-				maxTokens = n
-			}
-		}
-
 		client := anthropic.NewClient(option.WithAPIKey(apiKey))
 
 		return &provider{
 			client:    client,
-			model:     modelName,
-			maxTokens: maxTokens,
+			model:     ac.Model,
+			maxTokens: ac.MaxTokens,
 		}, nil
 	})
 }

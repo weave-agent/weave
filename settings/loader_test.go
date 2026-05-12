@@ -9,9 +9,9 @@ import (
 )
 
 type testConfig struct {
-	Timeout  int     `json:"timeout" default:"120" env:"TIMEOUT" flag:"timeout" short:"t" validate:"gt=0,lt=3600" description:"Command timeout"`
-	Shell    string  `json:"shell" default:"bash" env:"SHELL" flag:"shell" description:"Shell to use"`
-	Verbose  bool    `json:"verbose" default:"false" env:"VERBOSE" flag:"verbose" short:"v" description:"Enable verbose output"`
+	Timeout  int     `json:"timeout" default:"120" env:"TEST_TIMEOUT" flag:"timeout" short:"t" validate:"gt=0,lt=3600" description:"Command timeout"`
+	Shell    string  `json:"shell" default:"bash" env:"TEST_SHELL" flag:"shell" description:"Shell to use"`
+	Verbose  bool    `json:"verbose" default:"false" env:"TEST_VERBOSE" flag:"verbose" short:"v" description:"Enable verbose output"`
 	MaxLines int     `json:"max_lines" default:"1000" validate:"min=1,max=10000"`
 	Ratio    float64 `json:"ratio" default:"0.5" validate:"gt=0,lt=1"`
 }
@@ -136,9 +136,9 @@ func TestLoader_DataNestedDefaults(t *testing.T) {
 }
 
 func TestLoader_Env(t *testing.T) {
-	t.Setenv("WEAVE_TIMEOUT", "90")
-	t.Setenv("WEAVE_SHELL", "fish")
-	t.Setenv("WEAVE_VERBOSE", "true")
+	t.Setenv("WEAVE_TEST_TIMEOUT", "90")
+	t.Setenv("WEAVE_TEST_SHELL", "fish")
+	t.Setenv("WEAVE_TEST_VERBOSE", "true")
 
 	l := Loader{EnvPrefix: "WEAVE"}
 
@@ -151,7 +151,7 @@ func TestLoader_Env(t *testing.T) {
 }
 
 func TestLoader_EnvOverridesData(t *testing.T) {
-	t.Setenv("WEAVE_TIMEOUT", "90")
+	t.Setenv("WEAVE_TEST_TIMEOUT", "90")
 
 	l := Loader{
 		Data:      map[string]any{"timeout": 60},
@@ -162,6 +162,19 @@ func TestLoader_EnvOverridesData(t *testing.T) {
 	require.NoError(t, l.Load(&cfg))
 
 	assert.Equal(t, 90, cfg.Timeout, "env should override data")
+}
+
+func TestLoader_EnvEmptyPrefix(t *testing.T) {
+	t.Setenv("TEST_TIMEOUT", "90")
+	t.Setenv("TEST_SHELL", "fish")
+
+	l := Loader{EnvPrefix: ""}
+
+	var cfg testConfig
+	require.NoError(t, l.Load(&cfg))
+
+	assert.Equal(t, 90, cfg.Timeout, "env var should be read without prefix")
+	assert.Equal(t, "fish", cfg.Shell, "env var should be read without prefix")
 }
 
 func TestLoader_Flags(t *testing.T) {
@@ -190,7 +203,7 @@ func TestLoader_FlagShort(t *testing.T) {
 }
 
 func TestLoader_FlagsOverrideEnv(t *testing.T) {
-	t.Setenv("WEAVE_TIMEOUT", "90")
+	t.Setenv("WEAVE_TEST_TIMEOUT", "90")
 
 	l := Loader{
 		Args:      []string{"--timeout", "45"},
@@ -215,7 +228,7 @@ func TestLoader_FlagsIgnoreUnknown(t *testing.T) {
 
 func TestLoader_PriorityOrder(t *testing.T) {
 	// defaults → data → env → flags
-	t.Setenv("WEAVE_TIMEOUT", "90")
+	t.Setenv("WEAVE_TEST_TIMEOUT", "90")
 
 	l := Loader{
 		Data:      map[string]any{"timeout": 60, "shell": "zsh"},

@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"reflect"
-	"strings"
 
 	"weave/sdk/registry"
 )
@@ -26,8 +25,7 @@ func RegisterProvider[T any](name string, factory func(Config, T) (Provider, err
 	wrapper := func(cfg Config) (Provider, error) {
 		var t T
 
-		envPrefix := "WEAVE_" + strings.ToUpper(name)
-		if err := cfg.ExtensionConfig("providers", name, &t, envPrefix); err != nil {
+		if err := cfg.ExtensionConfig("providers", name, &t, ""); err != nil {
 			return nil, fmt.Errorf("load provider config: %w", err)
 		}
 

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 
 	"weave/sdk"
 	"weave/sdk/model"
@@ -14,7 +13,7 @@ import (
 
 // OpenAIConfig holds per-provider configuration for the OpenAI provider.
 type OpenAIConfig struct {
-	Model   string `json:"model" default:"gpt-5.5" description:"Model name"`
+	Model   string `json:"model" default:"gpt-5.5" env:"OPENAI_MODEL" description:"Model name"`
 	BaseURL string `json:"base_url" default:"https://api.openai.com/v1" description:"API base URL"`
 }
 
@@ -36,20 +35,13 @@ func init() {
 			return nil, errors.New("openai: API key required (set OPENAI_API_KEY, add to ~/.weave/auth.json, or configure in .weave/settings.json)")
 		}
 
-		modelName := oc.Model
-		baseURL := oc.BaseURL
-
-		if v := os.Getenv("OPENAI_MODEL"); v != "" {
-			modelName = v
-		}
-
 		return &provider{
 			client: &http.Client{},
 			config: openaicompat.ProviderConfig{
-				BaseURL:       baseURL,
+				BaseURL:       oc.BaseURL,
 				APIKey:        apiKey,
-				Model:         modelName,
-				ModifyRequest: modifyRequest(modelName),
+				Model:         oc.Model,
+				ModifyRequest: modifyRequest(oc.Model),
 			},
 		}, nil
 	})

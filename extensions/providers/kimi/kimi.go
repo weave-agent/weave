@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"strconv"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
@@ -23,8 +21,8 @@ const (
 
 // KimiConfig holds per-provider configuration for the Kimi provider.
 type KimiConfig struct {
-	Model     string `json:"model" default:"kimi-for-coding" description:"Model name"`
-	MaxTokens int    `json:"max_tokens" default:"32768" description:"Maximum tokens"`
+	Model     string `json:"model" default:"kimi-for-coding" env:"KIMI_MODEL" description:"Model name"`
+	MaxTokens int    `json:"max_tokens" default:"32768" env:"KIMI_MAX_TOKENS" validate:"gt=0" description:"Maximum tokens"`
 	BaseURL   string `json:"base_url" default:"https://api.kimi.com/coding" description:"API base URL"`
 }
 
@@ -48,31 +46,17 @@ func init() {
 			return nil, errors.New("kimi: API key required (set KIMI_API_KEY, add to ~/.weave/auth.json, or configure in .weave/settings.json)")
 		}
 
-		modelName := kc.Model
-		maxTokens := kc.MaxTokens
-		baseURL := kc.BaseURL
-
-		if v := os.Getenv("KIMI_MODEL"); v != "" {
-			modelName = v
-		}
-
-		if v := os.Getenv("KIMI_MAX_TOKENS"); v != "" {
-			if n, parseErr := strconv.Atoi(v); parseErr == nil && n > 0 {
-				maxTokens = n
-			}
-		}
-
 		client := anthropic.NewClient(
 			option.WithAPIKey(apiKey),
-			option.WithBaseURL(baseURL),
+			option.WithBaseURL(kc.BaseURL),
 			option.WithHeader("User-Agent", "weave/0.1.0"),
 		)
 
 		return &provider{
 			client:    client,
-			model:     modelName,
-			maxTokens: maxTokens,
-			baseURL:   baseURL,
+			model:     kc.Model,
+			maxTokens: kc.MaxTokens,
+			baseURL:   kc.BaseURL,
 		}, nil
 	})
 }

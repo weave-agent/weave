@@ -150,6 +150,18 @@ Key changes:
 - [x] Provider configs are typed per-provider (no `ProviderEntry`)
 - [x] No `ToolConfig`/`UIConfig`/`ProviderConfig` calls remain in extension code
 
+### Task 12: Remove remaining imperative env lookups in providers
+
+Provider factories still call `os.Getenv` directly for model/token overrides instead of using declarative `env:` struct tags. Clean these up so the loader handles them.
+
+- [x] **Anthropic:** Add `env:"ANTHROPIC_MODEL"` and `env:"ANTHROPIC_MAX_TOKENS"` tags to `AnthropicConfig`; remove `os.Getenv` block from factory
+- [x] **Kimi:** Add `env:"KIMI_MODEL"` and `env:"KIMI_MAX_TOKENS"` tags to `KimiConfig`; remove `os.Getenv` block from factory
+- [x] **OpenAI:** Add `env:"OPENAI_MODEL"` tag to `OpenAIConfig`; remove `os.Getenv` block from factory
+- [x] **Z.ai:** Add `env:"ZAI_MODEL"` tag to `ZaiConfig`; remove `os.Getenv` block from factory
+- [x] Verify loader env prefix behavior for providers (env vars should be `ANTHROPIC_MODEL`, not `WEAVE_ANTHROPIC_MODEL`)
+- [x] Run tests for each provider module
+- [x] Run `make test`
+
 ## Technical Details
 
 ### Registration flow

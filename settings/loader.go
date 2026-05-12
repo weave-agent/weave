@@ -48,10 +48,8 @@ func (l *Loader) Load(target any) error {
 		}
 	}
 
-	if l.EnvPrefix != "" {
-		if err := applyEnv(target, l.EnvPrefix); err != nil {
-			return fmt.Errorf("apply env: %w", err)
-		}
+	if err := applyEnv(target, l.EnvPrefix); err != nil {
+		return fmt.Errorf("apply env: %w", err)
 	}
 
 	if len(l.Args) > 0 {
@@ -178,9 +176,11 @@ func applyData(target any, data map[string]any) error {
 }
 
 // applyEnv overrides fields from environment variables using `env` struct tags.
-// Env vars are looked up as PREFIX_FIELD (e.g. WEAVE_BASH_TIMEOUT).
+// Env vars are looked up as PREFIX_FIELD (e.g. WEAVE_BASH_TIMEOUT) when prefix
+// is non-empty, or as just the env tag value (e.g. ANTHROPIC_MODEL) when prefix
+// is empty.
 func applyEnv(target any, prefix string) error {
-	if target == nil || prefix == "" {
+	if target == nil {
 		return nil
 	}
 
@@ -217,7 +217,10 @@ func applyEnv(target any, prefix string) error {
 			continue
 		}
 
-		key := prefix + "_" + envTag
+		key := envTag
+		if prefix != "" {
+			key = prefix + "_" + envTag
+		}
 
 		val, ok := os.LookupEnv(key)
 		if !ok {

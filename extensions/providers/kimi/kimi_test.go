@@ -16,6 +16,7 @@ import (
 
 	"weave/sdk"
 	"weave/sdk/model"
+	"weave/settings"
 )
 
 type sseEvent struct {
@@ -1169,34 +1170,15 @@ func TestProviderInit_InvalidMaxTokensEnv_String(t *testing.T) {
 
 	RegisterModels()
 
-	var receivedBody string
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		buf := make([]byte, r.ContentLength)
-		_, _ = r.Body.Read(buf)
-		receivedBody = string(buf)
-
-		writeSSE(w, textStreamEvents("hi"))
-	}))
-	defer server.Close()
-
 	t.Setenv("KIMI_MAX_TOKENS", "invalid")
 
 	cfg := &mockConfig{
 		resolveKey:     "test-api-key",
-		providerConfig: &sdk.ProviderConfigEntry{BaseURL: server.URL},
+		providerConfig: &sdk.ProviderConfigEntry{},
 	}
-	p, err := sdk.GetProvider("kimi", cfg)
-	require.NoError(t, err)
-	require.NotNil(t, p)
-
-	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
-		Messages: []sdk.Message{sdk.NewUserMessage("hello")},
-	})
-	require.NoError(t, err)
-	collectEvents(t, ch)
-
-	assert.Contains(t, receivedBody, "32768")
+	_, err := sdk.GetProvider("kimi", cfg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "parse int")
 }
 
 func TestProviderInit_InvalidMaxTokensEnv_Negative(t *testing.T) {
@@ -1205,34 +1187,15 @@ func TestProviderInit_InvalidMaxTokensEnv_Negative(t *testing.T) {
 
 	RegisterModels()
 
-	var receivedBody string
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		buf := make([]byte, r.ContentLength)
-		_, _ = r.Body.Read(buf)
-		receivedBody = string(buf)
-
-		writeSSE(w, textStreamEvents("hi"))
-	}))
-	defer server.Close()
-
 	t.Setenv("KIMI_MAX_TOKENS", "-1")
 
 	cfg := &mockConfig{
 		resolveKey:     "test-api-key",
-		providerConfig: &sdk.ProviderConfigEntry{BaseURL: server.URL},
+		providerConfig: &sdk.ProviderConfigEntry{},
 	}
-	p, err := sdk.GetProvider("kimi", cfg)
-	require.NoError(t, err)
-	require.NotNil(t, p)
-
-	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
-		Messages: []sdk.Message{sdk.NewUserMessage("hello")},
-	})
-	require.NoError(t, err)
-	collectEvents(t, ch)
-
-	assert.Contains(t, receivedBody, "32768")
+	_, err := sdk.GetProvider("kimi", cfg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "greater than")
 }
 
 func TestStream_WithMaxTokensOverride(t *testing.T) {
@@ -1413,7 +1376,7 @@ type mockConfig struct {
 
 func (m *mockConfig) FilePath() string   { return "" }
 func (m *mockConfig) ProjectDir() string { return "" }
-func (m *mockConfig) ExtensionConfig(scope, name string, target any, _ string) error {
+func (m *mockConfig) ExtensionConfig(scope, name string, target any, envPrefix string) error {
 	if scope != "providers" || name != "kimi" {
 		return nil
 	}
@@ -1423,23 +1386,28 @@ func (m *mockConfig) ExtensionConfig(scope, name string, target any, _ string) e
 		return nil
 	}
 
-	// Apply defaults (loader would normally do this).
-	cfg.Model = defaultModel
-	cfg.MaxTokens = defaultMaxTokens
-	cfg.BaseURL = defaultBaseURL
-
+	var data map[string]any
 	if m.providerConfig != nil {
+		data = make(map[string]any)
 		if m.providerConfig.Model != "" {
-			cfg.Model = m.providerConfig.Model
+			data["model"] = m.providerConfig.Model
 		}
 
 		if m.providerConfig.MaxTokens > 0 {
-			cfg.MaxTokens = m.providerConfig.MaxTokens
+			data["max_tokens"] = m.providerConfig.MaxTokens
 		}
 
 		if m.providerConfig.BaseURL != "" {
-			cfg.BaseURL = m.providerConfig.BaseURL
+			data["base_url"] = m.providerConfig.BaseURL
 		}
+	}
+
+	loader := settings.Loader{
+		Data:      data,
+		EnvPrefix: envPrefix,
+	}
+	if err := loader.Load(cfg); err != nil {
+		return fmt.Errorf("load config: %w", err)
 	}
 
 	return nil

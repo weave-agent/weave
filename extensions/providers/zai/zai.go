@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 
 	"weave/sdk"
 	"weave/sdk/model"
@@ -14,7 +13,7 @@ import (
 
 // ZaiConfig holds per-provider configuration for the Z.ai provider.
 type ZaiConfig struct {
-	Model   string `json:"model" default:"glm-5.1" description:"Model name"`
+	Model   string `json:"model" default:"glm-5.1" env:"ZAI_MODEL" description:"Model name"`
 	BaseURL string `json:"base_url" default:"https://api.z.ai/api/coding/paas/v4" description:"API base URL"`
 }
 
@@ -36,19 +35,12 @@ func init() {
 			return nil, errors.New("zai: API key required (set ZAI_API_KEY, add to ~/.weave/auth.json, or configure in .weave/settings.json)")
 		}
 
-		modelName := zc.Model
-		baseURL := zc.BaseURL
-
-		if v := os.Getenv("ZAI_MODEL"); v != "" {
-			modelName = v
-		}
-
 		return &provider{
 			client: &http.Client{},
 			config: openaicompat.ProviderConfig{
-				BaseURL: baseURL,
+				BaseURL: zc.BaseURL,
 				APIKey:  apiKey,
-				Model:   modelName,
+				Model:   zc.Model,
 				ExtraBody: map[string]any{
 					"tool_stream": true,
 				},
