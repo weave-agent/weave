@@ -17,6 +17,9 @@ var _ Config = &ConfigMock{}
 //
 //		// make and configure a mocked Config
 //		mockedConfig := &ConfigMock{
+//			ExtensionConfigFunc: func(scope string, name string, target any, envPrefix string) error {
+//				panic("mock out the ExtensionConfig method")
+//			},
 //			FilePathFunc: func() string {
 //				panic("mock out the FilePath method")
 //			},
@@ -28,9 +31,6 @@ var _ Config = &ConfigMock{}
 //			},
 //			ProjectDirFunc: func() string {
 //				panic("mock out the ProjectDir method")
-//			},
-//			ProviderConfigFunc: func(name string) *ProviderConfigEntry {
-//				panic("mock out the ProviderConfig method")
 //			},
 //			ResolveKeyFunc: func(providerName string, envVar string) (string, error) {
 //				panic("mock out the ResolveKey method")
@@ -44,12 +44,6 @@ var _ Config = &ConfigMock{}
 //			SaveProviderKeyFunc: func(providerName string, apiKey string) error {
 //				panic("mock out the SaveProviderKey method")
 //			},
-//			ToolConfigFunc: func(name string, target any) error {
-//				panic("mock out the ToolConfig method")
-//			},
-//			UIConfigFunc: func(target any) error {
-//				panic("mock out the UIConfig method")
-//			},
 //		}
 //
 //		// use mockedConfig in code that requires Config
@@ -57,6 +51,9 @@ var _ Config = &ConfigMock{}
 //
 //	}
 type ConfigMock struct {
+	// ExtensionConfigFunc mocks the ExtensionConfig method.
+	ExtensionConfigFunc func(scope string, name string, target any, envPrefix string) error
+
 	// FilePathFunc mocks the FilePath method.
 	FilePathFunc func() string
 
@@ -68,9 +65,6 @@ type ConfigMock struct {
 
 	// ProjectDirFunc mocks the ProjectDir method.
 	ProjectDirFunc func() string
-
-	// ProviderConfigFunc mocks the ProviderConfig method.
-	ProviderConfigFunc func(name string) *ProviderConfigEntry
 
 	// ResolveKeyFunc mocks the ResolveKey method.
 	ResolveKeyFunc func(providerName string, envVar string) (string, error)
@@ -84,14 +78,19 @@ type ConfigMock struct {
 	// SaveProviderKeyFunc mocks the SaveProviderKey method.
 	SaveProviderKeyFunc func(providerName string, apiKey string) error
 
-	// ToolConfigFunc mocks the ToolConfig method.
-	ToolConfigFunc func(name string, target any) error
-
-	// UIConfigFunc mocks the UIConfig method.
-	UIConfigFunc func(target any) error
-
 	// calls tracks calls to the methods.
 	calls struct {
+		// ExtensionConfig holds details about calls to the ExtensionConfig method.
+		ExtensionConfig []struct {
+			// Scope is the scope argument value.
+			Scope string
+			// Name is the name argument value.
+			Name string
+			// Target is the target argument value.
+			Target any
+			// EnvPrefix is the envPrefix argument value.
+			EnvPrefix string
+		}
 		// FilePath holds details about calls to the FilePath method.
 		FilePath []struct {
 		}
@@ -105,11 +104,6 @@ type ConfigMock struct {
 		}
 		// ProjectDir holds details about calls to the ProjectDir method.
 		ProjectDir []struct {
-		}
-		// ProviderConfig holds details about calls to the ProviderConfig method.
-		ProviderConfig []struct {
-			// Name is the name argument value.
-			Name string
 		}
 		// ResolveKey holds details about calls to the ResolveKey method.
 		ResolveKey []struct {
@@ -133,30 +127,63 @@ type ConfigMock struct {
 			// ApiKey is the apiKey argument value.
 			ApiKey string
 		}
-		// ToolConfig holds details about calls to the ToolConfig method.
-		ToolConfig []struct {
-			// Name is the name argument value.
-			Name string
-			// Target is the target argument value.
-			Target any
-		}
-		// UIConfig holds details about calls to the UIConfig method.
-		UIConfig []struct {
-			// Target is the target argument value.
-			Target any
-		}
 	}
+	lockExtensionConfig  sync.RWMutex
 	lockFilePath         sync.RWMutex
 	lockIsHeadless       sync.RWMutex
 	lockPreferences      sync.RWMutex
 	lockProjectDir       sync.RWMutex
-	lockProviderConfig   sync.RWMutex
 	lockResolveKey       sync.RWMutex
 	lockRespectGitignore sync.RWMutex
 	lockSavePreferences  sync.RWMutex
 	lockSaveProviderKey  sync.RWMutex
-	lockToolConfig       sync.RWMutex
-	lockUIConfig         sync.RWMutex
+}
+
+// ExtensionConfig calls ExtensionConfigFunc.
+func (mock *ConfigMock) ExtensionConfig(scope string, name string, target any, envPrefix string) error {
+	callInfo := struct {
+		Scope     string
+		Name      string
+		Target    any
+		EnvPrefix string
+	}{
+		Scope:     scope,
+		Name:      name,
+		Target:    target,
+		EnvPrefix: envPrefix,
+	}
+	mock.lockExtensionConfig.Lock()
+	mock.calls.ExtensionConfig = append(mock.calls.ExtensionConfig, callInfo)
+	mock.lockExtensionConfig.Unlock()
+	if mock.ExtensionConfigFunc == nil {
+		var (
+			errOut error
+		)
+		return errOut
+	}
+	return mock.ExtensionConfigFunc(scope, name, target, envPrefix)
+}
+
+// ExtensionConfigCalls gets all the calls that were made to ExtensionConfig.
+// Check the length with:
+//
+//	len(mockedConfig.ExtensionConfigCalls())
+func (mock *ConfigMock) ExtensionConfigCalls() []struct {
+	Scope     string
+	Name      string
+	Target    any
+	EnvPrefix string
+} {
+	var calls []struct {
+		Scope     string
+		Name      string
+		Target    any
+		EnvPrefix string
+	}
+	mock.lockExtensionConfig.RLock()
+	calls = mock.calls.ExtensionConfig
+	mock.lockExtensionConfig.RUnlock()
+	return calls
 }
 
 // FilePath calls FilePathFunc.
@@ -281,41 +308,6 @@ func (mock *ConfigMock) ProjectDirCalls() []struct {
 	mock.lockProjectDir.RLock()
 	calls = mock.calls.ProjectDir
 	mock.lockProjectDir.RUnlock()
-	return calls
-}
-
-// ProviderConfig calls ProviderConfigFunc.
-func (mock *ConfigMock) ProviderConfig(name string) *ProviderConfigEntry {
-	callInfo := struct {
-		Name string
-	}{
-		Name: name,
-	}
-	mock.lockProviderConfig.Lock()
-	mock.calls.ProviderConfig = append(mock.calls.ProviderConfig, callInfo)
-	mock.lockProviderConfig.Unlock()
-	if mock.ProviderConfigFunc == nil {
-		var (
-			providerConfigEntryOut *ProviderConfigEntry
-		)
-		return providerConfigEntryOut
-	}
-	return mock.ProviderConfigFunc(name)
-}
-
-// ProviderConfigCalls gets all the calls that were made to ProviderConfig.
-// Check the length with:
-//
-//	len(mockedConfig.ProviderConfigCalls())
-func (mock *ConfigMock) ProviderConfigCalls() []struct {
-	Name string
-} {
-	var calls []struct {
-		Name string
-	}
-	mock.lockProviderConfig.RLock()
-	calls = mock.calls.ProviderConfig
-	mock.lockProviderConfig.RUnlock()
 	return calls
 }
 
@@ -460,79 +452,5 @@ func (mock *ConfigMock) SaveProviderKeyCalls() []struct {
 	mock.lockSaveProviderKey.RLock()
 	calls = mock.calls.SaveProviderKey
 	mock.lockSaveProviderKey.RUnlock()
-	return calls
-}
-
-// ToolConfig calls ToolConfigFunc.
-func (mock *ConfigMock) ToolConfig(name string, target any) error {
-	callInfo := struct {
-		Name   string
-		Target any
-	}{
-		Name:   name,
-		Target: target,
-	}
-	mock.lockToolConfig.Lock()
-	mock.calls.ToolConfig = append(mock.calls.ToolConfig, callInfo)
-	mock.lockToolConfig.Unlock()
-	if mock.ToolConfigFunc == nil {
-		var (
-			errOut error
-		)
-		return errOut
-	}
-	return mock.ToolConfigFunc(name, target)
-}
-
-// ToolConfigCalls gets all the calls that were made to ToolConfig.
-// Check the length with:
-//
-//	len(mockedConfig.ToolConfigCalls())
-func (mock *ConfigMock) ToolConfigCalls() []struct {
-	Name   string
-	Target any
-} {
-	var calls []struct {
-		Name   string
-		Target any
-	}
-	mock.lockToolConfig.RLock()
-	calls = mock.calls.ToolConfig
-	mock.lockToolConfig.RUnlock()
-	return calls
-}
-
-// UIConfig calls UIConfigFunc.
-func (mock *ConfigMock) UIConfig(target any) error {
-	callInfo := struct {
-		Target any
-	}{
-		Target: target,
-	}
-	mock.lockUIConfig.Lock()
-	mock.calls.UIConfig = append(mock.calls.UIConfig, callInfo)
-	mock.lockUIConfig.Unlock()
-	if mock.UIConfigFunc == nil {
-		var (
-			errOut error
-		)
-		return errOut
-	}
-	return mock.UIConfigFunc(target)
-}
-
-// UIConfigCalls gets all the calls that were made to UIConfig.
-// Check the length with:
-//
-//	len(mockedConfig.UIConfigCalls())
-func (mock *ConfigMock) UIConfigCalls() []struct {
-	Target any
-} {
-	var calls []struct {
-		Target any
-	}
-	mock.lockUIConfig.RLock()
-	calls = mock.calls.UIConfig
-	mock.lockUIConfig.RUnlock()
 	return calls
 }

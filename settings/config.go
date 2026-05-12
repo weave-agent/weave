@@ -473,6 +473,64 @@ func (c *FullConfig) UIConfig(target any) error {
 	return populateConfig(layered.UI, target)
 }
 
+func (c *FullConfig) ExtensionConfig(scope, name string, target any, envPrefix string) error {
+	layered, err := c.getLayeredSettings()
+	if err != nil {
+		return fmt.Errorf("load settings for %s.%s: %w", scope, name, err)
+	}
+
+	var raw any
+
+	switch scope {
+	case "tools":
+		if layered.Tools != nil {
+			raw = layered.Tools[name]
+		}
+	case "providers":
+		if layered.Providers != nil {
+			raw = layered.Providers[name]
+		}
+	case "ui":
+		raw = layered.UI
+	case "extensions":
+		// Extensions config not yet supported in layered settings.
+		return nil
+	default:
+		return nil
+	}
+
+	loader := Loader{
+		Data:      toMapAny(raw),
+		EnvPrefix: envPrefix,
+	}
+
+	return loader.Load(target)
+}
+
+func toMapAny(raw any) map[string]any {
+	if raw == nil {
+		return nil
+	}
+
+	m, ok := raw.(map[string]any)
+	if ok {
+		return m
+	}
+
+	// If it's not already a map, try JSON round-trip.
+	jsonBytes, err := json.Marshal(raw)
+	if err != nil {
+		return nil
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(jsonBytes, &result); err != nil {
+		return nil
+	}
+
+	return result
+}
+
 func (c *FullConfig) IsHeadless() bool { return false }
 
 func (c *FullConfig) RespectGitignore() bool {

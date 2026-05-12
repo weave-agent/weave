@@ -49,13 +49,13 @@ Key changes:
 
 ### Task 2: Update SDK Config interface
 
-- [ ] Remove `ToolConfig`, `UIConfig`, `ProviderConfig` from `sdk.Config` interface
-- [ ] Add `ExtensionConfig(scope, name string, target any, envPrefix string) error`
-- [ ] Update `noopConfig` and `FilePathConfig` to match new interface
-- [ ] Regenerate `sdk/config_mock_test.go` via `make gen`
-- [ ] Update `sdk/config_headless_test.go` if it asserts deleted methods
-- [ ] Write tests for `ExtensionConfig` delegation pattern
-- [ ] Run `go test ./sdk/...` — must pass
+- [x] Remove `ToolConfig`, `UIConfig`, `ProviderConfig` from `sdk.Config` interface
+- [x] Add `ExtensionConfig(scope, name string, target any, envPrefix string) error`
+- [x] Update `noopConfig` and `FilePathConfig` to match new interface
+- [x] Regenerate `sdk/config_mock_test.go` via `make gen`
+- [x] Update `sdk/config_headless_test.go` if it asserts deleted methods
+- [x] Write tests for `ExtensionConfig` delegation pattern
+- [x] Run `go test ./sdk/...` — must pass
 
 ### Task 3: Add generic registration + schema capture
 

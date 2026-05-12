@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNoopConfigIsHeadless(t *testing.T) {
@@ -33,5 +34,36 @@ func TestHeadlessConfig_DelegatesOtherMethods(t *testing.T) {
 	cfg := HeadlessConfig{Config: inner, Headless: false}
 
 	assert.Equal(t, "/test/path", cfg.FilePath(), "HeadlessConfig should delegate FilePath to inner")
-	assert.Nil(t, cfg.ProviderConfig("any"), "HeadlessConfig should delegate ProviderConfig to inner")
+	require.NoError(t, cfg.ExtensionConfig("tools", "bash", nil, ""), "HeadlessConfig should delegate ExtensionConfig to inner")
+}
+
+func TestNoopConfig_ExtensionConfig(t *testing.T) {
+	cfg := noopConfig{}
+
+	var target struct{ Timeout int }
+	require.NoError(t, cfg.ExtensionConfig("tools", "bash", &target, "WEAVE_BASH"))
+	assert.Zero(t, target.Timeout)
+}
+
+func TestFilePathConfig_ExtensionConfig(t *testing.T) {
+	cfg := FilePathConfig("/test/path")
+
+	var target struct{ Timeout int }
+	require.NoError(t, cfg.ExtensionConfig("tools", "bash", &target, "WEAVE_BASH"))
+	assert.Zero(t, target.Timeout)
+}
+
+func TestConfigMock_ExtensionConfig(t *testing.T) {
+	var called bool
+
+	mock := &ConfigMock{
+		ExtensionConfigFunc: func(scope, name string, target any, envPrefix string) error {
+			called = true
+			return nil
+		},
+	}
+
+	var target struct{ Timeout int }
+	require.NoError(t, mock.ExtensionConfig("tools", "bash", &target, "WEAVE_BASH"))
+	assert.True(t, called)
 }
