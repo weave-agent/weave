@@ -1,0 +1,137 @@
+# Kimi Provider
+
+## Overview
+
+Add a built-in provider for [Kimi](https://www.moonshot.cn/) (Moonshot AI) coding models, exposed via the Kimi Coding API at `https://api.kimi.com/coding`. This API uses the Anthropic Messages API format, so we reuse the official Anthropic Go SDK with a custom base URL and headers.
+
+**Reference:** Pi coding agent defines this as provider `kimi-coding` with default model `kimi-for-coding`, API type `anthropic-messages`, base URL `https://api.kimi.com/coding`, and custom `User-Agent: KimiCLI/1.5` header.
+
+**Model to register:**
+- `kimi-for-coding` — default, 262K context, 32K max tokens, reasoning enabled
+
+## Context (from discovery)
+
+- **Files/components involved:**
+  - New module: `extensions/providers/kimi/` (go.mod, kimi.go, models.go, kimi_test.go)
+  - No core files need modification — auto-discovery picks up new extension modules
+- **Related patterns found:**
+  - Anthropic provider (`extensions/providers/anthropic/`) — identical API format, will be heavily referenced
+  - ZAI provider (`extensions/providers/zai/`) — shows custom base URL + header pattern via `openaicompat`
+  - Provider registration via `sdk.RegisterProvider` in `init()`
+  - Model registration via `model.RegisterModel` in `init()`
+  - Env var registration via `model.RegisterProviderEnvVar`
+- **Dependencies identified:**
+  - `github.com/anthropics/anthropic-sdk-go` — already a dependency of the anthropic provider
+  - `weave/sdk`, `weave/sdk/model` — SDK interfaces
+
+## Development Approach
+
+- **Testing approach:** Regular (code first, then tests)
+- Complete each task fully before moving to the next
+- Make small, focused changes
+- **CRITICAL: every task MUST include new/updated tests** for code changes in that task
+- **CRITICAL: all tests must pass before starting next task** — no exceptions
+- **CRITICAL: update this plan file when scope changes during implementation**
+- Run tests after each change
+- Maintain backward compatibility
+
+## Testing Strategy
+
+- **Unit tests:** Required for every task. Test provider initialization, config resolution, model registration, and streaming behavior.
+- **Mock Anthropic API server:** Use `httptest` to simulate the Kimi Coding API (Anthropic Messages format) and verify request headers, body, and response parsing.
+- **Test coverage:** Provider factory, Stream method, thinking level resolution, custom header injection.
+
+## Progress Tracking
+
+- Mark completed items with `[x]` immediately when done
+- Add newly discovered tasks with `+` prefix
+- Document issues/blockers with `⚠️` prefix
+- Update plan if implementation deviates from original scope
+- Keep plan in sync with actual work done
+
+## Implementation Steps
+
+### Task 1: Create Kimi provider module skeleton
+- [ ] Create `extensions/providers/kimi/go.mod` with module path `weave/ext/providers/kimi` and replace directive
+- [ ] Create `extensions/providers/kimi/models.go` with model registration (`kimi-for-coding`)
+- [ ] Create `extensions/providers/kimi/kimi.go` with provider struct, `init()`, config resolution, and `Stream()` delegation to Anthropic SDK
+- [ ] Configure Anthropic client with custom base URL (`https://api.kimi.com/coding`) and `User-Agent: KimiCLI/1.5` header
+- [ ] Add `KIMI_API_KEY` env var support via `model.RegisterProviderEnvVar`
+- [ ] Add `KIMI_MODEL` env var override support
+- [ ] Support `providers.kimi` config block (model, max_tokens, base_url overrides)
+- [ ] write tests for provider initialization (success + missing API key)
+- [ ] write tests for config resolution (env var, config file, defaults)
+- [ ] write tests for model registration
+- [ ] run tests — must pass before next task
+
+### Task 2: Implement streaming with Anthropic SDK
+- [ ] Implement `Stream()` method reusing Anthropic SDK's `Messages.NewStreaming()`
+- [ ] Handle text deltas, thinking blocks, tool calls, and errors (same as anthropic provider)
+- [ ] Map thinking levels to Anthropic output config effort (low/medium/high/xhigh)
+- [ ] Handle thinking level clamping for models that don't support xhigh
+- [ ] write tests for streaming with mock Anthropic-compatible server
+- [ ] write tests for thinking block handling
+- [ ] write tests for tool call parsing
+- [ ] write tests for error handling (auth errors, network errors)
+- [ ] run tests — must pass before next task
+
+### Task 3: Register built-in models and verify integration
+- [ ] Register `kimi-for-coding` as default model (262K context, 32K max tokens, reasoning enabled)
+- [ ] Add `KIMI_API_KEY` to provider env var registry
+- [ ] Verify provider appears in `sdk.ListProviders()` after build
+- [ ] Verify models appear in `model.ListModelsForProvider("kimi")`
+- [ ] write tests for model registry entries
+- [ ] write integration-style test: create provider → stream → verify events
+- [ ] run full test suite — must pass before next task
+
+### Task 4: Verify acceptance criteria
+- [ ] verify provider `kimi` is registered and discoverable
+- [ ] verify `KIMI_API_KEY` resolves correctly (env → auth file → config file)
+- [ ] verify default model is `kimi-for-coding`
+- [ ] verify custom base URL and User-Agent header are sent
+- [ ] verify thinking levels work correctly
+- [ ] verify tool calls are parsed and emitted
+- [ ] run full test suite (all providers)
+- [ ] run linter — all issues must be fixed
+
+### Task 5: Update documentation
+- [ ] update CLAUDE.md provider section with Kimi env var (`KIMI_API_KEY`) and model info
+- [ ] update settings.json example with `providers.kimi` config block
+
+## Technical Details
+
+### Provider config resolution (highest to lowest priority)
+1. `KIMI_API_KEY` env var
+2. `~/.weave/auth.json` `"kimi"` entry
+3. `.weave/settings.json` `providers.kimi.api_key`
+4. `KIMI_MODEL` env var for model override
+5. `providers.kimi.model` in settings
+6. Default: `kimi-for-coding`
+
+### Anthropic SDK configuration
+```go
+client := anthropic.NewClient(
+    option.WithAPIKey(apiKey),
+    option.WithBaseURL("https://api.kimi.com/coding"),
+    option.WithHeader("User-Agent", "KimiCLI/1.5"),
+)
+```
+
+### Model definitions
+| ID | Display Name | Context | Max Tokens | Reasoning | Default |
+|---|---|---|---|---|---|
+| `kimi-for-coding` | Kimi For Coding | 262144 | 32768 | yes | yes |
+| `k2p6` | Kimi K2.6 | 262144 | 32768 | yes | no |
+| `kimi-k2-thinking` | Kimi K2 Thinking | 262144 | 32768 | yes | no |
+
+### Request format
+Identical to Anthropic Messages API. Thinking enabled via `ThinkingConfigAdaptiveParam` + `OutputConfigParam{Effort: ...}`.
+
+## Post-Completion
+
+**Manual verification:**
+- Obtain a Kimi API key and test live streaming
+- Verify thinking blocks render correctly in TUI
+- Verify tool calls execute correctly
+
+**No external system updates required.**
