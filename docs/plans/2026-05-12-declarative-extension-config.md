@@ -134,10 +134,10 @@ Key changes:
 
 ### Task 10: Remove gonfig dependency
 
-- [ ] Remove `github.com/nniel-ape/gonfig` from `go.mod`
-- [ ] Run `go mod tidy`
-- [ ] Verify no gonfig imports remain in codebase
-- [ ] Run `make test` — must pass
+- [x] Remove `github.com/nniel-ape/gonfig` from `go.mod`
+- [x] Run `go mod tidy`
+- [x] Verify no gonfig imports remain in codebase
+- [x] Run `make test` — must pass
 
 ### Task 11: Verify acceptance criteria
 
