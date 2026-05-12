@@ -270,7 +270,7 @@ func TestApplyDefaults_StringField(t *testing.T) {
 	var s struct {
 		Name string `default:"unnamed"`
 	}
-	applyDefaults(&s)
+	require.NoError(t, applyDefaults(&s))
 	assert.Equal(t, "unnamed", s.Name)
 }
 
@@ -278,7 +278,7 @@ func TestApplyDefaults_IntField(t *testing.T) {
 	var s struct {
 		Port int `default:"8080"`
 	}
-	applyDefaults(&s)
+	require.NoError(t, applyDefaults(&s))
 	assert.Equal(t, 8080, s.Port)
 }
 
@@ -286,7 +286,7 @@ func TestApplyDefaults_BoolField(t *testing.T) {
 	var s struct {
 		Verbose bool `default:"true"`
 	}
-	applyDefaults(&s)
+	require.NoError(t, applyDefaults(&s))
 	assert.True(t, s.Verbose)
 }
 
@@ -294,7 +294,7 @@ func TestApplyDefaults_SkipsNonZero(t *testing.T) {
 	s := struct {
 		Name string `default:"unnamed"`
 	}{Name: "custom"}
-	applyDefaults(&s)
+	require.NoError(t, applyDefaults(&s))
 	assert.Equal(t, "custom", s.Name)
 }
 
@@ -302,18 +302,18 @@ func TestApplyDefaults_SkipsNoTag(t *testing.T) {
 	var s struct {
 		Name string
 	}
-	applyDefaults(&s)
+	require.NoError(t, applyDefaults(&s))
 	assert.Empty(t, s.Name)
 }
 
 func TestApplyDefaults_NilPointer(t *testing.T) {
 	// Should not panic on nil pointer.
-	applyDefaults(nil)
+	require.NoError(t, applyDefaults(nil))
 
 	var p *struct {
 		Name string `default:"unnamed"`
 	}
-	applyDefaults(p)
+	require.NoError(t, applyDefaults(p))
 }
 
 func TestLoader_RoundTrip(t *testing.T) {

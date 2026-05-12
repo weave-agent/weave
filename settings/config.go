@@ -456,42 +456,46 @@ func (c *FullConfig) ExtensionConfig(scope, name string, target any, envPrefix s
 	case "jsonl":
 		raw = layered.JSONL
 	case "extensions":
-		// Extensions config not yet supported in layered settings.
-		return nil
+		return errors.New("extensions scope not yet supported")
 	default:
-		return nil
+		return fmt.Errorf("unknown config scope %q", scope)
+	}
+
+	data, err := toMapAny(raw)
+	if err != nil {
+		return fmt.Errorf("convert config for %s.%s: %w", scope, name, err)
 	}
 
 	loader := Loader{
-		Data:      toMapAny(raw),
+		Data:      data,
 		EnvPrefix: envPrefix,
 	}
 
 	return loader.Load(target)
 }
 
-func toMapAny(raw any) map[string]any {
+func toMapAny(raw any) (map[string]any, error) {
 	if raw == nil {
-		return nil
+		return map[string]any{}, nil
 	}
 
 	m, ok := raw.(map[string]any)
 	if ok {
-		return m
+		return m, nil
 	}
 
 	// If it's not already a map, try JSON round-trip.
 	jsonBytes, err := json.Marshal(raw)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("marshal config: %w", err)
 	}
 
 	var result map[string]any
 	if err := json.Unmarshal(jsonBytes, &result); err != nil {
-		return nil
+		return nil, fmt.Errorf("unmarshal config: %w", err)
 	}
 
-	return result
+	return result, nil
 }
 
 func (c *FullConfig) IsHeadless() bool { return false }
@@ -515,8 +519,13 @@ func (c *FullConfig) Preferences(target any) error {
 		return fmt.Errorf("load preferences: %w", err)
 	}
 
+	data, err := toMapAny(layered)
+	if err != nil {
+		return fmt.Errorf("convert preferences: %w", err)
+	}
+
 	loader := Loader{
-		Data: toMapAny(layered),
+		Data: data,
 	}
 
 	return loader.Load(target)

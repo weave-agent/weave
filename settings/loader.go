@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"reflect"
@@ -37,7 +38,9 @@ func (l *Loader) Load(target any) error {
 	}
 
 	// Priority: defaults → data → env → flags → validation.
-	applyDefaults(target)
+	if err := applyDefaults(target); err != nil {
+		return fmt.Errorf("apply defaults: %w", err)
+	}
 
 	if l.Data != nil {
 		if err := applyData(target, l.Data); err != nil {
@@ -46,7 +49,9 @@ func (l *Loader) Load(target any) error {
 	}
 
 	if l.EnvPrefix != "" {
-		applyEnv(target, l.EnvPrefix)
+		if err := applyEnv(target, l.EnvPrefix); err != nil {
+			return fmt.Errorf("apply env: %w", err)
+		}
 	}
 
 	if len(l.Args) > 0 {
@@ -63,19 +68,19 @@ func (l *Loader) Load(target any) error {
 }
 
 // applyDefaults sets zero-value fields from their `default` struct tags.
-func applyDefaults(target any) {
+func applyDefaults(target any) error {
 	if target == nil {
-		return
+		return nil
 	}
 
 	v := reflect.ValueOf(target)
 	if v.Kind() != reflect.Pointer || v.IsNil() {
-		return
+		return nil
 	}
 
 	v = v.Elem()
 	if v.Kind() != reflect.Struct {
-		return
+		return nil
 	}
 
 	t := v.Type()
@@ -89,7 +94,10 @@ func applyDefaults(target any) {
 
 		// Recurse into nested structs.
 		if field.Kind() == reflect.Struct {
-			applyDefaults(field.Addr().Interface())
+			if err := applyDefaults(field.Addr().Interface()); err != nil {
+				return err
+			}
+
 			continue
 		}
 
@@ -102,8 +110,12 @@ func applyDefaults(target any) {
 			continue
 		}
 
-		setFieldFromString(field, defTag)
+		if err := setFieldFromString(field, defTag); err != nil {
+			return fmt.Errorf("field %s default %q: %w", ft.Name, defTag, err)
+		}
 	}
+
+	return nil
 }
 
 // applyData populates target fields from a map using JSON tag matching.
@@ -167,19 +179,19 @@ func applyData(target any, data map[string]any) error {
 
 // applyEnv overrides fields from environment variables using `env` struct tags.
 // Env vars are looked up as PREFIX_FIELD (e.g. WEAVE_BASH_TIMEOUT).
-func applyEnv(target any, prefix string) {
+func applyEnv(target any, prefix string) error {
 	if target == nil || prefix == "" {
-		return
+		return nil
 	}
 
 	v := reflect.ValueOf(target)
 	if v.Kind() != reflect.Pointer || v.IsNil() {
-		return
+		return nil
 	}
 
 	v = v.Elem()
 	if v.Kind() != reflect.Struct {
-		return
+		return nil
 	}
 
 	t := v.Type()
@@ -193,7 +205,10 @@ func applyEnv(target any, prefix string) {
 
 		// Recurse into nested structs.
 		if field.Kind() == reflect.Struct {
-			applyEnv(field.Addr().Interface(), prefix)
+			if err := applyEnv(field.Addr().Interface(), prefix); err != nil {
+				return err
+			}
+
 			continue
 		}
 
@@ -209,8 +224,12 @@ func applyEnv(target any, prefix string) {
 			continue
 		}
 
-		setFieldFromString(field, val)
+		if err := setFieldFromString(field, val); err != nil {
+			return fmt.Errorf("field %s env %s=%q: %w", ft.Name, key, val, err)
+		}
 	}
+
+	return nil
 }
 
 // applyFlags overrides fields from CLI flags using `flag` and `short` struct tags.
@@ -231,7 +250,7 @@ func applyFlags(target any, args []string) ([]string, error) {
 	}
 
 	fs := flag.NewFlagSet("", flag.ContinueOnError)
-	fs.SetOutput(&discardWriter{})
+	fs.SetOutput(io.Discard)
 
 	t := v.Type()
 	knownFlags := make(map[string]bool)
@@ -381,7 +400,7 @@ func validateStruct(v reflect.Value, prefix string, errs *ValidationErrors) erro
 			fieldName = prefix + "." + fieldName
 		}
 
-		if field.Kind() == reflect.Struct && ft.Type != reflect.TypeFor[timeValue]() {
+		if field.Kind() == reflect.Struct {
 			if err := validateStruct(field, fieldName, errs); err != nil {
 				return err
 			}
@@ -611,29 +630,43 @@ func checkOneOf(field reflect.Value, valStr string) string {
 }
 
 // setFieldFromString sets a field value from a string representation.
-func setFieldFromString(field reflect.Value, s string) {
+func setFieldFromString(field reflect.Value, s string) error {
 	switch field.Kind() {
 	case reflect.String:
 		field.SetString(s)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		if n, err := strconv.ParseInt(s, 10, 64); err == nil {
-			field.SetInt(n)
+		n, err := strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			return fmt.Errorf("parse int: %w", err)
 		}
+
+		field.SetInt(n)
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		if n, err := strconv.ParseUint(s, 10, 64); err == nil {
-			field.SetUint(n)
+		n, err := strconv.ParseUint(s, 10, 64)
+		if err != nil {
+			return fmt.Errorf("parse uint: %w", err)
 		}
+
+		field.SetUint(n)
 	case reflect.Float32, reflect.Float64:
-		if f, err := strconv.ParseFloat(s, 64); err == nil {
-			field.SetFloat(f)
+		f, err := strconv.ParseFloat(s, 64)
+		if err != nil {
+			return fmt.Errorf("parse float: %w", err)
 		}
+
+		field.SetFloat(f)
 	case reflect.Bool:
-		if b, err := strconv.ParseBool(s); err == nil {
-			field.SetBool(b)
+		b, err := strconv.ParseBool(s)
+		if err != nil {
+			return fmt.Errorf("parse bool: %w", err)
 		}
+
+		field.SetBool(b)
 	default:
 		// Unsupported kind for default tag; skip.
 	}
+
+	return nil
 }
 
 // setFieldFromAny sets a field from an arbitrary value, handling type coercion.
@@ -805,13 +838,3 @@ func defineFlag(fs *flag.FlagSet, name string, ptr any) {
 		fs.BoolVar(p, name, *p, "")
 	}
 }
-
-// discardWriter discards all writes.
-type discardWriter struct{}
-
-func (d *discardWriter) Write(p []byte) (int, error) {
-	return len(p), nil
-}
-
-// timeValue is a sentinel type used to detect and skip time.Time structs.
-type timeValue struct{}
