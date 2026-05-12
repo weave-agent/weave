@@ -52,17 +52,17 @@ Add a built-in provider for [Kimi](https://www.moonshot.cn/) (Moonshot AI) codin
 ## Implementation Steps
 
 ### Task 1: Create Kimi provider module skeleton
-- [ ] Create `extensions/providers/kimi/go.mod` with module path `weave/ext/providers/kimi` and replace directive
-- [ ] Create `extensions/providers/kimi/models.go` with model registration (`kimi-for-coding`)
-- [ ] Create `extensions/providers/kimi/kimi.go` with provider struct, `init()`, config resolution, and `Stream()` delegation to Anthropic SDK
-- [ ] Configure Anthropic client with custom base URL (`https://api.kimi.com/coding`) and `User-Agent: KimiCLI/1.5` header
-- [ ] Add `KIMI_API_KEY` env var support via `model.RegisterProviderEnvVar`
-- [ ] Add `KIMI_MODEL` env var override support
-- [ ] Support `providers.kimi` config block (model, max_tokens, base_url overrides)
-- [ ] write tests for provider initialization (success + missing API key)
-- [ ] write tests for config resolution (env var, config file, defaults)
-- [ ] write tests for model registration
-- [ ] run tests — must pass before next task
+- [x] Create `extensions/providers/kimi/go.mod` with module path `weave/ext/providers/kimi` and replace directive
+- [x] Create `extensions/providers/kimi/models.go` with model registration (`kimi-for-coding`)
+- [x] Create `extensions/providers/kimi/kimi.go` with provider struct, `init()`, config resolution, and `Stream()` delegation to Anthropic SDK
+- [x] Configure Anthropic client with custom base URL (`https://api.kimi.com/coding`) and `User-Agent: KimiCLI/1.5` header
+- [x] Add `KIMI_API_KEY` env var support via `model.RegisterProviderEnvVar`
+- [x] Add `KIMI_MODEL` env var override support
+- [x] Support `providers.kimi` config block (model, max_tokens, base_url overrides)
+- [x] write tests for provider initialization (success + missing API key)
+- [x] write tests for config resolution (env var, config file, defaults)
+- [x] write tests for model registration
+- [x] run tests — must pass before next task
 
 ### Task 2: Implement streaming with Anthropic SDK
 - [ ] Implement `Stream()` method reusing Anthropic SDK's `Messages.NewStreaming()`
