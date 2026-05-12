@@ -1,9 +1,6 @@
 package sdk
 
-import (
-	"fmt"
-	"os"
-)
+import "os"
 
 //go:generate moq -fmt goimports -stub -out config_mock_test.go . Config
 
@@ -78,11 +75,3 @@ type HeadlessConfig struct {
 }
 
 func (h HeadlessConfig) IsHeadless() bool { return h.Headless }
-
-func (h HeadlessConfig) SaveProviderKey(p, k string) error {
-	if err := h.Config.SaveProviderKey(p, k); err != nil {
-		return fmt.Errorf("save provider key: %w", err)
-	}
-
-	return nil
-}
