@@ -76,13 +76,13 @@ Add a built-in provider for [Kimi](https://www.moonshot.cn/) (Moonshot AI) codin
 - [x] run tests — must pass before next task
 
 ### Task 3: Register built-in models and verify integration
-- [ ] Register `kimi-for-coding` as default model (262K context, 32K max tokens, reasoning enabled)
-- [ ] Add `KIMI_API_KEY` to provider env var registry
-- [ ] Verify provider appears in `sdk.ListProviders()` after build
-- [ ] Verify models appear in `model.ListModelsForProvider("kimi")`
-- [ ] write tests for model registry entries
-- [ ] write integration-style test: create provider → stream → verify events
-- [ ] run full test suite — must pass before next task
+- [x] Register `kimi-for-coding` as default model (262K context, 32K max tokens, reasoning enabled)
+- [x] Add `KIMI_API_KEY` to provider env var registry
+- [x] Verify provider appears in `sdk.ListProviders()` after build
+- [x] Verify models appear in `model.ListModelsForProvider("kimi")`
+- [x] write tests for model registry entries
+- [x] write integration-style test: create provider → stream → verify events
+- [x] run full test suite — must pass before next task
 
 ### Task 4: Verify acceptance criteria
 - [ ] verify provider `kimi` is registered and discoverable

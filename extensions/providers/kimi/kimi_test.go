@@ -962,6 +962,125 @@ func TestEnvVarRegistration(t *testing.T) {
 	assert.Equal(t, "KIMI_API_KEY", envVar)
 }
 
+func TestListProviders(t *testing.T) {
+	providers := sdk.ListProviders()
+	assert.Contains(t, providers, "kimi")
+}
+
+func TestDefaultModelForProvider(t *testing.T) {
+	model.ResetModelRegistry()
+	defer model.ResetModelRegistry()
+
+	RegisterModels()
+
+	m, ok := model.DefaultModelForProvider("kimi")
+	require.True(t, ok)
+	assert.Equal(t, "kimi-for-coding", m.ID)
+	assert.True(t, m.Default)
+}
+
+func TestIntegration_FullStream(t *testing.T) {
+	model.ResetModelRegistry()
+	defer model.ResetModelRegistry()
+
+	RegisterModels()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeSSE(w, textStreamEvents("integrated response"))
+	}))
+	defer server.Close()
+
+	cfg := &mockConfig{
+		resolveKey: "test-api-key",
+		providerConfig: &sdk.ProviderConfigEntry{
+			BaseURL: server.URL,
+		},
+	}
+
+	p, err := sdk.GetProvider("kimi", cfg)
+	require.NoError(t, err)
+	require.NotNil(t, p)
+
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("hello")},
+	})
+	require.NoError(t, err)
+
+	events := collectEvents(t, ch)
+
+	var textDeltas []string
+
+	for _, evt := range events {
+		if evt.Type == sdk.ProviderEventTextDelta {
+			textDeltas = append(textDeltas, evt.Content.(string))
+		}
+	}
+
+	assert.Equal(t, []string{"integrated response"}, textDeltas)
+}
+
+func TestIntegration_ProviderStreamWithTools(t *testing.T) {
+	model.ResetModelRegistry()
+	defer model.ResetModelRegistry()
+
+	RegisterModels()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeSSE(w, textAndToolEvents("I will run a command.", "toolu_int", "bash", `{"command":"echo hello"}`))
+	}))
+	defer server.Close()
+
+	cfg := &mockConfig{
+		resolveKey: "test-api-key",
+		providerConfig: &sdk.ProviderConfigEntry{
+			BaseURL: server.URL,
+		},
+	}
+
+	p, err := sdk.GetProvider("kimi", cfg)
+	require.NoError(t, err)
+	require.NotNil(t, p)
+
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("Run a command")},
+		Tools: []sdk.ToolDef{
+			{
+				Name:        "bash",
+				Description: "Run a bash command",
+				Parameters: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"command": map[string]any{"type": "string"},
+					},
+					"required": []string{"command"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	events := collectEvents(t, ch)
+
+	var (
+		textDeltas []string
+		toolCalls  []sdk.ToolCall
+	)
+
+	for _, evt := range events {
+		switch evt.Type {
+		case sdk.ProviderEventTextDelta:
+			textDeltas = append(textDeltas, evt.Content.(string))
+		case sdk.ProviderEventToolCall:
+			toolCalls = append(toolCalls, evt.Content.(sdk.ToolCall))
+		}
+	}
+
+	assert.Equal(t, []string{"I will run a command."}, textDeltas)
+	require.Len(t, toolCalls, 1)
+	assert.Equal(t, "bash", toolCalls[0].Name)
+	assert.Equal(t, map[string]any{"command": "echo hello"}, toolCalls[0].Arguments)
+}
+
 // mockConfig implements sdk.Config for testing provider initialization.
 type mockConfig struct {
 	resolveKey     string
