@@ -202,6 +202,15 @@ func TestSandbox_Close(t *testing.T) {
 	assert.NoError(t, s.Close())
 }
 
+func TestSandbox_Close_ClearsGlobalSandboxer(t *testing.T) {
+	s := &Sandbox{cfg: SandboxConfig{Mode: SandboxAuto}}
+	sdk.SetSandboxer(s)
+	assert.NotNil(t, sdk.GetSandboxer())
+
+	require.NoError(t, s.Close())
+	assert.Nil(t, sdk.GetSandboxer())
+}
+
 func TestSandbox_SetMode(t *testing.T) {
 	s := &Sandbox{cfg: SandboxConfig{Mode: SandboxAuto}}
 

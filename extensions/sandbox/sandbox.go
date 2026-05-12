@@ -212,6 +212,8 @@ func (s *Sandbox) Close() error {
 	s.pending = nil
 	s.mu.Unlock()
 
+	sdk.SetSandboxer(nil)
+
 	return nil
 }
 

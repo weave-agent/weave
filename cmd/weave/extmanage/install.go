@@ -182,8 +182,8 @@ func stagingPath(homeDir, extName string) (string, error) {
 
 func swapStaging(stagingDir, destDir string) error {
 	backupDir := destDir + ".bak"
-	_, _ = os.Stat(backupDir) // ignore error; backup may not exist
-	_ = os.Remove(backupDir)  // clean stale backup if any
+	_, _ = os.Stat(backupDir)   // ignore error; backup may not exist
+	_ = os.RemoveAll(backupDir) // clean stale backup if any
 
 	if _, err := os.Stat(destDir); err == nil {
 		if err := os.Rename(destDir, backupDir); err != nil {

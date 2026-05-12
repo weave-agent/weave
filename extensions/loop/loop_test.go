@@ -235,6 +235,24 @@ func TestLoop_StartupAndShutdown(t *testing.T) {
 	require.NoError(t, l.Close())
 }
 
+func TestLoop_SubscribeAfterClose(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mp := &ProviderMock{}
+	registerMockProvider("anthropic", mp)
+
+	l, b, cleanup := setupLoop(t, "anthropic")
+	defer cleanup()
+
+	require.NoError(t, l.Subscribe(b))
+	require.NoError(t, l.Close())
+
+	// Re-subscribe after Close should succeed.
+	require.NoError(t, l.Subscribe(b))
+	require.NoError(t, l.Close())
+}
+
 func TestLoop_SingleTurn_NoTools(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()

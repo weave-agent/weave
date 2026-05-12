@@ -87,7 +87,13 @@ func mergeProviders(result, layer *Settings) {
 		result.Providers = make(map[string]any, len(layer.Providers))
 	}
 
-	maps.Copy(result.Providers, layer.Providers)
+	for k, v := range layer.Providers {
+		if existing, ok := result.Providers[k]; ok {
+			result.Providers[k] = deepMergeValues(existing, v)
+		} else {
+			result.Providers[k] = v
+		}
+	}
 }
 
 func mergeTools(result, layer *Settings) {

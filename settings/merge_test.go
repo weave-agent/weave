@@ -326,6 +326,30 @@ func TestLoadLayeredSettings_DoesNotReuseGlobalAsProject(t *testing.T) {
 	assert.Equal(t, "global-model", result.Model)
 }
 
+func TestMergeSettings_ProvidersDeepMerge(t *testing.T) {
+	layer1 := &Settings{
+		Providers: map[string]any{
+			"anthropic": map[string]any{"model": "claude-opus-4-7"},
+			"openai":    map[string]any{"base_url": "https://api.openai.com/v1"},
+		},
+	}
+	layer2 := &Settings{
+		Providers: map[string]any{
+			"anthropic": map[string]any{"api_key": "sk-test"},
+			"zai":       map[string]any{"model": "glm-5.1"},
+		},
+	}
+
+	result := MergeSettings(layer1, layer2)
+
+	require.Len(t, result.Providers, 3)
+	anthropic := result.Providers["anthropic"].(map[string]any)
+	assert.Equal(t, "claude-opus-4-7", anthropic["model"])
+	assert.Equal(t, "sk-test", anthropic["api_key"])
+	assert.Equal(t, "https://api.openai.com/v1", result.Providers["openai"].(map[string]any)["base_url"])
+	assert.Equal(t, "glm-5.1", result.Providers["zai"].(map[string]any)["model"])
+}
+
 func TestSaveSettings_GlobalLayer(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

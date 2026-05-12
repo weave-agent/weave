@@ -215,6 +215,7 @@ func (l *Loop) Close() error {
 	l.mu.Lock()
 	cancel := l.cancel
 	done := l.done
+	l.cancel = nil
 	l.mu.Unlock()
 
 	if cancel != nil {
