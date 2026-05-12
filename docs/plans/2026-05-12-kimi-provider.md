@@ -85,14 +85,14 @@ Add a built-in provider for [Kimi](https://www.moonshot.cn/) (Moonshot AI) codin
 - [x] run full test suite — must pass before next task
 
 ### Task 4: Verify acceptance criteria
-- [ ] verify provider `kimi` is registered and discoverable
-- [ ] verify `KIMI_API_KEY` resolves correctly (env → auth file → config file)
-- [ ] verify default model is `kimi-for-coding`
-- [ ] verify custom base URL and User-Agent header are sent
-- [ ] verify thinking levels work correctly
-- [ ] verify tool calls are parsed and emitted
-- [ ] run full test suite (all providers)
-- [ ] run linter — all issues must be fixed
+- [x] verify provider `kimi` is registered and discoverable
+- [x] verify `KIMI_API_KEY` resolves correctly (env → auth file → config file)
+- [x] verify default model is `kimi-for-coding`
+- [x] verify custom base URL and User-Agent header are sent
+- [x] verify thinking levels work correctly
+- [x] verify tool calls are parsed and emitted
+- [x] run full test suite (all providers)
+- [x] run linter — all issues must be fixed
 
 ### Task 5: Update documentation
 - [ ] update CLAUDE.md provider section with Kimi env var (`KIMI_API_KEY`) and model info

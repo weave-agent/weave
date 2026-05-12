@@ -923,6 +923,41 @@ func TestStream_WithModelOverride(t *testing.T) {
 	assert.Contains(t, receivedBody, "k2p6")
 }
 
+func TestStream_UserAgentHeader(t *testing.T) {
+	model.ResetModelRegistry()
+	defer model.ResetModelRegistry()
+
+	RegisterModels()
+
+	var receivedUserAgent string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedUserAgent = r.Header.Get("User-Agent")
+
+		writeSSE(w, textStreamEvents("hi"))
+	}))
+	defer server.Close()
+
+	cfg := &mockConfig{
+		resolveKey: "test-api-key",
+		providerConfig: &sdk.ProviderConfigEntry{
+			BaseURL: server.URL,
+		},
+	}
+
+	p, err := sdk.GetProvider("kimi", cfg)
+	require.NoError(t, err)
+	require.NotNil(t, p)
+
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("hello")},
+	})
+	require.NoError(t, err)
+	collectEvents(t, ch)
+
+	assert.Equal(t, "KimiCLI/1.5", receivedUserAgent)
+}
+
 func TestRegister(t *testing.T) {
 	assert.True(t, sdk.ProviderRegistered("kimi"))
 }
