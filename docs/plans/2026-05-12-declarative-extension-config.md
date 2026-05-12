@@ -37,15 +37,15 @@ Key changes:
 
 ### Task 1: Build custom config loader
 
-- [ ] Create `settings/loader.go` with `Loader` struct and `Load(target any)` method
-- [ ] Implement `applyDefaults(target)` using `default` struct tags
-- [ ] Implement `applyData(target, data map[string]any)` using JSON tag matching
-- [ ] Implement `applyEnv(target, prefix string)` using `env` struct tags
-- [ ] Implement `applyFlags(target, args []string)` using `flag`/`short` struct tags
-- [ ] Implement validation: `required`, `gt`, `lt`, `min`, `max`, `oneof`, `url`
-- [ ] Support custom `Validate() error` interface
-- [ ] Write tests for loader (defaults, data, env, flags, validation, nested structs)
-- [ ] Run `go test ./settings/...` — must pass
+- [x] Create `settings/loader.go` with `Loader` struct and `Load(target any)` method
+- [x] Implement `applyDefaults(target)` using `default` struct tags
+- [x] Implement `applyData(target, data map[string]any)` using JSON tag matching
+- [x] Implement `applyEnv(target, prefix string)` using `env` struct tags
+- [x] Implement `applyFlags(target, args []string)` using `flag`/`short` struct tags
+- [x] Implement validation: `required`, `gt`, `lt`, `min`, `max`, `oneof`, `url`
+- [x] Support custom `Validate() error` interface
+- [x] Write tests for loader (defaults, data, env, flags, validation, nested structs)
+- [x] Run `go test ./settings/...` — must pass
 
 ### Task 2: Update SDK Config interface
 

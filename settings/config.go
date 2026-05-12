@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -569,59 +567,4 @@ func populateConfig(raw, target any) error {
 	}
 
 	return nil
-}
-
-// applyDefaults sets zero-value fields from their `default` struct tags.
-func applyDefaults(target any) {
-	if target == nil {
-		return
-	}
-
-	v := reflect.ValueOf(target)
-	if v.Kind() != reflect.Pointer || v.IsNil() {
-		return
-	}
-
-	v = v.Elem()
-
-	t := v.Type()
-
-	for i := range v.NumField() {
-		field := v.Field(i)
-		if !field.CanSet() {
-			continue
-		}
-
-		defTag := t.Field(i).Tag.Get("default")
-		if defTag == "" {
-			continue
-		}
-
-		if !field.IsZero() {
-			continue
-		}
-
-		switch field.Kind() {
-		case reflect.String:
-			field.SetString(defTag)
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			if n, err := strconv.ParseInt(defTag, 10, 64); err == nil {
-				field.SetInt(n)
-			}
-		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			if n, err := strconv.ParseUint(defTag, 10, 64); err == nil {
-				field.SetUint(n)
-			}
-		case reflect.Float32, reflect.Float64:
-			if f, err := strconv.ParseFloat(defTag, 64); err == nil {
-				field.SetFloat(f)
-			}
-		case reflect.Bool:
-			if b, err := strconv.ParseBool(defTag); err == nil {
-				field.SetBool(b)
-			}
-		default:
-			// Unsupported kind for default tag; skip.
-		}
-	}
 }
