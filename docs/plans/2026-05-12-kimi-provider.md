@@ -65,15 +65,15 @@ Add a built-in provider for [Kimi](https://www.moonshot.cn/) (Moonshot AI) codin
 - [x] run tests — must pass before next task
 
 ### Task 2: Implement streaming with Anthropic SDK
-- [ ] Implement `Stream()` method reusing Anthropic SDK's `Messages.NewStreaming()`
-- [ ] Handle text deltas, thinking blocks, tool calls, and errors (same as anthropic provider)
-- [ ] Map thinking levels to Anthropic output config effort (low/medium/high/xhigh)
-- [ ] Handle thinking level clamping for models that don't support xhigh
-- [ ] write tests for streaming with mock Anthropic-compatible server
-- [ ] write tests for thinking block handling
-- [ ] write tests for tool call parsing
-- [ ] write tests for error handling (auth errors, network errors)
-- [ ] run tests — must pass before next task
+- [x] Implement `Stream()` method reusing Anthropic SDK's `Messages.NewStreaming()`
+- [x] Handle text deltas, thinking blocks, tool calls, and errors (same as anthropic provider)
+- [x] Map thinking levels to Anthropic output config effort (low/medium/high/xhigh)
+- [x] Handle thinking level clamping for models that don't support xhigh
+- [x] write tests for streaming with mock Anthropic-compatible server
+- [x] write tests for thinking block handling
+- [x] write tests for tool call parsing
+- [x] write tests for error handling (auth errors, network errors)
+- [x] run tests — must pass before next task
 
 ### Task 3: Register built-in models and verify integration
 - [ ] Register `kimi-for-coding` as default model (262K context, 32K max tokens, reasoning enabled)
