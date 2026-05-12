@@ -20,6 +20,12 @@ const (
 	defaultMaxTokens = 16384
 )
 
+// AnthropicConfig holds per-provider configuration for the Anthropic provider.
+type AnthropicConfig struct {
+	Model     string `json:"model" default:"claude-sonnet-4-6" description:"Model name"`
+	MaxTokens int    `json:"max_tokens" default:"16384" description:"Maximum tokens"`
+}
+
 type provider struct {
 	client    anthropic.Client
 	model     string
@@ -29,7 +35,7 @@ type provider struct {
 func init() {
 	model.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
 
-	sdk.RegisterProvider("anthropic", func(cfg sdk.Config) (sdk.Provider, error) {
+	sdk.RegisterProvider[AnthropicConfig]("anthropic", func(cfg sdk.Config, ac AnthropicConfig) (sdk.Provider, error) {
 		apiKey, err := cfg.ResolveKey("anthropic", "ANTHROPIC_API_KEY")
 		if err != nil {
 			return nil, fmt.Errorf("anthropic: %w", err)
@@ -39,8 +45,8 @@ func init() {
 			return nil, errors.New("anthropic: API key required (set ANTHROPIC_API_KEY, add to ~/.weave/auth.json, or configure in .weave/settings.json)")
 		}
 
-		modelName := defaultModel
-		maxTokens := defaultMaxTokens
+		modelName := ac.Model
+		maxTokens := ac.MaxTokens
 
 		if v := os.Getenv("ANTHROPIC_MODEL"); v != "" {
 			modelName = v
@@ -49,16 +55,6 @@ func init() {
 		if v := os.Getenv("ANTHROPIC_MAX_TOKENS"); v != "" {
 			if n, parseErr := strconv.Atoi(v); parseErr == nil && n > 0 {
 				maxTokens = n
-			}
-		}
-
-		if pc := cfg.ProviderConfig("anthropic"); pc != nil {
-			if pc.Model != "" {
-				modelName = pc.Model
-			}
-
-			if pc.MaxTokens > 0 {
-				maxTokens = pc.MaxTokens
 			}
 		}
 

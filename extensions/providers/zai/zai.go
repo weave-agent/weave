@@ -17,6 +17,12 @@ const (
 	defaultBaseURL = "https://api.z.ai/api/coding/paas/v4"
 )
 
+// ZaiConfig holds per-provider configuration for the Z.ai provider.
+type ZaiConfig struct {
+	Model   string `json:"model" default:"glm-5.1" description:"Model name"`
+	BaseURL string `json:"base_url" default:"https://api.z.ai/api/coding/paas/v4" description:"API base URL"`
+}
+
 type provider struct {
 	client *http.Client
 	config openaicompat.ProviderConfig
@@ -25,7 +31,7 @@ type provider struct {
 func init() {
 	model.RegisterProviderEnvVar("zai", "ZAI_API_KEY")
 
-	sdk.RegisterProvider("zai", func(cfg sdk.Config) (sdk.Provider, error) {
+	sdk.RegisterProvider[ZaiConfig]("zai", func(cfg sdk.Config, zc ZaiConfig) (sdk.Provider, error) {
 		apiKey, err := cfg.ResolveKey("zai", "ZAI_API_KEY")
 		if err != nil {
 			return nil, fmt.Errorf("zai: %w", err)
@@ -35,21 +41,11 @@ func init() {
 			return nil, errors.New("zai: API key required (set ZAI_API_KEY, add to ~/.weave/auth.json, or configure in .weave/settings.json)")
 		}
 
-		modelName := defaultModel
-		baseURL := defaultBaseURL
+		modelName := zc.Model
+		baseURL := zc.BaseURL
 
 		if v := os.Getenv("ZAI_MODEL"); v != "" {
 			modelName = v
-		}
-
-		if pc := cfg.ProviderConfig("zai"); pc != nil {
-			if pc.Model != "" {
-				modelName = pc.Model
-			}
-
-			if pc.BaseURL != "" {
-				baseURL = pc.BaseURL
-			}
 		}
 
 		return &provider{

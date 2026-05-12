@@ -1411,14 +1411,40 @@ type mockConfig struct {
 	providerConfig *sdk.ProviderConfigEntry
 }
 
-func (m *mockConfig) FilePath() string                                    { return "" }
-func (m *mockConfig) ProjectDir() string                                  { return "" }
-func (m *mockConfig) ProviderConfig(name string) *sdk.ProviderConfigEntry { return m.providerConfig }
-func (m *mockConfig) ResolveKey(_, _ string) (string, error)              { return m.resolveKey, m.resolveErr }
-func (m *mockConfig) ToolConfig(_ string, _ any) error                    { return nil }
-func (m *mockConfig) UIConfig(_ any) error                                { return nil }
-func (m *mockConfig) IsHeadless() bool                                    { return true }
-func (m *mockConfig) Preferences(_ any) error                             { return nil }
-func (m *mockConfig) SavePreferences(_ any) error                         { return nil }
-func (m *mockConfig) SaveProviderKey(_, _ string) error                   { return nil }
-func (m *mockConfig) RespectGitignore() bool                              { return true }
+func (m *mockConfig) FilePath() string   { return "" }
+func (m *mockConfig) ProjectDir() string { return "" }
+func (m *mockConfig) ExtensionConfig(scope, name string, target any, _ string) error {
+	if scope != "providers" || name != "kimi" {
+		return nil
+	}
+
+	cfg, ok := target.(*KimiConfig)
+	if !ok {
+		return nil
+	}
+
+	// Apply defaults (loader would normally do this).
+	cfg.Model = defaultModel
+	cfg.MaxTokens = defaultMaxTokens
+	cfg.BaseURL = defaultBaseURL
+
+	if m.providerConfig != nil {
+		if m.providerConfig.Model != "" {
+			cfg.Model = m.providerConfig.Model
+		}
+		if m.providerConfig.MaxTokens > 0 {
+			cfg.MaxTokens = m.providerConfig.MaxTokens
+		}
+		if m.providerConfig.BaseURL != "" {
+			cfg.BaseURL = m.providerConfig.BaseURL
+		}
+	}
+
+	return nil
+}
+func (m *mockConfig) ResolveKey(_, _ string) (string, error) { return m.resolveKey, m.resolveErr }
+func (m *mockConfig) IsHeadless() bool                        { return true }
+func (m *mockConfig) Preferences(_ any) error                 { return nil }
+func (m *mockConfig) SavePreferences(_ any) error             { return nil }
+func (m *mockConfig) SaveProviderKey(_, _ string) error       { return nil }
+func (m *mockConfig) RespectGitignore() bool                  { return true }

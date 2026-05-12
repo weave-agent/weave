@@ -101,12 +101,12 @@ Key changes:
 
 ### Task 7: Provider extensions
 
-- [ ] **Anthropic:** Define `AnthropicConfig`, update registration to generic, remove `cfg.ProviderConfig` call
-- [ ] **OpenAI:** Define `OpenAIConfig`, update registration, remove `cfg.ProviderConfig` call
-- [ ] **Kimi:** Define `KimiConfig`, update registration, remove `cfg.ProviderConfig` call
-- [ ] **Z.ai:** Define `ZaiConfig`, update registration, remove `cfg.ProviderConfig` call
-- [ ] Update provider test mocks (remove `ProviderConfig` from mock `Config` implementations)
-- [ ] Run tests for each provider module (`cd extensions/providers/<name> && go test ./...`)
+- [x] **Anthropic:** Define `AnthropicConfig`, update registration to generic, remove `cfg.ProviderConfig` call
+- [x] **OpenAI:** Define `OpenAIConfig`, update registration, remove `cfg.ProviderConfig` call
+- [x] **Kimi:** Define `KimiConfig`, update registration, remove `cfg.ProviderConfig` call
+- [x] **Z.ai:** Define `ZaiConfig`, update registration, remove `cfg.ProviderConfig` call
+- [x] Update provider test mocks (remove `ProviderConfig` from mock `Config` implementations)
+- [x] Run tests for each provider module (`cd extensions/providers/<name> && go test ./...`)
 
 ### Task 8: Tool extensions
 

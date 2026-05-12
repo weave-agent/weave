@@ -17,6 +17,12 @@ const (
 	defaultBaseURL = "https://api.openai.com/v1"
 )
 
+// OpenAIConfig holds per-provider configuration for the OpenAI provider.
+type OpenAIConfig struct {
+	Model   string `json:"model" default:"gpt-5.5" description:"Model name"`
+	BaseURL string `json:"base_url" default:"https://api.openai.com/v1" description:"API base URL"`
+}
+
 type provider struct {
 	client *http.Client
 	config openaicompat.ProviderConfig
@@ -25,7 +31,7 @@ type provider struct {
 func init() {
 	model.RegisterProviderEnvVar("openai", "OPENAI_API_KEY")
 
-	sdk.RegisterProvider("openai", func(cfg sdk.Config) (sdk.Provider, error) {
+	sdk.RegisterProvider[OpenAIConfig]("openai", func(cfg sdk.Config, oc OpenAIConfig) (sdk.Provider, error) {
 		apiKey, err := cfg.ResolveKey("openai", "OPENAI_API_KEY")
 		if err != nil {
 			return nil, fmt.Errorf("openai: %w", err)
@@ -35,21 +41,11 @@ func init() {
 			return nil, errors.New("openai: API key required (set OPENAI_API_KEY, add to ~/.weave/auth.json, or configure in .weave/settings.json)")
 		}
 
-		modelName := defaultModel
-		baseURL := defaultBaseURL
+		modelName := oc.Model
+		baseURL := oc.BaseURL
 
 		if v := os.Getenv("OPENAI_MODEL"); v != "" {
 			modelName = v
-		}
-
-		if pc := cfg.ProviderConfig("openai"); pc != nil {
-			if pc.Model != "" {
-				modelName = pc.Model
-			}
-
-			if pc.BaseURL != "" {
-				baseURL = pc.BaseURL
-			}
 		}
 
 		return &provider{

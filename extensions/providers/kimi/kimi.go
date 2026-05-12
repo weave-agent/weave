@@ -21,6 +21,13 @@ const (
 	defaultBaseURL   = "https://api.kimi.com/coding"
 )
 
+// KimiConfig holds per-provider configuration for the Kimi provider.
+type KimiConfig struct {
+	Model     string `json:"model" default:"kimi-for-coding" description:"Model name"`
+	MaxTokens int    `json:"max_tokens" default:"32768" description:"Maximum tokens"`
+	BaseURL   string `json:"base_url" default:"https://api.kimi.com/coding" description:"API base URL"`
+}
+
 type provider struct {
 	client    anthropic.Client
 	model     string
@@ -31,7 +38,7 @@ type provider struct {
 func init() {
 	model.RegisterProviderEnvVar("kimi", "KIMI_API_KEY")
 
-	sdk.RegisterProvider("kimi", func(cfg sdk.Config) (sdk.Provider, error) {
+	sdk.RegisterProvider[KimiConfig]("kimi", func(cfg sdk.Config, kc KimiConfig) (sdk.Provider, error) {
 		apiKey, err := cfg.ResolveKey("kimi", "KIMI_API_KEY")
 		if err != nil {
 			return nil, fmt.Errorf("kimi: %w", err)
@@ -41,9 +48,9 @@ func init() {
 			return nil, errors.New("kimi: API key required (set KIMI_API_KEY, add to ~/.weave/auth.json, or configure in .weave/settings.json)")
 		}
 
-		modelName := defaultModel
-		maxTokens := defaultMaxTokens
-		baseURL := defaultBaseURL
+		modelName := kc.Model
+		maxTokens := kc.MaxTokens
+		baseURL := kc.BaseURL
 
 		if v := os.Getenv("KIMI_MODEL"); v != "" {
 			modelName = v
@@ -52,20 +59,6 @@ func init() {
 		if v := os.Getenv("KIMI_MAX_TOKENS"); v != "" {
 			if n, parseErr := strconv.Atoi(v); parseErr == nil && n > 0 {
 				maxTokens = n
-			}
-		}
-
-		if pc := cfg.ProviderConfig("kimi"); pc != nil {
-			if pc.Model != "" {
-				modelName = pc.Model
-			}
-
-			if pc.MaxTokens > 0 {
-				maxTokens = pc.MaxTokens
-			}
-
-			if pc.BaseURL != "" {
-				baseURL = pc.BaseURL
 			}
 		}
 
