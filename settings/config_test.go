@@ -683,7 +683,7 @@ func TestPreferences_LocalOverridesProject(t *testing.T) {
 	assert.Equal(t, "local-model", prefs.Model, "local model should override project")
 }
 
-func TestProviderConfig_UsesLayeredSettings(t *testing.T) {
+func TestExtensionConfig_ProvidersUsesLayeredSettings(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	globalDir := filepath.Join(home, ".weave")
@@ -714,13 +714,16 @@ func TestProviderConfig_UsesLayeredSettings(t *testing.T) {
 		settings: mustLoadSettings(t, filepath.Join(projectWeave, "settings.json")),
 	}
 
-	pc := cfg.ProviderConfig("openai")
-	require.NotNil(t, pc)
+	var pc struct {
+		Model   string `json:"model"`
+		BaseURL string `json:"base_url"`
+	}
+	require.NoError(t, cfg.ExtensionConfig("providers", "openai", &pc, ""))
 	assert.Equal(t, "gpt-project", pc.Model, "project model should be preserved")
 	assert.Equal(t, "https://local.example.com", pc.BaseURL, "local base_url should override global and project")
 }
 
-func TestProviderConfig_FallbackToProjectWhenNoLayered(t *testing.T) {
+func TestExtensionConfig_ProvidersFallbackToProjectWhenNoLayered(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
@@ -739,8 +742,10 @@ func TestProviderConfig_FallbackToProjectWhenNoLayered(t *testing.T) {
 		settings: mustLoadSettings(t, filepath.Join(projectWeave, "settings.json")),
 	}
 
-	pc := cfg.ProviderConfig("anthropic")
-	require.NotNil(t, pc)
+	var pc struct {
+		Model string `json:"model"`
+	}
+	require.NoError(t, cfg.ExtensionConfig("providers", "anthropic", &pc, ""))
 	assert.Equal(t, "claude-project", pc.Model)
 }
 

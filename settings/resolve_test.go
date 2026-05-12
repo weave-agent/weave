@@ -56,7 +56,7 @@ func TestResolveValue_CommandFailure(t *testing.T) {
 func TestResolveProviderKey_EnvVar(t *testing.T) {
 	t.Setenv("TEST_API_KEY", "from-env")
 
-	got, err := ResolveProviderKey("test", "TEST_API_KEY", nil)
+	got, err := ResolveProviderKey("test", "TEST_API_KEY", "")
 	require.NoError(t, err)
 	assert.Equal(t, "from-env", got)
 }
@@ -67,23 +67,19 @@ func TestResolveProviderKey_AuthFile(t *testing.T) {
 
 	require.NoError(t, auth.SetProviderKey("test", "from-auth"))
 
-	got, err := ResolveProviderKey("test", "UNSET_TEST_VAR", nil)
+	got, err := ResolveProviderKey("test", "UNSET_TEST_VAR", "")
 	require.NoError(t, err)
 	assert.Equal(t, "from-auth", got)
 }
 
 func TestResolveProviderKey_ConfigEntry(t *testing.T) {
-	entry := &ProviderEntry{APIKey: "from-config"}
-
-	got, err := ResolveProviderKey("test", "UNSET_TEST_VAR", entry)
+	got, err := ResolveProviderKey("test", "UNSET_TEST_VAR", "from-config")
 	require.NoError(t, err)
 	assert.Equal(t, "from-config", got)
 }
 
 func TestResolveProviderKey_ConfigEntryCommand(t *testing.T) {
-	entry := &ProviderEntry{APIKey: "!echo from-command"}
-
-	got, err := ResolveProviderKey("test", "UNSET_TEST_VAR", entry)
+	got, err := ResolveProviderKey("test", "UNSET_TEST_VAR", "!echo from-command")
 	require.NoError(t, err)
 	assert.Equal(t, "from-command", got)
 }
@@ -95,10 +91,8 @@ func TestResolveProviderKey_Priority(t *testing.T) {
 	t.Setenv("HOME", home)
 	require.NoError(t, auth.SetProviderKey("test", "from-auth"))
 
-	entry := &ProviderEntry{APIKey: "from-config"}
-
 	// Env var should win over auth and config
-	got, err := ResolveProviderKey("test", "TEST_PRIORITY_KEY", entry)
+	got, err := ResolveProviderKey("test", "TEST_PRIORITY_KEY", "from-config")
 	require.NoError(t, err)
 	assert.Equal(t, "from-env", got)
 }
@@ -108,16 +102,14 @@ func TestResolveProviderKey_AuthOverConfig(t *testing.T) {
 	t.Setenv("HOME", home)
 	require.NoError(t, auth.SetProviderKey("test", "from-auth"))
 
-	entry := &ProviderEntry{APIKey: "from-config"}
-
 	// Auth should win over config when no env var
-	got, err := ResolveProviderKey("test", "UNSET_TEST_VAR", entry)
+	got, err := ResolveProviderKey("test", "UNSET_TEST_VAR", "from-config")
 	require.NoError(t, err)
 	assert.Equal(t, "from-auth", got)
 }
 
 func TestResolveProviderKey_NotFound(t *testing.T) {
-	got, err := ResolveProviderKey("test", "UNSET_TEST_VAR", nil)
+	got, err := ResolveProviderKey("test", "UNSET_TEST_VAR", "")
 	require.NoError(t, err)
 	assert.Empty(t, got)
 }
@@ -132,7 +124,7 @@ func TestResolveProviderKey_AuthFileError(t *testing.T) {
 	// Write malformed auth file
 	require.NoError(t, os.WriteFile(filepath.Join(authDir, "auth.json"), []byte("not-json"), 0o600))
 
-	_, err := ResolveProviderKey("test", "UNSET_TEST_VAR", nil)
+	_, err := ResolveProviderKey("test", "UNSET_TEST_VAR", "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "load auth file")
 }

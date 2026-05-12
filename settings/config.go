@@ -15,14 +15,6 @@ import (
 	"weave/sdk"
 )
 
-// ProviderEntry holds per-provider configuration from the config file.
-type ProviderEntry struct {
-	APIKey    string `json:"api_key" description:"API key (literal, env var name, or !command)"`
-	Model     string `json:"model" description:"Default model for this provider"`
-	MaxTokens int    `json:"max_tokens" description:"Max tokens for this provider"`
-	BaseURL   string `json:"base_url" description:"Custom base URL (for OpenAI-compat providers)"`
-}
-
 // SandboxFileConfig holds sandbox configuration from the config file.
 type SandboxFileConfig struct {
 	Mode      string   `json:"mode" description:"Sandbox mode: off, readonly, ask, auto"`
@@ -30,42 +22,6 @@ type SandboxFileConfig struct {
 	DenyWrite []string `json:"deny_write" description:"Additional paths to block from writes"`
 	DenyRead  []string `json:"deny_read" description:"Paths to block from reading"`
 	Network   *bool    `json:"network" description:"Allow network access in sandbox"`
-}
-
-// TypedProviders converts the Providers map[string]any to map[string]ProviderEntry
-// via JSON round-trip (gonfig supports map[string]any, not map[string]ProviderEntry).
-func (s *Settings) TypedProviders() map[string]ProviderEntry {
-	result := make(map[string]ProviderEntry, len(s.Providers))
-
-	for name, raw := range s.Providers {
-		jsonBytes, err := json.Marshal(raw)
-		if err != nil {
-			continue
-		}
-
-		var entry ProviderEntry
-		if err := json.Unmarshal(jsonBytes, &entry); err != nil {
-			continue
-		}
-
-		result[name] = entry
-	}
-
-	return result
-}
-
-// ProviderConfig returns the typed config entry for a named provider, or nil.
-func (s *Settings) ProviderConfig(name string) *ProviderEntry {
-	tp := s.TypedProviders()
-
-	e, ok := tp[name]
-	if !ok {
-		return nil
-	}
-
-	entry := e
-
-	return &entry
 }
 
 // DefaultSettings returns a Settings with sensible defaults.
@@ -381,30 +337,6 @@ func (c *FullConfig) FilePath() string { return c.filePath }
 
 func (c *FullConfig) ProjectDir() string { return c.effectiveProjectDir() }
 
-func providerEntryToSDK(e *ProviderEntry) *sdk.ProviderConfigEntry {
-	if e == nil {
-		return nil
-	}
-
-	return &sdk.ProviderConfigEntry{
-		Model:     e.Model,
-		MaxTokens: e.MaxTokens,
-		BaseURL:   e.BaseURL,
-		APIKey:    e.APIKey,
-	}
-}
-
-func (c *FullConfig) ProviderConfig(name string) *sdk.ProviderConfigEntry {
-	layered, err := c.getLayeredSettings()
-	if err == nil {
-		if e := layered.ProviderConfig(name); e != nil {
-			return providerEntryToSDK(e)
-		}
-	}
-
-	return providerEntryToSDK(c.settings.ProviderConfig(name))
-}
-
 // effectiveProjectDir returns the override project dir if set, otherwise derives
 // it from the config file path.
 func (c *FullConfig) effectiveProjectDir() string {
@@ -416,14 +348,40 @@ func (c *FullConfig) effectiveProjectDir() string {
 }
 
 func (c *FullConfig) ResolveKey(providerName, envVar string) (string, error) {
+	apiKey := c.resolveProviderAPIKey(providerName)
+
+	return ResolveProviderKey(providerName, envVar, apiKey)
+}
+
+func (c *FullConfig) resolveProviderAPIKey(providerName string) string {
 	layered, err := c.getLayeredSettings()
 	if err == nil {
-		if entry := layered.ProviderConfig(providerName); entry != nil {
-			return ResolveProviderKey(providerName, envVar, entry)
+		if key := extractAPIKey(layered.Providers, providerName); key != "" {
+			return key
 		}
 	}
 
-	return ResolveProviderKey(providerName, envVar, c.settings.ProviderConfig(providerName))
+	return extractAPIKey(c.settings.Providers, providerName)
+}
+
+func extractAPIKey(providers map[string]any, name string) string {
+	if providers == nil {
+		return ""
+	}
+
+	raw, ok := providers[name]
+	if !ok {
+		return ""
+	}
+
+	m, ok := raw.(map[string]any)
+	if !ok {
+		return ""
+	}
+
+	key, _ := m["api_key"].(string)
+
+	return key
 }
 
 // ProjectDirFromConfig returns the project root directory for a config file path.
@@ -436,41 +394,6 @@ func ProjectDirFromConfig(configPath string) string {
 	}
 
 	return dir
-}
-
-func (c *FullConfig) ToolConfig(name string, target any) error {
-	applyDefaults(target)
-
-	layered, err := c.getLayeredSettings()
-	if err != nil {
-		return fmt.Errorf("load settings for tool config: %w", err)
-	}
-
-	if layered.Tools == nil {
-		return nil
-	}
-
-	raw, ok := layered.Tools[name]
-	if !ok {
-		return nil
-	}
-
-	return populateConfig(raw, target)
-}
-
-func (c *FullConfig) UIConfig(target any) error {
-	applyDefaults(target)
-
-	layered, err := c.getLayeredSettings()
-	if err != nil {
-		return fmt.Errorf("load settings for UI config: %w", err)
-	}
-
-	if len(layered.UI) == 0 {
-		return nil
-	}
-
-	return populateConfig(layered.UI, target)
 }
 
 func (c *FullConfig) ExtensionConfig(scope, name string, target any, envPrefix string) error {
@@ -547,14 +470,16 @@ func (c *FullConfig) RespectGitignore() bool {
 }
 
 func (c *FullConfig) Preferences(target any) error {
-	applyDefaults(target)
-
 	layered, err := c.getLayeredSettings()
 	if err != nil {
 		return fmt.Errorf("load preferences: %w", err)
 	}
 
-	return populateConfig(layered, target)
+	loader := Loader{
+		Data: toMapAny(layered),
+	}
+
+	return loader.Load(target)
 }
 
 func (c *FullConfig) SaveProviderKey(providerName, apiKey string) error {
@@ -610,19 +535,4 @@ func (c *FullConfig) SavePreferences(target any) error {
 	}
 
 	return SaveSettingsGlobal(&final)
-}
-
-// populateConfig JSON round-trips a map/struct into target and applies default
-// struct tags for zero-value fields.
-func populateConfig(raw, target any) error {
-	jsonBytes, err := json.Marshal(raw)
-	if err != nil {
-		return fmt.Errorf("marshal config: %w", err)
-	}
-
-	if err := json.Unmarshal(jsonBytes, target); err != nil {
-		return fmt.Errorf("unmarshal config: %w", err)
-	}
-
-	return nil
 }

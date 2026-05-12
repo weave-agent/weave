@@ -78,7 +78,7 @@ func TestSettingsWeaveFlags(t *testing.T) {
 	}
 }
 
-func TestToolConfig_PopulatedStruct(t *testing.T) {
+func TestExtensionConfig_ToolPopulatedStruct(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	globalDir := filepath.Join(home, ".weave")
@@ -103,11 +103,11 @@ func TestToolConfig_PopulatedStruct(t *testing.T) {
 	var target struct {
 		Timeout int `json:"timeout"`
 	}
-	require.NoError(t, cfg.ToolConfig("bash", &target))
+	require.NoError(t, cfg.ExtensionConfig("tools", "bash", &target, ""))
 	assert.Equal(t, 60, target.Timeout)
 }
 
-func TestToolConfig_DefaultsApplied(t *testing.T) {
+func TestExtensionConfig_ToolDefaultsApplied(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	globalDir := filepath.Join(home, ".weave")
@@ -132,11 +132,11 @@ func TestToolConfig_DefaultsApplied(t *testing.T) {
 	var target struct {
 		Timeout int `json:"timeout" default:"120"`
 	}
-	require.NoError(t, cfg.ToolConfig("bash", &target))
+	require.NoError(t, cfg.ExtensionConfig("tools", "bash", &target, ""))
 	assert.Equal(t, 120, target.Timeout)
 }
 
-func TestToolConfig_MissingSection(t *testing.T) {
+func TestExtensionConfig_ToolMissingSection(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	globalDir := filepath.Join(home, ".weave")
@@ -152,11 +152,11 @@ func TestToolConfig_MissingSection(t *testing.T) {
 	var target struct {
 		Timeout int `json:"timeout" default:"42"`
 	}
-	require.NoError(t, cfg.ToolConfig("bash", &target))
+	require.NoError(t, cfg.ExtensionConfig("tools", "bash", &target, ""))
 	assert.Equal(t, 42, target.Timeout, "default should be applied when no settings file exists")
 }
 
-func TestToolConfig_MissingToolName(t *testing.T) {
+func TestExtensionConfig_ToolMissingToolName(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	globalDir := filepath.Join(home, ".weave")
@@ -181,11 +181,11 @@ func TestToolConfig_MissingToolName(t *testing.T) {
 	var target struct {
 		Timeout int `json:"timeout" default:"99"`
 	}
-	require.NoError(t, cfg.ToolConfig("bash", &target))
+	require.NoError(t, cfg.ExtensionConfig("tools", "bash", &target, ""))
 	assert.Equal(t, 99, target.Timeout, "default should be applied when tool not in settings")
 }
 
-func TestUIConfig_PopulatedStruct(t *testing.T) {
+func TestExtensionConfig_UIPopulatedStruct(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	globalDir := filepath.Join(home, ".weave")
@@ -212,12 +212,12 @@ func TestUIConfig_PopulatedStruct(t *testing.T) {
 		Theme          string `json:"theme,omitempty"`
 		EditorMaxLines int    `json:"editor_max_lines,omitempty"`
 	}
-	require.NoError(t, cfg.UIConfig(&target))
+	require.NoError(t, cfg.ExtensionConfig("ui", "", &target, ""))
 	assert.Equal(t, "dark", target.Theme)
 	assert.Equal(t, 40, target.EditorMaxLines)
 }
 
-func TestUIConfig_DefaultsApplied(t *testing.T) {
+func TestExtensionConfig_UIDefaultsApplied(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	globalDir := filepath.Join(home, ".weave")
@@ -241,12 +241,12 @@ func TestUIConfig_DefaultsApplied(t *testing.T) {
 		Theme          string `json:"theme" default:"dark"`
 		EditorMaxLines int    `json:"editor_max_lines" default:"15"`
 	}
-	require.NoError(t, cfg.UIConfig(&target))
+	require.NoError(t, cfg.ExtensionConfig("ui", "", &target, ""))
 	assert.Equal(t, "dark", target.Theme)
 	assert.Equal(t, 15, target.EditorMaxLines)
 }
 
-func TestUIConfig_MissingSection(t *testing.T) {
+func TestExtensionConfig_UIMissingSection(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	globalDir := filepath.Join(home, ".weave")
@@ -262,7 +262,7 @@ func TestUIConfig_MissingSection(t *testing.T) {
 	var target struct {
 		Theme string `json:"theme" default:"dark"`
 	}
-	require.NoError(t, cfg.UIConfig(&target))
+	require.NoError(t, cfg.ExtensionConfig("ui", "", &target, ""))
 	assert.Equal(t, "dark", target.Theme, "default should be applied when no UI settings")
 }
 
@@ -316,7 +316,7 @@ func TestApplyDefaults_NilPointer(t *testing.T) {
 	applyDefaults(p)
 }
 
-func TestPopulateConfig_RoundTrip(t *testing.T) {
+func TestLoader_RoundTrip(t *testing.T) {
 	raw := map[string]any{
 		"timeout": float64(30),
 		"name":    "test",
@@ -326,12 +326,14 @@ func TestPopulateConfig_RoundTrip(t *testing.T) {
 		Timeout int    `json:"timeout"`
 		Name    string `json:"name"`
 	}
-	require.NoError(t, populateConfig(raw, &target))
+
+	loader := Loader{Data: raw}
+	require.NoError(t, loader.Load(&target))
 	assert.Equal(t, 30, target.Timeout)
 	assert.Equal(t, "test", target.Name)
 }
 
-func TestLayeredSettings_IntegrationWithToolConfig(t *testing.T) {
+func TestLayeredSettings_IntegrationWithExtensionConfig(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	globalDir := filepath.Join(home, ".weave")
@@ -363,11 +365,11 @@ func TestLayeredSettings_IntegrationWithToolConfig(t *testing.T) {
 	var target struct {
 		Timeout int `json:"timeout"`
 	}
-	require.NoError(t, cfg.ToolConfig("bash", &target))
+	require.NoError(t, cfg.ExtensionConfig("tools", "bash", &target, ""))
 	assert.Equal(t, 30, target.Timeout, "local layer should override global")
 }
 
-func TestToolConfig_LocalOnlyFromWeaveDir(t *testing.T) {
+func TestExtensionConfig_ToolLocalOnlyFromWeaveDir(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	globalDir := filepath.Join(home, ".weave")
@@ -392,7 +394,7 @@ func TestToolConfig_LocalOnlyFromWeaveDir(t *testing.T) {
 	var target struct {
 		Timeout int `json:"timeout" default:"120"`
 	}
-	require.NoError(t, cfg.ToolConfig("bash", &target))
+	require.NoError(t, cfg.ExtensionConfig("tools", "bash", &target, ""))
 	assert.Equal(t, 45, target.Timeout, "local settings should be found when config is inside .weave/")
 }
 

@@ -55,7 +55,7 @@ func ResolveValue(raw string) (string, error) {
 //  1. Environment variable (e.g. ANTHROPIC_API_KEY)
 //  2. Auth file (~/.weave/auth.json)
 //  3. Config file provider entry (providers.anthropic.api_key) via ResolveValue
-func ResolveProviderKey(providerName, envVar string, cfgEntry *ProviderEntry) (string, error) {
+func ResolveProviderKey(providerName, envVar, apiKey string) (string, error) {
 	// 1. Environment variable (highest priority)
 	if v := os.Getenv(envVar); v != "" {
 		return v, nil
@@ -72,8 +72,8 @@ func ResolveProviderKey(providerName, envVar string, cfgEntry *ProviderEntry) (s
 	}
 
 	// 3. Config file entry
-	if cfgEntry != nil && cfgEntry.APIKey != "" {
-		resolved, err := ResolveValue(cfgEntry.APIKey)
+	if apiKey != "" {
+		resolved, err := ResolveValue(apiKey)
 		if err != nil {
 			return "", fmt.Errorf("provider %s: %w", providerName, err)
 		}

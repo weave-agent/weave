@@ -70,14 +70,14 @@ Key changes:
 
 ### Task 4: Settings cleanup + loader integration
 
-- [ ] Remove `ProviderEntry` struct from `settings/config.go`
-- [ ] Remove `TypedProviders`, `ProviderConfig` from `Settings`
-- [ ] Remove `ProviderConfig`, `providerEntryToSDK`, `ToolConfig`, `UIConfig` from `FullConfig`
-- [ ] Remove `populateConfig`, `applyDefaults` (old implementations) from `settings/config.go`
-- [ ] Implement `FullConfig.ExtensionConfig` using new `Loader`
-- [ ] Simplify `Settings` struct: keep `Providers`, `UI`, `Tools` as `map[string]any` raw containers
-- [ ] Update `settings/config_test.go`, `settings/settings_config_test.go`
-- [ ] Run `go test ./settings/...` — must pass
+- [x] Remove `ProviderEntry` struct from `settings/config.go`
+- [x] Remove `TypedProviders`, `ProviderConfig` from `Settings`
+- [x] Remove `ProviderConfig`, `providerEntryToSDK`, `ToolConfig`, `UIConfig` from `FullConfig`
+- [x] Remove `populateConfig`, `applyDefaults` (old implementations) from `settings/config.go`
+- [x] Implement `FullConfig.ExtensionConfig` using new `Loader`
+- [x] Simplify `Settings` struct: keep `Providers`, `UI`, `Tools` as `map[string]any` raw containers
+- [x] Update `settings/config_test.go`, `settings/settings_config_test.go`
+- [x] Run `go test ./settings/...` — must pass
 
 ### Task 5: Top-level flag parsing without gonfig
 
