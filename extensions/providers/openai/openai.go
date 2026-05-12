@@ -14,7 +14,7 @@ import (
 // OpenAIConfig holds per-provider configuration for the OpenAI provider.
 type OpenAIConfig struct {
 	Model   string `json:"model" default:"gpt-5.5" env:"OPENAI_MODEL" description:"Model name"`
-	BaseURL string `json:"base_url" default:"https://api.openai.com/v1" description:"API base URL"`
+	BaseURL string `json:"base_url" default:"https://api.openai.com/v1" env:"BASE_URL" description:"API base URL"`
 }
 
 type provider struct {

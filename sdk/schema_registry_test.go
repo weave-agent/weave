@@ -44,8 +44,13 @@ func TestListSchemas(t *testing.T) {
 	all := ListSchemas()
 	require.Len(t, all, 2)
 
-	assert.Equal(t, "tools", all["bash"].Scope)
-	assert.Equal(t, "providers", all["kimi"].Scope)
+	byName := make(map[string]SchemaEntry)
+	for _, e := range all {
+		byName[e.Name] = e
+	}
+
+	assert.Equal(t, "tools", byName["bash"].Scope)
+	assert.Equal(t, "providers", byName["kimi"].Scope)
 }
 
 func TestResetSchemas(t *testing.T) {

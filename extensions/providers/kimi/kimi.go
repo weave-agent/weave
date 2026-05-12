@@ -23,7 +23,7 @@ const (
 type KimiConfig struct {
 	Model     string `json:"model" default:"kimi-for-coding" env:"KIMI_MODEL" description:"Model name"`
 	MaxTokens int    `json:"max_tokens" default:"32768" env:"KIMI_MAX_TOKENS" validate:"gt=0" description:"Maximum tokens"`
-	BaseURL   string `json:"base_url" default:"https://api.kimi.com/coding" description:"API base URL"`
+	BaseURL   string `json:"base_url" default:"https://api.kimi.com/coding" env:"BASE_URL" description:"API base URL"`
 }
 
 type provider struct {

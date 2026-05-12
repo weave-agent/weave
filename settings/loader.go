@@ -951,7 +951,7 @@ func defineFlag(fs *flag.FlagSet, name string, ptr any) {
 }
 
 // stringSliceFlag implements flag.Value for *[]string.
-// Supports comma-separated values; repeated uses append.
+// Supports comma-separated values; repeated uses replace (last value wins).
 type stringSliceFlag struct {
 	ptr *[]string
 }

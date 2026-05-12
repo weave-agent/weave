@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	"strings"
 	"sync"
 )
 
@@ -21,6 +22,7 @@ func storeSchema(scope, name string, schema Schema) {
 }
 
 // GetSchema returns the schema for a named extension and its scope.
+// When multiple scopes share a name, the last-registered scope wins.
 // The second return value reports whether it was found.
 func GetSchema(name string) (Schema, string, bool) {
 	schemaMu.RLock()
@@ -37,27 +39,31 @@ func GetSchema(name string) (Schema, string, bool) {
 	return schema, scope, ok
 }
 
-// ListSchemas returns all registered names with their scopes and schemas.
-func ListSchemas() map[string]struct {
+// SchemaEntry pairs a schema with its registered name and scope.
+type SchemaEntry struct {
+	Name   string
 	Scope  string
 	Schema Schema
-} {
+}
+
+// ListSchemas returns all registered schemas. Entries are ordered by
+// registration order within each scope, but overall order is not guaranteed.
+func ListSchemas() []SchemaEntry {
 	schemaMu.RLock()
 	defer schemaMu.RUnlock()
 
-	result := make(map[string]struct {
-		Scope  string
-		Schema Schema
-	}, len(scopeMap))
-	for name, scope := range scopeMap {
-		key := scopeKey(scope, name)
-		result[name] = struct {
-			Scope  string
-			Schema Schema
-		}{
-			Scope:  scope,
-			Schema: schemas[key],
+	result := make([]SchemaEntry, 0, len(schemas))
+	for key, schema := range schemas {
+		parts := strings.SplitN(key, "/", 2)
+		if len(parts) != 2 {
+			continue
 		}
+
+		result = append(result, SchemaEntry{
+			Name:   parts[1],
+			Scope:  parts[0],
+			Schema: schema,
+		})
 	}
 
 	return result

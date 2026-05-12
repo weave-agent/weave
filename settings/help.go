@@ -77,10 +77,10 @@ func writeExtensionFlags(b *strings.Builder) {
 
 	// Group by scope.
 	byScope := make(map[string][]namedSchema)
-	for name, info := range schemas {
-		byScope[info.Scope] = append(byScope[info.Scope], namedSchema{
-			name:   name,
-			schema: info.Schema,
+	for _, entry := range schemas {
+		byScope[entry.Scope] = append(byScope[entry.Scope], namedSchema{
+			name:   entry.Name,
+			schema: entry.Schema,
 		})
 	}
 
