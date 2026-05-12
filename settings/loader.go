@@ -285,6 +285,7 @@ func applyFlags(target any, args []string) ([]string, error) {
 
 	// Return original args minus consumed flags and their values.
 	var remaining []string
+
 	for i, arg := range args {
 		if !consumed[i] {
 			remaining = append(remaining, arg)
@@ -298,6 +299,7 @@ func applyFlags(target any, args []string) ([]string, error) {
 // map of consumed indices.
 func filterKnownFlags(args []string, known map[string]bool) ([]string, map[int]bool) {
 	var result []string
+
 	consumed := make(map[int]bool)
 
 	for i := 0; i < len(args); i++ {

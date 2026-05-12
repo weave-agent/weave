@@ -37,7 +37,16 @@ func Run(ctx context.Context, args []string) int {
 func run(ctx context.Context, args ...string) (exitCode int) {
 	configFile, cf, rest, err := settings.Load(args)
 	if err != nil {
+		var helpErr *settings.HelpError
+
+		if errors.As(err, &helpErr) {
+			fmt.Fprint(os.Stderr, helpErr.Text)
+
+			return 0
+		}
+
 		fmt.Fprintf(os.Stderr, "weave: %v\n", err)
+
 		return 1
 	}
 

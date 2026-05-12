@@ -90,14 +90,14 @@ Key changes:
 
 ### Task 6: Full-tree help generation
 
-- [ ] Create `settings/help.go` with `GenerateFullHelp()`
-- [ ] Walk all registered schemas and format flag lines
-- [ ] Group by scope: Global, Tools, Providers, Extensions, UI
-- [ ] Prefix extension flags with extension name (`--bash-timeout`, `--kimi-model`)
-- [ ] Show defaults and descriptions
-- [ ] Wire `--help` / `-h` in `LoadFromDir` to print help and exit
-- [ ] Write tests for help generation
-- [ ] Run `go test ./settings/...` — must pass
+- [x] Create `settings/help.go` with `GenerateFullHelp()`
+- [x] Walk all registered schemas and format flag lines
+- [x] Group by scope: Global, Tools, Providers, Extensions, UI
+- [x] Prefix extension flags with extension name (`--bash-timeout`, `--kimi-model`)
+- [x] Show defaults and descriptions
+- [x] Wire `--help` / `-h` in `LoadFromDir` to print help and exit
+- [x] Write tests for help generation
+- [x] Run `go test ./settings/...` — must pass
 
 ### Task 7: Provider extensions
 

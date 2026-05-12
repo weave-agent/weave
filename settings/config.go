@@ -3,7 +3,6 @@ package settings
 import (
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -242,7 +241,7 @@ func LoadFromDir(dir string, args []string) (string, *Settings, []string, error)
 	}
 
 	if wantsHelp(args) {
-		return "", nil, nil, flag.ErrHelp
+		return "", nil, nil, &HelpError{Text: GenerateFullHelp()}
 	}
 
 	var flags flagSet
