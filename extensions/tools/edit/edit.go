@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"weave/internal/fileutil"
+	"weave/internal/pathutil"
 	"weave/sdk"
 	"weave/utils/truncate"
 
@@ -85,6 +86,8 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 	if path == "" {
 		return sdk.ToolResult{Content: "error: path is required", IsError: true}, nil
 	}
+
+	path = normalizePath(path)
 
 	if t.fileMutex != nil {
 		defer t.fileMutex.Lock(path)()
@@ -203,6 +206,23 @@ func applyEdits(content string, edits []editEntry) (string, error) {
 	}
 
 	return content, nil
+}
+
+// normalizePath applies macOS path normalization and falls back to the original
+// if the normalized path does not exist.
+func normalizePath(path string) string {
+	if _, err := os.Stat(path); err == nil {
+		return path
+	}
+
+	normalized := pathutil.NormalizePath(path)
+	if normalized != path {
+		if _, err := os.Stat(normalized); err == nil {
+			return normalized
+		}
+	}
+
+	return path
 }
 
 // checkFileTracker validates that the file at path has been read and not modified since.

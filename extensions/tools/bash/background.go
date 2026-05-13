@@ -325,6 +325,13 @@ func (bm *BackgroundManager) Output(id string) (string, bool) {
 	return job.Output(), true
 }
 
+// Remove removes a background job from the manager.
+func (bm *BackgroundManager) Remove(id string) {
+	bm.mu.Lock()
+	delete(bm.jobs, id)
+	bm.mu.Unlock()
+}
+
 // Kill terminates the background job with the given ID.
 func (bm *BackgroundManager) Kill(id string) error {
 	job, ok := bm.Get(id)

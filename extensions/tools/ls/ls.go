@@ -234,10 +234,12 @@ func buildTreeEntries(dir string, currentDepth, maxDepth int, sb sdk.Sandboxer, 
 
 		if e.IsDir() && currentDepth < maxDepth {
 			children, childCount, err := buildTreeEntries(fullPath, currentDepth+1, maxDepth, sb, ignorePatterns)
-			if err == nil {
-				entry.children = children
-				totalCount += childCount
+			if err != nil {
+				return nil, 0, err
 			}
+
+			entry.children = children
+			totalCount += childCount
 		}
 
 		result = append(result, entry)
