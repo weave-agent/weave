@@ -257,7 +257,7 @@ func (a *AgentExtension) buildSystemPrompt() string {
 	// Load system prompts
 	systemBase, systemAppend := loadSystemPrompt(projectDir, globalDir)
 
-	skills, _ := discoverSkills(a.resolveSkillPaths()...)
+	skills := discoverSkills(a.resolveSkillPaths()...)
 
 	pb := newPromptBuilder(a.cfg)
 

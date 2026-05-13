@@ -203,10 +203,7 @@ func (a *AgentExtension) registerSkillCommands(bus sdk.Bus) {
 		return // headless mode: no TUI available
 	}
 
-	skills, err := discoverSkills(a.resolveSkillPaths()...)
-	if err != nil {
-		return // silently skip on discovery errors
-	}
+	skills := discoverSkills(a.resolveSkillPaths()...)
 
 	for i := range skills {
 		skill := skills[i]

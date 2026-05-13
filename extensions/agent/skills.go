@@ -145,7 +145,7 @@ func (s Skill) Body() string {
 // Each path is a directory containing subdirectories, each of which should
 // contain a SKILL.md. Skills are deduplicated by name (first path wins).
 // Results are sorted by name. Invalid skills are skipped.
-func discoverSkills(paths ...string) ([]Skill, error) {
+func discoverSkills(paths ...string) []Skill {
 	seen := make(map[string]bool)
 
 	var skills []Skill
@@ -157,7 +157,7 @@ func discoverSkills(paths ...string) ([]Skill, error) {
 				continue
 			}
 
-			return nil, fmt.Errorf("read skills dir %s: %w", root, err)
+			continue
 		}
 
 		for _, entry := range entries {
@@ -192,7 +192,7 @@ func discoverSkills(paths ...string) ([]Skill, error) {
 		return skills[i].Name < skills[j].Name
 	})
 
-	return skills, nil
+	return skills
 }
 
 // discoverExtensionSkills scans extension directories for skills/ subdirectories.
@@ -224,7 +224,7 @@ func discoverExtensionSkills(projectDir, globalDir string) []string {
 			}
 
 			skillsDir := filepath.Join(extDir, name, "skills")
-			if _, err := os.Stat(skillsDir); err == nil {
+			if info, err := os.Stat(skillsDir); err == nil && info.IsDir() {
 				paths = append(paths, skillsDir)
 			}
 		}
@@ -250,12 +250,12 @@ func makeSkillHandler(skill Skill, bus sdk.Bus) func(args string) error {
 		var msg strings.Builder
 		fmt.Fprintf(&msg, "<skill name=\"%s\" location=\"%s\">\n", escapeXML(skill.Name), escapeXML(skill.FilePath))
 		fmt.Fprintf(&msg, "References are relative to %s.\n\n", escapeXML(skill.BaseDir))
-		msg.WriteString(escapeXML(body))
+		msg.WriteString(body)
 		msg.WriteString("\n</skill>")
 
 		if args != "" {
 			msg.WriteString("\n\n")
-			msg.WriteString(args)
+			msg.WriteString(escapeXML(args))
 		}
 
 		bus.Publish(sdk.NewEvent(TopicPrompt, msg.String()))

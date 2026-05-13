@@ -201,8 +201,7 @@ func TestDiscoverSkills(t *testing.T) {
 		writeSkillMD(t, filepath.Join(projectDir, "beta"), "beta", "Project beta", "project instructions")
 		writeSkillMD(t, filepath.Join(projectDir, "gamma"), "gamma", "Project gamma", "instructions")
 
-		skills, err := discoverSkills(globalDir, projectDir)
-		require.NoError(t, err)
+		skills := discoverSkills(globalDir, projectDir)
 		require.Len(t, skills, 3)
 
 		assert.Equal(t, "alpha", skills[0].Name)
@@ -214,14 +213,12 @@ func TestDiscoverSkills(t *testing.T) {
 
 	t.Run("empty directories", func(t *testing.T) {
 		emptyDir := t.TempDir()
-		skills, err := discoverSkills(emptyDir)
-		require.NoError(t, err)
+		skills := discoverSkills(emptyDir)
 		assert.Empty(t, skills)
 	})
 
 	t.Run("nonexistent paths are skipped", func(t *testing.T) {
-		skills, err := discoverSkills("/nonexistent/path/skills")
-		require.NoError(t, err)
+		skills := discoverSkills("/nonexistent/path/skills")
 		assert.Empty(t, skills)
 	})
 
@@ -230,8 +227,7 @@ func TestDiscoverSkills(t *testing.T) {
 		require.NoError(t, os.MkdirAll(filepath.Join(dir, "bad"), 0o755))
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "bad", "SKILL.md"), []byte("no frontmatter"), 0o644))
 
-		skills, err := discoverSkills(dir)
-		require.NoError(t, err)
+		skills := discoverSkills(dir)
 		assert.Empty(t, skills)
 	})
 
@@ -241,8 +237,7 @@ func TestDiscoverSkills(t *testing.T) {
 		writeSkillMD(t, filepath.Join(dir, "alpha"), "alpha", "A skill", "a")
 		writeSkillMD(t, filepath.Join(dir, "middle"), "middle", "M skill", "m")
 
-		skills, err := discoverSkills(dir)
-		require.NoError(t, err)
+		skills := discoverSkills(dir)
 		require.Len(t, skills, 3)
 		assert.Equal(t, "alpha", skills[0].Name)
 		assert.Equal(t, "middle", skills[1].Name)
@@ -257,8 +252,7 @@ func TestDiscoverSkills(t *testing.T) {
 		linkPath := filepath.Join(dir, "linked-skill")
 		require.NoError(t, os.Symlink(targetDir, linkPath))
 
-		skills, err := discoverSkills(dir)
-		require.NoError(t, err)
+		skills := discoverSkills(dir)
 		assert.Empty(t, skills)
 	})
 }
@@ -444,8 +438,7 @@ func TestDiscoverSkills_WithExtensionSkills(t *testing.T) {
 	paths = append(paths, projSkillsDir, globSkillsDir)
 	paths = append(paths, extPaths...)
 
-	skills, err := discoverSkills(paths...)
-	require.NoError(t, err)
+	skills := discoverSkills(paths...)
 	require.Len(t, skills, 4)
 
 	// Should be sorted
