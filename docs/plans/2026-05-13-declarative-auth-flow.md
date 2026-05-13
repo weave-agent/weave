@@ -54,11 +54,11 @@ Replace imperative API key resolution (`cfg.ResolveKey`, `model.RegisterProvider
 
 ### Task 4: Create auth loading module
 
-- [ ] Create `internal/auth/config.go` with `LoadProviderAuth(providerName string, target any)`
-- [ ] Uses `settings.Loader` with `EnvPrefix: ""` on structured auth.json
-- [ ] Add `GetProviderConfig` helper to auth file for structured access
-- [ ] Write tests for auth loading (env var, auth.json, empty cases)
-- [ ] Run `go test ./internal/auth/...` — must pass
+- [x] Create `internal/auth/config.go` with `LoadProviderAuth(providerName string, target any)`
+- [x] Uses `settings.Loader` with `EnvPrefix: ""` on structured auth.json
+- [x] Add `GetProviderConfig` helper to auth file for structured access
+- [x] Write tests for auth loading (env var, auth.json, empty cases)
+- [x] Run `go test ./internal/auth/...` — must pass
 
 ### Task 5: Clean up settings auth resolution code
 

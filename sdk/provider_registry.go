@@ -65,7 +65,6 @@ func makeAuthChecker[TAuth any](name string) func(Config) (bool, error) {
 		}
 
 		for field := range t.Fields() {
-			field := field
 
 			envTag := field.Tag.Get("env")
 			if envTag != "" && os.Getenv(envTag) != "" {
