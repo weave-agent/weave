@@ -99,20 +99,20 @@ Merge three separate extensions (`loop`, `skills`, `instructions`) into a single
 
 ### Task 4: Build prompt builder with default system prompt
 
-- [ ] Create `default-system-prompt.md` file in `extensions/agent/`
-- [ ] Embed via `//go:embed default-system-prompt.md`
-- [ ] Include: identity, date, CWD, critical rules, tool usage basics
-- [ ] `buildToolDescriptions()` — dynamic list from `sdk.ListTools()`
-- [ ] `PromptBuilder.Build()` — assembles layers:
+- [x] Create `default-system-prompt.md` file in `extensions/agent/`
+- [x] Embed via `//go:embed default-system-prompt.md`
+- [x] Include: identity, date, CWD, critical rules, tool usage basics
+- [x] `buildToolDescriptions()` — dynamic list from `sdk.ListTools()`
+- [x] `PromptBuilder.Build()` — assembles layers:
   1. Default prompt OR SYSTEM.md (if found)
   2. Date + CWD (always injected)
   3. Available tools (dynamic)
   4. Skills XML + `<skills_usage>` instructions
   5. Context files (CLAUDE.md/AGENTS.md)
   6. APPEND_SYSTEM.md
-- [ ] Write tests for full prompt assembly with all combinations
-- [ ] Write tests for SYSTEM.md override (replaces default base)
-- [ ] Run tests — must pass before next task
+- [x] Write tests for full prompt assembly with all combinations
+- [x] Write tests for SYSTEM.md override (replaces default base)
+- [x] Run tests — must pass before next task
 
 ### Task 5: Port turn loop (from loop extension)
 
