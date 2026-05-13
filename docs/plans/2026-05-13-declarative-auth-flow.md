@@ -83,11 +83,11 @@ Replace imperative API key resolution (`cfg.ResolveKey`, `model.RegisterProvider
 
 ### Task 8: Migrate OpenAI provider
 
-- [ ] Create `extensions/providers/openai/auth.go` with `OpenAIAuth` struct
-- [ ] Update `extensions/providers/openai/openai.go` to use `RegisterProvider[OpenAIConfig, OpenAIAuth]`
-- [ ] Remove `model.RegisterProviderEnvVar` and `cfg.ResolveKey` calls
-- [ ] Update provider tests
-- [ ] Run `cd extensions/providers/openai && go test ./...` — must pass
+- [x] Create `extensions/providers/openai/auth.go` with `OpenAIAuth` struct
+- [x] Update `extensions/providers/openai/openai.go` to use `RegisterProvider[OpenAIConfig, OpenAIAuth]`
+- [x] Remove `model.RegisterProviderEnvVar` and `cfg.ResolveKey` calls
+- [x] Update provider tests
+- [x] Run `cd extensions/providers/openai && go test ./...` — must pass
 
 ### Task 9: Migrate Kimi provider
 

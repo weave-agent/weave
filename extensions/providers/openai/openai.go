@@ -23,23 +23,16 @@ type provider struct {
 }
 
 func init() {
-	model.RegisterProviderEnvVar("openai", "OPENAI_API_KEY")
-
-	sdk.RegisterProvider[OpenAIConfig, struct{}]("openai", func(cfg sdk.Config, oc OpenAIConfig, _ struct{}) (sdk.Provider, error) {
-		apiKey, err := cfg.ResolveKey("openai", "OPENAI_API_KEY")
-		if err != nil {
-			return nil, fmt.Errorf("openai: %w", err)
-		}
-
-		if apiKey == "" {
-			return nil, errors.New("openai: API key required (set OPENAI_API_KEY, add to ~/.weave/auth.json, or configure in .weave/settings.json)")
+	sdk.RegisterProvider[OpenAIConfig, AuthConfig]("openai", func(cfg sdk.Config, oc OpenAIConfig, a AuthConfig) (sdk.Provider, error) {
+		if a.APIKey == "" {
+			return nil, errors.New("openai: API key required (set OPENAI_API_KEY or add to ~/.weave/auth.json)")
 		}
 
 		return &provider{
 			client: &http.Client{},
 			config: openaicompat.ProviderConfig{
 				BaseURL:       oc.BaseURL,
-				APIKey:        apiKey,
+				APIKey:        a.APIKey,
 				Model:         oc.Model,
 				ModifyRequest: modifyRequest(oc.Model),
 			},
