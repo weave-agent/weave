@@ -189,6 +189,13 @@ func (t *tool) executeSync(ctx context.Context, command string, timeout time.Dur
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "bash", "-c", command)
+
+	if t.dir != "" {
+		if info, err := os.Stat(t.dir); err == nil && info.IsDir() {
+			cmd.Dir = t.dir
+		}
+	}
+
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {
@@ -219,11 +226,13 @@ func (t *tool) executeSync(ctx context.Context, command string, timeout time.Dur
 
 	var outBuf strings.Builder
 
+	outMu := &sync.Mutex{}
+
 	var wg sync.WaitGroup
 
 	wg.Add(2)
-	go collectStream(stdoutPipe, "stdout", bus, command, &outBuf, &wg)
-	go collectStream(stderrPipe, "stderr", bus, command, &outBuf, &wg)
+	go collectStream(stdoutPipe, "stdout", bus, command, &syncWriter{buf: &outBuf, mu: outMu}, &wg)
+	go collectStream(stderrPipe, "stderr", bus, command, &syncWriter{buf: &outBuf, mu: outMu}, &wg)
 
 	waitErr := cmd.Wait()
 	wg.Wait()
@@ -240,6 +249,21 @@ func (t *tool) executeSync(ctx context.Context, command string, timeout time.Dur
 	return sdk.ToolResult{Content: content, IsError: isErr}, nil
 }
 
+// syncWriter wraps a strings.Builder with a mutex for safe concurrent writes.
+type syncWriter struct {
+	buf *strings.Builder
+	mu  *sync.Mutex
+}
+
+func (w *syncWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	n, _ := w.buf.Write(p)
+
+	return n, nil
+}
+
 // collectStream reads from r, writes raw bytes to outBuf, and publishes line
 // events to bus when a complete line is read.
 func collectStream(
@@ -247,7 +271,7 @@ func collectStream(
 	stream string,
 	bus sdk.Bus,
 	command string,
-	outBuf *strings.Builder,
+	outBuf io.Writer,
 	wg *sync.WaitGroup,
 ) {
 	defer wg.Done()
@@ -259,7 +283,7 @@ func collectStream(
 	for {
 		n, err := r.Read(chunk)
 		if n > 0 {
-			outBuf.Write(chunk[:n])
+			_, _ = outBuf.Write(chunk[:n])
 			lineBuf.Write(chunk[:n])
 
 			for {

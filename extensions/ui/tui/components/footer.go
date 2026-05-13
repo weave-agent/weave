@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"sort"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"charm.land/lipgloss/v2"
@@ -290,8 +291,13 @@ func shortenPath(path string, maxWidth int) string {
 }
 
 // getGitBranch returns the current git branch and dirty state.
+const gitTimeout = 500 * time.Millisecond
+
 func getGitBranch() (string, bool) {
-	cmd := exec.CommandContext(context.Background(), "git", "rev-parse", "--abbrev-ref", "HEAD")
+	ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "git", "rev-parse", "--abbrev-ref", "HEAD")
 
 	out, err := cmd.Output()
 	if err != nil {
@@ -301,9 +307,12 @@ func getGitBranch() (string, bool) {
 	branch := strings.TrimSpace(string(out))
 
 	// Check dirty state
-	cmd2 := exec.CommandContext(context.Background(), "git", "status", "--porcelain")
-	out2, err := cmd2.Output()
-	dirty := err == nil && strings.TrimSpace(string(out2)) != ""
+	ctx2, cancel2 := context.WithTimeout(context.Background(), gitTimeout)
+	defer cancel2()
+
+	cmd2 := exec.CommandContext(ctx2, "git", "status", "--porcelain")
+	out2, err2 := cmd2.Output()
+	dirty := err2 == nil && strings.TrimSpace(string(out2)) != ""
 
 	return branch, dirty
 }

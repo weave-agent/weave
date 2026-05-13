@@ -97,10 +97,6 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		return sdk.ToolResult{Content: "sandbox: write denied — path is protected", IsError: true}, nil
 	}
 
-	if result, shouldReturn := t.checkFileTracker(path); shouldReturn {
-		return result, nil
-	}
-
 	editsRaw, ok := args[ParamEdits].([]any)
 	if !ok || len(editsRaw) == 0 {
 		return sdk.ToolResult{Content: "error: at least one edit is required", IsError: true}, nil
@@ -122,6 +118,12 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 	originalBytes, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
 		return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
+	}
+
+	if err == nil {
+		if result, shouldReturn := t.checkFileTracker(path); shouldReturn {
+			return result, nil
+		}
 	}
 
 	normalizedBytes, ending := fileutil.NormalizeToLF(originalBytes)

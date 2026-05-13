@@ -123,6 +123,31 @@ func (j *BackgroundJob) run(command, dir string, timeout time.Duration, bus sdk.
 
 	defer cancel()
 
+	var (
+		exitCode  int
+		exitError error
+	)
+
+	defer func() {
+		j.mu.Lock()
+		j.exitCode = exitCode
+		j.exitErr = exitError
+		j.mu.Unlock()
+
+		if bus != nil {
+			payload := BackgroundDonePayload{
+				ID:       j.ID,
+				Command:  j.Command,
+				ExitCode: exitCode,
+			}
+			if exitError != nil {
+				payload.Error = exitError.Error()
+			}
+
+			bus.Publish(sdk.NewEvent("tool.bash.background_done", payload))
+		}
+	}()
+
 	cmd := exec.CommandContext(ctx, "bash", "-c", command)
 	cmd.Dir = dir
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -145,27 +170,18 @@ func (j *BackgroundJob) run(command, dir string, timeout time.Duration, bus sdk.
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
-		j.mu.Lock()
-		j.exitErr = err
-		j.mu.Unlock()
-
+		exitError = err
 		return
 	}
 
 	stderrPipe, err := cmd.StderrPipe()
 	if err != nil {
-		j.mu.Lock()
-		j.exitErr = err
-		j.mu.Unlock()
-
+		exitError = err
 		return
 	}
 
 	if err := cmd.Start(); err != nil {
-		j.mu.Lock()
-		j.exitErr = err
-		j.mu.Unlock()
-
+		exitError = err
 		return
 	}
 
@@ -185,37 +201,10 @@ func (j *BackgroundJob) run(command, dir string, timeout time.Duration, bus sdk.
 	waitErr := cmd.Wait()
 	wg.Wait()
 
-	j.mu.Lock()
-
-	var (
-		exitCode  int
-		exitError error
-	)
-
 	if exitErr, ok := errors.AsType[*exec.ExitError](waitErr); ok && exitErr.ExitCode() >= 0 {
 		exitCode = exitErr.ExitCode()
 	} else if waitErr != nil {
 		exitError = waitErr
-	}
-
-	j.exitCode = exitCode
-	j.exitErr = exitError
-	j.mu.Unlock()
-
-	if bus != nil {
-		j.mu.RLock()
-
-		payload := BackgroundDonePayload{
-			ID:       j.ID,
-			Command:  j.Command,
-			ExitCode: j.exitCode,
-		}
-		if j.exitErr != nil {
-			payload.Error = j.exitErr.Error()
-		}
-
-		j.mu.RUnlock()
-		bus.Publish(sdk.NewEvent("tool.bash.background_done", payload))
 	}
 }
 
