@@ -24,12 +24,16 @@ const (
 )
 
 type tool struct {
-	tracker sdk.FileTracker
+	tracker   sdk.FileTracker
+	fileMutex sdk.FileMuter
 }
 
 func init() {
 	sdk.RegisterTool("edit", func(_ sdk.Config, _ struct{}) (sdk.Tool, error) {
-		return &tool{tracker: sdk.GetFileTracker()}, nil
+		return &tool{
+			tracker:   sdk.GetFileTracker(),
+			fileMutex: sdk.GetFileMutex(),
+		}, nil
 	})
 }
 
@@ -81,6 +85,10 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		return sdk.ToolResult{Content: "error: path is required", IsError: true}, nil
 	}
 
+	if t.fileMutex != nil {
+		defer t.fileMutex.Lock(path)()
+	}
+
 	if s := sdk.GetSandboxer(); s != nil && !s.AllowWrite(path) {
 		return sdk.ToolResult{Content: "sandbox: write denied — path is protected", IsError: true}, nil
 	}
@@ -114,7 +122,6 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 
 	content, err := applyEdits(string(original), edits)
 	if err != nil {
-		//nolint:nilerr // Tool errors are returned via ToolResult.IsError, not as Go errors.
 		return sdk.ToolResult{Content: err.Error(), IsError: true}, nil
 	}
 

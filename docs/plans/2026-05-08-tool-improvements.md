@@ -112,13 +112,13 @@ Add `replace_all` flag to replace every occurrence of oldText.
 ### Task 8: Edit — File mutation queue
 Serialize concurrent edits to the same file to prevent race conditions.
 
-- [ ] Create `internal/filemut/mutex.go` with `FileMutex` type
+- [x] Create `internal/filemut/mutex.go` with `FileMutex` type
   - `Lock(path string) func()` — returns unlock function, uses `sync.Map` of `*sync.Mutex` per path
   - Per-path mutexes created lazily, never cleaned (bounded by number of unique files in session)
-- [ ] Integrate FileMutex into edit tool: `defer fm.Lock(path)()` at start of Execute
-- [ ] Also integrate into write tool for consistency
-- [ ] Write tests: concurrent edits to same file are serialized, edits to different files run in parallel
-- [ ] Run `cd extensions/tools/edit && go test ./...`
+- [x] Integrate FileMutex into edit tool: `defer fm.Lock(path)()` at start of Execute
+- [x] Also integrate into write tool for consistency
+- [x] Write tests: concurrent edits to same file are serialized, edits to different files run in parallel
+- [x] Run `cd extensions/tools/edit && go test ./...`
 
 ### Task 9: Edit — Line ending preservation
 Detect and preserve original line endings (CRLF/LF) across edits.

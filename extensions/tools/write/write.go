@@ -16,11 +16,13 @@ const (
 	ParamContent = "content"
 )
 
-type tool struct{}
+type tool struct {
+	fileMutex sdk.FileMuter
+}
 
 func init() {
 	sdk.RegisterTool[struct{}]("write", func(_ sdk.Config, _ struct{}) (sdk.Tool, error) {
-		return &tool{}, nil
+		return &tool{fileMutex: sdk.GetFileMutex()}, nil
 	})
 }
 
@@ -51,6 +53,10 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 	path, _ := args[ParamPath].(string)
 	if path == "" {
 		return sdk.ToolResult{Content: "error: path is required", IsError: true}, nil
+	}
+
+	if t.fileMutex != nil {
+		defer t.fileMutex.Lock(path)()
 	}
 
 	if s := sdk.GetSandboxer(); s != nil && !s.AllowWrite(path) {

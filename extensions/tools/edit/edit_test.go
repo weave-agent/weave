@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"weave/internal/filemut"
 	"weave/sdk"
 
 	"github.com/stretchr/testify/assert"
@@ -577,6 +578,136 @@ func (ts *testSandboxer) AllowRead(path string) bool {
 	}
 
 	return true
+}
+
+func TestConcurrentEditsToSameFileAreSerialized(t *testing.T) {
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "concurrent.txt")
+
+	// Start with placeholders that each goroutine will replace.
+	placeholders := []string{"A", "B", "C", "D", "E"}
+	require.NoError(t, os.WriteFile(path, []byte(strings.Join(placeholders, " ")), 0o644))
+
+	// Use the real filemut.Mutex to verify actual serialization.
+	fm := filemut.New()
+	tool := &tool{fileMutex: fm}
+
+	var wg sync.WaitGroup
+
+	results := make([]sdk.ToolResult, len(placeholders))
+
+	for i, ph := range placeholders {
+		wg.Add(1)
+
+		go func(idx int, p string) {
+			defer wg.Done()
+
+			result, err := tool.Execute(context.Background(), map[string]any{
+				"path": path,
+				"edits": []any{
+					map[string]any{"oldText": p, "newText": "done" + p},
+				},
+			})
+			assert.NoError(t, err)
+
+			results[idx] = result
+		}(i, ph)
+	}
+
+	wg.Wait()
+
+	// All edits should succeed because the mutex serializes them.
+	successCount := 0
+
+	for _, r := range results {
+		if !r.IsError {
+			successCount++
+		}
+	}
+
+	assert.Equal(t, len(placeholders), successCount, "all concurrent edits should succeed")
+
+	// Verify the file contains all replacements.
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	for _, ph := range placeholders {
+		assert.Contains(t, string(data), "done"+ph, "placeholder %s should be replaced", ph)
+	}
+}
+
+func TestConcurrentEditsToDifferentFilesRunInParallel(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	paths := []string{
+		filepath.Join(tmpDir, "file1.txt"),
+		filepath.Join(tmpDir, "file2.txt"),
+	}
+
+	for _, p := range paths {
+		require.NoError(t, os.WriteFile(p, []byte("hello"), 0o644))
+	}
+
+	// Use the real filemut.Mutex — different paths use different locks.
+	fm := filemut.New()
+	tool := &tool{fileMutex: fm}
+
+	var wg sync.WaitGroup
+
+	results := make([]sdk.ToolResult, len(paths))
+
+	for i, p := range paths {
+		wg.Add(1)
+
+		go func(idx int, filePath string) {
+			defer wg.Done()
+
+			result, err := tool.Execute(context.Background(), map[string]any{
+				"path": filePath,
+				"edits": []any{
+					map[string]any{"oldText": "hello", "newText": "world"},
+				},
+			})
+			assert.NoError(t, err)
+
+			results[idx] = result
+		}(i, p)
+	}
+
+	wg.Wait()
+
+	for _, r := range results {
+		assert.False(t, r.IsError, "edit should succeed")
+	}
+
+	for _, p := range paths {
+		data, err := os.ReadFile(p)
+		require.NoError(t, err)
+
+		assert.Equal(t, "world", string(data))
+	}
+}
+
+func TestEditWithNilFileMutex(t *testing.T) {
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "nilmutex.txt")
+	require.NoError(t, os.WriteFile(path, []byte("original"), 0o644))
+
+	// Tool with nil fileMutex should still work.
+	tool := &tool{fileMutex: nil}
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"path": path,
+		"edits": []any{
+			map[string]any{"oldText": "original", "newText": "modified"},
+		},
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	data, readErr := os.ReadFile(path)
+	require.NoError(t, readErr)
+	assert.Equal(t, "modified", string(data))
 }
 
 func (ts *testSandboxer) Mode() string   { return "auto" }
