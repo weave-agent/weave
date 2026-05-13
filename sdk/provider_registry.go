@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"reflect"
+	"strings"
 
 	"weave/internal/auth"
 	"weave/sdk/registry"
@@ -58,8 +59,111 @@ func makeAuthChecker[TAuth any](name string) func(Config) (bool, error) {
 			return false, fmt.Errorf("load provider auth: %w", err)
 		}
 
-		return hasAnyFieldSet(reflect.ValueOf(ta)), nil
+		return hasAuthFieldSet(reflect.ValueOf(ta)), nil
 	}
+}
+
+// tagContainsRule reports whether a struct tag value contains the given rule
+// as a comma-separated entry. This handles validation tags like
+// `validate:"required"` or `validate:"required,min=3"` without matching
+// substrings like "notrequired".
+func tagContainsRule(tag, rule string) bool {
+	for part := range strings.SplitSeq(tag, ",") {
+		if strings.TrimSpace(part) == rule {
+			return true
+		}
+	}
+
+	return false
+}
+
+// hasAuthFieldSet returns true if all exported fields tagged
+// validate:"required" are non-zero. When no required fields are declared,
+// it falls back to hasAnyFieldSet so single-field auth structs continue
+// to work.
+func hasAuthFieldSet(v reflect.Value) bool {
+	if v.Kind() != reflect.Struct {
+		return false
+	}
+
+	t := v.Type()
+	hasRequired := false
+
+	for i := range v.NumField() {
+		if !t.Field(i).IsExported() {
+			continue
+		}
+
+		field := v.Field(i)
+		ft := t.Field(i)
+
+		switch field.Kind() {
+		case reflect.String:
+			if tagContainsRule(ft.Tag.Get("validate"), "required") {
+				hasRequired = true
+
+				if field.String() == "" {
+					return false
+				}
+			}
+		case reflect.Pointer:
+			if tagContainsRule(ft.Tag.Get("validate"), "required") {
+				hasRequired = true
+
+				if field.IsNil() {
+					return false
+				}
+			}
+		case reflect.Struct:
+			nestedHasRequired := hasRequiredFieldTag(field)
+			nestedOK := hasAuthFieldSet(field)
+
+			if nestedHasRequired {
+				hasRequired = true
+
+				if !nestedOK {
+					return false
+				}
+			}
+		default:
+			// Other field kinds are not considered for auth detection.
+		}
+	}
+
+	if !hasRequired {
+		return hasAnyFieldSet(v)
+	}
+
+	return true
+}
+
+// hasRequiredFieldTag reports whether any exported field in the struct
+// (or its nested structs) carries a validate tag containing "required".
+func hasRequiredFieldTag(v reflect.Value) bool {
+	if v.Kind() != reflect.Struct {
+		return false
+	}
+
+	t := v.Type()
+
+	for i := range v.NumField() {
+		if !t.Field(i).IsExported() {
+			continue
+		}
+
+		field := v.Field(i)
+		ft := t.Field(i)
+
+		if tagContainsRule(ft.Tag.Get("validate"), "required") {
+			return true
+		}
+
+		if field.Kind() == reflect.Struct && hasRequiredFieldTag(field) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // hasAnyFieldSet returns true if at least one exported string or pointer field

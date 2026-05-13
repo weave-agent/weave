@@ -49,6 +49,18 @@ func Wire(extNames []string, bus sdk.Bus, cfg sdk.Config) (*Wired, error) {
 		exts = append(exts, ext)
 	}
 
+	// Check auth status for all registered providers BEFORE subscribing
+	// extensions. The TUI model initializes during Subscribe and queries
+	// ProviderHasAuth, so the registry must be populated first.
+	for _, name := range sdk.ListProviders() {
+		hasAuth, err := sdk.CheckProviderAuth(name, cfg)
+		if err != nil {
+			log.Printf("weave: check auth for %s: %v", name, err)
+		}
+
+		model.SetProviderAuth(name, hasAuth)
+	}
+
 	for i, ext := range exts {
 		if err := ext.Subscribe(bus); err != nil {
 			for j := range slices.Backward(exts[:i]) {
@@ -57,16 +69,6 @@ func Wire(extNames []string, bus sdk.Bus, cfg sdk.Config) (*Wired, error) {
 
 			return nil, fmt.Errorf("wire: subscribe %s: %w", ext.Name(), err)
 		}
-	}
-
-	// Check auth status for all registered providers.
-	for _, name := range sdk.ListProviders() {
-		hasAuth, err := sdk.CheckProviderAuth(name, cfg)
-		if err != nil {
-			log.Printf("weave: check auth for %s: %v", name, err)
-		}
-
-		model.SetProviderAuth(name, hasAuth)
 	}
 
 	return &Wired{extensions: exts, bus: bus}, nil

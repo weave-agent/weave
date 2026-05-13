@@ -7,14 +7,11 @@ import (
 	"path/filepath"
 )
 
-// ProviderAuth holds stored credentials for a single provider.
-type ProviderAuth struct {
-	APIKey string `json:"api_key,omitempty"`
-}
-
 // File represents ~/.weave/auth.json.
+// Provider auth is stored as raw JSON so that arbitrary provider-specific
+// fields (org_id, tenant_id, etc.) can be persisted and loaded generically.
 type File struct {
-	Providers map[string]ProviderAuth `json:"providers"`
+	Providers map[string]json.RawMessage `json:"providers"`
 }
 
 // Path returns the path to the auth file (~/.weave/auth.json).
@@ -37,7 +34,7 @@ func Load() (*File, error) {
 	data, err := os.ReadFile(p)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return &File{Providers: make(map[string]ProviderAuth)}, nil
+			return &File{Providers: make(map[string]json.RawMessage)}, nil
 		}
 
 		return nil, fmt.Errorf("read auth: %w", err)
@@ -49,7 +46,7 @@ func Load() (*File, error) {
 	}
 
 	if auth.Providers == nil {
-		auth.Providers = make(map[string]ProviderAuth)
+		auth.Providers = make(map[string]json.RawMessage)
 	}
 
 	return &auth, nil
@@ -81,8 +78,15 @@ func Save(auth *File) error {
 
 // GetProviderKey returns the stored API key for a provider, or "" if not set.
 func (a *File) GetProviderKey(providerName string) string {
-	p, ok := a.Providers[providerName]
+	raw, ok := a.Providers[providerName]
 	if !ok {
+		return ""
+	}
+
+	var p struct {
+		APIKey string `json:"api_key"`
+	}
+	if err := json.Unmarshal(raw, &p); err != nil {
 		return ""
 	}
 
@@ -90,13 +94,31 @@ func (a *File) GetProviderKey(providerName string) string {
 }
 
 // SetProviderKey updates or adds a provider key in the auth file and saves.
+// Preserves any other fields already present for the provider.
 func SetProviderKey(providerName, apiKey string) error {
 	auth, err := Load()
 	if err != nil {
 		return err
 	}
 
-	auth.Providers[providerName] = ProviderAuth{APIKey: apiKey}
+	// Preserve existing fields by unmarshaling into a map.
+	var providerMap map[string]any
+	if raw, ok := auth.Providers[providerName]; ok && len(raw) > 0 {
+		_ = json.Unmarshal(raw, &providerMap)
+	}
+
+	if providerMap == nil {
+		providerMap = make(map[string]any)
+	}
+
+	providerMap["api_key"] = apiKey
+
+	data, err := json.Marshal(providerMap)
+	if err != nil {
+		return fmt.Errorf("marshal provider auth: %w", err)
+	}
+
+	auth.Providers[providerName] = data
 
 	return Save(auth)
 }

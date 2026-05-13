@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -26,9 +27,9 @@ func TestSaveAndLoad(t *testing.T) {
 	testKey2 := "sk-" + t.Name()
 
 	auth := &File{
-		Providers: map[string]ProviderAuth{
-			"anthropic": {APIKey: testKey1},
-			"openai":    {APIKey: testKey2},
+		Providers: map[string]json.RawMessage{
+			"anthropic": json.RawMessage(`{"api_key": "` + testKey1 + `"}`),
+			"openai":    json.RawMessage(`{"api_key": "` + testKey2 + `"}`),
 		},
 	}
 
@@ -46,7 +47,7 @@ func TestSave_CreatesDir(t *testing.T) {
 	t.Setenv("HOME", dir)
 
 	// ~/.weave/ doesn't exist yet
-	auth := &File{Providers: map[string]ProviderAuth{}}
+	auth := &File{Providers: map[string]json.RawMessage{}}
 	require.NoError(t, Save(auth))
 
 	_, err := os.Stat(filepath.Join(dir, ".weave", "auth.json"))
@@ -57,7 +58,7 @@ func TestSave_FilePermissions(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
 
-	require.NoError(t, Save(&File{Providers: map[string]ProviderAuth{}}))
+	require.NoError(t, Save(&File{Providers: map[string]json.RawMessage{}}))
 
 	info, err := os.Stat(filepath.Join(dir, ".weave", "auth.json"))
 	require.NoError(t, err)

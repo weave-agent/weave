@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"encoding/json"
 	"os"
 	"testing"
 
@@ -18,9 +19,8 @@ func TestLoadProviderAuth_FromAuthFile(t *testing.T) {
 	t.Setenv("HOME", dir)
 
 	auth := &File{
-		Providers: map[string]ProviderAuth{
-			//nolint:gosec // G101 — test credential
-			"testprovider": {APIKey: "sk-from-file"},
+		Providers: map[string]json.RawMessage{
+			"testprovider": json.RawMessage(`{"api_key": "sk-from-file"}`),
 		},
 	}
 	require.NoError(t, Save(auth))
@@ -46,9 +46,8 @@ func TestLoadProviderAuth_EnvOverridesFile(t *testing.T) {
 	t.Setenv("HOME", dir)
 
 	auth := &File{
-		Providers: map[string]ProviderAuth{
-			//nolint:gosec // G101 — test credential
-			"testprovider": {APIKey: "sk-from-file"},
+		Providers: map[string]json.RawMessage{
+			"testprovider": json.RawMessage(`{"api_key": "sk-from-file"}`),
 		},
 	}
 	require.NoError(t, Save(auth))
@@ -75,8 +74,8 @@ func TestLoadProviderAuth_MultipleFields(t *testing.T) {
 	t.Setenv("HOME", dir)
 
 	auth := &File{
-		Providers: map[string]ProviderAuth{
-			"testprovider": {APIKey: "sk-key"},
+		Providers: map[string]json.RawMessage{
+			"testprovider": json.RawMessage(`{"api_key": "sk-key"}`),
 		},
 	}
 	require.NoError(t, Save(auth))
@@ -87,6 +86,47 @@ func TestLoadProviderAuth_MultipleFields(t *testing.T) {
 	require.NoError(t, LoadProviderAuth("testprovider", &target))
 	assert.Equal(t, "sk-key", target.APIKey)
 	assert.Equal(t, "https://example.com", target.BaseURL)
+}
+
+func TestLoadProviderAuth_ExtraFieldsFromAuthFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	type extendedAuth struct {
+		APIKey string `json:"api_key"`
+		OrgID  string `json:"org_id"`
+	}
+
+	auth := &File{
+		Providers: map[string]json.RawMessage{
+			"testprovider": json.RawMessage(`{"api_key": "sk-key", "org_id": "org-123"}`),
+		},
+	}
+	require.NoError(t, Save(auth))
+
+	var target extendedAuth
+	require.NoError(t, LoadProviderAuth("testprovider", &target))
+	assert.Equal(t, "sk-key", target.APIKey)
+	assert.Equal(t, "org-123", target.OrgID)
+}
+
+func TestLoadProviderAuth_EmptyEnvDoesNotClobberAuthFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	auth := &File{
+		Providers: map[string]json.RawMessage{
+			"testprovider": json.RawMessage(`{"api_key": "sk-from-file"}`),
+		},
+	}
+	require.NoError(t, Save(auth))
+
+	// Empty env var should NOT override the auth file value.
+	t.Setenv("TEST_AUTH_API_KEY", "")
+
+	var target testAuth
+	require.NoError(t, LoadProviderAuth("testprovider", &target))
+	assert.Equal(t, "sk-from-file", target.APIKey)
 }
 
 func TestLoadProviderAuth_NilTarget(t *testing.T) {

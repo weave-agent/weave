@@ -140,3 +140,102 @@ func TestCheckProviderAuth_NonStructAuth(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, hasAuth)
 }
+
+func TestCheckProviderAuth_RequiredFieldOnly(t *testing.T) {
+	ResetProviderRegistry()
+
+	type RequiredAuth struct {
+		APIKey string `json:"api_key" env:"TEST_REQ_API_KEY" validate:"required"`
+		OrgID  string `json:"org_id" env:"TEST_REQ_ORG_ID"`
+	}
+
+	RegisterProvider[struct{}, RequiredAuth]("req-auth", func(Config, struct{}, RequiredAuth) (Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	// Only optional field set — auth should be false.
+	t.Setenv("TEST_REQ_ORG_ID", "org-123")
+
+	hasAuth, err := CheckProviderAuth("req-auth", nil)
+	require.NoError(t, err)
+	assert.False(t, hasAuth, "optional field only should not count as authenticated")
+}
+
+func TestCheckProviderAuth_RequiredFieldSet(t *testing.T) {
+	ResetProviderRegistry()
+
+	type RequiredAuth struct {
+		APIKey string `json:"api_key" env:"TEST_REQ2_API_KEY" validate:"required"`
+		OrgID  string `json:"org_id" env:"TEST_REQ2_ORG_ID"`
+	}
+
+	RegisterProvider[struct{}, RequiredAuth]("req-auth2", func(Config, struct{}, RequiredAuth) (Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	// Required field set — auth should be true.
+	t.Setenv("TEST_REQ2_API_KEY", "sk-key")
+
+	hasAuth, err := CheckProviderAuth("req-auth2", nil)
+	require.NoError(t, err)
+	assert.True(t, hasAuth, "required field set should count as authenticated")
+}
+
+func TestCheckProviderAuth_MultipleRequiredFields_BothSet(t *testing.T) {
+	ResetProviderRegistry()
+
+	type MultiRequiredAuth struct {
+		ClientID     string `json:"client_id" env:"TEST_MULTI_CLIENT_ID" validate:"required"`
+		ClientSecret string `json:"client_secret" env:"TEST_MULTI_CLIENT_SECRET" validate:"required"`
+	}
+
+	RegisterProvider[struct{}, MultiRequiredAuth]("multi-req", func(Config, struct{}, MultiRequiredAuth) (Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	// Both required fields set — auth should be true.
+	t.Setenv("TEST_MULTI_CLIENT_ID", "id-123")
+	t.Setenv("TEST_MULTI_CLIENT_SECRET", "secret-456")
+
+	hasAuth, err := CheckProviderAuth("multi-req", nil)
+	require.NoError(t, err)
+	assert.True(t, hasAuth, "all required fields set should count as authenticated")
+}
+
+func TestCheckProviderAuth_MultipleRequiredFields_OnlyOneSet(t *testing.T) {
+	ResetProviderRegistry()
+
+	type MultiRequiredAuth struct {
+		ClientID     string `json:"client_id" env:"TEST_MULTI2_CLIENT_ID" validate:"required"`
+		ClientSecret string `json:"client_secret" env:"TEST_MULTI2_CLIENT_SECRET" validate:"required"`
+	}
+
+	RegisterProvider[struct{}, MultiRequiredAuth]("multi-req2", func(Config, struct{}, MultiRequiredAuth) (Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	// Only one required field set — auth should be false.
+	t.Setenv("TEST_MULTI2_CLIENT_ID", "id-123")
+
+	hasAuth, err := CheckProviderAuth("multi-req2", nil)
+	require.NoError(t, err)
+	assert.False(t, hasAuth, "only one required field set should not count as authenticated")
+}
+
+func TestCheckProviderAuth_MultipleRequiredFields_NeitherSet(t *testing.T) {
+	ResetProviderRegistry()
+
+	type MultiRequiredAuth struct {
+		ClientID     string `json:"client_id" env:"TEST_MULTI3_CLIENT_ID" validate:"required"`
+		ClientSecret string `json:"client_secret" env:"TEST_MULTI3_CLIENT_SECRET" validate:"required"`
+	}
+
+	RegisterProvider[struct{}, MultiRequiredAuth]("multi-req3", func(Config, struct{}, MultiRequiredAuth) (Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	// No fields set — auth should be false.
+	hasAuth, err := CheckProviderAuth("multi-req3", nil)
+	require.NoError(t, err)
+	assert.False(t, hasAuth, "no required fields set should not count as authenticated")
+}
