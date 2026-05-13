@@ -1,12 +1,16 @@
 package bash
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -18,6 +22,13 @@ const defaultTimeout = 120 * time.Second
 
 // ParamCommand is the tool parameter name for the command to execute.
 const ParamCommand = "command"
+
+// BashOutputPayload is the payload for tool.bash.output bus events.
+type BashOutputPayload struct {
+	Command string `json:"command"`
+	Line    string `json:"line"`
+	Stream  string `json:"stream"` // "stdout" or "stderr"
+}
 
 // BashConfig holds per-tool settings for the bash tool.
 type BashConfig struct {
@@ -128,17 +139,102 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 
 		return fmt.Errorf("bash: kill process: %w", err)
 	}
-	out, err := cmd.CombinedOutput()
 
-	result := truncate.Truncate(string(out), truncate.DefaultMaxLines, truncate.DefaultMaxBytes)
+	stdoutPipe, err := cmd.StdoutPipe()
+	if err != nil {
+		return sdk.ToolResult{Content: "error: " + err.Error(), IsError: true}, nil
+	}
 
-	if err == nil {
+	stderrPipe, err := cmd.StderrPipe()
+	if err != nil {
+		return sdk.ToolResult{Content: "error: " + err.Error(), IsError: true}, nil
+	}
+
+	if err := cmd.Start(); err != nil {
+		return sdk.ToolResult{Content: "error: " + err.Error(), IsError: true}, nil
+	}
+
+	bus := sdk.BusFromContext(ctx)
+
+	var outBuf strings.Builder
+
+	var wg sync.WaitGroup
+
+	wg.Add(2)
+	go collectStream(stdoutPipe, "stdout", bus, command, &outBuf, &wg)
+	go collectStream(stderrPipe, "stderr", bus, command, &outBuf, &wg)
+
+	waitErr := cmd.Wait()
+	wg.Wait()
+
+	result := truncate.Truncate(outBuf.String(), truncate.DefaultMaxLines, truncate.DefaultMaxBytes)
+
+	if waitErr == nil {
 		return sdk.ToolResult{Content: result.Format()}, nil
 	}
 
-	content, isErr := formatCmdError(result, err, ctx)
+	content, isErr := formatCmdError(result, waitErr, ctx)
 
 	return sdk.ToolResult{Content: content, IsError: isErr}, nil
+}
+
+// collectStream reads from r, writes raw bytes to outBuf, and publishes line
+// events to bus when a complete line is read.
+func collectStream(
+	r io.Reader,
+	stream string,
+	bus sdk.Bus,
+	command string,
+	outBuf *strings.Builder,
+	wg *sync.WaitGroup,
+) {
+	defer wg.Done()
+
+	var lineBuf bytes.Buffer
+
+	chunk := make([]byte, 4096)
+
+	for {
+		n, err := r.Read(chunk)
+		if n > 0 {
+			outBuf.Write(chunk[:n])
+			lineBuf.Write(chunk[:n])
+
+			for {
+				data := lineBuf.Bytes()
+
+				before, after, found := bytes.Cut(data, []byte{'\n'})
+				if !found {
+					break
+				}
+
+				if bus != nil {
+					bus.Publish(sdk.NewEvent("tool.bash.output", BashOutputPayload{
+						Command: command,
+						Line:    string(before),
+						Stream:  stream,
+					}))
+				}
+
+				lineBuf.Reset()
+				lineBuf.Write(after)
+			}
+		}
+
+		if err != nil {
+			break
+		}
+	}
+
+	if lineBuf.Len() > 0 {
+		if bus != nil {
+			bus.Publish(sdk.NewEvent("tool.bash.output", BashOutputPayload{
+				Command: command,
+				Line:    lineBuf.String(),
+				Stream:  stream,
+			}))
+		}
+	}
 }
 
 func formatCmdError(result truncate.Result, err error, ctx context.Context) (string, bool) {

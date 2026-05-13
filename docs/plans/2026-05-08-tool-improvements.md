@@ -32,12 +32,12 @@ Upgrade weave's 5 core tools (bash, read, edit, write, ls) with features identif
 ### Task 1: Bash — Streaming output
 Add real-time output streaming via bus events so the agent loop can show progress during long-running commands.
 
-- [ ] Add bus field to bash tool struct — pass `sdk.Bus` through a new parameter or via context value
-- [ ] Refactor `Execute` to stream stdout/stderr line-by-line via `bus.Publish` with topic `tool.bash.output` (payload: `{Command, Line, Stream: "stdout"|"stderr"}`)
-- [ ] Buffer output for final `ToolResult` while streaming — keep current truncation behavior for the summary
-- [ ] Write tests for streaming: verify events published with correct topics and payloads
-- [ ] Write tests for streaming + timeout: verify partial output returned on timeout
-- [ ] Run `cd extensions/tools/bash && go test ./...`
+- [x] Add bus field to bash tool struct — pass `sdk.Bus` through a new parameter or via context value
+- [x] Refactor `Execute` to stream stdout/stderr line-by-line via `bus.Publish` with topic `tool.bash.output` (payload: `{Command, Line, Stream: "stdout"|"stderr"}`)
+- [x] Buffer output for final `ToolResult` while streaming — keep current truncation behavior for the summary
+- [x] Write tests for streaming: verify events published with correct topics and payloads
+- [x] Write tests for streaming + timeout: verify partial output returned on timeout
+- [x] Run `cd extensions/tools/bash && go test ./...`
 
 ### Task 2: Bash — Background jobs
 Add `run_in_background` and `auto_background_after` params. Background jobs run detached, output retrieved separately.

@@ -182,6 +182,160 @@ func TestExecuteTruncation(t *testing.T) {
 	assert.LessOrEqual(t, len(lines), 2010) // 2000 lines + truncation notice
 }
 
+// recordingBus is a test helper that records all published events.
+type recordingBus struct {
+	events []sdk.Event
+	mu     sync.Mutex
+}
+
+func (r *recordingBus) Publish(e sdk.Event) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.events = append(r.events, e)
+}
+
+func (r *recordingBus) On(topic string, h sdk.Handler) {}
+
+func (r *recordingBus) OnAll(h sdk.Handler) {}
+
+func (r *recordingBus) Off(h sdk.Handler) {}
+
+func (r *recordingBus) Close() error { return nil }
+
+func (r *recordingBus) Events() []sdk.Event {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return append([]sdk.Event(nil), r.events...)
+}
+
+func TestExecuteStreaming(t *testing.T) {
+	tool := &tool{}
+
+	t.Run("publishes stdout events", func(t *testing.T) {
+		bus := &recordingBus{}
+		ctx := sdk.WithBus(context.Background(), bus)
+
+		result, err := tool.Execute(ctx, map[string]any{"command": "echo hello"})
+		require.NoError(t, err)
+		assert.False(t, result.IsError)
+		assert.Contains(t, result.Content, "hello")
+
+		events := bus.Events()
+
+		var outputEvents []sdk.Event
+
+		for _, e := range events {
+			if e.Topic == "tool.bash.output" {
+				outputEvents = append(outputEvents, e)
+			}
+		}
+
+		require.Len(t, outputEvents, 1)
+
+		payload, ok := outputEvents[0].Payload.(BashOutputPayload)
+		require.True(t, ok)
+		assert.Equal(t, "echo hello", payload.Command)
+		assert.Equal(t, "hello", payload.Line)
+		assert.Equal(t, "stdout", payload.Stream)
+	})
+
+	t.Run("publishes stderr events", func(t *testing.T) {
+		bus := &recordingBus{}
+		ctx := sdk.WithBus(context.Background(), bus)
+
+		result, err := tool.Execute(ctx, map[string]any{"command": "echo err >&2"})
+		require.NoError(t, err)
+		assert.Contains(t, result.Content, "err")
+
+		events := bus.Events()
+
+		var outputEvents []sdk.Event
+
+		for _, e := range events {
+			if e.Topic == "tool.bash.output" {
+				outputEvents = append(outputEvents, e)
+			}
+		}
+
+		require.Len(t, outputEvents, 1)
+
+		payload, ok := outputEvents[0].Payload.(BashOutputPayload)
+		require.True(t, ok)
+		assert.Equal(t, "stderr", payload.Stream)
+		assert.Equal(t, "err", payload.Line)
+	})
+
+	t.Run("publishes multiple lines in order", func(t *testing.T) {
+		bus := &recordingBus{}
+		ctx := sdk.WithBus(context.Background(), bus)
+
+		result, err := tool.Execute(ctx, map[string]any{"command": "echo a && echo b && echo c"})
+		require.NoError(t, err)
+
+		lines := strings.Split(strings.TrimSpace(result.Content), "\n")
+		assert.Equal(t, []string{"a", "b", "c"}, lines)
+
+		events := bus.Events()
+
+		var outputEvents []sdk.Event
+
+		for _, e := range events {
+			if e.Topic == "tool.bash.output" {
+				outputEvents = append(outputEvents, e)
+			}
+		}
+
+		require.Len(t, outputEvents, 3)
+
+		for i, expected := range []string{"a", "b", "c"} {
+			payload := outputEvents[i].Payload.(BashOutputPayload)
+			assert.Equal(t, expected, payload.Line)
+			assert.Equal(t, "stdout", payload.Stream)
+		}
+	})
+
+	t.Run("no events when bus is nil", func(t *testing.T) {
+		// context without bus
+		result, err := tool.Execute(context.Background(), map[string]any{"command": "echo hello"})
+		require.NoError(t, err)
+		assert.Contains(t, result.Content, "hello")
+	})
+}
+
+func TestExecuteStreamingTimeout(t *testing.T) {
+	tool := &tool{}
+
+	t.Run("returns partial output on timeout", func(t *testing.T) {
+		bus := &recordingBus{}
+		ctx := sdk.WithBus(context.Background(), bus)
+
+		// Write some output, then sleep past timeout
+		result, err := tool.Execute(ctx, map[string]any{
+			"command": "echo before && sleep 10",
+			"timeout": float64(1),
+		})
+		require.NoError(t, err)
+		assert.True(t, result.IsError)
+		assert.Contains(t, result.Content, "before")
+		assert.Contains(t, result.Content, "timed out")
+
+		events := bus.Events()
+
+		var outputEvents []sdk.Event
+
+		for _, e := range events {
+			if e.Topic == "tool.bash.output" {
+				outputEvents = append(outputEvents, e)
+			}
+		}
+
+		require.Len(t, outputEvents, 1)
+		assert.Equal(t, "before", outputEvents[0].Payload.(BashOutputPayload).Line)
+	})
+}
+
 func TestExecuteWithSandboxer(t *testing.T) {
 	orig := sdk.GetSandboxer()
 
