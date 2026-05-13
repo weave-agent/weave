@@ -1,6 +1,7 @@
 package pathutil
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -71,6 +72,10 @@ func TestNormalizePathUnicodeSpaces(t *testing.T) {
 }
 
 func TestNormalizePathNFD(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("NFD normalization only applied on macOS")
+	}
+
 	// é in NFC (precomposed U+00E9) should become NFD (e + U+0301)
 	nfc := "café.txt"  // café with precomposed é
 	nfd := "café.txt" // café with decomposed e + combining acute
@@ -82,8 +87,14 @@ func TestNormalizePathNFD(t *testing.T) {
 func TestNormalizePathCombined(t *testing.T) {
 	input := "“path to café”"
 	got := NormalizePath(input)
-	// "path to café" with straight quotes, regular spaces, and NFD é
-	want := "\"path to café\""
+
+	// All platforms: curly quotes and unicode spaces are normalized
+	want := "\"path to café\""
+	if runtime.GOOS == "darwin" {
+		// macOS also applies NFD normalization
+		want = "\"path to café\""
+	}
+
 	assert.Equal(t, want, got)
 }
 

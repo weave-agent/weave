@@ -181,6 +181,8 @@ func TestExecuteTruncation(t *testing.T) {
 
 	lines := strings.Split(result.Content, "\n")
 	assert.LessOrEqual(t, len(lines), 2010) // 2000 lines + truncation notice
+	assert.Contains(t, result.Content, "output truncated")
+	assert.Contains(t, result.Content, "line 1")
 }
 
 func TestExecuteTempFileOverflow(t *testing.T) {
@@ -725,6 +727,51 @@ func TestBackgroundJobBusEvents(t *testing.T) {
 		assert.Equal(t, job.ID, donePayload.ID)
 		assert.NotEmpty(t, donePayload.Error)
 	})
+}
+
+func TestBackgroundManagerRemove(t *testing.T) {
+	bgMgr := NewBackgroundManager()
+	job := bgMgr.Start("echo hello", "", 10*time.Second, nil)
+	job.Wait()
+
+	// Verify job exists
+	_, ok := bgMgr.Get(job.ID)
+	assert.True(t, ok)
+
+	// Remove it
+	bgMgr.Remove(job.ID)
+
+	// Verify job is gone
+	_, ok = bgMgr.Get(job.ID)
+	assert.False(t, ok)
+}
+
+func TestBackgroundJobPartialLine(t *testing.T) {
+	bus := &recordingBus{}
+	bgMgr := NewBackgroundManager()
+
+	// printf without trailing newline produces a partial line
+	job := bgMgr.Start("printf 'no newline'", "", 10*time.Second, bus)
+	job.Wait()
+
+	time.Sleep(50 * time.Millisecond)
+
+	events := bus.Events()
+
+	var outputEvents []sdk.Event
+
+	for _, e := range events {
+		if e.Topic == "tool.bash.output" {
+			outputEvents = append(outputEvents, e)
+		}
+	}
+
+	require.Len(t, outputEvents, 1)
+	assert.Equal(t, "no newline", outputEvents[0].Payload.(BashOutputPayload).Line)
+	assert.Equal(t, "stdout", outputEvents[0].Payload.(BashOutputPayload).Stream)
+
+	// Output should also contain the partial line
+	assert.Contains(t, job.Output(), "no newline")
 }
 
 func TestBackgroundJobStreamingEvents(t *testing.T) {

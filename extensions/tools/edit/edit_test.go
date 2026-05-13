@@ -161,6 +161,9 @@ func TestExecute(t *testing.T) {
 			},
 			wantError: false,
 			check: func(t *testing.T, result sdk.ToolResult, path string) {
+				// Verify the intermediate directory was created
+				require.DirExists(t, filepath.Dir(path))
+
 				data, err := os.ReadFile(path)
 				require.NoError(t, err)
 				assert.Equal(t, "fresh file", string(data))

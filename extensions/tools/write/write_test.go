@@ -302,6 +302,11 @@ func TestExecuteNoop(t *testing.T) {
 
 	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+
+	modTime := info.ModTime()
+
 	result, err := tool.Execute(context.Background(), map[string]any{
 		"path":    path,
 		"content": content,
@@ -312,9 +317,10 @@ func TestExecuteNoop(t *testing.T) {
 	assert.Contains(t, result.Content, path)
 
 	// Verify file was not touched (mod time unchanged)
-	info, err := os.Stat(path)
+	info, err = os.Stat(path)
 	require.NoError(t, err)
 	assert.Equal(t, fs.FileMode(0o644), info.Mode().Perm())
+	assert.Equal(t, modTime, info.ModTime())
 }
 
 func TestExecuteNoopDifferentContent(t *testing.T) {
