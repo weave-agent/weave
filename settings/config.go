@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -540,8 +541,11 @@ func toMapAny(raw any) (map[string]any, error) {
 		return nil, fmt.Errorf("marshal config: %w", err)
 	}
 
+	dec := json.NewDecoder(bytes.NewReader(jsonBytes))
+	dec.UseNumber()
+
 	var result map[string]any
-	if err := json.Unmarshal(jsonBytes, &result); err != nil {
+	if err := dec.Decode(&result); err != nil {
 		return nil, fmt.Errorf("unmarshal config: %w", err)
 	}
 

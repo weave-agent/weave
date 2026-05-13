@@ -147,8 +147,8 @@ func TestProviderInit_WithAPIKey(t *testing.T) {
 
 	cfg := &mockConfig{
 		resolveKey: "test-api-key",
-		providerConfig: &sdk.ProviderConfigEntry{
-			BaseURL: server.URL,
+		providerData: map[string]any{
+			"base_url": server.URL,
 		},
 	}
 	p, err := sdk.GetProvider("kimi", cfg)
@@ -183,8 +183,8 @@ func TestProviderInit_DefaultModel(t *testing.T) {
 
 	cfg := &mockConfig{
 		resolveKey: "test-api-key",
-		providerConfig: &sdk.ProviderConfigEntry{
-			BaseURL: server.URL,
+		providerData: map[string]any{
+			"base_url": server.URL,
 		},
 	}
 	p, err := sdk.GetProvider("kimi", cfg)
@@ -220,8 +220,8 @@ func TestProviderInit_ModelFromEnv(t *testing.T) {
 	defer server.Close()
 
 	cfg := &mockConfig{
-		resolveKey:     "test-api-key",
-		providerConfig: &sdk.ProviderConfigEntry{BaseURL: server.URL},
+		resolveKey:   "test-api-key",
+		providerData: map[string]any{"base_url": server.URL},
 	}
 	p, err := sdk.GetProvider("kimi", cfg)
 	require.NoError(t, err)
@@ -256,8 +256,8 @@ func TestProviderInit_MaxTokensFromEnv(t *testing.T) {
 	defer server.Close()
 
 	cfg := &mockConfig{
-		resolveKey:     "test-api-key",
-		providerConfig: &sdk.ProviderConfigEntry{BaseURL: server.URL},
+		resolveKey:   "test-api-key",
+		providerData: map[string]any{"base_url": server.URL},
 	}
 	p, err := sdk.GetProvider("kimi", cfg)
 	require.NoError(t, err)
@@ -291,10 +291,10 @@ func TestProviderInit_ConfigOverrides(t *testing.T) {
 
 	cfg := &mockConfig{
 		resolveKey: "test-api-key",
-		providerConfig: &sdk.ProviderConfigEntry{
-			Model:     "kimi-test-model",
-			MaxTokens: 16000,
-			BaseURL:   server.URL,
+		providerData: map[string]any{
+			"model":      "kimi-test-model",
+			"max_tokens": 16000,
+			"base_url":   server.URL,
 		},
 	}
 
@@ -1173,8 +1173,8 @@ func TestProviderInit_InvalidMaxTokensEnv_String(t *testing.T) {
 	t.Setenv("KIMI_MAX_TOKENS", "invalid")
 
 	cfg := &mockConfig{
-		resolveKey:     "test-api-key",
-		providerConfig: &sdk.ProviderConfigEntry{},
+		resolveKey:   "test-api-key",
+		providerData: map[string]any{},
 	}
 	_, err := sdk.GetProvider("kimi", cfg)
 	require.Error(t, err)
@@ -1190,8 +1190,8 @@ func TestProviderInit_InvalidMaxTokensEnv_Negative(t *testing.T) {
 	t.Setenv("KIMI_MAX_TOKENS", "-1")
 
 	cfg := &mockConfig{
-		resolveKey:     "test-api-key",
-		providerConfig: &sdk.ProviderConfigEntry{},
+		resolveKey:   "test-api-key",
+		providerData: map[string]any{},
 	}
 	_, err := sdk.GetProvider("kimi", cfg)
 	require.Error(t, err)
@@ -1369,9 +1369,9 @@ func TestParseToolArgs_EmptyRaw(t *testing.T) {
 
 // mockConfig implements sdk.Config for testing provider initialization.
 type mockConfig struct {
-	resolveKey     string
-	resolveErr     error
-	providerConfig *sdk.ProviderConfigEntry
+	resolveKey   string
+	resolveErr   error
+	providerData map[string]any
 }
 
 func (m *mockConfig) FilePath() string   { return "" }
@@ -1386,24 +1386,8 @@ func (m *mockConfig) ExtensionConfig(scope, name string, target any, envPrefix s
 		return nil
 	}
 
-	var data map[string]any
-	if m.providerConfig != nil {
-		data = make(map[string]any)
-		if m.providerConfig.Model != "" {
-			data["model"] = m.providerConfig.Model
-		}
-
-		if m.providerConfig.MaxTokens > 0 {
-			data["max_tokens"] = m.providerConfig.MaxTokens
-		}
-
-		if m.providerConfig.BaseURL != "" {
-			data["base_url"] = m.providerConfig.BaseURL
-		}
-	}
-
 	loader := settings.Loader{
-		Data:      data,
+		Data:      m.providerData,
 		EnvPrefix: envPrefix,
 	}
 	if err := loader.Load(cfg); err != nil {

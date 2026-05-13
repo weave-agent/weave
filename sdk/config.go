@@ -4,14 +4,6 @@ import "os"
 
 //go:generate moq -fmt goimports -stub -out config_mock_test.go . Config
 
-// ProviderConfigEntry holds per-provider configuration from the config file.
-type ProviderConfigEntry struct {
-	Model     string
-	MaxTokens int
-	BaseURL   string
-	APIKey    string // raw value (may be !command or literal)
-}
-
 // Config carries configuration data into extension factories.
 type Config interface {
 	FilePath() string

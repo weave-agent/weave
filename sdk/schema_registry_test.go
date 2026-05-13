@@ -20,9 +20,8 @@ func TestStoreSchemaAndGetSchema(t *testing.T) {
 
 	storeSchema("tools", "bash", schema)
 
-	got, scope, ok := GetSchema("bash")
+	got, ok := GetSchema("tools", "bash")
 	require.True(t, ok)
-	assert.Equal(t, "tools", scope)
 	assert.Equal(t, schema, got)
 }
 
@@ -30,7 +29,7 @@ func TestGetSchema_NotFound(t *testing.T) {
 	ResetSchemas()
 	defer ResetSchemas()
 
-	_, _, ok := GetSchema("nonexistent")
+	_, ok := GetSchema("tools", "nonexistent")
 	assert.False(t, ok)
 }
 
@@ -60,7 +59,7 @@ func TestResetSchemas(t *testing.T) {
 	storeSchema("tools", "bash", Schema{Fields: []SchemaField{{Name: "Timeout", JSONName: "timeout"}}})
 	ResetSchemas()
 
-	_, _, ok := GetSchema("bash")
+	_, ok := GetSchema("tools", "bash")
 	assert.False(t, ok)
 }
 
@@ -71,7 +70,7 @@ func TestStoreSchema_Overwrite(t *testing.T) {
 	storeSchema("tools", "bash", Schema{Fields: []SchemaField{{Name: "Timeout", JSONName: "timeout", Default: "60"}}})
 	storeSchema("tools", "bash", Schema{Fields: []SchemaField{{Name: "Timeout", JSONName: "timeout", Default: "120"}}})
 
-	got, _, ok := GetSchema("bash")
+	got, ok := GetSchema("tools", "bash")
 	require.True(t, ok)
 	assert.Equal(t, "120", got.Fields[0].Default)
 }
@@ -83,11 +82,14 @@ func TestStoreSchema_SameNameDifferentScope(t *testing.T) {
 	storeSchema("tools", "test", Schema{Fields: []SchemaField{{Name: "A", JSONName: "a"}}})
 	storeSchema("extensions", "test", Schema{Fields: []SchemaField{{Name: "B", JSONName: "b"}}})
 
-	// scopeMap stores name->scope, so the second write wins for scope lookup.
-	got, scope, ok := GetSchema("test")
+	// Both schemas are independently retrievable by scope+name.
+	toolsSchema, ok := GetSchema("tools", "test")
 	require.True(t, ok)
-	assert.Equal(t, "extensions", scope)
-	assert.Equal(t, "B", got.Fields[0].Name)
+	assert.Equal(t, "A", toolsSchema.Fields[0].Name)
+
+	extSchema, ok := GetSchema("extensions", "test")
+	require.True(t, ok)
+	assert.Equal(t, "B", extSchema.Fields[0].Name)
 }
 
 func TestSchemaRegistry_ConcurrentAccess(t *testing.T) {
@@ -98,7 +100,7 @@ func TestSchemaRegistry_ConcurrentAccess(t *testing.T) {
 	for range 100 {
 		wg.Go(func() {
 			storeSchema("tools", "bash", Schema{Fields: []SchemaField{{Name: "Timeout", JSONName: "timeout", Default: "120"}}})
-			GetSchema("bash")
+			GetSchema("tools", "bash")
 			ListSchemas()
 		})
 	}
@@ -106,6 +108,6 @@ func TestSchemaRegistry_ConcurrentAccess(t *testing.T) {
 	wg.Wait()
 
 	// After concurrent writes, schema should still be retrievable.
-	_, _, ok := GetSchema("bash")
+	_, ok := GetSchema("tools", "bash")
 	assert.True(t, ok)
 }

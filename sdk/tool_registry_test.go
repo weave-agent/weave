@@ -231,9 +231,8 @@ func TestRegisterTool_SchemaExtraction(t *testing.T) {
 		return &ToolMock{NameFunc: func() string { return "bash" }}, nil
 	})
 
-	schema, scope, ok := GetSchema("bash")
+	schema, ok := GetSchema("tools", "bash")
 	require.True(t, ok)
-	assert.Equal(t, "tools", scope)
 	require.Len(t, schema.Fields, 2)
 
 	fieldMap := make(map[string]SchemaField)

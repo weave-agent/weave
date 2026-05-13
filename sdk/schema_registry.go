@@ -8,7 +8,6 @@ import (
 var (
 	schemaMu sync.RWMutex
 	schemas  = make(map[string]Schema)
-	scopeMap = make(map[string]string) // name -> scope (tools, providers, extensions)
 )
 
 // storeSchema stores the schema for a named extension under the given scope.
@@ -18,25 +17,18 @@ func storeSchema(scope, name string, schema Schema) {
 
 	key := scopeKey(scope, name)
 	schemas[key] = schema
-	scopeMap[name] = scope
 }
 
-// GetSchema returns the schema for a named extension and its scope.
-// When multiple scopes share a name, the last-registered scope wins.
+// GetSchema returns the schema for a named extension within the given scope.
 // The second return value reports whether it was found.
-func GetSchema(name string) (Schema, string, bool) {
+func GetSchema(scope, name string) (Schema, bool) {
 	schemaMu.RLock()
 	defer schemaMu.RUnlock()
-
-	scope, ok := scopeMap[name]
-	if !ok {
-		return Schema{}, "", false
-	}
 
 	key := scopeKey(scope, name)
 	schema, ok := schemas[key]
 
-	return schema, scope, ok
+	return schema, ok
 }
 
 // SchemaEntry pairs a schema with its registered name and scope.
@@ -75,7 +67,6 @@ func ResetSchemas() {
 	defer schemaMu.Unlock()
 
 	clear(schemas)
-	clear(scopeMap)
 }
 
 func scopeKey(scope, name string) string {

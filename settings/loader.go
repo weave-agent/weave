@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -351,6 +352,10 @@ func filterKnownFlags(args []string, known, boolFlags map[string]bool) ([]string
 
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
+		if arg == "--" {
+			break
+		}
+
 		// Check for --flag=value or -f=value form.
 		if eqIdx := strings.Index(arg, "="); eqIdx > 0 {
 			if known[arg[:eqIdx]] {
@@ -488,8 +493,9 @@ func checkRule(field reflect.Value, rule string) string {
 			return "" // empty is ok unless required
 		}
 
-		if _, err := url.ParseRequestURI(val); err != nil {
-			return fmt.Sprintf("invalid URL: %v", err)
+		u, err := url.Parse(val)
+		if err != nil || u.Scheme == "" || u.Host == "" {
+			return "invalid URL"
 		}
 
 		return ""
@@ -770,6 +776,13 @@ func setFieldFromAny(field reflect.Value, raw any) error {
 			}
 
 			field.SetInt(n)
+		case json.Number:
+			n, err := v.Int64()
+			if err != nil {
+				return fmt.Errorf("cannot parse %q as int: %w", v, err)
+			}
+
+			field.SetInt(n)
 		default:
 			return fmt.Errorf("cannot convert %T to int", raw)
 		}
@@ -792,6 +805,17 @@ func setFieldFromAny(field reflect.Value, raw any) error {
 			}
 
 			field.SetUint(n)
+		case json.Number:
+			n, err := v.Int64()
+			if err != nil {
+				return fmt.Errorf("cannot parse %q as uint: %w", v, err)
+			}
+
+			if n < 0 {
+				return fmt.Errorf("cannot convert negative number %s to uint", v)
+			}
+
+			field.SetUint(uint64(n))
 		default:
 			return fmt.Errorf("cannot convert %T to uint", raw)
 		}
@@ -805,6 +829,13 @@ func setFieldFromAny(field reflect.Value, raw any) error {
 			field.SetFloat(float64(v))
 		case string:
 			f, err := strconv.ParseFloat(v, 64)
+			if err != nil {
+				return fmt.Errorf("cannot parse %q as float: %w", v, err)
+			}
+
+			field.SetFloat(f)
+		case json.Number:
+			f, err := v.Float64()
 			if err != nil {
 				return fmt.Errorf("cannot parse %q as float: %w", v, err)
 			}

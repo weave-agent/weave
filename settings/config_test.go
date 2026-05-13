@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"encoding/json"
 	"flag"
 	"os"
 	"path/filepath"
@@ -895,7 +896,7 @@ func TestToMapAny_Struct(t *testing.T) {
 	got, err := toMapAny(input)
 	require.NoError(t, err)
 	assert.Equal(t, "test", got["name"])
-	assert.InDelta(t, float64(42), got["value"], 0)
+	assert.Equal(t, json.Number("42"), got["value"])
 }
 
 func TestToMapAny_ErrorOnNonSerializable(t *testing.T) {
