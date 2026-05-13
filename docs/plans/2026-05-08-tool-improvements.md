@@ -154,10 +154,10 @@ Add `depth` param and render output as a tree structure instead of flat list.
 ### Task 12: Write — No-op detection
 Skip writing if content is identical to existing file content.
 
-- [ ] At start of write Execute: if file exists, read current content and compare to new content
-- [ ] If identical: return `ToolResult{Content: "file already contains the exact content, no changes made"}` without writing
-- [ ] Write tests: identical content returns no-op message, different content writes normally, new file writes normally
-- [ ] Run `cd extensions/tools/write && go test ./...`
+- [x] At start of write Execute: if file exists, read current content and compare to new content
+- [x] If identical: return `ToolResult{Content: "file already contains the exact content, no changes made"}` without writing
+- [x] Write tests: identical content returns no-op message, different content writes normally, new file writes normally
+- [x] Run `cd extensions/tools/write && go test ./...`
 
 ### Task 13: Final verification
 - [ ] Run `make lint` — all issues fixed

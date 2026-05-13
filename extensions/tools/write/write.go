@@ -75,6 +75,14 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 	perm := fs.FileMode(0o644)
 	if info, statErr := os.Stat(path); statErr == nil {
 		perm = info.Mode().Perm()
+
+		// No-op detection: skip write if content is identical
+		existing, readErr := os.ReadFile(path)
+		if readErr == nil && string(existing) == content {
+			return sdk.ToolResult{
+				Content: fmt.Sprintf("file %s already contains the exact content, no changes made", path),
+			}, nil
+		}
 	}
 
 	if err := os.WriteFile(path, []byte(content), perm); err != nil {
