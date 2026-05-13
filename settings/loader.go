@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"net/url"
 	"os"
 	"reflect"
@@ -160,7 +161,7 @@ func applyData(target any, data map[string]any) error {
 		if field.Kind() == reflect.Struct {
 			subMap, ok := raw.(map[string]any)
 			if !ok {
-				continue
+				return fmt.Errorf("field %s: expected object, got %T", name, raw)
 			}
 
 			if err := applyData(field.Addr().Interface(), subMap); err != nil {
@@ -774,6 +775,10 @@ func setFieldFromAny(field reflect.Value, raw any) error {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		switch v := raw.(type) {
 		case float64:
+			if math.Trunc(v) != v {
+				return fmt.Errorf("cannot convert fractional float %v to int", v)
+			}
+
 			field.SetInt(int64(v))
 		case int:
 			field.SetInt(int64(v))
@@ -799,6 +804,10 @@ func setFieldFromAny(field reflect.Value, raw any) error {
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		switch v := raw.(type) {
 		case float64:
+			if math.Trunc(v) != v {
+				return fmt.Errorf("cannot convert fractional float %v to uint", v)
+			}
+
 			field.SetUint(uint64(v))
 		case int:
 			if v < 0 {

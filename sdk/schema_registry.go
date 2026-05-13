@@ -77,6 +77,19 @@ func ResetSchemas() {
 	clear(schemas)
 }
 
+// ResetSchemasForScope clears all schemas for the given scope.
+func ResetSchemasForScope(scope string) {
+	schemaMu.Lock()
+	defer schemaMu.Unlock()
+
+	prefix := scope + "/"
+	for key := range schemas {
+		if strings.HasPrefix(key, prefix) {
+			delete(schemas, key)
+		}
+	}
+}
+
 func scopeKey(scope, name string) string {
 	return scope + "/" + name
 }

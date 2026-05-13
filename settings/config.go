@@ -313,7 +313,7 @@ func LoadFromFile(path string) (*Settings, error) {
 // that implements sdk.Config with full key resolution.
 func LoadFullConfig(path string) (*FullConfig, error) {
 	if path == "" {
-		return &FullConfig{settings: DefaultSettings()}, nil
+		return &FullConfig{settings: &Settings{}}, nil
 	}
 
 	s, err := LoadFromFile(path)
