@@ -184,5 +184,5 @@ During wiring, the framework calls `sdk.CheckProviderAuth(name, cfg)` for each r
 
 ## Post-Completion
 
-- Update CLAUDE.md to document the new auth pattern (declarative auth structs, auth.json format)
-- Verify `weave` binary builds and runs correctly with real provider keys
+- [x] Update CLAUDE.md to document the new auth pattern (declarative auth structs, auth.json format, env var prefix clarification, TUI auth filtering, test stub sync note)
+- [x] Verify `weave` binary builds and runs correctly with real provider keys

@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -137,23 +138,88 @@ func TestLoadProviderAuth_NumericAndBoolFields(t *testing.T) {
 	assert.InDelta(t, 0.7, target.Temperature, 0.001)
 }
 
-func TestFile_GetProviderConfig_Exists(t *testing.T) {
-	auth := &File{
-		Providers: map[string]ProviderAuth{
-			"anthropic": {APIKey: "sk-ant-123"},
-		},
-	}
+func TestLoadProviderAuth_AuthFileLoadError(t *testing.T) {
+	// Create a directory where auth.json should be, but make it a file instead
+	// so Load() fails when trying to create the directory.
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
 
-	cfg, err := auth.GetProviderConfig("anthropic")
-	require.NoError(t, err)
-	require.NotNil(t, cfg)
-	assert.Equal(t, "sk-ant-123", cfg["api_key"])
+	// Create auth.json as a file with invalid JSON to cause unmarshal error.
+	authFilePath := dir + "/.weave/auth.json"
+	require.NoError(t, os.MkdirAll(dir+"/.weave", 0o755))
+	require.NoError(t, os.WriteFile(authFilePath, []byte("not-json"), 0o600))
+
+	var target testAuth
+
+	err := LoadProviderAuth("testprovider", &target)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "load auth file")
 }
 
-func TestFile_GetProviderConfig_Missing(t *testing.T) {
-	auth := &File{Providers: map[string]ProviderAuth{}}
+func TestLoadProviderAuth_InvalidNumericEnvVar(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
 
-	cfg, err := auth.GetProviderConfig("nonexistent")
-	require.NoError(t, err)
-	assert.Nil(t, cfg)
+	type numericAuth struct {
+		Timeout int `json:"timeout" env:"TEST_TIMEOUT"`
+	}
+
+	t.Setenv("TEST_TIMEOUT", "not-a-number")
+
+	var target numericAuth
+
+	err := LoadProviderAuth("test", &target)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "parse int")
+}
+
+func TestLoadProviderAuth_InvalidBoolEnvVar(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	type boolAuth struct {
+		Enabled bool `json:"enabled" env:"TEST_ENABLED"`
+	}
+
+	t.Setenv("TEST_ENABLED", "not-a-bool")
+
+	var target boolAuth
+
+	err := LoadProviderAuth("test", &target)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "parse bool")
+}
+
+func TestLoadProviderAuth_NestedStruct(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	type nestedAuth struct {
+		Inner struct {
+			APIKey string `json:"api_key" env:"NESTED_API_KEY"`
+		}
+	}
+
+	t.Setenv("NESTED_API_KEY", "nested-key")
+
+	var target nestedAuth
+	require.NoError(t, LoadProviderAuth("test", &target))
+	assert.Equal(t, "nested-key", target.Inner.APIKey)
+}
+
+func TestLoadProviderAuth_UnsupportedFieldKind(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	type sliceAuth struct {
+		Scopes []string `json:"scopes" env:"TEST_SCOPES"`
+	}
+
+	t.Setenv("TEST_SCOPES", "a,b,c")
+
+	var target sliceAuth
+
+	err := LoadProviderAuth("test", &target)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported field kind")
 }

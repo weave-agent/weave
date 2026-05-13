@@ -53,18 +53,6 @@ func LoadProviderAuth(providerName string, target any) error {
 	return nil
 }
 
-// GetProviderConfig returns the raw config map for a provider from the auth file.
-// Returns nil, nil if the provider is not present.
-func (f *File) GetProviderConfig(providerName string) (map[string]any, error) {
-	p, ok := f.Providers[providerName]
-	if !ok {
-		//nolint:nilnil // nil map with nil error is the idiomatic "not found" signal
-		return nil, nil
-	}
-
-	return map[string]any{"api_key": p.APIKey}, nil
-}
-
 // applyEnvToStruct overrides fields from environment variables using `env` struct tags.
 // Env vars are looked up as the exact env tag value (no prefix).
 func applyEnvToStruct(target any) error {

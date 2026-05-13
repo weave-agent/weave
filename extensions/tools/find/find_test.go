@@ -348,7 +348,6 @@ type testConfig struct {
 
 func (c *testConfig) FilePath() string                                   { return "" }
 func (c *testConfig) ProjectDir() string                                 { return "" }
-func (c *testConfig) ResolveKey(_, envVar string) (string, error)        { return "", nil }
 func (c *testConfig) ExtensionConfig(_, _ string, _ any, _ string) error { return nil }
 func (c *testConfig) IsHeadless() bool                                   { return false }
 func (c *testConfig) RespectGitignore() bool                             { return c.respectGitignore }

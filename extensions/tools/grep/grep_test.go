@@ -441,7 +441,6 @@ type testConfig struct {
 
 func (testConfig) FilePath() string                                   { return "" }
 func (testConfig) ProjectDir() string                                 { return "" }
-func (testConfig) ResolveKey(_, _ string) (string, error)             { return "", nil }
 func (testConfig) ExtensionConfig(_, _ string, _ any, _ string) error { return nil }
 func (testConfig) IsHeadless() bool                                   { return false }
 func (testConfig) Preferences(any) error                              { return nil }

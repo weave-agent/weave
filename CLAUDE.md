@@ -27,6 +27,7 @@ cd extensions/loop && go test ./...  # Run tests for a single extension module (
 - **Mocks**: Use moq-generated mocks exclusively. Run `make gen` after changing interfaces. Mocks live in `*_mock_test.go` files — never edit them by hand.
 - **go:generate**: Each SDK interface file has a `//go:generate moq ...` directive. Cross-package mocks (e.g., in `extensions/loop/`) use `-skip-ensure -pkg <pkg>`.
 - **No hand-written mocks**: If a mock needs custom behavior (scripted responses, call recording), set the mock's `Func` fields or write a helper function that configures a moq mock — never create a new mock struct.
+- **Config interface changes**: When `sdk.Config` interface changes, update all test config stubs across extension modules (common locations: `extensions/tools/grep/grep_test.go`, `extensions/tools/find/find_test.go`, `extensions/ui/tui/models_test.go`). Run `make gen` to regenerate moq mocks after interface changes.
 
 ## Architecture
 
@@ -44,7 +45,7 @@ Standard library as much as possible. Every replaceable component is an extensio
 - `sdk/registry/` — generic `Registry[T]` type used internally by all sdk registries; supports `WithWarn` (first-wins + warning) and `WithPanic` (panic on dup) options
 - `sdk/wire/` — `Wire()` and `WireWithCore()` composition roots that resolve names and subscribe extensions to the bus; `Run()` absorbs the full entry-point pipeline (config loading, auto-discovery via `launcher.AutoDiscover`, launcher build) and delegates extension management subcommands (`install`, `list`, `update`, `uninstall`) to `cmd/weave/extmanage/`; `CoreWireConfig` struct (AgentLoop + SingleTurn only); `WireWithCore()` publishes `app.started` after wiring, sets `WEAVE_SINGLE_TURN` env var when `SingleTurn` is true, and calls `sdk.AppStartedHandlers()` before subscribing extensions; `Wire()` silently skips tools, providers, and UI extensions that appear in the extension names list; `Wire()` checks auth status for all registered providers via `sdk.CheckProviderAuth` and stores results in the model registry via `model.SetProviderAuth`
 - `bus/` — callback-based event bus (`Publish`/`On`/`OnAll`/`Off`) with per-handler goroutines, non-blocking dispatch, `recover()` wrapping every handler invocation (panics trigger diagnostic events via configurable topics), and graceful close via `sync.WaitGroup`
-- `internal/auth/` — provider credential storage in `~/.weave/auth.json` with structured format `{"providers": {"anthropic": {"api_key": "..."}}}`; `Load()`/`Save()`/`SetProviderKey()`/`GetProviderKey()`/`GetProviderConfig()`; `LoadProviderAuth(providerName, target)` loads auth into a typed struct from auth.json + env vars (using `env` tags with no prefix). Used by the `sdk.RegisterProvider` wrapper for automatic auth injection into provider factories
+- `internal/auth/` — provider credential storage in `~/.weave/auth.json` with structured format `{"providers": {"anthropic": {"api_key": "..."}}}`; `Load()`/`Save()`/`SetProviderKey()`/`GetProviderKey()`; `LoadProviderAuth(providerName, target)` loads auth into a typed struct from auth.json + env vars (using `env` tags with no prefix). Used by the `sdk.RegisterProvider` wrapper for automatic auth injection into provider factories
 - `settings/` — unified JSON-only settings system. Discovers `.weave/settings.json` by walking up from cwd, falling back to `~/.weave/settings.json`. `Settings` struct holds all config fields (agent_loop, ui_extension, providers, sandbox, jsonl, extensions, plus user preferences like provider, model, thinking_level, ui, tools). `FullConfig` implements `sdk.Config` with key resolution and typed extension config via `ExtensionConfig()`. `FullConfig.SetArgs(args)` stores remaining CLI args for extension-specific flag parsing. `FullConfig.SetProjectDir(dir)` overrides the project directory for layered settings resolution. `loader.go` — custom `Loader` struct with `Load(target)` that applies defaults → JSON data → env vars → CLI flags → validation, using struct tags (`default`, `env`, `flag`, `short`, `validate`, `description`). `merge.go` — `MergeSettings` deep-merges global → local layers for tool/UI preferences. `validation.go` — generic field-path validation (no extension-specific values). `ProjectDirFromConfig()` derives project root from config file path for auto-discovery from subdirectories. `help.go` — `GenerateFullHelp()` produces full `--help` output from registered extension schemas.
 - `internal/truncate/` — shared output truncation (2000 lines / 50KB) used by all tools for consistent output limiting
 - `utils/ripgrep/` — shared ripgrep binary detection (`Find()` returns `rg` path or empty string, cached via `sync.OnceValue`); used by find and grep tools for rg-first strategy
@@ -71,6 +72,8 @@ Standard library as much as possible. Every replaceable component is an extensio
   - `keybindings.go` — key resolution using v2 API (`keyString(msg tea.KeyPressMsg)`, `msg.Key.String()`)
   - `overlays.go` — overlay request routing, dialog stack integration for `sdk.UI` methods
   - `bridge.go` — bus-to-Tea message translation with delta batching and token rate calculation
+
+The model selector (`Ctrl+L`) and `/model` slash command filter to only providers with valid auth credentials using `model.ListAvailableModels()`. The `/providers` slash command shows key status via `model.ProviderHasAuth()`.
 - `launcher/` — full pipeline: `AutoDiscover` recursively scans project-local `.weave/extensions/`, global `~/.weave/extensions/`, and built-in `extensions/` for Go modules (dirs with `go.mod` + `.go` files); UI extensions detected via `sdk.IsUIExtension(dir)` (scans `.go` files for `RegisterUIExtension(` or `RegisterUI(` calls); deduplicates by name (local > global > built-in); applies `exclude_extensions` list; `ComputeHash` of .go files (includes headless flag for different caches), `Cache` in `~/.weave/bin/{hash}/`, `Build` by generating go.mod+main.go with blank imports (filtering UI extensions for headless), then `syscall.Exec`; generated code imports `weave/sdk/wire` and uses `wire.CoreWireConfig`/`wire.WireWithCore`; passes `WEAVE_LAUNCHER_PATH`, `WEAVE_BUILD_HASH`, and `WEAVE_ORIG_ARGS` env vars for `/reload` support
 
 **Extension lifecycle:** Extension packages call `sdk.RegisterExtension[T](name, factory)` in `init()`, where `T` is the extension's typed config struct and `factory` has signature `func(Config, T) (Extension, error)`. Provider, tool, and UI extensions similarly call `sdk.RegisterProvider[TConfig, TAuth]`, `sdk.RegisterTool[T]`, and `sdk.RegisterUI`. Provider factories receive three arguments: `func(Config, TConfig, TAuth) (Provider, error)`. For extensions needing a custom config scope (e.g. TUI uses `"ui"`, sandbox uses `"sandbox"`), use `sdk.RegisterExtensionWithScope[T](name, scope, factory)`. Duplicate registrations log a warning (first registration wins). The SDK extracts the config schema via reflection at registration time and stores it for help generation. UI extensions (TUI-specific plugins) call `sdk.RegisterUIExtension` in `init()` and are wired by the TUI at startup via `sdk.GetUIExtensions()`. All auto-discovered extensions are blank-imported in the generated binary, triggering registration. `wire.WireWithCore()` (from `sdk/wire/`) resolves names from registries and calls `Subscribe(bus)` on each extension. Before subscribing, it publishes `app.started` on the bus and invokes any handlers registered via `sdk.OnAppStarted()`. Extensions register handlers via `bus.On(topic, handler)` or `bus.OnAll(handler)` to receive events; `bus.Off(handler)` removes a handler. Handler panics are caught by the bus and published as diagnostic events via configurable topics (`extension.panic` and `extension.error` by default); errors from handlers are similarly published as diagnostic events. When no prompt is provided (`-p` flag unset), the TUI extension is included in the build for interactive mode; with `-p`, weave runs in print mode without TUI. `FullConfig.IsHeadless()` always returns `false`; headless mode is determined at the entry point (`wire/run.go`) by whether `-p` was provided. `HeadlessConfig` wraps a `Config` and overrides `IsHeadless()` for specific scenarios. UI extensions are silently skipped in headless mode.
@@ -109,6 +112,16 @@ Unified settings JSON format (single file — project `~/.weave/settings.json` o
   "respect_gitignore": true,
   "ui": { "editor_max_lines": 20 },
   "tools": { "bash": { "timeout": 120 } }
+}
+```
+
+Auth credentials are stored separately in `~/.weave/auth.json` (not in `settings.json`):
+```json
+{
+  "providers": {
+    "anthropic": { "api_key": "sk-ant-..." },
+    "openai": { "api_key": "sk-..." }
+  }
 }
 ```
 
@@ -160,7 +173,7 @@ Supported validation rules: `required`, `gt=N`, `lt=N`, `min=N`, `max=N`, `oneof
 
 Built-in config scopes are hardcoded in `FullConfig.ExtensionConfig`: `tools`, `providers`, `ui`, `sandbox`, `jsonl`, `extensions`. To add a new scope, update the switch statement in `settings/config.go`.
 
-**Provider env vars are a special case:** providers receive an empty `envPrefix`, so their env tags resolve directly (e.g. `ANTHROPIC_MODEL`, `KIMI_MODEL`, not `WEAVE_ANTHROPIC_MODEL`). Tools and extensions use `WEAVE_<NAME>` as prefix.
+**Provider env vars are a special case:** providers receive an empty `envPrefix`, so both their config env tags (e.g. `ANTHROPIC_MODEL`, `KIMI_MODEL`) and auth env tags (e.g. `ANTHROPIC_API_KEY`, `KIMI_API_KEY`) resolve directly without a `WEAVE_` prefix. Tools and extensions use `WEAVE_<NAME>` as prefix.
 
 **Extension-specific CLI flags** are prefixed with the extension name: `--bash-timeout 60`, `--kimi-model kimi-for-coding`. The framework strips the prefix before passing args to the extension's loader. Boolean flags support `--flag=true`/`--flag=false` syntax. Unknown flags are silently ignored by the loader, so extensions don't need to defensively parse args.
 

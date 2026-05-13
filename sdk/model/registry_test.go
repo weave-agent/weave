@@ -108,6 +108,13 @@ func TestProviderHasAuth(t *testing.T) {
 	assert.False(t, ProviderHasAuth("anthropic"))
 }
 
+func TestProviderHasAuth_NeverSet(t *testing.T) {
+	ResetAuthRegistry()
+	defer ResetAuthRegistry()
+
+	assert.False(t, ProviderHasAuth("never-configured-provider"))
+}
+
 func TestListAvailableModels(t *testing.T) {
 	ResetModelRegistry()
 	defer ResetModelRegistry()
