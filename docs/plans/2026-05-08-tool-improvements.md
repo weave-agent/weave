@@ -123,13 +123,13 @@ Serialize concurrent edits to the same file to prevent race conditions.
 ### Task 9: Edit — Line ending preservation
 Detect and preserve original line endings (CRLF/LF) across edits.
 
-- [ ] Create `internal/fileutil/endings.go` with helpers:
+- [x] Create `internal/fileutil/endings.go` with helpers:
   - `DetectLineEndings(content []byte) string` — returns "\r\n" or "\n"
   - `NormalizeToLF(content []byte) ([]byte, string)` — returns LF content + original ending
   - `RestoreLineEndings(content []byte, ending string) []byte`
-- [ ] Integrate into edit tool: detect endings before edit, normalize to LF, apply edits, restore original endings
-- [ ] Write tests: CRLF preserved, LF preserved, mixed endings normalized to first-detected
-- [ ] Run `cd extensions/tools/edit && go test ./...`
+- [x] Integrate into edit tool: detect endings before edit, normalize to LF, apply edits, restore original endings
+- [x] Write tests: CRLF preserved, LF preserved, mixed endings normalized to first-detected
+- [x] Run `cd extensions/tools/edit && go test ./...`
 
 ### Task 10: LS — Sorted output + entry limit + ignore patterns
 Add alphabetical sorting, configurable entry limit, and ignore glob patterns.

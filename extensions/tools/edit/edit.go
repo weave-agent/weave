@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"weave/internal/fileutil"
 	"weave/sdk"
 	"weave/utils/truncate"
 
@@ -115,25 +116,37 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		edits = append(edits, editEntry{oldText, newText, replaceAll})
 	}
 
-	original, err := os.ReadFile(path)
+	originalBytes, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
 		return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
 	}
 
-	content, err := applyEdits(string(original), edits)
+	normalizedBytes, ending := fileutil.NormalizeToLF(originalBytes)
+	content := string(normalizedBytes)
+
+	// Normalize edit parameters to LF for consistent matching.
+	for i := range edits {
+		edits[i].oldText = strings.ReplaceAll(edits[i].oldText, "\r\n", "\n")
+		edits[i].newText = strings.ReplaceAll(edits[i].newText, "\r\n", "\n")
+	}
+
+	content, err = applyEdits(content, edits)
 	if err != nil {
 		return sdk.ToolResult{Content: err.Error(), IsError: true}, nil
 	}
 
+	finalBytes := fileutil.RestoreLineEndings([]byte(content), ending)
+	finalContent := string(finalBytes)
+
 	diff, _ := difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
-		A:        difflib.SplitLines(string(original)),
-		B:        difflib.SplitLines(content),
+		A:        difflib.SplitLines(string(originalBytes)),
+		B:        difflib.SplitLines(finalContent),
 		FromFile: "a" + path,
 		ToFile:   "b" + path,
 		Context:  3,
 	})
 
-	if content != string(original) {
+	if finalContent != string(originalBytes) {
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil { //nolint:gosec // G301: 0755 is intentional for created directories
 			return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
 		}
@@ -143,7 +156,7 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 			perm = info.Mode().Perm()
 		}
 
-		if err := os.WriteFile(path, []byte(content), perm); err != nil { //nolint:gosec // G703: path is a tool parameter, intentionally user-specified
+		if err := os.WriteFile(path, finalBytes, perm); err != nil { //nolint:gosec // G703: path is a tool parameter, intentionally user-specified
 			return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
 		}
 	}

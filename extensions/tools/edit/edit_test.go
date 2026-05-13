@@ -710,5 +710,78 @@ func TestEditWithNilFileMutex(t *testing.T) {
 	assert.Equal(t, "modified", string(data))
 }
 
+func TestExecutePreservesCRLF(t *testing.T) {
+	tool := &tool{}
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "crlf.txt")
+
+	// File with Windows-style CRLF line endings.
+	original := "line1\r\nline2\r\nline3\r\n"
+	require.NoError(t, os.WriteFile(path, []byte(original), 0o644))
+
+	// Edit uses LF in oldText/newText; file should retain CRLF.
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"path": path,
+		"edits": []any{
+			map[string]any{"oldText": "line2", "newText": "replaced"},
+		},
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+	assert.Contains(t, result.Content, "-line2")
+	assert.Contains(t, result.Content, "+replaced")
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, "line1\r\nreplaced\r\nline3\r\n", string(data))
+}
+
+func TestExecutePreservesLF(t *testing.T) {
+	tool := &tool{}
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "lf.txt")
+
+	// File with Unix-style LF line endings.
+	original := "line1\nline2\nline3\n"
+	require.NoError(t, os.WriteFile(path, []byte(original), 0o644))
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"path": path,
+		"edits": []any{
+			map[string]any{"oldText": "line2", "newText": "replaced"},
+		},
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, "line1\nreplaced\nline3\n", string(data))
+}
+
+func TestExecuteMixedEndingsNormalizedToFirstDetected(t *testing.T) {
+	tool := &tool{}
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "mixed.txt")
+
+	// Mixed endings: CRLF appears first, so entire file should become CRLF.
+	original := "line1\r\nline2\nline3\r\n"
+	require.NoError(t, os.WriteFile(path, []byte(original), 0o644))
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"path": path,
+		"edits": []any{
+			map[string]any{"oldText": "line2", "newText": "replaced"},
+		},
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	// After normalization+restore, all line endings should be CRLF.
+	assert.Equal(t, "line1\r\nreplaced\r\nline3\r\n", string(data))
+}
+
 func (ts *testSandboxer) Mode() string   { return "auto" }
 func (ts *testSandboxer) SetMode(string) {}
