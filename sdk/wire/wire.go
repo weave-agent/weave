@@ -13,7 +13,7 @@ import (
 	"weave/sdk/model"
 )
 
-const defaultAgentLoop = "loop"
+const defaultAgentLoop = "agent"
 
 type CoreWireConfig struct {
 	AgentLoop  string

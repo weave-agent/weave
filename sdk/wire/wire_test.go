@@ -16,7 +16,7 @@ import (
 )
 
 func coreCfg() CoreWireConfig {
-	return CoreWireConfig{AgentLoop: "loop"}
+	return CoreWireConfig{AgentLoop: "agent"}
 }
 
 func TestWire_NoExtensions(t *testing.T) {
@@ -225,7 +225,7 @@ func TestWireWithCore_MergesCoreAndOptional(t *testing.T) {
 			}), nil
 		})
 	}
-	reg("loop")
+	reg("agent")
 	reg("bash-tool")
 	reg("file-tool")
 
@@ -234,7 +234,7 @@ func TestWireWithCore_MergesCoreAndOptional(t *testing.T) {
 	_, err := WireWithCore(coreCfg(), []string{"bash-tool", "file-tool"}, bus, nil)
 	require.NoError(t, err, "WireWithCore")
 
-	want := []string{"loop", "bash-tool", "file-tool"}
+	want := []string{"agent", "bash-tool", "file-tool"}
 	require.Len(t, names, len(want))
 
 	for i, n := range want {
@@ -255,14 +255,14 @@ func TestWireWithCore_Deduplicates(t *testing.T) {
 			}), nil
 		})
 	}
-	reg("loop")
+	reg("agent")
 	reg("bash-tool")
 
 	bus := &BusMock{}
 
 	_, err := WireWithCore(
 		coreCfg(),
-		[]string{"bash-tool", "loop"},
+		[]string{"bash-tool", "agent"},
 		bus,
 		nil,
 	)
@@ -284,7 +284,7 @@ func TestWireWithCore_CoreOnly(t *testing.T) {
 			}), nil
 		})
 	}
-	reg("loop")
+	reg("agent")
 
 	bus := &BusMock{}
 
@@ -292,7 +292,7 @@ func TestWireWithCore_CoreOnly(t *testing.T) {
 	require.NoError(t, err, "WireWithCore")
 
 	require.Len(t, names, 1)
-	assert.Equal(t, "loop", names[0])
+	assert.Equal(t, "agent", names[0])
 }
 
 func TestWireWithCore_ErrMissingAgentLoop(t *testing.T) {
@@ -308,13 +308,13 @@ func TestWireWithCore_ErrMissingAgentLoop(t *testing.T) {
 func TestWireWithCore_NoProviderRequired(t *testing.T) {
 	sdk.ResetRegistry()
 
-	sdk.RegisterExtension[struct{}]("loop", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
-		return sdk.NewExtensionFunc("loop", func(sdk.Bus) error { return nil }), nil
+	sdk.RegisterExtension[struct{}]("agent", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("agent", func(sdk.Bus) error { return nil }), nil
 	})
 
 	bus := &BusMock{}
 
-	_, err := WireWithCore(CoreWireConfig{AgentLoop: "loop"}, nil, bus, nil)
+	_, err := WireWithCore(CoreWireConfig{AgentLoop: "agent"}, nil, bus, nil)
 	require.NoError(t, err)
 }
 
@@ -323,8 +323,8 @@ func TestWireWithCore_FactoryErrorRollback(t *testing.T) {
 
 	var closed atomic.Int32
 
-	sdk.RegisterExtension[struct{}]("loop", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
-		return sdk.NewExtensionFuncWithClose("loop", func(sdk.Bus) error { return nil }, func() error {
+	sdk.RegisterExtension[struct{}]("agent", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
+		return sdk.NewExtensionFuncWithClose("agent", func(sdk.Bus) error { return nil }, func() error {
 			closed.Add(1)
 			return nil
 		}), nil
@@ -371,9 +371,9 @@ func TestWireWithCore_PassesConfigToFactories(t *testing.T) {
 
 	var receivedCfg sdk.Config
 
-	sdk.RegisterExtension[struct{}]("loop", func(cfg sdk.Config, _ struct{}) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("agent", func(cfg sdk.Config, _ struct{}) (sdk.Extension, error) {
 		receivedCfg = cfg
-		return sdk.NewExtensionFunc("loop", func(sdk.Bus) error { return nil }), nil
+		return sdk.NewExtensionFunc("agent", func(sdk.Bus) error { return nil }), nil
 	})
 
 	cfg := sdk.FilePathConfig("/test/.weave/settings.json")
@@ -469,8 +469,8 @@ func TestWireWithCore_PublishesAppStarted(t *testing.T) {
 		handlerCalled.Store(true)
 	})
 
-	sdk.RegisterExtension[struct{}]("loop", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
-		return sdk.NewExtensionFunc("loop", func(sdk.Bus) error { return nil }), nil
+	sdk.RegisterExtension[struct{}]("agent", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("agent", func(sdk.Bus) error { return nil }), nil
 	})
 
 	realBus := eventbus.New()
@@ -499,8 +499,8 @@ func TestWireWithCore_AppStartedNotCalledWhenHeadless(t *testing.T) {
 		handlerCalled.Store(true)
 	})
 
-	sdk.RegisterExtension[struct{}]("loop", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
-		return sdk.NewExtensionFunc("loop", func(sdk.Bus) error { return nil }), nil
+	sdk.RegisterExtension[struct{}]("agent", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("agent", func(sdk.Bus) error { return nil }), nil
 	})
 
 	realBus := eventbus.New()
@@ -517,8 +517,8 @@ func TestWireWithCore_AppStartedNotCalledWhenHeadless(t *testing.T) {
 func TestWireWithCore_ExtensionUsesBusOn(t *testing.T) {
 	sdk.ResetRegistry()
 
-	sdk.RegisterExtension[struct{}]("loop", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
-		return sdk.NewExtensionFunc("loop", func(bus sdk.Bus) error {
+	sdk.RegisterExtension[struct{}]("agent", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("agent", func(bus sdk.Bus) error {
 			bus.On("agent.prompt", func(e sdk.Event) error { return nil })
 			return nil
 		}), nil
@@ -571,43 +571,43 @@ func TestWire_WireSubscribesExtensionsInProcess(t *testing.T) {
 }
 
 func TestMergeCoreAndOptional_AgentLoopOnly(t *testing.T) {
-	result := mergeCoreAndOptional("loop", nil)
-	assert.Equal(t, []string{"loop"}, result)
+	result := mergeCoreAndOptional("agent", nil)
+	assert.Equal(t, []string{"agent"}, result)
 }
 
 func TestMergeCoreAndOptional_WithOptionalExts(t *testing.T) {
-	result := mergeCoreAndOptional("loop", []string{"bash", "read"})
-	assert.Equal(t, []string{"loop", "bash", "read"}, result)
+	result := mergeCoreAndOptional("agent", []string{"bash", "read"})
+	assert.Equal(t, []string{"agent", "bash", "read"}, result)
 }
 
 func TestMergeCoreAndOptional_DeduplicatesAgentLoop(t *testing.T) {
-	result := mergeCoreAndOptional("loop", []string{"loop", "bash"})
-	assert.Equal(t, []string{"loop", "bash"}, result)
+	result := mergeCoreAndOptional("agent", []string{"agent", "bash"})
+	assert.Equal(t, []string{"agent", "bash"}, result)
 }
 
 func TestMergeCoreAndOptional_DeduplicatesOptExts(t *testing.T) {
-	result := mergeCoreAndOptional("loop", []string{"bash", "bash", "read"})
-	assert.Equal(t, []string{"loop", "bash", "read"}, result)
+	result := mergeCoreAndOptional("agent", []string{"bash", "bash", "read"})
+	assert.Equal(t, []string{"agent", "bash", "read"}, result)
 }
 
 func TestMergeCoreAndOptional_EmptyOptExts(t *testing.T) {
-	result := mergeCoreAndOptional("loop", []string{})
-	assert.Equal(t, []string{"loop"}, result)
+	result := mergeCoreAndOptional("agent", []string{})
+	assert.Equal(t, []string{"agent"}, result)
 }
 
 func TestMergeCoreAndOptional_FiltersAgentLoopFromOptExts(t *testing.T) {
-	result := mergeCoreAndOptional("my-loop", []string{"bash", "my-loop", "read"})
-	assert.Equal(t, []string{"my-loop", "bash", "read"}, result)
+	result := mergeCoreAndOptional("my-agent", []string{"bash", "my-agent", "read"})
+	assert.Equal(t, []string{"my-agent", "bash", "read"}, result)
 }
 
 func TestMergeCoreAndOptional_FiltersDefaultLoopWhenCustomLoop(t *testing.T) {
-	result := mergeCoreAndOptional("my-loop", []string{"bash", "loop", "read"})
-	assert.Equal(t, []string{"my-loop", "bash", "read"}, result)
+	result := mergeCoreAndOptional("my-agent", []string{"bash", "agent", "read"})
+	assert.Equal(t, []string{"my-agent", "bash", "read"}, result)
 }
 
 func TestMergeCoreAndOptional_KeepsDefaultLoopWhenDefaultLoop(t *testing.T) {
-	result := mergeCoreAndOptional("loop", []string{"bash", "loop", "read"})
-	assert.Equal(t, []string{"loop", "bash", "read"}, result)
+	result := mergeCoreAndOptional("agent", []string{"bash", "agent", "read"})
+	assert.Equal(t, []string{"agent", "bash", "read"}, result)
 }
 
 type wireTestAuth struct {
@@ -653,8 +653,8 @@ func TestWireWithCore_SetsProviderAuthStatus(t *testing.T) {
 	sdk.ResetProviderRegistry()
 	model.ResetAuthRegistry()
 
-	sdk.RegisterExtension[struct{}]("loop", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
-		return sdk.NewExtensionFunc("loop", func(sdk.Bus) error { return nil }), nil
+	sdk.RegisterExtension[struct{}]("agent", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("agent", func(sdk.Bus) error { return nil }), nil
 	})
 
 	sdk.RegisterProvider[struct{}, wireTestAuth]("wire-test-provider-core", func(_ sdk.Config, _ struct{}, _ wireTestAuth) (sdk.Provider, error) {

@@ -72,7 +72,7 @@ func TestLoad_CoreDefaults(t *testing.T) {
 	_, cf, _, err := LoadFromDir(dir, nil)
 	require.NoError(t, err)
 
-	assert.Equal(t, "loop", cf.AgentLoop)
+	assert.Equal(t, "agent", cf.AgentLoop)
 }
 
 func TestLoad_CoreOverride(t *testing.T) {
@@ -108,7 +108,7 @@ func TestLoad_MissingFile(t *testing.T) {
 	// Should generate a global config in ~/.weave/settings.json
 	assert.NotEmpty(t, path, "should have generated a global config")
 	assert.Equal(t, "tui", cf.UIExtension)
-	assert.Equal(t, "loop", cf.AgentLoop)
+	assert.Equal(t, "agent", cf.AgentLoop)
 
 	_, statErr := os.Stat(path)
 	require.NoError(t, statErr)
@@ -282,7 +282,7 @@ func TestEnsureGlobalConfig_GeneratesFile(t *testing.T) {
 	data, readErr := os.ReadFile(path)
 	require.NoError(t, readErr)
 	assert.Contains(t, string(data), `"agent_loop"`)
-	assert.Contains(t, string(data), `"loop"`)
+	assert.Contains(t, string(data), `"agent"`)
 }
 
 func TestEnsureGlobalConfig_SkipsIfProjectConfigExists(t *testing.T) {
@@ -326,14 +326,14 @@ func TestEnsureGlobalConfig_Idempotent(t *testing.T) {
 func TestDefaultConfigJSON(t *testing.T) {
 	j := DefaultConfigJSON()
 	assert.Contains(t, j, `"agent_loop"`)
-	assert.Contains(t, j, `"loop"`)
+	assert.Contains(t, j, `"agent"`)
 	assert.Contains(t, j, `"ui_extension"`)
 }
 
 func TestDefaultSettings(t *testing.T) {
 	s := DefaultSettings()
 	assert.Equal(t, "tui", s.UIExtension)
-	assert.Equal(t, "loop", s.AgentLoop)
+	assert.Equal(t, "agent", s.AgentLoop)
 	assert.Empty(t, s.ExcludeExtensions)
 	assert.Nil(t, s.Providers)
 }

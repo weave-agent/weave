@@ -19,7 +19,7 @@ type JSONLConfig struct {
 // unified into a single struct.
 type Settings struct {
 	// Project-level config fields.
-	AgentLoop         string            `json:"agent_loop,omitempty" default:"loop" env:"AGENT_LOOP" description:"Agent loop extension name"`
+	AgentLoop         string            `json:"agent_loop,omitempty" default:"agent" env:"AGENT_LOOP" description:"Agent loop extension name"`
 	UIExtension       string            `json:"ui_extension,omitempty" default:"tui" env:"UI_EXTENSION" description:"UI extension name"`
 	Providers         map[string]any    `json:"providers,omitempty" description:"Per-provider configuration"`
 	ExcludeExtensions []string          `json:"exclude_extensions,omitempty" env:"EXCLUDE_EXTENSIONS" description:"Extensions to exclude from auto-discovery"`

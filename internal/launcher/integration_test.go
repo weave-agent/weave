@@ -329,9 +329,9 @@ func TestIntegration_DiscoverBuiltinNestedStore(t *testing.T) {
 	assert.NotEmpty(t, jsonlExt.GoFiles)
 }
 
-// TestIntegration_DiscoverBuiltinLoopDirect verifies the loop extension is still
-// found at the direct path extensions/loop/.
-func TestIntegration_DiscoverBuiltinLoopDirect(t *testing.T) {
+// TestIntegration_DiscoverBuiltinAgentDirect verifies the agent extension is
+// found at the direct path extensions/agent/.
+func TestIntegration_DiscoverBuiltinAgentDirect(t *testing.T) {
 	moduleRoot := findModuleRootHelper(t)
 	projectDir := t.TempDir()
 	homeDir := t.TempDir()
@@ -339,16 +339,16 @@ func TestIntegration_DiscoverBuiltinLoopDirect(t *testing.T) {
 	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 	require.NoError(t, err, "AutoDiscover")
 
-	var loopExt *ExtensionInfo
+	var agentExt *ExtensionInfo
 
 	for i := range exts {
-		if exts[i].Name == "loop" {
-			loopExt = &exts[i]
+		if exts[i].Name == "agent" {
+			agentExt = &exts[i]
 			break
 		}
 	}
 
-	require.NotNil(t, loopExt, "loop should be discovered")
-	assert.Equal(t, filepath.Join(moduleRoot, "extensions", "loop"), loopExt.Dir)
-	assert.NotEmpty(t, loopExt.GoFiles)
+	require.NotNil(t, agentExt, "agent should be discovered")
+	assert.Equal(t, filepath.Join(moduleRoot, "extensions", "agent"), agentExt.Dir)
+	assert.NotEmpty(t, agentExt.GoFiles)
 }

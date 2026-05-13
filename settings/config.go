@@ -30,14 +30,14 @@ type SandboxFileConfig struct {
 func DefaultSettings() *Settings {
 	return &Settings{
 		UIExtension: "tui",
-		AgentLoop:   "loop",
+		AgentLoop:   "agent",
 	}
 }
 
 // DefaultConfigJSON returns the default config as formatted JSON.
 func DefaultConfigJSON() string {
 	return `{
-  "agent_loop": "loop",
+  "agent_loop": "agent",
   "ui_extension": "tui"
 }`
 }

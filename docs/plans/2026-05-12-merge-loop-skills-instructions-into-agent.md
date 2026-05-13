@@ -136,12 +136,12 @@ Merge three separate extensions (`loop`, `skills`, `instructions`) into a single
 
 ### Task 7: Wire new agent extension and remove old extensions
 
-- [ ] Update `sdk/wire/wire.go` — add "agent" to core extensions or document it replaces loop
-- [ ] Update launcher auto-discovery to skip `extensions/loop/`, `extensions/skills/`, `extensions/instructions/`
-- [ ] Delete `extensions/loop/`, `extensions/skills/`, `extensions/instructions/` directories
-- [ ] Update any references in `CLAUDE.md` or docs
-- [ ] Verify `make test` passes for root and `extensions/agent/`
-- [ ] Run full test suite — must pass before next task
+- [x] Update `sdk/wire/wire.go` — add "agent" to core extensions or document it replaces loop
+- [x] Update launcher auto-discovery to skip `extensions/loop/`, `extensions/skills/`, `extensions/instructions/`
+- [x] Delete `extensions/loop/`, `extensions/skills/`, `extensions/instructions/` directories
+- [x] Update any references in `CLAUDE.md` or docs
+- [x] Verify `make test` passes for root and `extensions/agent/`
+- [x] Run full test suite — must pass before next task
 
 ### Task 8: Verify acceptance criteria
 

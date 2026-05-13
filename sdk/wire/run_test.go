@@ -53,12 +53,12 @@ func TestRunCoreDefaultsUsed(t *testing.T) {
 
 	cfgFile := dir + "/.weave/settings.json"
 	require.NoError(t, os.MkdirAll(filepath.Dir(cfgFile), 0o750))
-	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"tui","agent_loop":"loop"}`), 0o600))
+	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"tui","agent_loop":"agent"}`), 0o600))
 
 	_, cf, _, err := settings.LoadFromDir(dir, nil)
 	require.NoError(t, err)
 
-	assert.Equal(t, "loop", cf.AgentLoop, "default agent_loop should be 'loop'")
+	assert.Equal(t, "agent", cf.AgentLoop, "default agent_loop should be 'agent'")
 	assert.Equal(t, "tui", cf.UIExtension, "default ui should be 'tui'")
 }
 
@@ -70,7 +70,7 @@ func TestValidateCoreConfig(t *testing.T) {
 	}{
 		{
 			"valid defaults",
-			&settings.Settings{AgentLoop: "loop", UIExtension: "tui"},
+			&settings.Settings{AgentLoop: "agent", UIExtension: "tui"},
 			nil,
 		},
 		{
@@ -144,7 +144,7 @@ func TestRun_HelpFlagBypassesNoInputCheck(t *testing.T) {
 	dir := t.TempDir()
 	cfgFile := dir + "/.weave/settings.json"
 	require.NoError(t, os.MkdirAll(filepath.Dir(cfgFile), 0o750))
-	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"none","agent_loop":"loop"}`), 0o600))
+	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"none","agent_loop":"agent"}`), 0o600))
 
 	origWd, _ := os.Getwd()
 
@@ -168,7 +168,7 @@ func TestRun_HelpShortFlagBypassesNoInputCheck(t *testing.T) {
 	dir := t.TempDir()
 	cfgFile := dir + "/.weave/settings.json"
 	require.NoError(t, os.MkdirAll(filepath.Dir(cfgFile), 0o750))
-	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"none","agent_loop":"loop"}`), 0o600))
+	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"none","agent_loop":"agent"}`), 0o600))
 
 	origWd, _ := os.Getwd()
 
@@ -201,7 +201,7 @@ func TestRun_SubagentFlagsParsed(t *testing.T) {
 	dir := t.TempDir()
 	cfgFile := dir + "/.weave/settings.json"
 	require.NoError(t, os.MkdirAll(filepath.Dir(cfgFile), 0o750))
-	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"none","agent_loop":"loop"}`), 0o600))
+	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"none","agent_loop":"agent"}`), 0o600))
 
 	_, cf, rest, err := settings.LoadFromDir(dir, []string{
 		"-p", "test",
@@ -226,7 +226,7 @@ func TestRun_EmptyToolsFlagForwarded(t *testing.T) {
 	dir := t.TempDir()
 	cfgFile := dir + "/.weave/settings.json"
 	require.NoError(t, os.MkdirAll(filepath.Dir(cfgFile), 0o750))
-	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"none","agent_loop":"loop"}`), 0o600))
+	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"none","agent_loop":"agent"}`), 0o600))
 
 	_, cf, rest, err := settings.LoadFromDir(dir, []string{
 		"-p", "test",
@@ -247,7 +247,7 @@ func TestRun_ProjectDirFromConfig(t *testing.T) {
 
 	cfgFile := filepath.Join(projectDir, ".weave", "settings.json")
 	require.NoError(t, os.MkdirAll(filepath.Dir(cfgFile), 0o750))
-	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"none","agent_loop":"loop"}`), 0o600))
+	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"none","agent_loop":"agent"}`), 0o600))
 
 	// Loading from subdir should find the config at project root.
 	_, cf, _, err := settings.LoadFromDir(subDir, []string{"-p", "hello"})
