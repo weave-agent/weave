@@ -93,11 +93,11 @@ Track which files have been read so the edit tool can enforce read-before-edit.
 ### Task 6: Edit — Read-before-edit enforcement
 Edit tool checks FileTracker before applying edits. Rejects if file not read or modified since read.
 
-- [ ] Integrate FileTracker into edit tool struct
-- [ ] Add pre-edit check: if `!tracker.WasRead(path)` → return error `"file must be read before editing"`
-- [ ] Add staleness check: if file mod time > recorded read time → return error with details
-- [ ] Write tests: edit without prior read fails, edit after read succeeds, edit after external modification fails
-- [ ] Run `cd extensions/tools/edit && go test ./...`
+- [x] Integrate FileTracker into edit tool struct
+- [x] Add pre-edit check: if `!tracker.WasRead(path)` → return error `"file must be read before editing"`
+- [x] Add staleness check: if file mod time > recorded read time → return error with details
+- [x] Write tests: edit without prior read fails, edit after read succeeds, edit after external modification fails
+- [x] Run `cd extensions/tools/edit && go test ./...`
 
 ### Task 7: Edit — Replace all mode
 Add `replace_all` flag to replace every occurrence of oldText.

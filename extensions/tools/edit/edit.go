@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"weave/sdk"
 	"weave/utils/truncate"
@@ -21,11 +22,13 @@ const (
 	ParamNewText = "newText"
 )
 
-type tool struct{}
+type tool struct {
+	tracker sdk.FileTracker
+}
 
 func init() {
-	sdk.RegisterTool[struct{}]("edit", func(_ sdk.Config, _ struct{}) (sdk.Tool, error) {
-		return &tool{}, nil
+	sdk.RegisterTool("edit", func(_ sdk.Config, _ struct{}) (sdk.Tool, error) {
+		return &tool{tracker: sdk.GetFileTracker()}, nil
 	})
 }
 
@@ -74,6 +77,10 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 
 	if s := sdk.GetSandboxer(); s != nil && !s.AllowWrite(path) {
 		return sdk.ToolResult{Content: "sandbox: write denied — path is protected", IsError: true}, nil
+	}
+
+	if result, shouldReturn := t.checkFileTracker(path); shouldReturn {
+		return result, nil
 	}
 
 	editsRaw, ok := args[ParamEdits].([]any)
@@ -158,4 +165,37 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 	result := truncate.Truncate(diff, truncate.DefaultMaxLines, truncate.DefaultMaxBytes)
 
 	return sdk.ToolResult{Content: result.Format(), IsError: false}, nil
+}
+
+// checkFileTracker validates that the file at path has been read and not modified since.
+// It returns (zero result, false) when checks pass or no tracker is configured.
+// It returns (error result, true) when the file fails the read-before-edit policy.
+func (t *tool) checkFileTracker(path string) (sdk.ToolResult, bool) {
+	if t.tracker == nil {
+		return sdk.ToolResult{}, false
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		return sdk.ToolResult{}, false
+	}
+
+	if !t.tracker.WasRead(path) {
+		return sdk.ToolResult{
+			Content: "error: file must be read before editing: " + path,
+			IsError: true,
+		}, true
+	}
+
+	readTime, ok := t.tracker.GetReadTime(path)
+	if ok && info.ModTime().After(readTime) {
+		return sdk.ToolResult{
+			Content: "error: file was modified externally since last read (" +
+				info.ModTime().Format(time.RFC3339) + " > " + readTime.Format(time.RFC3339) +
+				"), please re-read before editing: " + path,
+			IsError: true,
+		}, true
+	}
+
+	return sdk.ToolResult{}, false
 }

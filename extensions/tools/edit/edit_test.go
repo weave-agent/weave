@@ -6,7 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"weave/sdk"
 
@@ -343,6 +345,148 @@ func TestExecuteSandboxNil(t *testing.T) {
 	data, readErr := os.ReadFile(path)
 	require.NoError(t, readErr)
 	assert.Equal(t, "after", string(data))
+}
+
+func TestExecuteWithoutReadFails(t *testing.T) {
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "unread.txt")
+	require.NoError(t, os.WriteFile(path, []byte("original"), 0o644))
+
+	tracker := newMockFileTracker()
+	tool := &tool{tracker: tracker}
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"path": path,
+		"edits": []any{
+			map[string]any{"oldText": "original", "newText": "modified"},
+		},
+	})
+	require.NoError(t, err)
+	assert.True(t, result.IsError)
+	assert.Contains(t, result.Content, "file must be read before editing")
+
+	data, readErr := os.ReadFile(path)
+	require.NoError(t, readErr)
+	assert.Equal(t, "original", string(data))
+}
+
+func TestExecuteAfterReadSucceeds(t *testing.T) {
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "read.txt")
+	require.NoError(t, os.WriteFile(path, []byte("original"), 0o644))
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+
+	tracker := newMockFileTracker()
+	tracker.RecordRead(path, info.ModTime())
+
+	tool := &tool{tracker: tracker}
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"path": path,
+		"edits": []any{
+			map[string]any{"oldText": "original", "newText": "modified"},
+		},
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+	assert.Contains(t, result.Content, "-original")
+	assert.Contains(t, result.Content, "+modified")
+
+	data, readErr := os.ReadFile(path)
+	require.NoError(t, readErr)
+	assert.Equal(t, "modified", string(data))
+}
+
+func TestExecuteAfterExternalModificationFails(t *testing.T) {
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "stale.txt")
+	require.NoError(t, os.WriteFile(path, []byte("original"), 0o644))
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+
+	// Record read time from before modification
+	tracker := newMockFileTracker()
+	tracker.RecordRead(path, info.ModTime())
+
+	// Modify file after recording read time
+	require.NoError(t, os.WriteFile(path, []byte("externally modified"), 0o644))
+
+	tool := &tool{tracker: tracker}
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"path": path,
+		"edits": []any{
+			map[string]any{"oldText": "externally modified", "newText": "should fail"},
+		},
+	})
+	require.NoError(t, err)
+	assert.True(t, result.IsError)
+	assert.Contains(t, result.Content, "file was modified externally since last read")
+
+	data, readErr := os.ReadFile(path)
+	require.NoError(t, readErr)
+	assert.Equal(t, "externally modified", string(data))
+}
+
+func TestExecuteNewFileSkipsTracker(t *testing.T) {
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "newdir", "newfile.txt")
+
+	tracker := newMockFileTracker()
+	tool := &tool{tracker: tracker}
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"path": path,
+		"edits": []any{
+			map[string]any{"oldText": "", "newText": "fresh content"},
+		},
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	data, readErr := os.ReadFile(path)
+	require.NoError(t, readErr)
+	assert.Equal(t, "fresh content", string(data))
+}
+
+// mockFileTracker is a test-double for sdk.FileTracker.
+type mockFileTracker struct {
+	mu    sync.RWMutex
+	reads map[string]time.Time
+}
+
+func newMockFileTracker() *mockFileTracker {
+	return &mockFileTracker{
+		reads: make(map[string]time.Time),
+	}
+}
+
+func (m *mockFileTracker) RecordRead(path string, modTime time.Time) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.reads[path] = modTime
+}
+
+func (m *mockFileTracker) WasRead(path string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	_, ok := m.reads[path]
+
+	return ok
+}
+
+func (m *mockFileTracker) GetReadTime(path string) (time.Time, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	t, ok := m.reads[path]
+
+	return t, ok
 }
 
 // testSandboxer is a minimal Sandboxer for edit-tool tests.
