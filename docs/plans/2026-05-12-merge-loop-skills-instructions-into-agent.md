@@ -128,11 +128,11 @@ Merge three separate extensions (`loop`, `skills`, `instructions`) into a single
 
 ### Task 6: Register slash commands for skills
 
-- [ ] In `Subscribe`, get TUI via `sdk.GetUI("tui")`
-- [ ] Register `/skill:<name>` commands for each discovered skill
-- [ ] Command handler publishes `agent.prompt` with skill body pre-loaded (existing behavior)
-- [ ] Write tests for command registration
-- [ ] Run tests — must pass before next task
+- [x] In `Subscribe`, get TUI via `sdk.GetUI("tui")`
+- [x] Register `/skill:<name>` commands for each discovered skill
+- [x] Command handler publishes `agent.prompt` with skill body pre-loaded (existing behavior)
+- [x] Write tests for command registration
+- [x] Run tests — must pass before next task
 
 ### Task 7: Wire new agent extension and remove old extensions
 

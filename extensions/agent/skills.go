@@ -241,6 +241,29 @@ func discoverExtensionSkills(projectDir, globalDir string) []string {
 	return paths
 }
 
+// makeSkillHandler creates a slash command handler that pre-loads a skill's
+// body into the conversation as an agent.prompt event.
+func makeSkillHandler(skill Skill, bus sdk.Bus) func(args string) error {
+	return func(args string) error {
+		body := skill.Body()
+
+		var msg strings.Builder
+		fmt.Fprintf(&msg, "<skill name=\"%s\" location=\"%s\">\n", escapeXML(skill.Name), escapeXML(skill.FilePath))
+		fmt.Fprintf(&msg, "References are relative to %s.\n\n", escapeXML(skill.BaseDir))
+		msg.WriteString(escapeXML(body))
+		msg.WriteString("\n</skill>")
+
+		if args != "" {
+			msg.WriteString("\n\n")
+			msg.WriteString(args)
+		}
+
+		bus.Publish(sdk.NewEvent(TopicPrompt, msg.String()))
+
+		return nil
+	}
+}
+
 func escapeXML(s string) string {
 	s = strings.ReplaceAll(s, "&", "&amp;")
 	s = strings.ReplaceAll(s, "<", "&lt;")

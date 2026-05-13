@@ -3,6 +3,7 @@ package agent
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"weave/bus"
@@ -120,4 +121,141 @@ func TestGlobalConfigDir(t *testing.T) {
 	dir := globalConfigDir()
 	require.NotEmpty(t, dir)
 	assert.Contains(t, dir, ".weave")
+}
+
+func TestAgentExtension_Subscribe_RegistersSkillCommands(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	skillDir := filepath.Join(t.TempDir(), "my-skill")
+	writeSkillMD(t, skillDir, "my-skill", "Does things", "# Instructions")
+
+	var registeredCmds []string
+
+	ui := &UIMock{
+		RegisterCommandFunc: func(name string, handler func(args string) error) {
+			registeredCmds = append(registeredCmds, name)
+		},
+	}
+
+	sdk.RegisterUI("tui", ui)
+
+	defer sdk.ResetUIRegistry()
+
+	ext, err := NewAgentExtension(sdk.FilePathConfig(""))
+	require.NoError(t, err)
+
+	ext.skillDiscoveryPaths = []string{filepath.Dir(skillDir)}
+
+	b := bus.New()
+	defer b.Close()
+
+	require.NoError(t, ext.Subscribe(b))
+
+	require.NoError(t, ext.Close())
+
+	assert.Contains(t, registeredCmds, "/skill:my-skill")
+}
+
+func TestAgentExtension_Subscribe_HeadlessNoCommands(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	skillDir := filepath.Join(t.TempDir(), "headless-skill")
+	writeSkillMD(t, skillDir, "headless-skill", "No UI", "# Instructions")
+
+	ext, err := NewAgentExtension(sdk.FilePathConfig(""))
+	require.NoError(t, err)
+
+	ext.skillDiscoveryPaths = []string{filepath.Dir(skillDir)}
+
+	b := bus.New()
+	defer b.Close()
+
+	require.NoError(t, ext.Subscribe(b))
+
+	require.NoError(t, ext.Close())
+}
+
+func TestMakeSkillHandler(t *testing.T) {
+	skill := Skill{
+		Name:     "test-skill",
+		FilePath: "/path/to/test-skill/SKILL.md",
+		BaseDir:  "/path/to/test-skill",
+	}
+	skill.body = "# Instructions\nDo the thing."
+
+	var published []sdk.Event
+
+	b := &BusMock{
+		PublishFunc: func(event sdk.Event) {
+			published = append(published, event)
+		},
+	}
+
+	handler := makeSkillHandler(skill, b)
+
+	require.NoError(t, handler(""))
+	require.Len(t, published, 1)
+	assert.Equal(t, TopicPrompt, published[0].Topic)
+
+	payload := published[0].Payload.(string)
+	assert.Contains(t, payload, `<skill name="test-skill" location="/path/to/test-skill/SKILL.md">`)
+	assert.Contains(t, payload, "References are relative to /path/to/test-skill.")
+	assert.Contains(t, payload, "# Instructions\nDo the thing.")
+	assert.Contains(t, payload, "</skill>")
+}
+
+func TestMakeSkillHandler_WithArgs(t *testing.T) {
+	skill := Skill{
+		Name:     "test-skill",
+		FilePath: "/path/to/test-skill/SKILL.md",
+		BaseDir:  "/path/to/test-skill",
+	}
+	skill.body = "# Instructions"
+
+	var published []sdk.Event
+
+	b := &BusMock{
+		PublishFunc: func(event sdk.Event) {
+			published = append(published, event)
+		},
+	}
+
+	handler := makeSkillHandler(skill, b)
+
+	require.NoError(t, handler("extra args"))
+	require.Len(t, published, 1)
+
+	payload := published[0].Payload.(string)
+	assert.Contains(t, payload, "</skill>")
+	assert.Contains(t, payload, "extra args")
+
+	_, afterClosing, _ := strings.Cut(payload, "</skill>")
+	assert.Contains(t, strings.TrimSpace(afterClosing), "extra args")
+}
+
+func TestMakeSkillHandler_FrontmatterStripped(t *testing.T) {
+	skillDir := filepath.Join(t.TempDir(), "fm-skill")
+	writeSkillMD(t, skillDir, "fm-skill", "Tests frontmatter stripping", "Real instructions here.")
+
+	skill, err := loadSkillFromDir(skillDir)
+	require.NoError(t, err)
+
+	var published []sdk.Event
+
+	b := &BusMock{
+		PublishFunc: func(event sdk.Event) {
+			published = append(published, event)
+		},
+	}
+
+	handler := makeSkillHandler(skill, b)
+	require.NoError(t, handler(""))
+
+	require.Len(t, published, 1)
+	payload := published[0].Payload.(string)
+	assert.NotContains(t, payload, "---")
+	assert.NotContains(t, payload, "name: fm-skill")
+	assert.Contains(t, payload, "Real instructions here.")
 }

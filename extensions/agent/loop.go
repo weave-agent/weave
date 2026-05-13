@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -258,19 +257,7 @@ func (a *AgentExtension) buildSystemPrompt() string {
 	// Load system prompts
 	systemBase, systemAppend := loadSystemPrompt(projectDir, globalDir)
 
-	// Discover skills: project > global > extension
-	var skillPaths []string
-	if projectDir != "" {
-		skillPaths = append(skillPaths, filepath.Join(projectDir, ".weave", "skills"))
-	}
-
-	if globalDir != "" {
-		skillPaths = append(skillPaths, filepath.Join(globalDir, "skills"))
-	}
-
-	skillPaths = append(skillPaths, discoverExtensionSkills(projectDir, globalDir)...)
-
-	skills, _ := discoverSkills(skillPaths...)
+	skills, _ := discoverSkills(a.resolveSkillPaths()...)
 
 	pb := newPromptBuilder(a.cfg)
 

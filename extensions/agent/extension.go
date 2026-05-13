@@ -1,5 +1,7 @@
 package agent
 
+//go:generate moq -fmt goimports -stub -skip-ensure -pkg agent -out mock_test.go ../../sdk Bus Provider Tool UI
+
 import (
 	"context"
 	"errors"
@@ -15,11 +17,12 @@ import (
 // AgentExtension owns the entire conversation lifecycle:
 // prompt assembly, turn loop, tool execution, skill discovery, and context file loading.
 type AgentExtension struct {
-	cfg           sdk.Config
-	providerName  string
-	modelName     string
-	singleTurn    bool
-	thinkingLevel model.ThinkingLevel
+	cfg                 sdk.Config
+	providerName        string
+	modelName           string
+	singleTurn          bool
+	thinkingLevel       model.ThinkingLevel
+	skillDiscoveryPaths []string // override for testing
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
@@ -108,6 +111,8 @@ func (a *AgentExtension) Subscribe(bus sdk.Bus) error {
 
 	go a.run(ctx, bus, promptCh, steerCh, followupCh, interruptCh, modelChangeCh, thinkingCh)
 
+	a.registerSkillCommands(bus)
+
 	a.mu.Unlock()
 
 	return nil
@@ -163,6 +168,51 @@ func globalConfigDir() string {
 	}
 
 	return filepath.Join(home, ".weave")
+}
+
+// resolveSkillPaths returns the skill discovery paths in precedence order:
+// project > global > extension-bundled.
+func (a *AgentExtension) resolveSkillPaths() []string {
+	if len(a.skillDiscoveryPaths) > 0 {
+		return a.skillDiscoveryPaths
+	}
+
+	projectDir := a.projectDir()
+	globalDir := globalConfigDir()
+
+	var paths []string
+
+	if projectDir != "" {
+		paths = append(paths, filepath.Join(projectDir, ".weave", "skills"))
+	}
+
+	if globalDir != "" {
+		paths = append(paths, filepath.Join(globalDir, "skills"))
+	}
+
+	paths = append(paths, discoverExtensionSkills(projectDir, globalDir)...)
+
+	return paths
+}
+
+// registerSkillCommands discovers skills and registers /skill:<name> slash
+// commands with the TUI. Silently skipped in headless mode.
+func (a *AgentExtension) registerSkillCommands(bus sdk.Bus) {
+	ui, err := sdk.GetUI("tui")
+	if err != nil {
+		return // headless mode: no TUI available
+	}
+
+	skills, err := discoverSkills(a.resolveSkillPaths()...)
+	if err != nil {
+		return // silently skip on discovery errors
+	}
+
+	for i := range skills {
+		skill := skills[i]
+		cmdName := "/skill:" + skill.Name
+		ui.RegisterCommand(cmdName, makeSkillHandler(skill, bus))
+	}
 }
 
 // resolveProviderName picks the initial provider using priority:
