@@ -808,6 +808,10 @@ func setFieldFromAny(field reflect.Value, raw any) error {
 				return fmt.Errorf("cannot convert fractional float %v to uint", v)
 			}
 
+			if v < 0 {
+				return fmt.Errorf("cannot convert negative float %v to uint", v)
+			}
+
 			field.SetUint(uint64(v))
 		case int:
 			if v < 0 {

@@ -494,6 +494,14 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 	b.WriteString("\t\t}\n")
 	b.WriteString("\t}\n")
 	b.WriteString("\tos.Args = append([]string{os.Args[0]}, filtered...)\n\n")
+
+	b.WriteString("\tfor _, a := range filtered {\n")
+	b.WriteString("\t\tif a == \"--help\" || a == \"-h\" {\n")
+	b.WriteString("\t\t\tfmt.Fprint(os.Stderr, settings.GenerateFullHelp())\n")
+	b.WriteString("\t\t\tos.Exit(0)\n")
+	b.WriteString("\t\t}\n")
+	b.WriteString("\t}\n\n")
+
 	b.WriteString("\tvar prompt string\n")
 	b.WriteString("\tif promptFilePath != \"\" {\n")
 	b.WriteString("\t\tdata, err := os.ReadFile(promptFilePath)\n")

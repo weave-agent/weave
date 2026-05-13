@@ -50,7 +50,7 @@ type SessionInfo struct {
 }
 
 type JSONLOpts struct {
-	Dir string `json:"dir" default:"" description:"Session directory (default: ~/.weave/sessions)"`
+	Dir string `json:"dir" default:"" env:"DIR" description:"Session directory (default: ~/.weave/sessions)"`
 }
 
 type Store struct {

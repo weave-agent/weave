@@ -167,16 +167,6 @@ type flagSet struct {
 	Model       string `flag:"model" description:"Model override for this session"`
 }
 
-func wantsHelp(args []string) bool {
-	for _, a := range args {
-		if a == "--help" || a == "-h" {
-			return true
-		}
-	}
-
-	return false
-}
-
 func loadSettingsFromFile(path string) (Settings, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -244,10 +234,6 @@ func LoadFromDir(dir string, args []string) (string, *Settings, []string, error)
 		path = filepath.Join(dir, path)
 	}
 
-	if wantsHelp(args) {
-		return "", nil, nil, &HelpError{Text: GenerateFullHelp()}
-	}
-
 	var flags flagSet
 
 	rest, err := applyFlags(&flags, args)
@@ -301,9 +287,19 @@ func LoadFromFile(path string) (*Settings, error) {
 		return nil, fmt.Errorf("read config %s: %w", path, err)
 	}
 
-	var s Settings
-	if err := json.Unmarshal(data, &s); err != nil {
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
 		return nil, fmt.Errorf("parse config %s: %w", path, err)
+	}
+
+	var s Settings
+
+	loader := Loader{
+		Data:      raw,
+		EnvPrefix: DefaultEnvPrefix,
+	}
+	if err := loader.Load(&s); err != nil {
+		return nil, fmt.Errorf("load config: %w", err)
 	}
 
 	return &s, nil

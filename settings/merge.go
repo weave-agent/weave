@@ -197,9 +197,19 @@ func loadSettingsFile(path string) (*Settings, error) {
 		return nil, fmt.Errorf("read settings file %s: %w", path, err)
 	}
 
-	var s Settings
-	if err := json.Unmarshal(data, &s); err != nil {
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
+	}
+
+	var s Settings
+
+	loader := Loader{
+		Data:      raw,
+		EnvPrefix: DefaultEnvPrefix,
+	}
+	if err := loader.Load(&s); err != nil {
+		return nil, fmt.Errorf("load config: %w", err)
 	}
 
 	return &s, nil

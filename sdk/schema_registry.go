@@ -17,6 +17,10 @@ func storeSchema(scope, name string, schema Schema) {
 	defer schemaMu.Unlock()
 
 	key := scopeKey(scope, name)
+	if _, exists := schemas[key]; exists {
+		return
+	}
+
 	schemas[key] = schema
 }
 
