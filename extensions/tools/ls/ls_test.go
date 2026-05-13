@@ -2,6 +2,7 @@ package ls
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -232,3 +233,151 @@ func (ts *testSandboxer) AllowRead(path string) bool {
 
 func (ts *testSandboxer) Mode() string   { return "auto" }
 func (ts *testSandboxer) SetMode(string) {}
+
+func TestExecuteSorted(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "Zebra.txt"), []byte("z"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "apple.txt"), []byte("a"), 0o644))
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "Beta"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "cherry.txt"), []byte("c"), 0o644))
+
+	result, err := (&tool{defaultLimit: 500}).Execute(context.Background(), map[string]any{"path": dir})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	lines := strings.Split(result.Content, "\n")
+	assert.Equal(t, []string{"apple.txt", "Beta/", "cherry.txt", "Zebra.txt"}, lines)
+}
+
+func TestExecuteLimit(t *testing.T) {
+	dir := t.TempDir()
+
+	for i := range 10 {
+		name := fmt.Sprintf("file%02d.txt", i)
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("x"), 0o644))
+	}
+
+	result, err := (&tool{defaultLimit: 500}).Execute(context.Background(), map[string]any{"path": dir, "limit": 3})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	lines := strings.Split(result.Content, "\n")
+	assert.Len(t, lines, 5) // 3 entries + blank line + truncation notice
+	assert.Equal(t, "file00.txt", lines[0])
+	assert.Equal(t, "file01.txt", lines[1])
+	assert.Equal(t, "file02.txt", lines[2])
+	assert.Contains(t, result.Content, "7 more entries not shown")
+}
+
+func TestExecuteLimitZero(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "b.txt"), []byte("b"), 0o644))
+
+	result, err := (&tool{defaultLimit: 500}).Execute(context.Background(), map[string]any{"path": dir, "limit": 0})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	assert.Contains(t, result.Content, "a.txt")
+	assert.Contains(t, result.Content, "b.txt")
+}
+
+func TestExecuteDefaultLimit(t *testing.T) {
+	dir := t.TempDir()
+
+	for i := range 10 {
+		name := fmt.Sprintf("file%02d.txt", i)
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("x"), 0o644))
+	}
+
+	result, err := (&tool{defaultLimit: 5}).Execute(context.Background(), map[string]any{"path": dir})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	lines := strings.Split(result.Content, "\n")
+	assert.Equal(t, "file00.txt", lines[0])
+	assert.Equal(t, "file01.txt", lines[1])
+	assert.Equal(t, "file02.txt", lines[2])
+	assert.Equal(t, "file03.txt", lines[3])
+	assert.Equal(t, "file04.txt", lines[4])
+	assert.Contains(t, result.Content, "5 more entries not shown")
+}
+
+func TestExecuteIgnorePatterns(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"), []byte("x"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "main_test.go"), []byte("x"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"), []byte("x"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".env"), []byte("x"), 0o644))
+
+	result, err := (&tool{defaultLimit: 500}).Execute(context.Background(), map[string]any{
+		"path":   dir,
+		"ignore": []any{"*_test.go", ".env"},
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	assert.Contains(t, result.Content, "README.md")
+	assert.Contains(t, result.Content, "main.go")
+	assert.NotContains(t, result.Content, "main_test.go")
+	assert.NotContains(t, result.Content, ".env")
+}
+
+func TestExecuteIgnoreNoMatch(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("x"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "b.txt"), []byte("x"), 0o644))
+
+	result, err := (&tool{defaultLimit: 500}).Execute(context.Background(), map[string]any{
+		"path":   dir,
+		"ignore": []any{"*.go"},
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	assert.Contains(t, result.Content, "a.txt")
+	assert.Contains(t, result.Content, "b.txt")
+}
+
+func TestExecuteLimitAndIgnore(t *testing.T) {
+	dir := t.TempDir()
+
+	for i := range 10 {
+		name := fmt.Sprintf("file%02d.txt", i)
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("x"), 0o644))
+	}
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "skip.txt"), []byte("x"), 0o644))
+
+	result, err := (&tool{defaultLimit: 500}).Execute(context.Background(), map[string]any{
+		"path":   dir,
+		"limit":  3,
+		"ignore": []any{"skip.txt"},
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	assert.NotContains(t, result.Content, "skip.txt")
+	assert.Equal(t, "file00.txt", strings.Split(result.Content, "\n")[0])
+	assert.Equal(t, "file01.txt", strings.Split(result.Content, "\n")[1])
+	assert.Equal(t, "file02.txt", strings.Split(result.Content, "\n")[2])
+	assert.Contains(t, result.Content, "7 more entries not shown")
+}
+
+func TestExecuteIgnoreDirectories(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"), []byte("x"), 0o644))
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "vendor"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "vendor", "dep.go"), []byte("x"), 0o644))
+
+	result, err := (&tool{defaultLimit: 500}).Execute(context.Background(), map[string]any{
+		"path":   dir,
+		"ignore": []any{"vendor"},
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	assert.Contains(t, result.Content, "main.go")
+	assert.NotContains(t, result.Content, "vendor/")
+	assert.NotContains(t, result.Content, "dep.go")
+}

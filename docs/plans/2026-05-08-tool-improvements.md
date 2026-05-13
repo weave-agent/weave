@@ -134,12 +134,12 @@ Detect and preserve original line endings (CRLF/LF) across edits.
 ### Task 10: LS — Sorted output + entry limit + ignore patterns
 Add alphabetical sorting, configurable entry limit, and ignore glob patterns.
 
-- [ ] Sort `os.ReadDir` results alphabetically (case-insensitive via `strings.ToLower`)
-- [ ] Add `limit` param (default 500) to tool definition — truncate after N entries with notice
-- [ ] Add `ignore` param (`[]string` glob patterns) — filter entries matching any pattern using `filepath.Match`
-- [ ] Update tool definition with new params
-- [ ] Write tests: sorted output verified, limit truncation, ignore patterns filter correctly, combined limit+ignore
-- [ ] Run `cd extensions/tools/ls && go test ./...`
+- [x] Sort `os.ReadDir` results alphabetically (case-insensitive via `strings.ToLower`)
+- [x] Add `limit` param (default 500) to tool definition — truncate after N entries with notice
+- [x] Add `ignore` param (`[]string` glob patterns) — filter entries matching any pattern using `filepath.Match`
+- [x] Update tool definition with new params
+- [x] Write tests: sorted output verified, limit truncation, ignore patterns filter correctly, combined limit+ignore
+- [x] Run `cd extensions/tools/ls && go test ./...`
 
 ### Task 11: LS — Hierarchical tree output
 Add `depth` param and render output as a tree structure instead of flat list.
