@@ -407,15 +407,15 @@ func PublishThinkingChange(bus sdk.Bus, level sdkmodel.ThinkingLevel) tea.Cmd {
 }
 
 // listModelsCmd returns a tea.Cmd that lists available models.
-func listModelsCmd(cfg sdk.Config) tea.Cmd {
+func listModelsCmd() tea.Cmd {
 	return func() tea.Msg {
-		return ModelListResultMsg{Models: listModels(cfg)}
+		return ModelListResultMsg{Models: listModels()}
 	}
 }
 
 // listProvidersCmd returns a tea.Cmd that lists providers with key status.
-func listProvidersCmd(cfg sdk.Config) tea.Cmd {
+func listProvidersCmd() tea.Cmd {
 	return func() tea.Msg {
-		return ProviderListResultMsg{Providers: listProviders(cfg)}
+		return ProviderListResultMsg{Providers: listProviders()}
 	}
 }

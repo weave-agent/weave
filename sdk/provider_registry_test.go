@@ -2,6 +2,8 @@ package sdk
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"sort"
 	"testing"
 
@@ -99,7 +101,7 @@ func TestCheckProviderAuth_EnvVar(t *testing.T) {
 
 	t.Setenv("TEST_PROVIDER_API_KEY", "test-key")
 
-	hasAuth, err := CheckProviderAuth("test-provider", nil)
+	hasAuth, err := CheckProviderAuth("test-provider")
 	require.NoError(t, err)
 	assert.True(t, hasAuth)
 }
@@ -115,9 +117,7 @@ func TestCheckProviderAuth_Missing(t *testing.T) {
 		return &ProviderMock{}, nil
 	})
 
-	t.Setenv("TEST_PROVIDER2_API_KEY", "")
-
-	hasAuth, err := CheckProviderAuth("test-provider2", nil)
+	hasAuth, err := CheckProviderAuth("test-provider2")
 	require.NoError(t, err)
 	assert.False(t, hasAuth)
 }
@@ -125,7 +125,7 @@ func TestCheckProviderAuth_Missing(t *testing.T) {
 func TestCheckProviderAuth_Unregistered(t *testing.T) {
 	ResetProviderRegistry()
 
-	_, err := CheckProviderAuth("nonexistent", nil)
+	_, err := CheckProviderAuth("nonexistent")
 	require.Error(t, err)
 }
 
@@ -136,7 +136,7 @@ func TestCheckProviderAuth_NonStructAuth(t *testing.T) {
 		return &ProviderMock{}, nil
 	})
 
-	hasAuth, err := CheckProviderAuth("no-auth", nil)
+	hasAuth, err := CheckProviderAuth("no-auth")
 	require.NoError(t, err)
 	assert.False(t, hasAuth)
 }
@@ -156,7 +156,7 @@ func TestCheckProviderAuth_RequiredFieldOnly(t *testing.T) {
 	// Only optional field set — auth should be false.
 	t.Setenv("TEST_REQ_ORG_ID", "org-123")
 
-	hasAuth, err := CheckProviderAuth("req-auth", nil)
+	hasAuth, err := CheckProviderAuth("req-auth")
 	require.NoError(t, err)
 	assert.False(t, hasAuth, "optional field only should not count as authenticated")
 }
@@ -176,7 +176,7 @@ func TestCheckProviderAuth_RequiredFieldSet(t *testing.T) {
 	// Required field set — auth should be true.
 	t.Setenv("TEST_REQ2_API_KEY", "sk-key")
 
-	hasAuth, err := CheckProviderAuth("req-auth2", nil)
+	hasAuth, err := CheckProviderAuth("req-auth2")
 	require.NoError(t, err)
 	assert.True(t, hasAuth, "required field set should count as authenticated")
 }
@@ -197,7 +197,7 @@ func TestCheckProviderAuth_MultipleRequiredFields_BothSet(t *testing.T) {
 	t.Setenv("TEST_MULTI_CLIENT_ID", "id-123")
 	t.Setenv("TEST_MULTI_CLIENT_SECRET", "secret-456")
 
-	hasAuth, err := CheckProviderAuth("multi-req", nil)
+	hasAuth, err := CheckProviderAuth("multi-req")
 	require.NoError(t, err)
 	assert.True(t, hasAuth, "all required fields set should count as authenticated")
 }
@@ -217,7 +217,7 @@ func TestCheckProviderAuth_MultipleRequiredFields_OnlyOneSet(t *testing.T) {
 	// Only one required field set — auth should be false.
 	t.Setenv("TEST_MULTI2_CLIENT_ID", "id-123")
 
-	hasAuth, err := CheckProviderAuth("multi-req2", nil)
+	hasAuth, err := CheckProviderAuth("multi-req2")
 	require.NoError(t, err)
 	assert.False(t, hasAuth, "only one required field set should not count as authenticated")
 }
@@ -235,7 +235,7 @@ func TestCheckProviderAuth_MultipleRequiredFields_NeitherSet(t *testing.T) {
 	})
 
 	// No fields set — auth should be false.
-	hasAuth, err := CheckProviderAuth("multi-req3", nil)
+	hasAuth, err := CheckProviderAuth("multi-req3")
 	require.NoError(t, err)
 	assert.False(t, hasAuth, "no required fields set should not count as authenticated")
 }
@@ -253,7 +253,7 @@ func TestCheckProviderAuth_BoolFieldSet(t *testing.T) {
 
 	t.Setenv("TEST_BOOL_ENABLED", "true")
 
-	hasAuth, err := CheckProviderAuth("bool-auth", nil)
+	hasAuth, err := CheckProviderAuth("bool-auth")
 	require.NoError(t, err)
 	assert.True(t, hasAuth, "bool field set to true should count as authenticated")
 }
@@ -269,7 +269,7 @@ func TestCheckProviderAuth_BoolFieldNotSet(t *testing.T) {
 		return &ProviderMock{}, nil
 	})
 
-	hasAuth, err := CheckProviderAuth("bool-auth2", nil)
+	hasAuth, err := CheckProviderAuth("bool-auth2")
 	require.NoError(t, err)
 	assert.False(t, hasAuth, "bool field not set should not count as authenticated")
 }
@@ -287,7 +287,7 @@ func TestCheckProviderAuth_IntFieldSet(t *testing.T) {
 
 	t.Setenv("TEST_INT_TIMEOUT", "30")
 
-	hasAuth, err := CheckProviderAuth("int-auth", nil)
+	hasAuth, err := CheckProviderAuth("int-auth")
 	require.NoError(t, err)
 	assert.True(t, hasAuth, "int field set to non-zero should count as authenticated")
 }
@@ -303,7 +303,7 @@ func TestCheckProviderAuth_IntFieldZero(t *testing.T) {
 		return &ProviderMock{}, nil
 	})
 
-	hasAuth, err := CheckProviderAuth("int-auth2", nil)
+	hasAuth, err := CheckProviderAuth("int-auth2")
 	require.NoError(t, err)
 	assert.False(t, hasAuth, "int field at zero should not count as authenticated")
 }
@@ -320,14 +320,14 @@ func TestCheckProviderAuth_RequiredBoolField(t *testing.T) {
 	})
 
 	// Required bool at false — auth should be false.
-	hasAuth, err := CheckProviderAuth("req-bool-auth", nil)
+	hasAuth, err := CheckProviderAuth("req-bool-auth")
 	require.NoError(t, err)
 	assert.False(t, hasAuth, "required bool field at false should not count as authenticated")
 
 	// Required bool at true — auth should be true.
 	t.Setenv("TEST_REQ_BOOL_ENABLED", "true")
 
-	hasAuth, err = CheckProviderAuth("req-bool-auth", nil)
+	hasAuth, err = CheckProviderAuth("req-bool-auth")
 	require.NoError(t, err)
 	assert.True(t, hasAuth, "required bool field at true should count as authenticated")
 }
@@ -349,7 +349,31 @@ func TestCheckProviderAuth_PointerToStructField(t *testing.T) {
 
 	t.Setenv("TEST_PTR_INNER_API_KEY", "ptr-key")
 
-	hasAuth, err := CheckProviderAuth("ptr-struct-auth", nil)
+	hasAuth, err := CheckProviderAuth("ptr-struct-auth")
 	require.NoError(t, err)
 	assert.True(t, hasAuth, "pointer to struct with set nested field should count as authenticated")
+}
+
+func TestCheckProviderAuth_AuthFile(t *testing.T) {
+	ResetProviderRegistry()
+
+	type FileAuth struct {
+		APIKey string `json:"api_key" env:"TEST_FILE_API_KEY" validate:"required"`
+	}
+
+	RegisterProvider[struct{}, FileAuth]("file-auth-provider", func(Config, struct{}, FileAuth) (Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".weave"), 0o750))
+
+	authFile := []byte(`{"providers":{"file-auth-provider":{"api_key":"sk-file-key"}}}`)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".weave", "auth.json"), authFile, 0o600))
+
+	hasAuth, err := CheckProviderAuth("file-auth-provider")
+	require.NoError(t, err)
+	assert.True(t, hasAuth, "auth loaded from file should count as authenticated")
 }

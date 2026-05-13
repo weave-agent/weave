@@ -53,7 +53,7 @@ func Wire(extNames []string, bus sdk.Bus, cfg sdk.Config) (*Wired, error) {
 	// extensions. The TUI model initializes during Subscribe and queries
 	// ProviderHasAuth, so the registry must be populated first.
 	for _, name := range sdk.ListProviders() {
-		hasAuth, err := sdk.CheckProviderAuth(name, cfg)
+		hasAuth, err := sdk.CheckProviderAuth(name)
 		if err != nil {
 			log.Printf("weave: check auth for %s: %v", name, err)
 		}

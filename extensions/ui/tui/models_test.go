@@ -506,7 +506,7 @@ func TestListModelsWithRegistry(t *testing.T) {
 	defer sdk.ResetProviderRegistry()
 	defer sdkmodel.ResetAuthRegistry()
 
-	entries := listModels(nil)
+	entries := listModels()
 	assert.NotEmpty(t, entries, "should return models from registry")
 
 	// Should include models from all registered providers
@@ -529,7 +529,7 @@ func TestListModelsEmpty(t *testing.T) {
 	defer sdk.ResetProviderRegistry()
 	defer sdkmodel.ResetAuthRegistry()
 
-	entries := listModels(nil)
+	entries := listModels()
 	assert.Nil(t, entries)
 }
 
@@ -555,7 +555,7 @@ func TestListModelsIgnoresEnvOverrides(t *testing.T) {
 	defer sdk.ResetProviderRegistry()
 	defer sdkmodel.ResetAuthRegistry()
 
-	entries := listModels(nil)
+	entries := listModels()
 
 	// Should show registry entries as-is
 	anthropicCount := 0

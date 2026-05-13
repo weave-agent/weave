@@ -16,6 +16,7 @@ import (
 
 	"weave/sdk"
 	"weave/sdk/model"
+	"weave/settings"
 )
 
 type sseEvent struct {
@@ -1124,3 +1125,249 @@ func TestParseToolArgs_EmptyRaw(t *testing.T) {
 	assert.NotNil(t, args)
 	assert.Empty(t, args)
 }
+
+func TestProviderInit_MissingAPIKey(t *testing.T) {
+	model.ResetModelRegistry()
+	defer model.ResetModelRegistry()
+
+	RegisterModels()
+
+	cfg := &testConfig{providerData: map[string]any{"base_url": "http://example.com"}}
+	_, err := sdk.GetProvider("kimi", cfg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "API key required")
+}
+
+func TestProviderInit_WithAPIKey(t *testing.T) {
+	model.ResetModelRegistry()
+	defer model.ResetModelRegistry()
+
+	RegisterModels()
+
+	var receivedUserAgent string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedUserAgent = r.Header.Get("User-Agent")
+
+		writeSSE(w, textStreamEvents("hi"))
+	}))
+	defer server.Close()
+
+	t.Setenv("KIMI_API_KEY", "test-api-key")
+
+	cfg := &testConfig{providerData: map[string]any{"base_url": server.URL}}
+	p, err := sdk.GetProvider("kimi", cfg)
+	require.NoError(t, err)
+	require.NotNil(t, p)
+
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("hello")},
+	})
+	require.NoError(t, err)
+	collectEvents(t, ch)
+
+	assert.Equal(t, "weave/0.1.0", receivedUserAgent)
+}
+
+func TestProviderInit_DefaultModel(t *testing.T) {
+	model.ResetModelRegistry()
+	defer model.ResetModelRegistry()
+
+	RegisterModels()
+
+	var receivedBody string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf := make([]byte, r.ContentLength)
+		_, _ = r.Body.Read(buf)
+		receivedBody = string(buf)
+
+		writeSSE(w, textStreamEvents("hi"))
+	}))
+	defer server.Close()
+
+	t.Setenv("KIMI_API_KEY", "test-api-key")
+
+	cfg := &testConfig{providerData: map[string]any{"base_url": server.URL}}
+	p, err := sdk.GetProvider("kimi", cfg)
+	require.NoError(t, err)
+	require.NotNil(t, p)
+
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("hello")},
+	})
+	require.NoError(t, err)
+	collectEvents(t, ch)
+
+	assert.Contains(t, receivedBody, "kimi-for-coding")
+}
+
+func TestProviderInit_ModelFromEnv(t *testing.T) {
+	model.ResetModelRegistry()
+	defer model.ResetModelRegistry()
+
+	RegisterModels()
+
+	t.Setenv("KIMI_MODEL", "kimi-test-model")
+
+	var receivedBody string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf := make([]byte, r.ContentLength)
+		_, _ = r.Body.Read(buf)
+		receivedBody = string(buf)
+
+		writeSSE(w, textStreamEvents("hi"))
+	}))
+	defer server.Close()
+
+	t.Setenv("KIMI_API_KEY", "test-api-key")
+
+	cfg := &testConfig{providerData: map[string]any{"base_url": server.URL}}
+	p, err := sdk.GetProvider("kimi", cfg)
+	require.NoError(t, err)
+	require.NotNil(t, p)
+
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("hello")},
+	})
+	require.NoError(t, err)
+	collectEvents(t, ch)
+
+	assert.Contains(t, receivedBody, "kimi-test-model")
+}
+
+func TestProviderInit_MaxTokensFromEnv(t *testing.T) {
+	model.ResetModelRegistry()
+	defer model.ResetModelRegistry()
+
+	RegisterModels()
+
+	t.Setenv("KIMI_MAX_TOKENS", "64000")
+
+	var receivedBody string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf := make([]byte, r.ContentLength)
+		_, _ = r.Body.Read(buf)
+		receivedBody = string(buf)
+
+		writeSSE(w, textStreamEvents("hi"))
+	}))
+	defer server.Close()
+
+	t.Setenv("KIMI_API_KEY", "test-api-key")
+
+	cfg := &testConfig{providerData: map[string]any{"base_url": server.URL}}
+	p, err := sdk.GetProvider("kimi", cfg)
+	require.NoError(t, err)
+	require.NotNil(t, p)
+
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("hello")},
+	})
+	require.NoError(t, err)
+	collectEvents(t, ch)
+
+	assert.Contains(t, receivedBody, "64000")
+}
+
+func TestProviderInit_ConfigOverrides(t *testing.T) {
+	model.ResetModelRegistry()
+	defer model.ResetModelRegistry()
+
+	RegisterModels()
+
+	var receivedBody string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf := make([]byte, r.ContentLength)
+		_, _ = r.Body.Read(buf)
+		receivedBody = string(buf)
+
+		writeSSE(w, textStreamEvents("hi"))
+	}))
+	defer server.Close()
+
+	t.Setenv("KIMI_API_KEY", "test-api-key")
+
+	cfg := &testConfig{providerData: map[string]any{
+		"model":      "kimi-test-model",
+		"max_tokens": 16000,
+		"base_url":   server.URL,
+	}}
+
+	p, err := sdk.GetProvider("kimi", cfg)
+	require.NoError(t, err)
+	require.NotNil(t, p)
+
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("hello")},
+	})
+	require.NoError(t, err)
+	collectEvents(t, ch)
+
+	assert.Contains(t, receivedBody, "kimi-test-model")
+	assert.Contains(t, receivedBody, "16000")
+}
+
+func TestProviderInit_InvalidMaxTokensEnv_String(t *testing.T) {
+	model.ResetModelRegistry()
+	defer model.ResetModelRegistry()
+
+	RegisterModels()
+
+	t.Setenv("KIMI_MAX_TOKENS", "invalid")
+
+	cfg := &testConfig{providerData: map[string]any{}}
+	_, err := sdk.GetProvider("kimi", cfg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "parse int")
+}
+
+func TestProviderInit_InvalidMaxTokensEnv_Negative(t *testing.T) {
+	model.ResetModelRegistry()
+	defer model.ResetModelRegistry()
+
+	RegisterModels()
+
+	t.Setenv("KIMI_MAX_TOKENS", "-1")
+
+	cfg := &testConfig{providerData: map[string]any{}}
+	_, err := sdk.GetProvider("kimi", cfg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "greater than")
+}
+
+// testConfig implements sdk.Config for testing provider initialization.
+type testConfig struct {
+	providerData map[string]any
+}
+
+func (m *testConfig) FilePath() string   { return "" }
+func (m *testConfig) ProjectDir() string { return "" }
+func (m *testConfig) ExtensionConfig(scope, name string, target any, envPrefix string) error {
+	if scope != "providers" || name != "kimi" {
+		return nil
+	}
+
+	cfg, ok := target.(*KimiConfig)
+	if !ok {
+		return nil
+	}
+
+	loader := settings.Loader{
+		Data:      m.providerData,
+		EnvPrefix: envPrefix,
+	}
+	if err := loader.Load(cfg); err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+
+	return nil
+}
+func (m *testConfig) IsHeadless() bool                  { return true }
+func (m *testConfig) Preferences(any) error             { return nil }
+func (m *testConfig) SavePreferences(any) error         { return nil }
+func (m *testConfig) SaveProviderKey(_, _ string) error { return nil }
+func (m *testConfig) RespectGitignore() bool            { return true }

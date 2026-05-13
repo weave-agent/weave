@@ -13,7 +13,7 @@ import (
 
 type providerEntry struct {
 	factory     func(Config) (Provider, error)
-	authChecker func(Config) (bool, error)
+	authChecker func() (bool, error)
 }
 
 var providerReg = registry.New[providerEntry](
@@ -51,8 +51,8 @@ func RegisterProvider[TConfig, TAuth any](name string, factory func(Config, TCon
 	providerReg.Register(name, providerEntry{factory: wrapper, authChecker: authChecker})
 }
 
-func makeAuthChecker[TAuth any](name string) func(Config) (bool, error) {
-	return func(_ Config) (bool, error) {
+func makeAuthChecker[TAuth any](name string) func() (bool, error) {
+	return func() (bool, error) {
 		var ta TAuth
 
 		if err := auth.LoadProviderAuth(name, &ta); err != nil {
@@ -272,13 +272,13 @@ func GetProvider(name string, cfg Config) (Provider, error) {
 
 // CheckProviderAuth returns whether the provider has auth credentials available
 // (either in ~/.weave/auth.json or via environment variables).
-func CheckProviderAuth(name string, cfg Config) (bool, error) {
+func CheckProviderAuth(name string) (bool, error) {
 	entry, ok := providerReg.Get(name)
 	if !ok {
 		return false, fmt.Errorf("provider %q not registered", name)
 	}
 
-	return entry.authChecker(configOrDefault(cfg))
+	return entry.authChecker()
 }
 
 func ListProviders() []string {

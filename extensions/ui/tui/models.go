@@ -50,7 +50,7 @@ func (e ModelEntry) DisplayName() string {
 
 // listModels returns model entries for providers that are registered and have
 // valid auth credentials.
-func listModels(_ sdk.Config) []ModelEntry {
+func listModels() []ModelEntry {
 	registered := sdk.ListProviders()
 
 	regSet := make(map[string]bool, len(registered))

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"reflect"
 	"strconv"
@@ -30,18 +29,12 @@ func LoadProviderAuth(providerName string, target any) error {
 	// Load auth file.
 	authFile, err := Load()
 	if err != nil {
-		// Log warning but continue — env vars may still provide valid auth.
-		log.Printf("weave: warning: failed to load auth file: %v", err)
-
 		authFile = &File{Providers: make(map[string]json.RawMessage)}
 	}
 
 	// Apply data from auth file (raw JSON unmarshaled directly into target).
 	if raw, ok := authFile.Providers[providerName]; ok && len(raw) > 0 {
-		if uerr := json.Unmarshal(raw, target); uerr != nil {
-			// Log warning but continue — env vars may still provide valid auth.
-			log.Printf("weave: warning: failed to unmarshal auth for provider %s: %v", providerName, uerr)
-		}
+		_ = json.Unmarshal(raw, target)
 	}
 
 	// Apply env vars (no prefix — env tags resolve directly).

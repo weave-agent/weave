@@ -122,11 +122,11 @@ func newModelWithConfig(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl, tuiCfg TUIConf
 
 	commands := NewCommandRegistry(bus, sdir)
 	commands.register("/model", "Select or change model", false, func(_ string) CommandResult {
-		return CommandResult{Command: listModelsCmd(cfg)}
+		return CommandResult{Command: listModelsCmd()}
 	})
 
 	commands.register("/providers", "Manage provider API keys", false, func(_ string) CommandResult {
-		return CommandResult{Command: listProvidersCmd(cfg)}
+		return CommandResult{Command: listProvidersCmd()}
 	})
 
 	commands.register("/thinking", "Set thinking level (off/minimal/low/medium/high/xhigh)", false, func(args string) CommandResult {
@@ -151,7 +151,7 @@ func newModelWithConfig(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl, tuiCfg TUIConf
 	}
 
 	effectiveCfg := effectiveConfig(cfg)
-	models := listModels(effectiveCfg)
+	models := listModels()
 	cur := currentModel(models, effectiveCfg)
 
 	bindings := NewBindingRegistry()
@@ -588,9 +588,9 @@ func (m Model) dispatchBinding(action BindingAction) (tea.Model, tea.Cmd) {
 	case ActionExit:
 		return m, tea.Quit
 	case ActionModelSelect:
-		return m, listModelsCmd(m.cfg)
+		return m, listModelsCmd()
 	case ActionModelCycle:
-		models := listModels(m.cfg)
+		models := listModels()
 		if len(models) <= 1 {
 			m.showStatus("Only one model available")
 			return m, m.statusTimer
@@ -1238,7 +1238,7 @@ func (m Model) onKeyInputDialogDone(result overlays.DialogResult, pendingCmd tea
 
 	// If we were in noConfigured state, re-evaluate now that a key exists.
 	if m.noConfigured {
-		models := listModels(m.cfg)
+		models := listModels()
 		if len(models) > 0 {
 			m.noConfigured = false
 			cur := currentModel(models, m.cfg)
