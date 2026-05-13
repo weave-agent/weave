@@ -58,8 +58,46 @@ func makeAuthChecker[TAuth any](name string) func(Config) (bool, error) {
 			return false, fmt.Errorf("load provider auth: %w", err)
 		}
 
-		return !reflect.ValueOf(ta).IsZero(), nil
+		return hasAnyFieldSet(reflect.ValueOf(ta)), nil
 	}
+}
+
+// hasAnyFieldSet returns true if at least one exported string or pointer field
+// in the struct is non-zero. This handles multi-field auth structs where some
+// fields may be optional.
+func hasAnyFieldSet(v reflect.Value) bool {
+	if v.Kind() != reflect.Struct {
+		return false
+	}
+
+	t := v.Type()
+
+	for i := range v.NumField() {
+		if !t.Field(i).IsExported() {
+			continue
+		}
+
+		field := v.Field(i)
+
+		switch field.Kind() {
+		case reflect.String:
+			if field.String() != "" {
+				return true
+			}
+		case reflect.Pointer:
+			if !field.IsNil() {
+				return true
+			}
+		case reflect.Struct:
+			if hasAnyFieldSet(field) {
+				return true
+			}
+		default:
+			// Other field kinds are not considered for auth detection.
+		}
+	}
+
+	return false
 }
 
 func ProviderRegistered(name string) bool {

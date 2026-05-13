@@ -1233,6 +1233,9 @@ func (m Model) onKeyInputDialogDone(result overlays.DialogResult, pendingCmd tea
 	am.Finalize(fmt.Sprintf("API key saved for %s.", providerName))
 	m.chat = m.chat.AddItem(am)
 
+	// Update in-memory auth status so the provider is immediately usable.
+	sdkmodel.SetProviderAuth(providerName, true)
+
 	// If we were in noConfigured state, re-evaluate now that a key exists.
 	if m.noConfigured {
 		models := listModels(m.cfg)

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"reflect"
 	"strconv"
@@ -29,7 +30,10 @@ func LoadProviderAuth(providerName string, target any) error {
 	// Load auth file.
 	authFile, err := Load()
 	if err != nil {
-		return fmt.Errorf("load auth file: %w", err)
+		// Log warning but continue — env vars may still provide valid auth.
+		log.Printf("weave: warning: failed to load auth file: %v", err)
+
+		authFile = &File{Providers: make(map[string]ProviderAuth)}
 	}
 
 	// Apply data from auth file.

@@ -151,9 +151,12 @@ func TestLoadProviderAuth_AuthFileLoadError(t *testing.T) {
 
 	var target testAuth
 
+	// Malformed auth file should not block provider instantiation —
+	// env vars may still provide valid auth.
 	err := LoadProviderAuth("testprovider", &target)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "load auth file")
+	require.NoError(t, err)
+	assert.Empty(t, target.APIKey)
+	assert.Empty(t, target.BaseURL)
 }
 
 func TestLoadProviderAuth_InvalidNumericEnvVar(t *testing.T) {
