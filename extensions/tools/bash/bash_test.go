@@ -73,7 +73,7 @@ func TestExecute(t *testing.T) {
 			args:      map[string]any{},
 			wantError: true,
 			check: func(t *testing.T, result sdk.ToolResult) {
-				assert.Contains(t, result.Content, "command is required")
+				assert.Contains(t, result.Content, "one of command, job_id, or kill_job is required")
 			},
 		},
 		{
@@ -81,7 +81,15 @@ func TestExecute(t *testing.T) {
 			args:      map[string]any{"command": ""},
 			wantError: true,
 			check: func(t *testing.T, result sdk.ToolResult) {
-				assert.Contains(t, result.Content, "command is required")
+				assert.Contains(t, result.Content, "one of command, job_id, or kill_job is required")
+			},
+		},
+		{
+			name:      "multiple operations provided",
+			args:      map[string]any{"command": "echo hello", "job_id": "job-1"},
+			wantError: true,
+			check: func(t *testing.T, result sdk.ToolResult) {
+				assert.Contains(t, result.Content, "exactly one of command, job_id, or kill_job must be provided")
 			},
 		},
 		{
@@ -817,5 +825,186 @@ func TestBackgroundJobStreamingEvents(t *testing.T) {
 		require.Len(t, outputEvents, 2)
 		assert.Equal(t, "line1", outputEvents[0].Payload.(BashOutputPayload).Line)
 		assert.Equal(t, "line2", outputEvents[1].Payload.(BashOutputPayload).Line)
+	})
+}
+
+func TestExecuteCheckJob(t *testing.T) {
+	t.Run("returns output for running job", func(t *testing.T) {
+		bgMgr := NewBackgroundManager()
+		tool := &tool{bgMgr: bgMgr, timeout: 10 * time.Second}
+
+		// Start a background job
+		result, err := tool.Execute(context.Background(), map[string]any{
+			"command":           "printf check_me; sleep 1",
+			"run_in_background": true,
+		})
+		require.NoError(t, err)
+
+		var jobID string
+
+		for line := range strings.SplitSeq(result.Content, "\n") {
+			if id, ok := strings.CutPrefix(line, "Background job started: "); ok {
+				jobID = id
+				break
+			}
+		}
+
+		require.NotEmpty(t, jobID)
+
+		// Check the job before it completes
+		checkResult, err := tool.Execute(context.Background(), map[string]any{
+			"job_id": jobID,
+		})
+		require.NoError(t, err)
+		assert.False(t, checkResult.IsError)
+		assert.Contains(t, checkResult.Content, "Status: running")
+		assert.Contains(t, checkResult.Content, jobID)
+
+		// Wait for completion and check again
+		job, ok := bgMgr.Get(jobID)
+		require.True(t, ok)
+		job.Wait()
+
+		checkResult, err = tool.Execute(context.Background(), map[string]any{
+			"job_id": jobID,
+		})
+		require.NoError(t, err)
+		assert.False(t, checkResult.IsError)
+		assert.Contains(t, checkResult.Content, "Status: completed")
+		assert.Contains(t, checkResult.Content, "check_me")
+	})
+
+	t.Run("returns error for nonexistent job", func(t *testing.T) {
+		bgMgr := NewBackgroundManager()
+		tool := &tool{bgMgr: bgMgr, timeout: 10 * time.Second}
+
+		result, err := tool.Execute(context.Background(), map[string]any{
+			"job_id": "job-nonexistent",
+		})
+		require.NoError(t, err)
+		assert.True(t, result.IsError)
+		assert.Contains(t, result.Content, "job-nonexistent not found")
+	})
+
+	t.Run("jobs are shared across tool instances", func(t *testing.T) {
+		bgMgr := NewBackgroundManager()
+		tool1 := &tool{bgMgr: bgMgr, timeout: 10 * time.Second}
+
+		// Start job with first tool instance
+		result, err := tool1.Execute(context.Background(), map[string]any{
+			"command":           "echo shared",
+			"run_in_background": true,
+		})
+		require.NoError(t, err)
+
+		var jobID string
+
+		for line := range strings.SplitSeq(result.Content, "\n") {
+			if id, ok := strings.CutPrefix(line, "Background job started: "); ok {
+				jobID = id
+				break
+			}
+		}
+
+		require.NotEmpty(t, jobID)
+
+		// Check job with a different tool instance using the same manager
+		tool2 := &tool{bgMgr: bgMgr, timeout: 10 * time.Second}
+		checkResult, err := tool2.Execute(context.Background(), map[string]any{
+			"job_id": jobID,
+		})
+		require.NoError(t, err)
+		assert.False(t, checkResult.IsError)
+		assert.Contains(t, checkResult.Content, jobID)
+	})
+}
+
+func TestExecuteKillJob(t *testing.T) {
+	t.Run("kills a running background job", func(t *testing.T) {
+		bgMgr := NewBackgroundManager()
+		tool := &tool{bgMgr: bgMgr, timeout: 60 * time.Second}
+
+		// Start a long-running background job
+		result, err := tool.Execute(context.Background(), map[string]any{
+			"command":           "sleep 30",
+			"run_in_background": true,
+		})
+		require.NoError(t, err)
+
+		var jobID string
+
+		for line := range strings.SplitSeq(result.Content, "\n") {
+			if id, ok := strings.CutPrefix(line, "Background job started: "); ok {
+				jobID = id
+				break
+			}
+		}
+
+		require.NotEmpty(t, jobID)
+
+		// Give the job a moment to start
+		time.Sleep(100 * time.Millisecond)
+
+		// Kill the job
+		killResult, err := tool.Execute(context.Background(), map[string]any{
+			"kill_job": jobID,
+		})
+		require.NoError(t, err)
+		assert.True(t, killResult.IsError) // killed job reports error
+		assert.Contains(t, killResult.Content, "killed")
+
+		// Verify job is done
+		job, ok := bgMgr.Get(jobID)
+		require.True(t, ok)
+		assert.True(t, job.IsDone())
+	})
+
+	t.Run("returns output for already completed job", func(t *testing.T) {
+		bgMgr := NewBackgroundManager()
+		tool := &tool{bgMgr: bgMgr, timeout: 10 * time.Second}
+
+		// Start a quick background job
+		result, err := tool.Execute(context.Background(), map[string]any{
+			"command":           "echo done",
+			"run_in_background": true,
+		})
+		require.NoError(t, err)
+
+		var jobID string
+
+		for line := range strings.SplitSeq(result.Content, "\n") {
+			if id, ok := strings.CutPrefix(line, "Background job started: "); ok {
+				jobID = id
+				break
+			}
+		}
+
+		require.NotEmpty(t, jobID)
+
+		// Wait for completion
+		job, ok := bgMgr.Get(jobID)
+		require.True(t, ok)
+		job.Wait()
+
+		// Kill already-completed job
+		killResult, err := tool.Execute(context.Background(), map[string]any{
+			"kill_job": jobID,
+		})
+		require.NoError(t, err)
+		assert.False(t, killResult.IsError)
+		assert.Contains(t, killResult.Content, "already completed")
+		assert.Contains(t, killResult.Content, "done")
+	})
+
+	t.Run("returns error for nonexistent job", func(t *testing.T) {
+		bgMgr := NewBackgroundManager()
+		tool := &tool{bgMgr: bgMgr, timeout: 10 * time.Second}
+
+		result, err := tool.Execute(context.Background(), map[string]any{
+			"kill_job": "job-nonexistent",
+		})
+		require.NoError(t, err)
+		assert.True(t, result.IsError)
+		assert.Contains(t, result.Content, "job-nonexistent not found")
 	})
 }

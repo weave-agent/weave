@@ -141,15 +141,8 @@ func (j *BackgroundJob) resultWithExitInfo(content string) sdk.ToolResult {
 	}
 }
 
-func (j *BackgroundJob) run(command, dir string, timeout time.Duration, bus sdk.Bus) {
+func (j *BackgroundJob) run(ctx context.Context, cancel context.CancelFunc, command, dir string, bus sdk.Bus) {
 	defer close(j.done)
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-
-	j.mu.Lock()
-	j.cancel = cancel
-	j.mu.Unlock()
-
 	defer cancel()
 
 	var (
@@ -309,17 +302,18 @@ func (bm *BackgroundManager) Start(command, dir string, timeout time.Duration, b
 	bm.mu.Lock()
 	bm.counter++
 	id := fmt.Sprintf("job-%d", bm.counter)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	job := &BackgroundJob{
 		ID:        id,
 		Command:   command,
 		StartTime: time.Now(),
 		done:      make(chan struct{}),
-		cancel:    func() {}, // no-op until run() sets the real cancel
+		cancel:    cancel,
 	}
 	bm.jobs[id] = job
 	bm.mu.Unlock()
 
-	go job.run(command, dir, timeout, bus)
+	go job.run(ctx, cancel, command, dir, bus)
 
 	return job
 }

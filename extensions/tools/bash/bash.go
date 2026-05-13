@@ -41,6 +41,11 @@ type tool struct {
 	bgMgr   *BackgroundManager
 }
 
+// defaultBgMgr is the shared background manager across all bash tool instances.
+// Without a singleton, jobs started by one tool instance are unreachable by
+// subsequent calls because sdk.GetTool creates a fresh instance per call.
+var defaultBgMgr = NewBackgroundManager()
+
 func init() {
 	sdk.RegisterTool[BashConfig]("bash", func(cfg sdk.Config, bc BashConfig) (sdk.Tool, error) {
 		timeout := time.Duration(bc.Timeout) * time.Second
@@ -50,7 +55,7 @@ func init() {
 
 		dir := dirFromConfig(cfg)
 
-		return &tool{timeout: timeout, dir: dir, bgMgr: NewBackgroundManager()}, nil
+		return &tool{timeout: timeout, dir: dir, bgMgr: defaultBgMgr}, nil
 	})
 }
 
@@ -76,16 +81,17 @@ func dirFromConfig(cfg sdk.Config) string {
 
 func (t *tool) Name() string { return "bash" }
 
+//nolint:goconst // JSON schema keys are intentionally repeated literals.
 func (t *tool) Definition() sdk.ToolDef {
 	return sdk.ToolDef{
 		Name:        "bash",
-		Description: "Execute a bash command and return its output. Supports background execution.",
+		Description: "Execute a bash command and return its output. Supports background execution. Provide exactly one of: command (to run), job_id (to check status), or kill_job (to terminate).",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				ParamCommand: map[string]any{
 					"type":        "string",
-					"description": "The bash command to execute.",
+					"description": "The bash command to execute. Required when not using job_id or kill_job.",
 				},
 				"timeout": map[string]any{
 					"type":        "number",
@@ -99,8 +105,15 @@ func (t *tool) Definition() sdk.ToolDef {
 					"type":        "number",
 					"description": "Start command synchronously and move to background after N seconds if still running. 0 disables auto-background.",
 				},
+				"job_id": map[string]any{
+					"type":        "string",
+					"description": "Check the output and status of an existing background job by ID. When provided, returns the job's current output instead of running a new command.",
+				},
+				"kill_job": map[string]any{
+					"type":        "string",
+					"description": "Kill a background job by ID. When provided, terminates the specified job and returns its final status.",
+				},
 			},
-			"required": []string{ParamCommand},
 		},
 	}
 }
@@ -122,8 +135,36 @@ func resolveTimeout(args map[string]any, base time.Duration) time.Duration {
 
 func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult, error) {
 	command, _ := args[ParamCommand].(string)
-	if command == "" {
-		return sdk.ToolResult{Content: "error: command is required", IsError: true}, nil
+	jobID, _ := args["job_id"].(string)
+	killJobID, _ := args["kill_job"].(string)
+
+	opCount := 0
+	if command != "" {
+		opCount++
+	}
+
+	if jobID != "" {
+		opCount++
+	}
+
+	if killJobID != "" {
+		opCount++
+	}
+
+	if opCount == 0 {
+		return sdk.ToolResult{Content: "error: one of command, job_id, or kill_job is required", IsError: true}, nil
+	}
+
+	if opCount > 1 {
+		return sdk.ToolResult{Content: "error: exactly one of command, job_id, or kill_job must be provided", IsError: true}, nil
+	}
+
+	if killJobID != "" {
+		return t.killJob(killJobID)
+	}
+
+	if jobID != "" {
+		return t.checkJob(jobID)
 	}
 
 	if s := sdk.GetSandboxer(); s != nil {
@@ -182,6 +223,57 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 	}
 
 	return t.executeSync(ctx, command, timeout, bus)
+}
+
+func (t *tool) checkJob(jobID string) (sdk.ToolResult, error) {
+	if t.bgMgr == nil {
+		return sdk.ToolResult{Content: "error: background manager not available", IsError: true}, nil
+	}
+
+	job, ok := t.bgMgr.Get(jobID)
+	if !ok {
+		return sdk.ToolResult{Content: fmt.Sprintf("error: job %s not found", jobID), IsError: true}, nil
+	}
+
+	result := job.Result()
+
+	status := "running"
+	if job.IsDone() {
+		status = "completed"
+	}
+
+	content := fmt.Sprintf("Job %s (%s)\nStatus: %s\n\n%s", jobID, job.Command, status, result.Content)
+
+	return sdk.ToolResult{Content: content, IsError: result.IsError}, nil
+}
+
+func (t *tool) killJob(jobID string) (sdk.ToolResult, error) {
+	if t.bgMgr == nil {
+		return sdk.ToolResult{Content: "error: background manager not available", IsError: true}, nil
+	}
+
+	job, ok := t.bgMgr.Get(jobID)
+	if !ok {
+		return sdk.ToolResult{Content: fmt.Sprintf("error: job %s not found", jobID), IsError: true}, nil
+	}
+
+	if job.IsDone() {
+		result := job.Result()
+		content := fmt.Sprintf("Job %s already completed.\n\n%s", jobID, result.Content)
+
+		return sdk.ToolResult{Content: content, IsError: result.IsError}, nil
+	}
+
+	if err := t.bgMgr.Kill(jobID); err != nil {
+		return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
+	}
+
+	job.Wait()
+	result := job.Result()
+
+	content := fmt.Sprintf("Job %s killed.\n\n%s", jobID, result.Content)
+
+	return sdk.ToolResult{Content: content, IsError: result.IsError}, nil
 }
 
 func (t *tool) executeSync(ctx context.Context, command string, timeout time.Duration, bus sdk.Bus) (sdk.ToolResult, error) {

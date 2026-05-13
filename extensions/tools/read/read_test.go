@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"weave/bus"
 	"weave/sdk"
@@ -421,6 +422,62 @@ func TestExecuteNoEventWithoutBus(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, result.IsError)
 	assert.Contains(t, result.Content, "content")
+}
+
+// mockFileTracker is a test-double for sdk.FileTracker.
+type mockFileTracker struct {
+	mu    sync.RWMutex
+	reads map[string]time.Time
+}
+
+func newMockFileTracker() *mockFileTracker {
+	return &mockFileTracker{
+		reads: make(map[string]time.Time),
+	}
+}
+
+func (m *mockFileTracker) RecordRead(path string, modTime time.Time) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.reads[path] = modTime
+}
+
+func (m *mockFileTracker) WasRead(path string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	_, ok := m.reads[path]
+
+	return ok
+}
+
+func (m *mockFileTracker) GetReadTime(path string) (time.Time, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	t, ok := m.reads[path]
+
+	return t, ok
+}
+
+func TestExecuteRecordsTrackerSynchronously(t *testing.T) {
+	tool := &tool{}
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "tracker.txt")
+	require.NoError(t, os.WriteFile(path, []byte("track me"), 0o644))
+
+	tracker := newMockFileTracker()
+	sdk.SetFileTracker(tracker)
+	t.Cleanup(func() { sdk.SetFileTracker(nil) })
+
+	result, err := tool.Execute(context.Background(), map[string]any{"path": path})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	// Tracker must be updated synchronously before Execute returns,
+	// so a back-to-back edit check will not race.
+	assert.True(t, tracker.WasRead(path), "expected tracker to record read synchronously")
 }
 
 type testSandboxer struct {

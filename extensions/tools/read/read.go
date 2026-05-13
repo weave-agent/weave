@@ -166,6 +166,12 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 		}))
 	}
 
+	// Record read synchronously to avoid a race where a back-to-back edit
+	// checks the tracker before the async bus handler has processed the event.
+	if tracker := sdk.GetFileTracker(); tracker != nil {
+		tracker.RecordRead(path, info.ModTime())
+	}
+
 	return sdk.ToolResult{Content: result.Format(), IsError: false}, nil
 }
 
