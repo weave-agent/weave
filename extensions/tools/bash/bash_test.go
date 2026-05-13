@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -181,6 +182,50 @@ func TestExecuteTruncation(t *testing.T) {
 
 	lines := strings.Split(result.Content, "\n")
 	assert.LessOrEqual(t, len(lines), 2010) // 2000 lines + truncation notice
+}
+
+func TestExecuteTempFileOverflow(t *testing.T) {
+	tool := &tool{}
+
+	t.Run("creates temp file with full content when output exceeds limits", func(t *testing.T) {
+		largeCmd := "for i in $(seq 1 3000); do echo \"line $i\"; done"
+		result, err := tool.Execute(context.Background(), map[string]any{"command": largeCmd})
+		require.NoError(t, err)
+		assert.Contains(t, result.Content, "output truncated")
+		assert.Contains(t, result.Content, "Full output saved to:")
+
+		// Extract temp file path
+		var tmpPath string
+
+		for line := range strings.SplitSeq(result.Content, "\n") {
+			if strings.Contains(line, "Full output saved to:") {
+				parts := strings.SplitN(line, "Full output saved to: ", 2)
+				if len(parts) == 2 {
+					tmpPath = strings.TrimSpace(parts[1])
+					break
+				}
+			}
+		}
+
+		require.NotEmpty(t, tmpPath, "expected temp file path in result")
+		t.Cleanup(func() { _ = os.Remove(tmpPath) })
+
+		// Verify temp file contains full output
+		data, err := os.ReadFile(tmpPath)
+		require.NoError(t, err)
+
+		fullContent := string(data)
+		assert.Contains(t, fullContent, "line 1")
+		assert.Contains(t, fullContent, "line 3000")
+		assert.Contains(t, fullContent, "line 2000")
+	})
+
+	t.Run("no temp file when output is within limits", func(t *testing.T) {
+		result, err := tool.Execute(context.Background(), map[string]any{"command": "echo -n hello"})
+		require.NoError(t, err)
+		assert.Equal(t, "hello", result.Content)
+		assert.NotContains(t, result.Content, "Full output saved to:")
+	})
 }
 
 // recordingBus is a test helper that records all published events.

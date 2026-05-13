@@ -88,6 +88,7 @@ func (j *BackgroundJob) Wait() {
 func (j *BackgroundJob) Result() sdk.ToolResult {
 	output := j.Output()
 	result := truncate.Truncate(output, truncate.DefaultMaxLines, truncate.DefaultMaxBytes)
+	content := formatResultWithTempFile(result, output)
 
 	j.mu.RLock()
 	exitCode := j.exitCode
@@ -95,18 +96,18 @@ func (j *BackgroundJob) Result() sdk.ToolResult {
 	j.mu.RUnlock()
 
 	if exitErr == nil && exitCode == 0 {
-		return sdk.ToolResult{Content: result.Format()}
+		return sdk.ToolResult{Content: content}
 	}
 
 	if exitCode > 0 {
 		return sdk.ToolResult{
-			Content: fmt.Sprintf("%s\n[exit code %d]", result.Format(), exitCode),
+			Content: fmt.Sprintf("%s\n[exit code %d]", content, exitCode),
 			IsError: false,
 		}
 	}
 
 	return sdk.ToolResult{
-		Content: fmt.Sprintf("%s\nerror: %s", result.Format(), exitErr),
+		Content: fmt.Sprintf("%s\nerror: %s", content, exitErr),
 		IsError: true,
 	}
 }

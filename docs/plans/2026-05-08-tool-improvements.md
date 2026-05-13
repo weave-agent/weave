@@ -57,11 +57,11 @@ Add `run_in_background` and `auto_background_after` params. Background jobs run 
 ### Task 3: Bash — Temp file overflow
 When output exceeds truncation limits, save full output to a temp file and include the path in the result.
 
-- [ ] In bash `Execute`, after truncation, if `Result.Truncated` — write full output to `os.CreateTemp("", "weave-bash-*.log")`
-- [ ] Append temp file path to `ToolResult.Content`: `\n\nFull output saved to: /tmp/weave-bash-xxx.log`
-- [ ] Write tests verifying temp file created with correct content when output exceeds limits
-- [ ] Write tests verifying no temp file when output is within limits
-- [ ] Run `cd extensions/tools/bash && go test ./...`
+- [x] In bash `Execute`, after truncation, if `Result.Truncated` — write full output to `os.CreateTemp("", "weave-bash-*.log")`
+- [x] Append temp file path to `ToolResult.Content`: `\n\nFull output saved to: /tmp/weave-bash-xxx.log`
+- [x] Write tests verifying temp file created with correct content when output exceeds limits
+- [x] Write tests verifying no temp file when output is within limits
+- [x] Run `cd extensions/tools/bash && go test ./...`
 
 ### Task 4: Read — macOS path normalization
 Handle macOS-specific path quirks: NFD Unicode normalization, curly quotes, and Unicode spaces.

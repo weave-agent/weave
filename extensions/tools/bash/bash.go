@@ -174,7 +174,8 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 		case <-time.After(time.Duration(autoBackgroundAfter) * time.Second):
 			output := job.Output()
 			result := truncate.Truncate(output, truncate.DefaultMaxLines, truncate.DefaultMaxBytes)
-			content := fmt.Sprintf("%s\n\nBackground job %s is still running.\nCommand: %s", result.Format(), job.ID, command)
+			formatted := formatResultWithTempFile(result, output)
+			content := fmt.Sprintf("%s\n\nBackground job %s is still running.\nCommand: %s", formatted, job.ID, command)
 
 			return sdk.ToolResult{Content: content}, nil
 		}
@@ -227,13 +228,14 @@ func (t *tool) executeSync(ctx context.Context, command string, timeout time.Dur
 	waitErr := cmd.Wait()
 	wg.Wait()
 
-	result := truncate.Truncate(outBuf.String(), truncate.DefaultMaxLines, truncate.DefaultMaxBytes)
+	fullOutput := outBuf.String()
 
 	if waitErr == nil {
-		return sdk.ToolResult{Content: result.Format()}, nil
+		result := truncate.Truncate(fullOutput, truncate.DefaultMaxLines, truncate.DefaultMaxBytes)
+		return sdk.ToolResult{Content: formatResultWithTempFile(result, fullOutput)}, nil
 	}
 
-	content, isErr := formatCmdError(result, waitErr, ctx)
+	content, isErr := formatCmdError(fullOutput, waitErr, ctx)
 
 	return sdk.ToolResult{Content: content, IsError: isErr}, nil
 }
@@ -297,17 +299,42 @@ func collectStream(
 	}
 }
 
-func formatCmdError(result truncate.Result, err error, ctx context.Context) (string, bool) {
+func formatResultWithTempFile(result truncate.Result, fullOutput string) string {
+	content := result.Format()
+	if !result.Truncated {
+		return content
+	}
+
+	tmpFile, err := os.CreateTemp("", "weave-bash-*.log")
+	if err != nil {
+		return content
+	}
+
+	_, writeErr := tmpFile.WriteString(fullOutput)
+
+	closeErr := tmpFile.Close()
+	if writeErr != nil || closeErr != nil {
+		_ = os.Remove(tmpFile.Name())
+		return content
+	}
+
+	return content + "\n\nFull output saved to: " + tmpFile.Name()
+}
+
+func formatCmdError(fullOutput string, err error, ctx context.Context) (string, bool) {
+	result := truncate.Truncate(fullOutput, truncate.DefaultMaxLines, truncate.DefaultMaxBytes)
+	content := formatResultWithTempFile(result, fullOutput)
+
 	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok && exitErr.ExitCode() >= 0 {
-		return fmt.Sprintf("%s\n[exit code %d]", result.Format(), exitErr.ExitCode()), false
+		return fmt.Sprintf("%s\n[exit code %d]", content, exitErr.ExitCode()), false
 	}
 
 	switch {
 	case ctx.Err() == context.DeadlineExceeded:
-		return result.Format() + "\nerror: command timed out", true
+		return content + "\nerror: command timed out", true
 	case ctx.Err() == context.Canceled:
-		return result.Format() + "\nerror: command canceled", true
+		return content + "\nerror: command canceled", true
 	default:
-		return fmt.Sprintf("%s\nerror: %s", result.Format(), err), true
+		return fmt.Sprintf("%s\nerror: %s", content, err), true
 	}
 }
