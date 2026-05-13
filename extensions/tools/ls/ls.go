@@ -16,6 +16,7 @@ const (
 	paramPath   = "path"
 	paramLimit  = "limit"
 	paramIgnore = "ignore"
+	paramDepth  = "depth"
 )
 
 // LSConfig holds per-tool settings for the ls tool.
@@ -43,7 +44,7 @@ func (t *tool) Name() string { return "ls" }
 func (t *tool) Definition() sdk.ToolDef {
 	return sdk.ToolDef{
 		Name:        "ls",
-		Description: "List directory contents. Returns file and directory names with type indicators.",
+		Description: "List directory contents. Returns file and directory names with type indicators. Use depth > 0 for hierarchical tree output.",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -61,6 +62,10 @@ func (t *tool) Definition() sdk.ToolDef {
 						"type": "string",
 					},
 					"description": "Glob patterns to ignore. Entries matching any pattern are excluded.",
+				},
+				paramDepth: map[string]any{
+					"type":        "number",
+					"description": "Maximum depth for tree output. 0 = flat list (default). > 0 = recursive tree with depth limit.",
 				},
 			},
 		},
@@ -93,6 +98,19 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		return sdk.ToolResult{Content: fmt.Sprintf("error: %s is not a directory", absPath), IsError: true}, nil
 	}
 
+	sb := sdk.GetSandboxer()
+	ignorePatterns := resolveIgnorePatterns(args)
+	limit := resolveLimit(args, t.defaultLimit)
+	depth := resolveDepth(args)
+
+	if depth > 0 {
+		return t.executeTree(absPath, depth, limit, sb, ignorePatterns)
+	}
+
+	return t.executeFlat(absPath, limit, sb, ignorePatterns)
+}
+
+func (t *tool) executeFlat(absPath string, limit int, sb sdk.Sandboxer, ignorePatterns []string) (sdk.ToolResult, error) {
 	entries, err := os.ReadDir(absPath)
 	if err != nil {
 		return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
@@ -101,10 +119,6 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 	if len(entries) == 0 {
 		return sdk.ToolResult{Content: "(empty directory)", IsError: false}, nil
 	}
-
-	sb := sdk.GetSandboxer()
-	ignorePatterns := resolveIgnorePatterns(args)
-	limit := resolveLimit(args, t.defaultLimit)
 
 	var lines []string
 
@@ -148,6 +162,143 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 	return sdk.ToolResult{Content: content, IsError: false}, nil
 }
 
+type treeEntry struct {
+	name     string
+	isDir    bool
+	children []treeEntry
+}
+
+func (t *tool) executeTree(absPath string, maxDepth, limit int, sb sdk.Sandboxer, ignorePatterns []string) (sdk.ToolResult, error) {
+	rootName := filepath.Base(absPath)
+	if rootName == "." || rootName == "" {
+		rootName = absPath
+	}
+
+	children, totalCount, err := buildTreeEntries(absPath, 1, maxDepth, sb, ignorePatterns)
+	if err != nil {
+		return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
+	}
+
+	if len(children) == 0 {
+		return sdk.ToolResult{Content: rootName + "/\n(empty directory)", IsError: false}, nil
+	}
+
+	lines := []string{rootName + "/"}
+	lines = append(lines, renderTreeEntries(children, nil)...)
+
+	truncated := false
+	filteredCount := totalCount
+
+	if limit > 0 && len(lines)-1 > limit {
+		// Count how many tree lines to keep, preserving root
+		keep := limit + 1
+		lines = lines[:keep]
+		truncated = true
+	}
+
+	output := strings.Join(lines, "\n")
+	result := truncate.Truncate(output, truncate.DefaultMaxLines, truncate.DefaultMaxBytes)
+	content := result.Format()
+
+	if truncated {
+		content += fmt.Sprintf("\n\n... (%d more entries not shown — use a higher limit to see all)", filteredCount-limit)
+	}
+
+	return sdk.ToolResult{Content: content, IsError: false}, nil
+}
+
+func buildTreeEntries(dir string, currentDepth, maxDepth int, sb sdk.Sandboxer, ignorePatterns []string) ([]treeEntry, int, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, 0, fmt.Errorf("read dir %s: %w", dir, err)
+	}
+
+	var result []treeEntry
+
+	totalCount := 0
+
+	for _, e := range entries {
+		name := e.Name()
+		fullPath := filepath.Join(dir, name)
+
+		if sb != nil && !sb.AllowRead(fullPath) {
+			continue
+		}
+
+		if matchesAnyIgnore(name, ignorePatterns) {
+			continue
+		}
+
+		entry := treeEntry{name: name, isDir: e.IsDir()}
+		totalCount++
+
+		if e.IsDir() && currentDepth < maxDepth {
+			children, childCount, err := buildTreeEntries(fullPath, currentDepth+1, maxDepth, sb, ignorePatterns)
+			if err == nil {
+				entry.children = children
+				totalCount += childCount
+			}
+		}
+
+		result = append(result, entry)
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		// Directories come before files at the same level
+		if result[i].isDir != result[j].isDir {
+			return result[i].isDir
+		}
+
+		return strings.ToLower(result[i].name) < strings.ToLower(result[j].name)
+	})
+
+	return result, totalCount, nil
+}
+
+func renderTreeEntries(entries []treeEntry, parentLast []bool) []string {
+	var lines []string
+
+	for i, e := range entries {
+		isLast := i == len(entries)-1
+
+		line := buildPrefix(parentLast, isLast)
+		if e.isDir {
+			line += e.name + "/"
+		} else {
+			line += e.name
+		}
+
+		lines = append(lines, line)
+
+		if len(e.children) > 0 {
+			childLast := append(append([]bool(nil), parentLast...), isLast)
+			lines = append(lines, renderTreeEntries(e.children, childLast)...)
+		}
+	}
+
+	return lines
+}
+
+func buildPrefix(parentLast []bool, isLast bool) string {
+	var b strings.Builder
+
+	for _, last := range parentLast {
+		if last {
+			b.WriteString("    ")
+		} else {
+			b.WriteString("│   ")
+		}
+	}
+
+	if isLast {
+		b.WriteString("└── ")
+	} else {
+		b.WriteString("├── ")
+	}
+
+	return b.String()
+}
+
 func resolveIgnorePatterns(args map[string]any) []string {
 	var patterns []string
 
@@ -183,6 +334,27 @@ func resolveLimit(args map[string]any, defaultLimit int) int {
 	}
 
 	return defaultLimit
+}
+
+func resolveDepth(args map[string]any) int {
+	if v, ok := args[paramDepth]; ok {
+		switch n := v.(type) {
+		case float64:
+			if n >= 0 {
+				return int(n)
+			}
+		case int:
+			if n >= 0 {
+				return n
+			}
+		case int64:
+			if n >= 0 {
+				return int(n)
+			}
+		}
+	}
+
+	return 0
 }
 
 func matchesAnyIgnore(name string, patterns []string) bool {

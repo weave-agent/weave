@@ -381,3 +381,271 @@ func TestExecuteIgnoreDirectories(t *testing.T) {
 	assert.NotContains(t, result.Content, "vendor/")
 	assert.NotContains(t, result.Content, "dep.go")
 }
+
+func TestExecuteTreeFormat(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "file1.go"), []byte("a"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "file2.go"), []byte("b"), 0o644))
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "subdir"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "subdir", "nested.go"), []byte("c"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "another.go"), []byte("d"), 0o644))
+
+	result, err := (&tool{defaultLimit: 500}).Execute(context.Background(), map[string]any{
+		"path":  dir,
+		"depth": 2,
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	lines := strings.Split(result.Content, "\n")
+	require.GreaterOrEqual(t, len(lines), 5)
+
+	// Root directory name
+	assert.True(t, strings.HasSuffix(lines[0], "/"), "root should end with /: %s", lines[0])
+
+	// Tree characters present
+	assert.Contains(t, result.Content, "├──")
+	assert.Contains(t, result.Content, "└──")
+
+	// All entries present
+	assert.Contains(t, result.Content, "file1.go")
+	assert.Contains(t, result.Content, "file2.go")
+	assert.Contains(t, result.Content, "subdir/")
+	assert.Contains(t, result.Content, "nested.go")
+	assert.Contains(t, result.Content, "another.go")
+
+	// Directory has trailing slash
+	assert.Contains(t, result.Content, "subdir/")
+}
+
+func TestExecuteTreeDepthLimit(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "root.txt"), []byte("a"), 0o644))
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "level1"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "level1", "l1.txt"), []byte("b"), 0o644))
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "level1", "level2"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "level1", "level2", "l2.txt"), []byte("c"), 0o644))
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "level1", "level2", "level3"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "level1", "level2", "level3", "l3.txt"), []byte("d"), 0o644))
+
+	// depth=1: only root and level1 entries
+	result, err := (&tool{defaultLimit: 500}).Execute(context.Background(), map[string]any{
+		"path":  dir,
+		"depth": 1,
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+	assert.Contains(t, result.Content, "root.txt")
+	assert.Contains(t, result.Content, "level1/")
+	assert.NotContains(t, result.Content, "l1.txt")
+
+	// depth=2: root, level1, and l1.txt
+	result, err = (&tool{defaultLimit: 500}).Execute(context.Background(), map[string]any{
+		"path":  dir,
+		"depth": 2,
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+	assert.Contains(t, result.Content, "l1.txt")
+	assert.Contains(t, result.Content, "level2/")
+	assert.NotContains(t, result.Content, "l2.txt")
+
+	// depth=3: includes l2.txt
+	result, err = (&tool{defaultLimit: 500}).Execute(context.Background(), map[string]any{
+		"path":  dir,
+		"depth": 3,
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+	assert.Contains(t, result.Content, "l2.txt")
+	assert.Contains(t, result.Content, "level3/")
+	assert.NotContains(t, result.Content, "l3.txt")
+
+	// depth=4: includes l3.txt
+	result, err = (&tool{defaultLimit: 500}).Execute(context.Background(), map[string]any{
+		"path":  dir,
+		"depth": 4,
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+	assert.Contains(t, result.Content, "l3.txt")
+}
+
+func TestExecuteTreeDeeplyNested(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a"), 0o644))
+
+	// Build deep nesting: dir/1/2/3/4/5/deep.txt
+	current := dir
+	for i := 1; i <= 5; i++ {
+		next := filepath.Join(current, fmt.Sprintf("level%d", i))
+		require.NoError(t, os.Mkdir(next, 0o755))
+		current = next
+	}
+
+	require.NoError(t, os.WriteFile(filepath.Join(current, "deep.txt"), []byte("deep"), 0o644))
+
+	result, err := (&tool{defaultLimit: 500}).Execute(context.Background(), map[string]any{
+		"path":  dir,
+		"depth": 10,
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	assert.Contains(t, result.Content, "a.txt")
+	assert.Contains(t, result.Content, "deep.txt")
+
+	// Verify tree prefixes at various depths
+	lines := strings.Split(result.Content, "\n")
+
+	var deepLine string
+
+	for _, line := range lines {
+		if strings.Contains(line, "deep.txt") {
+			deepLine = line
+			break
+		}
+	}
+
+	require.NotEmpty(t, deepLine)
+	// Should have multiple │ or spaces followed by └──
+	assert.Contains(t, deepLine, "└──")
+	// The prefix should be long due to depth
+	assert.Greater(t, len(deepLine), 20, "deep line should have long prefix: %s", deepLine)
+}
+
+func TestExecuteTreeEmptyDirectory(t *testing.T) {
+	dir := t.TempDir()
+
+	result, err := (&tool{defaultLimit: 500}).Execute(context.Background(), map[string]any{
+		"path":  dir,
+		"depth": 2,
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	assert.Contains(t, result.Content, "(empty directory)")
+}
+
+func TestExecuteTreeSorted(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "Zebra.txt"), []byte("z"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "apple.txt"), []byte("a"), 0o644))
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "Beta"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "cherry.txt"), []byte("c"), 0o644))
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "alpha"), 0o755))
+
+	result, err := (&tool{defaultLimit: 500}).Execute(context.Background(), map[string]any{
+		"path":  dir,
+		"depth": 1,
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	lines := strings.Split(result.Content, "\n")
+	require.GreaterOrEqual(t, len(lines), 5)
+
+	// Directories before files, case-insensitive sorted (with tree prefixes)
+	assert.Equal(t, "├── alpha/", lines[1])
+	assert.Equal(t, "├── Beta/", lines[2])
+	assert.Equal(t, "├── apple.txt", lines[3])
+	assert.Equal(t, "├── cherry.txt", lines[4])
+	assert.Equal(t, "└── Zebra.txt", lines[5])
+}
+
+func TestExecuteTreeLimit(t *testing.T) {
+	dir := t.TempDir()
+
+	for i := range 10 {
+		name := fmt.Sprintf("file%02d.txt", i)
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("x"), 0o644))
+	}
+
+	result, err := (&tool{defaultLimit: 500}).Execute(context.Background(), map[string]any{
+		"path":  dir,
+		"depth": 1,
+		"limit": 3,
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	// Root + 3 entries + blank line + truncation notice = 6 lines
+	lines := strings.Split(result.Content, "\n")
+	require.Len(t, lines, 6)
+	assert.Contains(t, lines[1], "file00.txt")
+	assert.Contains(t, lines[2], "file01.txt")
+	assert.Contains(t, lines[3], "file02.txt")
+	assert.Contains(t, result.Content, "more entries not shown")
+}
+
+func TestExecuteTreeWithIgnore(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"), []byte("x"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "main_test.go"), []byte("x"), 0o644))
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "vendor"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "vendor", "dep.go"), []byte("x"), 0o644))
+
+	result, err := (&tool{defaultLimit: 500}).Execute(context.Background(), map[string]any{
+		"path":   dir,
+		"depth":  2,
+		"ignore": []any{"*_test.go", "vendor"},
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	assert.Contains(t, result.Content, "main.go")
+	assert.NotContains(t, result.Content, "main_test.go")
+	assert.NotContains(t, result.Content, "vendor/")
+	assert.NotContains(t, result.Content, "dep.go")
+}
+
+func TestExecuteTreeSandboxFiltering(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "visible.txt"), []byte("a"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".env"), []byte("secret"), 0o644))
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "secrets"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "secrets", "key.txt"), []byte("key"), 0o644))
+
+	sandboxer := &testSandboxer{allowReadFn: func(p string) bool {
+		return !strings.Contains(p, ".env") && !strings.Contains(p, "secrets")
+	}}
+	sdk.SetSandboxer(sandboxer)
+	t.Cleanup(func() { sdk.SetSandboxer(nil) })
+
+	result, err := (&tool{defaultLimit: 500}).Execute(context.Background(), map[string]any{
+		"path":  dir,
+		"depth": 2,
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	assert.Contains(t, result.Content, "visible.txt")
+	assert.NotContains(t, result.Content, ".env")
+	assert.NotContains(t, result.Content, "secrets/")
+	assert.NotContains(t, result.Content, "key.txt")
+}
+
+func TestExecuteFlatStillWorks(t *testing.T) {
+	// Ensure depth=0 (default) still gives flat list
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "b.txt"), []byte("b"), 0o644))
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "subdir"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "subdir", "nested.txt"), []byte("c"), 0o644))
+
+	result, err := (&tool{defaultLimit: 500}).Execute(context.Background(), map[string]any{
+		"path": dir,
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	// Flat list: only top-level entries
+	assert.Contains(t, result.Content, "a.txt")
+	assert.Contains(t, result.Content, "b.txt")
+	assert.Contains(t, result.Content, "subdir/")
+	assert.NotContains(t, result.Content, "nested.txt")
+
+	// No tree characters in flat mode
+	assert.NotContains(t, result.Content, "├──")
+	assert.NotContains(t, result.Content, "└──")
+}

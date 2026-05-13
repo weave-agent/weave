@@ -144,12 +144,12 @@ Add alphabetical sorting, configurable entry limit, and ignore glob patterns.
 ### Task 11: LS — Hierarchical tree output
 Add `depth` param and render output as a tree structure instead of flat list.
 
-- [ ] Add `depth` param (int, default 0=unlimited) to tool definition
-- [ ] When `depth > 0` or path is single directory: use recursive `filepath.WalkDir` with depth limit
-- [ ] Build tree structure: sort entries, indent with `├──`/`└──`/`│   ` tree characters
-- [ ] Keep flat list mode for backward compat when depth=0 and no subdirectory traversal needed
-- [ ] Write tests: tree output format, depth limiting, deeply nested structure
-- [ ] Run `cd extensions/tools/ls && go test ./...`
+- [x] Add `depth` param (int, default 0=unlimited) to tool definition
+- [x] When `depth > 0` or path is single directory: use recursive `filepath.WalkDir` with depth limit
+- [x] Build tree structure: sort entries, indent with `├──`/`└──`/`│   ` tree characters
+- [x] Keep flat list mode for backward compat when depth=0 and no subdirectory traversal needed
+- [x] Write tests: tree output format, depth limiting, deeply nested structure
+- [x] Run `cd extensions/tools/ls && go test ./...`
 
 ### Task 12: Write — No-op detection
 Skip writing if content is identical to existing file content.
