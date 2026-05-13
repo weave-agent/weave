@@ -202,31 +202,26 @@ func TestGenerateFullHelp_SkipsEmptySchemas(t *testing.T) {
 	assert.NotContains(t, text, "empty")
 }
 
-func TestLoadFromDir_HelpFlagReturnsHelpError(t *testing.T) {
+func TestLoadFromDir_HelpFlagPassesThrough(t *testing.T) {
 	resetAllRegistries(t)
 
 	dir := t.TempDir()
 	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
 
-	_, _, _, err := LoadFromDir(dir, []string{"--help"})
-	require.Error(t, err)
-
-	var he *HelpError
-	require.ErrorAs(t, err, &he, "error should be a HelpError")
-	assert.Contains(t, he.Text, "Usage: weave")
-	assert.ErrorIs(t, err, flag.ErrHelp, "should still be flag.ErrHelp")
+	// --help is no longer intercepted by LoadFromDir; it passes through to the generated binary.
+	_, _, rest, err := LoadFromDir(dir, []string{"--help"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"--help"}, rest)
 }
 
-func TestLoadFromDir_HelpShortFlagReturnsHelpError(t *testing.T) {
+func TestLoadFromDir_HelpShortFlagPassesThrough(t *testing.T) {
 	resetAllRegistries(t)
 
 	dir := t.TempDir()
 	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
 
-	_, _, _, err := LoadFromDir(dir, []string{"-h"})
-	require.Error(t, err)
-
-	var he *HelpError
-	require.ErrorAs(t, err, &he, "error should be a HelpError")
-	assert.ErrorIs(t, err, flag.ErrHelp)
+	// -h is no longer intercepted by LoadFromDir; it passes through to the generated binary.
+	_, _, rest, err := LoadFromDir(dir, []string{"-h"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"-h"}, rest)
 }

@@ -63,7 +63,7 @@ func TestResetSchemas(t *testing.T) {
 	assert.False(t, ok)
 }
 
-func TestStoreSchema_Overwrite(t *testing.T) {
+func TestStoreSchema_FirstWins(t *testing.T) {
 	ResetSchemas()
 	defer ResetSchemas()
 
@@ -72,7 +72,7 @@ func TestStoreSchema_Overwrite(t *testing.T) {
 
 	got, ok := GetSchema("tools", "bash")
 	require.True(t, ok)
-	assert.Equal(t, "120", got.Fields[0].Default)
+	assert.Equal(t, "60", got.Fields[0].Default)
 }
 
 func TestStoreSchema_SameNameDifferentScope(t *testing.T) {

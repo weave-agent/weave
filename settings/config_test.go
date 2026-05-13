@@ -2,7 +2,6 @@ package settings
 
 import (
 	"encoding/json"
-	"flag"
 	"os"
 	"path/filepath"
 	"testing"
@@ -244,16 +243,20 @@ func TestLoad_HelpFlag(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
 
-	_, _, _, err := LoadFromDir(dir, []string{"--help"})
-	require.ErrorIs(t, err, flag.ErrHelp)
+	// --help is no longer intercepted by LoadFromDir; it passes through to the generated binary.
+	_, _, rest, err := LoadFromDir(dir, []string{"--help"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"--help"}, rest)
 }
 
 func TestLoad_HelpShortFlag(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
 
-	_, _, _, err := LoadFromDir(dir, []string{"-h"})
-	require.ErrorIs(t, err, flag.ErrHelp)
+	// -h is no longer intercepted by LoadFromDir; it passes through to the generated binary.
+	_, _, rest, err := LoadFromDir(dir, []string{"-h"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"-h"}, rest)
 }
 
 func TestLoad_EnvOverride(t *testing.T) {
