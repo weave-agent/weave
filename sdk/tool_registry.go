@@ -111,4 +111,6 @@ func ResetToolRegistry() {
 	toolFilterMu.Lock()
 	toolFilter = nil
 	toolFilterMu.Unlock()
+
+	ResetSchemas()
 }

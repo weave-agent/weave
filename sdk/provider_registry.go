@@ -54,4 +54,5 @@ func ListProviders() []string {
 
 func ResetProviderRegistry() {
 	providerReg.Reset()
+	ResetSchemas()
 }

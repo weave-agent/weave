@@ -50,9 +50,23 @@ func extractSchema(t reflect.Type) Schema {
 			continue
 		}
 
+		ft := f.Type
+		// Dereference pointers.
+		if ft.Kind() == reflect.Pointer {
+			ft = ft.Elem()
+		}
+
+		// Handle embedded structs by flattening their fields.
+		if f.Anonymous && ft.Kind() == reflect.Struct {
+			nested := extractSchema(ft)
+			fields = append(fields, nested.Fields...)
+
+			continue
+		}
+
 		// Recurse into nested structs.
-		if f.Type.Kind() == reflect.Struct {
-			nested := extractSchema(f.Type)
+		if ft.Kind() == reflect.Struct {
+			nested := extractSchema(ft)
 
 			prefix := JSONFieldName(jsonTag, f.Name)
 			for _, nf := range nested.Fields {

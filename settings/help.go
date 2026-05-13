@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"weave/sdk"
 )
@@ -160,9 +161,10 @@ type namedSchema struct {
 
 // padRight pads s with spaces on the right to reach width.
 func padRight(s string, width int) string {
-	if len(s) >= width {
+	n := utf8.RuneCountInString(s)
+	if n >= width {
 		return s + " "
 	}
 
-	return s + strings.Repeat(" ", width-len(s))
+	return s + strings.Repeat(" ", width-n)
 }

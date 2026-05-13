@@ -366,31 +366,41 @@ func filterKnownFlags(args []string, known, boolFlags map[string]bool) ([]string
 			continue
 		}
 
-		if known[arg] {
-			consumed[i] = true
-			// For boolean flags with an explicit true/false value, convert to
-			// =value form so Go's flag package does not treat the value as a
-			// positional argument.
-			if boolFlags[arg] && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
-				next := args[i+1]
-				if _, err := strconv.ParseBool(next); err == nil {
-					result = append(result, arg+"="+next)
-					consumed[i+1] = true
-					i++
+		if !known[arg] {
+			continue
+		}
 
-					continue
-				}
-			}
-
-			result = append(result, arg)
-			// Include the next arg as the value if it doesn't start with -.
-			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
-				result = append(result, args[i+1])
+		consumed[i] = true
+		// For boolean flags with an explicit true/false value, convert to
+		// =value form so Go's flag package does not treat the value as a
+		// positional argument.
+		if boolFlags[arg] && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+			next := args[i+1]
+			if _, err := strconv.ParseBool(next); err == nil {
+				result = append(result, arg+"="+next)
 				consumed[i+1] = true
 				i++
+
+				continue
 			}
+		}
+
+		result = append(result, arg)
+		// For non-boolean flags, consume the next arg as a value unless
+		// it's another known flag. This allows negative numbers and other
+		// "-" prefixed values to be passed as flag values.
+		if !boolFlags[arg] && i+1 < len(args) && !known[args[i+1]] {
+			result = append(result, args[i+1])
+			consumed[i+1] = true
+			i++
 
 			continue
+		}
+		// Boolean flags: only consume non-flag-looking values (old behavior).
+		if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+			result = append(result, args[i+1])
+			consumed[i+1] = true
+			i++
 		}
 	}
 

@@ -21,7 +21,7 @@ const ParamCommand = "command"
 
 // BashConfig holds per-tool settings for the bash tool.
 type BashConfig struct {
-	Timeout int `json:"timeout" default:"120"`
+	Timeout int `json:"timeout" default:"120" env:"TIMEOUT"`
 }
 
 type tool struct {

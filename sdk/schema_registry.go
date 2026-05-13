@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	"sort"
 	"strings"
 	"sync"
 )
@@ -38,8 +39,7 @@ type SchemaEntry struct {
 	Schema Schema
 }
 
-// ListSchemas returns all registered schemas. Entries are ordered by
-// registration order within each scope, but overall order is not guaranteed.
+// ListSchemas returns all registered schemas sorted by scope then name.
 func ListSchemas() []SchemaEntry {
 	schemaMu.RLock()
 	defer schemaMu.RUnlock()
@@ -57,6 +57,14 @@ func ListSchemas() []SchemaEntry {
 			Schema: schema,
 		})
 	}
+
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Scope != result[j].Scope {
+			return result[i].Scope < result[j].Scope
+		}
+
+		return result[i].Name < result[j].Name
+	})
 
 	return result
 }
