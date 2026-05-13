@@ -31,19 +31,12 @@ type provider struct {
 }
 
 func init() {
-	model.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
-
-	sdk.RegisterProvider[AnthropicConfig, struct{}]("anthropic", func(cfg sdk.Config, ac AnthropicConfig, _ struct{}) (sdk.Provider, error) {
-		apiKey, err := cfg.ResolveKey("anthropic", "ANTHROPIC_API_KEY")
-		if err != nil {
-			return nil, fmt.Errorf("anthropic: %w", err)
+	sdk.RegisterProvider[AnthropicConfig, AuthConfig]("anthropic", func(cfg sdk.Config, ac AnthropicConfig, a AuthConfig) (sdk.Provider, error) {
+		if a.APIKey == "" {
+			return nil, errors.New("anthropic: API key required (set ANTHROPIC_API_KEY or add to ~/.weave/auth.json)")
 		}
 
-		if apiKey == "" {
-			return nil, errors.New("anthropic: API key required (set ANTHROPIC_API_KEY, add to ~/.weave/auth.json, or configure in .weave/settings.json)")
-		}
-
-		client := anthropic.NewClient(option.WithAPIKey(apiKey))
+		client := anthropic.NewClient(option.WithAPIKey(a.APIKey))
 
 		return &provider{
 			client:    client,

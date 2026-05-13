@@ -675,7 +675,7 @@ func TestWire_ProviderAuthErrorDoesNotFailWiring(t *testing.T) {
 	sdk.ResetProviderRegistry()
 	model.ResetAuthRegistry()
 
-	sdk.RegisterProvider[struct{}, struct{}]("wire-test-no-auth", func(_ sdk.Config, _ struct{}, _ struct{}) (sdk.Provider, error) {
+	sdk.RegisterProvider[struct{}, struct{}]("wire-test-no-auth", func(_ sdk.Config, _, _ struct{}) (sdk.Provider, error) {
 		return &ProviderMock{}, nil
 	})
 

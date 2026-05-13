@@ -75,11 +75,11 @@ Replace imperative API key resolution (`cfg.ResolveKey`, `model.RegisterProvider
 
 ### Task 7: Migrate Anthropic provider
 
-- [ ] Create `extensions/providers/anthropic/auth.go` with `AnthropicAuth` struct
-- [ ] Update `extensions/providers/anthropic/anthropic.go` to use `RegisterProvider[AnthropicConfig, AnthropicAuth]`
-- [ ] Remove `model.RegisterProviderEnvVar` and `cfg.ResolveKey` calls
-- [ ] Update provider tests
-- [ ] Run `cd extensions/providers/anthropic && go test ./...` — must pass
+- [x] Create `extensions/providers/anthropic/auth.go` with `AnthropicAuth` struct
+- [x] Update `extensions/providers/anthropic/anthropic.go` to use `RegisterProvider[AnthropicConfig, AnthropicAuth]`
+- [x] Remove `model.RegisterProviderEnvVar` and `cfg.ResolveKey` calls
+- [x] Update provider tests
+- [x] Run `cd extensions/providers/anthropic && go test ./...` — must pass
 
 ### Task 8: Migrate OpenAI provider
 

@@ -38,6 +38,10 @@ func RegisterProvider[TConfig, TAuth any](name string, factory func(Config, TCon
 
 		var ta TAuth
 
+		if err := auth.LoadProviderAuth(name, &ta); err != nil {
+			return nil, fmt.Errorf("load provider auth: %w", err)
+		}
+
 		return factory(configOrDefault(cfg), tc, ta)
 	}
 
@@ -50,7 +54,7 @@ func makeAuthChecker[TAuth any](name string) func(Config) (bool, error) {
 	return func(_ Config) (bool, error) {
 		authFile, err := auth.Load()
 		if err != nil {
-			return false, err
+			return false, fmt.Errorf("load auth file: %w", err)
 		}
 
 		if authFile.GetProviderKey(name) != "" {
@@ -65,7 +69,6 @@ func makeAuthChecker[TAuth any](name string) func(Config) (bool, error) {
 		}
 
 		for field := range t.Fields() {
-
 			envTag := field.Tag.Get("env")
 			if envTag != "" && os.Getenv(envTag) != "" {
 				return true, nil
