@@ -3,6 +3,8 @@ package agent
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"sync"
 
 	"weave/sdk"
@@ -71,4 +73,34 @@ func (a *AgentExtension) run(ctx context.Context, bus sdk.Bus) {
 	// TODO: port turn loop, skill discovery, and context loading in later tasks.
 	_ = ctx
 	_ = bus
+}
+
+// projectDir returns the project directory from config, or derives it from the
+// config file path.
+func (a *AgentExtension) projectDir() string {
+	if pd := a.cfg.ProjectDir(); pd != "" {
+		return pd
+	}
+
+	fp := a.cfg.FilePath()
+	if fp == "" {
+		return ""
+	}
+
+	dir := filepath.Dir(fp)
+	if filepath.Base(dir) == ".weave" {
+		dir = filepath.Dir(dir)
+	}
+
+	return dir
+}
+
+// globalConfigDir returns the global config directory (~/.weave).
+func globalConfigDir() string {
+	home, _ := os.UserHomeDir()
+	if home == "" {
+		return ""
+	}
+
+	return filepath.Join(home, ".weave")
 }

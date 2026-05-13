@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"weave/bus"
@@ -83,4 +85,36 @@ func TestAgentExtension_RegisterAsExtension(t *testing.T) {
 
 	_, ok := ext.(*AgentExtension)
 	require.True(t, ok, "expected *AgentExtension, got %T", ext)
+}
+
+func TestAgentExtension_ProjectDir(t *testing.T) {
+	projectDir := t.TempDir()
+	configPath := filepath.Join(projectDir, ".weave", "settings.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(configPath), 0o755))
+	require.NoError(t, os.WriteFile(configPath, []byte(`{}`), 0o644))
+
+	ext, err := NewAgentExtension(sdk.FilePathConfig(configPath))
+	require.NoError(t, err)
+
+	assert.Equal(t, projectDir, ext.projectDir())
+}
+
+func TestAgentExtension_ProjectDir_FromFilePath(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), ".weave", "settings.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(configPath), 0o755))
+	require.NoError(t, os.WriteFile(configPath, []byte(`{}`), 0o644))
+
+	cfg := sdk.FilePathConfig(configPath)
+	ext, err := NewAgentExtension(cfg)
+	require.NoError(t, err)
+
+	// FilePathConfig returns empty ProjectDir, so it falls back to deriving from FilePath.
+	// Since config is inside .weave/, projectDir strips .weave/ and returns its parent.
+	assert.Equal(t, filepath.Dir(filepath.Dir(configPath)), ext.projectDir())
+}
+
+func TestGlobalConfigDir(t *testing.T) {
+	dir := globalConfigDir()
+	require.NotEmpty(t, dir)
+	assert.Contains(t, dir, ".weave")
 }

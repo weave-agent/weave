@@ -74,14 +74,14 @@ Merge three separate extensions (`loop`, `skills`, `instructions`) into a single
 
 ### Task 2: Port context file discovery (from instructions extension)
 
-- [ ] Port `discover.go` logic to `extensions/agent/context.go`
-- [ ] `discoverContextFiles(projectDir, globalDir)` — walks up for CLAUDE.md/AGENTS.md
-- [ ] `loadSystemPrompt(projectDir, globalDir)` — loads SYSTEM.md
-- [ ] `loadAppendSystemPrompt(projectDir, globalDir)` — loads APPEND_SYSTEM.md
-- [ ] Port `formatInstructionsPrompt` logic into prompt builder
-- [ ] Write tests for context discovery (project override, global fallback, dedup)
-- [ ] Write tests for SYSTEM.md/APPEND_SYSTEM.md loading
-- [ ] Run tests — must pass before next task
+- [x] Port `discover.go` logic to `extensions/agent/context.go`
+- [x] `discoverContextFiles(projectDir, globalDir)` — walks up for CLAUDE.md/AGENTS.md
+- [x] `loadSystemPrompt(projectDir, globalDir)` — loads SYSTEM.md
+- [x] `loadAppendSystemPrompt(projectDir, globalDir)` — loads APPEND_SYSTEM.md
+- [x] Port `formatInstructionsPrompt` logic into prompt builder
+- [x] Write tests for context discovery (project override, global fallback, dedup)
+- [x] Write tests for SYSTEM.md/APPEND_SYSTEM.md loading
+- [x] Run tests — must pass before next task
 
 ### Task 3: Port skill discovery (from skills extension)
 
