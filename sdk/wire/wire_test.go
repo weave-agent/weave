@@ -12,6 +12,7 @@ import (
 
 	eventbus "weave/bus"
 	"weave/sdk"
+	"weave/sdk/model"
 )
 
 func coreCfg() CoreWireConfig {
@@ -607,6 +608,82 @@ func TestMergeCoreAndOptional_FiltersDefaultLoopWhenCustomLoop(t *testing.T) {
 func TestMergeCoreAndOptional_KeepsDefaultLoopWhenDefaultLoop(t *testing.T) {
 	result := mergeCoreAndOptional("loop", []string{"bash", "loop", "read"})
 	assert.Equal(t, []string{"loop", "bash", "read"}, result)
+}
+
+type wireTestAuth struct {
+	APIKey string `env:"WIRE_TEST_AUTH_KEY"`
+}
+
+func TestWire_SetsProviderAuthStatus(t *testing.T) {
+	sdk.ResetRegistry()
+	sdk.ResetProviderRegistry()
+	model.ResetAuthRegistry()
+
+	sdk.RegisterProvider[struct{}, wireTestAuth]("wire-test-provider", func(_ sdk.Config, _ struct{}, _ wireTestAuth) (sdk.Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	bus := &BusMock{}
+	_, err := Wire(nil, bus, nil)
+	require.NoError(t, err)
+
+	assert.False(t, model.ProviderHasAuth("wire-test-provider"), "provider should not have auth without key")
+}
+
+func TestWire_SetsProviderAuthStatusWithEnvVar(t *testing.T) {
+	sdk.ResetRegistry()
+	sdk.ResetProviderRegistry()
+	model.ResetAuthRegistry()
+
+	sdk.RegisterProvider[struct{}, wireTestAuth]("wire-test-provider-env", func(_ sdk.Config, _ struct{}, _ wireTestAuth) (sdk.Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	t.Setenv("WIRE_TEST_AUTH_KEY", "test-key")
+
+	bus := &BusMock{}
+	_, err := Wire(nil, bus, nil)
+	require.NoError(t, err)
+
+	assert.True(t, model.ProviderHasAuth("wire-test-provider-env"), "provider should have auth when env var is set")
+}
+
+func TestWireWithCore_SetsProviderAuthStatus(t *testing.T) {
+	sdk.ResetRegistry()
+	sdk.ResetProviderRegistry()
+	model.ResetAuthRegistry()
+
+	sdk.RegisterExtension[struct{}]("loop", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("loop", func(sdk.Bus) error { return nil }), nil
+	})
+
+	sdk.RegisterProvider[struct{}, wireTestAuth]("wire-test-provider-core", func(_ sdk.Config, _ struct{}, _ wireTestAuth) (sdk.Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	t.Setenv("WIRE_TEST_AUTH_KEY", "test-key")
+
+	bus := &BusMock{}
+	_, err := WireWithCore(coreCfg(), nil, bus, nil)
+	require.NoError(t, err)
+
+	assert.True(t, model.ProviderHasAuth("wire-test-provider-core"), "provider auth should be set during WireWithCore")
+}
+
+func TestWire_ProviderAuthErrorDoesNotFailWiring(t *testing.T) {
+	sdk.ResetRegistry()
+	sdk.ResetProviderRegistry()
+	model.ResetAuthRegistry()
+
+	sdk.RegisterProvider[struct{}, struct{}]("wire-test-no-auth", func(_ sdk.Config, _ struct{}, _ struct{}) (sdk.Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	bus := &BusMock{}
+	_, err := Wire(nil, bus, nil)
+	require.NoError(t, err, "wiring should succeed even when provider has no auth")
+
+	assert.False(t, model.ProviderHasAuth("wire-test-no-auth"), "provider without auth struct should have no auth")
 }
 
 var _ = strings.TrimSpace

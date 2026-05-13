@@ -69,9 +69,9 @@ Replace imperative API key resolution (`cfg.ResolveKey`, `model.RegisterProvider
 
 ### Task 6: Wire auth status during provider initialization
 
-- [ ] Update `sdk/wire/wire.go` to call `sdk.CheckProviderAuth` and `model.SetProviderAuth` for each provider during wiring
-- [ ] Update wire tests if they assert provider initialization behavior
-- [ ] Run `go test ./sdk/wire/...` — must pass
+- [x] Update `sdk/wire/wire.go` to call `sdk.CheckProviderAuth` and `model.SetProviderAuth` for each provider during wiring
+- [x] Update wire tests if they assert provider initialization behavior
+- [x] Run `go test ./sdk/wire/...` — must pass
 
 ### Task 7: Migrate Anthropic provider
 

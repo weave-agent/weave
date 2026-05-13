@@ -9,6 +9,7 @@ import (
 	"slices"
 
 	"weave/sdk"
+	"weave/sdk/model"
 )
 
 const defaultAgentLoop = "loop"
@@ -55,6 +56,12 @@ func Wire(extNames []string, bus sdk.Bus, cfg sdk.Config) (*Wired, error) {
 
 			return nil, fmt.Errorf("wire: subscribe %s: %w", ext.Name(), err)
 		}
+	}
+
+	// Check auth status for all registered providers.
+	for _, name := range sdk.ListProviders() {
+		hasAuth, _ := sdk.CheckProviderAuth(name, cfg)
+		model.SetProviderAuth(name, hasAuth)
 	}
 
 	return &Wired{extensions: exts, bus: bus}, nil
