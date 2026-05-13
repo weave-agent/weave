@@ -94,20 +94,3 @@ func TestDefaultModelForProvider_ExplicitDefault(t *testing.T) {
 	assert.Equal(t, "b", m.ID)
 }
 
-func TestProviderEnvVarRegistry(t *testing.T) {
-	ResetProviderEnvVarRegistry()
-	defer ResetProviderEnvVarRegistry()
-
-	RegisterProviderEnvVar("test-provider", "TEST_API_KEY")
-	assert.Equal(t, "TEST_API_KEY", ProviderEnvVar("test-provider"))
-	assert.Empty(t, ProviderEnvVar("nonexistent"))
-}
-
-func TestProviderEnvVarRegistry_DuplicateOverwrites(t *testing.T) {
-	ResetProviderEnvVarRegistry()
-	defer ResetProviderEnvVarRegistry()
-
-	RegisterProviderEnvVar("test", "FIRST_KEY")
-	RegisterProviderEnvVar("test", "SECOND_KEY")
-	assert.Equal(t, "FIRST_KEY", ProviderEnvVar("test"), "first registration should win")
-}

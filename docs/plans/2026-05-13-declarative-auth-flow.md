@@ -39,12 +39,12 @@ Replace imperative API key resolution (`cfg.ResolveKey`, `model.RegisterProvider
 
 ### Task 2: Remove ResolveKey from sdk.Config and delete ProviderEnvVar registry
 
-- [ ] Remove `ResolveKey` method from `sdk.Config` interface in `sdk/config.go`
-- [ ] Update `NoopConfig` and `HeadlessConfig` stubs
-- [ ] Regenerate `sdk/config_mock_test.go` via `make gen`
-- [ ] Delete `sdk/model/env.go` entirely
-- [ ] Update any tests that call `RegisterProviderEnvVar` or `ProviderEnvVar`
-- [ ] Run `go test ./sdk/...` — must pass
+- [x] Remove `ResolveKey` method from `sdk.Config` interface in `sdk/config.go`
+- [x] Update `NoopConfig` and `HeadlessConfig` stubs
+- [x] Regenerate `sdk/config_mock_test.go` via `make gen`
+- [x] Delete `sdk/model/env.go` entirely
+- [x] Update any tests that call `RegisterProviderEnvVar` or `ProviderEnvVar`
+- [x] Run `go test ./sdk/...` — must pass
 
 ### Task 3: Add auth tracking to model registry
 

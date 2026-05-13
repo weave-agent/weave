@@ -32,9 +32,6 @@ var _ Config = &ConfigMock{}
 //			ProjectDirFunc: func() string {
 //				panic("mock out the ProjectDir method")
 //			},
-//			ResolveKeyFunc: func(providerName string, envVar string) (string, error) {
-//				panic("mock out the ResolveKey method")
-//			},
 //			RespectGitignoreFunc: func() bool {
 //				panic("mock out the RespectGitignore method")
 //			},
@@ -65,9 +62,6 @@ type ConfigMock struct {
 
 	// ProjectDirFunc mocks the ProjectDir method.
 	ProjectDirFunc func() string
-
-	// ResolveKeyFunc mocks the ResolveKey method.
-	ResolveKeyFunc func(providerName string, envVar string) (string, error)
 
 	// RespectGitignoreFunc mocks the RespectGitignore method.
 	RespectGitignoreFunc func() bool
@@ -105,13 +99,6 @@ type ConfigMock struct {
 		// ProjectDir holds details about calls to the ProjectDir method.
 		ProjectDir []struct {
 		}
-		// ResolveKey holds details about calls to the ResolveKey method.
-		ResolveKey []struct {
-			// ProviderName is the providerName argument value.
-			ProviderName string
-			// EnvVar is the envVar argument value.
-			EnvVar string
-		}
 		// RespectGitignore holds details about calls to the RespectGitignore method.
 		RespectGitignore []struct {
 		}
@@ -133,7 +120,6 @@ type ConfigMock struct {
 	lockIsHeadless       sync.RWMutex
 	lockPreferences      sync.RWMutex
 	lockProjectDir       sync.RWMutex
-	lockResolveKey       sync.RWMutex
 	lockRespectGitignore sync.RWMutex
 	lockSavePreferences  sync.RWMutex
 	lockSaveProviderKey  sync.RWMutex
@@ -308,46 +294,6 @@ func (mock *ConfigMock) ProjectDirCalls() []struct {
 	mock.lockProjectDir.RLock()
 	calls = mock.calls.ProjectDir
 	mock.lockProjectDir.RUnlock()
-	return calls
-}
-
-// ResolveKey calls ResolveKeyFunc.
-func (mock *ConfigMock) ResolveKey(providerName string, envVar string) (string, error) {
-	callInfo := struct {
-		ProviderName string
-		EnvVar       string
-	}{
-		ProviderName: providerName,
-		EnvVar:       envVar,
-	}
-	mock.lockResolveKey.Lock()
-	mock.calls.ResolveKey = append(mock.calls.ResolveKey, callInfo)
-	mock.lockResolveKey.Unlock()
-	if mock.ResolveKeyFunc == nil {
-		var (
-			sOut   string
-			errOut error
-		)
-		return sOut, errOut
-	}
-	return mock.ResolveKeyFunc(providerName, envVar)
-}
-
-// ResolveKeyCalls gets all the calls that were made to ResolveKey.
-// Check the length with:
-//
-//	len(mockedConfig.ResolveKeyCalls())
-func (mock *ConfigMock) ResolveKeyCalls() []struct {
-	ProviderName string
-	EnvVar       string
-} {
-	var calls []struct {
-		ProviderName string
-		EnvVar       string
-	}
-	mock.lockResolveKey.RLock()
-	calls = mock.calls.ResolveKey
-	mock.lockResolveKey.RUnlock()
 	return calls
 }
 
