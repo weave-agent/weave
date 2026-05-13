@@ -670,7 +670,7 @@ func TestWireWithCore_SetsProviderAuthStatus(t *testing.T) {
 	assert.True(t, model.ProviderHasAuth("wire-test-provider-core"), "provider auth should be set during WireWithCore")
 }
 
-func TestWire_ProviderAuthErrorDoesNotFailWiring(t *testing.T) {
+func TestWire_ProviderWithNoAuthStructHasNoAuth(t *testing.T) {
 	sdk.ResetRegistry()
 	sdk.ResetProviderRegistry()
 	model.ResetAuthRegistry()

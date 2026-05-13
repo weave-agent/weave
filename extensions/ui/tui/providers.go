@@ -34,7 +34,7 @@ func listProviders(_ sdk.Config) []ProviderEntry {
 		seen[name] = true
 		entries = append(entries, ProviderEntry{
 			Name:   name,
-			HasKey: providerHasKey(name),
+			HasKey: sdkmodel.ProviderHasAuth(name),
 		})
 	}
 
@@ -43,7 +43,7 @@ func listProviders(_ sdk.Config) []ProviderEntry {
 			seen[md.Provider] = true
 			entries = append(entries, ProviderEntry{
 				Name:   md.Provider,
-				HasKey: providerHasKey(md.Provider),
+				HasKey: sdkmodel.ProviderHasAuth(md.Provider),
 			})
 		}
 	}

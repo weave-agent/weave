@@ -62,18 +62,7 @@ func (f *File) GetProviderConfig(providerName string) (map[string]any, error) {
 		return nil, nil
 	}
 
-	//nolint:gosec // G117 — marshaling known struct shape for same-package unmarshal
-	data, err := json.Marshal(p)
-	if err != nil {
-		return nil, fmt.Errorf("marshal provider auth: %w", err)
-	}
-
-	var result map[string]any
-	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, fmt.Errorf("unmarshal provider auth: %w", err)
-	}
-
-	return result, nil
+	return map[string]any{"api_key": p.APIKey}, nil
 }
 
 // applyEnvToStruct overrides fields from environment variables using `env` struct tags.

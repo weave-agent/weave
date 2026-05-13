@@ -18,12 +18,6 @@ type preferences struct {
 	ThinkingLevel string `json:"thinking_level,omitempty"`
 }
 
-// providerHasKey checks whether a provider has valid auth credentials
-// registered in the model registry.
-func providerHasKey(providerName string) bool {
-	return sdkmodel.ProviderHasAuth(providerName)
-}
-
 // effectiveConfig returns cfg if non-nil, otherwise a no-op implementation.
 func effectiveConfig(cfg sdk.Config) sdk.Config {
 	if cfg != nil {
