@@ -78,17 +78,17 @@ Handle macOS-specific path quirks: NFD Unicode normalization, curly quotes, and 
 ### Task 5: Read — Read-before-edit tracking (bus events)
 Track which files have been read so the edit tool can enforce read-before-edit.
 
-- [ ] Add `tool.read.done` bus event in read tool — payload: `{Path, ModTime}` published after successful read
-- [ ] Create `internal/filetracker/tracker.go` with in-memory `FileTracker` type
+- [x] Add `tool.read.done` bus event in read tool — payload: `{Path, ModTime}` published after successful read
+- [x] Create `internal/filetracker/tracker.go` with in-memory `FileTracker` type
   - `RecordRead(path string, modTime time.Time)`
   - `WasRead(path string) bool`
   - `GetReadTime(path string) (time.Time, bool)`
   - Thread-safe via `sync.RWMutex`
-- [ ] FileTracker subscribes to `tool.read.done` events and records path + mod time
-- [ ] Expose FileTracker through SDK or pass to edit tool via config/context
-- [ ] Write tests for FileTracker: record, query, concurrent access
-- [ ] Write tests for read tool: verify event published on successful read
-- [ ] Run `cd extensions/tools/read && go test ./...`
+- [x] FileTracker subscribes to `tool.read.done` events and records path + mod time
+- [x] Expose FileTracker through SDK or pass to edit tool via config/context
+- [x] Write tests for FileTracker: record, query, concurrent access
+- [x] Write tests for read tool: verify event published on successful read
+- [x] Run `cd extensions/tools/read && go test ./...`
 
 ### Task 6: Edit — Read-before-edit enforcement
 Edit tool checks FileTracker before applying edits. Rejects if file not read or modified since read.

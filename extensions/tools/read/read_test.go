@@ -5,8 +5,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
+	"weave/bus"
 	"weave/sdk"
 
 	"github.com/stretchr/testify/assert"
@@ -299,6 +301,97 @@ func TestExecuteNormalizedPath(t *testing.T) {
 		assert.True(t, result.IsError)
 		assert.Contains(t, result.Content, "error:")
 	})
+}
+
+func TestExecutePublishesReadDoneEvent(t *testing.T) {
+	tool := &tool{}
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "event.txt")
+	require.NoError(t, os.WriteFile(path, []byte("hello world"), 0o644))
+
+	b := bus.New()
+
+	var captured struct {
+		sync.Mutex
+		event sdk.Event
+		got   bool
+	}
+
+	b.On("tool.read.done", func(e sdk.Event) error {
+		captured.Lock()
+		defer captured.Unlock()
+
+		captured.event = e
+		captured.got = true
+
+		return nil
+	})
+
+	ctx := sdk.WithBus(context.Background(), b)
+	result, err := tool.Execute(ctx, map[string]any{"path": path})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	// Close waits for handlers to finish processing
+	require.NoError(t, b.Close())
+
+	captured.Lock()
+	defer captured.Unlock()
+
+	assert.True(t, captured.got, "expected tool.read.done event to be published")
+	assert.Equal(t, "tool.read.done", captured.event.Topic)
+
+	payload, ok := captured.event.Payload.(sdk.ReadDonePayload)
+	require.True(t, ok, "expected payload to be ReadDonePayload")
+	assert.Equal(t, path, payload.Path)
+	assert.False(t, payload.ModTime.IsZero())
+}
+
+func TestExecuteNoEventOnError(t *testing.T) {
+	tool := &tool{}
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "nonexistent.txt")
+
+	b := bus.New()
+
+	var captured struct {
+		sync.Mutex
+		got bool
+	}
+
+	b.On("tool.read.done", func(e sdk.Event) error {
+		captured.Lock()
+		defer captured.Unlock()
+
+		captured.got = true
+
+		return nil
+	})
+
+	ctx := sdk.WithBus(context.Background(), b)
+	result, err := tool.Execute(ctx, map[string]any{"path": path})
+	require.NoError(t, err)
+	assert.True(t, result.IsError)
+
+	require.NoError(t, b.Close())
+
+	captured.Lock()
+	defer captured.Unlock()
+
+	assert.False(t, captured.got, "expected no tool.read.done event on error")
+}
+
+func TestExecuteNoEventWithoutBus(t *testing.T) {
+	tool := &tool{}
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "nobus.txt")
+	require.NoError(t, os.WriteFile(path, []byte("content"), 0o644))
+
+	// No bus in context — should not panic
+	result, err := tool.Execute(context.Background(), map[string]any{"path": path})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+	assert.Contains(t, result.Content, "content")
 }
 
 type testSandboxer struct {

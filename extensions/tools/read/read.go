@@ -108,7 +108,7 @@ func parsePagination(args map[string]any) (offset, limit int) {
 	return offset, limit
 }
 
-func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, error) {
+func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult, error) {
 	path, _ := args[ParamPath].(string)
 	if path == "" {
 		return sdk.ToolResult{Content: "error: path is required", IsError: true}, nil
@@ -147,20 +147,40 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 
 	reader := bufio.NewReader(f)
 
+	lines, err := readLines(reader, offset, limit)
+	if err != nil {
+		return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
+	}
+
+	content := strings.Join(lines, "\n")
+	result := truncate.Truncate(content, truncate.DefaultMaxLines, truncate.DefaultMaxBytes)
+
+	if bus := sdk.BusFromContext(ctx); bus != nil {
+		bus.Publish(sdk.NewEvent("tool.read.done", sdk.ReadDonePayload{
+			Path:    path,
+			ModTime: info.ModTime(),
+		}))
+	}
+
+	return sdk.ToolResult{Content: result.Format(), IsError: false}, nil
+}
+
+// readLines reads formatted lines from r with the given offset and limit.
+func readLines(r *bufio.Reader, offset, limit int) ([]string, error) {
 	var lines []string
 
 	lineNum := 0
 	collected := 0
 
 	for {
-		line, lineTruncated, readErr := readLine(reader, maxLineContentBytes)
+		line, lineTruncated, readErr := readLine(r, maxLineContentBytes)
 
 		if errors.Is(readErr, io.EOF) && line == "" {
 			break
 		}
 
 		if readErr != nil && !errors.Is(readErr, io.EOF) {
-			return sdk.ToolResult{Content: fmt.Sprintf("error: %s", readErr), IsError: true}, nil
+			return nil, readErr
 		}
 
 		lineNum++
@@ -183,8 +203,5 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		}
 	}
 
-	content := strings.Join(lines, "\n")
-	result := truncate.Truncate(content, truncate.DefaultMaxLines, truncate.DefaultMaxBytes)
-
-	return sdk.ToolResult{Content: result.Format(), IsError: false}, nil
+	return lines, nil
 }
