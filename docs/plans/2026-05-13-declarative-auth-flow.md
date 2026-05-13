@@ -62,10 +62,10 @@ Replace imperative API key resolution (`cfg.ResolveKey`, `model.RegisterProvider
 
 ### Task 5: Clean up settings auth resolution code
 
-- [ ] Remove `ResolveKey`, `resolveProviderAPIKey`, `extractAPIKey` from `settings/config.go`
-- [ ] Delete `settings/resolve.go` entirely (or keep `ResolveValue` if used elsewhere)
-- [ ] Update `settings/config_test.go`, `settings/settings_config_test.go`
-- [ ] Run `go test ./settings/...` — must pass
+- [x] Remove `ResolveKey`, `resolveProviderAPIKey`, `extractAPIKey` from `settings/config.go`
+- [x] Delete `settings/resolve.go` entirely (or keep `ResolveValue` if used elsewhere)
+- [x] Update `settings/config_test.go`, `settings/settings_config_test.go`
+- [x] Run `go test ./settings/...` — must pass
 
 ### Task 6: Wire auth status during provider initialization
 

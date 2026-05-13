@@ -803,32 +803,6 @@ func TestExtensionConfig_ProvidersFallbackToProjectWhenNoLayered(t *testing.T) {
 	assert.Equal(t, "claude-project", pc.Model)
 }
 
-func TestResolveKey_UsesLayeredProviderConfig(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	globalDir := filepath.Join(home, ".weave")
-	require.NoError(t, os.MkdirAll(globalDir, 0o750))
-
-	projectDir := t.TempDir()
-	projectWeave := filepath.Join(projectDir, ".weave")
-	require.NoError(t, os.MkdirAll(projectWeave, 0o750))
-
-	writeJSON(t, filepath.Join(projectWeave, "settings.json"), &Settings{
-		Providers: map[string]any{
-			"test": map[string]any{"api_key": "project-key"},
-		},
-	})
-
-	cfg := &FullConfig{
-		filePath: filepath.Join(projectWeave, "settings.json"),
-		settings: mustLoadSettings(t, filepath.Join(projectWeave, "settings.json")),
-	}
-
-	got, err := cfg.ResolveKey("test", "UNSET_TEST_VAR")
-	require.NoError(t, err)
-	assert.Equal(t, "project-key", got)
-}
-
 func mustLoadSettings(t *testing.T, path string) *Settings {
 	t.Helper()
 

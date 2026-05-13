@@ -389,43 +389,6 @@ func (c *FullConfig) effectiveProjectDir() string {
 	return ProjectDirFromConfig(c.filePath)
 }
 
-func (c *FullConfig) ResolveKey(providerName, envVar string) (string, error) {
-	apiKey := c.resolveProviderAPIKey(providerName)
-
-	return ResolveProviderKey(providerName, envVar, apiKey)
-}
-
-func (c *FullConfig) resolveProviderAPIKey(providerName string) string {
-	layered, err := c.getLayeredSettings()
-	if err == nil {
-		if key := extractAPIKey(layered.Providers, providerName); key != "" {
-			return key
-		}
-	}
-
-	return extractAPIKey(c.settings.Providers, providerName)
-}
-
-func extractAPIKey(providers map[string]any, name string) string {
-	if providers == nil {
-		return ""
-	}
-
-	raw, ok := providers[name]
-	if !ok {
-		return ""
-	}
-
-	m, ok := raw.(map[string]any)
-	if !ok {
-		return ""
-	}
-
-	key, _ := m["api_key"].(string)
-
-	return key
-}
-
 // ProjectDirFromConfig returns the project root directory for a config file path.
 // If the config file is inside .weave/ (e.g. .weave/settings.json), returns the
 // parent directory so that layered settings look in the right place.
