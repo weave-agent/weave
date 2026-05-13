@@ -169,7 +169,10 @@ func (s *Sandbox) resolvePending(ev sdk.Event, approved bool) error {
 			s.pending = append(s.pending[:i], s.pending[i+1:]...)
 			s.mu.Unlock()
 
-			p.result <- approved
+			select {
+			case p.result <- approved:
+			default:
+			}
 
 			return nil
 		}

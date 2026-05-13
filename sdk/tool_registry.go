@@ -27,7 +27,7 @@ func RegisterTool[T any](name string, factory func(Config, T) (Tool, error)) {
 	wrapper := func(cfg Config) (Tool, error) {
 		var t T
 
-		envPrefix := "WEAVE_" + strings.ToUpper(name)
+		envPrefix := "WEAVE_" + strings.ReplaceAll(strings.ToUpper(name), "-", "_")
 		if err := cfg.ExtensionConfig("tools", name, &t, envPrefix); err != nil {
 			return nil, fmt.Errorf("load tool config: %w", err)
 		}
