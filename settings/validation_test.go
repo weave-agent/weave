@@ -10,7 +10,7 @@ import (
 func validSettings() *Settings {
 	return &Settings{
 		UIExtension: "tui",
-		AgentLoop:   "loop",
+		AgentLoop:   "agent",
 	}
 }
 

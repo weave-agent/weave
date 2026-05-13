@@ -507,7 +507,9 @@ func TestAgent_ErrorAbort(t *testing.T) {
 
 	endEvt, ok := waitForTopic(allCh, TopicEnd, 2*time.Second)
 	require.True(t, ok, "timeout waiting for end")
-	assert.NotNil(t, endEvt.Payload)
+	payload, ok := endEvt.Payload.(string)
+	require.True(t, ok, "end payload should be string, got %T", endEvt.Payload)
+	assert.Contains(t, payload, "stream error:")
 }
 
 func TestAgent_ProviderErrorOnStartup(t *testing.T) {
@@ -524,7 +526,9 @@ func TestAgent_ProviderErrorOnStartup(t *testing.T) {
 
 	endEvts := collectTopic(allCh, TopicEnd, 2*time.Second)
 	require.Len(t, endEvts, 1)
-	assert.NotNil(t, endEvts[0].Payload)
+	payload, ok := endEvts[0].Payload.(string)
+	require.True(t, ok, "end payload should be string, got %T", endEvts[0].Payload)
+	assert.Contains(t, payload, "No providers configured")
 }
 
 func TestAgent_ContextCancellation(t *testing.T) {
