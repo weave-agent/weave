@@ -17,22 +17,22 @@ type Config interface {
 // NoopConfig is a nil-safe Config implementation that returns empty/zero values.
 type NoopConfig struct{}
 
-func (NoopConfig) FilePath() string                                      { return "" }
-func (NoopConfig) ProjectDir() string                                    { return "" }
-func (NoopConfig) ExtensionConfig(_, _ string, _ any, _ string) error    { return nil }
-func (NoopConfig) IsHeadless() bool                                      { return true }
-func (NoopConfig) Preferences(any) error                                 { return nil }
-func (NoopConfig) SavePreferences(any) error                             { return nil }
-func (NoopConfig) SaveProviderKey(_, _ string) error                     { return nil }
-func (NoopConfig) RespectGitignore() bool                                { return true }
+func (NoopConfig) FilePath() string                                   { return "" }
+func (NoopConfig) ProjectDir() string                                 { return "" }
+func (NoopConfig) ExtensionConfig(_, _ string, _ any, _ string) error { return nil }
+func (NoopConfig) IsHeadless() bool                                   { return true }
+func (NoopConfig) Preferences(any) error                              { return nil }
+func (NoopConfig) SavePreferences(any) error                          { return nil }
+func (NoopConfig) SaveProviderKey(_, _ string) error                  { return nil }
+func (NoopConfig) RespectGitignore() bool                             { return true }
 
 type noopConfig = NoopConfig
 
 // FilePathConfig is a Config that returns the given path from FilePath().
 type FilePathConfig string
 
-func (f FilePathConfig) FilePath() string                                  { return string(f) }
-func (f FilePathConfig) ProjectDir() string                                { return "" }
+func (f FilePathConfig) FilePath() string                                   { return string(f) }
+func (f FilePathConfig) ProjectDir() string                                 { return "" }
 func (f FilePathConfig) ExtensionConfig(_, _ string, _ any, _ string) error { return nil }
 func (f FilePathConfig) IsHeadless() bool                                   { return true }
 func (f FilePathConfig) Preferences(any) error                              { return nil }

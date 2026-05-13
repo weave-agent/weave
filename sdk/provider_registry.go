@@ -23,7 +23,7 @@ var providerReg = registry.New[providerEntry](
 // The framework will automatically populate the config struct from settings, env vars,
 // and CLI flags before calling the factory. Auth is loaded from ~/.weave/auth.json
 // and environment variables defined by the auth struct's env tags.
-func RegisterProvider[TConfig any, TAuth any](name string, factory func(Config, TConfig, TAuth) (Provider, error)) {
+func RegisterProvider[TConfig, TAuth any](name string, factory func(Config, TConfig, TAuth) (Provider, error)) {
 	var zeroConfig TConfig
 
 	schema := extractSchema(reflect.TypeOf(zeroConfig))
@@ -64,8 +64,9 @@ func makeAuthChecker[TAuth any](name string) func(Config) (bool, error) {
 			return false, nil
 		}
 
-		for i := 0; i < t.NumField(); i++ {
-			field := t.Field(i)
+		for field := range t.Fields() {
+			field := field
+
 			envTag := field.Tag.Get("env")
 			if envTag != "" && os.Getenv(envTag) != "" {
 				return true, nil

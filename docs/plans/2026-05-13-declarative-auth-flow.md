@@ -48,9 +48,9 @@ Replace imperative API key resolution (`cfg.ResolveKey`, `model.RegisterProvider
 
 ### Task 3: Add auth tracking to model registry
 
-- [ ] Add `SetProviderAuth` / `ProviderHasAuth` / `ListAvailableModels` to `sdk/model/registry.go`
-- [ ] Write tests for auth tracking functions
-- [ ] Run `go test ./sdk/model/...` — must pass
+- [x] Add `SetProviderAuth` / `ProviderHasAuth` / `ListAvailableModels` to `sdk/model/registry.go`
+- [x] Write tests for auth tracking functions
+- [x] Run `go test ./sdk/model/...` — must pass
 
 ### Task 4: Create auth loading module
 
