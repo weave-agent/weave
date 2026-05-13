@@ -34,20 +34,13 @@ type provider struct {
 }
 
 func init() {
-	model.RegisterProviderEnvVar("kimi", "KIMI_API_KEY")
-
-	sdk.RegisterProvider[KimiConfig, struct{}]("kimi", func(cfg sdk.Config, kc KimiConfig, _ struct{}) (sdk.Provider, error) {
-		apiKey, err := cfg.ResolveKey("kimi", "KIMI_API_KEY")
-		if err != nil {
-			return nil, fmt.Errorf("kimi: %w", err)
-		}
-
-		if apiKey == "" {
-			return nil, errors.New("kimi: API key required (set KIMI_API_KEY, add to ~/.weave/auth.json, or configure in .weave/settings.json)")
+	sdk.RegisterProvider[KimiConfig, AuthConfig]("kimi", func(cfg sdk.Config, kc KimiConfig, a AuthConfig) (sdk.Provider, error) {
+		if a.APIKey == "" {
+			return nil, errors.New("kimi: API key required (set KIMI_API_KEY or add to ~/.weave/auth.json)")
 		}
 
 		client := anthropic.NewClient(
-			option.WithAPIKey(apiKey),
+			option.WithAPIKey(a.APIKey),
 			option.WithBaseURL(kc.BaseURL),
 			option.WithHeader("User-Agent", "weave/0.1.0"),
 		)

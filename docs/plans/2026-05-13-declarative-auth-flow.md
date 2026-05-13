@@ -91,11 +91,11 @@ Replace imperative API key resolution (`cfg.ResolveKey`, `model.RegisterProvider
 
 ### Task 9: Migrate Kimi provider
 
-- [ ] Create `extensions/providers/kimi/auth.go` with `KimiAuth` struct
-- [ ] Update `extensions/providers/kimi/kimi.go` to use `RegisterProvider[KimiConfig, KimiAuth]`
-- [ ] Remove `model.RegisterProviderEnvVar` and `cfg.ResolveKey` calls
-- [ ] Update provider tests
-- [ ] Run `cd extensions/providers/kimi && go test ./...` — must pass
+- [x] Create `extensions/providers/kimi/auth.go` with `KimiAuth` struct
+- [x] Update `extensions/providers/kimi/kimi.go` to use `RegisterProvider[KimiConfig, KimiAuth]`
+- [x] Remove `model.RegisterProviderEnvVar` and `cfg.ResolveKey` calls
+- [x] Update provider tests
+- [x] Run `cd extensions/providers/kimi && go test ./...` — must pass
 
 ### Task 10: Migrate Z.ai provider
 
