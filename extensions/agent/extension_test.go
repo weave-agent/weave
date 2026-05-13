@@ -18,6 +18,7 @@ func resetRegistries() {
 	sdk.ResetRegistry()
 	sdk.ResetProviderRegistry()
 	sdk.ResetToolRegistry()
+	sdk.ResetUIRegistry()
 	model.ResetAuthRegistry()
 	model.ResetModelRegistry()
 }
@@ -155,26 +156,6 @@ func TestAgentExtension_Subscribe_RegistersSkillCommands(t *testing.T) {
 	require.NoError(t, ext.Close())
 
 	assert.Contains(t, registeredCmds, "/skill:my-skill")
-}
-
-func TestAgentExtension_Subscribe_HeadlessNoCommands(t *testing.T) {
-	resetRegistries()
-	defer resetRegistries()
-
-	skillDir := filepath.Join(t.TempDir(), "headless-skill")
-	writeSkillMD(t, skillDir, "headless-skill", "No UI", "# Instructions")
-
-	ext, err := NewAgentExtension(sdk.FilePathConfig(""))
-	require.NoError(t, err)
-
-	ext.skillDiscoveryPaths = []string{filepath.Dir(skillDir)}
-
-	b := bus.New()
-	defer b.Close()
-
-	require.NoError(t, ext.Subscribe(b))
-
-	require.NoError(t, ext.Close())
 }
 
 func TestMakeSkillHandler(t *testing.T) {

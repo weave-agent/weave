@@ -156,7 +156,7 @@ func mergeCoreAndOptional(agentLoop string, optExts []string) []string {
 			continue
 		}
 
-		// When using a custom agent loop, skip the default "loop" to prevent
+		// When using a custom agent loop, skip the default "agent" to prevent
 		// concurrent turn execution.
 		if name == defaultAgentLoop && agentLoop != defaultAgentLoop {
 			continue

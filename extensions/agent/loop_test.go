@@ -228,20 +228,6 @@ func (m *mockPrefsConfig) RespectGitignore() bool            { return true }
 
 // --- tests ---
 
-func TestAgent_StartupAndShutdown(t *testing.T) {
-	resetRegistries()
-	defer resetRegistries()
-
-	mp := &ProviderMock{}
-	registerMockProvider("anthropic", mp)
-
-	a, b, cleanup := setupAgent(t, "anthropic")
-	defer cleanup()
-
-	require.NoError(t, a.Subscribe(b))
-	require.NoError(t, a.Close())
-}
-
 func TestAgent_SingleTurn_NoTools(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()

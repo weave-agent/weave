@@ -160,27 +160,3 @@ func (pb *promptBuilder) buildContextSection(files []contextFile) string {
 
 	return strings.TrimSpace(b.String())
 }
-
-// formatInstructionsPrompt assembles system prompt components in order:
-// system base, context files, system append.
-func (pb *promptBuilder) formatInstructionsPrompt(files []contextFile, systemBase, systemAppend string) string {
-	var b strings.Builder
-
-	if systemBase != "" {
-		b.WriteString(strings.TrimSpace(systemBase))
-		b.WriteString("\n\n")
-	}
-
-	contextSection := pb.buildContextSection(files)
-	if contextSection != "" {
-		b.WriteString(contextSection)
-		b.WriteString("\n\n")
-	}
-
-	if systemAppend != "" {
-		b.WriteString(strings.TrimSpace(systemAppend))
-		b.WriteString("\n")
-	}
-
-	return strings.TrimSpace(b.String())
-}
