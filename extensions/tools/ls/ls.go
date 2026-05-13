@@ -204,10 +204,7 @@ func (t *tool) executeTree(absPath string, maxDepth, limit int, sb sdk.Sandboxer
 }
 
 func buildTreeEntries(dir string, currentDepth, maxDepth int, sb sdk.Sandboxer, ignorePatterns []string) ([]treeEntry, int, error) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, 0, fmt.Errorf("read dir %s: %w", dir, err)
-	}
+	entries, _ := os.ReadDir(dir)
 
 	var result []treeEntry
 

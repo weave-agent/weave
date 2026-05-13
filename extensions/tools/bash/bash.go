@@ -246,8 +246,6 @@ func (t *tool) checkJob(jobID string) sdk.ToolResult {
 	status := "running"
 	if job.IsDone() {
 		status = "completed"
-
-		t.bgMgr.Remove(jobID)
 	}
 
 	content := fmt.Sprintf("Job %s (%s)\nStatus: %s\n\n%s", jobID, job.Command, status, result.Content)
@@ -400,7 +398,7 @@ func collectStream(
 				if bus != nil {
 					bus.Publish(sdk.NewEvent("tool.bash.output", BashOutputPayload{
 						Command: command,
-						Line:    string(before),
+						Line:    strings.TrimSuffix(string(before), "\r"),
 						Stream:  stream,
 					}))
 				}
@@ -419,7 +417,7 @@ func collectStream(
 		if bus != nil {
 			bus.Publish(sdk.NewEvent("tool.bash.output", BashOutputPayload{
 				Command: command,
-				Line:    lineBuf.String(),
+				Line:    strings.TrimSuffix(lineBuf.String(), "\r"),
 				Stream:  stream,
 			}))
 		}

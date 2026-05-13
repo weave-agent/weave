@@ -250,7 +250,7 @@ func (j *BackgroundJob) collectStream(r io.Reader, stream string, bus sdk.Bus, w
 				if bus != nil {
 					bus.Publish(sdk.NewEvent("tool.bash.output", BashOutputPayload{
 						Command: j.Command,
-						Line:    string(before),
+						Line:    strings.TrimSuffix(string(before), "\r"),
 						Stream:  stream,
 					}))
 				}
@@ -269,7 +269,7 @@ func (j *BackgroundJob) collectStream(r io.Reader, stream string, bus sdk.Bus, w
 		if bus != nil {
 			bus.Publish(sdk.NewEvent("tool.bash.output", BashOutputPayload{
 				Command: j.Command,
-				Line:    lineBuf.String(),
+				Line:    strings.TrimSuffix(lineBuf.String(), "\r"),
 				Stream:  stream,
 			}))
 		}
