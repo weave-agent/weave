@@ -7,6 +7,7 @@ import (
 
 	"weave/bus"
 	"weave/sdk"
+	"weave/sdk/model"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,6 +17,8 @@ func resetRegistries() {
 	sdk.ResetRegistry()
 	sdk.ResetProviderRegistry()
 	sdk.ResetToolRegistry()
+	model.ResetAuthRegistry()
+	model.ResetModelRegistry()
 }
 
 func TestNewAgentExtension(t *testing.T) {

@@ -116,15 +116,15 @@ Merge three separate extensions (`loop`, `skills`, `instructions`) into a single
 
 ### Task 5: Port turn loop (from loop extension)
 
-- [ ] Port `loop.go` to `extensions/agent/loop.go`
-- [ ] Remove `skills.loaded` and `instructions.loaded` channel handling
-- [ ] Loop calls `promptBuilder.Build()` directly for system prompt
-- [ ] Keep all turn logic: prompt/steer/followup/interrupt handling
-- [ ] Keep tool execution via `executeTool`
-- [ ] Keep streaming and event publishing
-- [ ] Port `stream.go` and `execute.go` helpers
-- [ ] Write tests for loop behavior (same coverage as current loop tests)
-- [ ] Run tests — must pass before next task
+- [x] Port `loop.go` to `extensions/agent/loop.go`
+- [x] Remove `skills.loaded` and `instructions.loaded` channel handling
+- [x] Loop calls `promptBuilder.Build()` directly for system prompt
+- [x] Keep all turn logic: prompt/steer/followup/interrupt handling
+- [x] Keep tool execution via `executeTool`
+- [x] Keep streaming and event publishing
+- [x] Port `stream.go` and `execute.go` helpers
+- [x] Write tests for loop behavior (same coverage as current loop tests)
+- [x] Run tests — must pass before next task
 
 ### Task 6: Register slash commands for skills
 

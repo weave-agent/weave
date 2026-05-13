@@ -8,12 +8,19 @@ import (
 	"sync"
 
 	"weave/sdk"
+	"weave/sdk/model"
+	"weave/settings"
 )
 
 // AgentExtension owns the entire conversation lifecycle:
 // prompt assembly, turn loop, tool execution, skill discovery, and context file loading.
 type AgentExtension struct {
-	cfg    sdk.Config
+	cfg           sdk.Config
+	providerName  string
+	modelName     string
+	singleTurn    bool
+	thinkingLevel model.ThinkingLevel
+
 	mu     sync.Mutex
 	cancel context.CancelFunc
 	done   chan struct{}
@@ -26,25 +33,82 @@ func init() {
 }
 
 func NewAgentExtension(cfg sdk.Config) (*AgentExtension, error) {
-	return &AgentExtension{cfg: cfg}, nil
+	provider := resolveProviderName(os.Getenv("WEAVE_PROVIDER"), cfg)
+
+	modelName := resolveModelName(cfg)
+	if modelName != "" {
+		if m, ok := model.GetModel(modelName); ok && m.Provider != provider {
+			modelName = ""
+		}
+	}
+
+	return &AgentExtension{
+		cfg:           cfg,
+		providerName:  provider,
+		modelName:     modelName,
+		singleTurn:    os.Getenv("WEAVE_SINGLE_TURN") == "1",
+		thinkingLevel: resolveThinkingLevel(cfg),
+	}, nil
 }
 
 func (a *AgentExtension) Name() string { return "agent" }
 
 func (a *AgentExtension) Subscribe(bus sdk.Bus) error {
 	a.mu.Lock()
-	defer a.mu.Unlock()
-
 	if a.cancel != nil {
+		a.mu.Unlock()
 		return errors.New("agent: Subscribe called twice without Close")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
+	promptCh := make(chan sdk.Event, 64)
+	steerCh := make(chan sdk.Event, 64)
+	followupCh := make(chan sdk.Event, 64)
+	interruptCh := make(chan sdk.Event, 64)
+	modelChangeCh := make(chan sdk.Event, 64)
+	thinkingCh := make(chan sdk.Event, 64)
+
+	bus.OnAll(func(ev sdk.Event) error {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+		}
+
+		var ch chan sdk.Event
+
+		switch ev.Topic {
+		case TopicPrompt:
+			ch = promptCh
+		case TopicSteer:
+			ch = steerCh
+		case TopicFollowup:
+			ch = followupCh
+		case TopicInterrupt:
+			ch = interruptCh
+		case TopicModelChange:
+			ch = modelChangeCh
+		case TopicThinkingChange:
+			ch = thinkingCh
+		}
+
+		if ch != nil {
+			select {
+			case ch <- ev:
+			case <-ctx.Done():
+			}
+		}
+
+		return nil
+	})
+
 	a.cancel = cancel
 	a.done = make(chan struct{})
 
-	go a.run(ctx, bus)
+	go a.run(ctx, bus, promptCh, steerCh, followupCh, interruptCh, modelChangeCh, thinkingCh)
+
+	a.mu.Unlock()
 
 	return nil
 }
@@ -67,17 +131,13 @@ func (a *AgentExtension) Close() error {
 	return nil
 }
 
-func (a *AgentExtension) run(ctx context.Context, bus sdk.Bus) {
-	defer close(a.done)
-
-	// TODO: port turn loop, skill discovery, and context loading in later tasks.
-	_ = ctx
-	_ = bus
-}
-
 // projectDir returns the project directory from config, or derives it from the
 // config file path.
 func (a *AgentExtension) projectDir() string {
+	if a.cfg == nil {
+		return ""
+	}
+
 	if pd := a.cfg.ProjectDir(); pd != "" {
 		return pd
 	}
@@ -103,4 +163,65 @@ func globalConfigDir() string {
 	}
 
 	return filepath.Join(home, ".weave")
+}
+
+// resolveProviderName picks the initial provider using priority:
+//  1. WEAVE_PROVIDER env var (explicit user override)
+//  2. settings.json "provider" field (persisted user preference)
+//  3. alphabetically first registered provider (sdk.ListProviders()[0])
+//  4. "anthropic" (ultimate fallback)
+func resolveProviderName(envProvider string, cfg sdk.Config) string {
+	if envProvider != "" {
+		return envProvider
+	}
+
+	var prefs struct {
+		Provider string `json:"provider"`
+	}
+
+	if cfg != nil && cfg.Preferences(&prefs) == nil && prefs.Provider != "" {
+		return prefs.Provider
+	}
+
+	if providers := sdk.ListProviders(); len(providers) > 0 {
+		return providers[0]
+	}
+
+	return "anthropic"
+}
+
+// resolveModelName reads the persisted model from settings. Returns empty
+// string when no model is set, which lets the provider use its default.
+func resolveModelName(cfg sdk.Config) string {
+	if cfg == nil {
+		return ""
+	}
+
+	var prefs struct {
+		Model string `json:"model,omitempty"`
+	}
+
+	if cfg.Preferences(&prefs) == nil {
+		return prefs.Model
+	}
+
+	return ""
+}
+
+// resolveThinkingLevel reads the persisted thinking level from settings,
+// falling back to WEAVE_THINKING_LEVEL env var, then medium.
+func resolveThinkingLevel(cfg sdk.Config) model.ThinkingLevel {
+	if cfg != nil {
+		var prefs struct {
+			ThinkingLevel string `json:"thinking_level,omitempty"`
+		}
+
+		if cfg.Preferences(&prefs) == nil && prefs.ThinkingLevel != "" {
+			if lvl, err := model.ParseThinkingLevel(prefs.ThinkingLevel); err == nil {
+				return lvl
+			}
+		}
+	}
+
+	return settings.DefaultThinkingLevel()
 }

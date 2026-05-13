@@ -1,0 +1,1665 @@
+package agent
+
+import (
+	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"weave/bus"
+	"weave/sdk"
+	"weave/sdk/model"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// --- test helpers ---
+
+type providerResponse struct {
+	textDeltas     []string
+	thinkingDeltas []string
+	toolCalls      []sdk.ToolCall
+	err            error
+}
+
+func newMockProvider(responses []providerResponse) *ProviderMock {
+	var mu sync.Mutex
+
+	callCount := 0
+
+	return &ProviderMock{
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, _ ...model.StreamOption) (<-chan sdk.ProviderEvent, error,
+		) {
+			mu.Lock()
+			idx := callCount
+			callCount++
+			mu.Unlock()
+
+			if idx >= len(responses) {
+				ch := make(chan sdk.ProviderEvent)
+				close(ch)
+
+				return ch, nil
+			}
+
+			resp := responses[idx]
+			if resp.err != nil {
+				return nil, resp.err
+			}
+
+			bufSize := len(resp.textDeltas) + len(resp.thinkingDeltas) + len(resp.toolCalls) + 1
+			ch := make(chan sdk.ProviderEvent, bufSize)
+
+			go func() {
+				defer close(ch)
+
+				for _, delta := range resp.thinkingDeltas {
+					select {
+					case ch <- sdk.ProviderEvent{Type: sdk.ProviderEventThinking, Content: delta}:
+					case <-ctx.Done():
+						return
+					}
+				}
+
+				for _, delta := range resp.textDeltas {
+					select {
+					case ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: delta}:
+					case <-ctx.Done():
+						return
+					}
+				}
+
+				for _, tc := range resp.toolCalls {
+					select {
+					case ch <- sdk.ProviderEvent{Type: sdk.ProviderEventToolCall, Content: tc}:
+					case <-ctx.Done():
+						return
+					}
+				}
+			}()
+
+			return ch, nil
+		},
+	}
+}
+
+func newMockTool(name string, def sdk.ToolDef, executeFunc func(ctx context.Context, args map[string]any) (sdk.ToolResult, error)) *ToolMock {
+	mt := &ToolMock{
+		NameFunc:       func() string { return name },
+		DefinitionFunc: func() sdk.ToolDef { return def },
+	}
+	if executeFunc != nil {
+		mt.ExecuteFunc = executeFunc
+	}
+
+	return mt
+}
+
+func setupAgent(t *testing.T, providerName string) (*AgentExtension, *bus.Bus, func()) {
+	t.Helper()
+
+	a, err := NewAgentExtension(nil)
+	require.NoError(t, err, "NewAgentExtension")
+
+	a.providerName = providerName
+
+	b := bus.New()
+
+	return a, b, func() {
+		_ = b.Close()
+	}
+}
+
+func registerMockProvider(_ string, mp *ProviderMock) {
+	sdk.RegisterProvider[struct{}, struct{}]("anthropic", func(sdk.Config, struct{}, struct{}) (sdk.Provider, error) {
+		return mp, nil
+	})
+}
+
+func registerMockTool(mt *ToolMock) {
+	sdk.RegisterTool[struct{}](mt.NameFunc(), func(sdk.Config, struct{}) (sdk.Tool, error) {
+		return mt, nil
+	})
+}
+
+// subscribeAllToChan creates an internal channel and registers an OnAll handler
+// that forwards all bus events to it. Returns the channel for reading.
+func subscribeAllToChan(b *bus.Bus) <-chan sdk.Event {
+	ch := make(chan sdk.Event, 256)
+
+	b.OnAll(func(ev sdk.Event) error {
+		select {
+		case ch <- ev:
+		default:
+		}
+
+		return nil
+	})
+
+	return ch
+}
+
+func waitForTopic(events <-chan sdk.Event, topic string, timeout time.Duration) (sdk.Event, bool) {
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	for {
+		select {
+		case evt, ok := <-events:
+			if !ok {
+				return sdk.Event{}, false
+			}
+
+			if evt.Topic == topic {
+				return evt, true
+			}
+		case <-timer.C:
+			return sdk.Event{}, false
+		}
+	}
+}
+
+func collectTopic(events <-chan sdk.Event, topic string, timeout time.Duration) []sdk.Event {
+	var result []sdk.Event
+
+	deadline := time.After(timeout)
+
+	for {
+		select {
+		case evt, ok := <-events:
+			if !ok {
+				return result
+			}
+
+			if evt.Topic == topic {
+				result = append(result, evt)
+			}
+		case <-deadline:
+			return result
+		}
+	}
+}
+
+// mockPrefsConfig is a lightweight sdk.Config that returns a fixed provider from Preferences.
+type mockPrefsConfig struct {
+	sdk.Config
+	provider      string
+	model         string
+	thinkingLevel string
+	prefsErr      error
+}
+
+func (m *mockPrefsConfig) FilePath() string                                   { return "" }
+func (m *mockPrefsConfig) ProjectDir() string                                 { return "" }
+func (m *mockPrefsConfig) ExtensionConfig(_, _ string, _ any, _ string) error { return nil }
+func (m *mockPrefsConfig) IsHeadless() bool                                   { return true }
+
+func (m *mockPrefsConfig) Preferences(target any) error {
+	if m.prefsErr != nil {
+		return m.prefsErr
+	}
+
+	type prefs struct {
+		Provider      string `json:"provider,omitempty"`
+		Model         string `json:"model,omitempty"`
+		ThinkingLevel string `json:"thinking_level,omitempty"`
+	}
+
+	p := prefs{
+		Provider:      m.provider,
+		Model:         m.model,
+		ThinkingLevel: m.thinkingLevel,
+	}
+
+	raw, _ := json.Marshal(p)
+	_ = json.Unmarshal(raw, target)
+
+	return nil
+}
+
+func (m *mockPrefsConfig) SavePreferences(any) error         { return nil }
+func (m *mockPrefsConfig) SaveProviderKey(_, _ string) error { return nil }
+func (m *mockPrefsConfig) RespectGitignore() bool            { return true }
+
+// --- tests ---
+
+func TestAgent_StartupAndShutdown(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mp := &ProviderMock{}
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	require.NoError(t, a.Subscribe(b))
+	require.NoError(t, a.Close())
+}
+
+func TestAgent_SingleTurn_NoTools(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mp := newMockProvider([]providerResponse{
+		{textDeltas: []string{"hello", " world"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "test prompt"))
+
+	turnStart, found := waitForTopic(allCh, TopicTurnStart, 2*time.Second)
+	require.True(t, found, "timeout waiting for turn_start")
+
+	count, ok := turnStart.Payload.(int)
+	require.True(t, ok, "turn_start payload type = %T", turnStart.Payload)
+	assert.Equal(t, 1, count)
+
+	msgEnd, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for msg_end")
+	payload, ok := msgEnd.Payload.(map[string]any)
+	require.True(t, ok, "msg_end payload type = %T", msgEnd.Payload)
+	assert.Equal(t, "hello world", payload["content"])
+
+	_, ok = waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for turn_end")
+
+	require.NoError(t, a.Close())
+
+	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
+
+	calls := mp.StreamCalls()
+	require.Len(t, calls, 1)
+	assert.Len(t, calls[0].Req.Messages, 1)
+}
+
+func TestAgent_ToolCallCycle(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mt := newMockTool("bash", sdk.ToolDef{Name: "bash", Description: "run commands"}, nil)
+	registerMockTool(mt)
+
+	mp := newMockProvider([]providerResponse{
+		{
+			toolCalls: []sdk.ToolCall{
+				{ID: "tc1", Name: "bash", Arguments: map[string]any{"command": "echo hi"}},
+			},
+		},
+		{textDeltas: []string{"done"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "run echo"))
+
+	toolCallEvt, ok := waitForTopic(allCh, TopicToolCall, 2*time.Second)
+	require.True(t, ok, "timeout waiting for tool_call")
+
+	toolCallPayload, ok := toolCallEvt.Payload.(map[string]any)
+	require.True(t, ok, "tool_call payload type = %T", toolCallEvt.Payload)
+	assert.Equal(t, "bash", toolCallPayload["tool"])
+
+	toolResultEvt, ok := waitForTopic(allCh, TopicToolResult, 2*time.Second)
+	require.True(t, ok, "timeout waiting for tool_result")
+
+	payload, ok := toolResultEvt.Payload.(map[string]any)
+	require.True(t, ok, "tool_result payload type = %T", toolResultEvt.Payload)
+	assert.Equal(t, "bash", payload["tool"])
+
+	msgEnd, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for second msg_end")
+	msgEndPayload, ok := msgEnd.Payload.(map[string]any)
+	require.True(t, ok, "msg_end payload type = %T", msgEnd.Payload)
+	assert.Equal(t, "done", msgEndPayload["content"])
+
+	execCalls := mt.ExecuteCalls()
+	require.Len(t, execCalls, 1)
+	assert.Equal(t, "echo hi", execCalls[0].Args["command"])
+
+	assert.Len(t, mp.StreamCalls(), 2)
+}
+
+func TestAgent_SteeringInjection(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mp := newMockProvider([]providerResponse{
+		{textDeltas: []string{"first"}},
+		{textDeltas: []string{"steered"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "start"))
+	b.Publish(sdk.NewEvent(TopicSteer, "steer this"))
+
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for turn_end")
+
+	require.NoError(t, a.Close())
+
+	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
+
+	calls := mp.StreamCalls()
+	require.Len(t, calls, 1)
+	assert.Len(t, calls[0].Req.Messages, 2, "expected 2 messages (prompt + steering)")
+}
+
+func TestAgent_SteeringDuringTurn(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	streamingStarted := make(chan struct{})
+
+	responses := []providerResponse{
+		{textDeltas: []string{"first"}},
+		{textDeltas: []string{"steered"}},
+	}
+
+	mp := newMockProvider(responses)
+
+	originalStreamFunc := mp.StreamFunc
+	mp.StreamFunc = func(ctx context.Context, req sdk.ProviderRequest, _ ...model.StreamOption) (
+		<-chan sdk.ProviderEvent, error,
+	) {
+		callIdx := len(mp.StreamCalls()) - 1
+		if callIdx == 0 {
+			close(streamingStarted)
+			time.Sleep(100 * time.Millisecond)
+		}
+
+		return originalStreamFunc(ctx, req)
+	}
+
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "start"))
+
+	<-streamingStarted
+	b.Publish(sdk.NewEvent(TopicSteer, "steer during turn"))
+
+	for i := range 2 {
+		_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+		require.True(t, ok, "timeout waiting for turn_end %d", i+1)
+	}
+
+	require.NoError(t, a.Close())
+
+	_, ok := waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
+
+	assert.Len(t, mp.StreamCalls(), 2)
+}
+
+func TestAgent_FollowupReentry(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mp := newMockProvider([]providerResponse{
+		{textDeltas: []string{"first response"}},
+		{textDeltas: []string{"follow-up response"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	// Send initial prompt
+	b.Publish(sdk.NewEvent(TopicPrompt, "initial"))
+
+	// Wait for the first turn to complete (real-world timing: user reads response)
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for first turn_end")
+
+	// Send follow-up after the first turn completes (not before)
+	b.Publish(sdk.NewEvent(TopicFollowup, "follow up question"))
+
+	_, ok = waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for second turn_end")
+
+	require.NoError(t, a.Close())
+
+	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
+
+	assert.Len(t, mp.StreamCalls(), 2)
+}
+
+func TestAgent_PromptResetsConversation(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mp := newMockProvider([]providerResponse{
+		{textDeltas: []string{"first response"}},
+		{textDeltas: []string{"new conversation"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	// First conversation
+	b.Publish(sdk.NewEvent(TopicPrompt, "first prompt"))
+
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for first turn_end")
+
+	// Simulate /new: send a second agent.prompt to reset the conversation
+	b.Publish(sdk.NewEvent(TopicPrompt, "new prompt after /new"))
+
+	_, ok = waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for second turn_end")
+
+	require.NoError(t, a.Close())
+
+	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
+
+	calls := mp.StreamCalls()
+	require.Len(t, calls, 2)
+	// First call: 1 message (just the first prompt)
+	assert.Len(t, calls[0].Req.Messages, 1)
+	// Second call: 1 message (conversation was reset, only the new prompt)
+	assert.Len(t, calls[1].Req.Messages, 1)
+}
+
+func TestAgent_ErrorAbort(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mp := newMockProvider([]providerResponse{
+		{err: context.DeadlineExceeded},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "trigger error"))
+
+	_, ok := waitForTopic(allCh, TopicTurnStart, 2*time.Second)
+	require.True(t, ok, "timeout waiting for turn_start")
+
+	endEvt, ok := waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
+	assert.NotNil(t, endEvt.Payload)
+}
+
+func TestAgent_ProviderErrorOnStartup(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	a, b, cleanup := setupAgent(t, "nonexistent")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "test"))
+
+	endEvts := collectTopic(allCh, TopicEnd, 2*time.Second)
+	require.Len(t, endEvts, 1)
+	assert.NotNil(t, endEvts[0].Payload)
+}
+
+func TestAgent_ContextCancellation(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	blockCh := make(chan sdk.ProviderEvent)
+
+	registerMockProvider("anthropic", &ProviderMock{
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, _ ...model.StreamOption) (
+			<-chan sdk.ProviderEvent, error,
+		) {
+			ch := make(chan sdk.ProviderEvent)
+
+			go func() {
+				defer close(ch)
+
+				select {
+				case <-ctx.Done():
+				case blockCh <- sdk.ProviderEvent{}:
+				}
+			}()
+
+			return ch, nil
+		},
+	})
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "test"))
+
+	done := make(chan error, 1)
+
+	go func() { done <- a.Close() }()
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("Close hung — context cancellation did not unblock the loop")
+	}
+
+	_, ok := waitForTopic(allCh, TopicEnd, time.Second)
+	assert.True(t, ok, "expected TopicEnd after cancellation")
+}
+
+func TestAgent_MsgUpdateEvents(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mp := newMockProvider([]providerResponse{
+		{textDeltas: []string{"a", "b", "c"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "stream test"))
+
+	updates := collectTopic(allCh, TopicMsgUpdate, 2*time.Second)
+	require.Len(t, updates, 3)
+
+	expected := []string{"a", "b", "c"}
+	for i, u := range updates {
+		assert.Equal(t, expected[i], u.Payload)
+	}
+}
+
+func TestAgent_MissingToolError(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mp := newMockProvider([]providerResponse{
+		{
+			toolCalls: []sdk.ToolCall{
+				{ID: "tc1", Name: "nonexistent", Arguments: nil},
+			},
+		},
+		{textDeltas: []string{"recovered"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "call missing tool"))
+
+	toolResultEvt, ok := waitForTopic(allCh, TopicToolResult, 2*time.Second)
+	require.True(t, ok, "timeout waiting for tool_result")
+
+	payload := toolResultEvt.Payload.(map[string]any)
+	result := payload["result"].(sdk.ToolResult)
+	assert.True(t, result.IsError)
+
+	msgEnd, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for second msg_end")
+	msgEndPayload, ok := msgEnd.Payload.(map[string]any)
+	require.True(t, ok, "msg_end payload type = %T", msgEnd.Payload)
+	assert.Equal(t, "recovered", msgEndPayload["content"])
+}
+
+func TestAgent_MultipleToolCalls(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	tool1 := newMockTool("tool-a", sdk.ToolDef{Name: "tool-a"}, nil)
+	tool2 := newMockTool("tool-b", sdk.ToolDef{Name: "tool-b"}, nil)
+
+	registerMockTool(tool1)
+	registerMockTool(tool2)
+
+	mp := newMockProvider([]providerResponse{
+		{
+			toolCalls: []sdk.ToolCall{
+				{ID: "tc1", Name: "tool-a", Arguments: map[string]any{"x": 1}},
+				{ID: "tc2", Name: "tool-b", Arguments: map[string]any{"y": 2}},
+			},
+		},
+		{textDeltas: []string{"both done"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "multi-tool"))
+
+	var (
+		toolResults []sdk.Event
+		finalMsgEnd *sdk.Event
+	)
+
+	endDeadline := time.After(5 * time.Second)
+
+	for {
+		select {
+		case evt, ok := <-allCh:
+			require.True(t, ok, "event channel closed")
+
+			switch evt.Topic {
+			case TopicToolResult:
+				toolResults = append(toolResults, evt)
+			case TopicMsgEnd:
+				e := evt
+				finalMsgEnd = &e
+			case TopicTurnEnd:
+				// First turn done; close to trigger TopicEnd
+				require.NoError(t, a.Close())
+			case TopicEnd:
+				goto done
+			}
+		case <-endDeadline:
+			t.Fatal("timeout waiting for end")
+		}
+	}
+
+done:
+
+	require.Len(t, toolResults, 2)
+
+	require.NotNil(t, finalMsgEnd)
+	msgEndPayload, ok := finalMsgEnd.Payload.(map[string]any)
+	require.True(t, ok, "msg_end payload type = %T", finalMsgEnd.Payload)
+	assert.Equal(t, "both done", msgEndPayload["content"])
+}
+
+func TestAgent_StreamingUpdatesPreserveOrder(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	deltas := make([]string, 20)
+	for i := range deltas {
+		deltas[i] = strings.Repeat("x", i+1)
+	}
+
+	mp := newMockProvider([]providerResponse{
+		{textDeltas: deltas},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "order test"))
+
+	msgEnd, ok := waitForTopic(allCh, TopicMsgEnd, 3*time.Second)
+	require.True(t, ok, "timeout waiting for msg_end")
+
+	expected := strings.Join(deltas, "")
+	msgEndPayload, ok := msgEnd.Payload.(map[string]any)
+	require.True(t, ok, "msg_end payload type = %T", msgEnd.Payload)
+	assert.Equal(t, expected, msgEndPayload["content"])
+}
+
+func TestAgent_InterruptHaltsTurn(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	started := make(chan struct{})
+
+	responses := []providerResponse{
+		{textDeltas: []string{"partial"}},
+		{textDeltas: []string{"after interrupt"}},
+	}
+
+	mp := newMockProvider(responses)
+	originalStreamFunc := mp.StreamFunc
+	mp.StreamFunc = func(ctx context.Context, req sdk.ProviderRequest, _ ...model.StreamOption) (
+		<-chan sdk.ProviderEvent, error,
+	) {
+		callIdx := len(mp.StreamCalls()) - 1
+		if callIdx == 0 {
+			close(started)
+			// Give the interrupt time to arrive and cancel the context
+			time.Sleep(200 * time.Millisecond)
+		}
+
+		return originalStreamFunc(ctx, req)
+	}
+
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "test"))
+
+	<-started
+	b.Publish(sdk.NewEvent(TopicInterrupt, "user interrupt"))
+
+	// The interrupted turn should eventually publish TurnEnd
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 3*time.Second)
+	require.True(t, ok, "timeout waiting for turn_end after interrupt")
+
+	// The loop should stay alive and accept a follow-up
+	b.Publish(sdk.NewEvent(TopicFollowup, "continue"))
+
+	_, ok = waitForTopic(allCh, TopicTurnEnd, 3*time.Second)
+	require.True(t, ok, "timeout waiting for second turn_end after followup")
+
+	require.NoError(t, a.Close())
+
+	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
+
+	// Two stream calls: first (interrupted) and second (follow-up)
+	assert.Len(t, mp.StreamCalls(), 2)
+}
+
+func TestAgent_ThinkingContentInMsgEnd(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mp := newMockProvider([]providerResponse{
+		{
+			thinkingDeltas: []string{"let me think", "... carefully"},
+			textDeltas:     []string{"here is the answer"},
+		},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "think about it"))
+
+	msgEnd, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for msg_end")
+
+	payload, ok := msgEnd.Payload.(map[string]any)
+	require.True(t, ok, "msg_end payload type = %T", msgEnd.Payload)
+	assert.Equal(t, "here is the answer", payload["content"])
+	assert.Equal(t, "let me think... carefully", payload["thinking"])
+
+	require.NoError(t, a.Close())
+}
+
+func TestAgent_NoThinkingKeyWhenEmpty(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mp := newMockProvider([]providerResponse{
+		{textDeltas: []string{"no thinking here"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "quick one"))
+
+	msgEnd, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for msg_end")
+
+	payload, ok := msgEnd.Payload.(map[string]any)
+	require.True(t, ok, "msg_end payload type = %T", msgEnd.Payload)
+	assert.Equal(t, "no thinking here", payload["content"])
+	_, hasThinking := payload["thinking"]
+	assert.False(t, hasThinking, "should not have thinking key when no thinking deltas")
+
+	require.NoError(t, a.Close())
+}
+
+func TestAgent_ThinkingLevelChange(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	var mu sync.Mutex
+
+	var capturedOpts []model.StreamOption
+
+	mp := &ProviderMock{
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, opts ...model.StreamOption) (
+			<-chan sdk.ProviderEvent, error,
+		) {
+			mu.Lock()
+			capturedOpts = opts
+			mu.Unlock()
+
+			ch := make(chan sdk.ProviderEvent, 1)
+			ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "ok"}
+
+			close(ch)
+
+			return ch, nil
+		},
+	}
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "first"))
+
+	_, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for first msg_end")
+
+	// Default thinking level should be medium
+	mu.Lock()
+	require.Len(t, capturedOpts, 1)
+	so := model.NewStreamOptions(capturedOpts...)
+	mu.Unlock()
+	assert.Equal(t, model.ThinkingMedium, so.ThinkingLevel)
+
+	// Change thinking level to high
+	b.Publish(sdk.NewEvent(TopicThinkingChange, map[string]string{"level": "high"}))
+
+	// Send a follow-up to trigger a new stream call with updated thinking level
+	b.Publish(sdk.NewEvent(TopicFollowup, "after thinking change"))
+
+	_, ok = waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for second msg_end")
+
+	mu.Lock()
+	require.Len(t, capturedOpts, 1)
+	so = model.NewStreamOptions(capturedOpts...)
+	mu.Unlock()
+	assert.Equal(t, model.ThinkingHigh, so.ThinkingLevel)
+
+	require.NoError(t, a.Close())
+}
+
+func TestAgent_ModelChangeWithModelKey(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	var capturedOpts []model.StreamOption
+
+	var mu sync.Mutex
+
+	mp := &ProviderMock{
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, opts ...model.StreamOption) (
+			<-chan sdk.ProviderEvent, error,
+		) {
+			mu.Lock()
+			capturedOpts = opts
+			mu.Unlock()
+
+			ch := make(chan sdk.ProviderEvent, 1)
+			ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "ok"}
+
+			close(ch)
+
+			return ch, nil
+		},
+	}
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "start"))
+
+	_, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for first msg_end")
+
+	// Initially no model option — only thinking level
+	mu.Lock()
+	require.Len(t, capturedOpts, 1)
+	so := model.NewStreamOptions(capturedOpts...)
+	mu.Unlock()
+	assert.Empty(t, so.Model)
+
+	// Switch model within same provider (the bug fix case).
+	// Model change should NOT trigger a spurious streamTurn — it applies on the next user input.
+	b.Publish(sdk.NewEvent(TopicModelChange, map[string]string{
+		"provider": "anthropic",
+		"model":    "claude-opus-4-7",
+	}))
+
+	// Send a follow-up to trigger a stream call with the updated model.
+	b.Publish(sdk.NewEvent(TopicFollowup, "after model change"))
+
+	_, ok = waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for follow-up msg_end")
+
+	mu.Lock()
+	require.Len(t, capturedOpts, 2)
+	so = model.NewStreamOptions(capturedOpts...)
+	mu.Unlock()
+	assert.Equal(t, "claude-opus-4-7", so.Model, "model should be passed via StreamOptions")
+
+	require.NoError(t, a.Close())
+}
+
+func TestAgent_ModelChangeDifferentProvider(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	anthropicMock := newMockProvider([]providerResponse{
+		{textDeltas: []string{"anthropic response"}},
+	})
+	openaiMock := newMockProvider([]providerResponse{
+		{textDeltas: []string{"openai response"}},
+	})
+
+	sdk.RegisterProvider[struct{}, struct{}]("anthropic", func(sdk.Config, struct{}, struct{}) (sdk.Provider, error) {
+		return anthropicMock, nil
+	})
+	sdk.RegisterProvider[struct{}, struct{}]("openai", func(sdk.Config, struct{}, struct{}) (sdk.Provider, error) {
+		return openaiMock, nil
+	})
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "start"))
+
+	msgEnd1, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for first msg_end")
+
+	payload1 := msgEnd1.Payload.(map[string]any)
+	assert.Equal(t, "anthropic response", payload1["content"])
+
+	assert.Len(t, anthropicMock.StreamCalls(), 1)
+
+	// Switch to openai provider — model change applies on next user input
+	b.Publish(sdk.NewEvent(TopicModelChange, map[string]string{
+		"provider": "openai",
+		"model":    "gpt-5.5",
+	}))
+
+	// Send a follow-up to trigger a turn with the new provider
+	b.Publish(sdk.NewEvent(TopicFollowup, "after provider switch"))
+
+	msgEnd2, ok := waitForTopic(allCh, TopicMsgEnd, 4*time.Second)
+	require.True(t, ok, "timeout waiting for openai msg_end")
+
+	payload2 := msgEnd2.Payload.(map[string]any)
+	assert.Equal(t, "openai response", payload2["content"])
+
+	require.NoError(t, a.Close())
+
+	// Verify openai was called and model was passed
+	require.Len(t, openaiMock.StreamCalls(), 1)
+	openaiOpts := openaiMock.StreamCalls()[0].Opts
+	so := model.NewStreamOptions(openaiOpts...)
+	assert.Equal(t, "gpt-5.5", so.Model)
+}
+
+func TestAgent_InvalidThinkingLevelIgnored(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	var mu sync.Mutex
+
+	var capturedOpts []model.StreamOption
+
+	mp := &ProviderMock{
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, opts ...model.StreamOption) (
+			<-chan sdk.ProviderEvent, error,
+		) {
+			mu.Lock()
+			capturedOpts = opts
+			mu.Unlock()
+
+			ch := make(chan sdk.ProviderEvent, 1)
+			ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "ok"}
+
+			close(ch)
+
+			return ch, nil
+		},
+	}
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "start"))
+
+	_, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for first msg_end")
+
+	// Try invalid thinking level
+	b.Publish(sdk.NewEvent(TopicThinkingChange, map[string]string{"level": "invalid"}))
+
+	b.Publish(sdk.NewEvent(TopicFollowup, "after bad thinking"))
+
+	_, ok = waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for second msg_end")
+
+	mu.Lock()
+	so := model.NewStreamOptions(capturedOpts...)
+	mu.Unlock()
+	assert.Equal(t, model.ThinkingMedium, so.ThinkingLevel)
+
+	require.NoError(t, a.Close())
+}
+
+func TestAgent_HeadlessUsesPersistedModel(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	var capturedOpts []model.StreamOption
+
+	var mu sync.Mutex
+
+	mp := &ProviderMock{
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, opts ...model.StreamOption) (
+			<-chan sdk.ProviderEvent, error,
+		) {
+			mu.Lock()
+			capturedOpts = opts
+			mu.Unlock()
+
+			ch := make(chan sdk.ProviderEvent, 1)
+			ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "ok"}
+
+			close(ch)
+
+			return ch, nil
+		},
+	}
+	registerMockProvider("anthropic", mp)
+
+	// Simulate headless: config has persisted model, no TUI will publish model.change
+	cfg := &mockPrefsConfig{model: "claude-opus-4-7", thinkingLevel: "high"}
+
+	a, err := NewAgentExtension(cfg)
+	require.NoError(t, err)
+
+	b := bus.New()
+	defer b.Close()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	// Simulate headless: publish prompt directly without any model.change
+	b.Publish(sdk.NewEvent(TopicPrompt, "headless prompt"))
+
+	_, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for msg_end")
+
+	mu.Lock()
+	so := model.NewStreamOptions(capturedOpts...)
+	mu.Unlock()
+
+	assert.Equal(t, "claude-opus-4-7", so.Model, "headless mode should use persisted model")
+	assert.Equal(t, model.ThinkingHigh, so.ThinkingLevel, "headless mode should use persisted thinking level")
+
+	require.NoError(t, a.Close())
+}
+
+// --- system prompt tests ---
+
+func TestAgent_SystemPromptContainsDefault(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	var capturedReq sdk.ProviderRequest
+
+	var mu sync.Mutex
+
+	mp := &ProviderMock{
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, _ ...model.StreamOption) (
+			<-chan sdk.ProviderEvent, error,
+		) {
+			mu.Lock()
+			capturedReq = req
+			mu.Unlock()
+
+			ch := make(chan sdk.ProviderEvent, 1)
+			ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "ok"}
+
+			close(ch)
+
+			return ch, nil
+		},
+	}
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "test"))
+
+	_, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for msg_end")
+
+	mu.Lock()
+	require.NotEmpty(t, capturedReq.SystemPrompt, "system prompt should not be empty")
+	assert.Contains(t, capturedReq.SystemPrompt, "You are Weave")
+	assert.Contains(t, capturedReq.SystemPrompt, "Current date:")
+	mu.Unlock()
+
+	require.NoError(t, a.Close())
+}
+
+func TestAgent_SystemPromptWithContextFiles(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	projectDir := t.TempDir()
+	weaveDir := filepath.Join(projectDir, ".weave")
+	require.NoError(t, os.MkdirAll(weaveDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(projectDir, "CLAUDE.md"), []byte("Project rules here."), 0o644))
+
+	var capturedReq sdk.ProviderRequest
+
+	var mu sync.Mutex
+
+	mp := &ProviderMock{
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, _ ...model.StreamOption) (
+			<-chan sdk.ProviderEvent, error,
+		) {
+			mu.Lock()
+			capturedReq = req
+			mu.Unlock()
+
+			ch := make(chan sdk.ProviderEvent, 1)
+			ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "ok"}
+
+			close(ch)
+
+			return ch, nil
+		},
+	}
+	registerMockProvider("anthropic", mp)
+
+	cfg := sdk.FilePathConfig(filepath.Join(weaveDir, "settings.json"))
+	a, err := NewAgentExtension(cfg)
+	require.NoError(t, err)
+
+	b := bus.New()
+	defer b.Close()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "test"))
+
+	_, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for msg_end")
+
+	mu.Lock()
+	assert.Contains(t, capturedReq.SystemPrompt, "# Project Context")
+	assert.Contains(t, capturedReq.SystemPrompt, "Project rules here.")
+	mu.Unlock()
+
+	require.NoError(t, a.Close())
+}
+
+func TestAgent_SystemPromptWithSkills(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	projectDir := t.TempDir()
+	weaveDir := filepath.Join(projectDir, ".weave")
+	skillsDir := filepath.Join(weaveDir, "skills", "test-skill")
+	require.NoError(t, os.MkdirAll(skillsDir, 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(skillsDir, "SKILL.md"),
+		[]byte("---\nname: test-skill\ndescription: A test skill for testing\n---\n\nSkill body here."),
+		0o644,
+	))
+
+	var capturedReq sdk.ProviderRequest
+
+	var mu sync.Mutex
+
+	mp := &ProviderMock{
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, _ ...model.StreamOption) (
+			<-chan sdk.ProviderEvent, error,
+		) {
+			mu.Lock()
+			capturedReq = req
+			mu.Unlock()
+
+			ch := make(chan sdk.ProviderEvent, 1)
+			ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "ok"}
+
+			close(ch)
+
+			return ch, nil
+		},
+	}
+	registerMockProvider("anthropic", mp)
+
+	cfg := sdk.FilePathConfig(filepath.Join(weaveDir, "settings.json"))
+	a, err := NewAgentExtension(cfg)
+	require.NoError(t, err)
+
+	b := bus.New()
+	defer b.Close()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "test"))
+
+	_, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for msg_end")
+
+	mu.Lock()
+	assert.Contains(t, capturedReq.SystemPrompt, "<available_skills>")
+	assert.Contains(t, capturedReq.SystemPrompt, "<name>test-skill</name>")
+	assert.Contains(t, capturedReq.SystemPrompt, "<skills_usage>")
+	mu.Unlock()
+
+	require.NoError(t, a.Close())
+}
+
+func TestAgent_SystemPromptWithSystemMD(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	projectDir := t.TempDir()
+	weaveDir := filepath.Join(projectDir, ".weave")
+	require.NoError(t, os.MkdirAll(weaveDir, 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(weaveDir, "SYSTEM.md"),
+		[]byte("Custom system prompt from SYSTEM.md."),
+		0o644,
+	))
+
+	var capturedReq sdk.ProviderRequest
+
+	var mu sync.Mutex
+
+	mp := &ProviderMock{
+		StreamFunc: func(ctx context.Context, req sdk.ProviderRequest, _ ...model.StreamOption) (
+			<-chan sdk.ProviderEvent, error,
+		) {
+			mu.Lock()
+			capturedReq = req
+			mu.Unlock()
+
+			ch := make(chan sdk.ProviderEvent, 1)
+			ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "ok"}
+
+			close(ch)
+
+			return ch, nil
+		},
+	}
+	registerMockProvider("anthropic", mp)
+
+	cfg := sdk.FilePathConfig(filepath.Join(weaveDir, "settings.json"))
+	a, err := NewAgentExtension(cfg)
+	require.NoError(t, err)
+
+	b := bus.New()
+	defer b.Close()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "test"))
+
+	_, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for msg_end")
+
+	mu.Lock()
+	assert.Contains(t, capturedReq.SystemPrompt, "Custom system prompt from SYSTEM.md.")
+	assert.NotContains(t, capturedReq.SystemPrompt, "You are Weave")
+	mu.Unlock()
+
+	require.NoError(t, a.Close())
+}
+
+func TestAgent_SystemPromptRebuiltOnNewConversation(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	projectDir := t.TempDir()
+	weaveDir := filepath.Join(projectDir, ".weave")
+	require.NoError(t, os.MkdirAll(weaveDir, 0o755))
+
+	var capturedReqs []sdk.ProviderRequest
+
+	var mu sync.Mutex
+
+	mp := newMockProvider([]providerResponse{
+		{textDeltas: []string{"first"}},
+		{textDeltas: []string{"second"}},
+	})
+	originalStreamFunc := mp.StreamFunc
+	mp.StreamFunc = func(ctx context.Context, req sdk.ProviderRequest, opts ...model.StreamOption) (
+		<-chan sdk.ProviderEvent, error,
+	) {
+		mu.Lock()
+
+		capturedReqs = append(capturedReqs, req)
+		mu.Unlock()
+
+		return originalStreamFunc(ctx, req, opts...)
+	}
+	registerMockProvider("anthropic", mp)
+
+	cfg := sdk.FilePathConfig(filepath.Join(weaveDir, "settings.json"))
+	a, err := NewAgentExtension(cfg)
+	require.NoError(t, err)
+
+	b := bus.New()
+	defer b.Close()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	// First conversation
+	b.Publish(sdk.NewEvent(TopicPrompt, "first"))
+
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for first turn_end")
+
+	// Add a context file after first conversation
+	require.NoError(t, os.WriteFile(filepath.Join(projectDir, "CLAUDE.md"), []byte("New context."), 0o644))
+
+	// New conversation should rebuild system prompt
+	b.Publish(sdk.NewEvent(TopicPrompt, "second"))
+
+	_, ok = waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for second turn_end")
+
+	require.NoError(t, a.Close())
+
+	mu.Lock()
+	require.Len(t, capturedReqs, 2)
+	// Second conversation should have the new context
+	assert.Contains(t, capturedReqs[1].SystemPrompt, "New context.")
+	mu.Unlock()
+}
+
+// --- resolve function tests ---
+
+func TestResolveProviderName_EnvVarHighest(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	sdk.RegisterProvider[struct{}, struct{}]("anthropic", func(sdk.Config, struct{}, struct{}) (sdk.Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	cfg := &mockPrefsConfig{provider: "anthropic"}
+
+	result := resolveProviderName("openai", cfg)
+	assert.Equal(t, "openai", result, "env var should win over settings")
+}
+
+func TestResolveProviderName_SettingsPreference(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	sdk.RegisterProvider[struct{}, struct{}]("anthropic", func(sdk.Config, struct{}, struct{}) (sdk.Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	cfg := &mockPrefsConfig{provider: "openai"}
+
+	result := resolveProviderName("", cfg)
+	assert.Equal(t, "openai", result, "settings provider should be used when no env var")
+}
+
+func TestResolveProviderName_FirstRegistered(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	sdk.RegisterProvider[struct{}, struct{}]("zai", func(sdk.Config, struct{}, struct{}) (sdk.Provider, error) {
+		return &ProviderMock{}, nil
+	})
+	sdk.RegisterProvider[struct{}, struct{}]("openai", func(sdk.Config, struct{}, struct{}) (sdk.Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	cfg := &mockPrefsConfig{provider: ""}
+
+	result := resolveProviderName("", cfg)
+	assert.Equal(t, "openai", result, "should pick first registered provider (alphabetically) when no env or settings")
+}
+
+func TestResolveProviderName_AnthropicFallback(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	cfg := &mockPrefsConfig{provider: ""}
+
+	result := resolveProviderName("", cfg)
+	assert.Equal(t, "anthropic", result, "should fall back to anthropic when nothing else available")
+}
+
+func TestResolveProviderName_PrefsErrorFallsThrough(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	sdk.RegisterProvider[struct{}, struct{}]("openai", func(sdk.Config, struct{}, struct{}) (sdk.Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	cfg := &mockPrefsConfig{prefsErr: assert.AnError}
+
+	result := resolveProviderName("", cfg)
+	assert.Equal(t, "openai", result, "should fall through to registered providers when prefs error")
+}
+
+func TestResolveProviderName_EnvOverridesSettings(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	cfg := &mockPrefsConfig{provider: "openai"}
+
+	result := resolveProviderName("zai", cfg)
+	assert.Equal(t, "zai", result, "env var should override settings preference")
+}
+
+func TestResolveModelName_FromSettings(t *testing.T) {
+	cfg := &mockPrefsConfig{model: "claude-opus-4-7"}
+
+	result := resolveModelName(cfg)
+	assert.Equal(t, "claude-opus-4-7", result)
+}
+
+func TestResolveModelName_EmptyWhenUnset(t *testing.T) {
+	cfg := &mockPrefsConfig{}
+
+	result := resolveModelName(cfg)
+	assert.Empty(t, result)
+}
+
+func TestResolveModelName_NilConfig(t *testing.T) {
+	result := resolveModelName(nil)
+	assert.Empty(t, result)
+}
+
+func TestResolveModelName_PrefsError(t *testing.T) {
+	cfg := &mockPrefsConfig{model: "claude-opus-4-7", prefsErr: assert.AnError}
+
+	result := resolveModelName(cfg)
+	assert.Empty(t, result)
+}
+
+func TestResolveThinkingLevel_FromSettings(t *testing.T) {
+	cfg := &mockPrefsConfig{thinkingLevel: "high"}
+
+	result := resolveThinkingLevel(cfg)
+	assert.Equal(t, model.ThinkingHigh, result)
+}
+
+func TestResolveThinkingLevel_FallsBackToEnvVar(t *testing.T) {
+	t.Setenv("WEAVE_THINKING_LEVEL", "low")
+
+	cfg := &mockPrefsConfig{}
+
+	result := resolveThinkingLevel(cfg)
+	assert.Equal(t, model.ThinkingLow, result)
+}
+
+func TestResolveThinkingLevel_SettingsOverEnvVar(t *testing.T) {
+	t.Setenv("WEAVE_THINKING_LEVEL", "low")
+
+	cfg := &mockPrefsConfig{thinkingLevel: "high"}
+
+	result := resolveThinkingLevel(cfg)
+	assert.Equal(t, model.ThinkingHigh, result, "settings should take priority over env var")
+}
+
+func TestResolveThinkingLevel_DefaultMedium(t *testing.T) {
+	result := resolveThinkingLevel(nil)
+	assert.Equal(t, model.ThinkingMedium, result)
+}
+
+func TestResolveThinkingLevel_InvalidFallsBack(t *testing.T) {
+	cfg := &mockPrefsConfig{thinkingLevel: "garbage"}
+
+	result := resolveThinkingLevel(cfg)
+	assert.Equal(t, model.ThinkingMedium, result, "invalid thinking level should fall back to DefaultThinkingLevel")
+}
+
+func TestNewAgentExtension_ReadsModelFromSettings(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mp := &ProviderMock{}
+	registerMockProvider("anthropic", mp)
+
+	cfg := &mockPrefsConfig{model: "claude-opus-4-7", thinkingLevel: "high"}
+
+	a, err := NewAgentExtension(cfg)
+	require.NoError(t, err)
+
+	assert.Equal(t, "claude-opus-4-7", a.modelName)
+	assert.Equal(t, model.ThinkingHigh, a.thinkingLevel)
+}
+
+func TestNewAgentExtension_ClearsModelWhenProviderMismatch(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+	defer model.ResetModelRegistry()
+
+	registerMockProvider("anthropic", &ProviderMock{})
+
+	// Register gpt-5.5 as an OpenAI model
+	model.RegisterModel(model.ModelDef{
+		ID:       "gpt-5.5",
+		Provider: "openai",
+	})
+
+	// Settings have provider=openai, model=gpt-5.5, but WEAVE_PROVIDER=anthropic wins
+	t.Setenv("WEAVE_PROVIDER", "anthropic")
+
+	cfg := &mockPrefsConfig{provider: "openai", model: "gpt-5.5"}
+
+	a, err := NewAgentExtension(cfg)
+	require.NoError(t, err)
+
+	assert.Empty(t, a.modelName, "model should be cleared when it belongs to a different provider")
+}
+
+func TestNewAgentExtension_KeepsModelWhenSameProvider(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+	defer model.ResetModelRegistry()
+
+	registerMockProvider("anthropic", &ProviderMock{})
+
+	model.RegisterModel(model.ModelDef{
+		ID:       "claude-opus-4-7",
+		Provider: "anthropic",
+	})
+
+	cfg := &mockPrefsConfig{model: "claude-opus-4-7"}
+
+	a, err := NewAgentExtension(cfg)
+	require.NoError(t, err)
+
+	assert.Equal(t, "claude-opus-4-7", a.modelName, "model should be kept when provider matches")
+}
+
+func TestNewAgentExtension_KeepsUnregisteredModel(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+	defer model.ResetModelRegistry()
+
+	registerMockProvider("anthropic", &ProviderMock{})
+
+	// Model not in registry — user might be using a custom model name
+	cfg := &mockPrefsConfig{model: "my-custom-model"}
+
+	a, err := NewAgentExtension(cfg)
+	require.NoError(t, err)
+
+	assert.Equal(t, "my-custom-model", a.modelName, "unregistered model should be kept (custom model)")
+}
