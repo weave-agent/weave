@@ -114,10 +114,10 @@ Replace imperative API key resolution (`cfg.ResolveKey`, `model.RegisterProvider
 
 ### Task 12: Clean up loop auth checks
 
-- [ ] Update `extensions/loop/loop.go` — `anyProviderHasKey` uses `model.ProviderHasAuth` instead of `cfg.ResolveKey`
-- [ ] Remove `model.ProviderEnvVar` import from loop
-- [ ] Update loop tests
-- [ ] Run `cd extensions/loop && go test ./...` — must pass
+- [x] Update `extensions/loop/loop.go` — `anyProviderHasKey` uses `model.ProviderHasAuth` instead of `cfg.ResolveKey`
+- [x] Remove `model.ProviderEnvVar` usage from loop
+- [x] Update loop tests
+- [x] Run `cd extensions/loop && go test ./...` — must pass
 
 ### Task 13: Verify acceptance criteria
 

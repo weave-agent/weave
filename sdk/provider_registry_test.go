@@ -116,7 +116,7 @@ func TestCheckProviderAuth_Missing(t *testing.T) {
 		return &ProviderMock{}, nil
 	})
 
-	os.Unsetenv("TEST_PROVIDER2_API_KEY")
+	require.NoError(t, os.Unsetenv("TEST_PROVIDER2_API_KEY"))
 
 	hasAuth, err := CheckProviderAuth("test-provider2", nil)
 	require.NoError(t, err)

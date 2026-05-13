@@ -900,8 +900,8 @@ type mockConfig struct {
 	uiConfig        any // JSON-marshalable value returned by UIConfig
 }
 
-func (m *mockConfig) FilePath() string                            { return m.filePath }
-func (m *mockConfig) ProjectDir() string                          { return "" }
+func (m *mockConfig) FilePath() string   { return m.filePath }
+func (m *mockConfig) ProjectDir() string { return "" }
 func (m *mockConfig) ExtensionConfig(_, _ string, target any, _ string) error {
 	if m.uiConfig == nil {
 		return nil

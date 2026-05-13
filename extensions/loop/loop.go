@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 
@@ -304,7 +305,7 @@ func (l *Loop) run(ctx context.Context, bus sdk.Bus, promptCh, steerCh, followup
 		if err != nil {
 			msg := err.Error()
 
-			if !anyProviderHasKey(l.cfg) {
+			if !anyProviderHasKey() {
 				msg = "No providers configured. Set an API key via /providers or the environment variable."
 			}
 
@@ -738,14 +739,7 @@ func collectToolDefs(cfg sdk.Config) []sdk.ToolDef {
 }
 
 // anyProviderHasKey returns true if at least one registered provider has
-// an API key available (env var, auth file, or config file).
-func anyProviderHasKey(cfg sdk.Config) bool {
-	for _, name := range sdk.ListProviders() {
-		envVar := model.ProviderEnvVar(name)
-		if key, err := cfg.ResolveKey(name, envVar); err == nil && key != "" {
-			return true
-		}
-	}
-
-	return false
+// valid auth credentials available.
+func anyProviderHasKey() bool {
+	return slices.ContainsFunc(sdk.ListProviders(), model.ProviderHasAuth)
 }
