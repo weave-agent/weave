@@ -238,6 +238,69 @@ func TestExecuteSandboxNil(t *testing.T) {
 	assert.Contains(t, result.Content, "normal data")
 }
 
+func TestExecuteNormalizedPath(t *testing.T) {
+	tool := &tool{}
+	dir := t.TempDir()
+
+	t.Run("curly quotes normalized to straight quotes", func(t *testing.T) {
+		// Create file with straight quotes on disk
+		actualPath := filepath.Join(dir, `"quoted".txt`)
+		require.NoError(t, os.WriteFile(actualPath, []byte("quoted content"), 0o644))
+
+		// Try to read with curly quotes
+		curlyPath := filepath.Join(dir, "“quoted”.txt")
+		result, err := tool.Execute(context.Background(), map[string]any{"path": curlyPath})
+		require.NoError(t, err)
+		assert.False(t, result.IsError)
+		assert.Contains(t, result.Content, "quoted content")
+	})
+
+	t.Run("unicode spaces normalized to regular space", func(t *testing.T) {
+		// Create file with regular spaces on disk
+		actualPath := filepath.Join(dir, "spaced file.txt")
+		require.NoError(t, os.WriteFile(actualPath, []byte("spaced content"), 0o644))
+
+		// Try to read with non-breaking spaces
+		nbspPath := filepath.Join(dir, "spaced file.txt")
+		result, err := tool.Execute(context.Background(), map[string]any{"path": nbspPath})
+		require.NoError(t, err)
+		assert.False(t, result.IsError)
+		assert.Contains(t, result.Content, "spaced content")
+	})
+
+	t.Run("NFD normalization for unicode characters", func(t *testing.T) {
+		// Create file with NFD name on disk (decomposed é)
+		actualPath := filepath.Join(dir, "café.txt")
+		require.NoError(t, os.WriteFile(actualPath, []byte("cafe content"), 0o644))
+
+		// Try to read with NFC name (precomposed é)
+		nfcPath := filepath.Join(dir, "café.txt")
+		result, err := tool.Execute(context.Background(), map[string]any{"path": nfcPath})
+		require.NoError(t, err)
+		assert.False(t, result.IsError)
+		assert.Contains(t, result.Content, "cafe content")
+	})
+
+	t.Run("no normalization needed passthrough", func(t *testing.T) {
+		path := filepath.Join(dir, "plain.txt")
+		require.NoError(t, os.WriteFile(path, []byte("plain content"), 0o644))
+
+		result, err := tool.Execute(context.Background(), map[string]any{"path": path})
+		require.NoError(t, err)
+		assert.False(t, result.IsError)
+		assert.Contains(t, result.Content, "plain content")
+	})
+
+	t.Run("normalization does not help nonexistent file", func(t *testing.T) {
+		// A path that normalizes but still doesn't exist
+		curlyPath := filepath.Join(dir, "“nonexistent”.txt")
+		result, err := tool.Execute(context.Background(), map[string]any{"path": curlyPath})
+		require.NoError(t, err)
+		assert.True(t, result.IsError)
+		assert.Contains(t, result.Content, "error:")
+	})
+}
+
 type testSandboxer struct {
 	allowReadFn  func(string) bool
 	allowWriteFn func(string) bool

@@ -66,14 +66,14 @@ When output exceeds truncation limits, save full output to a temp file and inclu
 ### Task 4: Read — macOS path normalization
 Handle macOS-specific path quirks: NFD Unicode normalization, curly quotes, and Unicode spaces.
 
-- [ ] Create `internal/pathutil/normalize.go` with `NormalizePath(path string) string` function
+- [x] Create `internal/pathutil/normalize.go` with `NormalizePath(path string) string` function
   - Replace curly quotes (`“`, `”`, `‘`, `’`) with straight quotes
   - Replace Unicode spaces (` `, ` `) with regular space
   - Apply NFD normalization using `golang.org/x/text/unicode/nf` (check if already a dep)
-- [ ] Integrate `NormalizePath` into read tool — apply before file access, try normalized path if original not found
-- [ ] Write tests for each normalization case
-- [ ] Write test for path that needs no normalization (passthrough)
-- [ ] Run `cd extensions/tools/read && go test ./...`
+- [x] Integrate `NormalizePath` into read tool — apply before file access, try normalized path if original not found
+- [x] Write tests for each normalization case
+- [x] Write test for path that needs no normalization (passthrough)
+- [x] Run `cd extensions/tools/read && go test ./...`
 
 ### Task 5: Read — Read-before-edit tracking (bus events)
 Track which files have been read so the edit tool can enforce read-before-edit.

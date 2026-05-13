@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"weave/internal/pathutil"
 	"weave/sdk"
 	"weave/utils/truncate"
 )
@@ -119,7 +120,17 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 
 	info, err := os.Stat(path)
 	if err != nil {
-		return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
+		normalized := pathutil.NormalizePath(path)
+		if normalized != path {
+			info, err = os.Stat(normalized)
+			if err == nil {
+				path = normalized
+			}
+		}
+
+		if err != nil {
+			return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
+		}
 	}
 
 	if info.IsDir() {
