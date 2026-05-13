@@ -67,6 +67,16 @@ func WireWithCore(core CoreWireConfig, optExts []string, bus sdk.Bus, cfg sdk.Co
 		sdk.SetFileTracker(filetracker.New())
 	}
 
+	if tracker := sdk.GetFileTracker(); tracker != nil {
+		bus.On("tool.read.done", func(e sdk.Event) error {
+			if payload, ok := e.Payload.(sdk.ReadDonePayload); ok {
+				tracker.RecordRead(payload.Path, payload.ModTime)
+			}
+
+			return nil
+		})
+	}
+
 	if sdk.GetFileMutex() == nil {
 		sdk.SetFileMutex(filemut.New())
 	}

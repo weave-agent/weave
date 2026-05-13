@@ -529,8 +529,9 @@ func TestWireWithCore_ExtensionUsesBusOn(t *testing.T) {
 	require.NoError(t, err)
 
 	onCalls := bus.OnCalls()
-	require.Len(t, onCalls, 1)
-	assert.Equal(t, "agent.prompt", onCalls[0].Topic)
+	require.Len(t, onCalls, 2)
+	assert.Equal(t, "tool.read.done", onCalls[0].Topic)
+	assert.Equal(t, "agent.prompt", onCalls[1].Topic)
 }
 
 func TestWire_WireSubscribesExtensionsInProcess(t *testing.T) {
