@@ -18,13 +18,10 @@ type preferences struct {
 	ThinkingLevel string `json:"thinking_level,omitempty"`
 }
 
-// providerHasKey checks whether a provider has a configured API key by
-// attempting resolution through the config's ResolveKey method.
-func providerHasKey(cfg sdk.Config, providerName string) bool {
-	envVar := sdkmodel.ProviderEnvVar(providerName)
-	key, _ := cfg.ResolveKey(providerName, envVar)
-
-	return key != ""
+// providerHasKey checks whether a provider has valid auth credentials
+// registered in the model registry.
+func providerHasKey(providerName string) bool {
+	return sdkmodel.ProviderHasAuth(providerName)
 }
 
 // effectiveConfig returns cfg if non-nil, otherwise a no-op implementation.
@@ -58,9 +55,8 @@ func (e ModelEntry) DisplayName() string {
 }
 
 // listModels returns model entries for providers that are registered and have
-// an API key configured.
-func listModels(cfg sdk.Config) []ModelEntry {
-	cfg = effectiveConfig(cfg)
+// valid auth credentials.
+func listModels(_ sdk.Config) []ModelEntry {
 	registered := sdk.ListProviders()
 
 	regSet := make(map[string]bool, len(registered))
@@ -70,12 +66,8 @@ func listModels(cfg sdk.Config) []ModelEntry {
 
 	var entries []ModelEntry
 
-	for _, md := range sdkmodel.ListAllModels() {
+	for _, md := range sdkmodel.ListAvailableModels() {
 		if !regSet[md.Provider] {
-			continue
-		}
-
-		if !providerHasKey(cfg, md.Provider) {
 			continue
 		}
 

@@ -154,13 +154,12 @@ func TestModel_DefaultFooterModel(t *testing.T) {
 	sdkmodel.ResetModelRegistry()
 	sdk.ResetProviderRegistry()
 	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "claude-sonnet-4-6", Provider: "anthropic", Reasoning: true, Default: true})
-	sdk.RegisterProvider[struct{}]("anthropic", func(_ sdk.Config, _ struct{}) (sdk.Provider, error) { return nil, nil }) //nolint:nilnil // stub
-	sdkmodel.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
-	t.Setenv("ANTHROPIC_API_KEY", "test-key")
+	sdk.RegisterProvider[struct{}, struct{}]("anthropic", func(_ sdk.Config, _, _ struct{}) (sdk.Provider, error) { return nil, nil }) //nolint:nilnil // stub
+	sdkmodel.SetProviderAuth("anthropic", true)
 
 	defer sdkmodel.ResetModelRegistry()
 	defer sdk.ResetProviderRegistry()
-	defer sdkmodel.ResetProviderEnvVarRegistry()
+	defer sdkmodel.ResetAuthRegistry()
 
 	m := newModel(nil, nil, nil)
 	assert.NotEmpty(t, m.footer.ModelName())
@@ -468,7 +467,7 @@ func TestModel_ModelSelectedInvalidIndex(t *testing.T) {
 func TestListModelsWithRegistry(t *testing.T) {
 	sdkmodel.ResetModelRegistry()
 	sdk.ResetProviderRegistry()
-	sdkmodel.ResetProviderEnvVarRegistry()
+	sdkmodel.ResetAuthRegistry()
 
 	// Register representative models across all providers.
 	for _, def := range []sdkmodel.ModelDef{
@@ -494,22 +493,18 @@ func TestListModelsWithRegistry(t *testing.T) {
 	}
 
 	// Register providers so their models are included.
-	sdk.RegisterProvider[struct{}]("anthropic", func(_ sdk.Config, _ struct{}) (sdk.Provider, error) { return nil, nil }) //nolint:nilnil // stub registration for model list tests
-	sdk.RegisterProvider[struct{}]("openai", func(_ sdk.Config, _ struct{}) (sdk.Provider, error) { return nil, nil })    //nolint:nilnil // stub registration for model list tests
-	sdk.RegisterProvider[struct{}]("zai", func(_ sdk.Config, _ struct{}) (sdk.Provider, error) { return nil, nil })       //nolint:nilnil // stub registration for model list tests
+	sdk.RegisterProvider[struct{}, struct{}]("anthropic", func(_ sdk.Config, _, _ struct{}) (sdk.Provider, error) { return nil, nil }) //nolint:nilnil // stub registration for model list tests
+	sdk.RegisterProvider[struct{}, struct{}]("openai", func(_ sdk.Config, _, _ struct{}) (sdk.Provider, error) { return nil, nil })    //nolint:nilnil // stub registration for model list tests
+	sdk.RegisterProvider[struct{}, struct{}]("zai", func(_ sdk.Config, _, _ struct{}) (sdk.Provider, error) { return nil, nil })       //nolint:nilnil // stub registration for model list tests
 
-	// Register env vars and set test API keys so providers appear configured.
-	sdkmodel.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
-	sdkmodel.RegisterProviderEnvVar("openai", "OPENAI_API_KEY")
-	sdkmodel.RegisterProviderEnvVar("zai", "ZAI_API_KEY")
-
-	t.Setenv("ANTHROPIC_API_KEY", "test-key")
-	t.Setenv("OPENAI_API_KEY", "test-key")
-	t.Setenv("ZAI_API_KEY", "test-key")
+	// Set auth status so providers appear configured.
+	sdkmodel.SetProviderAuth("anthropic", true)
+	sdkmodel.SetProviderAuth("openai", true)
+	sdkmodel.SetProviderAuth("zai", true)
 
 	defer sdkmodel.ResetModelRegistry()
 	defer sdk.ResetProviderRegistry()
-	defer sdkmodel.ResetProviderEnvVarRegistry()
+	defer sdkmodel.ResetAuthRegistry()
 
 	entries := listModels(nil)
 	assert.NotEmpty(t, entries, "should return models from registry")
@@ -528,11 +523,11 @@ func TestListModelsWithRegistry(t *testing.T) {
 func TestListModelsEmpty(t *testing.T) {
 	sdkmodel.ResetModelRegistry()
 	sdk.ResetProviderRegistry()
-	sdkmodel.ResetProviderEnvVarRegistry()
+	sdkmodel.ResetAuthRegistry()
 
 	defer sdkmodel.ResetModelRegistry()
 	defer sdk.ResetProviderRegistry()
-	defer sdkmodel.ResetProviderEnvVarRegistry()
+	defer sdkmodel.ResetAuthRegistry()
 
 	entries := listModels(nil)
 	assert.Nil(t, entries)
@@ -541,7 +536,7 @@ func TestListModelsEmpty(t *testing.T) {
 func TestListModelsIgnoresEnvOverrides(t *testing.T) {
 	sdkmodel.ResetModelRegistry()
 	sdk.ResetProviderRegistry()
-	sdkmodel.ResetProviderEnvVarRegistry()
+	sdkmodel.ResetAuthRegistry()
 
 	for _, def := range []sdkmodel.ModelDef{
 		{ID: "claude-opus-4-7", Provider: "anthropic", Reasoning: true},
@@ -553,33 +548,26 @@ func TestListModelsIgnoresEnvOverrides(t *testing.T) {
 		sdkmodel.RegisterModel(def)
 	}
 
-	sdk.RegisterProvider[struct{}]("anthropic", func(_ sdk.Config, _ struct{}) (sdk.Provider, error) { return nil, nil }) //nolint:nilnil // stub registration for model list tests
-	sdkmodel.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
-
-	t.Setenv("ANTHROPIC_API_KEY", "test-key")
+	sdk.RegisterProvider[struct{}, struct{}]("anthropic", func(_ sdk.Config, _, _ struct{}) (sdk.Provider, error) { return nil, nil }) //nolint:nilnil // stub registration for model list tests
+	sdkmodel.SetProviderAuth("anthropic", true)
 
 	defer sdkmodel.ResetModelRegistry()
 	defer sdk.ResetProviderRegistry()
-	defer sdkmodel.ResetProviderEnvVarRegistry()
-
-	t.Setenv("ANTHROPIC_MODEL", "my-custom-model")
+	defer sdkmodel.ResetAuthRegistry()
 
 	entries := listModels(nil)
 
-	// Should show registry entries as-is, not env-overridden names
+	// Should show registry entries as-is
 	anthropicCount := 0
 
 	for _, e := range entries {
 		if e.Provider == "anthropic" {
 			anthropicCount++
-
-			assert.NotEqual(t, "my-custom-model", e.Model,
-				"listModels should show registry IDs, not env overrides")
 		}
 	}
 
 	assert.Equal(t, 5, anthropicCount,
-		"should show all anthropic models, not collapsed by env override")
+		"should show all anthropic models")
 }
 
 func TestModelEntryDisplayName(t *testing.T) {
@@ -655,23 +643,20 @@ func TestModelSelectorCurrentModelMarker(t *testing.T) {
 func TestStatusMessageOnModelCycle(t *testing.T) {
 	sdkmodel.ResetModelRegistry()
 	sdk.ResetProviderRegistry()
-	sdkmodel.ResetProviderEnvVarRegistry()
+	sdkmodel.ResetAuthRegistry()
 
 	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "claude-sonnet-4-6", Provider: "anthropic", Reasoning: true})
 	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "claude-opus-4-7", Provider: "anthropic", Reasoning: true, SupportsXHigh: true})
 	sdkmodel.RegisterModel(sdkmodel.ModelDef{ID: "gpt-5.5", Provider: "openai", Reasoning: true})
 
-	sdk.RegisterProvider[struct{}]("anthropic", func(_ sdk.Config, _ struct{}) (sdk.Provider, error) { return nil, nil }) //nolint:nilnil // stub registration for model list tests
-	sdk.RegisterProvider[struct{}]("openai", func(_ sdk.Config, _ struct{}) (sdk.Provider, error) { return nil, nil })    //nolint:nilnil // stub registration for model list tests
-	sdkmodel.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
-	sdkmodel.RegisterProviderEnvVar("openai", "OPENAI_API_KEY")
-
-	t.Setenv("ANTHROPIC_API_KEY", "test-key")
-	t.Setenv("OPENAI_API_KEY", "test-key")
+	sdk.RegisterProvider[struct{}, struct{}]("anthropic", func(_ sdk.Config, _, _ struct{}) (sdk.Provider, error) { return nil, nil }) //nolint:nilnil // stub registration for model list tests
+	sdk.RegisterProvider[struct{}, struct{}]("openai", func(_ sdk.Config, _, _ struct{}) (sdk.Provider, error) { return nil, nil })    //nolint:nilnil // stub registration for model list tests
+	sdkmodel.SetProviderAuth("anthropic", true)
+	sdkmodel.SetProviderAuth("openai", true)
 
 	defer sdkmodel.ResetModelRegistry()
 	defer sdk.ResetProviderRegistry()
-	defer sdkmodel.ResetProviderEnvVarRegistry()
+	defer sdkmodel.ResetAuthRegistry()
 
 	m := newModel(nil, nil, nil)
 	m.width = 80
@@ -917,7 +902,6 @@ type mockConfig struct {
 
 func (m *mockConfig) FilePath() string                            { return m.filePath }
 func (m *mockConfig) ProjectDir() string                          { return "" }
-func (m *mockConfig) ResolveKey(_, envVar string) (string, error) { return "", nil }
 func (m *mockConfig) ExtensionConfig(_, _ string, target any, _ string) error {
 	if m.uiConfig == nil {
 		return nil

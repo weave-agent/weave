@@ -107,10 +107,10 @@ Replace imperative API key resolution (`cfg.ResolveKey`, `model.RegisterProvider
 
 ### Task 11: Clean up TUI auth checks
 
-- [ ] Update `extensions/ui/tui/models.go` — `providerHasKey` uses `model.ProviderHasAuth` instead of `cfg.ResolveKey`
-- [ ] Update model selector to use `model.ListAvailableModels`
-- [ ] Remove `ResolveKey` from mock config implementations in TUI tests
-- [ ] Run `cd extensions/ui/tui && go test ./...` — must pass
+- [x] Update `extensions/ui/tui/models.go` — `providerHasKey` uses `model.ProviderHasAuth` instead of `cfg.ResolveKey`
+- [x] Update model selector to use `model.ListAvailableModels`
+- [x] Remove `ResolveKey` from mock config implementations in TUI tests
+- [x] Run `cd extensions/ui/tui && go test ./...` — must pass
 
 ### Task 12: Clean up loop auth checks
 
