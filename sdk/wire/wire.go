@@ -5,6 +5,7 @@ package wire
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"slices"
 
@@ -60,7 +61,11 @@ func Wire(extNames []string, bus sdk.Bus, cfg sdk.Config) (*Wired, error) {
 
 	// Check auth status for all registered providers.
 	for _, name := range sdk.ListProviders() {
-		hasAuth, _ := sdk.CheckProviderAuth(name, cfg)
+		hasAuth, err := sdk.CheckProviderAuth(name, cfg)
+		if err != nil {
+			log.Printf("weave: check auth for %s: %v", name, err)
+		}
+
 		model.SetProviderAuth(name, hasAuth)
 	}
 
