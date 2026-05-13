@@ -317,19 +317,12 @@ func resolveIgnorePatterns(args map[string]any) []string {
 
 func resolveLimit(args map[string]any, defaultLimit int) int {
 	if v, ok := args[paramLimit]; ok {
-		switch n := v.(type) {
-		case float64:
-			if n >= 0 {
-				return int(n)
-			}
-		case int:
-			if n >= 0 {
-				return n
-			}
-		case int64:
-			if n >= 0 {
-				return int(n)
-			}
+		if f, ok := v.(float64); ok && f >= 0 {
+			return int(f)
+		}
+
+		if i, ok := v.(int); ok && i >= 0 {
+			return i
 		}
 	}
 
@@ -338,19 +331,12 @@ func resolveLimit(args map[string]any, defaultLimit int) int {
 
 func resolveDepth(args map[string]any) int {
 	if v, ok := args[paramDepth]; ok {
-		switch n := v.(type) {
-		case float64:
-			if n >= 0 {
-				return int(n)
-			}
-		case int:
-			if n >= 0 {
-				return n
-			}
-		case int64:
-			if n >= 0 {
-				return int(n)
-			}
+		if f, ok := v.(float64); ok && f >= 0 {
+			return int(f)
+		}
+
+		if i, ok := v.(int); ok && i >= 0 {
+			return i
 		}
 	}
 

@@ -237,7 +237,7 @@ func TestFooterModel_Draw_ZeroArea(t *testing.T) {
 }
 
 func TestFooterModel_Draw_SingleRow(t *testing.T) {
-	f := NewFooterModel().SetSize(80)
+	f := NewFooterModel().SetSize(80).SetCWD("/home/user/weave")
 	canvas := uv.NewScreenBuffer(80, 1)
 	f.Draw(canvas, canvas.Bounds())
 	output := uv.TrimSpace(canvas.Render())

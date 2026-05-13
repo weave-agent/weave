@@ -3,7 +3,6 @@ package bash
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"strings"
 	"sync"
@@ -457,7 +456,13 @@ func TestExecuteRunInBackground(t *testing.T) {
 		// Extract job ID from result
 		var jobID string
 
-		_, _ = fmt.Sscanf(result.Content, "Background job started: %s", &jobID)
+		for line := range strings.SplitSeq(result.Content, "\n") {
+			if id, ok := strings.CutPrefix(line, "Background job started: "); ok {
+				jobID = id
+				break
+			}
+		}
+
 		require.NotEmpty(t, jobID)
 
 		// Wait for job to complete
@@ -515,10 +520,7 @@ func TestExecuteAutoBackground(t *testing.T) {
 		// Extract job ID
 		var jobID string
 
-		_, _ = fmt.Sscanf(result.Content, "%*s\n%*s\nBackground job %s is still running.", &jobID)
-		// Try a simpler extraction
-		lines := strings.SplitSeq(result.Content, "\n")
-		for line := range lines {
+		for line := range strings.SplitSeq(result.Content, "\n") {
 			if strings.Contains(line, "Background job") {
 				parts := strings.Fields(line)
 				for i, p := range parts {
@@ -552,6 +554,19 @@ func TestExecuteAutoBackground(t *testing.T) {
 		assert.True(t, result.IsError)
 		assert.Contains(t, result.Content, "background manager not available")
 	})
+}
+
+func TestBackgroundJobNonZeroExitCode(t *testing.T) {
+	bgMgr := NewBackgroundManager()
+	job := bgMgr.Start("exit 42", "", 10*time.Second, nil)
+	job.Wait()
+
+	assert.Equal(t, 42, job.ExitCode())
+	require.NoError(t, job.ExitError())
+
+	result := job.Result()
+	assert.False(t, result.IsError)
+	assert.Contains(t, result.Content, "[exit code 42]")
 }
 
 func TestBackgroundManagerOutput(t *testing.T) {
@@ -636,7 +651,13 @@ func TestBackgroundJobBusEvents(t *testing.T) {
 		// Extract job ID
 		var jobID string
 
-		_, _ = fmt.Sscanf(result.Content, "Background job started: %s", &jobID)
+		for line := range strings.SplitSeq(result.Content, "\n") {
+			if id, ok := strings.CutPrefix(line, "Background job started: "); ok {
+				jobID = id
+				break
+			}
+		}
+
 		require.NotEmpty(t, jobID)
 
 		// Wait for job completion
@@ -721,7 +742,13 @@ func TestBackgroundJobStreamingEvents(t *testing.T) {
 
 		var jobID string
 
-		_, _ = fmt.Sscanf(result.Content, "Background job started: %s", &jobID)
+		for line := range strings.SplitSeq(result.Content, "\n") {
+			if id, ok := strings.CutPrefix(line, "Background job started: "); ok {
+				jobID = id
+				break
+			}
+		}
+
 		require.NotEmpty(t, jobID)
 
 		job, ok := bgMgr.Get(jobID)

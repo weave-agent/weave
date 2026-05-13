@@ -539,6 +539,8 @@ func TestBridge_TokenRateResetsOnMessageEnd(t *testing.T) {
 	// Second message: start, update
 	events <- sdk.NewEvent(topicMsgStart, nil)
 
+	time.Sleep(10 * time.Millisecond) // ensure non-zero elapsed time for rate calc
+
 	events <- sdk.NewEvent(topicMsgUpdate, "second message")
 
 	close(events)

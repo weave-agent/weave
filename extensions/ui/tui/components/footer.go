@@ -52,6 +52,12 @@ func NewFooterModel() FooterModel {
 	return f
 }
 
+// SetCWD updates the working directory display.
+func (m FooterModel) SetCWD(cwd string) FooterModel {
+	m.cwd = cwd
+	return m
+}
+
 // SetSize updates the footer width.
 func (m FooterModel) SetSize(width int) FooterModel {
 	m.width = width

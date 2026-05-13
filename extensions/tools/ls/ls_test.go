@@ -625,6 +625,24 @@ func TestExecuteTreeSandboxFiltering(t *testing.T) {
 	assert.NotContains(t, result.Content, "key.txt")
 }
 
+func TestExecuteIgnoreInvalidPattern(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.txt"), []byte("x"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "b.txt"), []byte("x"), 0o644))
+
+	// Invalid glob pattern should not crash and should not filter anything
+	result, err := (&tool{defaultLimit: 500}).Execute(context.Background(), map[string]any{
+		"path":   dir,
+		"ignore": []any{"["},
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	// Both files should still be present
+	assert.Contains(t, result.Content, "a.txt")
+	assert.Contains(t, result.Content, "b.txt")
+}
+
 func TestExecuteFlatStillWorks(t *testing.T) {
 	// Ensure depth=0 (default) still gives flat list
 	dir := t.TempDir()

@@ -142,6 +142,35 @@ func TestExecute(t *testing.T) {
 		assert.Empty(t, result.Content)
 	})
 
+	t.Run("offset beyond file length", func(t *testing.T) {
+		path := filepath.Join(tmpDir, "short.txt")
+		content := "first\nsecond\nthird"
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+
+		result, err := tool.Execute(context.Background(), map[string]any{
+			"path":   path,
+			"offset": float64(100),
+		})
+		require.NoError(t, err)
+		assert.False(t, result.IsError)
+		assert.Empty(t, result.Content)
+	})
+
+	t.Run("limit of zero returns all lines", func(t *testing.T) {
+		path := filepath.Join(tmpDir, "limitzero.txt")
+		content := "a\nb\nc\nd\ne"
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+
+		result, err := tool.Execute(context.Background(), map[string]any{
+			"path":  path,
+			"limit": float64(0),
+		})
+		require.NoError(t, err)
+		assert.False(t, result.IsError)
+		assert.Contains(t, result.Content, "1\ta")
+		assert.Contains(t, result.Content, "5\te")
+	})
+
 	t.Run("large file truncation", func(t *testing.T) {
 		path := filepath.Join(tmpDir, "large.txt")
 
