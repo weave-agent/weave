@@ -159,10 +159,10 @@ Merge three separate extensions (`loop`, `skills`, `instructions`) into a single
 
 ### Task 9: Update documentation
 
-- [ ] Update `CLAUDE.md` references to old extensions
-- [ ] Document new `agent` extension behavior
-- [ ] Document SYSTEM.md override behavior
-- [ ] Document extension-bundled skills
+- [x] Update `CLAUDE.md` references to old extensions
+- [x] Document new `agent` extension behavior
+- [x] Document SYSTEM.md override behavior
+- [x] Document extension-bundled skills
 
 ## Technical Details
 

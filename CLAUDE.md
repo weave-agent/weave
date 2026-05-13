@@ -49,7 +49,7 @@ Standard library as much as possible. Every replaceable component is an extensio
 - `settings/` — unified JSON-only settings system. Discovers `.weave/settings.json` by walking up from cwd, falling back to `~/.weave/settings.json`. `Settings` struct holds all config fields (agent_loop, ui_extension, providers, sandbox, jsonl, extensions, plus user preferences like provider, model, thinking_level, ui, tools). `FullConfig` implements `sdk.Config` with key resolution and typed extension config via `ExtensionConfig()`. `FullConfig.SetArgs(args)` stores remaining CLI args for extension-specific flag parsing. `FullConfig.SetProjectDir(dir)` overrides the project directory for layered settings resolution. `loader.go` — custom `Loader` struct with `Load(target)` that applies defaults → JSON data → env vars → CLI flags → validation, using struct tags (`default`, `env`, `flag`, `short`, `validate`, `description`). `merge.go` — `MergeSettings` deep-merges global → local layers for tool/UI preferences. `validation.go` — generic field-path validation (no extension-specific values). `ProjectDirFromConfig()` derives project root from config file path for auto-discovery from subdirectories. `help.go` — `GenerateFullHelp()` produces full `--help` output from registered extension schemas.
 - `internal/truncate/` — shared output truncation (2000 lines / 50KB) used by all tools for consistent output limiting
 - `utils/ripgrep/` — shared ripgrep binary detection (`Find()` returns `rg` path or empty string, cached via `sync.OnceValue`); used by find and grep tools for rg-first strategy
-- `extensions/agent/` — core extension implementing the agent conversation lifecycle: context file discovery (CLAUDE.md/AGENTS.md), skill discovery, default system prompt assembly with dynamic tool descriptions, and the two-level while-loop agent cycle (outer: follow-ups, inner: steering + tool calls); subscribes to `agent.prompt`, `agent.steer`, `agent.followup`, `model.change`, `thinking.change`; publishes `agent.turn_start/end`, `agent.message_start/update/end`, `agent.tool_result`, `agent.end`; supports SYSTEM.md override (replaces default base) and APPEND_SYSTEM.md (always appended last); discovers skills from project `.weave/skills/`, global `~/.weave/skills/`, and extension `skills/` subdirectories; registers `/skill:<name>` slash commands via TUI; selects initial provider via priority chain (`WEAVE_PROVIDER` env > settings provider > first registered > `"anthropic"` fallback)
+- `extensions/agent/` — core extension implementing the full agent conversation lifecycle. See "Agent Extension" section below for details. Subscribes to `agent.prompt`, `agent.steer`, `agent.followup`, `model.change`, `thinking.change`; publishes `agent.turn_start/end`, `agent.message_start/update/end`, `agent.tool_result`, `agent.end`.
 - `extensions/tools/{bash,read,edit,write,grep,find,ls}/` — individual tool extension modules, each an independent Go module self-registering via `sdk.RegisterTool`; find and grep use an rg-first pattern (shell out to `rg` when available for .gitignore support and faster searches, fall back to pure Go stdlib when absent), share binary detection via `utils/ripgrep.Find()`, and read `sdk.Config.RespectGitignore()` to toggle .gitignore honoring (default: true); grep supports an `include` glob filter parameter and per-line truncation; find supports `**/` recursive patterns via component-wise segment matching
 - `extensions/tools/subagent/` — subagent tool extension; spawns isolated `weave -p --output json` subprocesses with restricted tool allowlists and optional sandbox mode. Agent definitions are markdown files with YAML frontmatter (name, description, tools, model, sandbox, messaging, system) discovered from embedded built-ins (`agents/general.md`, `explore.md`, `plan.md`), `.weave/agents/`, and `~/.weave/agents/` (project > global > built-in precedence). Each discovered agent registers as `subagent_<name>` tool. Three execution modes: single (`prompt`), parallel (`tasks`), chain (`chain` with `{previous}` substitution). Background mode spawns without blocking; `check_agent(id)` and `await_agent(id)` query results. Inter-agent communication via parent `Broker` routes `send_message`, `broadcast_message`, and `list_agents` between children when `messaging: true`. Broker registers agents by ID, monitors stdout for JSON routing events, and writes `agent_msg`/`inject`/`list_agents_response` to target stdin pipes. Child-side `stdin_listener.go` reads stdin JSON lines and queues them as user messages when `--weave-subagent-id` is set. Subagent uses `testRunSubagent` hook for mocking in tests
 - `extensions/providers/openai-compat/` — shared library for OpenAI-compatible providers (SSE parsing, message/tool conversion); reused by `openai` and `zai` providers; import as `openaicompat` package
@@ -74,6 +74,57 @@ Standard library as much as possible. Every replaceable component is an extensio
 
 The model selector (`Ctrl+L`) and `/model` slash command filter to only providers with valid auth credentials using `model.ListAvailableModels()`. The `/providers` slash command shows key status via `model.ProviderHasAuth()`.
 - `launcher/` — full pipeline: `AutoDiscover` recursively scans project-local `.weave/extensions/`, global `~/.weave/extensions/`, and built-in `extensions/` for Go modules (dirs with `go.mod` + `.go` files); UI extensions detected via `sdk.IsUIExtension(dir)` (scans `.go` files for `RegisterUIExtension(` or `RegisterUI(` calls); deduplicates by name (local > global > built-in); applies `exclude_extensions` list; `ComputeHash` of .go files (includes headless flag for different caches), `Cache` in `~/.weave/bin/{hash}/`, `Build` by generating go.mod+main.go with blank imports (filtering UI extensions for headless), then `syscall.Exec`; generated code imports `weave/sdk/wire` and uses `wire.CoreWireConfig`/`wire.WireWithCore`; passes `WEAVE_LAUNCHER_PATH`, `WEAVE_BUILD_HASH`, and `WEAVE_ORIG_ARGS` env vars for `/reload` support
+
+## Agent Extension
+
+The `agent` extension owns the entire conversation lifecycle: prompt assembly, turn loop, tool execution, skill discovery, and context file loading. It subscribes to `agent.prompt`, `agent.steer`, `agent.followup`, `model.change`, and `thinking.change` events. It publishes `agent.turn_start/end`, `agent.message_start/update/end`, `agent.tool_result`, and `agent.end` events.
+
+### Prompt Assembly
+
+The system prompt is built once per conversation (rebuilt on `/new`) from multiple layers, in order:
+
+1. **Default prompt** (`default-system-prompt.md`, embedded) **or SYSTEM.md** (if found). SYSTEM.md replaces the default entirely.
+2. **Date + CWD** — always injected (`Current date: YYYY-MM-DD`, `Current working directory: /path`).
+3. **Available tools** — dynamic list from `sdk.ListTools()` with descriptions.
+4. **Skills XML** — `<available_skills>` block with name, description, and file path for each discovered skill.
+5. **Skills usage instructions** — `<skills_usage>` block instructing the model to read matching skills via the read tool before acting.
+6. **Context files** — `# Project Context` section with CLAUDE.md/AGENTS.md content.
+7. **APPEND_SYSTEM.md** — always appended last, regardless of whether SYSTEM.md or the default prompt was used as the base.
+
+### Context File Discovery
+
+Context files (`CLAUDE.md` and `AGENTS.md`) are discovered by walking up from the project directory toward the filesystem root. The first matching file per directory is used. Project-local files take precedence over global files (`~/.weave/`). Multiple files from different directories in the hierarchy are all included, with parent directories listed before child directories.
+
+### SYSTEM.md and APPEND_SYSTEM.md
+
+- **SYSTEM.md**: Placed in `<project>/.weave/SYSTEM.md` or `~/.weave/SYSTEM.md`. When present, it replaces the default system prompt entirely. Project-local SYSTEM.md overrides the global one.
+- **APPEND_SYSTEM.md**: Placed in `<project>/.weave/APPEND_SYSTEM.md` or `~/.weave/APPEND_SYSTEM.md`. When present, it is always appended as the final layer of the system prompt, after context files. Project-local APPEND_SYSTEM.md overrides the global one.
+
+### Skill Discovery
+
+Skills are discovered from three sources, in precedence order (first wins by name):
+
+1. **Project skills**: `<project>/.weave/skills/<name>/SKILL.md`
+2. **Global skills**: `~/.weave/skills/<name>/SKILL.md`
+3. **Extension-bundled skills**: `<ext-dir>/skills/<name>/SKILL.md` for each registered extension
+
+Each skill directory contains a `SKILL.md` with YAML frontmatter (`name`, `description`, `disable-model-invocation`, `license`, `compatibility`, `metadata`, `allowed-tools`) followed by a `---` delimiter and the skill body. The skill name in frontmatter must match the directory name. Names must be lowercase alphanumeric with hyphens (e.g. `go-test`, `refactor`), 1-64 characters, and cannot be reserved words (`anthropic`, `claude`).
+
+### Extension-Bundled Skills
+
+Each extension can ship skills in a `skills/` subdirectory. The agent extension discovers these by scanning registered extension directories in both project-local `.weave/extensions/` and global `~/.weave/extensions/`. Only directories matching currently registered extension names are checked. User skills (project or global) override extension-bundled skills by name.
+
+### Skill Self-Invocation
+
+Skills are listed in the system prompt as XML with their name, description, and file location. The model is instructed to read matching skills using the read tool before taking other action. When a user invokes a skill via the `/skill:<name>` slash command, the skill body is pre-loaded into the conversation as an `agent.prompt` event wrapped in `<skill>` XML.
+
+### Turn Loop
+
+The agent implements a two-level loop:
+- **Outer loop**: waits for follow-up prompts or new conversations (`agent.followup` / `agent.prompt`). A new `agent.prompt` resets messages and rebuilds the system prompt.
+- **Inner loop**: streams a turn from the provider, executes any tool calls, and repeats while tools remain (or steering messages arrive). Each turn runs in its own cancellable context; `agent.interrupt` cancels the current turn without ending the session.
+
+The provider is lazily instantiated on the first prompt, giving the TUI time to show "No providers configured" and letting the user set an API key. Model and thinking level changes are drained before each turn to ensure the active provider matches user selection.
 
 **Extension lifecycle:** Extension packages call `sdk.RegisterExtension[T](name, factory)` in `init()`, where `T` is the extension's typed config struct and `factory` has signature `func(Config, T) (Extension, error)`. Provider, tool, and UI extensions similarly call `sdk.RegisterProvider[TConfig, TAuth]`, `sdk.RegisterTool[T]`, and `sdk.RegisterUI`. Provider factories receive three arguments: `func(Config, TConfig, TAuth) (Provider, error)`. For extensions needing a custom config scope (e.g. TUI uses `"ui"`, sandbox uses `"sandbox"`), use `sdk.RegisterExtensionWithScope[T](name, scope, factory)`. Duplicate registrations log a warning (first registration wins). The SDK extracts the config schema via reflection at registration time and stores it for help generation. UI extensions (TUI-specific plugins) call `sdk.RegisterUIExtension` in `init()` and are wired by the TUI at startup via `sdk.GetUIExtensions()`. All auto-discovered extensions are blank-imported in the generated binary, triggering registration. `wire.WireWithCore()` (from `sdk/wire/`) resolves names from registries and calls `Subscribe(bus)` on each extension. Before subscribing, it publishes `app.started` on the bus and invokes any handlers registered via `sdk.OnAppStarted()`. Extensions register handlers via `bus.On(topic, handler)` or `bus.OnAll(handler)` to receive events; `bus.Off(handler)` removes a handler. Handler panics are caught by the bus and published as diagnostic events via configurable topics (`extension.panic` and `extension.error` by default); errors from handlers are similarly published as diagnostic events. When no prompt is provided (`-p` flag unset), the TUI extension is included in the build for interactive mode; with `-p`, weave runs in print mode without TUI. `FullConfig.IsHeadless()` always returns `false`; headless mode is determined at the entry point (`wire/run.go`) by whether `-p` was provided. `HeadlessConfig` wraps a `Config` and overrides `IsHeadless()` for specific scenarios. UI extensions are silently skipped in headless mode.
 
