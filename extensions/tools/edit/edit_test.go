@@ -183,6 +183,65 @@ func TestExecute(t *testing.T) {
 				assert.Contains(t, result.Content, "matched 2 times")
 			},
 		},
+		{
+			name: "replace_all with multiple occurrences",
+			setup: func(t *testing.T) string {
+				p := filepath.Join(tmpDir, "replaceall.txt")
+				require.NoError(t, os.WriteFile(p, []byte("aaa bbb aaa"), 0o644))
+
+				return p
+			},
+			args: map[string]any{
+				"edits": []any{
+					map[string]any{"oldText": "aaa", "newText": "ccc", "replace_all": true},
+				},
+			},
+			wantError: false,
+			check: func(t *testing.T, result sdk.ToolResult, path string) {
+				assert.Contains(t, result.Content, "-aaa bbb aaa")
+				assert.Contains(t, result.Content, "+ccc bbb ccc")
+
+				data, err := os.ReadFile(path)
+				require.NoError(t, err)
+				assert.Equal(t, "ccc bbb ccc", string(data))
+			},
+		},
+		{
+			name: "replace_all=false with multiple occurrences error",
+			setup: func(t *testing.T) string {
+				p := filepath.Join(tmpDir, "noreplaceall.txt")
+				require.NoError(t, os.WriteFile(p, []byte("aaa bbb aaa"), 0o644))
+
+				return p
+			},
+			args: map[string]any{
+				"edits": []any{
+					map[string]any{"oldText": "aaa", "newText": "ccc", "replace_all": false},
+				},
+			},
+			wantError: true,
+			check: func(t *testing.T, result sdk.ToolResult, _ string) {
+				assert.Contains(t, result.Content, "matched 2 times")
+			},
+		},
+		{
+			name: "replace_all with no matches error",
+			setup: func(t *testing.T) string {
+				p := filepath.Join(tmpDir, "replaceall_nomatch.txt")
+				require.NoError(t, os.WriteFile(p, []byte("hello world"), 0o644))
+
+				return p
+			},
+			args: map[string]any{
+				"edits": []any{
+					map[string]any{"oldText": "notfound", "newText": "ccc", "replace_all": true},
+				},
+			},
+			wantError: true,
+			check: func(t *testing.T, result sdk.ToolResult, _ string) {
+				assert.Contains(t, result.Content, "oldText not found")
+			},
+		},
 	}
 
 	for _, tt := range tests {

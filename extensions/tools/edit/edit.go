@@ -17,9 +17,10 @@ import (
 
 // Parameter name constants.
 const (
-	ParamEdits   = "edits"
-	ParamOldText = "oldText"
-	ParamNewText = "newText"
+	ParamEdits      = "edits"
+	ParamOldText    = "oldText"
+	ParamNewText    = "newText"
+	ParamReplaceAll = "replace_all"
 )
 
 type tool struct {
@@ -34,10 +35,11 @@ func init() {
 
 func (t *tool) Name() string { return "edit" }
 
+//nolint:goconst // JSON schema "type" keys are intentionally repeated literals.
 func (t *tool) Definition() sdk.ToolDef {
 	return sdk.ToolDef{
 		Name:        "edit",
-		Description: "Apply text replacements to a file and return a unified diff of the changes.",
+		Description: "Apply text replacements to a file and return a unified diff of the changes. Set replace_all=true to replace every occurrence of oldText.",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -57,6 +59,10 @@ func (t *tool) Definition() sdk.ToolDef {
 							ParamNewText: map[string]any{
 								"type":        "string",
 								"description": "The text to replace with.",
+							},
+							ParamReplaceAll: map[string]any{
+								"type":        "boolean",
+								"description": "If true, replace every occurrence of oldText in the file. If false (default), oldText must match exactly once.",
 							},
 						},
 						"required": []string{ParamOldText, ParamNewText},
@@ -88,7 +94,7 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		return sdk.ToolResult{Content: "error: at least one edit is required", IsError: true}, nil
 	}
 
-	edits := make([]struct{ oldText, newText string }, 0, len(editsRaw))
+	edits := make([]editEntry, 0, len(editsRaw))
 	for i, e := range editsRaw {
 		m, ok := e.(map[string]any)
 		if !ok {
@@ -97,7 +103,8 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 
 		oldText, _ := m[ParamOldText].(string)
 		newText, _ := m[ParamNewText].(string)
-		edits = append(edits, struct{ oldText, newText string }{oldText, newText})
+		replaceAll, _ := m[ParamReplaceAll].(bool)
+		edits = append(edits, editEntry{oldText, newText, replaceAll})
 	}
 
 	original, err := os.ReadFile(path)
@@ -105,38 +112,10 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
 	}
 
-	content := string(original)
-
-	for i, e := range edits {
-		if e.oldText == "" {
-			if content != "" {
-				return sdk.ToolResult{
-					Content: fmt.Sprintf("error: empty oldText but file has content (edit %d)", i),
-					IsError: true,
-				}, nil
-			}
-
-			content = e.newText
-
-			continue
-		}
-
-		if !strings.Contains(content, e.oldText) {
-			return sdk.ToolResult{
-				Content: fmt.Sprintf("error: oldText not found in file (edit %d)", i),
-				IsError: true,
-			}, nil
-		}
-
-		count := strings.Count(content, e.oldText)
-		if count > 1 {
-			return sdk.ToolResult{
-				Content: fmt.Sprintf("error: oldText matched %d times in file, expected exactly 1 (edit %d)", count, i),
-				IsError: true,
-			}, nil
-		}
-
-		content = strings.Replace(content, e.oldText, e.newText, 1)
+	content, err := applyEdits(string(original), edits)
+	if err != nil {
+		//nolint:nilerr // Tool errors are returned via ToolResult.IsError, not as Go errors.
+		return sdk.ToolResult{Content: err.Error(), IsError: true}, nil
 	}
 
 	diff, _ := difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
@@ -165,6 +144,45 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 	result := truncate.Truncate(diff, truncate.DefaultMaxLines, truncate.DefaultMaxBytes)
 
 	return sdk.ToolResult{Content: result.Format(), IsError: false}, nil
+}
+
+// editEntry is a single text replacement instruction.
+type editEntry struct {
+	oldText, newText string
+	replaceAll       bool
+}
+
+// applyEdits applies a sequence of text replacements to content and returns the result.
+// It returns an error if any edit cannot be applied (not found, multiple matches when not allowed, etc.).
+func applyEdits(content string, edits []editEntry) (string, error) {
+	for i, e := range edits {
+		if e.oldText == "" {
+			if content != "" {
+				return "", fmt.Errorf("error: empty oldText but file has content (edit %d)", i)
+			}
+
+			content = e.newText
+
+			continue
+		}
+
+		if !strings.Contains(content, e.oldText) {
+			return "", fmt.Errorf("error: oldText not found in file (edit %d)", i)
+		}
+
+		if e.replaceAll {
+			content = strings.ReplaceAll(content, e.oldText, e.newText)
+		} else {
+			count := strings.Count(content, e.oldText)
+			if count > 1 {
+				return "", fmt.Errorf("error: oldText matched %d times in file, expected exactly 1 (edit %d)", count, i)
+			}
+
+			content = strings.Replace(content, e.oldText, e.newText, 1)
+		}
+	}
+
+	return content, nil
 }
 
 // checkFileTracker validates that the file at path has been read and not modified since.

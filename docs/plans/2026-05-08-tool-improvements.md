@@ -102,12 +102,12 @@ Edit tool checks FileTracker before applying edits. Rejects if file not read or 
 ### Task 7: Edit — Replace all mode
 Add `replace_all` flag to replace every occurrence of oldText.
 
-- [ ] Add `replace_all` (bool) to edit tool params schema
-- [ ] When `replace_all=true`: use `strings.ReplaceAll(content, oldText, newText)` instead of single-match logic
-- [ ] When `replace_all=false` (default): keep existing exact-single-match validation
-- [ ] Update tool definition description to mention replace_all
-- [ ] Write tests: replace_all with multiple occurrences, replace_all=false with multiple occurrences (error), replace_all with no matches (error)
-- [ ] Run `cd extensions/tools/edit && go test ./...`
+- [x] Add `replace_all` (bool) to edit tool params schema
+- [x] When `replace_all=true`: use `strings.ReplaceAll(content, oldText, newText)` instead of single-match logic
+- [x] When `replace_all=false` (default): keep existing exact-single-match validation
+- [x] Update tool definition description to mention replace_all
+- [x] Write tests: replace_all with multiple occurrences, replace_all=false with multiple occurrences (error), replace_all with no matches (error)
+- [x] Run `cd extensions/tools/edit && go test ./...`
 
 ### Task 8: Edit — File mutation queue
 Serialize concurrent edits to the same file to prevent race conditions.
