@@ -42,17 +42,17 @@ Add real-time output streaming via bus events so the agent loop can show progres
 ### Task 2: Bash — Background jobs
 Add `run_in_background` and `auto_background_after` params. Background jobs run detached, output retrieved separately.
 
-- [ ] Add `BackgroundManager` type in `extensions/tools/bash/` — manages `map[string]*BackgroundJob` with mutex
+- [x] Add `BackgroundManager` type in `extensions/tools/bash/` — manages `map[string]*BackgroundJob` with mutex
   - `BackgroundJob` struct: `ID, Command, StartTime, ctx+cancel, stdout/stderr syncBuffer, done chan, exitErr`
   - Methods: `Start(), Output(id), Kill(id), List()`
-- [ ] Add `run_in_background` (bool) and `auto_background_after` (int, seconds, default 0=disabled) params to bash tool definition
-- [ ] Implement background execution path: start command, return job ID immediately with instructions
-- [ ] Implement auto-background: start sync, move to background after timeout or completion
-- [ ] Add `tool.bash.background_start` and `tool.bash.background_done` bus events
-- [ ] Write tests for immediate background (`run_in_background=true`)
-- [ ] Write tests for auto-background (`auto_background_after=2`)
-- [ ] Write tests for background job output retrieval and kill
-- [ ] Run `cd extensions/tools/bash && go test ./...`
+- [x] Add `run_in_background` (bool) and `auto_background_after` (int, seconds, default 0=disabled) params to bash tool definition
+- [x] Implement background execution path: start command, return job ID immediately with instructions
+- [x] Implement auto-background: start sync, move to background after timeout or completion
+- [x] Add `tool.bash.background_start` and `tool.bash.background_done` bus events
+- [x] Write tests for immediate background (`run_in_background=true`)
+- [x] Write tests for auto-background (`auto_background_after=2`)
+- [x] Write tests for background job output retrieval and kill
+- [x] Run `cd extensions/tools/bash && go test ./...`
 
 ### Task 3: Bash — Temp file overflow
 When output exceeds truncation limits, save full output to a temp file and include the path in the result.

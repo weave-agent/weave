@@ -38,6 +38,7 @@ type BashConfig struct {
 type tool struct {
 	timeout time.Duration
 	dir     string
+	bgMgr   *BackgroundManager
 }
 
 func init() {
@@ -49,7 +50,7 @@ func init() {
 
 		dir := dirFromConfig(cfg)
 
-		return &tool{timeout: timeout, dir: dir}, nil
+		return &tool{timeout: timeout, dir: dir, bgMgr: NewBackgroundManager()}, nil
 	})
 }
 
@@ -78,7 +79,7 @@ func (t *tool) Name() string { return "bash" }
 func (t *tool) Definition() sdk.ToolDef {
 	return sdk.ToolDef{
 		Name:        "bash",
-		Description: "Execute a bash command and return its output.",
+		Description: "Execute a bash command and return its output. Supports background execution.",
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -90,10 +91,33 @@ func (t *tool) Definition() sdk.ToolDef {
 					"type":        "number",
 					"description": "Timeout in seconds. Defaults to 120.",
 				},
+				"run_in_background": map[string]any{
+					"type":        "boolean",
+					"description": "Run the command in the background and return a job ID immediately.",
+				},
+				"auto_background_after": map[string]any{
+					"type":        "number",
+					"description": "Start command synchronously and move to background after N seconds if still running. 0 disables auto-background.",
+				},
 			},
 			"required": []string{ParamCommand},
 		},
 	}
+}
+
+func resolveTimeout(args map[string]any, base time.Duration) time.Duration {
+	timeout := base
+	if timeout <= 0 {
+		timeout = defaultTimeout
+	}
+
+	if v, ok := args["timeout"]; ok {
+		if f, ok := v.(float64); ok && f > 0 {
+			timeout = time.Duration(f) * time.Second
+		}
+	}
+
+	return timeout
 }
 
 func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult, error) {
@@ -105,23 +129,61 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 	if s := sdk.GetSandboxer(); s != nil {
 		wrapped, err := s.WrapCommand(command, t.dir)
 		if err != nil {
+			//nolint:nilerr // tool errors are returned via ToolResult.IsError
 			return sdk.ToolResult{Content: "sandbox: " + err.Error(), IsError: true}, nil
 		}
 
 		command = wrapped
 	}
 
-	timeout := t.timeout
-	if timeout <= 0 {
-		timeout = defaultTimeout
-	}
+	timeout := resolveTimeout(args, t.timeout)
+	runInBackground, _ := args["run_in_background"].(bool)
 
-	if v, ok := args["timeout"]; ok {
+	autoBackgroundAfter := 0
+
+	if v, ok := args["auto_background_after"]; ok {
 		if f, ok := v.(float64); ok && f > 0 {
-			timeout = time.Duration(f) * time.Second
+			autoBackgroundAfter = int(f)
 		}
 	}
 
+	bus := sdk.BusFromContext(ctx)
+
+	if runInBackground {
+		if t.bgMgr == nil {
+			return sdk.ToolResult{Content: "error: background manager not available", IsError: true}, nil
+		}
+
+		job := t.bgMgr.Start(command, t.dir, timeout, bus)
+
+		return sdk.ToolResult{
+			Content: fmt.Sprintf("Background job started: %s\nCommand: %s\nWait for completion or check output later.", job.ID, command),
+		}, nil
+	}
+
+	if autoBackgroundAfter > 0 {
+		if t.bgMgr == nil {
+			return sdk.ToolResult{Content: "error: background manager not available", IsError: true}, nil
+		}
+
+		job := t.bgMgr.Start(command, t.dir, timeout, bus)
+
+		select {
+		case <-job.done:
+			return job.Result(), nil
+		case <-time.After(time.Duration(autoBackgroundAfter) * time.Second):
+			output := job.Output()
+			result := truncate.Truncate(output, truncate.DefaultMaxLines, truncate.DefaultMaxBytes)
+			content := fmt.Sprintf("%s\n\nBackground job %s is still running.\nCommand: %s", result.Format(), job.ID, command)
+
+			return sdk.ToolResult{Content: content}, nil
+		}
+	}
+
+	return t.executeSync(ctx, command, timeout, bus)
+}
+
+func (t *tool) executeSync(ctx context.Context, command string, timeout time.Duration, bus sdk.Bus) (sdk.ToolResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -153,8 +215,6 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 	if err := cmd.Start(); err != nil {
 		return sdk.ToolResult{Content: "error: " + err.Error(), IsError: true}, nil
 	}
-
-	bus := sdk.BusFromContext(ctx)
 
 	var outBuf strings.Builder
 
