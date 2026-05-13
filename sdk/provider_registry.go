@@ -63,13 +63,13 @@ func makeAuthChecker[TAuth any](name string) func(Config) (bool, error) {
 	}
 }
 
-// tagContainsRule reports whether a struct tag value contains the given rule
-// as a comma-separated entry. This handles validation tags like
+// tagContainsRequired reports whether a struct tag value contains
+// "required" as a comma-separated entry. This handles validation tags like
 // `validate:"required"` or `validate:"required,min=3"` without matching
 // substrings like "notrequired".
-func tagContainsRule(tag, rule string) bool {
+func tagContainsRequired(tag string) bool {
 	for part := range strings.SplitSeq(tag, ",") {
-		if strings.TrimSpace(part) == rule {
+		if strings.TrimSpace(part) == "required" {
 			return true
 		}
 	}
@@ -97,36 +97,14 @@ func hasAuthFieldSet(v reflect.Value) bool {
 		field := v.Field(i)
 		ft := t.Field(i)
 
-		switch field.Kind() {
-		case reflect.String:
-			if tagContainsRule(ft.Tag.Get("validate"), "required") {
-				hasRequired = true
+		isRequired, isSet := checkFieldRequiredAndValue(field, ft)
 
-				if field.String() == "" {
-					return false
-				}
+		if isRequired {
+			hasRequired = true
+
+			if !isSet {
+				return false
 			}
-		case reflect.Pointer:
-			if tagContainsRule(ft.Tag.Get("validate"), "required") {
-				hasRequired = true
-
-				if field.IsNil() {
-					return false
-				}
-			}
-		case reflect.Struct:
-			nestedHasRequired := hasRequiredFieldTag(field)
-			nestedOK := hasAuthFieldSet(field)
-
-			if nestedHasRequired {
-				hasRequired = true
-
-				if !nestedOK {
-					return false
-				}
-			}
-		default:
-			// Other field kinds are not considered for auth detection.
 		}
 	}
 
@@ -135,6 +113,53 @@ func hasAuthFieldSet(v reflect.Value) bool {
 	}
 
 	return true
+}
+
+// checkFieldRequiredAndValue reports whether the field has a validate:"required"
+// tag and whether its value is non-zero. For nested structs it checks recursively.
+func checkFieldRequiredAndValue(field reflect.Value, ft reflect.StructField) (isRequired, isSet bool) {
+	switch field.Kind() {
+	case reflect.String:
+		isRequired = tagContainsRequired(ft.Tag.Get("validate"))
+		isSet = field.String() != ""
+	case reflect.Bool:
+		isRequired = tagContainsRequired(ft.Tag.Get("validate"))
+		isSet = field.Bool()
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		isRequired = tagContainsRequired(ft.Tag.Get("validate"))
+		isSet = field.Int() != 0
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		isRequired = tagContainsRequired(ft.Tag.Get("validate"))
+		isSet = field.Uint() != 0
+	case reflect.Float32, reflect.Float64:
+		isRequired = tagContainsRequired(ft.Tag.Get("validate"))
+		isSet = field.Float() != 0
+	case reflect.Pointer:
+		isRequired = tagContainsRequired(ft.Tag.Get("validate"))
+		isSet = !field.IsNil()
+
+		if field.Type().Elem().Kind() == reflect.Struct && !field.IsNil() {
+			nestedHasRequired := hasRequiredFieldTag(field.Elem())
+			nestedOK := hasAuthFieldSet(field.Elem())
+
+			if nestedHasRequired {
+				isRequired = true
+				isSet = nestedOK
+			}
+		}
+	case reflect.Struct:
+		nestedHasRequired := hasRequiredFieldTag(field)
+		nestedOK := hasAuthFieldSet(field)
+
+		if nestedHasRequired {
+			isRequired = true
+			isSet = nestedOK
+		}
+	default:
+		// Other field kinds are not considered for auth detection.
+	}
+
+	return isRequired, isSet
 }
 
 // hasRequiredFieldTag reports whether any exported field in the struct
@@ -154,8 +179,14 @@ func hasRequiredFieldTag(v reflect.Value) bool {
 		field := v.Field(i)
 		ft := t.Field(i)
 
-		if tagContainsRule(ft.Tag.Get("validate"), "required") {
+		if tagContainsRequired(ft.Tag.Get("validate")) {
 			return true
+		}
+
+		if field.Kind() == reflect.Pointer && !field.IsNil() && field.Elem().Kind() == reflect.Struct {
+			if hasRequiredFieldTag(field.Elem()) {
+				return true
+			}
 		}
 
 		if field.Kind() == reflect.Struct && hasRequiredFieldTag(field) {
@@ -188,9 +219,31 @@ func hasAnyFieldSet(v reflect.Value) bool {
 			if field.String() != "" {
 				return true
 			}
+		case reflect.Bool:
+			if field.Bool() {
+				return true
+			}
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			if field.Int() != 0 {
+				return true
+			}
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			if field.Uint() != 0 {
+				return true
+			}
+		case reflect.Float32, reflect.Float64:
+			if field.Float() != 0 {
+				return true
+			}
 		case reflect.Pointer:
 			if !field.IsNil() {
 				return true
+			}
+
+			if field.Elem().Kind() == reflect.Struct {
+				if hasAnyFieldSet(field.Elem()) {
+					return true
+				}
 			}
 		case reflect.Struct:
 			if hasAnyFieldSet(field) {

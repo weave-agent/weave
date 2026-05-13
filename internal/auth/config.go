@@ -39,7 +39,8 @@ func LoadProviderAuth(providerName string, target any) error {
 	// Apply data from auth file (raw JSON unmarshaled directly into target).
 	if raw, ok := authFile.Providers[providerName]; ok && len(raw) > 0 {
 		if uerr := json.Unmarshal(raw, target); uerr != nil {
-			return fmt.Errorf("unmarshal provider auth: %w", uerr)
+			// Log warning but continue — env vars may still provide valid auth.
+			log.Printf("weave: warning: failed to unmarshal auth for provider %s: %v", providerName, uerr)
 		}
 	}
 
@@ -73,13 +74,28 @@ func applyEnvToStruct(target any) error {
 
 		ft := t.Field(i)
 
-		// Recurse into nested structs.
-		if field.Kind() == reflect.Struct {
+		// Recurse into nested structs (value or pointer).
+		switch field.Kind() {
+		case reflect.Struct:
 			if err := applyEnvToStruct(field.Addr().Interface()); err != nil {
 				return err
 			}
 
 			continue
+		case reflect.Pointer:
+			if field.Type().Elem().Kind() == reflect.Struct {
+				if field.IsNil() {
+					field.Set(reflect.New(field.Type().Elem()))
+				}
+
+				if err := applyEnvToStruct(field.Interface()); err != nil {
+					return err
+				}
+
+				continue
+			}
+		default:
+			// Non-struct fields are handled below via env tags.
 		}
 
 		envTag := ft.Tag.Get("env")

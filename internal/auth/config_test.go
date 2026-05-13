@@ -250,6 +250,45 @@ func TestLoadProviderAuth_NestedStruct(t *testing.T) {
 	assert.Equal(t, "nested-key", target.Inner.APIKey)
 }
 
+func TestLoadProviderAuth_MalformedProviderEntry_ContinuesWithEnv(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	// Write auth file directly with malformed provider JSON.
+	authFilePath := dir + "/.weave/auth.json"
+	require.NoError(t, os.MkdirAll(dir+"/.weave", 0o755))
+	require.NoError(t, os.WriteFile(authFilePath, []byte(`{"providers":{"testprovider":{"api_key": broken-json}}}`), 0o600))
+
+	// Env var should still be applied even though provider JSON is malformed.
+	t.Setenv("TEST_AUTH_API_KEY", "sk-from-env")
+
+	var target testAuth
+
+	err := LoadProviderAuth("testprovider", &target)
+	require.NoError(t, err)
+	assert.Equal(t, "sk-from-env", target.APIKey)
+}
+
+func TestLoadProviderAuth_NestedPointerStruct(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	type inner struct {
+		APIKey string `json:"api_key" env:"PTR_NESTED_API_KEY"`
+	}
+
+	type ptrNestedAuth struct {
+		Inner *inner
+	}
+
+	t.Setenv("PTR_NESTED_API_KEY", "ptr-nested-key")
+
+	var target ptrNestedAuth
+	require.NoError(t, LoadProviderAuth("test", &target))
+	require.NotNil(t, target.Inner)
+	assert.Equal(t, "ptr-nested-key", target.Inner.APIKey)
+}
+
 func TestLoadProviderAuth_UnsupportedFieldKind(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)

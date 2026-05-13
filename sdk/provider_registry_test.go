@@ -239,3 +239,117 @@ func TestCheckProviderAuth_MultipleRequiredFields_NeitherSet(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, hasAuth, "no required fields set should not count as authenticated")
 }
+
+func TestCheckProviderAuth_BoolFieldSet(t *testing.T) {
+	ResetProviderRegistry()
+
+	type BoolAuth struct {
+		Enabled bool `json:"enabled" env:"TEST_BOOL_ENABLED"`
+	}
+
+	RegisterProvider[struct{}, BoolAuth]("bool-auth", func(Config, struct{}, BoolAuth) (Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	t.Setenv("TEST_BOOL_ENABLED", "true")
+
+	hasAuth, err := CheckProviderAuth("bool-auth", nil)
+	require.NoError(t, err)
+	assert.True(t, hasAuth, "bool field set to true should count as authenticated")
+}
+
+func TestCheckProviderAuth_BoolFieldNotSet(t *testing.T) {
+	ResetProviderRegistry()
+
+	type BoolAuth struct {
+		Enabled bool `json:"enabled" env:"TEST_BOOL2_ENABLED"`
+	}
+
+	RegisterProvider[struct{}, BoolAuth]("bool-auth2", func(Config, struct{}, BoolAuth) (Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	hasAuth, err := CheckProviderAuth("bool-auth2", nil)
+	require.NoError(t, err)
+	assert.False(t, hasAuth, "bool field not set should not count as authenticated")
+}
+
+func TestCheckProviderAuth_IntFieldSet(t *testing.T) {
+	ResetProviderRegistry()
+
+	type IntAuth struct {
+		Timeout int `json:"timeout" env:"TEST_INT_TIMEOUT"`
+	}
+
+	RegisterProvider[struct{}, IntAuth]("int-auth", func(Config, struct{}, IntAuth) (Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	t.Setenv("TEST_INT_TIMEOUT", "30")
+
+	hasAuth, err := CheckProviderAuth("int-auth", nil)
+	require.NoError(t, err)
+	assert.True(t, hasAuth, "int field set to non-zero should count as authenticated")
+}
+
+func TestCheckProviderAuth_IntFieldZero(t *testing.T) {
+	ResetProviderRegistry()
+
+	type IntAuth struct {
+		Timeout int `json:"timeout" env:"TEST_INT2_TIMEOUT"`
+	}
+
+	RegisterProvider[struct{}, IntAuth]("int-auth2", func(Config, struct{}, IntAuth) (Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	hasAuth, err := CheckProviderAuth("int-auth2", nil)
+	require.NoError(t, err)
+	assert.False(t, hasAuth, "int field at zero should not count as authenticated")
+}
+
+func TestCheckProviderAuth_RequiredBoolField(t *testing.T) {
+	ResetProviderRegistry()
+
+	type RequiredBoolAuth struct {
+		Enabled bool `json:"enabled" env:"TEST_REQ_BOOL_ENABLED" validate:"required"`
+	}
+
+	RegisterProvider[struct{}, RequiredBoolAuth]("req-bool-auth", func(Config, struct{}, RequiredBoolAuth) (Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	// Required bool at false — auth should be false.
+	hasAuth, err := CheckProviderAuth("req-bool-auth", nil)
+	require.NoError(t, err)
+	assert.False(t, hasAuth, "required bool field at false should not count as authenticated")
+
+	// Required bool at true — auth should be true.
+	t.Setenv("TEST_REQ_BOOL_ENABLED", "true")
+
+	hasAuth, err = CheckProviderAuth("req-bool-auth", nil)
+	require.NoError(t, err)
+	assert.True(t, hasAuth, "required bool field at true should count as authenticated")
+}
+
+func TestCheckProviderAuth_PointerToStructField(t *testing.T) {
+	ResetProviderRegistry()
+
+	type Inner struct {
+		APIKey string `json:"api_key" env:"TEST_PTR_INNER_API_KEY"`
+	}
+
+	type PtrStructAuth struct {
+		Inner *Inner
+	}
+
+	RegisterProvider[struct{}, PtrStructAuth]("ptr-struct-auth", func(Config, struct{}, PtrStructAuth) (Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	t.Setenv("TEST_PTR_INNER_API_KEY", "ptr-key")
+
+	hasAuth, err := CheckProviderAuth("ptr-struct-auth", nil)
+	require.NoError(t, err)
+	assert.True(t, hasAuth, "pointer to struct with set nested field should count as authenticated")
+}
