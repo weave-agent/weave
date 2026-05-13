@@ -133,6 +133,10 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 		}
 	}
 
+	if s := sdk.GetSandboxer(); s != nil && !s.AllowRead(path) {
+		return sdk.ToolResult{Content: "sandbox: read denied — path is protected", IsError: true}, nil
+	}
+
 	if info.IsDir() {
 		return sdk.ToolResult{Content: fmt.Sprintf("error: %s is a directory", path), IsError: true}, nil
 	}

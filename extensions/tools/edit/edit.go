@@ -215,7 +215,14 @@ func (t *tool) checkFileTracker(path string) (sdk.ToolResult, bool) {
 
 	info, err := os.Stat(path)
 	if err != nil {
-		return sdk.ToolResult{}, false
+		if os.IsNotExist(err) {
+			return sdk.ToolResult{}, false
+		}
+
+		return sdk.ToolResult{
+			Content: "error: cannot stat file: " + err.Error(),
+			IsError: true,
+		}, true
 	}
 
 	if !t.tracker.WasRead(path) {

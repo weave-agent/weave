@@ -1,6 +1,7 @@
 package pathutil
 
 import (
+	"runtime"
 	"strings"
 
 	"golang.org/x/text/unicode/norm"
@@ -8,11 +9,14 @@ import (
 
 // NormalizePath applies macOS-specific path normalization: replaces curly quotes
 // with straight quotes, replaces Unicode spaces with regular ASCII space, and
-// applies NFD Unicode normalization (matching macOS filesystem behavior).
+// applies NFD Unicode normalization on macOS (matching macOS filesystem behavior).
 func NormalizePath(path string) string {
 	path = replaceCurlyQuotes(path)
 	path = replaceUnicodeSpaces(path)
-	path = norm.NFD.String(path)
+
+	if runtime.GOOS == "darwin" {
+		path = norm.NFD.String(path)
+	}
 
 	return path
 }

@@ -8,6 +8,8 @@ import (
 	"os"
 	"slices"
 
+	"weave/internal/filemut"
+	"weave/internal/filetracker"
 	"weave/sdk"
 )
 
@@ -61,6 +63,14 @@ func Wire(extNames []string, bus sdk.Bus, cfg sdk.Config) (*Wired, error) {
 }
 
 func WireWithCore(core CoreWireConfig, optExts []string, bus sdk.Bus, cfg sdk.Config) (*Wired, error) {
+	if sdk.GetFileTracker() == nil {
+		sdk.SetFileTracker(filetracker.New())
+	}
+
+	if sdk.GetFileMutex() == nil {
+		sdk.SetFileMutex(filemut.New())
+	}
+
 	if err := validateCore(core); err != nil {
 		return nil, fmt.Errorf("wire: %w", err)
 	}

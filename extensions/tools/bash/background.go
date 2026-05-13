@@ -296,6 +296,7 @@ func (bm *BackgroundManager) Start(command, dir string, timeout time.Duration, b
 		Command:   command,
 		StartTime: time.Now(),
 		done:      make(chan struct{}),
+		cancel:    func() {}, // no-op until run() sets the real cancel
 	}
 	bm.jobs[id] = job
 	bm.mu.Unlock()
