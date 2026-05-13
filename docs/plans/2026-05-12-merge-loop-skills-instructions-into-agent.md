@@ -85,17 +85,17 @@ Merge three separate extensions (`loop`, `skills`, `instructions`) into a single
 
 ### Task 3: Port skill discovery (from skills extension)
 
-- [ ] Port `discover.go` and `skill.go` logic to `extensions/agent/skills.go`
-- [ ] `discoverSkills(paths...)` — scans skill directories
-- [ ] `loadSkillFromDir(dir)` — parses SKILL.md frontmatter + body
-- [ ] `validateName(name)` — skill name validation
-- [ ] Add extension-bundled skills: discover from each extension's `skills/` subdirectory
-- [ ] `discoverExtensionSkills()` — iterates registered extensions, checks for `skills/` dir
-- [ ] Precedence: project > global > extension (user overrides extension skills by name)
-- [ ] `formatSkillsPrompt(skills)` — XML formatting for system prompt
-- [ ] Write tests for skill discovery, parsing, validation, dedup
-- [ ] Write tests for extension-bundled skills discovery
-- [ ] Run tests — must pass before next task
+- [x] Port `discover.go` and `skill.go` logic to `extensions/agent/skills.go`
+- [x] `discoverSkills(paths...)` — scans skill directories
+- [x] `loadSkillFromDir(dir)` — parses SKILL.md frontmatter + body
+- [x] `validateName(name)` — skill name validation
+- [x] Add extension-bundled skills: discover from each extension's `skills/` subdirectory
+- [x] `discoverExtensionSkills()` — iterates registered extensions, checks for `skills/` dir
+- [x] Precedence: project > global > extension (user overrides extension skills by name)
+- [x] `formatSkillsPrompt(skills)` — XML formatting for system prompt
+- [x] Write tests for skill discovery, parsing, validation, dedup
+- [x] Write tests for extension-bundled skills discovery
+- [x] Run tests — must pass before next task
 
 ### Task 4: Build prompt builder with default system prompt
 
