@@ -26,6 +26,11 @@ type KimiConfig struct {
 	BaseURL   string `json:"base_url" default:"https://api.kimi.com/coding" env:"KIMI_BASE_URL" description:"API base URL"`
 }
 
+// AuthConfig holds authentication credentials for the Kimi provider.
+type AuthConfig struct {
+	APIKey string `json:"api_key" env:"KIMI_API_KEY" validate:"required" description:"API key"`
+}
+
 type provider struct {
 	client    anthropic.Client
 	model     string

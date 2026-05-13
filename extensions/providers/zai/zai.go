@@ -17,6 +17,11 @@ type ZaiConfig struct {
 	BaseURL string `json:"base_url" default:"https://api.z.ai/api/coding/paas/v4" env:"ZAI_BASE_URL" description:"API base URL"`
 }
 
+// AuthConfig holds authentication credentials for the Z.ai provider.
+type AuthConfig struct {
+	APIKey string `json:"api_key" env:"ZAI_API_KEY" validate:"required" description:"API key"`
+}
+
 type provider struct {
 	client *http.Client
 	config openaicompat.ProviderConfig

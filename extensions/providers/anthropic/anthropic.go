@@ -24,6 +24,11 @@ type AnthropicConfig struct {
 	MaxTokens int    `json:"max_tokens" default:"16384" env:"ANTHROPIC_MAX_TOKENS" validate:"gt=0" description:"Maximum tokens"`
 }
 
+// AuthConfig holds authentication credentials for the Anthropic provider.
+type AuthConfig struct {
+	APIKey string `json:"api_key" env:"ANTHROPIC_API_KEY" validate:"required" description:"API key"`
+}
+
 type provider struct {
 	client    anthropic.Client
 	model     string

@@ -17,6 +17,11 @@ type OpenAIConfig struct {
 	BaseURL string `json:"base_url" default:"https://api.openai.com/v1" env:"OPENAI_BASE_URL" description:"API base URL"`
 }
 
+// AuthConfig holds authentication credentials for the OpenAI provider.
+type AuthConfig struct {
+	APIKey string `json:"api_key" env:"OPENAI_API_KEY" validate:"required" description:"API key"`
+}
+
 type provider struct {
 	client *http.Client
 	config openaicompat.ProviderConfig
