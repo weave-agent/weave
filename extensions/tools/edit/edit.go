@@ -1,9 +1,9 @@
 package edit
 
 import (
+	"bytes"
 	"context"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -102,17 +102,9 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		return sdk.ToolResult{Content: "error: at least one edit is required", IsError: true}, nil
 	}
 
-	edits := make([]editEntry, 0, len(editsRaw))
-	for i, e := range editsRaw {
-		m, ok := e.(map[string]any)
-		if !ok {
-			return sdk.ToolResult{Content: fmt.Sprintf("error: edit %d is not an object", i), IsError: true}, nil
-		}
-
-		oldText, _ := m[ParamOldText].(string)
-		newText, _ := m[ParamNewText].(string)
-		replaceAll, _ := m[ParamReplaceAll].(bool)
-		edits = append(edits, editEntry{oldText, newText, replaceAll})
+	edits, err := parseEdits(editsRaw)
+	if err != nil {
+		return sdk.ToolResult{Content: err.Error(), IsError: true}, nil
 	}
 
 	originalBytes, err := os.ReadFile(path)
@@ -141,15 +133,14 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 	}
 
 	finalBytes := fileutil.RestoreLineEndings([]byte(content), ending)
-	finalContent := string(finalBytes)
 
-	if finalContent == string(originalBytes) {
+	if bytes.Equal(finalBytes, originalBytes) {
 		return sdk.ToolResult{Content: "no changes made (content is identical)", IsError: false}, nil
 	}
 
 	diff, err := difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
 		A:        difflib.SplitLines(string(originalBytes)),
-		B:        difflib.SplitLines(finalContent),
+		B:        difflib.SplitLines(string(finalBytes)),
 		FromFile: "a" + path,
 		ToFile:   "b" + path,
 		Context:  3,
@@ -162,12 +153,7 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
 	}
 
-	perm := fs.FileMode(0o644)
-	if info, statErr := os.Stat(path); statErr == nil {
-		perm = info.Mode().Perm()
-	}
-
-	if err := os.WriteFile(path, finalBytes, perm); err != nil { //nolint:gosec // G703: path is a tool parameter, intentionally user-specified
+	if err := writeFilePreservingOwnership(path, finalBytes); err != nil {
 		return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
 	}
 
@@ -213,6 +199,70 @@ func applyEdits(content string, edits []editEntry) (string, error) {
 	}
 
 	return content, nil
+}
+
+// parseEdits converts raw edit parameters into typed editEntry values.
+func parseEdits(editsRaw []any) ([]editEntry, error) {
+	edits := make([]editEntry, 0, len(editsRaw))
+
+	for i, e := range editsRaw {
+		m, ok := e.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("error: edit %d is not an object", i)
+		}
+
+		oldText, oldOk := m[ParamOldText].(string)
+		newText, newOk := m[ParamNewText].(string)
+
+		if !oldOk {
+			return nil, fmt.Errorf("error: edit %d oldText must be a string", i)
+		}
+
+		if !newOk {
+			return nil, fmt.Errorf("error: edit %d newText must be a string", i)
+		}
+
+		replaceAll, _ := m[ParamReplaceAll].(bool)
+		edits = append(edits, editEntry{oldText, newText, replaceAll})
+	}
+
+	return edits, nil
+}
+
+// writeFilePreservingOwnership writes data to path. For existing files it uses
+// O_WRONLY|O_TRUNC to preserve Unix ownership; for new files it uses os.WriteFile.
+//
+//nolint:gosec,wrapcheck // G703: path is a tool parameter; errors pass through directly
+func writeFilePreservingOwnership(path string, data []byte) error {
+	perm := os.FileMode(0o644)
+	fileExists := false
+
+	if info, statErr := os.Stat(path); statErr == nil {
+		perm = info.Mode().Perm()
+		fileExists = true
+	}
+
+	if fileExists {
+		f, err := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC, perm)
+		if err != nil {
+			return err
+		}
+
+		_, writeErr := f.Write(data)
+		closeErr := f.Close()
+
+		if writeErr != nil {
+			return writeErr
+		}
+
+		if closeErr != nil {
+			return closeErr
+		}
+
+		return nil
+	}
+
+	return os.WriteFile(path, data, perm)
 }
 
 // normalizePath applies macOS path normalization and falls back to the original

@@ -114,10 +114,6 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 		return sdk.ToolResult{Content: "error: path is required", IsError: true}, nil
 	}
 
-	if s := sdk.GetSandboxer(); s != nil && !s.AllowRead(path) {
-		return sdk.ToolResult{Content: "sandbox: read denied — path is protected", IsError: true}, nil
-	}
-
 	info, err := os.Stat(path)
 	if err != nil {
 		normalized := pathutil.NormalizePath(path)

@@ -569,12 +569,11 @@ func TestExecuteTreeLimit(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, result.IsError)
 
-	// Root + 3 entries + blank line + truncation notice = 6 lines
+	// limit=3 means 3 lines total (root + 2 entries) + blank line + truncation notice = 5 lines
 	lines := strings.Split(result.Content, "\n")
-	require.Len(t, lines, 6)
+	require.Len(t, lines, 5)
 	assert.Contains(t, lines[1], "file00.txt")
 	assert.Contains(t, lines[2], "file01.txt")
-	assert.Contains(t, lines[3], "file02.txt")
 	assert.Contains(t, result.Content, "more entries not shown")
 }
 

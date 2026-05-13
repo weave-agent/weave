@@ -87,43 +87,34 @@ func (j *BackgroundJob) Wait() {
 
 // Result returns a formatted ToolResult for the job's current or final output.
 func (j *BackgroundJob) Result() sdk.ToolResult {
-	output := j.Output()
+	j.mu.Lock()
+	defer j.mu.Unlock()
+
+	output := j.output.String()
 	result := truncate.Truncate(output, truncate.DefaultMaxLines, truncate.DefaultMaxBytes)
 
-	j.mu.Lock()
 	if j.tempFile != "" {
 		content := result.Format()
 		if result.Truncated {
 			content += "\n\nFull output saved to: " + j.tempFile
 		}
-		j.mu.Unlock()
 
-		return j.resultWithExitInfo(content)
+		return buildExitResult(content, j.exitCode, j.exitErr)
 	}
-	j.mu.Unlock()
 
 	content := formatResultWithTempFile(result, output)
 
 	// Cache temp file path if one was created.
 	if result.Truncated {
 		if idx := strings.LastIndex(content, "Full output saved to: "); idx != -1 {
-			j.mu.Lock()
-			if j.tempFile == "" {
-				j.tempFile = content[idx+len("Full output saved to: "):]
-			}
-			j.mu.Unlock()
+			j.tempFile = content[idx+len("Full output saved to: "):]
 		}
 	}
 
-	return j.resultWithExitInfo(content)
+	return buildExitResult(content, j.exitCode, j.exitErr)
 }
 
-func (j *BackgroundJob) resultWithExitInfo(content string) sdk.ToolResult {
-	j.mu.RLock()
-	exitCode := j.exitCode
-	exitErr := j.exitErr
-	j.mu.RUnlock()
-
+func buildExitResult(content string, exitCode int, exitErr error) sdk.ToolResult {
 	if exitErr == nil && exitCode == 0 {
 		return sdk.ToolResult{Content: content}
 	}
@@ -195,12 +186,14 @@ func (j *BackgroundJob) run(ctx context.Context, cancel context.CancelFunc, comm
 		exitError = err
 		return
 	}
+	defer stdoutPipe.Close()
 
 	stderrPipe, err := cmd.StderrPipe()
 	if err != nil {
 		exitError = err
 		return
 	}
+	defer stderrPipe.Close()
 
 	if err := cmd.Start(); err != nil {
 		exitError = err

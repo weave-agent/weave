@@ -160,17 +160,16 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 	}
 
 	if killJobID != "" {
-		return t.killJob(killJobID)
+		return t.killJob(killJobID), nil
 	}
 
 	if jobID != "" {
-		return t.checkJob(jobID)
+		return t.checkJob(jobID), nil
 	}
 
 	if s := sdk.GetSandboxer(); s != nil {
 		wrapped, err := s.WrapCommand(command, t.dir)
 		if err != nil {
-			//nolint:nilerr // tool errors are returned via ToolResult.IsError
 			return sdk.ToolResult{Content: "sandbox: " + err.Error(), IsError: true}, nil
 		}
 
@@ -209,10 +208,17 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 
 		job := t.bgMgr.Start(command, t.dir, timeout, bus)
 
+		timer := time.NewTimer(time.Duration(autoBackgroundAfter) * time.Second)
+		defer timer.Stop()
+
 		select {
 		case <-job.done:
 			return job.Result(), nil
-		case <-time.After(time.Duration(autoBackgroundAfter) * time.Second):
+		case <-timer.C:
+			if job.IsDone() {
+				return job.Result(), nil
+			}
+
 			output := job.Output()
 			result := truncate.Truncate(output, truncate.DefaultMaxLines, truncate.DefaultMaxBytes)
 			formatted := formatResultWithTempFile(result, output)
@@ -225,14 +231,14 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 	return t.executeSync(ctx, command, timeout, bus)
 }
 
-func (t *tool) checkJob(jobID string) (sdk.ToolResult, error) {
+func (t *tool) checkJob(jobID string) sdk.ToolResult {
 	if t.bgMgr == nil {
-		return sdk.ToolResult{Content: "error: background manager not available", IsError: true}, nil
+		return sdk.ToolResult{Content: "error: background manager not available", IsError: true}
 	}
 
 	job, ok := t.bgMgr.Get(jobID)
 	if !ok {
-		return sdk.ToolResult{Content: fmt.Sprintf("error: job %s not found", jobID), IsError: true}, nil
+		return sdk.ToolResult{Content: fmt.Sprintf("error: job %s not found", jobID), IsError: true}
 	}
 
 	result := job.Result()
@@ -240,40 +246,46 @@ func (t *tool) checkJob(jobID string) (sdk.ToolResult, error) {
 	status := "running"
 	if job.IsDone() {
 		status = "completed"
+
+		t.bgMgr.Remove(jobID)
 	}
 
 	content := fmt.Sprintf("Job %s (%s)\nStatus: %s\n\n%s", jobID, job.Command, status, result.Content)
 
-	return sdk.ToolResult{Content: content, IsError: result.IsError}, nil
+	return sdk.ToolResult{Content: content, IsError: result.IsError}
 }
 
-func (t *tool) killJob(jobID string) (sdk.ToolResult, error) {
+func (t *tool) killJob(jobID string) sdk.ToolResult {
 	if t.bgMgr == nil {
-		return sdk.ToolResult{Content: "error: background manager not available", IsError: true}, nil
+		return sdk.ToolResult{Content: "error: background manager not available", IsError: true}
 	}
 
 	job, ok := t.bgMgr.Get(jobID)
 	if !ok {
-		return sdk.ToolResult{Content: fmt.Sprintf("error: job %s not found", jobID), IsError: true}, nil
+		return sdk.ToolResult{Content: fmt.Sprintf("error: job %s not found", jobID), IsError: true}
 	}
 
 	if job.IsDone() {
 		result := job.Result()
+
+		t.bgMgr.Remove(jobID)
 		content := fmt.Sprintf("Job %s already completed.\n\n%s", jobID, result.Content)
 
-		return sdk.ToolResult{Content: content, IsError: result.IsError}, nil
+		return sdk.ToolResult{Content: content, IsError: result.IsError}
 	}
 
 	if err := t.bgMgr.Kill(jobID); err != nil {
-		return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
+		return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}
 	}
 
 	job.Wait()
 	result := job.Result()
 
+	t.bgMgr.Remove(jobID)
+
 	content := fmt.Sprintf("Job %s killed.\n\n%s", jobID, result.Content)
 
-	return sdk.ToolResult{Content: content, IsError: result.IsError}, nil
+	return sdk.ToolResult{Content: content, IsError: false}
 }
 
 func (t *tool) executeSync(ctx context.Context, command string, timeout time.Duration, bus sdk.Bus) (sdk.ToolResult, error) {
@@ -347,13 +359,12 @@ type syncWriter struct {
 	mu  *sync.Mutex
 }
 
+//nolint:wrapcheck // strings.Builder.Write never returns an error; wrapping is unnecessary
 func (w *syncWriter) Write(p []byte) (int, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	n, _ := w.buf.Write(p)
-
-	return n, nil
+	return w.buf.Write(p)
 }
 
 // collectStream reads from r, writes raw bytes to outBuf, and publishes line

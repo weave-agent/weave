@@ -187,10 +187,8 @@ func (t *tool) executeTree(absPath string, maxDepth, limit int, sb sdk.Sandboxer
 
 	truncated := false
 
-	if limit > 0 && len(lines)-1 > limit {
-		// Count how many tree lines to keep, preserving root
-		keep := limit + 1
-		lines = lines[:keep]
+	if limit > 0 && len(lines) > limit {
+		lines = lines[:limit]
 		truncated = true
 	}
 

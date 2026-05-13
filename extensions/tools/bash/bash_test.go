@@ -945,18 +945,23 @@ func TestExecuteKillJob(t *testing.T) {
 		// Give the job a moment to start
 		time.Sleep(100 * time.Millisecond)
 
+		// Get the job before killing so we can verify it completes
+		job, ok := bgMgr.Get(jobID)
+		require.True(t, ok)
+
 		// Kill the job
 		killResult, err := tool.Execute(context.Background(), map[string]any{
 			"kill_job": jobID,
 		})
 		require.NoError(t, err)
-		assert.True(t, killResult.IsError) // killed job reports error
+		assert.False(t, killResult.IsError) // killing is intentional, not an error
 		assert.Contains(t, killResult.Content, "killed")
 
-		// Verify job is done
-		job, ok := bgMgr.Get(jobID)
-		require.True(t, ok)
+		// Verify job is done and removed from manager
 		assert.True(t, job.IsDone())
+
+		_, ok = bgMgr.Get(jobID)
+		assert.False(t, ok)
 	})
 
 	t.Run("returns output for already completed job", func(t *testing.T) {
