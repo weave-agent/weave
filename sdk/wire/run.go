@@ -78,7 +78,7 @@ func run(ctx context.Context, args ...string) (exitCode int) {
 		}
 	}
 
-	if cf.Prompt == "" && (cf.UIExtension == "" || cf.UIExtension == "none") {
+	if cf.Prompt == "" && (cf.UIExtension == "" || cf.UIExtension == "none") && !hasHelpFlag(args) {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", errNoInput)
 		return 1
 	}
@@ -143,6 +143,17 @@ func findModuleRoot() (string, error) {
 	}
 
 	return "", errors.New("cannot find module root: go.mod not found walking up from executable or working directory")
+}
+
+// hasHelpFlag reports whether args contains --help or -h.
+func hasHelpFlag(args []string) bool {
+	for _, a := range args {
+		if a == "--help" || a == "-h" {
+			return true
+		}
+	}
+
+	return false
 }
 
 func findModuleRootFrom(startFn func() (string, error)) (string, error) {
