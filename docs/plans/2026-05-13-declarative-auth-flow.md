@@ -99,11 +99,11 @@ Replace imperative API key resolution (`cfg.ResolveKey`, `model.RegisterProvider
 
 ### Task 10: Migrate Z.ai provider
 
-- [ ] Create `extensions/providers/zai/auth.go` with `ZaiAuth` struct
-- [ ] Update `extensions/providers/zai/zai.go` to use `RegisterProvider[ZaiConfig, ZaiAuth]`
-- [ ] Remove `model.RegisterProviderEnvVar` and `cfg.ResolveKey` calls
-- [ ] Update provider tests
-- [ ] Run `cd extensions/providers/zai && go test ./...` — must pass
+- [x] Create `extensions/providers/zai/auth.go` with `ZaiAuth` struct
+- [x] Update `extensions/providers/zai/zai.go` to use `RegisterProvider[ZaiConfig, ZaiAuth]`
+- [x] Remove `model.RegisterProviderEnvVar` and `cfg.ResolveKey` calls
+- [x] Update provider tests
+- [x] Run `cd extensions/providers/zai && go test ./...` — must pass
 
 ### Task 11: Clean up TUI auth checks
 

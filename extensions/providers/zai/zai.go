@@ -23,23 +23,16 @@ type provider struct {
 }
 
 func init() {
-	model.RegisterProviderEnvVar("zai", "ZAI_API_KEY")
-
-	sdk.RegisterProvider[ZaiConfig, struct{}]("zai", func(cfg sdk.Config, zc ZaiConfig, _ struct{}) (sdk.Provider, error) {
-		apiKey, err := cfg.ResolveKey("zai", "ZAI_API_KEY")
-		if err != nil {
-			return nil, fmt.Errorf("zai: %w", err)
-		}
-
-		if apiKey == "" {
-			return nil, errors.New("zai: API key required (set ZAI_API_KEY, add to ~/.weave/auth.json, or configure in .weave/settings.json)")
+	sdk.RegisterProvider[ZaiConfig, AuthConfig]("zai", func(cfg sdk.Config, zc ZaiConfig, a AuthConfig) (sdk.Provider, error) {
+		if a.APIKey == "" {
+			return nil, errors.New("zai: API key required (set ZAI_API_KEY or add to ~/.weave/auth.json)")
 		}
 
 		return &provider{
 			client: &http.Client{},
 			config: openaicompat.ProviderConfig{
 				BaseURL: zc.BaseURL,
-				APIKey:  apiKey,
+				APIKey:  a.APIKey,
 				Model:   zc.Model,
 				ExtraBody: map[string]any{
 					"tool_stream": true,
