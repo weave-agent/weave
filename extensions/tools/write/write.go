@@ -3,6 +3,7 @@ package write
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -95,18 +96,25 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 	perm := fs.FileMode(0o644)
 
 	// No-op detection: skip write if content is identical.
-	// Read first to avoid a race between stat and read.
-	existing, readErr := os.ReadFile(path)
-	if readErr == nil {
-		if string(existing) == content {
-			return sdk.ToolResult{
-				Content: fmt.Sprintf("file %s already contains the exact content, no changes made", path),
-			}, nil
+	// Use a single file descriptor to avoid a race between read and stat.
+	f, openErr := os.Open(path)
+	if openErr == nil {
+		existing, readErr := io.ReadAll(f)
+		if readErr == nil {
+			if string(existing) == content {
+				_ = f.Close()
+
+				return sdk.ToolResult{
+					Content: fmt.Sprintf("file %s already contains the exact content, no changes made", path),
+				}, nil
+			}
 		}
 
-		if info, statErr := os.Stat(path); statErr == nil {
+		if info, statErr := f.Stat(); statErr == nil {
 			perm = info.Mode().Perm()
 		}
+
+		_ = f.Close()
 	}
 
 	if err := os.WriteFile(path, []byte(content), perm); err != nil {

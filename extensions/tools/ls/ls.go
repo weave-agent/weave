@@ -143,7 +143,6 @@ func (t *tool) executeFlat(absPath string, limit int, sb sdk.Sandboxer, ignorePa
 		return strings.ToLower(lines[i]) < strings.ToLower(lines[j])
 	})
 
-	filteredCount := len(lines)
 	truncated := false
 
 	if limit > 0 && len(lines) > limit {
@@ -156,7 +155,7 @@ func (t *tool) executeFlat(absPath string, limit int, sb sdk.Sandboxer, ignorePa
 	content := result.Format()
 
 	if truncated {
-		content += fmt.Sprintf("\n\n... (%d more entries not shown — use a higher limit to see all)", filteredCount-limit)
+		content += "\n\n... (more entries not shown — use a higher limit to see all)"
 	}
 
 	return sdk.ToolResult{Content: content, IsError: false}, nil
@@ -174,7 +173,7 @@ func (t *tool) executeTree(absPath string, maxDepth, limit int, sb sdk.Sandboxer
 		rootName = absPath
 	}
 
-	children, totalCount, err := buildTreeEntries(absPath, 1, maxDepth, sb, ignorePatterns)
+	children, _, err := buildTreeEntries(absPath, 1, maxDepth, sb, ignorePatterns)
 	if err != nil {
 		return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
 	}
@@ -187,7 +186,6 @@ func (t *tool) executeTree(absPath string, maxDepth, limit int, sb sdk.Sandboxer
 	lines = append(lines, renderTreeEntries(children, nil)...)
 
 	truncated := false
-	filteredCount := totalCount
 
 	if limit > 0 && len(lines)-1 > limit {
 		// Count how many tree lines to keep, preserving root
@@ -201,7 +199,7 @@ func (t *tool) executeTree(absPath string, maxDepth, limit int, sb sdk.Sandboxer
 	content := result.Format()
 
 	if truncated {
-		content += fmt.Sprintf("\n\n... (%d more entries not shown — use a higher limit to see all)", filteredCount-limit)
+		content += "\n\n... (more entries not shown — use a higher limit to see all)"
 	}
 
 	return sdk.ToolResult{Content: content, IsError: false}, nil

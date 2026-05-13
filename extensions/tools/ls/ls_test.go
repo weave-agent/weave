@@ -266,7 +266,7 @@ func TestExecuteLimit(t *testing.T) {
 	assert.Equal(t, "file00.txt", lines[0])
 	assert.Equal(t, "file01.txt", lines[1])
 	assert.Equal(t, "file02.txt", lines[2])
-	assert.Contains(t, result.Content, "7 more entries not shown")
+	assert.Contains(t, result.Content, "more entries not shown")
 }
 
 func TestExecuteLimitZero(t *testing.T) {
@@ -300,7 +300,7 @@ func TestExecuteDefaultLimit(t *testing.T) {
 	assert.Equal(t, "file02.txt", lines[2])
 	assert.Equal(t, "file03.txt", lines[3])
 	assert.Equal(t, "file04.txt", lines[4])
-	assert.Contains(t, result.Content, "5 more entries not shown")
+	assert.Contains(t, result.Content, "more entries not shown")
 }
 
 func TestExecuteIgnorePatterns(t *testing.T) {
@@ -361,7 +361,7 @@ func TestExecuteLimitAndIgnore(t *testing.T) {
 	assert.Equal(t, "file00.txt", strings.Split(result.Content, "\n")[0])
 	assert.Equal(t, "file01.txt", strings.Split(result.Content, "\n")[1])
 	assert.Equal(t, "file02.txt", strings.Split(result.Content, "\n")[2])
-	assert.Contains(t, result.Content, "7 more entries not shown")
+	assert.Contains(t, result.Content, "more entries not shown")
 }
 
 func TestExecuteIgnoreDirectories(t *testing.T) {

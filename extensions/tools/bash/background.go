@@ -43,6 +43,7 @@ type BackgroundJob struct {
 	exitCode int
 	done     chan struct{}
 	cancel   context.CancelFunc
+	tempFile string // cached temp file path for truncated output
 }
 
 // IsDone returns true if the background job has completed.
@@ -88,8 +89,36 @@ func (j *BackgroundJob) Wait() {
 func (j *BackgroundJob) Result() sdk.ToolResult {
 	output := j.Output()
 	result := truncate.Truncate(output, truncate.DefaultMaxLines, truncate.DefaultMaxBytes)
+
+	j.mu.Lock()
+	if j.tempFile != "" {
+		content := result.Format()
+		if result.Truncated {
+			content += "\n\nFull output saved to: " + j.tempFile
+		}
+		j.mu.Unlock()
+
+		return j.resultWithExitInfo(content)
+	}
+	j.mu.Unlock()
+
 	content := formatResultWithTempFile(result, output)
 
+	// Cache temp file path if one was created.
+	if result.Truncated {
+		if idx := strings.LastIndex(content, "Full output saved to: "); idx != -1 {
+			j.mu.Lock()
+			if j.tempFile == "" {
+				j.tempFile = content[idx+len("Full output saved to: "):]
+			}
+			j.mu.Unlock()
+		}
+	}
+
+	return j.resultWithExitInfo(content)
+}
+
+func (j *BackgroundJob) resultWithExitInfo(content string) sdk.ToolResult {
 	j.mu.RLock()
 	exitCode := j.exitCode
 	exitErr := j.exitErr

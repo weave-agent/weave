@@ -143,27 +143,32 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 	finalBytes := fileutil.RestoreLineEndings([]byte(content), ending)
 	finalContent := string(finalBytes)
 
-	diff, _ := difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
+	if finalContent == string(originalBytes) {
+		return sdk.ToolResult{Content: "no changes made (content is identical)", IsError: false}, nil
+	}
+
+	diff, err := difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
 		A:        difflib.SplitLines(string(originalBytes)),
 		B:        difflib.SplitLines(finalContent),
 		FromFile: "a" + path,
 		ToFile:   "b" + path,
 		Context:  3,
 	})
+	if err != nil {
+		return sdk.ToolResult{Content: fmt.Sprintf("error: generating diff: %s", err), IsError: true}, nil
+	}
 
-	if finalContent != string(originalBytes) {
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil { //nolint:gosec // G301: 0755 is intentional for created directories
-			return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
-		}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil { //nolint:gosec // G301: 0755 is intentional for created directories
+		return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
+	}
 
-		perm := fs.FileMode(0o644)
-		if info, statErr := os.Stat(path); statErr == nil {
-			perm = info.Mode().Perm()
-		}
+	perm := fs.FileMode(0o644)
+	if info, statErr := os.Stat(path); statErr == nil {
+		perm = info.Mode().Perm()
+	}
 
-		if err := os.WriteFile(path, finalBytes, perm); err != nil { //nolint:gosec // G703: path is a tool parameter, intentionally user-specified
-			return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
-		}
+	if err := os.WriteFile(path, finalBytes, perm); err != nil { //nolint:gosec // G703: path is a tool parameter, intentionally user-specified
+		return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
 	}
 
 	result := truncate.Truncate(diff, truncate.DefaultMaxLines, truncate.DefaultMaxBytes)
@@ -255,7 +260,7 @@ func (t *tool) checkFileTracker(path string) (sdk.ToolResult, bool) {
 	}
 
 	readTime, ok := t.tracker.GetReadTime(path)
-	if ok && info.ModTime().After(readTime) {
+	if ok && !info.ModTime().Equal(readTime) {
 		return sdk.ToolResult{
 			Content: "error: file was modified externally since last read (" +
 				info.ModTime().Format(time.RFC3339) + " > " + readTime.Format(time.RFC3339) +
