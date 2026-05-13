@@ -31,11 +31,11 @@ Replace imperative API key resolution (`cfg.ResolveKey`, `model.RegisterProvider
 
 ### Task 1: Update SDK provider registry to two-type generic
 
-- [ ] Change `RegisterProvider[T]` to `RegisterProvider[TConfig, TAuth]` in `sdk/provider_registry.go`
-- [ ] Store auth checker function alongside factory in registry
-- [ ] Add `sdk.CheckProviderAuth(name, cfg)` exported function
-- [ ] Update `sdk/provider_registry_test.go`
-- [ ] Run `go test ./sdk/...` — must pass
+- [x] Change `RegisterProvider[T]` to `RegisterProvider[TConfig, TAuth]` in `sdk/provider_registry.go`
+- [x] Store auth checker function alongside factory in registry
+- [x] Add `sdk.CheckProviderAuth(name, cfg)` exported function
+- [x] Update `sdk/provider_registry_test.go`
+- [x] Run `go test ./sdk/...` — must pass
 
 ### Task 2: Remove ResolveKey from sdk.Config and delete ProviderEnvVar registry
 

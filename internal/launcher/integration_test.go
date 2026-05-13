@@ -28,7 +28,7 @@ func init() {
 			return nil
 		}), nil
 	})
-	sdk.RegisterProvider[struct{}]("noop", func(cfg sdk.Config, _ struct{}) (sdk.Provider, error) {
+	sdk.RegisterProvider[struct{}, struct{}]("noop", func(cfg sdk.Config, _ struct{}, _ struct{}) (sdk.Provider, error) {
 		return &noopProvider{}, nil
 	})
 }
@@ -62,7 +62,7 @@ func init() {
 			return nil
 		}), nil
 	})
-	sdk.RegisterProvider[struct{}]("noop", func(cfg sdk.Config, _ struct{}) (sdk.Provider, error) {
+	sdk.RegisterProvider[struct{}, struct{}]("noop", func(cfg sdk.Config, _ struct{}, _ struct{}) (sdk.Provider, error) {
 		return &noopProvider{}, nil
 	})
 }

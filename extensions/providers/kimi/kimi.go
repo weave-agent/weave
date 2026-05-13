@@ -36,7 +36,7 @@ type provider struct {
 func init() {
 	model.RegisterProviderEnvVar("kimi", "KIMI_API_KEY")
 
-	sdk.RegisterProvider[KimiConfig]("kimi", func(cfg sdk.Config, kc KimiConfig) (sdk.Provider, error) {
+	sdk.RegisterProvider[KimiConfig, struct{}]("kimi", func(cfg sdk.Config, kc KimiConfig, _ struct{}) (sdk.Provider, error) {
 		apiKey, err := cfg.ResolveKey("kimi", "KIMI_API_KEY")
 		if err != nil {
 			return nil, fmt.Errorf("kimi: %w", err)

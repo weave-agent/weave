@@ -33,7 +33,7 @@ type provider struct {
 func init() {
 	model.RegisterProviderEnvVar("anthropic", "ANTHROPIC_API_KEY")
 
-	sdk.RegisterProvider[AnthropicConfig]("anthropic", func(cfg sdk.Config, ac AnthropicConfig) (sdk.Provider, error) {
+	sdk.RegisterProvider[AnthropicConfig, struct{}]("anthropic", func(cfg sdk.Config, ac AnthropicConfig, _ struct{}) (sdk.Provider, error) {
 		apiKey, err := cfg.ResolveKey("anthropic", "ANTHROPIC_API_KEY")
 		if err != nil {
 			return nil, fmt.Errorf("anthropic: %w", err)

@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"errors"
+	"os"
 	"sort"
 	"testing"
 
@@ -12,7 +13,7 @@ import (
 func TestRegisterAndRetrieveProvider(t *testing.T) {
 	ResetProviderRegistry()
 
-	RegisterProvider[struct{}]("mock", func(Config, struct{}) (Provider, error) {
+	RegisterProvider[struct{}, struct{}]("mock", func(Config, struct{}, struct{}) (Provider, error) {
 		return &ProviderMock{}, nil
 	})
 
@@ -24,12 +25,12 @@ func TestRegisterAndRetrieveProvider(t *testing.T) {
 func TestDuplicateProviderRegistration(t *testing.T) {
 	ResetProviderRegistry()
 
-	RegisterProvider[struct{}]("dup", func(Config, struct{}) (Provider, error) {
+	RegisterProvider[struct{}, struct{}]("dup", func(Config, struct{}, struct{}) (Provider, error) {
 		return &ProviderMock{}, nil
 	})
 
 	// Second registration should be a no-op with a warning (no panic).
-	RegisterProvider[struct{}]("dup", func(Config, struct{}) (Provider, error) {
+	RegisterProvider[struct{}, struct{}]("dup", func(Config, struct{}, struct{}) (Provider, error) {
 		return &ProviderMock{}, nil
 	})
 
@@ -49,7 +50,7 @@ func TestMissingProvider(t *testing.T) {
 func TestGetProvider_FactoryError(t *testing.T) {
 	ResetProviderRegistry()
 
-	RegisterProvider[struct{}]("fail", func(Config, struct{}) (Provider, error) {
+	RegisterProvider[struct{}, struct{}]("fail", func(Config, struct{}, struct{}) (Provider, error) {
 		return nil, errors.New("factory error")
 	})
 
@@ -61,10 +62,10 @@ func TestGetProvider_FactoryError(t *testing.T) {
 func TestListProviders(t *testing.T) {
 	ResetProviderRegistry()
 
-	RegisterProvider[struct{}]("anthropic", func(Config, struct{}) (Provider, error) {
+	RegisterProvider[struct{}, struct{}]("anthropic", func(Config, struct{}, struct{}) (Provider, error) {
 		return &ProviderMock{}, nil
 	})
-	RegisterProvider[struct{}]("openai", func(Config, struct{}) (Provider, error) {
+	RegisterProvider[struct{}, struct{}]("openai", func(Config, struct{}, struct{}) (Provider, error) {
 		return &ProviderMock{}, nil
 	})
 
@@ -77,11 +78,66 @@ func TestListProviders(t *testing.T) {
 func TestResetProviderRegistry(t *testing.T) {
 	ResetProviderRegistry()
 
-	RegisterProvider[struct{}]("temp", func(Config, struct{}) (Provider, error) {
+	RegisterProvider[struct{}, struct{}]("temp", func(Config, struct{}, struct{}) (Provider, error) {
 		return &ProviderMock{}, nil
 	})
 
 	ResetProviderRegistry()
 
 	assert.Empty(t, ListProviders())
+}
+
+func TestCheckProviderAuth_EnvVar(t *testing.T) {
+	ResetProviderRegistry()
+
+	type TestAuth struct {
+		APIKey string `env:"TEST_PROVIDER_API_KEY"`
+	}
+
+	RegisterProvider[struct{}, TestAuth]("test-provider", func(Config, struct{}, TestAuth) (Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	t.Setenv("TEST_PROVIDER_API_KEY", "test-key")
+
+	hasAuth, err := CheckProviderAuth("test-provider", nil)
+	require.NoError(t, err)
+	assert.True(t, hasAuth)
+}
+
+func TestCheckProviderAuth_Missing(t *testing.T) {
+	ResetProviderRegistry()
+
+	type TestAuth struct {
+		APIKey string `env:"TEST_PROVIDER2_API_KEY"`
+	}
+
+	RegisterProvider[struct{}, TestAuth]("test-provider2", func(Config, struct{}, TestAuth) (Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	os.Unsetenv("TEST_PROVIDER2_API_KEY")
+
+	hasAuth, err := CheckProviderAuth("test-provider2", nil)
+	require.NoError(t, err)
+	assert.False(t, hasAuth)
+}
+
+func TestCheckProviderAuth_Unregistered(t *testing.T) {
+	ResetProviderRegistry()
+
+	_, err := CheckProviderAuth("nonexistent", nil)
+	require.Error(t, err)
+}
+
+func TestCheckProviderAuth_NonStructAuth(t *testing.T) {
+	ResetProviderRegistry()
+
+	RegisterProvider[struct{}, struct{}]("no-auth", func(Config, struct{}, struct{}) (Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	hasAuth, err := CheckProviderAuth("no-auth", nil)
+	require.NoError(t, err)
+	assert.False(t, hasAuth)
 }

@@ -35,6 +35,7 @@ func TestFindReturnsEmptyWhenRgAbsent(t *testing.T) {
 	// We can't easily modify the process environment for sync.OnceValue,
 	// so we test the underlying exec.LookPath behavior directly.
 	t.Setenv("PATH", "/nonexistent")
+
 	_, err := exec.LookPath("rg")
 	assert.Error(t, err, "rg should not be found in /nonexistent PATH")
 }

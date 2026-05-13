@@ -12,5 +12,6 @@ var Find = sync.OnceValue(func() string {
 	if err != nil {
 		return ""
 	}
+
 	return path
 })

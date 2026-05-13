@@ -109,7 +109,7 @@ func TestGenerateFullHelp_WithToolSchemas(t *testing.T) {
 func TestGenerateFullHelp_WithProviderSchemas(t *testing.T) {
 	resetAllRegistries(t)
 
-	sdk.RegisterProvider("openai", func(_ sdk.Config, _ testProviderConfig) (sdk.Provider, error) {
+	sdk.RegisterProvider[testProviderConfig, struct{}]("openai", func(_ sdk.Config, _ testProviderConfig, _ struct{}) (sdk.Provider, error) {
 		return dummyProvider{}, nil
 	})
 
@@ -128,7 +128,7 @@ func TestGenerateFullHelp_AllScopes(t *testing.T) {
 	sdk.RegisterTool("bash", func(_ sdk.Config, _ testToolConfig) (sdk.Tool, error) {
 		return dummyTool{name: "bash"}, nil
 	})
-	sdk.RegisterProvider("openai", func(_ sdk.Config, _ testProviderConfig) (sdk.Provider, error) {
+	sdk.RegisterProvider[testProviderConfig, struct{}]("openai", func(_ sdk.Config, _ testProviderConfig, _ struct{}) (sdk.Provider, error) {
 		return dummyProvider{}, nil
 	})
 	sdk.RegisterExtension("sandbox", func(_ sdk.Config, _ testExtensionConfig) (sdk.Extension, error) {
