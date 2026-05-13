@@ -145,17 +145,17 @@ Merge three separate extensions (`loop`, `skills`, `instructions`) into a single
 
 ### Task 8: Verify acceptance criteria
 
-- [ ] Agent extension discovers and loads CLAUDE.md/AGENTS.md correctly
-- [ ] Agent extension discovers and loads skills correctly
-- [ ] Default system prompt includes dynamic tool descriptions
-- [ ] SYSTEM.md replaces default base when present
-- [ ] APPEND_SYSTEM.md is always last
-- [ ] Skills XML includes usage instructions for model self-invocation
-- [ ] `/skill:<name>` slash commands work
-- [ ] Extension-bundled skills are discovered from extension `skills/` subdirectories
-- [ ] User skills override extension skills by name
-- [ ] Run full test suite (root + all extensions)
-- [ ] Run linter — all issues fixed
+- [x] Agent extension discovers and loads CLAUDE.md/AGENTS.md correctly
+- [x] Agent extension discovers and loads skills correctly
+- [x] Default system prompt includes dynamic tool descriptions
+- [x] SYSTEM.md replaces default base when present
+- [x] APPEND_SYSTEM.md is always last
+- [x] Skills XML includes usage instructions for model self-invocation
+- [x] `/skill:<name>` slash commands work
+- [x] Extension-bundled skills are discovered from extension `skills/` subdirectories
+- [x] User skills override extension skills by name
+- [x] Run full test suite (root + all extensions)
+- [x] Run linter — all issues fixed
 
 ### Task 9: Update documentation
 
