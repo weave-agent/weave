@@ -498,9 +498,9 @@ func checkRule(field reflect.Value, rule string) string {
 	case strings.HasPrefix(rule, "lt="):
 		return checkNumericCompare(field, rule[3:], "lt")
 	case strings.HasPrefix(rule, "min="):
-		return checkMin(field, rule[4:])
+		return checkBound(field, rule[4:], "min")
 	case strings.HasPrefix(rule, "max="):
-		return checkMax(field, rule[4:])
+		return checkBound(field, rule[4:], "max")
 	case strings.HasPrefix(rule, "oneof="):
 		return checkOneOf(field, rule[6:])
 	default:
@@ -557,14 +557,6 @@ func checkNumericCompare(field reflect.Value, valStr, op string) string {
 	}
 
 	return ""
-}
-
-func checkMin(field reflect.Value, valStr string) string {
-	return checkBound(field, valStr, "min")
-}
-
-func checkMax(field reflect.Value, valStr string) string {
-	return checkBound(field, valStr, "max")
 }
 
 //nolint:gocyclo // validation boundary checks are inherently branch-heavy

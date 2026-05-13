@@ -194,9 +194,12 @@ Built-in bindings: Escape=interrupt, Ctrl+C=double-press (first clears editor, s
 **Provider environment variables:**
 - `ANTHROPIC_API_KEY` — required for Anthropic provider (default model: `claude-sonnet-4-6`, override with `ANTHROPIC_MODEL`)
 - `OPENAI_API_KEY` — required for OpenAI provider (default model: `gpt-5.5`, override with `OPENAI_MODEL`)
+- `OPENAI_BASE_URL` — override the default API base URL for OpenAI provider
 - `ZAI_API_KEY` — required for Z.ai provider (default model: `glm-5.1`, override with `ZAI_MODEL`)
+- `ZAI_BASE_URL` — override the default API base URL for Z.ai provider
 - `KIMI_API_KEY` — required for Kimi provider (default model: `kimi-for-coding`, override with `KIMI_MODEL`)
 - `KIMI_MAX_TOKENS` — override the default max tokens (32768) for Kimi provider
+- `KIMI_BASE_URL` — override the default API base URL for Kimi provider
 - `WEAVE_PROVIDER` — override the active provider at runtime (e.g., `openai`, `zai`); highest priority, overrides settings.json preference
 - `WEAVE_THINKING_LEVEL` — initial thinking level (default: `medium`)
 - `WEAVE_OFFLINE` — set to `1` to skip the startup extension update check (for offline/air-gapped environments)

@@ -14,7 +14,7 @@ import (
 // ZaiConfig holds per-provider configuration for the Z.ai provider.
 type ZaiConfig struct {
 	Model   string `json:"model" default:"glm-5.1" env:"ZAI_MODEL" description:"Model name"`
-	BaseURL string `json:"base_url" default:"https://api.z.ai/api/coding/paas/v4" env:"BASE_URL" description:"API base URL"`
+	BaseURL string `json:"base_url" default:"https://api.z.ai/api/coding/paas/v4" env:"ZAI_BASE_URL" description:"API base URL"`
 }
 
 type provider struct {
