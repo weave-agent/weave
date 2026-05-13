@@ -65,12 +65,12 @@ Merge three separate extensions (`loop`, `skills`, `instructions`) into a single
 
 ### Task 1: Create agent extension skeleton
 
-- [ ] Create `extensions/agent/` directory with `go.mod`
-- [ ] Create `extension.go` with `AgentExtension` struct, `Subscribe`, `Close`, `Name`
-- [ ] Register via `sdk.RegisterExtension("agent", ...)` in `init()`
-- [ ] Create minimal `prompt.go` with `promptBuilder` struct
-- [ ] Write tests for extension registration and basic Subscribe/Close
-- [ ] Run tests — must pass before next task
+- [x] Create `extensions/agent/` directory with `go.mod`
+- [x] Create `extension.go` with `AgentExtension` struct, `Subscribe`, `Close`, `Name`
+- [x] Register via `sdk.RegisterExtension("agent", ...)` in `init()`
+- [x] Create minimal `prompt.go` with `promptBuilder` struct
+- [x] Write tests for extension registration and basic Subscribe/Close
+- [x] Run tests — must pass before next task
 
 ### Task 2: Port context file discovery (from instructions extension)
 
