@@ -259,6 +259,22 @@ func TestRun_SubagentFlagsParsed(t *testing.T) {
 	assert.Empty(t, rest, "all flags should be consumed by loader")
 }
 
+func TestRun_DebugFlagParsed(t *testing.T) {
+	dir := t.TempDir()
+	cfgFile := dir + "/.weave/settings.json"
+	require.NoError(t, os.MkdirAll(filepath.Dir(cfgFile), 0o750))
+	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"none","agent_loop":"agent"}`), 0o600))
+
+	_, cf, rest, err := settings.LoadFromDir(dir, []string{
+		"-p", "test",
+		"--debug",
+	})
+	require.NoError(t, err)
+
+	assert.True(t, cf.Debug, "--debug should set Debug to true")
+	assert.Empty(t, rest, "all flags should be consumed by loader")
+}
+
 func TestRun_EmptyToolsFlagForwarded(t *testing.T) {
 	dir := t.TempDir()
 	cfgFile := dir + "/.weave/settings.json"

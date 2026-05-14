@@ -54,6 +54,7 @@ var globalFlags = []globalFlag{
 	{"--subagent-id", "", "Subagent ID for inter-agent communication"},
 	{"--sandbox", "", "Sandbox mode override"},
 	{"--model", "", "Model override for this session"}, //nolint:goconst // used across multiple packages
+	{"--debug", "", "Enable debug logging"},
 }
 
 func writeGlobalFlags(b *strings.Builder) {

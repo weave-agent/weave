@@ -52,6 +52,11 @@ func TestSettingsWeaveFlags(t *testing.T) {
 			want:     []string{"--weave-model=claude-sonnet-4-6"},
 		},
 		{
+			name:     "debug flag",
+			settings: Settings{Debug: true},
+			want:     []string{"--weave-debug=true"},
+		},
+		{
 			name: "multiple flags",
 			settings: Settings{
 				Output:      "json",
@@ -59,8 +64,10 @@ func TestSettingsWeaveFlags(t *testing.T) {
 				SubagentID:  "id1",
 				SandboxMode: "auto",
 				ModelFlag:   "gpt-5.5",
+				Debug:       true,
 			},
 			want: []string{
+				"--weave-debug=true",
 				"--weave-output=json",
 				"--weave-tools=read",
 				"--weave-subagent-id=id1",

@@ -80,10 +80,10 @@ Introduce a unified, file-based logging system that prevents stdout/stderr outpu
 - [x] run launcher tests (`go test ./internal/launcher/...`) — must pass
 
 ### Task 6: Add --debug flag support to stub main.go
-- [ ] modify `cmd/weave/main.go`:
+- [x] modify `cmd/weave/main.go`:
   - add `--debug` flag parsing before calling `wire.Run()`
   - pass debug value through to launcher/settings as needed
-- [ ] run root module tests — must pass
+- [x] run root module tests — must pass
 
 ### Task 7: Verify no stderr leakage during TUI runtime
 - [ ] grep the codebase for remaining `log.Printf` and `fmt.Fprintf(os.Stderr, ...)` in extension code (not launcher fatal errors)

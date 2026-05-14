@@ -44,6 +44,7 @@ type Settings struct {
 	SubagentID  string `flag:"subagent-id" json:"-" description:"Subagent ID for inter-agent communication"`
 	SandboxMode string `flag:"sandbox" json:"-" description:"Sandbox mode override"`
 	ModelFlag   string `flag:"model" json:"-" description:"Model override for this session"`
+	Debug       bool   `flag:"debug" json:"-" description:"Enable debug logging"`
 }
 
 // SettingsLayer identifies which settings file to read or write.
@@ -177,6 +178,10 @@ func settingsPathForLayer(layer SettingsLayer, projectDir string) (string, error
 // It translates parsed user-facing flags into --weave-* prefixed flags.
 func (s *Settings) WeaveFlags() []string {
 	var flags []string
+
+	if s.Debug {
+		flags = append(flags, "--weave-debug=true")
+	}
 
 	if s.Output != "" {
 		flags = append(flags, "--weave-output="+s.Output)

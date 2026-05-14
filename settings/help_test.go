@@ -84,6 +84,7 @@ func TestGenerateFullHelp_NoSchemas(t *testing.T) {
 	assert.Contains(t, text, "Global flags:")
 	assert.Contains(t, text, "--prompt")
 	assert.Contains(t, text, "-p")
+	assert.Contains(t, text, "--debug")
 	assert.NotContains(t, text, "Tool options:")
 }
 

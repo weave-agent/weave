@@ -165,6 +165,7 @@ type flagSet struct {
 	SubagentID  string `flag:"subagent-id" description:"Subagent ID for inter-agent communication"`
 	SandboxMode string `flag:"sandbox" description:"Sandbox mode override"`
 	Model       string `flag:"model" description:"Model override for this session"`
+	Debug       bool   `flag:"debug" description:"Enable debug logging"`
 }
 
 func loadSettingsFromFile(path string) (Settings, error) {
@@ -263,6 +264,7 @@ func LoadFromDir(dir string, args []string) (string, *Settings, []string, error)
 	s.SubagentID = flags.SubagentID
 	s.SandboxMode = flags.SandboxMode
 	s.ModelFlag = flags.Model
+	s.Debug = flags.Debug
 
 	// Detect explicitly empty --tools= so the launcher can forward it.
 	for _, a := range args {
