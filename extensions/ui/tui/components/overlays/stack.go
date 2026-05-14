@@ -12,6 +12,7 @@ type DialogResult struct {
 	Index     int
 	Value     string
 	Confirmed bool
+	Selected  []int
 	Err       error
 }
 
@@ -379,6 +380,67 @@ func (d *EditorDialog) Handles(msg tea.Msg) bool {
 	case tea.KeyPressMsg:
 		return true
 	case EditorResultMsg:
+		return true
+	}
+
+	return false
+}
+
+// --- MultiSelect Dialog Adapter ---
+
+// MultiSelectDialog wraps a MultiSelectModel as a Dialog.
+type MultiSelectDialog struct {
+	id     string
+	model  MultiSelectModel
+	done   bool
+	result DialogResult
+}
+
+// NewMultiSelectDialog creates a dialog wrapping a MultiSelectModel.
+func NewMultiSelectDialog(id string, model MultiSelectModel) *MultiSelectDialog {
+	return &MultiSelectDialog{id: id, model: model}
+}
+
+func (d *MultiSelectDialog) ID() string              { return d.id }
+func (d *MultiSelectDialog) Done() bool              { return d.done }
+func (d *MultiSelectDialog) Result() DialogResult    { return d.result }
+func (d *MultiSelectDialog) Model() MultiSelectModel { return d.model }
+
+func (d *MultiSelectDialog) SetSize(width, height int) Dialog {
+	d.model = d.model.SetSize(width, height)
+	return d
+}
+
+func (d *MultiSelectDialog) Update(msg tea.Msg) (Dialog, tea.Cmd) {
+	switch msg := msg.(type) {
+	case MultiSelectResultMsg:
+		d.done = true
+		if msg.Ok {
+			d.result = DialogResult{Selected: msg.Selected}
+		} else {
+			d.result = DialogResult{Err: errors.New("canceled")}
+		}
+
+		return d, nil
+
+	default:
+		var cmd tea.Cmd
+
+		d.model, cmd = d.model.Update(msg)
+
+		return d, cmd
+	}
+}
+
+func (d *MultiSelectDialog) Draw(scr uv.Screen, area uv.Rectangle) {
+	d.model.Draw(scr, area)
+}
+
+func (d *MultiSelectDialog) Handles(msg tea.Msg) bool {
+	switch msg.(type) {
+	case tea.KeyPressMsg:
+		return true
+	case MultiSelectResultMsg:
 		return true
 	}
 

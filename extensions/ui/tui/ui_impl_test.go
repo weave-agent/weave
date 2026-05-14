@@ -648,6 +648,104 @@ func TestModel_PopupView_Editor(t *testing.T) {
 	assert.Contains(t, view.Content, "Ctrl+Enter")
 }
 
+func TestModel_HandlePopupPending_MultiSelect(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.ui = ui
+
+	req := &overlayRequest{
+		kind:     requestMultiSelect,
+		title:    "Pick fruits",
+		items:    []string{"apple", "banana", "cherry"},
+		defaults: []bool{true, false, true},
+		result:   make(chan overlayResponse, 1),
+	}
+
+	m = activatePopup(m, ui, req)
+	assert.False(t, m.dialogStack.Empty())
+	top := m.dialogStack.Peek()
+	require.NotNil(t, top)
+	_, ok := top.(*overlays.MultiSelectDialog)
+	assert.True(t, ok, "expected MultiSelectDialog on stack")
+}
+
+func TestModel_PopupMultiSelectConfirm(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.ui = ui
+
+	req := &overlayRequest{
+		kind:     requestMultiSelect,
+		title:    "Pick",
+		items:    []string{"a", "b", "c"},
+		defaults: []bool{false, true, false},
+		result:   make(chan overlayResponse, 1),
+	}
+	m = activatePopup(m, ui, req)
+	require.False(t, m.dialogStack.Empty())
+
+	updated, _ := m.Update(overlays.MultiSelectResultMsg{Selected: []int{0, 2}, Ok: true})
+	m = updated.(Model)
+
+	select {
+	case resp := <-req.result:
+		assert.Equal(t, []int{0, 2}, resp.selected)
+		require.NoError(t, resp.err)
+	default:
+		t.Fatal("expected response on result channel")
+	}
+
+	assert.True(t, m.dialogStack.Empty())
+}
+
+func TestModel_PopupMultiSelectCancel(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.ui = ui
+
+	req := &overlayRequest{
+		kind:   requestMultiSelect,
+		title:  "Pick",
+		items:  []string{"a", "b"},
+		result: make(chan overlayResponse, 1),
+	}
+	m = activatePopup(m, ui, req)
+	require.False(t, m.dialogStack.Empty())
+
+	updated, _ := m.Update(overlays.MultiSelectResultMsg{Ok: false})
+	m = updated.(Model)
+
+	select {
+	case resp := <-req.result:
+		require.Error(t, resp.err)
+	default:
+		t.Fatal("expected response on result channel")
+	}
+
+	assert.True(t, m.dialogStack.Empty())
+}
+
+func TestModel_PopupView_MultiSelect(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	m.dialogStack = overlays.NewDialogStack()
+	m.dialogStack = m.dialogStack.Push(overlays.NewMultiSelectDialog(
+		"popup-multiselect-1",
+		overlays.NewMultiSelectModel("Pick items:", []string{"A", "B", "C"}, nil).SetSize(80, 24).Show(),
+	))
+	view := m.View()
+	assert.Contains(t, view.Content, "Pick items:")
+	assert.Contains(t, view.Content, "☐")
+}
+
 func TestModel_PopupSequentialQueuing(t *testing.T) {
 	ui := NewTUIImpl(nil, nil)
 	m := newModel(nil, nil, nil, nil)

@@ -262,11 +262,23 @@ func (u *TUIImpl) GetRenderer(toolName string) (sdk.ToolRenderer, bool) {
 
 // MultiSelect shows a multi-selection overlay and blocks until the user responds.
 func (u *TUIImpl) MultiSelect(title string, items []string, defaults []bool, _ ...sdk.SelectOption) ([]int, error) {
-	_ = title
-	_ = items
-	_ = defaults
+	req := &overlayRequest{
+		kind:     requestMultiSelect,
+		title:    title,
+		items:    items,
+		defaults: defaults,
+		result:   make(chan overlayResponse, 1),
+	}
+	if err := u.enqueue(req); err != nil {
+		return nil, err
+	}
 
-	return nil, errors.New("not implemented")
+	select {
+	case resp := <-req.result:
+		return resp.selected, resp.err
+	case <-u.done:
+		return nil, errors.New("tui shutting down")
+	}
 }
 
 // Editor shows an editor overlay and blocks until the user responds.

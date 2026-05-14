@@ -404,3 +404,104 @@ func TestDialogStack_SelectorFlow(t *testing.T) {
 	assert.True(t, top.Done())
 	assert.Equal(t, 0, top.Result().Index)
 }
+
+// --- MultiSelectDialog tests ---
+
+func TestMultiSelectDialog_DoneOnConfirm(t *testing.T) {
+	model := NewMultiSelectModel("Pick", []string{"A", "B", "C"}, nil)
+	model = model.SetSize(80, 24).Show()
+	d := NewMultiSelectDialog("test-ms", model)
+
+	assert.False(t, d.Done())
+
+	newD, _ := d.Update(MultiSelectResultMsg{Selected: []int{0, 2}, Ok: true})
+	d = newD.(*MultiSelectDialog)
+
+	assert.True(t, d.Done())
+	assert.Equal(t, []int{0, 2}, d.Result().Selected)
+	assert.NoError(t, d.Result().Err)
+}
+
+func TestMultiSelectDialog_DoneOnCancel(t *testing.T) {
+	model := NewMultiSelectModel("Pick", []string{"A", "B"}, nil)
+	model = model.SetSize(80, 24).Show()
+	d := NewMultiSelectDialog("test-ms", model)
+
+	newD, _ := d.Update(MultiSelectResultMsg{Ok: false})
+	d = newD.(*MultiSelectDialog)
+
+	assert.True(t, d.Done())
+	require.Error(t, d.Result().Err)
+	assert.EqualError(t, d.Result().Err, "canceled")
+}
+
+func TestMultiSelectDialog_HandlesKeyAndResult(t *testing.T) {
+	model := NewMultiSelectModel("Pick", []string{"A"}, nil)
+	model = model.SetSize(80, 24).Show()
+	d := NewMultiSelectDialog("test-ms", model)
+
+	assert.True(t, d.Handles(tea.KeyPressMsg{Code: tea.KeyEsc}))
+	assert.True(t, d.Handles(MultiSelectResultMsg{}))
+	assert.False(t, d.Handles(tea.WindowSizeMsg{}))
+}
+
+func TestMultiSelectDialog_SetSize(t *testing.T) {
+	model := NewMultiSelectModel("Pick", nil, nil)
+	d := NewMultiSelectDialog("test-ms", model)
+
+	newD := d.SetSize(120, 40)
+	msd := newD.(*MultiSelectDialog)
+
+	assert.Equal(t, 120, msd.Model().Width())
+	assert.Equal(t, 40, msd.Model().Height())
+}
+
+func TestMultiSelectDialog_KeyEventUpdatesModel(t *testing.T) {
+	model := NewMultiSelectModel("Pick", []string{"A", "B"}, nil)
+	model = model.SetSize(80, 24).Show()
+	d := NewMultiSelectDialog("test-ms", model)
+
+	// Press Down to move cursor
+	newD, _ := d.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	d = newD.(*MultiSelectDialog)
+
+	assert.False(t, d.Done())
+	assert.Equal(t, 1, d.Model().Cursor())
+}
+
+func TestDialogStack_MultiSelectFlow(t *testing.T) {
+	model := NewMultiSelectModel("Pick", []string{"A", "B"}, nil)
+	model = model.SetSize(80, 24).Show()
+
+	s := NewDialogStack()
+	s = s.Push(NewMultiSelectDialog("test", model))
+
+	// Simulate pressing Enter to select first item
+	newS, cmd, _ := s.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	s = newS
+
+	assert.Nil(t, cmd) // toggle doesn't emit command
+
+	// Simulate Ctrl+Enter to confirm
+	newS, cmd, _ = s.Update(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModCtrl})
+	s = newS
+
+	require.NotNil(t, cmd)
+
+	// Execute the command to get MultiSelectResultMsg
+	msg := cmd()
+	msMsg, ok := msg.(MultiSelectResultMsg)
+	require.True(t, ok)
+	assert.True(t, msMsg.Ok)
+	assert.Equal(t, []int{0}, msMsg.Selected)
+
+	// Feed the result back
+	newS, _, _ = s.Update(msMsg)
+	s = newS
+
+	// Dialog should be done now
+	top := s.Peek()
+	require.NotNil(t, top)
+	assert.True(t, top.Done())
+	assert.Equal(t, []int{0}, top.Result().Selected)
+}

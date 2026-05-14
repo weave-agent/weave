@@ -219,13 +219,13 @@ When active, overlay dialogs dock at bottom of chat area instead of centered ove
 
 ### Task 3: Implement MultiSelect overlay in TUI
 
-- [ ] create `MultiSelectModel` in `extensions/ui/tui/components/overlays/multiselect.go` — checkbox list with toggle on Enter, confirm on Ctrl+Enter
-- [ ] create `MultiSelectDialog` adapter implementing `Dialog` interface
-- [ ] add `requestMultiSelect` to `overlayRequestKind`
-- [ ] implement `MultiSelect()` method on `TUIImpl`
-- [ ] write tests for `MultiSelectModel` toggle/filter/confirm behavior
-- [ ] write tests for `MultiSelectDialog` adapter
-- [ ] run `cd extensions/ui/tui && go test ./...` — must pass before next task
+- [x] create `MultiSelectModel` in `extensions/ui/tui/components/overlays/multiselect.go` — checkbox list with toggle on Enter, confirm on Ctrl+Enter
+- [x] create `MultiSelectDialog` adapter implementing `Dialog` interface
+- [x] add `requestMultiSelect` to `overlayRequestKind`
+- [x] implement `MultiSelect()` method on `TUIImpl`
+- [x] write tests for `MultiSelectModel` toggle/filter/confirm behavior
+- [x] write tests for `MultiSelectDialog` adapter
+- [x] run `cd extensions/ui/tui && go test ./...` — must pass before next task
 
 ### Task 4: Implement NotifyTyped, ShowError, SetWorking/ClearWorking in TUI
 

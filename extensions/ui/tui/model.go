@@ -1277,6 +1277,7 @@ func (m Model) handleDialogDone(d overlays.Dialog, pendingCmd tea.Cmd) (tea.Mode
 				index:     result.Index,
 				value:     result.Value,
 				confirmed: result.Confirmed,
+				selected:  result.Selected,
 				err:       result.Err,
 			}
 			ch <- resp
