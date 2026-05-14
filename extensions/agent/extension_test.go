@@ -216,6 +216,33 @@ func TestMakeSkillHandler_WithArgs(t *testing.T) {
 	assert.Contains(t, strings.TrimSpace(afterClosing), "extra args")
 }
 
+func TestMakeSkillHandler_ArgsNotXMLEscaped(t *testing.T) {
+	skill := Skill{
+		Name:     "test-skill",
+		FilePath: "/path/to/test-skill/SKILL.md",
+		BaseDir:  "/path/to/test-skill",
+	}
+	skill.body = "# Instructions"
+
+	var published []sdk.Event
+
+	b := &BusMock{
+		PublishFunc: func(event sdk.Event) {
+			published = append(published, event)
+		},
+	}
+
+	handler := makeSkillHandler(skill, b)
+
+	require.NoError(t, handler(`<div class="x">`))
+	require.Len(t, published, 1)
+
+	payload := published[0].Payload.(string)
+	_, afterClosing, _ := strings.Cut(payload, "</skill>")
+	assert.Contains(t, afterClosing, `<div class="x">`)
+	assert.NotContains(t, afterClosing, "&lt;")
+}
+
 func TestMakeSkillHandler_FrontmatterStripped(t *testing.T) {
 	skillDir := filepath.Join(t.TempDir(), "fm-skill")
 	writeSkillMD(t, skillDir, "fm-skill", "Tests frontmatter stripping", "Real instructions here.")

@@ -147,6 +147,26 @@ func TestBuildDir_DefaultTmpDir(t *testing.T) {
 	assert.Equal(t, filepath.Join(os.TempDir(), "weave-build-abc123"), l.buildDir("abc123"))
 }
 
+func TestBuildExecEnv_PrependsWeaveVars(t *testing.T) {
+	parent := []string{
+		"PATH=/usr/bin",
+		"WEAVE_MODULE_ROOT=/stale",
+		"HOME=/home/user",
+	}
+
+	env := buildExecEnv(parent, "/launcher", "abc123", "[\"weave\"]", "/correct")
+
+	// Our vars should come first so they override stale parent values.
+	require.Len(t, env, 7)
+	assert.Equal(t, "WEAVE_LAUNCHER_PATH=/launcher", env[0])
+	assert.Equal(t, "WEAVE_BUILD_HASH=abc123", env[1])
+	assert.Equal(t, "WEAVE_ORIG_ARGS=[\"weave\"]", env[2])
+	assert.Equal(t, "WEAVE_MODULE_ROOT=/correct", env[3])
+	assert.Equal(t, "PATH=/usr/bin", env[4])
+	assert.Equal(t, "WEAVE_MODULE_ROOT=/stale", env[5])
+	assert.Equal(t, "HOME=/home/user", env[6])
+}
+
 // fmtError wraps a string as an error for test use.
 type fmtError string
 

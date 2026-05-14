@@ -3,6 +3,7 @@ package agent
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -195,9 +196,48 @@ func discoverSkills(paths ...string) []Skill {
 	return skills
 }
 
+// isValidExtensionModule reports whether dir is a Go module directory containing
+// both a go.mod file and at least one non-test .go file. This matches the
+// validation performed by launcher.AutoDiscover.
+func isValidExtensionModule(dir string) bool {
+	if _, err := os.Stat(filepath.Join(dir, "go.mod")); err != nil {
+		return false
+	}
+
+	found := false
+
+	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || found {
+			return nil //nolint:nilerr // skip problematic entries
+		}
+
+		if d.IsDir() {
+			if path != dir {
+				if _, statErr := os.Stat(filepath.Join(path, "go.mod")); statErr == nil {
+					return fs.SkipDir
+				}
+			}
+
+			return nil
+		}
+
+		name := d.Name()
+		if strings.HasSuffix(name, ".go") && !strings.HasSuffix(name, "_test.go") {
+			found = true
+		}
+
+		return nil
+	})
+
+	return found
+}
+
 // discoverExtensionSkills scans extension directories for skills/ subdirectories.
-// It checks project-local .weave/extensions/ and global ~/.weave/extensions/.
-// Only directories matching registered extension names are checked.
+// It checks project-local .weave/extensions/, global ~/.weave/extensions/, and
+// built-in extensions/ relative to the module root. The scan is recursive so
+// nested extensions are found. Only the first occurrence of each extension name
+// contributes skills (precedence: project > global > built-in), matching the
+// AutoDiscover selection semantics.
 // Returns a list of <ext-dir>/skills/ paths.
 func discoverExtensionSkills(projectDir, globalDir string) []string {
 	var paths []string
@@ -207,38 +247,109 @@ func discoverExtensionSkills(projectDir, globalDir string) []string {
 		registered[name] = true
 	}
 
-	checkDir := func(extDir string) {
-		entries, err := os.ReadDir(extDir)
-		if err != nil {
-			return
-		}
+	// Track which extension dirs have already been selected (first wins).
+	selected := make(map[string]bool)
 
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				continue
+	scan := func(root string) {
+		_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return nil //nolint:nilerr // skip problematic entries
 			}
 
-			name := entry.Name()
-			if !registered[name] {
-				continue
+			if !d.IsDir() || path == root {
+				return nil
 			}
 
-			skillsDir := filepath.Join(extDir, name, "skills")
+			if strings.HasPrefix(d.Name(), ".") {
+				return fs.SkipDir
+			}
+
+			// Don't recurse into skills directories; they contain skill dirs, not extensions.
+			if d.Name() == "skills" {
+				return fs.SkipDir
+			}
+
+			name := d.Name()
+
+			if !registered[name] || selected[name] {
+				return nil
+			}
+
+			if !isValidExtensionModule(path) {
+				return nil
+			}
+
+			skillsDir := filepath.Join(path, "skills")
+
 			if info, err := os.Stat(skillsDir); err == nil && info.IsDir() {
 				paths = append(paths, skillsDir)
 			}
-		}
+
+			selected[name] = true
+
+			return nil
+		})
 	}
 
 	if projectDir != "" {
-		checkDir(filepath.Join(projectDir, ".weave", "extensions"))
+		scan(filepath.Join(projectDir, ".weave", "extensions"))
 	}
 
 	if globalDir != "" {
-		checkDir(filepath.Join(globalDir, "extensions"))
+		scan(filepath.Join(globalDir, "extensions"))
+	}
+
+	if moduleRoot := findModuleRoot(); moduleRoot != "" {
+		scan(filepath.Join(moduleRoot, "extensions"))
 	}
 
 	return paths
+}
+
+// findModuleRoot returns the weave module root directory. It checks the
+// WEAVE_MODULE_ROOT environment variable first (set by the launcher when
+// exec-ing a generated binary), then walks up from the current working
+// directory looking for a go.mod file that declares "module weave".
+// Returns empty string if not found.
+func findModuleRoot() string {
+	if root := os.Getenv("WEAVE_MODULE_ROOT"); root != "" {
+		return root
+	}
+
+	dir, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+
+	for {
+		data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+		if err == nil {
+			for line := range strings.SplitSeq(string(data), "\n") {
+				line = strings.TrimSpace(line)
+
+				if line == "" || strings.HasPrefix(line, "//") {
+					continue
+				}
+
+				if name, ok := strings.CutPrefix(line, "module "); ok {
+					if strings.TrimSpace(name) == "weave" {
+						return dir
+					}
+
+					break
+				}
+			}
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+
+		dir = parent
+	}
+
+	return ""
 }
 
 // makeSkillHandler creates a slash command handler that pre-loads a skill's
@@ -255,7 +366,7 @@ func makeSkillHandler(skill Skill, bus sdk.Bus) func(args string) error {
 
 		if args != "" {
 			msg.WriteString("\n\n")
-			msg.WriteString(escapeXML(args))
+			msg.WriteString(args)
 		}
 
 		bus.Publish(sdk.NewEvent(TopicPrompt, msg.String()))
@@ -274,16 +385,24 @@ func escapeXML(s string) string {
 }
 
 // formatSkillsPrompt formats a list of skills as XML for inclusion in the
-// system prompt. Returns an empty string if no skills are provided.
+// system prompt. Returns an empty string if no enabled skills are provided.
 func formatSkillsPrompt(skills []Skill) string {
-	if len(skills) == 0 {
+	var enabled []Skill
+
+	for _, s := range skills {
+		if !s.DisableModelInvocation {
+			enabled = append(enabled, s)
+		}
+	}
+
+	if len(enabled) == 0 {
 		return ""
 	}
 
 	var b strings.Builder
 	b.WriteString("<available_skills>\n")
 
-	for _, s := range skills {
+	for _, s := range enabled {
 		b.WriteString("<skill>\n<name>")
 		b.WriteString(escapeXML(s.Name))
 		b.WriteString("</name>\n<description>")

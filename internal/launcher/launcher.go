@@ -150,17 +150,30 @@ func (l *Launcher) exec(_ context.Context, binPath, configPath, agentLoop string
 		}
 	}
 
-	env := os.Environ()
-	env = append(env, "WEAVE_LAUNCHER_PATH="+launcherPath)
-
 	// binPath is <cache.Root>/<hash>/weave — extract hash for reload.
 	hash := filepath.Base(filepath.Dir(binPath))
-	env = append(env, "WEAVE_BUILD_HASH="+hash)
 
 	origArgs, _ := json.Marshal(os.Args)
-	env = append(env, "WEAVE_ORIG_ARGS="+string(origArgs))
 
-	return fmt.Errorf("exec binary: %w", syscall.Exec(binPath, argv, env)) //nolint:gosec // G702 — env is our own os.Environ() with added weave vars
+	// Pass module root so generated binaries can locate built-in extension skills
+	// regardless of the user's current working directory.
+	// Prepend our vars before os.Environ() so they override any stale values
+	// that may already exist in the parent environment.
+	env := buildExecEnv(os.Environ(), launcherPath, hash, string(origArgs), l.ModuleRoot)
+
+	return fmt.Errorf("exec binary: %w", syscall.Exec(binPath, argv, env))
+}
+
+// buildExecEnv constructs the environment for the exec'd binary.
+// Weave-specific vars are prepended before the parent environment so they
+// override any stale values that may already be present.
+func buildExecEnv(parentEnv []string, launcherPath, hash, origArgs, moduleRoot string) []string {
+	return append([]string{
+		"WEAVE_LAUNCHER_PATH=" + launcherPath,
+		"WEAVE_BUILD_HASH=" + hash,
+		"WEAVE_ORIG_ARGS=" + origArgs,
+		"WEAVE_MODULE_ROOT=" + moduleRoot,
+	}, parentEnv...)
 }
 
 // lockBuildDir acquires a file-based lock for the given build hash to prevent

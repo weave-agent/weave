@@ -19,6 +19,13 @@ func writeSkillMD(t *testing.T, dir, name, desc, body string) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(content), 0o644))
 }
 
+func makeValidExtModule(t *testing.T, dir string) {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module "+filepath.Base(dir)+"\n\ngo 1.22\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main\n"), 0o644))
+}
+
 // --- validateName tests ---
 
 func TestValidateName(t *testing.T) {
@@ -294,6 +301,24 @@ func TestFormatSkillsPrompt(t *testing.T) {
 		result := formatSkillsPrompt(skills)
 		assert.Contains(t, result, "Uses &lt;tags&gt; &amp; &quot;quotes&quot;")
 	})
+
+	t.Run("disabled skills are excluded", func(t *testing.T) {
+		skills := []Skill{
+			{Name: "enabled-skill", Description: "Enabled", FilePath: "/a"},
+			{Name: "disabled-skill", Description: "Disabled", FilePath: "/b", DisableModelInvocation: true},
+		}
+		result := formatSkillsPrompt(skills)
+		assert.Contains(t, result, "<name>enabled-skill</name>")
+		assert.NotContains(t, result, "<name>disabled-skill</name>")
+	})
+
+	t.Run("all disabled returns empty", func(t *testing.T) {
+		skills := []Skill{
+			{Name: "disabled", Description: "Disabled", FilePath: "/a", DisableModelInvocation: true},
+		}
+		result := formatSkillsPrompt(skills)
+		assert.Empty(t, result)
+	})
 }
 
 // --- discoverExtensionSkills tests ---
@@ -315,6 +340,7 @@ func TestDiscoverExtensionSkills(t *testing.T) {
 
 		projectDir := t.TempDir()
 		extDir := filepath.Join(projectDir, ".weave", "extensions", "test-ext")
+		makeValidExtModule(t, extDir)
 		skillsDir := filepath.Join(extDir, "skills")
 		writeSkillMD(t, filepath.Join(skillsDir, "ext-skill"), "ext-skill", "Extension skill", "body")
 
@@ -346,6 +372,7 @@ func TestDiscoverExtensionSkills(t *testing.T) {
 
 		globalDir := t.TempDir()
 		extDir := filepath.Join(globalDir, "extensions", "global-ext")
+		makeValidExtModule(t, extDir)
 		skillsDir := filepath.Join(extDir, "skills")
 		writeSkillMD(t, filepath.Join(skillsDir, "global-skill"), "global-skill", "Global skill", "body")
 
@@ -363,7 +390,8 @@ func TestDiscoverExtensionSkills(t *testing.T) {
 		})
 
 		projectDir := t.TempDir()
-		require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".weave", "extensions", "no-skills"), 0o755))
+		extDir := filepath.Join(projectDir, ".weave", "extensions", "no-skills")
+		makeValidExtModule(t, extDir)
 
 		paths := discoverExtensionSkills(projectDir, "")
 		assert.Empty(t, paths)
@@ -391,16 +419,91 @@ func TestDiscoverExtensionSkills(t *testing.T) {
 		projectDir := t.TempDir()
 		globalDir := t.TempDir()
 
-		projSkillsDir := filepath.Join(projectDir, ".weave", "extensions", "proj-ext", "skills")
+		projExtDir := filepath.Join(projectDir, ".weave", "extensions", "proj-ext")
+		makeValidExtModule(t, projExtDir)
+		projSkillsDir := filepath.Join(projExtDir, "skills")
 		writeSkillMD(t, filepath.Join(projSkillsDir, "proj-skill"), "proj-skill", "Project", "body")
 
-		globSkillsDir := filepath.Join(globalDir, "extensions", "glob-ext", "skills")
+		globExtDir := filepath.Join(globalDir, "extensions", "glob-ext")
+		makeValidExtModule(t, globExtDir)
+		globSkillsDir := filepath.Join(globExtDir, "skills")
 		writeSkillMD(t, filepath.Join(globSkillsDir, "glob-skill"), "glob-skill", "Global", "body")
 
 		paths := discoverExtensionSkills(projectDir, globalDir)
 		require.Len(t, paths, 2)
 		assert.Contains(t, paths, projSkillsDir)
 		assert.Contains(t, paths, globSkillsDir)
+	})
+
+	t.Run("discovers nested extensions", func(t *testing.T) {
+		resetRegistries()
+		defer resetRegistries()
+
+		sdk.RegisterExtension("nested-ext", func(cfg sdk.Config, _ struct{}) (sdk.Extension, error) {
+			return stubExt{}, nil
+		})
+
+		projectDir := t.TempDir()
+		nestedExtDir := filepath.Join(projectDir, ".weave", "extensions", "vendor", "nested-ext")
+		makeValidExtModule(t, nestedExtDir)
+		skillsDir := filepath.Join(nestedExtDir, "skills")
+		writeSkillMD(t, filepath.Join(skillsDir, "nested-skill"), "nested-skill", "Nested", "body")
+
+		paths := discoverExtensionSkills(projectDir, "")
+		require.Len(t, paths, 1)
+		assert.Equal(t, skillsDir, paths[0])
+	})
+
+	t.Run("project shadows global extension skills", func(t *testing.T) {
+		resetRegistries()
+		defer resetRegistries()
+
+		sdk.RegisterExtension("shadow-ext", func(cfg sdk.Config, _ struct{}) (sdk.Extension, error) {
+			return stubExt{}, nil
+		})
+
+		projectDir := t.TempDir()
+		globalDir := t.TempDir()
+
+		// Global has skills
+		globSkillsDir := filepath.Join(globalDir, "extensions", "shadow-ext", "skills")
+		writeSkillMD(t, filepath.Join(globSkillsDir, "global-skill"), "global-skill", "Global", "body")
+
+		// Project has the same extension as a valid module but no skills dir
+		projExtDir := filepath.Join(projectDir, ".weave", "extensions", "shadow-ext")
+		require.NoError(t, os.MkdirAll(projExtDir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(projExtDir, "go.mod"), []byte("module shadow-ext\n\ngo 1.22\n"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(projExtDir, "main.go"), []byte("package main\n"), 0o644))
+
+		paths := discoverExtensionSkills(projectDir, globalDir)
+		// Project shadows global, so global skills should NOT be included
+		assert.Empty(t, paths)
+	})
+
+	t.Run("non-module dirs do not shadow", func(t *testing.T) {
+		resetRegistries()
+		defer resetRegistries()
+
+		sdk.RegisterExtension("no-shadow-ext", func(cfg sdk.Config, _ struct{}) (sdk.Extension, error) {
+			return stubExt{}, nil
+		})
+
+		projectDir := t.TempDir()
+		globalDir := t.TempDir()
+
+		// Global has skills
+		globExtDir := filepath.Join(globalDir, "extensions", "no-shadow-ext")
+		makeValidExtModule(t, globExtDir)
+		globSkillsDir := filepath.Join(globExtDir, "skills")
+		writeSkillMD(t, filepath.Join(globSkillsDir, "global-skill"), "global-skill", "Global", "body")
+
+		// Project has an empty dir (not a valid module) — should NOT shadow global
+		require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".weave", "extensions", "no-shadow-ext"), 0o755))
+
+		paths := discoverExtensionSkills(projectDir, globalDir)
+		// Empty non-module dir is ignored, so global skills ARE discovered
+		require.Len(t, paths, 1)
+		assert.Equal(t, globSkillsDir, paths[0])
 	})
 }
 
@@ -428,7 +531,9 @@ func TestDiscoverSkills_WithExtensionSkills(t *testing.T) {
 	writeSkillMD(t, filepath.Join(globSkillsDir, "shared-skill"), "shared-skill", "Global shared", "glob shared")
 
 	// Extension skills
-	extSkillsDir := filepath.Join(projectDir, ".weave", "extensions", "my-ext", "skills")
+	extDir := filepath.Join(projectDir, ".weave", "extensions", "my-ext")
+	makeValidExtModule(t, extDir)
+	extSkillsDir := filepath.Join(extDir, "skills")
 	writeSkillMD(t, filepath.Join(extSkillsDir, "ext-skill"), "ext-skill", "Extension skill", "ext body")
 	writeSkillMD(t, filepath.Join(extSkillsDir, "shared-skill"), "shared-skill", "Extension shared", "ext shared")
 
@@ -449,6 +554,80 @@ func TestDiscoverSkills_WithExtensionSkills(t *testing.T) {
 
 	// Project should win on shared-skill
 	assert.Equal(t, "Project shared", skills[3].Description)
+}
+
+// --- findModuleRoot tests ---
+
+func TestFindModuleRoot(t *testing.T) {
+	t.Run("env var takes precedence", func(t *testing.T) {
+		t.Setenv("WEAVE_MODULE_ROOT", "/some/path")
+		assert.Equal(t, "/some/path", findModuleRoot())
+	})
+
+	t.Run("walks up from cwd", func(t *testing.T) {
+		t.Setenv("WEAVE_MODULE_ROOT", "")
+
+		// When running inside the weave repo, we should find it.
+		root := findModuleRoot()
+		if root != "" {
+			info, err := os.Stat(filepath.Join(root, "go.mod"))
+			require.NoError(t, err)
+			assert.False(t, info.IsDir())
+		}
+	})
+}
+
+// --- isValidExtensionModule tests ---
+
+func TestIsValidExtensionModule(t *testing.T) {
+	t.Run("valid module", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test\n"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main\n"), 0o644))
+		assert.True(t, isValidExtensionModule(dir))
+	})
+
+	t.Run("missing go.mod", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main\n"), 0o644))
+		assert.False(t, isValidExtensionModule(dir))
+	})
+
+	t.Run("no go files", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test\n"), 0o644))
+		assert.False(t, isValidExtensionModule(dir))
+	})
+
+	t.Run("only test files", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test\n"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "main_test.go"), []byte("package main\n"), 0o644))
+		assert.False(t, isValidExtensionModule(dir))
+	})
+
+	t.Run("nested go files count", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test\n"), 0o644))
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, "sub"), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "sub", "helper.go"), []byte("package sub\n"), 0o644))
+		assert.True(t, isValidExtensionModule(dir))
+	})
+
+	t.Run("stops at submodule boundary", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module test\n"), 0o644))
+
+		sub := filepath.Join(dir, "sub")
+		require.NoError(t, os.MkdirAll(sub, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(sub, "go.mod"), []byte("module sub\n"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(sub, "main.go"), []byte("package sub\n"), 0o644))
+
+		// The sub-module's go files should not count toward parent
+		assert.False(t, isValidExtensionModule(dir))
+		// But the submodule itself is valid
+		assert.True(t, isValidExtensionModule(sub))
+	})
 }
 
 // --- Skill.Body tests ---

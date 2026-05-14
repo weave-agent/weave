@@ -20,6 +20,15 @@ type ExtensionInfo struct {
 	IsUIExt    bool   // true if the extension registers UI elements (RegisterUI or RegisterUIExtension)
 }
 
+// legacyDenylist contains extension names that were merged into the agent
+// extension and must never be auto-discovered, even if stale installs remain
+// in project-local or global extension directories.
+var legacyDenylist = map[string]bool{
+	"loop":         true,
+	"skills":       true,
+	"instructions": true,
+}
+
 // AutoDiscover recursively scans extension directories to find all Go modules.
 // It checks three roots in order of precedence: project-local, global, built-in.
 // Within each root, it walks the directory tree looking for directories that
@@ -47,68 +56,7 @@ func AutoDiscover(projectDir, homeDir, moduleRoot string, exclude []string) ([]E
 		}
 
 		err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "warning: auto-discover: walk %s: %v\n", path, err)
-
-				if d != nil && d.IsDir() {
-					return fs.SkipDir
-				}
-
-				return nil
-			}
-
-			if !d.IsDir() {
-				return nil
-			}
-
-			if path == root {
-				return nil // skip the root directory itself
-			}
-
-			// Skip hidden/VCS directories (e.g. .git, .hg).
-			if strings.HasPrefix(d.Name(), ".") {
-				return fs.SkipDir
-			}
-
-			// Check if this directory has a go.mod
-			goModPath := filepath.Join(path, "go.mod")
-			if _, statErr := os.Stat(goModPath); statErr != nil {
-				return nil //nolint:nilerr // skip dirs without go.mod
-			}
-
-			// Collect .go files within module boundary
-			goFiles, fileErr := collectGoFiles(path)
-			if fileErr != nil {
-				fmt.Fprintf(os.Stderr, "warning: auto-discover: %v\n", fileErr)
-				return nil
-			}
-
-			if len(goFiles) == 0 {
-				return nil // no .go files in this module
-			}
-
-			name := filepath.Base(path)
-			if !settings.ValidExtName(name) {
-				fmt.Fprintf(os.Stderr, "warning: auto-discover: skipping %q: invalid extension name\n", name)
-				return nil
-			}
-
-			if seen[name] {
-				return nil // already found at higher precedence
-			}
-
-			seen[name] = true
-
-			isUI := sdk.IsUIExtension(path)
-
-			exts = append(exts, ExtensionInfo{
-				Name:    name,
-				Dir:     path,
-				GoFiles: goFiles,
-				IsUIExt: isUI,
-			})
-
-			return nil
+			return tryAddExtension(path, root, d, err, seen, &exts)
 		})
 		if err != nil {
 			return nil, fmt.Errorf("auto-discover %s: %w", root, err)
@@ -139,6 +87,75 @@ func AutoDiscover(projectDir, homeDir, moduleRoot string, exclude []string) ([]E
 	})
 
 	return exts, nil
+}
+
+func tryAddExtension(path, root string, d fs.DirEntry, err error, seen map[string]bool, exts *[]ExtensionInfo) error {
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: auto-discover: walk %s: %v\n", path, err)
+
+		if d != nil && d.IsDir() {
+			return fs.SkipDir
+		}
+
+		return nil
+	}
+
+	if !d.IsDir() {
+		return nil
+	}
+
+	if path == root {
+		return nil // skip the root directory itself
+	}
+
+	// Skip hidden/VCS directories (e.g. .git, .hg).
+	if strings.HasPrefix(d.Name(), ".") {
+		return fs.SkipDir
+	}
+
+	// Check if this directory has a go.mod
+	goModPath := filepath.Join(path, "go.mod")
+	if _, statErr := os.Stat(goModPath); statErr != nil {
+		return nil //nolint:nilerr // skip dirs without go.mod
+	}
+
+	// Collect .go files within module boundary
+	goFiles, fileErr := collectGoFiles(path)
+	if fileErr != nil {
+		fmt.Fprintf(os.Stderr, "warning: auto-discover: %v\n", fileErr)
+		return nil
+	}
+
+	if len(goFiles) == 0 {
+		return nil // no .go files in this module
+	}
+
+	name := filepath.Base(path)
+	if !settings.ValidExtName(name) {
+		fmt.Fprintf(os.Stderr, "warning: auto-discover: skipping %q: invalid extension name\n", name)
+		return nil
+	}
+
+	if legacyDenylist[name] {
+		return nil
+	}
+
+	if seen[name] {
+		return nil // already found at higher precedence
+	}
+
+	seen[name] = true
+
+	isUI := sdk.IsUIExtension(path)
+
+	*exts = append(*exts, ExtensionInfo{
+		Name:    name,
+		Dir:     path,
+		GoFiles: goFiles,
+		IsUIExt: isUI,
+	})
+
+	return nil
 }
 
 func collectGoFiles(dir string) ([]string, error) {
