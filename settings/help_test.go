@@ -85,6 +85,7 @@ func TestGenerateFullHelp_NoSchemas(t *testing.T) {
 	assert.Contains(t, text, "--prompt")
 	assert.Contains(t, text, "-p")
 	assert.Contains(t, text, "--debug")
+	assert.Contains(t, text, "Enable debug logging")
 	assert.NotContains(t, text, "Tool options:")
 }
 

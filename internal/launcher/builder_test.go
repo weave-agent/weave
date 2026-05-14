@@ -443,7 +443,7 @@ func TestGenerateMainGo_LogSetupBeforeWire(t *testing.T) {
 	assert.Less(t, logSetupIdx, wireIdx, "log.Setup must be called before wire.WireWithCore")
 }
 
-func TestGenerateMainGo_LogSetupDerivesDirFromConfig(t *testing.T) {
+func TestGenerateMainGo_LogSetupUsesHomeDir(t *testing.T) {
 	dir := t.TempDir()
 	exts := []ExtensionInfo{
 		{Name: "noop", Dir: "/tmp/exts/noop", ModulePath: "weave/ext/noop"},
@@ -455,11 +455,9 @@ func TestGenerateMainGo_LogSetupDerivesDirFromConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	s := string(content)
-	// When cfg.FilePath() is non-empty, logDir should be derived from it.
-	assert.Contains(t, s, "cfg.FilePath() != \"\"", "should check cfg.FilePath() for log dir derivation")
-	assert.Contains(t, s, "filepath.Join(filepath.Dir(cfg.FilePath()), \"logs\")", "should derive log dir from config path")
-	// Fallback to home directory.
-	assert.Contains(t, s, "os.UserHomeDir()", "should fall back to home dir for log path")
+	// Log directory should always be ~/.weave/logs.
+	assert.Contains(t, s, "filepath.Join(homeDir, \".weave\", \"logs\")", "should use home dir for log path")
+	assert.Contains(t, s, "os.UserHomeDir()", "should get home dir for log path")
 }
 
 func TestGenerateMainGo_LogSetupIncludesStderrInHeadless(t *testing.T) {

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"log/slog"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -54,12 +53,17 @@ func TestLoggerUsesCurrentDefault(t *testing.T) {
 	assert.NotContains(t, buf1.String(), "second")
 }
 
-func TestLoggerReturnsNilSafe(t *testing.T) {
+func TestLoggerReturnsLoggerWithExtAttribute(t *testing.T) {
+	var buf bytes.Buffer
+
 	orig := slog.Default()
 	defer slog.SetDefault(orig)
 
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, nil)))
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
 
 	log := Logger("safe-ext")
-	assert.NotNil(t, log)
+	log.Info("test message")
+
+	assert.Contains(t, buf.String(), `"ext":"safe-ext"`, "logger should include ext attribute")
+	assert.Contains(t, buf.String(), "test message")
 }

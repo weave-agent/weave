@@ -42,6 +42,18 @@ func TestPrependDebugFlag_FlagEqualsFalse(t *testing.T) {
 	assert.Equal(t, []string{"--prompt", "hello"}, got)
 }
 
+func TestPrependDebugFlag_FlagBeforeValue(t *testing.T) {
+	got := prependDebugFlag([]string{"--debug", "hello"})
+	assert.Equal(t, []string{"--weave-debug=true", "hello"}, got)
+}
+
+func TestPrependDebugFlag_EnvVarFalse(t *testing.T) {
+	t.Setenv("WEAVE_DEBUG", "false")
+
+	got := prependDebugFlag([]string{"--prompt", "hello"})
+	assert.Equal(t, []string{"--prompt", "hello"}, got)
+}
+
 func TestPrependDebugFlag_FlagRemoved(t *testing.T) {
 	got := prependDebugFlag([]string{"--prompt", "hello"})
 	assert.Equal(t, []string{"--prompt", "hello"}, got)

@@ -70,6 +70,7 @@ func TestSetupDebugFlag(t *testing.T) {
 	content, err := os.ReadFile(logFile)
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "debug message")
+	assert.Contains(t, buf.String(), "debug message", "extra writer should also receive debug output")
 }
 
 func TestSetupInfoLevelIgnoresDebug(t *testing.T) {
@@ -143,7 +144,7 @@ func TestSetupOnce(t *testing.T) {
 	assert.Contains(t, string(content1), "first")
 	assert.Contains(t, string(content1), "second")
 
-	// second.log should not exist or be empty
+	// second.log should not exist
 	_, err = os.Stat(logFile2)
-	assert.True(t, os.IsNotExist(err) || len(content1) > 0)
+	assert.True(t, os.IsNotExist(err), "second log file should not be created when Setup is called twice")
 }
