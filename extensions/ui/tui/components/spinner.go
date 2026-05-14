@@ -65,6 +65,23 @@ func (m SpinnerModel) SetLabel(label string) SpinnerModel {
 	return m
 }
 
+// SetCustomFrames updates the spinner animation frames and interval.
+func (m SpinnerModel) SetCustomFrames(frames []string, interval time.Duration) SpinnerModel {
+	if len(frames) == 0 {
+		return m
+	}
+
+	m.sp = spinner.New(
+		spinner.WithSpinner(spinner.Spinner{
+			Frames: frames,
+			FPS:    interval,
+		}),
+		spinner.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Primary))),
+	)
+
+	return m
+}
+
 // Update handles messages for the spinner.
 func (m SpinnerModel) Update(msg tea.Msg) (SpinnerModel, tea.Cmd) {
 	if !m.visible {

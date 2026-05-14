@@ -6,7 +6,6 @@ import (
 	"weave/ext/ui/tui/palette"
 	"weave/sdk"
 
-	tea "charm.land/bubbletea/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 )
 
@@ -78,7 +77,7 @@ type TUIComponent interface {
 
 // KeyEvent represents a raw terminal key event.
 type KeyEvent struct {
-	Code   tea.Key
+	Code   rune
 	Mod    int
 	String string
 }

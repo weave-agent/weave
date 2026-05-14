@@ -2,6 +2,7 @@ package tui
 
 import (
 	"testing"
+	"time"
 
 	"weave/bus"
 	"weave/ext/ui/tui/components/messages"
@@ -1434,4 +1435,220 @@ func TestModel_DockedOverlay_DialogSizedForDockedArea(t *testing.T) {
 	// Dialog should be sized to docked height, not full terminal height
 	assert.Equal(t, 80, sd.Model().Width())
 	assert.Equal(t, dockedOverlayHeight, sd.Model().Height())
+}
+
+// --- Task 9: TUIExtAPI method tests ---
+
+func TestTUIImpl_EditorText(t *testing.T) {
+	sender := &mockSender{}
+	ui := NewTUIImpl(nil, nil)
+	ui.SetProgram(sender)
+
+	// EditorText blocks waiting for a response; run it in a goroutine
+	textCh := make(chan string, 1)
+	go func() {
+		textCh <- ui.EditorText()
+	}()
+
+	// Wait for the goroutine to call p.Send and block on the response
+	require.Eventually(t, func() bool {
+		return len(sender.msgs) == 1
+	}, time.Second, 10*time.Millisecond)
+	msg, ok := sender.msgs[0].(editorTextRequestMsg)
+	require.True(t, ok)
+
+	// Send response to unblock
+	msg.response <- "editor contents"
+
+	select {
+	case text := <-textCh:
+		assert.Equal(t, "editor contents", text)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for EditorText")
+	}
+}
+
+func TestTUIImpl_EditorText_NoProgram(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+	// Should not panic and return empty
+	assert.Empty(t, ui.EditorText())
+}
+
+func TestTUIImpl_SetEditorText(t *testing.T) {
+	sender := &mockSender{}
+	ui := NewTUIImpl(nil, nil)
+	ui.SetProgram(sender)
+
+	ui.SetEditorText("hello world")
+
+	require.Len(t, sender.msgs, 1)
+	msg, ok := sender.msgs[0].(setEditorTextMsg)
+	require.True(t, ok)
+	assert.Equal(t, "hello world", msg.text)
+}
+
+func TestTUIImpl_SetEditorText_NoProgram(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+	// Should not panic
+	ui.SetEditorText("test")
+}
+
+func TestTUIImpl_PasteToEditor(t *testing.T) {
+	sender := &mockSender{}
+	ui := NewTUIImpl(nil, nil)
+	ui.SetProgram(sender)
+
+	ui.PasteToEditor("pasted text")
+
+	require.Len(t, sender.msgs, 1)
+	msg, ok := sender.msgs[0].(pasteToEditorMsg)
+	require.True(t, ok)
+	assert.Equal(t, "pasted text", msg.text)
+}
+
+func TestTUIImpl_PasteToEditor_NoProgram(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+	// Should not panic
+	ui.PasteToEditor("test")
+}
+
+func TestTUIImpl_RegisterRichRenderer(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+
+	renderer := &mockRichRenderer{}
+	ui.RegisterRichRenderer("custom-tool", renderer)
+
+	got, ok := ui.GetRichRenderer("custom-tool")
+	assert.True(t, ok)
+	assert.Equal(t, renderer, got)
+
+	_, ok = ui.GetRichRenderer("nonexistent")
+	assert.False(t, ok)
+}
+
+func TestTUIImpl_RegisterMessageRenderer(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+
+	renderer := &mockMessageRenderer{}
+	ui.RegisterMessageRenderer("jira-ticket", renderer)
+
+	got, ok := ui.GetMessageRenderer("jira-ticket")
+	assert.True(t, ok)
+	assert.Equal(t, renderer, got)
+
+	_, ok = ui.GetMessageRenderer("nonexistent")
+	assert.False(t, ok)
+}
+
+func TestTUIImpl_SetFooter(t *testing.T) {
+	sender := &mockSender{}
+	ui := NewTUIImpl(nil, nil)
+	ui.SetProgram(sender)
+
+	comp := &mockTUIComponent{}
+	ui.SetFooter(comp)
+
+	require.Len(t, sender.msgs, 1)
+	msg, ok := sender.msgs[0].(setFooterMsg)
+	require.True(t, ok)
+	assert.Equal(t, comp, msg.component)
+}
+
+func TestTUIImpl_SetFooter_NoProgram(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+	// Should not panic
+	ui.SetFooter(&mockTUIComponent{})
+}
+
+func TestTUIImpl_SetHeader(t *testing.T) {
+	sender := &mockSender{}
+	ui := NewTUIImpl(nil, nil)
+	ui.SetProgram(sender)
+
+	comp := &mockTUIComponent{}
+	ui.SetHeader(comp)
+
+	require.Len(t, sender.msgs, 1)
+	msg, ok := sender.msgs[0].(setHeaderMsg)
+	require.True(t, ok)
+	assert.Equal(t, comp, msg.component)
+}
+
+func TestTUIImpl_SetHeader_NoProgram(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+	// Should not panic
+	ui.SetHeader(&mockTUIComponent{})
+}
+
+func TestTUIImpl_OnTerminalInput(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+
+	var received KeyEvent
+	ui.OnTerminalInput(func(ev KeyEvent) {
+		received = ev
+	})
+
+	require.Len(t, ui.inputHandlers, 1)
+	ui.inputHandlers[0](KeyEvent{Code: 'a', Mod: 0, String: "a"})
+	assert.Equal(t, 'a', received.Code)
+}
+
+func TestTUIImpl_AddAutocomplete(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+
+	provider := &mockAutocompleteProvider{}
+	ui.AddAutocomplete(provider)
+
+	require.Len(t, ui.autocompleteProviders, 1)
+	assert.Equal(t, provider, ui.autocompleteProviders[0])
+}
+
+func TestTUIImpl_SetWorkingFrames(t *testing.T) {
+	sender := &mockSender{}
+	ui := NewTUIImpl(nil, nil)
+	ui.SetProgram(sender)
+
+	frames := []string{"|", "/", "-", "\\"}
+	ui.SetWorkingFrames(frames, 100*time.Millisecond)
+
+	assert.Equal(t, frames, ui.workingFrames)
+	assert.Equal(t, 100*time.Millisecond, ui.workingInterval)
+
+	require.Len(t, sender.msgs, 1)
+	msg, ok := sender.msgs[0].(setWorkingFramesMsg)
+	require.True(t, ok)
+	assert.Equal(t, frames, msg.frames)
+	assert.Equal(t, 100*time.Millisecond, msg.interval)
+}
+
+func TestTUIImpl_SetWorkingFrames_NoProgram(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+	// Should not panic
+	ui.SetWorkingFrames([]string{"|"}, 100*time.Millisecond)
+}
+
+// Mock types for Task 9 tests
+
+type mockRichRenderer struct{}
+
+func (m *mockRichRenderer) Render(content string, theme sdk.ThemeInfo, width int) string {
+	return "rich:" + content
+}
+
+type mockMessageRenderer struct{}
+
+func (m *mockMessageRenderer) Render(content string, theme sdk.ThemeInfo, width int) string {
+	return "msg:" + content
+}
+
+type mockTUIComponent struct{}
+
+func (m *mockTUIComponent) Draw(_ uv.Screen, _ uv.Rectangle) {}
+
+type mockAutocompleteProvider struct{}
+
+func (m *mockAutocompleteProvider) Name() string { return "mock" }
+
+func (m *mockAutocompleteProvider) Suggestions(_ AutocompleteContext) []AutocompleteSuggestion {
+	return nil
 }

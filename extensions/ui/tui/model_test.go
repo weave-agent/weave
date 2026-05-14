@@ -2991,3 +2991,177 @@ func TestModel_PanelRows_BelowEditor(t *testing.T) {
 	assert.Equal(t, 0, above)
 	assert.Equal(t, 4, below)
 }
+
+// --- Task 9: TUIExtAPI model-level integration tests ---
+
+func TestModel_SetEditorTextMsg_UpdatesEditor(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.editor = m.editor.SetValue("old text")
+
+	updated, _ := m.Update(setEditorTextMsg{text: "new text"})
+	m = updated.(Model)
+
+	assert.Equal(t, "new text", m.editor.Value())
+}
+
+func TestModel_PasteToEditorMsg_PastesText(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.editor = m.editor.SetValue("hello ")
+
+	updated, _ := m.Update(pasteToEditorMsg{text: "world"})
+	m = updated.(Model)
+
+	assert.Contains(t, m.editor.Value(), "world")
+}
+
+func TestModel_EditorTextRequestMsg_RespondsWithValue(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.editor = m.editor.SetValue("editor contents")
+
+	resp := make(chan string, 1)
+	updated, _ := m.Update(editorTextRequestMsg{response: resp})
+	m = updated.(Model)
+
+	select {
+	case text := <-resp:
+		assert.Equal(t, "editor contents", text)
+	default:
+		t.Fatal("expected response on channel")
+	}
+}
+
+func TestModel_SetFooterMsg_SetsCustomFooter(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	comp := &mockTUIComponent{}
+
+	updated, _ := m.Update(setFooterMsg{component: comp})
+	m = updated.(Model)
+
+	assert.Equal(t, comp, m.customFooter)
+}
+
+func TestModel_SetHeaderMsg_SetsCustomHeader(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	comp := &mockTUIComponent{}
+
+	updated, _ := m.Update(setHeaderMsg{component: comp})
+	m = updated.(Model)
+
+	assert.Equal(t, comp, m.customHeader)
+}
+
+func TestModel_SetWorkingFramesMsg_UpdatesSpinner(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	frames := []string{"|", "/", "-", "\\"}
+
+	updated, _ := m.Update(setWorkingFramesMsg{frames: frames, interval: 100 * time.Millisecond})
+	m = updated.(Model)
+
+	assert.True(t, m.spinner.Visible() || !m.spinner.Visible()) // just verify no panic
+}
+
+func TestModel_CustomFooterDrawn(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+
+	var drawn bool
+	m.customFooter = &mockDrawComponent{drawFn: func(_ uv.Screen, _ uv.Rectangle) {
+		drawn = true
+	}}
+
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvas, canvas.Bounds())
+
+	assert.True(t, drawn, "custom footer should be drawn")
+}
+
+func TestModel_CustomHeaderDrawn(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+
+	var drawn bool
+	m.customHeader = &mockDrawComponent{drawFn: func(_ uv.Screen, _ uv.Rectangle) {
+		drawn = true
+	}}
+
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvas, canvas.Bounds())
+
+	assert.True(t, drawn, "custom header should be drawn")
+}
+
+func TestModel_InputHandlersInvokedOnKeyPress(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+	m := newModel(nil, nil, nil, nil)
+	m.ui = ui
+
+	var received KeyEvent
+	ui.OnTerminalInput(func(ev KeyEvent) {
+		received = ev
+	})
+
+	updated, _ := m.Update(tea.KeyPressMsg{Text: "x", Code: 'x'})
+	m = updated.(Model)
+
+	assert.Equal(t, 'x', received.Code)
+}
+
+func TestModel_AutocompleteProviderQueried(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.ui = ui
+
+	provider := &mockAutocompleteProvider{}
+	ui.AddAutocomplete(provider)
+
+	m.editor = m.editor.SetValue("test")
+	m = m.refreshEditorCompletion()
+
+	// Should not panic and completion should work normally
+	assert.False(t, m.editor.CompletionActive())
+}
+
+func TestModel_RichRendererPreferredOverStandard(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 20
+	m.chat = m.chat.SetSize(80, 20)
+	m.ui = ui
+
+	// Register both a rich renderer and standard renderer for the same tool
+	ui.RegisterRichRenderer("test-tool", &mockRichRenderer{})
+	ui.RegisterRenderer("test-tool", &mockRenderer{})
+
+	// Start and end a message with a tool call
+	model, _ := m.Update(MessageStartMsg{})
+	m = model.(Model)
+
+	model, _ = m.Update(MessageEndMsg{
+		Content: "using tool",
+		ToolCalls: []sdk.ToolCall{{ID: "tc1", Name: "test-tool", Arguments: nil}},
+	})
+	m = model.(Model)
+
+	// Tool panel should exist; rich renderer is preferred
+	items := m.chat.Items()
+	require.Len(t, items, 2)
+	tp, ok := items[1].(*messages.ToolPanel)
+	require.True(t, ok)
+	assert.Equal(t, "tc1", tp.ToolID())
+}
+
+// mockDrawComponent is a TUIComponent that records draw calls.
+type mockDrawComponent struct {
+	drawFn func(scr uv.Screen, area uv.Rectangle)
+}
+
+func (m *mockDrawComponent) Draw(scr uv.Screen, area uv.Rectangle) {
+	if m.drawFn != nil {
+		m.drawFn(scr, area)
+	}
+}

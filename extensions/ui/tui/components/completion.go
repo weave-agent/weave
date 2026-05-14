@@ -17,6 +17,7 @@ const (
 	CompletionNone CompletionKind = iota
 	CompletionSlash
 	CompletionFile
+	CompletionCustom
 )
 
 // CompletionItem is a single item in the completion popup.

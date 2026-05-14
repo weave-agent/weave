@@ -115,6 +115,10 @@ type Model struct {
 	panelManager *PanelManager
 	panelTray    PanelTray
 	focus        FocusTarget
+
+	// custom components set via TUIExtAPI
+	customFooter TUIComponent
+	customHeader TUIComponent
 }
 
 // newModel creates a new root model.
@@ -305,6 +309,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		// Dismiss startup hints on first keypress
 		m.showHints = false
+
+		// Call registered raw input handlers
+		if m.ui != nil {
+			m.ui.mu.Lock()
+			handlers := make([]func(KeyEvent), len(m.ui.inputHandlers))
+			copy(handlers, m.ui.inputHandlers)
+			m.ui.mu.Unlock()
+
+			for _, h := range handlers {
+				h(KeyEvent{Code: msg.Code, Mod: int(msg.Mod), String: msg.String()})
+			}
+		}
 
 		// Attachment delete mode: intercept navigation keys
 		if m.attach.InDeleteMode() {
@@ -615,6 +631,34 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case setEditorTextMsg:
 		m.editor = m.editor.SetValue(msg.text)
+
+		return m, nil
+
+	case pasteToEditorMsg:
+		var cmd tea.Cmd
+
+		m.editor, cmd = m.editor.Update(tea.PasteMsg{Content: msg.text})
+		m = m.refreshEditorCompletion()
+
+		return m, cmd
+
+	case editorTextRequestMsg:
+		msg.response <- m.editor.Value()
+
+		return m, nil
+
+	case setFooterMsg:
+		m.customFooter = msg.component
+
+		return m, nil
+
+	case setHeaderMsg:
+		m.customHeader = msg.component
+
+		return m, nil
+
+	case setWorkingFramesMsg:
+		m.spinner = m.spinner.SetCustomFrames(msg.frames, msg.interval)
 
 		return m, nil
 	}
@@ -950,7 +994,9 @@ func (m *Model) onMessageEnd(msg MessageEndMsg) {
 
 		panel := messages.NewToolPanel(tc.ID, tc.Name, argsStr)
 		if m.ui != nil {
-			if r, ok := m.ui.GetRenderer(tc.Name); ok {
+			if r, ok := m.ui.GetRichRenderer(tc.Name); ok {
+				panel.SetRenderer(&richRendererAdapter{renderer: r, theme: m.ui.Theme()})
+			} else if r, ok := m.ui.GetRenderer(tc.Name); ok {
 				panel.SetRenderer(r)
 			} else {
 				panel.SetDiffRenderer(messages.NewDiffRenderer())
@@ -1704,10 +1750,50 @@ func (m Model) refreshEditorCompletion() Model {
 	}
 
 	if lineIdx == 0 && strings.HasPrefix(line, "/") {
-		return m.slashCommandCompletion(line, lineStart)
+		m = m.slashCommandCompletion(line, lineStart)
+	} else {
+		m = m.atFileCompletion(line, lineStart)
 	}
 
-	return m.atFileCompletion(line, lineStart)
+	if m.editor.CompletionActive() {
+		return m
+	}
+
+	// Check registered autocomplete providers
+	if m.ui != nil {
+		m.ui.mu.Lock()
+		providers := make([]AutocompleteProvider, len(m.ui.autocompleteProviders))
+		copy(providers, m.ui.autocompleteProviders)
+		m.ui.mu.Unlock()
+
+		for _, provider := range providers {
+			suggestions := provider.Suggestions(AutocompleteContext{
+				Text:   value,
+				Cursor: m.editor.CursorColumn(),
+				Line:   line,
+			})
+			if len(suggestions) > 0 {
+				items := make([]components.CompletionItem, len(suggestions))
+				for i, s := range suggestions {
+					items[i] = components.CompletionItem{
+						Label:       s.Label,
+						Description: s.Description,
+						Value:       s.Value,
+					}
+				}
+				comp := m.editor.ShowCompletion(components.CompletionCustom, items, "", lineStart)
+				if comp.Completion().FilteredCount() > 0 {
+					m.editor = comp
+
+					return m
+				}
+			}
+		}
+	}
+
+	m.editor = m.editor.HideCompletion()
+
+	return m
 }
 
 // slashCommandCompletion handles "/" command and file completions at the start of a line.
@@ -1952,7 +2038,7 @@ func (m Model) drawNormalUI(scr uv.Screen, area uv.Rectangle, dockedRows int) La
 	editorArea := m.drawEditorWithAttachments(scr, lt.Editor)
 	m.drawCompletionPopupIfActive(scr, editorArea)
 	m.drawActivePanel(scr, lt.BelowPanel)
-	m.footer.Draw(scr, lt.Footer)
+	m.drawFooter(scr, lt.Footer)
 
 	return lt
 }
@@ -1978,6 +2064,12 @@ func (m Model) drawHeader(scr uv.Screen, area uv.Rectangle) {
 		return
 	}
 
+	if m.customHeader != nil {
+		m.customHeader.Draw(scr, area)
+
+		return
+	}
+
 	hintsStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(m.theme.Muted)).
 		Background(lipgloss.Color(m.theme.BackgroundTint)).
@@ -1985,6 +2077,16 @@ func (m Model) drawHeader(scr uv.Screen, area uv.Rectangle) {
 	uv.NewStyledString(hintsStyle.Render(
 		"ctrl+p model · ctrl+l select · shift+tab thinking · ctrl+t toggle",
 	)).Draw(scr, area)
+}
+
+func (m Model) drawFooter(scr uv.Screen, area uv.Rectangle) {
+	if m.customFooter != nil {
+		m.customFooter.Draw(scr, area)
+
+		return
+	}
+
+	m.footer.Draw(scr, area)
 }
 
 func (m Model) drawMainContent(scr uv.Screen, area uv.Rectangle) {

@@ -552,31 +552,52 @@ func (u *TUIImpl) Size() (int, int) {
 	return u.width, u.height
 }
 
-// --- TUIExtAPI: Editor (stubs for Task 9) ---
+// --- TUIExtAPI: Editor ---
 
 // EditorText returns the current editor content.
 func (u *TUIImpl) EditorText() string {
-	// TODO: implement in Task 9
-	return ""
+	u.mu.Lock()
+	p := u.program
+	u.mu.Unlock()
+
+	if p == nil {
+		return ""
+	}
+
+	resp := make(chan string, 1)
+	p.Send(editorTextRequestMsg{response: resp})
+
+	select {
+	case text := <-resp:
+		return text
+	case <-u.done:
+		return ""
+	}
 }
 
 // SetEditorText replaces the editor content.
 func (u *TUIImpl) SetEditorText(text string) {
-	// TODO: implement in Task 9
-	if u.program != nil {
-		u.program.Send(setEditorTextMsg{text: text})
+	u.mu.Lock()
+	p := u.program
+	u.mu.Unlock()
+
+	if p != nil {
+		p.Send(setEditorTextMsg{text: text})
 	}
 }
 
 // PasteToEditor inserts text at the cursor position.
 func (u *TUIImpl) PasteToEditor(text string) {
-	// TODO: implement in Task 9
-	if u.program != nil {
-		u.program.Send(pasteToEditorMsg{text: text})
+	u.mu.Lock()
+	p := u.program
+	u.mu.Unlock()
+
+	if p != nil {
+		p.Send(pasteToEditorMsg{text: text})
 	}
 }
 
-// --- TUIExtAPI: Rendering (stubs for Task 9) ---
+// --- TUIExtAPI: Rendering ---
 
 // RegisterRichRenderer registers a theme-aware tool renderer.
 func (u *TUIImpl) RegisterRichRenderer(tool string, renderer RichToolRenderer) {
@@ -584,6 +605,16 @@ func (u *TUIImpl) RegisterRichRenderer(tool string, renderer RichToolRenderer) {
 	defer u.mu.Unlock()
 
 	u.richRenderers[tool] = renderer
+}
+
+// GetRichRenderer returns a registered rich tool renderer, if any.
+func (u *TUIImpl) GetRichRenderer(toolName string) (RichToolRenderer, bool) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	r, ok := u.richRenderers[toolName]
+
+	return r, ok
 }
 
 // RegisterMessageRenderer registers a custom message type renderer.
@@ -594,16 +625,38 @@ func (u *TUIImpl) RegisterMessageRenderer(msgType string, renderer MessageRender
 	u.messageRenderers[msgType] = renderer
 }
 
-// --- TUIExtAPI: Footer/Header (stubs for Task 9) ---
+// GetMessageRenderer returns a registered message renderer, if any.
+func (u *TUIImpl) GetMessageRenderer(msgType string) (MessageRenderer, bool) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	r, ok := u.messageRenderers[msgType]
+
+	return r, ok
+}
+
+// --- TUIExtAPI: Footer/Header ---
 
 // SetFooter replaces the footer component.
 func (u *TUIImpl) SetFooter(component TUIComponent) {
-	// TODO: implement in Task 9
+	u.mu.Lock()
+	p := u.program
+	u.mu.Unlock()
+
+	if p != nil {
+		p.Send(setFooterMsg{component: component})
+	}
 }
 
 // SetHeader replaces the header component.
 func (u *TUIImpl) SetHeader(component TUIComponent) {
-	// TODO: implement in Task 9
+	u.mu.Lock()
+	p := u.program
+	u.mu.Unlock()
+
+	if p != nil {
+		p.Send(setHeaderMsg{component: component})
+	}
 }
 
 // --- TUIExtAPI: Input (stubs for Task 9) ---
@@ -624,15 +677,22 @@ func (u *TUIImpl) AddAutocomplete(provider AutocompleteProvider) {
 	u.autocompleteProviders = append(u.autocompleteProviders, provider)
 }
 
-// --- TUIExtAPI: Cosmetic (stubs for Task 9) ---
+// --- TUIExtAPI: Cosmetic ---
 
 // SetWorkingFrames sets custom spinner animation frames.
 func (u *TUIImpl) SetWorkingFrames(frames []string, interval time.Duration) {
 	u.mu.Lock()
-	defer u.mu.Unlock()
+	p := u.program
+	u.mu.Unlock()
 
+	u.mu.Lock()
 	u.workingFrames = frames
 	u.workingInterval = interval
+	u.mu.Unlock()
+
+	if p != nil {
+		p.Send(setWorkingFramesMsg{frames: frames, interval: interval})
+	}
 }
 
 // enqueue adds a request to the popup queue and notifies the program.
@@ -698,6 +758,16 @@ func (m Model) handlePopupPending() (Model, tea.Cmd) {
 	return pushPopupDialog(m, req)
 }
 
+// richRendererAdapter adapts a RichToolRenderer to sdk.ToolRenderer.
+type richRendererAdapter struct {
+	renderer RichToolRenderer
+	theme    sdk.ThemeInfo
+}
+
+func (a *richRendererAdapter) Render(content string, width int) string {
+	return a.renderer.Render(content, a.theme, width)
+}
+
 // Internal tea.Msg types for TUIExtAPI.
 
 type panelChangedMsg struct{}
@@ -708,4 +778,21 @@ type setEditorTextMsg struct {
 
 type pasteToEditorMsg struct {
 	text string
+}
+
+type editorTextRequestMsg struct {
+	response chan string
+}
+
+type setFooterMsg struct {
+	component TUIComponent
+}
+
+type setHeaderMsg struct {
+	component TUIComponent
+}
+
+type setWorkingFramesMsg struct {
+	frames   []string
+	interval time.Duration
 }

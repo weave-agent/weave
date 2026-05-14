@@ -286,15 +286,15 @@ When active, overlay dialogs dock at bottom of chat area instead of centered ove
 
 ### Task 9: Implement remaining TUIExtAPI methods
 
-- [ ] implement `EditorText()` / `SetEditorText()` / `PasteToEditor()` — bridge to editor component
-- [ ] implement `RegisterRichRenderer(tool, renderer)` — tool output with theme access
-- [ ] implement `RegisterMessageRenderer(msgType, renderer)` — custom message type rendering
-- [ ] implement `SetFooter(component)` / `SetHeader(component)` — component replacement
-- [ ] implement `OnTerminalInput(handler)` — raw key event subscription
-- [ ] implement `AddAutocomplete(provider)` — editor autocomplete provider registration
-- [ ] implement `SetWorkingFrames(frames, interval)` — custom spinner animation
-- [ ] write tests for each TUIExtAPI method
-- [ ] run `cd extensions/ui/tui && go test ./...` — must pass before next task
+- [x] implement `EditorText()` / `SetEditorText()` / `PasteToEditor()` — bridge to editor component
+- [x] implement `RegisterRichRenderer(tool, renderer)` — tool output with theme access
+- [x] implement `RegisterMessageRenderer(msgType, renderer)` — custom message type rendering
+- [x] implement `SetFooter(component)` / `SetHeader(component)` — component replacement
+- [x] implement `OnTerminalInput(handler)` — raw key event subscription
+- [x] implement `AddAutocomplete(provider)` — editor autocomplete provider registration
+- [x] implement `SetWorkingFrames(frames, interval)` — custom spinner animation
+- [x] write tests for each TUIExtAPI method
+- [x] run `cd extensions/ui/tui && go test ./...` — must pass before next task
 
 ### Task 10: Update existing extensions to use new API
 
