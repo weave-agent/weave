@@ -93,7 +93,8 @@ func (m LandingModel) buildLines() []string {
 		lines = append(lines, "", "name:"+label)
 	}
 
-	lines = append(lines,
+	lines = append(
+		lines,
 		"",
 		"hint:  ctrl+p model  ·  ctrl+l select  ·  shift+tab thinking",
 		"hint:  ctrl+n new  ·  ctrl+o expand  ·  ctrl+t toggle",

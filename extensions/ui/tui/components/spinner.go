@@ -59,7 +59,6 @@ func (m SpinnerModel) Hide() SpinnerModel {
 // Visible returns whether the spinner is currently shown.
 func (m SpinnerModel) Visible() bool { return m.visible }
 
-
 // SetLabel updates the spinner label text.
 func (m SpinnerModel) SetLabel(label string) SpinnerModel {
 	m.label = label

@@ -127,9 +127,10 @@ func ComputeHash(exts []ExtensionInfo, moduleRoot string, headless bool, agentLo
 // are embedded into the binary via go:embed. These files affect the compiled
 // output but are not .go files, so they must be included in the cache hash.
 func hashMdFiles(h hash.Hash, ext ExtensionInfo) error {
-	if err := filepath.WalkDir(ext.Dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return nil //nolint:nilerr // skip unreadable entries
+	if err := filepath.WalkDir(ext.Dir, func(path string, d fs.DirEntry, entryErr error) error {
+		skip := entryErr != nil || d.IsDir()
+		if skip {
+			return nil
 		}
 
 		if !strings.HasSuffix(d.Name(), ".md") {
@@ -150,8 +151,10 @@ func hashMdFiles(h hash.Hash, ext ExtensionInfo) error {
 
 		// Build root-scoped path to avoid symlink TOCTOU (gosec G122).
 		data, readErr := os.ReadFile(filepath.Join(ext.Dir, rel))
-		if readErr != nil {
-			return nil //nolint:nilerr // skip unreadable files
+
+		readOK := readErr == nil
+		if !readOK {
+			return nil
 		}
 
 		h.Write(data)

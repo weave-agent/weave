@@ -176,19 +176,19 @@ func borderStyleForState(state ToolState, width int) lipgloss.Style {
 			Width(width - 2).
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color(theme.Muted)).
-			Background(lipgloss.Color("235"))
+			Background(lipgloss.Color(theme.BackgroundTintPending))
 	case ToolSuccess:
 		return lipgloss.NewStyle().
 			Width(width - 2).
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color(theme.Success)).
-			Background(lipgloss.Color("22"))
+			Background(lipgloss.Color(theme.BackgroundTintSuccess))
 	case ToolError:
 		return lipgloss.NewStyle().
 			Width(width - 2).
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color(theme.Error)).
-			Background(lipgloss.Color("52"))
+			Background(lipgloss.Color(theme.BackgroundTintError))
 	default:
 		return lipgloss.NewStyle().
 			Width(width - 2).
