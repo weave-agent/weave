@@ -71,13 +71,13 @@ Introduce a unified, file-based logging system that prevents stdout/stderr outpu
 - [x] run subagent extension tests (`cd extensions/tools/subagent && go test ./...`) — must pass
 
 ### Task 5: Wire file logger into launcher generated main.go
-- [ ] modify `internal/launcher/builder.go`:
+- [x] modify `internal/launcher/builder.go`:
   - after config is loaded (around line 531), add generated code that:
     - derives log directory from `cfg.FilePath()` or falls back to `~/.weave/logs/`
     - calls `log.Setup(logFile, debug)` where `debug` comes from a new `--debug` flag or `WEAVE_DEBUG` env var
   - add `--debug` CLI flag parsing alongside existing flags
-- [ ] ensure `log.Setup` is called before `wire.WireWithCore()` so extension wiring logs go to file
-- [ ] run launcher tests (`go test ./internal/launcher/...`) — must pass
+- [x] ensure `log.Setup` is called before `wire.WireWithCore()` so extension wiring logs go to file
+- [x] run launcher tests (`go test ./internal/launcher/...`) — must pass
 
 ### Task 6: Add --debug flag support to stub main.go
 - [ ] modify `cmd/weave/main.go`:

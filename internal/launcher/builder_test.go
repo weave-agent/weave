@@ -354,6 +354,13 @@ func TestGenerateMainGo_Content(t *testing.T) {
 	assert.Contains(t, s, `jsonQueue = make(chan map[string]any, 10000)`)
 	assert.Contains(t, s, `jsonWg.Wait()`)
 	assert.Contains(t, s, `close(jsonQueue)`)
+	assert.Contains(t, s, `"path/filepath"`)
+	assert.Contains(t, s, `"weave/internal/log"`)
+	assert.Contains(t, s, "--weave-debug=")
+	assert.Contains(t, s, "log.Setup(")
+	assert.Contains(t, s, "logDir")
+	assert.Contains(t, s, "extraWriters")
+	assert.Contains(t, s, "WEAVE_DEBUG")
 }
 
 func TestGenerateMainGo_AllExtensionsBlankImported(t *testing.T) {
@@ -413,6 +420,62 @@ func TestGenerateMainGo_CustomAgentLoopIncludesAllExtensions(t *testing.T) {
 	assert.Contains(t, s, `_ "weave/ext/loop"`)
 	assert.Contains(t, s, `_ "weave/ext/my-loop"`)
 	assert.Contains(t, s, `_ "weave/ext/bash"`)
+}
+
+func TestGenerateMainGo_LogSetupBeforeWire(t *testing.T) {
+	dir := t.TempDir()
+	exts := []ExtensionInfo{
+		{Name: "noop", Dir: "/tmp/exts/noop", ModulePath: "weave/ext/noop"},
+	}
+
+	require.NoError(t, GenerateMainGo(dir, exts, "loop"))
+
+	content, err := os.ReadFile(filepath.Join(dir, "main.go"))
+	require.NoError(t, err)
+
+	s := string(content)
+	// log.Setup must appear before wire.WireWithCore so extension wiring logs go to file.
+	logSetupIdx := strings.Index(s, "log.Setup(")
+	wireIdx := strings.Index(s, "wire.WireWithCore")
+	require.NotEqual(t, -1, logSetupIdx, "generated main.go should contain log.Setup")
+	require.NotEqual(t, -1, wireIdx, "generated main.go should contain wire.WireWithCore")
+	assert.Less(t, logSetupIdx, wireIdx, "log.Setup must be called before wire.WireWithCore")
+}
+
+func TestGenerateMainGo_LogSetupDerivesDirFromConfig(t *testing.T) {
+	dir := t.TempDir()
+	exts := []ExtensionInfo{
+		{Name: "noop", Dir: "/tmp/exts/noop", ModulePath: "weave/ext/noop"},
+	}
+
+	require.NoError(t, GenerateMainGo(dir, exts, "loop"))
+
+	content, err := os.ReadFile(filepath.Join(dir, "main.go"))
+	require.NoError(t, err)
+
+	s := string(content)
+	// When cfg.FilePath() is non-empty, logDir should be derived from it.
+	assert.Contains(t, s, "cfg.FilePath() != \"\"", "should check cfg.FilePath() for log dir derivation")
+	assert.Contains(t, s, "filepath.Join(filepath.Dir(cfg.FilePath()), \"logs\")", "should derive log dir from config path")
+	// Fallback to home directory.
+	assert.Contains(t, s, "os.UserHomeDir()", "should fall back to home dir for log path")
+}
+
+func TestGenerateMainGo_LogSetupIncludesStderrInHeadless(t *testing.T) {
+	dir := t.TempDir()
+	exts := []ExtensionInfo{
+		{Name: "noop", Dir: "/tmp/exts/noop", ModulePath: "weave/ext/noop"},
+	}
+
+	require.NoError(t, GenerateMainGo(dir, exts, "loop"))
+
+	content, err := os.ReadFile(filepath.Join(dir, "main.go"))
+	require.NoError(t, err)
+
+	s := string(content)
+	// In headless mode, os.Stderr should be added as an extra writer.
+	assert.Contains(t, s, "extraWriters = append(extraWriters, os.Stderr)")
+	assert.Contains(t, s, "if headless {")
 }
 
 func TestBuild_WithTrivialExtension(t *testing.T) {
