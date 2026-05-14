@@ -32,13 +32,14 @@ const (
 // overlayRequest is an internal message sent to the Bubble Tea program
 // to trigger a popup overlay (Select, Confirm, Input, Editor, or MultiSelect).
 type overlayRequest struct {
-	kind     overlayRequestKind
-	title    string
-	message  string
-	items    []string
-	initial  string
-	defaults []bool
-	result   chan overlayResponse
+	kind        overlayRequestKind
+	title       string
+	message     string
+	items       []string
+	initial     string
+	defaults    []bool
+	keepContent bool
+	result      chan overlayResponse
 }
 
 // overlayResponse carries the result back to the blocking caller.
@@ -116,6 +117,14 @@ func nextPopupDialogID(kind overlayRequestKind, seq *int) string {
 func pushPopupDialog(m Model, req *overlayRequest) (Model, tea.Cmd) {
 	id := nextPopupDialogID(req.kind, &m.popupSeq)
 	m.popupChans[id] = req.result
+	m.dockedOverlay = req.keepContent
+
+	dialogWidth := m.width
+
+	dialogHeight := m.height
+	if req.keepContent {
+		dialogHeight = dockedOverlayHeight
+	}
 
 	switch req.kind {
 	case requestSelect:
@@ -125,35 +134,35 @@ func pushPopupDialog(m Model, req *overlayRequest) (Model, tea.Cmd) {
 		}
 
 		sel := overlays.NewSelectorModel(req.title, items)
-		sel = sel.SetSize(m.width, m.height)
+		sel = sel.SetSize(dialogWidth, dialogHeight)
 		sel = sel.Show()
 
 		m.dialogStack = m.dialogStack.Push(overlays.NewSelectorDialog(id, sel))
 
 	case requestConfirm:
 		conf := overlays.NewConfirmModel(req.message)
-		conf = conf.SetSize(m.width, m.height)
+		conf = conf.SetSize(dialogWidth, dialogHeight)
 		conf = conf.Show()
 
 		m.dialogStack = m.dialogStack.Push(overlays.NewConfirmDialog(id, conf))
 
 	case requestInput:
 		input := overlays.NewInputModel(req.message)
-		input = input.SetSize(m.width, m.height)
+		input = input.SetSize(dialogWidth, dialogHeight)
 		input = input.Show()
 
 		m.dialogStack = m.dialogStack.Push(overlays.NewInputDialog(id, input))
 
 	case requestEditor:
 		editor := overlays.NewEditorModel(req.title, req.initial)
-		editor = editor.SetSize(m.width, m.height)
+		editor = editor.SetSize(dialogWidth, dialogHeight)
 		editor = editor.Show()
 
 		m.dialogStack = m.dialogStack.Push(overlays.NewEditorDialog(id, editor))
 
 	case requestMultiSelect:
 		ms := overlays.NewMultiSelectModel(req.title, req.items, req.defaults)
-		ms = ms.SetSize(m.width, m.height)
+		ms = ms.SetSize(dialogWidth, dialogHeight)
 		ms = ms.Show()
 
 		m.dialogStack = m.dialogStack.Push(overlays.NewMultiSelectDialog(id, ms))

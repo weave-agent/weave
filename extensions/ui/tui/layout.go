@@ -16,6 +16,8 @@ const footerRows = 2
 //	│  Main (flex)                    │  chat viewport or landing
 //	│                                 │
 //	├─────────────────────────────────┤
+//	│  Docked (0-N rows)              │  docked overlay dialog
+//	├─────────────────────────────────┤
 //	│  Pills (0-1 rows)               │  spinner, status, tool progress
 //	├─────────────────────────────────┤
 //	│  Editor (3-15 rows, dynamic)    │  textarea with border
@@ -25,6 +27,7 @@ const footerRows = 2
 type Layout struct {
 	Header uv.Rectangle
 	Main   uv.Rectangle
+	Docked uv.Rectangle
 	Pills  uv.Rectangle
 	Editor uv.Rectangle
 	Footer uv.Rectangle
@@ -42,21 +45,22 @@ func NewLayoutEngine() LayoutEngine {
 // Compute calculates regions for the minimum layout: main + editor + footer.
 // Header and pills are hidden (0 rows).
 func (e LayoutEngine) Compute(width, height, editorLines int) Layout {
-	return e.ComputeFull(width, height, editorLines, 0, 0)
+	return e.ComputeFull(width, height, editorLines, 0, 0, 0)
 }
 
-// ComputeFull calculates regions with optional header and pill rows.
+// ComputeFull calculates regions with optional header, pill, and docked rows.
 //
 // editorLines is the desired content lines (borders add 2).
 // headerRows is 0-2 rows for the header section.
 // pillRows is 0-1 rows for the pills section.
-func (e LayoutEngine) ComputeFull(width, height, editorLines, headerRows, pillRows int) Layout {
+// dockedRows is 0-N rows for a docked overlay dialog.
+func (e LayoutEngine) ComputeFull(width, height, editorLines, headerRows, pillRows, dockedRows int) Layout {
 	if width <= 0 || height <= 0 {
 		return Layout{}
 	}
 
 	editorRows := editorLines + 2 // content + top/bottom border
-	mainRows := height - headerRows - pillRows - editorRows - footerRows
+	mainRows := height - headerRows - pillRows - dockedRows - editorRows - footerRows
 
 	if mainRows < 1 {
 		return minimalLayout(width, height)
@@ -66,7 +70,7 @@ func (e LayoutEngine) ComputeFull(width, height, editorLines, headerRows, pillRo
 
 	var targets []*uv.Rectangle
 
-	var header, main, pills, editor, footer uv.Rectangle
+	var header, main, docked, pills, editor, footer uv.Rectangle
 
 	if headerRows > 0 {
 		constraints = append(constraints, layout.Len(headerRows))
@@ -75,6 +79,11 @@ func (e LayoutEngine) ComputeFull(width, height, editorLines, headerRows, pillRo
 
 	constraints = append(constraints, layout.Fill(1))
 	targets = append(targets, &main)
+
+	if dockedRows > 0 {
+		constraints = append(constraints, layout.Len(dockedRows))
+		targets = append(targets, &docked)
+	}
 
 	if pillRows > 0 {
 		constraints = append(constraints, layout.Len(pillRows))
@@ -93,6 +102,7 @@ func (e LayoutEngine) ComputeFull(width, height, editorLines, headerRows, pillRo
 	return Layout{
 		Header: header,
 		Main:   main,
+		Docked: docked,
 		Pills:  pills,
 		Editor: editor,
 		Footer: footer,

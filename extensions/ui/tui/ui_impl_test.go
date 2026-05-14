@@ -6,9 +6,12 @@ import (
 	"weave/bus"
 	"weave/ext/ui/tui/components/messages"
 	"weave/ext/ui/tui/components/overlays"
+	"weave/ext/ui/tui/palette"
 	"weave/sdk"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1034,4 +1037,274 @@ func TestFormatOutdatedBanner(t *testing.T) {
 func TestFormatOutdatedBanner_Single(t *testing.T) {
 	banner := formatOutdatedBanner([]string{"mcp"})
 	assert.Contains(t, banner, "mcp has a newer version available.")
+}
+
+// --- Task 5: WithKeepContent docked overlay tests ---
+
+func TestTUIImpl_Select_WithKeepContent(t *testing.T) {
+	sender := &mockSender{}
+	ui := NewTUIImpl(nil, nil)
+	ui.SetProgram(sender)
+
+	// Enqueue with KeepContent option
+	req := &overlayRequest{
+		kind:        requestSelect,
+		title:       "Pick",
+		items:       []string{"a", "b"},
+		keepContent: true,
+		result:      make(chan overlayResponse, 1),
+	}
+	require.NoError(t, ui.enqueue(req))
+
+	dequeued := ui.dequeue()
+	require.NotNil(t, dequeued)
+	assert.True(t, dequeued.keepContent, "keepContent should flow through to request")
+}
+
+func TestTUIImpl_Confirm_WithKeepContent(t *testing.T) {
+	sender := &mockSender{}
+	ui := NewTUIImpl(nil, nil)
+	ui.SetProgram(sender)
+
+	req := &overlayRequest{
+		kind:        requestConfirm,
+		message:     "Sure?",
+		keepContent: true,
+		result:      make(chan overlayResponse, 1),
+	}
+	require.NoError(t, ui.enqueue(req))
+
+	dequeued := ui.dequeue()
+	require.NotNil(t, dequeued)
+	assert.True(t, dequeued.keepContent)
+}
+
+func TestTUIImpl_Input_WithKeepContent(t *testing.T) {
+	sender := &mockSender{}
+	ui := NewTUIImpl(nil, nil)
+	ui.SetProgram(sender)
+
+	req := &overlayRequest{
+		kind:        requestInput,
+		message:     "Name:",
+		keepContent: true,
+		result:      make(chan overlayResponse, 1),
+	}
+	require.NoError(t, ui.enqueue(req))
+
+	dequeued := ui.dequeue()
+	require.NotNil(t, dequeued)
+	assert.True(t, dequeued.keepContent)
+}
+
+func TestTUIImpl_Editor_WithKeepContent(t *testing.T) {
+	sender := &mockSender{}
+	ui := NewTUIImpl(nil, nil)
+	ui.SetProgram(sender)
+
+	req := &overlayRequest{
+		kind:        requestEditor,
+		title:       "Edit:",
+		keepContent: true,
+		result:      make(chan overlayResponse, 1),
+	}
+	require.NoError(t, ui.enqueue(req))
+
+	dequeued := ui.dequeue()
+	require.NotNil(t, dequeued)
+	assert.True(t, dequeued.keepContent)
+}
+
+func TestTUIImpl_MultiSelect_WithKeepContent(t *testing.T) {
+	sender := &mockSender{}
+	ui := NewTUIImpl(nil, nil)
+	ui.SetProgram(sender)
+
+	req := &overlayRequest{
+		kind:        requestMultiSelect,
+		title:       "Pick",
+		items:       []string{"a", "b"},
+		keepContent: true,
+		result:      make(chan overlayResponse, 1),
+	}
+	require.NoError(t, ui.enqueue(req))
+
+	dequeued := ui.dequeue()
+	require.NotNil(t, dequeued)
+	assert.True(t, dequeued.keepContent)
+}
+
+func TestModel_DockedOverlay_SetsFlag(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.ui = ui
+
+	req := &overlayRequest{
+		kind:        requestSelect,
+		title:       "Choose",
+		items:       []string{"opt1", "opt2"},
+		keepContent: true,
+		result:      make(chan overlayResponse, 1),
+	}
+
+	m = activatePopup(m, ui, req)
+	assert.True(t, m.dockedOverlay, "dockedOverlay should be set for keepContent popup")
+}
+
+func TestModel_DockedOverlay_ClearsOnDone(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.ui = ui
+
+	req := &overlayRequest{
+		kind:        requestSelect,
+		title:       "Choose",
+		items:       []string{"opt1", "opt2"},
+		keepContent: true,
+		result:      make(chan overlayResponse, 1),
+	}
+
+	m = activatePopup(m, ui, req)
+	require.True(t, m.dockedOverlay)
+
+	// Resolve the popup
+	updated, _ := m.Update(overlays.SelectorSelectedMsg{Index: 0, Item: overlays.SelectorItem{Title: "opt1"}})
+	m = updated.(Model)
+
+	assert.False(t, m.dockedOverlay, "dockedOverlay should be cleared when dialog completes")
+}
+
+func TestModel_DockedOverlay_ClearsOnCancel(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.ui = ui
+
+	req := &overlayRequest{
+		kind:        requestConfirm,
+		message:     "Sure?",
+		keepContent: true,
+		result:      make(chan overlayResponse, 1),
+	}
+
+	m = activatePopup(m, ui, req)
+	require.True(t, m.dockedOverlay)
+
+	// Cancel via ctrl+c
+	updated, _ := m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
+	m = updated.(Model)
+
+	assert.False(t, m.dockedOverlay, "dockedOverlay should be cleared on force cancel")
+}
+
+func TestModel_DockedOverlay_ChatStillVisible(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 30
+	m.chat = m.chat.SetSize(80, m.chatHeight(30))
+
+	m.AddUserMessage("hello world")
+
+	// Activate a docked confirm dialog
+	m.dockedOverlay = true
+	m.dialogStack = m.dialogStack.Push(overlays.NewConfirmDialog(
+		"popup-confirm-1",
+		overlays.NewConfirmModel("Sure?").SetSize(80, dockedOverlayHeight).Show(),
+	))
+
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvas, canvas.Bounds())
+	rendered := canvas.Render()
+
+	// Dialog should be visible
+	assert.Contains(t, rendered, "Sure?")
+	// Chat content should still be visible (not dimmed out)
+	assert.Contains(t, rendered, "hello world")
+}
+
+func TestModel_DockedOverlay_NoBackdropDimming(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 40
+	m.height = 20
+	m.chat = m.chat.SetSize(40, m.chatHeight(20))
+
+	m.AddUserMessage("test")
+
+	// First, render without any dialog to establish baseline
+	canvasNoDialog := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvasNoDialog, canvasNoDialog.Bounds())
+
+	// Now render with docked dialog
+	m.dockedOverlay = true
+	m.dialogStack = m.dialogStack.Push(overlays.NewConfirmDialog(
+		"popup-confirm-1",
+		overlays.NewConfirmModel("Sure?").SetSize(40, dockedOverlayHeight).Show(),
+	))
+
+	canvasDocked := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvasDocked, canvasDocked.Bounds())
+
+	// The chat area (top portion, above the docked dialog) should not have
+	// been dimmed. Compare a cell in the chat area between the two renders.
+	// With backdrop dimming, the foreground would change to muted.
+	// Without it, the cell should be identical.
+	mutedColor := lipgloss.Color(palette.DefaultTheme().Muted)
+	foundDimmed := false
+
+	// Check the top half of the screen (chat area, above docked region)
+	chatAreaEnd := m.height - dockedOverlayHeight - 2 // above docked + footer
+	for y := range chatAreaEnd {
+		for x := range 40 {
+			cellNoDialog := canvasNoDialog.CellAt(x, y)
+			cellDocked := canvasDocked.CellAt(x, y)
+
+			if cellNoDialog == nil || cellDocked == nil || cellNoDialog.IsZero() {
+				continue
+			}
+
+			// If the cell was changed to muted color by the docked dialog render,
+			// that's dimming
+			if cellDocked.Style.Fg == mutedColor && cellNoDialog.Style.Fg != mutedColor {
+				foundDimmed = true
+				break
+			}
+		}
+
+		if foundDimmed {
+			break
+		}
+	}
+
+	assert.False(t, foundDimmed, "docked overlay should not apply backdrop dimming to chat area")
+}
+
+func TestModel_DockedOverlay_DialogSizedForDockedArea(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.ui = ui
+
+	req := &overlayRequest{
+		kind:        requestSelect,
+		title:       "Choose",
+		items:       []string{"a", "b", "c"},
+		keepContent: true,
+		result:      make(chan overlayResponse, 1),
+	}
+
+	m = activatePopup(m, ui, req)
+	top := m.dialogStack.Peek()
+	require.NotNil(t, top)
+
+	sd, ok := top.(*overlays.SelectorDialog)
+	require.True(t, ok)
+	// Dialog should be sized to docked height, not full terminal height
+	assert.Equal(t, 80, sd.Model().Width())
+	assert.Equal(t, dockedOverlayHeight, sd.Model().Height())
 }

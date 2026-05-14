@@ -29,6 +29,8 @@ const doublePressWindow = 500 * time.Millisecond
 
 const statusMessageTimeout = 2 * time.Second
 
+const dockedOverlayHeight = 12
+
 // statusTimeoutMsg is sent when the transient status message should be cleared.
 type statusTimeoutMsg struct {
 	gen int
@@ -96,6 +98,9 @@ type Model struct {
 	// landing screen shown before first prompt
 	showLanding bool
 	landing     LandingModel
+
+	// dockedOverlay is true when a popup dialog is in keep-content (docked) mode.
+	dockedOverlay bool
 
 	// transient status message
 	statusMsg   string
@@ -1288,6 +1293,7 @@ func (m Model) handleDialogDone(d overlays.Dialog, pendingCmd tea.Cmd) (tea.Mode
 			}
 			ch <- resp
 
+			m.dockedOverlay = false
 			delete(m.popupChans, id)
 		}
 
@@ -1316,6 +1322,7 @@ func (m Model) handleDialogForceCancel(d overlays.Dialog) (tea.Model, tea.Cmd) {
 		if ch, ok := m.popupChans[id]; ok {
 			ch <- overlayResponse{err: errors.New("canceled")}
 
+			m.dockedOverlay = false
 			delete(m.popupChans, id)
 		}
 	}
@@ -1700,9 +1707,18 @@ func (m Model) chatHeight(totalHeight int) int {
 	}
 
 	editorH := m.editor.Height() + m.attach.Height()
-	lt := m.layout.ComputeFull(m.width, totalHeight, editorH, headerRows, pillRows)
+	lt := m.layout.ComputeFull(m.width, totalHeight, editorH, headerRows, pillRows, m.dockedRows())
 
 	return max(lt.Main.Dy(), 1)
+}
+
+// dockedRows returns the number of rows to allocate for a docked overlay.
+func (m Model) dockedRows() int {
+	if m.dockedOverlay {
+		return dockedOverlayHeight
+	}
+
+	return 0
 }
 
 // Draw renders the TUI into an ultraviolet screen buffer.
@@ -1711,18 +1727,27 @@ func (m Model) Draw(scr uv.Screen, area uv.Rectangle) {
 	// When dialogs are open, render the underlying UI first with dimming,
 	// then overlay the dialog stack on top.
 	if !m.dialogStack.Empty() {
-		m.drawNormalUI(scr, area)
+		if m.dockedOverlay {
+			lt := m.drawNormalUI(scr, area, dockedOverlayHeight)
+			m.dialogStack.Draw(scr, lt.Docked)
+
+			return
+		}
+
+		m.drawNormalUI(scr, area, 0)
 		m.applyBackdropDimming(scr, area)
 		m.dialogStack.Draw(scr, area)
 
 		return
 	}
 
-	m.drawNormalUI(scr, area)
+	m.drawNormalUI(scr, area, 0)
 }
 
 // drawNormalUI renders the standard TUI layout without dialogs.
-func (m Model) drawNormalUI(scr uv.Screen, area uv.Rectangle) {
+// When dockedRows > 0, allocates space for a docked overlay dialog.
+// Returns the computed layout for caller use (e.g., dialog placement).
+func (m Model) drawNormalUI(scr uv.Screen, area uv.Rectangle, dockedRows int) Layout {
 	// Compute dynamic layout parameters
 	headerRows := 0
 	if !m.showLanding && m.showHints && !m.prompted && len(m.chat.Items()) == 0 {
@@ -1742,7 +1767,7 @@ func (m Model) drawNormalUI(scr uv.Screen, area uv.Rectangle) {
 	editorH := m.editor.Height() + m.attach.Height()
 	lt := m.layout.ComputeFull(
 		area.Dx(), area.Dy(),
-		editorH, headerRows, pillRows,
+		editorH, headerRows, pillRows, dockedRows,
 	)
 
 	// Sync chat size to allocated main area so it renders only visible content
@@ -1819,6 +1844,8 @@ func (m Model) drawNormalUI(scr uv.Screen, area uv.Rectangle) {
 
 	// Render footer
 	m.footer.Draw(scr, lt.Footer)
+
+	return lt
 }
 
 // applyBackdropDimming sets the foreground color of all rendered cells to muted,

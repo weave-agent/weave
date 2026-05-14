@@ -2426,7 +2426,7 @@ func TestModel_BackdropDimming_UIRenderedBeforeDimming(t *testing.T) {
 	canvas := uv.NewScreenBuffer(m.width, m.height)
 
 	// Render UI first
-	m.drawNormalUI(canvas, canvas.Bounds())
+	m.drawNormalUI(canvas, canvas.Bounds(), 0)
 	rendered := canvas.Render()
 	assert.Contains(t, rendered, "test")
 

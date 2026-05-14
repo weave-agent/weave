@@ -86,12 +86,18 @@ func (u *TUIImpl) Close() {
 }
 
 // Select shows a selection overlay and blocks until the user picks an item or cancels.
-func (u *TUIImpl) Select(title string, items []string, _ ...sdk.SelectOption) (int, error) {
+func (u *TUIImpl) Select(title string, items []string, opts ...sdk.SelectOption) (int, error) {
+	config := sdk.SelectConfig{}
+	for _, opt := range opts {
+		opt(&config)
+	}
+
 	req := &overlayRequest{
-		kind:   requestSelect,
-		title:  title,
-		items:  items,
-		result: make(chan overlayResponse, 1),
+		kind:        requestSelect,
+		title:       title,
+		items:       items,
+		keepContent: config.KeepContent,
+		result:      make(chan overlayResponse, 1),
 	}
 	if err := u.enqueue(req); err != nil {
 		return -1, err
@@ -106,11 +112,17 @@ func (u *TUIImpl) Select(title string, items []string, _ ...sdk.SelectOption) (i
 }
 
 // Confirm shows a yes/no dialog and blocks until the user responds.
-func (u *TUIImpl) Confirm(message string, _ ...sdk.ConfirmOption) (bool, error) {
+func (u *TUIImpl) Confirm(message string, opts ...sdk.ConfirmOption) (bool, error) {
+	config := sdk.ConfirmConfig{}
+	for _, opt := range opts {
+		opt(&config)
+	}
+
 	req := &overlayRequest{
-		kind:    requestConfirm,
-		message: message,
-		result:  make(chan overlayResponse, 1),
+		kind:        requestConfirm,
+		message:     message,
+		keepContent: config.KeepContent,
+		result:      make(chan overlayResponse, 1),
 	}
 	if err := u.enqueue(req); err != nil {
 		return false, err
@@ -125,11 +137,17 @@ func (u *TUIImpl) Confirm(message string, _ ...sdk.ConfirmOption) (bool, error) 
 }
 
 // Input shows a single-line input modal and blocks until the user submits or cancels.
-func (u *TUIImpl) Input(prompt string, _ ...sdk.InputOption) (string, error) {
+func (u *TUIImpl) Input(prompt string, opts ...sdk.InputOption) (string, error) {
+	config := sdk.InputConfig{}
+	for _, opt := range opts {
+		opt(&config)
+	}
+
 	req := &overlayRequest{
-		kind:    requestInput,
-		message: prompt,
-		result:  make(chan overlayResponse, 1),
+		kind:        requestInput,
+		message:     prompt,
+		keepContent: config.KeepContent,
+		result:      make(chan overlayResponse, 1),
 	}
 	if err := u.enqueue(req); err != nil {
 		return "", err
@@ -261,13 +279,19 @@ func (u *TUIImpl) GetRenderer(toolName string) (sdk.ToolRenderer, bool) {
 }
 
 // MultiSelect shows a multi-selection overlay and blocks until the user responds.
-func (u *TUIImpl) MultiSelect(title string, items []string, defaults []bool, _ ...sdk.SelectOption) ([]int, error) {
+func (u *TUIImpl) MultiSelect(title string, items []string, defaults []bool, opts ...sdk.SelectOption) ([]int, error) {
+	config := sdk.SelectConfig{}
+	for _, opt := range opts {
+		opt(&config)
+	}
+
 	req := &overlayRequest{
-		kind:     requestMultiSelect,
-		title:    title,
-		items:    items,
-		defaults: defaults,
-		result:   make(chan overlayResponse, 1),
+		kind:        requestMultiSelect,
+		title:       title,
+		items:       items,
+		defaults:    defaults,
+		keepContent: config.KeepContent,
+		result:      make(chan overlayResponse, 1),
 	}
 	if err := u.enqueue(req); err != nil {
 		return nil, err
@@ -282,12 +306,18 @@ func (u *TUIImpl) MultiSelect(title string, items []string, defaults []bool, _ .
 }
 
 // Editor shows an editor overlay and blocks until the user responds.
-func (u *TUIImpl) Editor(prompt, initial string, _ ...sdk.EditorOption) (string, error) {
+func (u *TUIImpl) Editor(prompt, initial string, opts ...sdk.EditorOption) (string, error) {
+	config := sdk.EditorConfig{}
+	for _, opt := range opts {
+		opt(&config)
+	}
+
 	req := &overlayRequest{
-		kind:    requestEditor,
-		title:   prompt,
-		initial: initial,
-		result:  make(chan overlayResponse, 1),
+		kind:        requestEditor,
+		title:       prompt,
+		initial:     initial,
+		keepContent: config.KeepContent,
+		result:      make(chan overlayResponse, 1),
 	}
 	if err := u.enqueue(req); err != nil {
 		return "", err

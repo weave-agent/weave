@@ -239,13 +239,13 @@ When active, overlay dialogs dock at bottom of chat area instead of centered ove
 
 ### Task 5: Implement WithKeepContent option — docked overlay mode
 
-- [ ] add `KeepContent bool` to overlay request struct
-- [ ] update layout engine to split chat viewport when docked overlay is active (chat shrinks, dialog docks at bottom)
-- [ ] update `pushPopupDialog` to respect `KeepContent` flag — use docked placement instead of centered overlay
-- [ ] update `Select`, `Confirm`, `Input`, `Editor` implementations to pass `KeepContent` from options
-- [ ] write tests for layout splitting with docked overlay
-- [ ] write tests that overlay options correctly flow to request struct
-- [ ] run `cd extensions/ui/tui && go test ./...` — must pass before next task
+- [x] add `KeepContent bool` to overlay request struct
+- [x] update layout engine to split chat viewport when docked overlay is active (chat shrinks, dialog docks at bottom)
+- [x] update `pushPopupDialog` to respect `KeepContent` flag — use docked placement instead of centered overlay
+- [x] update `Select`, `Confirm`, `Input`, `Editor` implementations to pass `KeepContent` from options
+- [x] write tests for layout splitting with docked overlay
+- [x] write tests that overlay options correctly flow to request struct
+- [x] run `cd extensions/ui/tui && go test ./...` — must pass before next task
 
 ### Task 6: Implement theme support
 

@@ -31,7 +31,7 @@ func TestLayoutEngine_Compute_MinimumLayout(t *testing.T) {
 func TestLayoutEngine_Compute_WithHeaderAndPills(t *testing.T) {
 	e := NewLayoutEngine()
 
-	lt := e.ComputeFull(120, 40, 3, 1, 1)
+	lt := e.ComputeFull(120, 40, 3, 1, 1, 0)
 
 	assert.Equal(t, 1, lt.Header.Dy(), "header height")
 	assert.Equal(t, 120, lt.Header.Dx(), "header width")
@@ -49,7 +49,7 @@ func TestLayoutEngine_Compute_WithHeaderAndPills(t *testing.T) {
 func TestLayoutEngine_Compute_HeaderOnly(t *testing.T) {
 	e := NewLayoutEngine()
 
-	lt := e.ComputeFull(120, 40, 3, 1, 0)
+	lt := e.ComputeFull(120, 40, 3, 1, 0, 0)
 
 	assert.Equal(t, 1, lt.Header.Dy())
 	assert.Equal(t, 32, lt.Main.Dy(), "main = 40 - 1 - 5 - 2")
@@ -59,7 +59,7 @@ func TestLayoutEngine_Compute_HeaderOnly(t *testing.T) {
 func TestLayoutEngine_Compute_PillsOnly(t *testing.T) {
 	e := NewLayoutEngine()
 
-	lt := e.ComputeFull(120, 40, 3, 0, 1)
+	lt := e.ComputeFull(120, 40, 3, 0, 1, 0)
 
 	assert.Equal(t, 0, lt.Header.Dx(), "header hidden")
 	assert.Equal(t, 32, lt.Main.Dy(), "main = 40 - 1 - 5 - 2")
@@ -117,7 +117,7 @@ func TestLayoutEngine_Compute_EditorFlex(t *testing.T) {
 func TestLayoutEngine_Compute_AllSectionsStackVertically(t *testing.T) {
 	e := NewLayoutEngine()
 
-	lt := e.ComputeFull(100, 50, 3, 2, 1)
+	lt := e.ComputeFull(100, 50, 3, 2, 1, 0)
 
 	// All sections should stack without gaps
 	// header starts at y=0
@@ -147,7 +147,7 @@ func TestLayoutEngine_Compute_AllSectionsStackVertically(t *testing.T) {
 func TestLayoutEngine_Compute_AllSectionsFullWidth(t *testing.T) {
 	e := NewLayoutEngine()
 
-	lt := e.ComputeFull(100, 50, 3, 1, 1)
+	lt := e.ComputeFull(100, 50, 3, 1, 1, 0)
 
 	sections := []struct {
 		name string
@@ -208,4 +208,67 @@ func TestLayoutEngine_Compute_ExtremelySmall(t *testing.T) {
 	assert.Equal(t, 2, lt.Main.Dy(), "tiny terminal: main gets everything")
 	assert.Equal(t, 0, lt.Editor.Dx(), "no room for editor")
 	assert.Equal(t, 0, lt.Footer.Dx(), "no room for footer")
+}
+
+func TestLayoutEngine_Compute_WithDockedRows(t *testing.T) {
+	e := NewLayoutEngine()
+
+	lt := e.ComputeFull(120, 40, 3, 0, 0, 12)
+
+	// Docked region should have 12 rows
+	assert.Equal(t, 12, lt.Docked.Dy(), "docked height")
+	assert.Equal(t, 120, lt.Docked.Dx(), "docked full width")
+
+	// Main should be reduced by docked rows: 40 - 12 - 5 - 2 = 21
+	assert.Equal(t, 21, lt.Main.Dy(), "main shrinks by docked rows")
+
+	// Editor and footer unchanged
+	assert.Equal(t, 5, lt.Editor.Dy())
+	assert.Equal(t, 2, lt.Footer.Dy())
+}
+
+func TestLayoutEngine_Compute_DockedRowsWithHeaderAndPills(t *testing.T) {
+	e := NewLayoutEngine()
+
+	lt := e.ComputeFull(120, 50, 3, 1, 1, 10)
+
+	// All sections should stack: header(1) + main + docked(10) + pills(1) + editor(5) + footer(2) = 50
+	assert.Equal(t, 1, lt.Header.Dy())
+	assert.Equal(t, 10, lt.Docked.Dy())
+	assert.Equal(t, 1, lt.Pills.Dy())
+	assert.Equal(t, 5, lt.Editor.Dy())
+	assert.Equal(t, 2, lt.Footer.Dy())
+
+	// Main = 50 - 1 - 10 - 1 - 5 - 2 = 31
+	assert.Equal(t, 31, lt.Main.Dy())
+
+	// Verify stacking order
+	assert.Equal(t, lt.Header.Max.Y, lt.Main.Min.Y)
+	assert.Equal(t, lt.Main.Max.Y, lt.Docked.Min.Y)
+	assert.Equal(t, lt.Docked.Max.Y, lt.Pills.Min.Y)
+	assert.Equal(t, lt.Pills.Max.Y, lt.Editor.Min.Y)
+	assert.Equal(t, lt.Editor.Max.Y, lt.Footer.Min.Y)
+}
+
+func TestLayoutEngine_Compute_DockedRowsZero(t *testing.T) {
+	e := NewLayoutEngine()
+
+	lt := e.ComputeFull(120, 40, 3, 0, 0, 0)
+
+	// No docked region when dockedRows is 0
+	assert.Equal(t, 0, lt.Docked.Dx())
+	assert.Equal(t, 0, lt.Docked.Dy())
+
+	// Main should get full space: 40 - 5 - 2 = 33
+	assert.Equal(t, 33, lt.Main.Dy())
+}
+
+func TestLayoutEngine_Compute_DockedTooSmallFallsBack(t *testing.T) {
+	e := NewLayoutEngine()
+
+	// Terminal too small for main + docked + editor + footer
+	lt := e.ComputeFull(80, 6, 3, 0, 0, 12)
+
+	// Should fall back to minimalLayout
+	require.GreaterOrEqual(t, lt.Main.Dy(), 1, "main should have at least 1 row")
 }
