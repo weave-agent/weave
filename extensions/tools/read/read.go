@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"weave/sdk"
 	"weave/utils/truncate"
@@ -23,13 +24,32 @@ const ParamPath = "path"
 
 type tool struct{}
 
-var sandboxer sdk.Sandboxer
+var (
+	sandboxerMu sync.RWMutex
+	sandboxer   sdk.Sandboxer
+)
+
+func setSandboxer(s sdk.Sandboxer) {
+	sandboxerMu.Lock()
+	sandboxer = s
+	sandboxerMu.Unlock()
+}
+
+func getSandboxer() sdk.Sandboxer {
+	sandboxerMu.RLock()
+
+	s := sandboxer
+
+	sandboxerMu.RUnlock()
+
+	return s
+}
 
 func init() {
 	sdk.OnBusReady(func(bus sdk.Bus) {
 		bus.On("sandbox.registered", func(ev sdk.Event) error {
 			if s, ok := ev.Payload.(sdk.Sandboxer); ok {
-				sandboxer = s
+				setSandboxer(s)
 			}
 
 			return nil
@@ -140,7 +160,7 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 		}
 	}
 
-	if s := sandboxer; s != nil && !s.AllowRead(path) {
+	if s := getSandboxer(); s != nil && !s.AllowRead(path) {
 		return sdk.ToolResult{Content: "sandbox: read denied — path is protected", IsError: true}, nil
 	}
 

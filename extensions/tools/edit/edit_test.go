@@ -341,9 +341,9 @@ func TestExecuteSandboxDenied(t *testing.T) {
 	sb := &testSandboxer{
 		allowWriteFn: func(p string) bool { return false },
 	}
-	sandboxer = sb
+	setSandboxer(sb)
 
-	t.Cleanup(func() { sandboxer = nil })
+	t.Cleanup(func() { setSandboxer(nil) })
 
 	result, err := tool.Execute(context.Background(), map[string]any{
 		"path": path,
@@ -369,9 +369,9 @@ func TestExecuteSandboxAllowed(t *testing.T) {
 	sb := &testSandboxer{
 		allowWriteFn: func(p string) bool { return true },
 	}
-	sandboxer = sb
+	setSandboxer(sb)
 
-	t.Cleanup(func() { sandboxer = nil })
+	t.Cleanup(func() { setSandboxer(nil) })
 
 	result, err := tool.Execute(context.Background(), map[string]any{
 		"path": path,
@@ -395,7 +395,7 @@ func TestExecuteSandboxNil(t *testing.T) {
 	path := filepath.Join(tmpDir, "nosandbox.txt")
 	require.NoError(t, os.WriteFile(path, []byte("before"), 0o644))
 
-	sandboxer = nil
+	setSandboxer(nil)
 
 	result, err := tool.Execute(context.Background(), map[string]any{
 		"path": path,

@@ -1,17 +1,38 @@
 package sandboxui
 
 import (
+	"sync"
+
 	"weave/extensions/sandbox"
 	"weave/sdk"
 )
 
-var currentSandboxer sdk.Sandboxer
+var (
+	sandboxerMu      sync.RWMutex
+	currentSandboxer sdk.Sandboxer
+)
+
+func setSandboxer(s sdk.Sandboxer) {
+	sandboxerMu.Lock()
+	currentSandboxer = s
+	sandboxerMu.Unlock()
+}
+
+func getSandboxer() sdk.Sandboxer {
+	sandboxerMu.RLock()
+
+	s := currentSandboxer
+
+	sandboxerMu.RUnlock()
+
+	return s
+}
 
 func init() {
 	sdk.OnBusReady(func(bus sdk.Bus) {
 		bus.On("sandbox.registered", func(ev sdk.Event) error {
 			if s, ok := ev.Payload.(sdk.Sandboxer); ok {
-				currentSandboxer = s
+				setSandboxer(s)
 			}
 
 			return nil
@@ -53,9 +74,10 @@ func (s *SandboxUI) RegisterWithBus(ui sdk.UI, bus sdk.Bus) {
 
 // currentMode returns the active sandbox mode from the cached Sandboxer.
 func currentMode() string {
-	if currentSandboxer == nil {
+	sb := getSandboxer()
+	if sb == nil {
 		return sandbox.SandboxOff
 	}
 
-	return currentSandboxer.Mode()
+	return sb.Mode()
 }

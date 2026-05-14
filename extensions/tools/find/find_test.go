@@ -192,9 +192,9 @@ func TestExecuteSandboxDenied(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "secret.txt"), []byte("data"), 0o644))
 
 	sb := &testSandboxer{allowReadFn: func(p string) bool { return false }}
-	sandboxer = sb
+	setSandboxer(sb)
 
-	t.Cleanup(func() { sandboxer = nil })
+	t.Cleanup(func() { setSandboxer(nil) })
 
 	result, err := (&tool{}).Execute(context.Background(), map[string]any{
 		"pattern": "*.txt",
@@ -210,9 +210,9 @@ func TestExecuteSandboxAllowed(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "readable.txt"), []byte("data"), 0o644))
 
 	sb := &testSandboxer{allowReadFn: func(p string) bool { return true }}
-	sandboxer = sb
+	setSandboxer(sb)
 
-	t.Cleanup(func() { sandboxer = nil })
+	t.Cleanup(func() { setSandboxer(nil) })
 
 	result, err := (&tool{}).Execute(context.Background(), map[string]any{
 		"pattern": "*.txt",
@@ -227,7 +227,7 @@ func TestExecuteSandboxNil(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "normal.txt"), []byte("data"), 0o644))
 
-	sandboxer = nil
+	setSandboxer(nil)
 
 	result, err := (&tool{}).Execute(context.Background(), map[string]any{
 		"pattern": "*.txt",
@@ -402,9 +402,9 @@ func TestRgWithSandboxerFiltersDeniedPaths(t *testing.T) {
 	sb := &testSandboxer{allowReadFn: func(p string) bool {
 		return !strings.Contains(p, "secret")
 	}}
-	sandboxer = sb
+	setSandboxer(sb)
 
-	t.Cleanup(func() { sandboxer = nil })
+	t.Cleanup(func() { setSandboxer(nil) })
 
 	result, err := (&tool{}).Execute(context.Background(), map[string]any{
 		"pattern": "*.go",

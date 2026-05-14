@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 
 	"weave/sdk"
 	"weave/utils/truncate"
@@ -28,13 +29,32 @@ type tool struct {
 	defaultLimit int
 }
 
-var sandboxer sdk.Sandboxer
+var (
+	sandboxerMu sync.RWMutex
+	sandboxer   sdk.Sandboxer
+)
+
+func setSandboxer(s sdk.Sandboxer) {
+	sandboxerMu.Lock()
+	sandboxer = s
+	sandboxerMu.Unlock()
+}
+
+func getSandboxer() sdk.Sandboxer {
+	sandboxerMu.RLock()
+
+	s := sandboxer
+
+	sandboxerMu.RUnlock()
+
+	return s
+}
 
 func init() {
 	sdk.OnBusReady(func(bus sdk.Bus) {
 		bus.On("sandbox.registered", func(ev sdk.Event) error {
 			if s, ok := ev.Payload.(sdk.Sandboxer); ok {
-				sandboxer = s
+				setSandboxer(s)
 			}
 
 			return nil
@@ -95,7 +115,7 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
 	}
 
-	if s := sandboxer; s != nil {
+	if s := getSandboxer(); s != nil {
 		if !s.AllowRead(absPath) {
 			return sdk.ToolResult{Content: "sandbox: read denied — path is protected", IsError: true}, nil
 		}
@@ -110,7 +130,7 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		return sdk.ToolResult{Content: fmt.Sprintf("error: %s is not a directory", absPath), IsError: true}, nil
 	}
 
-	sb := sandboxer
+	sb := getSandboxer()
 	ignorePatterns := resolveIgnorePatterns(args)
 	limit := resolveLimit(args, t.defaultLimit)
 	depth := resolveDepth(args)

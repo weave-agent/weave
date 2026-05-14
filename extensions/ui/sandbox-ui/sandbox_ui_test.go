@@ -69,9 +69,9 @@ func TestSandboxUI_Name(t *testing.T) {
 }
 
 func TestSandboxUI_Register_SetsStatus(t *testing.T) {
-	defer func() { currentSandboxer = nil }()
+	defer func() { setSandboxer(nil) }()
 
-	currentSandboxer = &mockSandboxer{mode: "auto"}
+	setSandboxer(&mockSandboxer{mode: "auto"})
 
 	s := &SandboxUI{}
 	ui := newMockUI()
@@ -82,9 +82,9 @@ func TestSandboxUI_Register_SetsStatus(t *testing.T) {
 }
 
 func TestSandboxUI_Register_SetsStatusNoSandboxer(t *testing.T) {
-	defer func() { currentSandboxer = nil }()
+	defer func() { setSandboxer(nil) }()
 
-	currentSandboxer = nil
+	setSandboxer(nil)
 
 	s := &SandboxUI{}
 	ui := newMockUI()
@@ -95,9 +95,9 @@ func TestSandboxUI_Register_SetsStatusNoSandboxer(t *testing.T) {
 }
 
 func TestSandboxUI_Register_Keybinding(t *testing.T) {
-	defer func() { currentSandboxer = nil }()
+	defer func() { setSandboxer(nil) }()
 
-	currentSandboxer = &mockSandboxer{mode: "auto"}
+	setSandboxer(&mockSandboxer{mode: "auto"})
 
 	s := &SandboxUI{}
 	ui := newMockUI()
@@ -111,17 +111,17 @@ func TestSandboxUI_Register_Keybinding(t *testing.T) {
 }
 
 func TestCurrentMode_NoSandboxer(t *testing.T) {
-	defer func() { currentSandboxer = nil }()
+	defer func() { setSandboxer(nil) }()
 
-	currentSandboxer = nil
+	setSandboxer(nil)
 
 	assert.Equal(t, sandbox.SandboxOff, currentMode())
 }
 
 func TestCurrentMode_WithSandboxer(t *testing.T) {
-	defer func() { currentSandboxer = nil }()
+	defer func() { setSandboxer(nil) }()
 
-	currentSandboxer = &mockSandboxer{mode: "ask"}
+	setSandboxer(&mockSandboxer{mode: "ask"})
 
 	assert.Equal(t, "ask", currentMode())
 }

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 
 	"weave/sdk"
 	"weave/utils/ripgrep"
@@ -25,13 +26,32 @@ type tool struct {
 	cfg sdk.Config
 }
 
-var sandboxer sdk.Sandboxer
+var (
+	sandboxerMu sync.RWMutex
+	sandboxer   sdk.Sandboxer
+)
+
+func setSandboxer(s sdk.Sandboxer) {
+	sandboxerMu.Lock()
+	sandboxer = s
+	sandboxerMu.Unlock()
+}
+
+func getSandboxer() sdk.Sandboxer {
+	sandboxerMu.RLock()
+
+	s := sandboxer
+
+	sandboxerMu.RUnlock()
+
+	return s
+}
 
 func init() {
 	sdk.OnBusReady(func(bus sdk.Bus) {
 		bus.On("sandbox.registered", func(ev sdk.Event) error {
 			if s, ok := ev.Payload.(sdk.Sandboxer); ok {
-				sandboxer = s
+				setSandboxer(s)
 			}
 
 			return nil
@@ -82,7 +102,7 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 		return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
 	}
 
-	if s := sandboxer; s != nil && !s.AllowRead(absPath) {
+	if s := getSandboxer(); s != nil && !s.AllowRead(absPath) {
 		return sdk.ToolResult{Content: "sandbox: read denied — path is protected", IsError: true}, nil
 	}
 
@@ -170,7 +190,7 @@ func filterResults(data []byte, baseDir, pattern string, respectGitignore bool) 
 			continue
 		}
 
-		if s := sandboxer; s != nil && !s.AllowRead(filepath.Join(baseDir, text)) {
+		if s := getSandboxer(); s != nil && !s.AllowRead(filepath.Join(baseDir, text)) {
 			continue
 		}
 
@@ -311,7 +331,7 @@ func isSkipDir(name string) bool {
 }
 
 func allowRead(path string) bool {
-	if s := sandboxer; s != nil {
+	if s := getSandboxer(); s != nil {
 		return s.AllowRead(path)
 	}
 

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"weave/sdk"
@@ -28,13 +29,32 @@ type tool struct {
 	fileMutex sdk.FileMuter
 }
 
-var sandboxer sdk.Sandboxer
+var (
+	sandboxerMu sync.RWMutex
+	sandboxer   sdk.Sandboxer
+)
+
+func setSandboxer(s sdk.Sandboxer) {
+	sandboxerMu.Lock()
+	sandboxer = s
+	sandboxerMu.Unlock()
+}
+
+func getSandboxer() sdk.Sandboxer {
+	sandboxerMu.RLock()
+
+	s := sandboxer
+
+	sandboxerMu.RUnlock()
+
+	return s
+}
 
 func init() {
 	sdk.OnBusReady(func(bus sdk.Bus) {
 		bus.On("sandbox.registered", func(ev sdk.Event) error {
 			if s, ok := ev.Payload.(sdk.Sandboxer); ok {
-				sandboxer = s
+				setSandboxer(s)
 			}
 
 			return nil
@@ -103,7 +123,7 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		defer t.fileMutex.Lock(path)()
 	}
 
-	if s := sandboxer; s != nil && !s.AllowWrite(path) {
+	if s := getSandboxer(); s != nil && !s.AllowWrite(path) {
 		return sdk.ToolResult{Content: "sandbox: write denied — path is protected", IsError: true}, nil
 	}
 

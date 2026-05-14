@@ -262,6 +262,12 @@ func resolveCWD(cwd string) (string, error) {
 
 	parentCWD = filepath.Clean(parentCWD)
 
+	// Resolve symlinks on parentCWD so a symlink in the CWD itself cannot
+	// be used to bypass the containment check.
+	if resolved, evalErr := filepath.EvalSymlinks(parentCWD); evalErr == nil {
+		parentCWD = resolved
+	}
+
 	if !filepath.IsAbs(cwd) {
 		cwd = filepath.Join(parentCWD, cwd)
 	}
