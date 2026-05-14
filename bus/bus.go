@@ -2,7 +2,6 @@ package bus
 
 import (
 	"fmt"
-	"log/slog"
 	"reflect"
 	"runtime/debug"
 	"slices"
@@ -10,6 +9,8 @@ import (
 
 	"weave/sdk"
 )
+
+var logger = sdk.Logger("bus")
 
 var _ sdk.Bus = (*Bus)(nil)
 
@@ -208,7 +209,7 @@ func (b *Bus) Publish(e sdk.Event) {
 	}
 
 	if dropped {
-		slog.Warn("bus: dropped event", "topic", e.Topic, "reason", "handler channel full")
+		logger.Warn("bus: dropped event", "topic", e.Topic, "reason", "handler channel full")
 	}
 }
 
@@ -246,7 +247,7 @@ func (b *Bus) invokeHandler(e sdk.Event, h sdk.Handler) {
 	defer func() {
 		if r := recover(); r != nil {
 			stack := debug.Stack()
-			slog.Error("bus: panic in handler", "topic", e.Topic, "error", r, "stack", string(stack))
+			logger.Error("bus: panic in handler", "topic", e.Topic, "error", r, "stack", string(stack))
 
 			if !b.isDiagnosticTopic(e.Topic) {
 				b.publishDiagnostic(b.panicTopic(), fmt.Sprintf("panic: %v", r))
@@ -255,7 +256,7 @@ func (b *Bus) invokeHandler(e sdk.Event, h sdk.Handler) {
 	}()
 
 	if err := h(e); err != nil {
-		slog.Error("bus: handler error", "topic", e.Topic, "error", err)
+		logger.Error("bus: handler error", "topic", e.Topic, "error", err)
 
 		if !b.isDiagnosticTopic(e.Topic) {
 			b.publishDiagnostic(b.errorTopic(), err.Error())
@@ -286,7 +287,7 @@ func (b *Bus) publishDiagnostic(topic, msg string) {
 		select {
 		case slot.ch <- ev:
 		default:
-			slog.Warn("bus: dropped diagnostic event", "topic", topic, "reason", "handler channel full")
+			logger.Warn("bus: dropped diagnostic event", "topic", topic, "reason", "handler channel full")
 		}
 	}
 }

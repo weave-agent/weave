@@ -3,7 +3,6 @@ package sandbox
 import (
 	"errors"
 	"fmt"
-	"log/slog"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -11,6 +10,8 @@ import (
 
 	"weave/sdk"
 )
+
+var logger = sdk.Logger("sandbox")
 
 // Sandbox modes.
 const (
@@ -72,7 +73,7 @@ func NewSandbox(cfg sdk.Config, sc SandboxConfig) (*Sandbox, error) {
 	if sc.Mode == "" {
 		sc.Mode = SandboxAuto
 	} else if !isValidMode(sc.Mode) {
-		slog.Warn("sandbox: invalid mode in config, falling back to auto", "mode", sc.Mode)
+		logger.Warn("sandbox: invalid mode in config, falling back to auto", "mode", sc.Mode)
 		sc.Mode = SandboxAuto
 	}
 
@@ -94,12 +95,12 @@ func (s *Sandbox) Subscribe(bus sdk.Bus) error {
 	bus.On("sandbox.mode.change", func(ev sdk.Event) error {
 		mode, ok := ev.Payload.(string)
 		if !ok {
-			slog.Warn("sandbox: invalid mode.change payload", "payload", ev.Payload)
+			logger.Warn("sandbox: invalid mode.change payload", "payload", ev.Payload)
 			return nil
 		}
 
 		if !isValidMode(mode) {
-			slog.Warn("sandbox: invalid mode", "mode", mode)
+			logger.Warn("sandbox: invalid mode", "mode", mode)
 			return nil
 		}
 
@@ -118,7 +119,7 @@ func (s *Sandbox) Subscribe(bus sdk.Bus) error {
 		}
 		s.mu.Unlock()
 
-		slog.Debug("sandbox: mode changed", "mode", mode)
+		logger.Debug("sandbox: mode changed", "mode", mode)
 
 		return nil
 	})
@@ -147,7 +148,7 @@ func (s *Sandbox) Subscribe(bus sdk.Bus) error {
 		s.allowlist = append(s.allowlist, pattern)
 		s.mu.Unlock()
 
-		slog.Debug("sandbox: trusted pattern for session", "pattern", pattern)
+		logger.Debug("sandbox: trusted pattern for session", "pattern", pattern)
 
 		return nil
 	})

@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -16,6 +15,8 @@ import (
 
 	"weave/sdk"
 )
+
+var logger = sdk.Logger("jsonl")
 
 // EventTypeMessage is the event type for message entries.
 const EventTypeMessage = "message"
@@ -168,7 +169,7 @@ func (s *Store) handlePrompt(evt sdk.Event) {
 
 	sess, err := s.Create(cwd)
 	if err != nil {
-		slog.Error("jsonl: create session", "error", err)
+		logger.Error("jsonl: create session", "error", err)
 		return
 	}
 
@@ -185,7 +186,7 @@ func (s *Store) handlePrompt(evt sdk.Event) {
 
 	entryID, err := s.Append(sess.Header.ID, entry)
 	if err != nil {
-		slog.Error("jsonl: append entry", "error", err)
+		logger.Error("jsonl: append entry", "error", err)
 		return
 	}
 
@@ -235,7 +236,7 @@ func (s *Store) appendUserEntry(sessionID string, turn int, parentID string, evt
 
 	entryID, err := s.Append(sessionID, entry)
 	if err != nil {
-		slog.Error("jsonl: append user input", "error", err)
+		logger.Error("jsonl: append user input", "error", err)
 		return
 	}
 
@@ -268,7 +269,7 @@ func (s *Store) handleMsgEnd(evt sdk.Event) {
 
 	id, err := generateID()
 	if err != nil {
-		slog.Error("jsonl: generate id", "error", err)
+		logger.Error("jsonl: generate id", "error", err)
 		return
 	}
 
@@ -300,7 +301,7 @@ func (s *Store) handleMsgEnd(evt sdk.Event) {
 	}
 
 	if _, err := s.Append(sessionID, entry); err != nil {
-		slog.Error("jsonl: append entry", "error", err)
+		logger.Error("jsonl: append entry", "error", err)
 		return
 	}
 
@@ -322,7 +323,7 @@ func (s *Store) handleToolResult(evt sdk.Event) {
 
 	id, err := generateID()
 	if err != nil {
-		slog.Error("jsonl: generate id", "error", err)
+		logger.Error("jsonl: generate id", "error", err)
 		return
 	}
 
@@ -340,7 +341,7 @@ func (s *Store) handleToolResult(evt sdk.Event) {
 	}
 
 	if _, err := s.Append(sessionID, entry); err != nil {
-		slog.Error("jsonl: append entry", "error", err)
+		logger.Error("jsonl: append entry", "error", err)
 		return
 	}
 
