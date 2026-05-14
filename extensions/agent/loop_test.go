@@ -216,10 +216,12 @@ func (m *mockPrefsConfig) Preferences(target any) error {
 		ThinkingLevel: m.thinkingLevel,
 	}
 
-	raw, _ := json.Marshal(p)
-	_ = json.Unmarshal(raw, target)
+	raw, err := json.Marshal(p)
+	if err != nil {
+		return err
+	}
 
-	return nil
+	return json.Unmarshal(raw, target)
 }
 func (m *mockPrefsConfig) SavePreferences(any) error         { return nil }
 func (m *mockPrefsConfig) SaveProviderKey(_, _ string) error { return nil }

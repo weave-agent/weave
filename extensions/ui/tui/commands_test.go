@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"weave/bus"
 	"weave/ext/ui/tui/components/messages"
@@ -112,8 +113,12 @@ func TestCommandRegistry_DispatchCompact(t *testing.T) {
 	msg := result.Command()
 	assert.Nil(t, msg)
 
-	evt := <-ch
-	assert.Equal(t, "compact", evt.Payload)
+	select {
+	case evt := <-ch:
+		assert.Equal(t, "compact", evt.Payload)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for compact event")
+	}
 }
 
 func TestCommandRegistry_DispatchNameWithArgs(t *testing.T) {

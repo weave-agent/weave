@@ -3,7 +3,6 @@ package wire
 import (
 	"errors"
 	"os"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -481,7 +480,7 @@ func TestWireWithCore_PublishesAppStarted(t *testing.T) {
 	require.NoError(t, err, "WireWithCore")
 
 	// Wait for the async publish to run.
-	require.Eventually(t, appStartedReceived.Load, 100*time.Millisecond, 5*time.Millisecond, "app.started event should be published")
+	require.Eventually(t, appStartedReceived.Load, time.Second, 10*time.Millisecond, "app.started event should be published")
 }
 
 func TestWireWithCore_InvokesBusSubscribers(t *testing.T) {
@@ -807,5 +806,3 @@ func TestSetSingleTurnEnv_NoOpWhenFalse(t *testing.T) {
 
 	assert.Equal(t, "existing", os.Getenv("WEAVE_SINGLE_TURN"))
 }
-
-var _ = strings.TrimSpace

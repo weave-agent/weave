@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 
 	"weave/sdk"
 
@@ -258,7 +257,8 @@ func TestBuild_InjectedSectionWithProjectDir(t *testing.T) {
 	result := pb.Build(buildInput{})
 
 	assert.Contains(t, result, "Current working directory: /home/user/project")
-	assert.Contains(t, result, "Current date: "+time.Now().Format("2006-01-02"))
+	// Use regex to avoid midnight flake: date is injected at build time.
+	assert.Regexp(t, `Current date: \d{4}-\d{2}-\d{2}`, result)
 }
 
 func TestBuild_InjectedSectionFallsBackToDot(t *testing.T) {

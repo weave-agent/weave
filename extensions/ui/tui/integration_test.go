@@ -410,7 +410,8 @@ func TestIntegration_SessionResumeFlow(t *testing.T) {
 
 	// Create session file
 	header := sessionHeader{Type: "session", ID: sessionID, Timestamp: time.Now().UTC(), CWD: "/project"}
-	headerJSON, _ := json.Marshal(header)
+	headerJSON, err := json.Marshal(header)
+	require.NoError(t, err)
 
 	entries := []string{
 		string(headerJSON),
@@ -420,7 +421,7 @@ func TestIntegration_SessionResumeFlow(t *testing.T) {
 		jsonEntry("assistant", "follow up answer", nil),
 	}
 
-	err := os.WriteFile(filepath.Join(dir, sessionID+".jsonl"), []byte(joinLines(entries)), 0o644)
+	err = os.WriteFile(filepath.Join(dir, sessionID+".jsonl"), []byte(joinLines(entries)), 0o644)
 	require.NoError(t, err)
 
 	// Show session list
@@ -688,7 +689,7 @@ func TestIntegration_InterruptDuringStreaming(t *testing.T) {
 	select {
 	case evt := <-ch:
 		assert.Equal(t, topicInterrupt, evt.Topic)
-	case <-time.After(time.Second):
+	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for interrupt event on bus")
 	}
 }
@@ -758,7 +759,10 @@ func jsonEntry(role, content string, _ any) string {
 		"data": map[string]any{"role": role, "content": content},
 	}
 
-	b, _ := json.Marshal(e)
+	b, err := json.Marshal(e)
+	if err != nil {
+		panic(err)
+	}
 
 	return string(b)
 }
