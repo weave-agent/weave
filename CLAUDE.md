@@ -63,21 +63,30 @@ Standard library as much as possible. Every replaceable component is an extensio
 - `extensions/sandbox/` — OS-level tool execution guard; wraps bash commands in Seatbelt (macOS) or bubblewrap (Linux) sandbox profiles; enforces path-based access policy on file tools via `Sandboxer` interface; four modes: `off` (no restrictions), `readonly` (no writes), `ask` (prompt per command), `auto` (sandbox wraps all commands); mandatory deny paths hardcoded (sensitive dotfiles, SSH keys, AWS credentials, .env files); subscribes to `sandbox.mode.change` for mid-session mode switching; publishes `sandbox.approve`/`sandbox.approved`/`sandbox.denied`/`sandbox.trust` events for ask-mode approval flow; self-registers via `sdk.RegisterExtension("sandbox", ...)`
 - `extensions/ui/sandbox/` — TUI extension for sandbox mode indicator and ask-mode approval dialog; registers `Ctrl+S` keybinding to cycle sandbox modes; displays current mode in footer status pill (`SB:auto`, `SB:off`, etc.); implements `ApproveDialog` with approve/deny/trust-for-session options integrated into TUI `DialogStack` overlay system; self-registers via `sdk.RegisterUIExtension`
 - `extensions/ui/tui/` — interactive terminal UI extension built with Bubble Tea v2 (`charm.land/bubbletea/v2`) + Ultraviolet screen buffers for `Draw()` rendering. Key handling uses `tea.KeyPressMsg` (not v1 `tea.KeyMsg`). Components use `lipgloss.NewStyle()` from `charm.land/lipgloss/v2`. Screen buffer rendering pattern: `Model.View()` creates an `uv.NewScreenBuffer(w,h)`, delegates to `Model.Draw()` which computes layout via `LayoutEngine` then draws each component, and returns `uv.TrimSpace(canvas.Render())`. Components implement `Draw(scr uv.Screen, area uv.Rectangle)` alongside retained `View() string` (used internally for string-to-buffer conversion via `uv.NewStyledString`). Uses `github.com/charmbracelet/ultraviolet` for `uv.Screen`, `uv.Rectangle`, `uv.layout` splitting. Self-registers via `sdk.RegisterExtension("tui", ...)` and `sdk.RegisterUI("tui", ...)`; implements `sdk.UI` interface for cross-extension integration (popups, status bar, slash commands, keybindings); bridge goroutine translates bus events to Bubble Tea messages; includes: streaming chat with progressive markdown rendering (Glamour with custom xchroma formatter), dialog stack for layered overlays, landing state before first prompt, smart auto-scroll with new-content indicator, token rate display in footer, tool output panels, thinking blocks, diff highlighting, multi-line editor (bubbles/v2 textarea) with history, file attachments with paste detection, pills bar for tool progress, slash commands, session/model selectors, and configurable keybindings. UI extensions (see below) are wired at startup via `sdk.GetUIExtensions()`
-  - `components/chat.go` — chat viewport with auto-scroll tracking and scroll indicator
-  - `components/editor.go` — multi-line editor wrapping `bubbles/v2 textarea.Model` with history navigation, external editor support (`Ctrl+G`), and dynamic height (3–15 lines)
-  - `components/footer.go` — two-line status bar with CWD, git, tokens, model, thinking level, token rate
-  - `components/spinner.go` — streaming activity indicator (bubbles/v2 spinner)
-  - `components/attachments/` — file attachment model: tracks `[]Attachment` with paste detection (>10 newlines or >1000 chars auto-converts to temp file), inline display above editor (`file.py (42 lines)`), `Ctrl+R` delete mode
-  - `components/messages/` — message renderers (assistant with progressive markdown, user, tool, thinking, diff, markdown) with shared `drawView` helper for screen buffer output; code blocks use custom "weave" Chroma formatter from `xchroma/`
-  - `components/overlays/` — dialog components (selector, confirm, input), `Dialog` interface (`ID`/`Update`/`Draw`/`Handles`/`Done`/`Result`/`SetSize`), adapter types (`SelectorDialog`, `ConfirmDialog`, `InputDialog`), and `DialogStack` for layered overlay management
+  - `palette/theme.go` — centralized `Theme` struct with semantic color slots (`Primary`, `PrimaryDim`, `PrimaryBright`, `Success`, `Error`, `Warning`, `Muted`, `MutedBright`, `Border`, `BorderFocused`, `BackgroundTint`, `Foreground`, `ForegroundBright`). `DefaultTheme()` returns a copy of the built-in dark theme (purple-blue centered palette). All components consume theme colors instead of hardcoded ANSI values.
+  - `palette/thinking.go` — thinking level border color mapping using the primary color family brightness/intensity (`PrimaryDim` → `Primary` → `PrimaryBright` → `141` → `177` → `Border`)
+  - `components/chat.go` — chat viewport with auto-scroll tracking, scroll indicator as a styled pill with `BackgroundTint` background, and blank separator lines between chat items
+  - `components/editor.go` — multi-line editor wrapping `bubbles/v2 textarea.Model` with history navigation, external editor support (`Ctrl+G`), dynamic height (3–15 lines), placeholder text ("Type a message..."), and blurred border using `theme.Border` for clear focus distinction
+  - `components/footer.go` — two-line status bar with CWD, git, tokens, model, thinking level, token rate. Line 2 groups stats (tokens, cost, context pct with threshold colors) on the left and model info (bold primary-colored model name, thinking level as a pill, token rate) on the right, separated by padding
+  - `components/spinner.go` — streaming activity indicator (bubbles/v2 spinner) with color pulse between `Primary` and `PrimaryBright` every 3 ticks
+  - `components/attachments/` — file attachment model: tracks `[]Attachment` with paste detection (>10 newlines or >1000 chars auto-converts to temp file), pill-shaped display above editor with `BackgroundTint` background, `Ctrl+R` delete mode with `Error` color and `×` indicator
+  - `components/messages/` — message renderers (assistant with progressive markdown and fade-in animation via `createdAt` timestamp, user with left border bar and `❯` prefix in primary color, tool panels with state-specific backgrounds — `BackgroundTint` pending, `Success` success, `Error` error — and rounded borders, thinking with lightbulb icon and background tint, diff with theme colors) with shared `drawView` helper for screen buffer output; code blocks use custom "weave" Chroma formatter from `xchroma/`
+  - `components/overlays/` — dialog components (selector with primary accent, confirm with warning accent for destructive actions, input) with `RoundedBorder` and `BorderFocused` color, `Dialog` interface (`ID`/`Update`/`Draw`/`Handles`/`Done`/`Result`/`SetSize`), adapter types (`SelectorDialog`, `ConfirmDialog`, `InputDialog`), and `DialogStack` for layered overlay management
   - `xchroma/` — custom Chroma formatter registered as "weave"; maps token types (Keyword, String, Comment, Number, Operator) to Lip Gloss v2 styles with forced background matching chat bubble
   - `layout.go` — `LayoutEngine` computes `uv.Rectangle` regions (header, main, pills, editor, footer) via `uv.layout` splitting; stored directly on Model
-  - `landing.go` — landing screen with ASCII logo, model info, keybinding hints (shown before first prompt, re-shown on `/clear`/`/new`)
+  - `landing.go` — landing screen with ASCII logo, horizontal rule in `Border` color, model info, and keybinding hints (shown before first prompt, re-shown on `/clear`/`/new`). Placeholder text moved to editor textarea.
   - `keybindings.go` — key resolution using v2 API (`keyString(msg tea.KeyPressMsg)`, `msg.Key.String()`)
   - `overlays.go` — overlay request routing, dialog stack integration for `sdk.UI` methods
   - `bridge.go` — bus-to-Tea message translation with delta batching and token rate calculation
 
+**Animation patterns:**
+- Message fade-in: `AssistantMessage` has a `createdAt` timestamp. `fadeColor()` returns progressively brighter foreground colors (`240` → `252` → `15`) for the first 150ms, creating a subtle materializing effect via `lipgloss.NewStyle().Foreground(...).Render(content)`.
+- Status entrance animation: `Model.statusNew` flag set by `showStatus()`, cleared on first `Update()` frame. Status renders at `Muted` color when `statusNew` is true, then `Foreground` on subsequent frames.
+- Dialog backdrop dimming: When `dialogStack` is non-empty, `Draw()` renders the normal UI then calls `applyBackdropDimming()` which iterates all screen cells and sets their foreground to `Muted`.
+- Spinner color pulse: `SpinnerModel.tickCount` increments on each `spinner.TickMsg`. Color alternates between `Primary` and `PrimaryBright` every 3 ticks (6-tick cycle).
+
 The model selector (`Ctrl+L`) and `/model` slash command filter to only providers with valid auth credentials using `model.ListAvailableModels()`. The `/providers` slash command shows key status via `model.ProviderHasAuth()`.
+
 - `launcher/` — full pipeline: `AutoDiscover` recursively scans project-local `.weave/extensions/`, global `~/.weave/extensions/`, and built-in `extensions/` for Go modules (dirs with `go.mod` + `.go` files); UI extensions detected internally (scans `.go` files for `RegisterUIExtension(` or `RegisterUI(` calls); deduplicates by name (local > global > built-in); applies `exclude_extensions` list; `ComputeHash` of .go files (includes headless flag for different caches), `Cache` in `~/.weave/bin/{hash}/`, `Build` by generating go.mod+main.go with blank imports (filtering UI extensions for headless), then `syscall.Exec`; generated code imports `weave/internal/wire` and uses `wire.CoreWireConfig`/`wire.WireWithCore`; passes `WEAVE_LAUNCHER_PATH`, `WEAVE_BUILD_HASH`, and `WEAVE_ORIG_ARGS` env vars for `/reload` support
 
 ## Agent Extension
@@ -249,6 +258,14 @@ Built-in bindings: Escape=interrupt, Ctrl+C=double-press (first clears editor, s
 - `/thinking <level>` slash command sets a specific level
 - `WEAVE_THINKING_LEVEL` environment variable for initial level
 - Models that don't support xhigh (e.g. Sonnet) are automatically clamped to high
+
+Thinking level color mapping (primary family brightness progression):
+- Off: `240` (gray, theme.Border)
+- Minimal: `60` (dim purple, theme.PrimaryDim)
+- Low: `63` (primary purple, theme.Primary)
+- Medium: `69` (bright purple, theme.PrimaryBright)
+- High: `141` (light purple)
+- XHigh: `177` (pink-white)
 
 **Sandbox modes** control OS-level tool execution guard. Four modes: `off` (no restrictions), `readonly` (writes blocked, file tools denied), `ask` (prompt per bash command via TUI dialog, file tools use path policy, denied in headless), `auto` (default, sandbox wraps bash commands and enforces path policy). Configured via:
 - Ctrl+S cycles through modes (footer status pill shows `SB:off`, `SB:readonly`, `SB:ask`, `SB:auto`)

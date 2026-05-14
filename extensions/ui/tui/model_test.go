@@ -19,10 +19,13 @@ import (
 	"weave/sdk"
 	sdkmodel "weave/sdk/model"
 
+	"charm.land/lipgloss/v2"
 	tea "charm.land/bubbletea/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"weave/ext/ui/tui/palette"
 )
 
 // executeBatchCmd handles tea.Cmd results that may be tea.BatchMsg.
@@ -1487,18 +1490,25 @@ func TestModel_HeaderHints_HasBackgroundTint(t *testing.T) {
 // --- Draw tests (screen buffer rendering) ---
 
 func TestModel_Draw_RendersAllSections(t *testing.T) {
-	m := newModel(nil, nil, nil, nil)
+	m := newModelNoLanding()
 	m.width = 120
 	m.height = 40
+	m.chat = m.chat.SetSize(120, m.chatHeight(40))
+
+	m.AddUserMessage("test message")
 
 	canvas := uv.NewScreenBuffer(m.width, m.height)
 	m.Draw(canvas, canvas.Bounds())
 	rendered := canvas.Render()
 
-	// Footer should contain model info (at minimum the provider name)
-	assert.NotEmpty(t, m.footer.View())
+	// Chat content should be rendered
+	assert.Contains(t, rendered, "test message")
+	// Footer should contain CWD info
+	assert.Contains(t, rendered, "weave")
 	// Editor border should be present
 	assert.Contains(t, rendered, "│")
+	// Hints banner should NOT appear after first prompt
+	assert.NotContains(t, rendered, "ctrl+p model")
 }
 
 func TestModel_Draw_ShowsChatContent(t *testing.T) {
@@ -2423,8 +2433,9 @@ func TestModel_BackdropDimming_UIRenderedBeforeDimming(t *testing.T) {
 	// Apply dimming
 	m.applyBackdropDimming(canvas, canvas.Bounds())
 
-	// Check that some cell has been dimmed (foreground changed to muted)
+	// Check that some cell has been dimmed (foreground changed to muted color 245)
 	foundDimmed := false
+	mutedColor := lipgloss.Color(palette.DefaultTheme().Muted)
 
 	for y := range 5 {
 		for x := range 40 {
@@ -2433,8 +2444,9 @@ func TestModel_BackdropDimming_UIRenderedBeforeDimming(t *testing.T) {
 				continue
 			}
 
-			if cell.Style.Fg != nil {
+			if cell.Style.Fg == mutedColor {
 				foundDimmed = true
+
 				break
 			}
 		}
@@ -2444,7 +2456,7 @@ func TestModel_BackdropDimming_UIRenderedBeforeDimming(t *testing.T) {
 		}
 	}
 
-	assert.True(t, foundDimmed, "expected some cells to be dimmed")
+	assert.True(t, foundDimmed, "expected some cells to be dimmed to muted color")
 }
 
 func TestModel_BackdropDimming_NoDialog_NoDimming(t *testing.T) {

@@ -590,11 +590,15 @@ func TestChatModel_TurnEndIndicator(t *testing.T) {
 func TestChatModel_NoIndicatorWhenAtBottom(t *testing.T) {
 	m := NewChatModel().SetSize(80, 5)
 	m = m.AddItem(stubItem{text: "line1\nline2"})
-	m = m.SetTurnEndPending(true) // shouldn't happen in practice, but verify no indicator
 
 	require.True(t, m.AtBottom())
-	// TurnEndPending set but at bottom — the caller should clear it, but even if not,
-	// the indicator shows. In practice, the model only sets it when !AtBottom.
+	assert.False(t, m.NewContent())
+	assert.False(t, m.TurnEndPending())
+
+	// When at bottom, adding new content should not trigger indicator
+	m = m.AddItem(stubItem{text: "line3"})
+	assert.True(t, m.AtBottom())
+	assert.False(t, m.NewContent())
 }
 
 // --- Task 2: Chat spacing and scroll indicator tests ---

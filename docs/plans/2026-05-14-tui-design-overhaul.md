@@ -144,7 +144,7 @@ Key benefits:
   - [x] Motion/animation added
 - [x] Run full test suite (`make test`) — all pass
 - [x] Run linter (`make lint`) — 3 pre-existing nilerr issues in internal/launcher unrelated to TUI overhaul
-- [x] Update any affected documentation — no TUI-related docs needed updating
+- [x] Update any affected documentation — CLAUDE.md updated with Theme system, thinking level color mapping, animation patterns, and redesigned component descriptions
 
 ## Technical Details
 

@@ -18,21 +18,25 @@ type Theme struct {
 	ForegroundBright string // bright text
 }
 
+var defaultTheme = &Theme{
+	Primary:          "63",
+	PrimaryDim:       "60",
+	PrimaryBright:    "69",
+	Success:          "84",
+	Error:            "204",
+	Warning:          "221",
+	Muted:            "245",
+	MutedBright:      "252",
+	Border:           "240",
+	BorderFocused:    "63",
+	BackgroundTint:   "234",
+	Foreground:       "15",
+	ForegroundBright: "15",
+}
+
 // DefaultTheme returns the built-in dark theme with a purple-blue centered palette.
+// Each call returns an independent copy to prevent accidental mutation of shared state.
 func DefaultTheme() *Theme {
-	return &Theme{
-		Primary:          "63",
-		PrimaryDim:       "60",
-		PrimaryBright:    "69",
-		Success:          "84",
-		Error:            "204",
-		Warning:          "221",
-		Muted:            "245",
-		MutedBright:      "252",
-		Border:           "240",
-		BorderFocused:    "63",
-		BackgroundTint:   "234",
-		Foreground:       "15",
-		ForegroundBright: "15",
-	}
+	t := *defaultTheme
+	return &t
 }

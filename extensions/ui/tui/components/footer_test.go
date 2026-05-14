@@ -297,8 +297,10 @@ func TestFooterView_LeftRightGrouping(t *testing.T) {
 	// Both stats and model should be present
 	assert.Contains(t, line2, "in:100")
 	assert.Contains(t, line2, "anthropic/claude-sonnet-4")
-	// They should be separated by spaces (padding pushes model to right)
-	assert.Contains(t, line2, "  ", "left and right groups should be separated by padding")
+	// Model name should appear after stats with padding between
+	idxIn := strings.Index(line2, "in:100")
+	idxModel := strings.Index(line2, "anthropic/claude-sonnet-4")
+	require.Greater(t, idxModel, idxIn, "model should appear after stats (right-aligned)")
 }
 
 func TestFooterView_ThinkingLevelAsPill(t *testing.T) {
@@ -316,6 +318,8 @@ func TestFooterView_StatsMuted(t *testing.T) {
 	// Token counts should appear with muted color (ANSI 245)
 	assert.Contains(t, lines[1], "in:100")
 	assert.Contains(t, lines[1], "out:50")
+	// Verify muted color code is applied
+	assert.Contains(t, lines[1], "38;5;245", "stats should render with muted color")
 }
 
 func TestFooterView_ModelAndStatsBothPresent(t *testing.T) {
