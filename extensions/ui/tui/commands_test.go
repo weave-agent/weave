@@ -349,7 +349,7 @@ func TestModel_SlashCommandHelpShowsMessage(t *testing.T) {
 
 	// Verify the message renders with the role indicator
 	view := am.View(80)
-	assert.Contains(t, view, "◆ assistant")
+	assert.Contains(t, view, "◆ ")
 }
 
 func TestModel_RegularSubmitPublishesPrompt(t *testing.T) {
@@ -421,7 +421,7 @@ func TestModel_UnknownCommandShowsError(t *testing.T) {
 
 	// Verify the message renders with the role indicator
 	view := am.View(80)
-	assert.Contains(t, view, "◆ assistant")
+	assert.Contains(t, view, "◆ ")
 }
 
 func TestModel_ThinkingCommandRegistered(t *testing.T) {

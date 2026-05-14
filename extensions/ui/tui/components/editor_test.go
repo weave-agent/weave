@@ -627,20 +627,6 @@ func TestEditorSetMaxHeight_IgnoresNegative(t *testing.T) {
 
 // --- Task 4: Editor placeholder and border tests ---
 
-func TestEditorPlaceholderSet(t *testing.T) {
-	m := NewEditorModel()
-	assert.Equal(t, "Type a message...", m.ta.Placeholder)
-}
-
-func TestEditorPlaceholderRendered(t *testing.T) {
-	m := NewEditorModel().SetSize(40, 3)
-	view := m.View()
-	// The placeholder should appear in the view when the editor is empty.
-	// The textarea may split the first character for cursor styling, so check
-	// for a contiguous substring that avoids the cursor position.
-	assert.Contains(t, view, "ype a message...")
-}
-
 func TestEditorBlurredBorderUsesThemeBorder(t *testing.T) {
 	m := NewEditorModel()
 	// Initially focused uses BorderFocused

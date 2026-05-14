@@ -305,7 +305,7 @@ func TestAssistantMessage_RoleIndicator_PresentInView(t *testing.T) {
 	m.Finalize("Hello world")
 
 	view := m.View(80)
-	assert.Contains(t, view, "◆ assistant")
+	assert.Contains(t, view, "◆ ")
 }
 
 func TestAssistantMessage_RoleIndicator_PresentInStreamingView(t *testing.T) {
@@ -313,7 +313,7 @@ func TestAssistantMessage_RoleIndicator_PresentInStreamingView(t *testing.T) {
 	m.Append("streaming content")
 
 	view := m.View(80)
-	assert.Contains(t, view, "◆ assistant")
+	assert.Contains(t, view, "◆ ")
 	assert.Contains(t, stripANSI(view), "streaming content")
 }
 
@@ -325,7 +325,7 @@ func TestAssistantMessage_RoleIndicator_PresentInDraw(t *testing.T) {
 	m.Draw(canvas, canvas.Bounds())
 	output := uv.TrimSpace(canvas.Render())
 
-	assert.Contains(t, output, "◆ assistant")
+	assert.Contains(t, output, "◆ ")
 }
 
 func TestAssistantMessage_RoleIndicator_MutedColor(t *testing.T) {

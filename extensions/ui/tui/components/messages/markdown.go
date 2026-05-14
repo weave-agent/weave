@@ -59,7 +59,7 @@ func (r *MarkdownRenderer) Render(text string) string {
 		return text
 	}
 
-	return strings.TrimRight(out, "\n")
+	return strings.TrimSpace(out)
 }
 
 // rebuild recreates the glamour renderer with the current width.

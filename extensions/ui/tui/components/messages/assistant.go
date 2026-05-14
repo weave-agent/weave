@@ -131,9 +131,9 @@ func (m *AssistantMessage) View(width int) string {
 
 	// Prepend subtle role indicator
 	roleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Muted))
-	roleIndicator := roleStyle.Render("◆ assistant")
+	roleIndicator := roleStyle.Render("◆ ")
 
-	return roleIndicator + "\n" + content
+	return roleIndicator + content
 }
 
 // progressiveRender returns the cached rendered output, re-rendering through

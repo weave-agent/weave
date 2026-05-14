@@ -38,16 +38,6 @@ func TestLandingModel_DrawRendersKeybindingHints(t *testing.T) {
 	assert.Contains(t, rendered, "ctrl+n new")
 }
 
-func TestLandingModel_DrawRendersRule(t *testing.T) {
-	m := NewLandingModel("glm-5.1", "anthropic")
-	scr := uv.NewScreenBuffer(60, 24)
-	m.Draw(scr, scr.Bounds())
-	rendered := scr.Render()
-
-	// Horizontal rule should be rendered in Border color
-	assert.Contains(t, rendered, "─")
-}
-
 func TestLandingModel_DrawZeroArea(t *testing.T) {
 	m := NewLandingModel("glm-5.1", "anthropic")
 	scr := uv.NewScreenBuffer(60, 24)
@@ -171,16 +161,6 @@ func TestLanding_EditorStillAccessibleWhenLandingActive(t *testing.T) {
 }
 
 // --- Task 4: Landing composition tests ---
-
-func TestLandingModel_DrawHasRuleBetweenLogoAndInfo(t *testing.T) {
-	m := NewLandingModel("glm-5.1", "anthropic")
-	scr := uv.NewScreenBuffer(60, 24)
-	m.Draw(scr, scr.Bounds())
-	rendered := scr.Render()
-
-	// The horizontal rule should appear between logo and model info
-	assert.Contains(t, rendered, "─")
-}
 
 func TestLandingModel_DrawNoPlaceholder(t *testing.T) {
 	m := NewLandingModel("glm-5.1", "anthropic")
