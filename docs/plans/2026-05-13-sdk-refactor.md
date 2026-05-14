@@ -44,13 +44,13 @@ Address architectural, API design, and code quality findings from the SDK review
 
 ### Task 2: Naming and consistency batch
 
-- [ ] Rename `ResetRegistry()` → `ResetExtensionRegistry()` in `sdk/registry.go:61`; update callers
-- [ ] Rename `sdk/ui_extension.go` → `sdk/ui_extension_detect.go`; update imports
-- [ ] Rename `wire.Wire()` → `WireExtensions()` in `sdk/wire/wire.go`; update callers
-- [ ] Extract `WEAVE_SINGLE_TURN` env var set from `WireWithCore` into explicit helper
-- [ ] Add `var ErrNotRegistered = errors.New("not registered")` in `sdk/`; use in provider and tool registries
-- [ ] Write/update tests for all changes
-- [ ] Run `go test ./sdk/...` — must pass
+- [x] Rename `ResetRegistry()` → `ResetExtensionRegistry()` in `sdk/registry.go:61`; update callers
+- [x] Rename `sdk/ui_extension.go` → `sdk/ui_extension_detect.go`; update imports
+- [x] Rename `wire.Wire()` → `WireExtensions()` in `sdk/wire/wire.go`; update callers
+- [x] Extract `WEAVE_SINGLE_TURN` env var set from `WireWithCore` into explicit helper
+- [x] Add `var ErrNotRegistered = errors.New("not registered")` in `sdk/`; use in provider and tool registries
+- [x] Write/update tests for all changes
+- [x] Run `go test ./sdk/...` — must pass
 
 ### Task 3: Move `sdk/wire/` to `internal/wire/`
 

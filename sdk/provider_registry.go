@@ -264,7 +264,7 @@ func ProviderRegistered(name string) bool {
 func GetProvider(name string, cfg Config) (Provider, error) {
 	entry, ok := providerReg.Get(name)
 	if !ok {
-		return nil, fmt.Errorf("provider %q not registered", name)
+		return nil, fmt.Errorf("provider %q: %w", name, ErrNotRegistered)
 	}
 
 	return entry.factory(configOrDefault(cfg))
@@ -275,7 +275,7 @@ func GetProvider(name string, cfg Config) (Provider, error) {
 func CheckProviderAuth(name string) (bool, error) {
 	entry, ok := providerReg.Get(name)
 	if !ok {
-		return false, fmt.Errorf("provider %q not registered", name)
+		return false, fmt.Errorf("provider %q: %w", name, ErrNotRegistered)
 	}
 
 	return entry.authChecker()

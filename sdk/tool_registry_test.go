@@ -50,6 +50,7 @@ func TestMissingTool(t *testing.T) {
 
 	_, err := GetTool("nonexistent", nil)
 	require.Error(t, err, "expected error for missing tool")
+	assert.ErrorIs(t, err, ErrNotRegistered)
 }
 
 func TestGetTool_FactoryError(t *testing.T) {

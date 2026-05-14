@@ -13,7 +13,7 @@ import (
 )
 
 func TestExtensionRegistration(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 	sdk.ResetToolRegistry()
 
 	// Re-register the extension by calling init logic manually.
@@ -53,7 +53,7 @@ func TestExtensionRegistration(t *testing.T) {
 }
 
 func TestExtensionFactoryRegistersTools(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 	sdk.ResetToolRegistry()
 
 	// Register and instantiate the extension.

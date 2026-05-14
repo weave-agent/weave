@@ -68,7 +68,7 @@ func subscribeExtensions(exts []sdk.Extension, bus sdk.Bus) error {
 	return nil
 }
 
-func Wire(extNames []string, bus sdk.Bus, cfg sdk.Config) (*Wired, error) {
+func WireExtensions(extNames []string, bus sdk.Bus, cfg sdk.Config) (*Wired, error) {
 	exts, err := resolveExtensions(extNames, cfg)
 	if err != nil {
 		return nil, err
@@ -106,18 +106,8 @@ func WireWithCore(core CoreWireConfig, optExts []string, bus sdk.Bus, cfg sdk.Co
 		return nil, fmt.Errorf("wire: %w", err)
 	}
 
-	if core.SingleTurn {
-		oldSingleTurn := os.Getenv("WEAVE_SINGLE_TURN")
-		_ = os.Setenv("WEAVE_SINGLE_TURN", "1")
-
-		defer func() {
-			if oldSingleTurn == "" {
-				_ = os.Unsetenv("WEAVE_SINGLE_TURN")
-			} else {
-				_ = os.Setenv("WEAVE_SINGLE_TURN", oldSingleTurn)
-			}
-		}()
-	}
+	cleanup := setSingleTurnEnv(core.SingleTurn)
+	defer cleanup()
 
 	extNames := mergeCoreAndOptional(core.AgentLoop, optExts)
 
@@ -133,7 +123,7 @@ func WireWithCore(core CoreWireConfig, optExts []string, bus sdk.Bus, cfg sdk.Co
 		})
 	}
 
-	wired, err := Wire(extNames, bus, cfg)
+	wired, err := WireExtensions(extNames, bus, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -165,6 +155,25 @@ func validateCore(core CoreWireConfig) error {
 	}
 
 	return nil
+}
+
+// setSingleTurnEnv sets WEAVE_SINGLE_TURN=1 when singleTurn is true and
+// returns a cleanup function that restores the previous env value.
+func setSingleTurnEnv(singleTurn bool) func() {
+	if !singleTurn {
+		return func() {}
+	}
+
+	oldSingleTurn := os.Getenv("WEAVE_SINGLE_TURN")
+	_ = os.Setenv("WEAVE_SINGLE_TURN", "1")
+
+	return func() {
+		if oldSingleTurn == "" {
+			_ = os.Unsetenv("WEAVE_SINGLE_TURN")
+		} else {
+			_ = os.Setenv("WEAVE_SINGLE_TURN", oldSingleTurn)
+		}
+	}
 }
 
 func mergeCoreAndOptional(agentLoop string, optExts []string) []string {

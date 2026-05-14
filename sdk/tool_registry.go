@@ -49,7 +49,7 @@ func GetTool(name string, cfg Config) (Tool, error) {
 
 	factory, ok := toolReg.Get(name)
 	if !ok {
-		return nil, fmt.Errorf("tool %q not registered", name)
+		return nil, fmt.Errorf("tool %q: %w", name, ErrNotRegistered)
 	}
 
 	return factory(configOrDefault(cfg))

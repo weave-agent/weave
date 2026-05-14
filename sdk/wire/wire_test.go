@@ -2,6 +2,7 @@ package wire
 
 import (
 	"errors"
+	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -20,27 +21,27 @@ func coreCfg() CoreWireConfig {
 }
 
 func TestWire_NoExtensions(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	mockBus := &BusMock{}
 
-	wired, err := Wire(nil, mockBus, nil)
+	wired, err := WireExtensions(nil, mockBus, nil)
 	require.NoError(t, err)
 	require.NotNil(t, wired)
 }
 
 func TestWire_EmptyExtensions(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	mockBus := &BusMock{}
 
-	wired, err := Wire([]string{}, mockBus, nil)
+	wired, err := WireExtensions([]string{}, mockBus, nil)
 	require.NoError(t, err)
 	require.NotNil(t, wired)
 }
 
 func TestWire_SubscribesAllExtensions(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	var subscribed atomic.Int32
 
@@ -59,7 +60,7 @@ func TestWire_SubscribesAllExtensions(t *testing.T) {
 
 	mockBus := &BusMock{}
 
-	wired, err := Wire([]string{"ext-a", "ext-b"}, mockBus, nil)
+	wired, err := WireExtensions([]string{"ext-a", "ext-b"}, mockBus, nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, int32(2), subscribed.Load())
@@ -68,17 +69,17 @@ func TestWire_SubscribesAllExtensions(t *testing.T) {
 }
 
 func TestWire_MissingExtension(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	bus := &BusMock{}
 
-	_, err := Wire([]string{"nonexistent"}, bus, nil)
+	_, err := WireExtensions([]string{"nonexistent"}, bus, nil)
 	require.Error(t, err)
 	assert.Equal(t, "wire: extension \"nonexistent\" not registered", err.Error())
 }
 
 func TestWire_ReceiveBusInSubscribe(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	var receivedBus sdk.Bus
 
@@ -91,13 +92,13 @@ func TestWire_ReceiveBusInSubscribe(t *testing.T) {
 
 	bus := &BusMock{}
 
-	_, err := Wire([]string{"ext-c"}, bus, nil)
+	_, err := WireExtensions([]string{"ext-c"}, bus, nil)
 	require.NoError(t, err)
 	require.NotNil(t, receivedBus)
 }
 
 func TestWire_PartialMissing(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	sdk.RegisterExtension("good", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFunc("good", func(bus sdk.Bus) error { return nil }), nil
@@ -105,19 +106,19 @@ func TestWire_PartialMissing(t *testing.T) {
 
 	bus := &BusMock{}
 
-	_, err := Wire([]string{"good", "missing"}, bus, nil)
+	_, err := WireExtensions([]string{"good", "missing"}, bus, nil)
 	require.Error(t, err)
 }
 
 func TestWire_SkipsUIExtension(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 	sdk.ResetUIExtensionRegistry()
 
 	sdk.RegisterUIExtension(stubUIExt{name: "diff-viewer"})
 
 	bus := &BusMock{}
 
-	_, err := Wire([]string{"diff-viewer"}, bus, nil)
+	_, err := WireExtensions([]string{"diff-viewer"}, bus, nil)
 	require.NoError(t, err, "UI extension should be silently skipped")
 }
 
@@ -127,7 +128,7 @@ func (s stubUIExt) Name() string      { return s.name }
 func (s stubUIExt) Register(_ sdk.UI) {}
 
 func TestWire_PassesConfigToFactory(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	var receivedCfg sdk.Config
 
@@ -139,14 +140,14 @@ func TestWire_PassesConfigToFactory(t *testing.T) {
 	cfg := sdk.FilePathConfig("/test/.weave/settings.json")
 	bus := &BusMock{}
 
-	_, err := Wire([]string{"cfg-ext"}, bus, cfg)
+	_, err := WireExtensions([]string{"cfg-ext"}, bus, cfg)
 	require.NoError(t, err)
 	require.NotNil(t, receivedCfg)
 	assert.Equal(t, "/test/.weave/settings.json", receivedCfg.FilePath())
 }
 
 func TestWire_FactoryError(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	sdk.RegisterExtension("bad", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return nil, errors.New("init failed")
@@ -154,12 +155,12 @@ func TestWire_FactoryError(t *testing.T) {
 
 	bus := &BusMock{}
 
-	_, err := Wire([]string{"bad"}, bus, nil)
+	_, err := WireExtensions([]string{"bad"}, bus, nil)
 	require.Error(t, err)
 }
 
 func TestWired_Close(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	var closed atomic.Int32
 
@@ -178,7 +179,7 @@ func TestWired_Close(t *testing.T) {
 
 	bus := &BusMock{}
 
-	wired, err := Wire([]string{"a", "b"}, bus, nil)
+	wired, err := WireExtensions([]string{"a", "b"}, bus, nil)
 	require.NoError(t, err, "Wire")
 
 	require.NoError(t, wired.Close(), "Close")
@@ -186,7 +187,7 @@ func TestWired_Close(t *testing.T) {
 }
 
 func TestWired_CloseReverseOrder(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	var order []string
 
@@ -205,7 +206,7 @@ func TestWired_CloseReverseOrder(t *testing.T) {
 
 	bus := &BusMock{}
 
-	wired, err := Wire([]string{"first", "second"}, bus, nil)
+	wired, err := WireExtensions([]string{"first", "second"}, bus, nil)
 	require.NoError(t, err, "Wire")
 
 	require.NoError(t, wired.Close(), "Close")
@@ -213,7 +214,7 @@ func TestWired_CloseReverseOrder(t *testing.T) {
 }
 
 func TestWireWithCore_MergesCoreAndOptional(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	var names []string
 
@@ -243,7 +244,7 @@ func TestWireWithCore_MergesCoreAndOptional(t *testing.T) {
 }
 
 func TestWireWithCore_Deduplicates(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	var subscribed atomic.Int32
 
@@ -272,7 +273,7 @@ func TestWireWithCore_Deduplicates(t *testing.T) {
 }
 
 func TestWireWithCore_CoreOnly(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	var names []string
 
@@ -296,7 +297,7 @@ func TestWireWithCore_CoreOnly(t *testing.T) {
 }
 
 func TestWireWithCore_ErrMissingAgentLoop(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	bus := &BusMock{}
 
@@ -306,7 +307,7 @@ func TestWireWithCore_ErrMissingAgentLoop(t *testing.T) {
 }
 
 func TestWireWithCore_NoProviderRequired(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	sdk.RegisterExtension("agent", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFunc("agent", func(sdk.Bus) error { return nil }), nil
@@ -319,7 +320,7 @@ func TestWireWithCore_NoProviderRequired(t *testing.T) {
 }
 
 func TestWireWithCore_FactoryErrorRollback(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	var closed atomic.Int32
 
@@ -342,7 +343,7 @@ func TestWireWithCore_FactoryErrorRollback(t *testing.T) {
 }
 
 func TestWired_CloseErrorAggregation(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	sdk.RegisterExtension("a", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFuncWithClose("a", func(sdk.Bus) error { return nil }, func() error {
@@ -357,7 +358,7 @@ func TestWired_CloseErrorAggregation(t *testing.T) {
 
 	bus := &BusMock{}
 
-	wired, err := Wire([]string{"a", "b"}, bus, nil)
+	wired, err := WireExtensions([]string{"a", "b"}, bus, nil)
 	require.NoError(t, err, "Wire")
 
 	err = wired.Close()
@@ -367,7 +368,7 @@ func TestWired_CloseErrorAggregation(t *testing.T) {
 }
 
 func TestWireWithCore_PassesConfigToFactories(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	var receivedCfg sdk.Config
 
@@ -387,7 +388,7 @@ func TestWireWithCore_PassesConfigToFactories(t *testing.T) {
 }
 
 func TestWire_ExtensionCallsBusOn(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	sdk.RegisterExtension("on-ext", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFunc("on-ext", func(bus sdk.Bus) error {
@@ -398,7 +399,7 @@ func TestWire_ExtensionCallsBusOn(t *testing.T) {
 
 	bus := &BusMock{}
 
-	_, err := Wire([]string{"on-ext"}, bus, nil)
+	_, err := WireExtensions([]string{"on-ext"}, bus, nil)
 	require.NoError(t, err)
 
 	onCalls := bus.OnCalls()
@@ -407,7 +408,7 @@ func TestWire_ExtensionCallsBusOn(t *testing.T) {
 }
 
 func TestWire_ExtensionCallsBusOnAll(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	sdk.RegisterExtension("onall-ext", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFunc("onall-ext", func(bus sdk.Bus) error {
@@ -418,7 +419,7 @@ func TestWire_ExtensionCallsBusOnAll(t *testing.T) {
 
 	bus := &BusMock{}
 
-	_, err := Wire([]string{"onall-ext"}, bus, nil)
+	_, err := WireExtensions([]string{"onall-ext"}, bus, nil)
 	require.NoError(t, err)
 
 	onAllCalls := bus.OnAllCalls()
@@ -426,7 +427,7 @@ func TestWire_ExtensionCallsBusOnAll(t *testing.T) {
 }
 
 func TestWire_MultipleExtensionsRegisterHandlers(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	sdk.RegisterExtension("ext-1", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFunc("ext-1", func(bus sdk.Bus) error {
@@ -445,7 +446,7 @@ func TestWire_MultipleExtensionsRegisterHandlers(t *testing.T) {
 
 	bus := &BusMock{}
 
-	_, err := Wire([]string{"ext-1", "ext-2"}, bus, nil)
+	_, err := WireExtensions([]string{"ext-1", "ext-2"}, bus, nil)
 	require.NoError(t, err)
 
 	onCalls := bus.OnCalls()
@@ -458,7 +459,7 @@ func TestWire_MultipleExtensionsRegisterHandlers(t *testing.T) {
 }
 
 func TestWireWithCore_PublishesAppStarted(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	sdk.ResetAppStartedHandlers()
 	defer sdk.ResetAppStartedHandlers()
@@ -484,7 +485,7 @@ func TestWireWithCore_PublishesAppStarted(t *testing.T) {
 }
 
 func TestWireWithCore_AppStartedNotCalledWhenHeadless(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	sdk.ResetAppStartedHandlers()
 	defer sdk.ResetAppStartedHandlers()
@@ -515,7 +516,7 @@ func TestWireWithCore_AppStartedNotCalledWhenHeadless(t *testing.T) {
 }
 
 func TestWireWithCore_ExtensionUsesBusOn(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	sdk.RegisterExtension("agent", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFunc("agent", func(bus sdk.Bus) error {
@@ -535,7 +536,7 @@ func TestWireWithCore_ExtensionUsesBusOn(t *testing.T) {
 }
 
 func TestWire_WireSubscribesExtensionsInProcess(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	var subscribeCalled bool
 
@@ -558,7 +559,7 @@ func TestWire_WireSubscribesExtensionsInProcess(t *testing.T) {
 		return nil
 	})
 
-	wired, err := Wire([]string{"noop"}, realBus, nil)
+	wired, err := WireExtensions([]string{"noop"}, realBus, nil)
 	require.NoError(t, err, "Wire")
 
 	require.True(t, subscribeCalled, "Subscribe was not called")
@@ -615,7 +616,7 @@ type wireTestAuth struct {
 }
 
 func TestWire_SetsProviderAuthStatus(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 	sdk.ResetProviderRegistry()
 	model.ResetAuthRegistry()
 
@@ -624,14 +625,14 @@ func TestWire_SetsProviderAuthStatus(t *testing.T) {
 	})
 
 	bus := &BusMock{}
-	_, err := Wire(nil, bus, nil)
+	_, err := WireExtensions(nil, bus, nil)
 	require.NoError(t, err)
 
 	assert.False(t, model.ProviderHasAuth("wire-test-provider"), "provider should not have auth without key")
 }
 
 func TestWire_SetsProviderAuthStatusWithEnvVar(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 	sdk.ResetProviderRegistry()
 	model.ResetAuthRegistry()
 
@@ -642,14 +643,14 @@ func TestWire_SetsProviderAuthStatusWithEnvVar(t *testing.T) {
 	t.Setenv("WIRE_TEST_AUTH_KEY", "test-key")
 
 	bus := &BusMock{}
-	_, err := Wire(nil, bus, nil)
+	_, err := WireExtensions(nil, bus, nil)
 	require.NoError(t, err)
 
 	assert.True(t, model.ProviderHasAuth("wire-test-provider-env"), "provider should have auth when env var is set")
 }
 
 func TestWireWithCore_SetsProviderAuthStatus(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 	sdk.ResetProviderRegistry()
 	model.ResetAuthRegistry()
 
@@ -671,7 +672,7 @@ func TestWireWithCore_SetsProviderAuthStatus(t *testing.T) {
 }
 
 func TestWire_ProviderWithNoAuthStructHasNoAuth(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 	sdk.ResetProviderRegistry()
 	model.ResetAuthRegistry()
 
@@ -680,14 +681,14 @@ func TestWire_ProviderWithNoAuthStructHasNoAuth(t *testing.T) {
 	})
 
 	bus := &BusMock{}
-	_, err := Wire(nil, bus, nil)
+	_, err := WireExtensions(nil, bus, nil)
 	require.NoError(t, err, "wiring should succeed even when provider has no auth")
 
 	assert.False(t, model.ProviderHasAuth("wire-test-no-auth"), "provider without auth struct should have no auth")
 }
 
 func TestResolveExtensions(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	var created bool
 
@@ -704,7 +705,7 @@ func TestResolveExtensions(t *testing.T) {
 }
 
 func TestResolveExtensions_Missing(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	_, err := resolveExtensions([]string{"missing"}, nil)
 	require.Error(t, err)
@@ -712,7 +713,7 @@ func TestResolveExtensions_Missing(t *testing.T) {
 }
 
 func TestResolveExtensions_CleansUpOnError(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	var closed bool
 
@@ -732,7 +733,7 @@ func TestResolveExtensions_CleansUpOnError(t *testing.T) {
 }
 
 func TestSubscribeExtensions(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	var subscribed bool
 
@@ -752,7 +753,7 @@ func TestSubscribeExtensions(t *testing.T) {
 }
 
 func TestSubscribeExtensions_RollsBackOnError(t *testing.T) {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 
 	var closed bool
 
@@ -775,6 +776,43 @@ func TestSubscribeExtensions_RollsBackOnError(t *testing.T) {
 	err = subscribeExtensions(exts, bus)
 	require.Error(t, err)
 	assert.True(t, closed, "previously subscribed extension should be closed on error")
+}
+
+func TestSetSingleTurnEnv_SetsAndRestores(t *testing.T) {
+	// Ensure clean state.
+	_ = os.Unsetenv("WEAVE_SINGLE_TURN")
+
+	cleanup := setSingleTurnEnv(true)
+
+	assert.Equal(t, "1", os.Getenv("WEAVE_SINGLE_TURN"))
+
+	cleanup()
+
+	assert.Empty(t, os.Getenv("WEAVE_SINGLE_TURN"))
+}
+
+func TestSetSingleTurnEnv_RestoresPreviousValue(t *testing.T) {
+	t.Setenv("WEAVE_SINGLE_TURN", "old-value")
+
+	cleanup := setSingleTurnEnv(true)
+
+	assert.Equal(t, "1", os.Getenv("WEAVE_SINGLE_TURN"))
+
+	cleanup()
+
+	assert.Equal(t, "old-value", os.Getenv("WEAVE_SINGLE_TURN"))
+}
+
+func TestSetSingleTurnEnv_NoOpWhenFalse(t *testing.T) {
+	t.Setenv("WEAVE_SINGLE_TURN", "existing")
+
+	cleanup := setSingleTurnEnv(false)
+
+	assert.Equal(t, "existing", os.Getenv("WEAVE_SINGLE_TURN"))
+
+	cleanup()
+
+	assert.Equal(t, "existing", os.Getenv("WEAVE_SINGLE_TURN"))
 }
 
 var _ = strings.TrimSpace

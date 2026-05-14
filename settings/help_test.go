@@ -62,7 +62,7 @@ func resetAllRegistries(t *testing.T) {
 	t.Helper()
 	sdk.ResetToolRegistry()
 	sdk.ResetProviderRegistry()
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 	sdk.ResetSchemas()
 }
 

@@ -56,7 +56,7 @@ func ListExtensions() []string {
 	return extReg.List()
 }
 
-func ResetRegistry() {
+func ResetExtensionRegistry() {
 	extReg.Reset()
 	ResetSchemas()
 }

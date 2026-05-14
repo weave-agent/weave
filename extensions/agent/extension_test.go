@@ -15,7 +15,7 @@ import (
 )
 
 func resetRegistries() {
-	sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
 	sdk.ResetProviderRegistry()
 	sdk.ResetToolRegistry()
 	sdk.ResetUIRegistry()

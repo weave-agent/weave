@@ -10,7 +10,7 @@ import (
 )
 
 func TestRegisterAndRetrieve(t *testing.T) {
-	ResetRegistry()
+	ResetExtensionRegistry()
 
 	ext := NewExtensionFunc("test", func(bus Bus) error { return nil })
 
@@ -22,7 +22,7 @@ func TestRegisterAndRetrieve(t *testing.T) {
 }
 
 func TestDuplicateRegistration(t *testing.T) {
-	ResetRegistry()
+	ResetExtensionRegistry()
 
 	RegisterExtension[struct{}]("dup", func(Config, struct{}) (Extension, error) {
 		return NewExtensionFunc("dup", func(bus Bus) error { return nil }), nil
@@ -39,14 +39,14 @@ func TestDuplicateRegistration(t *testing.T) {
 }
 
 func TestMissingExtension(t *testing.T) {
-	ResetRegistry()
+	ResetExtensionRegistry()
 
 	_, err := GetExtension("nonexistent", nil)
 	require.Error(t, err, "expected error for missing extension")
 }
 
 func TestGetExtension_FactoryError(t *testing.T) {
-	ResetRegistry()
+	ResetExtensionRegistry()
 
 	RegisterExtension[struct{}]("fail", func(Config, struct{}) (Extension, error) {
 		return nil, errors.New("boom")
@@ -58,7 +58,7 @@ func TestGetExtension_FactoryError(t *testing.T) {
 }
 
 func TestListExtensions(t *testing.T) {
-	ResetRegistry()
+	ResetExtensionRegistry()
 
 	RegisterExtension[struct{}]("alpha", func(Config, struct{}) (Extension, error) { return NewExtensionFunc("alpha", nil), nil })
 	RegisterExtension[struct{}]("beta", func(Config, struct{}) (Extension, error) { return NewExtensionFunc("beta", nil), nil })

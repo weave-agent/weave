@@ -10,8 +10,8 @@ import (
 )
 
 func TestTUI_ExtensionRegistration(t *testing.T) {
-	sdk.ResetRegistry()
-	defer sdk.ResetRegistry()
+	sdk.ResetExtensionRegistry()
+	defer sdk.ResetExtensionRegistry()
 
 	sdk.RegisterExtensionWithScope[TUIConfig]("tui", "ui", func(cfg sdk.Config, _ TUIConfig) (sdk.Extension, error) {
 		return NewTUI(cfg, TUIConfig{})

@@ -46,6 +46,7 @@ func TestMissingProvider(t *testing.T) {
 
 	_, err := GetProvider("nonexistent", nil)
 	require.Error(t, err, "expected error for missing provider")
+	assert.ErrorIs(t, err, ErrNotRegistered)
 }
 
 func TestGetProvider_FactoryError(t *testing.T) {
@@ -127,6 +128,7 @@ func TestCheckProviderAuth_Unregistered(t *testing.T) {
 
 	_, err := CheckProviderAuth("nonexistent")
 	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrNotRegistered)
 }
 
 func TestCheckProviderAuth_NonStructAuth(t *testing.T) {
