@@ -206,7 +206,7 @@ launcher/generate.go template: weave/sdk/wire → weave/internal/wire
 
 ## Post-Completion
 
-- Update `CLAUDE.md` with new interface names and locations
-- Verify `weave` binary builds and runs correctly
-- Coordinate with declarative auth plan owner on Config split timing
-- Coordinate with rich UI plan owner on UI split pre-req
+- [x] Update `CLAUDE.md` with new interface names and locations
+- [ ] Verify `weave` binary builds and runs correctly
+- [ ] Coordinate with declarative auth plan owner on Config split timing
+- [ ] Coordinate with rich UI plan owner on UI split pre-req
