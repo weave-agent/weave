@@ -1169,7 +1169,7 @@ func TestProviderInit_WithAPIKey(t *testing.T) {
 	require.NoError(t, err)
 	collectEvents(t, ch)
 
-	assert.Equal(t, "weave/0.1.0", receivedUserAgent)
+	assert.Equal(t, "KimiCLI/1.5", receivedUserAgent)
 }
 
 func TestProviderInit_DefaultModel(t *testing.T) {

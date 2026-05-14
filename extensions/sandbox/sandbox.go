@@ -62,7 +62,7 @@ type Sandbox struct {
 }
 
 func init() {
-	sdk.RegisterExtensionWithScope[SandboxConfig]("sandbox", "sandbox", func(cfg sdk.Config, sc SandboxConfig) (sdk.Extension, error) {
+	sdk.RegisterExtensionWithScope[SandboxConfig]("sandbox", "sandbox", func(cfg sdk.Config, _ sdk.PreferenceStore, sc SandboxConfig) (sdk.Extension, error) {
 		return NewSandbox(cfg, sc)
 	})
 }

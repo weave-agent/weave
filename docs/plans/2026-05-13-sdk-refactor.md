@@ -120,15 +120,15 @@ Address architectural, API design, and code quality findings from the SDK review
 
 **Blocked by:** `docs/plans/2026-05-13-declarative-auth-flow.md` (Task 2 removes `ResolveKey`)
 
-- [ ] Remove `Preferences`, `SavePreferences`, `SaveProviderKey` from `sdk.Config` interface
-- [ ] Define `PreferenceStore` interface with those three methods
-- [ ] Update `FullConfig` to implement both interfaces
-- [ ] Update all factory signatures: `func(Config, TConfig)` → `func(Config, PreferenceStore, TConfig)`
-- [ ] Update TUI and loop to receive `PreferenceStore`
-- [ ] Update `NoopConfig` — `PreferenceStore` methods go to `NoopPreferenceStore`
-- [ ] Regenerate mocks via `make gen`
-- [ ] Write/update tests
-- [ ] Run `go test ./sdk/... ./settings/...` — must pass
+- [x] Remove `Preferences`, `SavePreferences`, `SaveProviderKey` from `sdk.Config` interface
+- [x] Define `PreferenceStore` interface with those three methods
+- [x] Update `FullConfig` to implement both interfaces
+- [x] Update all factory signatures: `func(Config, TConfig)` → `func(Config, PreferenceStore, TConfig)`
+- [x] Update TUI and loop to receive `PreferenceStore`
+- [x] Update `NoopConfig` — `PreferenceStore` methods go to `NoopPreferenceStore`
+- [x] Regenerate mocks via `make gen`
+- [x] Write/update tests
+- [x] Run `go test ./sdk/... ./settings/...` — must pass
 
 ### Task 10: Verify acceptance criteria
 

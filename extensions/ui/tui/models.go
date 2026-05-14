@@ -27,6 +27,14 @@ func effectiveConfig(cfg sdk.Config) sdk.Config {
 	return sdk.NoopConfig{}
 }
 
+func preferenceStoreOrDefault(ps sdk.PreferenceStore) sdk.PreferenceStore {
+	if ps != nil {
+		return ps
+	}
+
+	return sdk.NoopPreferenceStore{}
+}
+
 // ModelEntry describes a provider + model combination.
 type ModelEntry struct {
 	Provider string
@@ -94,8 +102,8 @@ func modelFromSettings(entries []ModelEntry, prefs preferences) ModelEntry {
 
 // currentModel returns the startup model entry using the same priority as the
 // loop's provider resolver: WEAVE_PROVIDER env var > settings > first registered > fallback.
-func currentModel(entries []ModelEntry, cfg sdk.Config) ModelEntry {
-	cfg = effectiveConfig(cfg)
+func currentModel(entries []ModelEntry, ps sdk.PreferenceStore) ModelEntry {
+	ps = preferenceStoreOrDefault(ps)
 
 	// 1. WEAVE_PROVIDER env var — highest priority (matches loop resolver).
 	if provider := os.Getenv("WEAVE_PROVIDER"); provider != "" {
@@ -116,7 +124,7 @@ func currentModel(entries []ModelEntry, cfg sdk.Config) ModelEntry {
 
 	// 2. Persisted settings.
 	var prefs preferences
-	if cfg.Preferences(&prefs) == nil && prefs.Provider != "" {
+	if ps.Preferences(&prefs) == nil && prefs.Provider != "" {
 		if e := modelFromSettings(entries, prefs); e.Provider != "" {
 			return e
 		}
@@ -169,11 +177,11 @@ func modelReasoning(modelID string) bool {
 
 // initialThinkingLevel returns the startup thinking level. Tries persisted
 // settings first, then the WEAVE_THINKING_LEVEL env var, then medium.
-func initialThinkingLevel(cfg sdk.Config) sdkmodel.ThinkingLevel {
-	cfg = effectiveConfig(cfg)
+func initialThinkingLevel(ps sdk.PreferenceStore) sdkmodel.ThinkingLevel {
+	ps = preferenceStoreOrDefault(ps)
 
 	var prefs preferences
-	if cfg.Preferences(&prefs) == nil && prefs.ThinkingLevel != "" {
+	if ps.Preferences(&prefs) == nil && prefs.ThinkingLevel != "" {
 		if lvl, err := sdkmodel.ParseThinkingLevel(prefs.ThinkingLevel); err == nil {
 			return lvl
 		}
@@ -183,22 +191,22 @@ func initialThinkingLevel(cfg sdk.Config) sdkmodel.ThinkingLevel {
 }
 
 // saveSettings persists the current model and thinking level to the global
-// settings file via sdk.Config. Best-effort — errors are silently ignored.
-func saveSettings(cfg sdk.Config, entry ModelEntry, level sdkmodel.ThinkingLevel) {
-	cfg = effectiveConfig(cfg)
+// settings file via PreferenceStore. Best-effort — errors are silently ignored.
+func saveSettings(ps sdk.PreferenceStore, entry ModelEntry, level sdkmodel.ThinkingLevel) {
+	ps = preferenceStoreOrDefault(ps)
 	prefs := preferences{
 		Provider:      entry.Provider,
 		Model:         entry.Model,
 		ThinkingLevel: string(level),
 	}
 
-	_ = cfg.SavePreferences(&prefs)
+	_ = ps.SavePreferences(&prefs)
 }
 
 // saveSettingsCmd returns a tea.Cmd that persists settings asynchronously.
-func saveSettingsCmd(cfg sdk.Config, entry ModelEntry, level sdkmodel.ThinkingLevel) tea.Cmd {
+func saveSettingsCmd(ps sdk.PreferenceStore, entry ModelEntry, level sdkmodel.ThinkingLevel) tea.Cmd {
 	return func() tea.Msg {
-		saveSettings(cfg, entry, level)
+		saveSettings(ps, entry, level)
 		return nil
 	}
 }

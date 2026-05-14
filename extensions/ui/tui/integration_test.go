@@ -30,7 +30,7 @@ func TestIntegration_FullStreamingFlow(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	m := newModel(b, nil, nil)
+	m := newModel(b, nil, nil, nil)
 	m.width = 120
 	m.height = 40
 
@@ -113,7 +113,7 @@ func TestIntegration_FullStreamingFlow(t *testing.T) {
 // TestIntegration_OverlayStackWithStreaming verifies that the overlay stack
 // correctly intercepts keys during streaming and that canceling returns to normal.
 func TestIntegration_OverlayStackWithStreaming(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.chat = m.chat.SetSize(80, 10)
@@ -244,7 +244,7 @@ func TestIntegration_SDKUIThroughOverlayStack(t *testing.T) {
 	bindings := NewBindingRegistry()
 	ui := NewTUIImpl(commands, bindings)
 
-	m := newModel(b, nil, ui)
+	m := newModel(b, nil, nil, ui)
 	m.width = 80
 	m.height = 24
 
@@ -351,7 +351,7 @@ func TestIntegration_SDKUIThroughOverlayStack(t *testing.T) {
 // user config > extension registrations > built-in defaults.
 func TestIntegration_KeybindingPriority(t *testing.T) {
 	// Create model with custom extension binding
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -401,7 +401,7 @@ func TestIntegration_SessionResumeFlow(t *testing.T) {
 
 	ch := subscribeToChan(b, topicSessionResume)
 
-	m := newModel(b, nil, nil)
+	m := newModel(b, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.chat = m.chat.SetSize(80, 10)
@@ -481,7 +481,7 @@ func TestIntegration_ModelSelectionFlow(t *testing.T) {
 
 	ch := subscribeToChan(b, topicModelChange)
 
-	m := newModel(b, nil, nil)
+	m := newModel(b, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.chat = m.chat.SetSize(80, 10)
@@ -530,7 +530,7 @@ func TestIntegration_ModelSelectionFlow(t *testing.T) {
 // TestIntegration_LandingToChatAndBack exercises landing state lifecycle:
 // shown initially -> hidden after submit -> re-shown on /clear and /new.
 func TestIntegration_LandingToChatAndBack(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 30
 	m.chat = m.chat.SetSize(80, m.chatHeight(30))
@@ -578,7 +578,7 @@ func TestIntegration_ScreenBufferLayout(t *testing.T) {
 
 	for _, sz := range sizes {
 		t.Run(fmt.Sprintf("%dx%d", sz.w, sz.h), func(t *testing.T) {
-			m := newModel(nil, nil, nil)
+			m := newModel(nil, nil, nil, nil)
 			m.width = sz.w
 			m.height = sz.h
 
@@ -616,7 +616,7 @@ func TestIntegration_ThinkingLevelCycleWithModelChange(t *testing.T) {
 
 	defer sdkmodel.ResetModelRegistry()
 
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-6"}
@@ -655,7 +655,7 @@ func TestIntegration_InterruptDuringStreaming(t *testing.T) {
 
 	ch := subscribeToChan(b, topicInterrupt)
 
-	m := newModel(b, nil, nil)
+	m := newModel(b, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.chat = m.chat.SetSize(80, 10)

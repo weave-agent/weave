@@ -144,7 +144,7 @@ func TestCurrentModel_PreferencesProviderOnly_NoRegistryFallback(t *testing.T) {
 }
 
 func TestModel_CommandRegistered(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	info, ok := m.commands.Lookup("/model")
 	require.True(t, ok, "/model command should be registered")
 	assert.Equal(t, "Select or change model", info.Description)
@@ -161,12 +161,12 @@ func TestModel_DefaultFooterModel(t *testing.T) {
 	defer sdk.ResetProviderRegistry()
 	defer sdkmodel.ResetAuthRegistry()
 
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	assert.NotEmpty(t, m.footer.ModelName())
 }
 
 func TestModel_ModelListResultShowsOverlay(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.chat = m.chat.SetSize(80, 10)
@@ -189,7 +189,7 @@ func TestModel_ModelListResultShowsOverlay(t *testing.T) {
 }
 
 func TestModel_ModelListResultEmpty(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.chat = m.chat.SetSize(80, 10)
@@ -207,7 +207,7 @@ func TestModel_ModelListResultEmpty(t *testing.T) {
 }
 
 func TestModel_ModelListResultSingle(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.chat = m.chat.SetSize(80, 10)
@@ -230,7 +230,7 @@ func TestModel_ModelListResultSingle(t *testing.T) {
 }
 
 func TestModel_ModelSelectorSelect(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.chat = m.chat.SetSize(80, 10)
@@ -258,7 +258,7 @@ func TestModel_ModelSelectorSelect(t *testing.T) {
 }
 
 func TestModel_ModelSelectorCancel(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -279,7 +279,7 @@ func TestModel_ModelSelectorCancel(t *testing.T) {
 }
 
 func TestModel_ModelSelectorCancelClearsPendingModels(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -301,7 +301,7 @@ func TestModel_ModelSelectorCancelClearsPendingModels(t *testing.T) {
 }
 
 func TestModel_CtrlLOpensModelSelector(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -319,7 +319,7 @@ func TestModel_CtrlLOpensModelSelector(t *testing.T) {
 }
 
 func TestModel_CtrlPWhenSingleModel(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -333,7 +333,7 @@ func TestModel_CtrlPWhenSingleModel(t *testing.T) {
 }
 
 func TestModel_ModelChangedUpdatesFooter(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -353,7 +353,7 @@ func TestModel_ModelChangedToNonReasoningForcesThinkingOff(t *testing.T) {
 
 	defer sdkmodel.ResetModelRegistry()
 
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	assert.Equal(t, sdkmodel.ThinkingMedium, m.thinkingLevel)
@@ -374,7 +374,7 @@ func TestModel_ModelChangedPublishesEvent(t *testing.T) {
 
 	ch := subscribeToChan(b, topicModelChange)
 
-	m := newModel(b, nil, nil)
+	m := newModel(b, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -391,7 +391,7 @@ func TestModel_ModelChangedPublishesEvent(t *testing.T) {
 }
 
 func TestModel_ModelSlashCommandDispatches(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.chat = m.chat.SetSize(80, 10)
@@ -406,7 +406,7 @@ func TestModel_ModelSlashCommandDispatches(t *testing.T) {
 }
 
 func TestModel_ModelOverlayInterceptsKeys(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -428,7 +428,7 @@ func TestModel_ModelOverlayInterceptsKeys(t *testing.T) {
 }
 
 func TestModel_ModelSelectorViewShowsOverlay(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -448,7 +448,7 @@ func TestModel_ModelSelectorViewShowsOverlay(t *testing.T) {
 }
 
 func TestModel_ModelSelectedInvalidIndex(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-6"}
@@ -590,7 +590,7 @@ func TestModelSelectorEntryBadges(t *testing.T) {
 
 	defer sdkmodel.ResetModelRegistry()
 
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.chat = m.chat.SetSize(80, 10)
@@ -618,7 +618,7 @@ func TestModelSelectorCurrentModelMarker(t *testing.T) {
 
 	defer sdkmodel.ResetModelRegistry()
 
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.chat = m.chat.SetSize(80, 10)
@@ -658,7 +658,7 @@ func TestStatusMessageOnModelCycle(t *testing.T) {
 	defer sdk.ResetProviderRegistry()
 	defer sdkmodel.ResetAuthRegistry()
 
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-6"}
@@ -686,7 +686,7 @@ func TestStatusMessageOnModelChanged(t *testing.T) {
 
 	defer sdkmodel.ResetModelRegistry()
 
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -699,7 +699,7 @@ func TestStatusMessageOnModelChanged(t *testing.T) {
 }
 
 func TestStatusMessageOnThinkingCycle(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -711,7 +711,7 @@ func TestStatusMessageOnThinkingCycle(t *testing.T) {
 }
 
 func TestStatusMessageClearsOnTimeout(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -725,7 +725,7 @@ func TestStatusMessageClearsOnTimeout(t *testing.T) {
 }
 
 func TestStatusMessageRenderedInVIew(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.statusMsg = "test status message"
@@ -735,7 +735,7 @@ func TestStatusMessageRenderedInVIew(t *testing.T) {
 }
 
 func TestStatusMessageNotRenderedWhenEmpty(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.statusMsg = ""
@@ -876,12 +876,12 @@ func TestSaveSettings_PreservesUIFields(t *testing.T) {
 }
 
 func TestNewModel_ReadsUISettings(t *testing.T) {
-	m := newModelWithConfig(nil, nil, nil, TUIConfig{EditorMaxLines: 25})
+	m := newModelWithConfig(nil, nil, nil, nil, TUIConfig{EditorMaxLines: 25})
 	assert.Equal(t, 25, m.editor.MaxHeight())
 }
 
 func TestNewModel_DefaultEditorHeightWhenNoSettings(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	assert.Equal(t, 15, m.editor.MaxHeight()) // default
 }
 

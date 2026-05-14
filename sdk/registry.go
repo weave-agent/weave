@@ -17,14 +17,14 @@ var extReg = registry.New[func(Config) (Extension, error)](
 // The framework will automatically populate the config struct from settings, env vars,
 // and CLI flags before calling the factory.
 // Config is loaded from the "extensions" scope.
-func RegisterExtension[T any](name string, factory func(Config, T) (Extension, error)) {
+func RegisterExtension[T any](name string, factory func(Config, PreferenceStore, T) (Extension, error)) {
 	RegisterExtensionWithScope[T](name, "extensions", factory)
 }
 
 // RegisterExtensionWithScope registers an extension factory with a typed configuration
 // struct and a custom config scope. The scope determines which settings subtree is
 // used to populate the config struct (e.g. "ui" for TUI, "sandbox" for sandbox).
-func RegisterExtensionWithScope[T any](name, scope string, factory func(Config, T) (Extension, error)) {
+func RegisterExtensionWithScope[T any](name, scope string, factory func(Config, PreferenceStore, T) (Extension, error)) {
 	var zero T
 
 	schema := extractSchema(reflect.TypeOf(zero))
@@ -37,7 +37,7 @@ func RegisterExtensionWithScope[T any](name, scope string, factory func(Config, 
 			return nil, fmt.Errorf("load extension config: %w", err)
 		}
 
-		return factory(configOrDefault(cfg), t)
+		return factory(configOrDefault(cfg), preferenceStoreFrom(cfg), t)
 	}
 
 	extReg.Register(name, wrapper)

@@ -46,7 +46,7 @@ func init() {
 		})
 	})
 
-	sdk.RegisterTool[struct{}]("grep", func(cfg sdk.Config, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool[struct{}]("grep", func(cfg sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
 		return &tool{cfg: cfg}, nil
 	})
 }

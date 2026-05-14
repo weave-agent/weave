@@ -334,7 +334,7 @@ func TestDiscoverExtensionSkills(t *testing.T) {
 		resetRegistries()
 		defer resetRegistries()
 
-		sdk.RegisterExtension("test-ext", func(cfg sdk.Config, _ struct{}) (sdk.Extension, error) {
+		sdk.RegisterExtension("test-ext", func(cfg sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
 			return stubExt{}, nil
 		})
 
@@ -366,7 +366,7 @@ func TestDiscoverExtensionSkills(t *testing.T) {
 		resetRegistries()
 		defer resetRegistries()
 
-		sdk.RegisterExtension("global-ext", func(cfg sdk.Config, _ struct{}) (sdk.Extension, error) {
+		sdk.RegisterExtension("global-ext", func(cfg sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
 			return stubExt{}, nil
 		})
 
@@ -385,7 +385,7 @@ func TestDiscoverExtensionSkills(t *testing.T) {
 		resetRegistries()
 		defer resetRegistries()
 
-		sdk.RegisterExtension("no-skills", func(cfg sdk.Config, _ struct{}) (sdk.Extension, error) {
+		sdk.RegisterExtension("no-skills", func(cfg sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
 			return stubExt{}, nil
 		})
 
@@ -409,10 +409,10 @@ func TestDiscoverExtensionSkills(t *testing.T) {
 		resetRegistries()
 		defer resetRegistries()
 
-		sdk.RegisterExtension("proj-ext", func(cfg sdk.Config, _ struct{}) (sdk.Extension, error) {
+		sdk.RegisterExtension("proj-ext", func(cfg sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
 			return stubExt{}, nil
 		})
-		sdk.RegisterExtension("glob-ext", func(cfg sdk.Config, _ struct{}) (sdk.Extension, error) {
+		sdk.RegisterExtension("glob-ext", func(cfg sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
 			return stubExt{}, nil
 		})
 
@@ -439,7 +439,7 @@ func TestDiscoverExtensionSkills(t *testing.T) {
 		resetRegistries()
 		defer resetRegistries()
 
-		sdk.RegisterExtension("nested-ext", func(cfg sdk.Config, _ struct{}) (sdk.Extension, error) {
+		sdk.RegisterExtension("nested-ext", func(cfg sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
 			return stubExt{}, nil
 		})
 
@@ -458,7 +458,7 @@ func TestDiscoverExtensionSkills(t *testing.T) {
 		resetRegistries()
 		defer resetRegistries()
 
-		sdk.RegisterExtension("shadow-ext", func(cfg sdk.Config, _ struct{}) (sdk.Extension, error) {
+		sdk.RegisterExtension("shadow-ext", func(cfg sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
 			return stubExt{}, nil
 		})
 
@@ -484,7 +484,7 @@ func TestDiscoverExtensionSkills(t *testing.T) {
 		resetRegistries()
 		defer resetRegistries()
 
-		sdk.RegisterExtension("no-shadow-ext", func(cfg sdk.Config, _ struct{}) (sdk.Extension, error) {
+		sdk.RegisterExtension("no-shadow-ext", func(cfg sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
 			return stubExt{}, nil
 		})
 
@@ -513,7 +513,7 @@ func TestDiscoverSkills_WithExtensionSkills(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	sdk.RegisterExtension("my-ext", func(cfg sdk.Config, _ struct{}) (sdk.Extension, error) {
+	sdk.RegisterExtension("my-ext", func(cfg sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
 		return stubExt{}, nil
 	})
 

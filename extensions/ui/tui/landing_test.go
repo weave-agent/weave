@@ -76,7 +76,7 @@ func TestLandingModel_DrawNoModel(t *testing.T) {
 // Integration tests for landing visibility in the root model.
 
 func TestLanding_ShownInitially(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	require.True(t, m.showLanding, "landing should be shown initially")
 
 	view := m.View()
@@ -85,7 +85,7 @@ func TestLanding_ShownInitially(t *testing.T) {
 }
 
 func TestLanding_HiddenAfterFirstSubmit(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 30
 	m.chat = m.chat.SetSize(80, m.chatHeight(30))
@@ -102,7 +102,7 @@ func TestLanding_HiddenAfterFirstSubmit(t *testing.T) {
 }
 
 func TestLanding_ReShownOnClear(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 30
 	m.chat = m.chat.SetSize(80, m.chatHeight(30))
@@ -122,7 +122,7 @@ func TestLanding_ReShownOnClear(t *testing.T) {
 }
 
 func TestLanding_ReShownOnNew(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 30
 	m.chat = m.chat.SetSize(80, m.chatHeight(30))
@@ -140,7 +140,7 @@ func TestLanding_ReShownOnNew(t *testing.T) {
 }
 
 func TestLanding_HidesHintsWhenActive(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 30
 
@@ -153,7 +153,7 @@ func TestLanding_HidesHintsWhenActive(t *testing.T) {
 }
 
 func TestLanding_EditorStillAccessibleWhenLandingActive(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 40
 

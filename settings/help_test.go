@@ -90,7 +90,7 @@ func TestGenerateFullHelp_NoSchemas(t *testing.T) {
 func TestGenerateFullHelp_WithToolSchemas(t *testing.T) {
 	resetAllRegistries(t)
 
-	sdk.RegisterTool("bash", func(_ sdk.Config, _ testToolConfig) (sdk.Tool, error) {
+	sdk.RegisterTool("bash", func(_ sdk.Config, _ sdk.PreferenceStore, _ testToolConfig) (sdk.Tool, error) {
 		return dummyTool{name: "bash"}, nil
 	})
 
@@ -125,13 +125,13 @@ func TestGenerateFullHelp_WithProviderSchemas(t *testing.T) {
 func TestGenerateFullHelp_AllScopes(t *testing.T) {
 	resetAllRegistries(t)
 
-	sdk.RegisterTool("bash", func(_ sdk.Config, _ testToolConfig) (sdk.Tool, error) {
+	sdk.RegisterTool("bash", func(_ sdk.Config, _ sdk.PreferenceStore, _ testToolConfig) (sdk.Tool, error) {
 		return dummyTool{name: "bash"}, nil
 	})
 	sdk.RegisterProvider[testProviderConfig, struct{}]("openai", func(_ sdk.Config, _ testProviderConfig, _ struct{}) (sdk.Provider, error) {
 		return dummyProvider{}, nil
 	})
-	sdk.RegisterExtension("sandbox", func(_ sdk.Config, _ testExtensionConfig) (sdk.Extension, error) {
+	sdk.RegisterExtension("sandbox", func(_ sdk.Config, _ sdk.PreferenceStore, _ testExtensionConfig) (sdk.Extension, error) {
 		return dummyExtension{}, nil
 	})
 
@@ -159,10 +159,10 @@ func TestGenerateFullHelp_AllScopes(t *testing.T) {
 func TestGenerateFullHelp_SortsWithinScope(t *testing.T) {
 	resetAllRegistries(t)
 
-	sdk.RegisterTool("zed", func(_ sdk.Config, _ testToolConfig) (sdk.Tool, error) {
+	sdk.RegisterTool("zed", func(_ sdk.Config, _ sdk.PreferenceStore, _ testToolConfig) (sdk.Tool, error) {
 		return dummyTool{name: "zed"}, nil
 	})
-	sdk.RegisterTool("alpha", func(_ sdk.Config, _ testToolConfig) (sdk.Tool, error) {
+	sdk.RegisterTool("alpha", func(_ sdk.Config, _ sdk.PreferenceStore, _ testToolConfig) (sdk.Tool, error) {
 		return dummyTool{name: "alpha"}, nil
 	})
 
@@ -179,7 +179,7 @@ func TestGenerateFullHelp_WithUISchemas(t *testing.T) {
 		Theme string `json:"theme" default:"dark" description:"UI theme"`
 	}
 
-	sdk.RegisterExtensionWithScope("tui", "ui", func(_ sdk.Config, _ testUIConfig) (sdk.Extension, error) {
+	sdk.RegisterExtensionWithScope("tui", "ui", func(_ sdk.Config, _ sdk.PreferenceStore, _ testUIConfig) (sdk.Extension, error) {
 		return dummyExtension{}, nil
 	})
 
@@ -194,7 +194,7 @@ func TestGenerateFullHelp_SkipsEmptySchemas(t *testing.T) {
 	resetAllRegistries(t)
 
 	// Register a tool with struct{} (no fields).
-	sdk.RegisterTool("empty", func(_ sdk.Config, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool("empty", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
 		return dummyTool{name: "empty"}, nil
 	})
 

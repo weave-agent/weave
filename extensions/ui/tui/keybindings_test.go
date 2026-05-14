@@ -237,7 +237,7 @@ func TestLoadKeybindings_EmptyConfigPath(t *testing.T) {
 }
 
 func TestModel_BindingsRegistryInitialized(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	assert.NotNil(t, m.bindings)
 
 	// Default keybinding should work
@@ -247,7 +247,7 @@ func TestModel_BindingsRegistryInitialized(t *testing.T) {
 }
 
 func TestModel_CtrlDExitsViaBinding(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -260,7 +260,7 @@ func TestModel_CtrlDExitsViaBinding(t *testing.T) {
 }
 
 func TestModel_CtrlCClearsEditorOnFirstPress(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -276,7 +276,7 @@ func TestModel_CtrlCClearsEditorOnFirstPress(t *testing.T) {
 }
 
 func TestModel_EscapeNoOpViaBinding(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -287,7 +287,7 @@ func TestModel_EscapeNoOpViaBinding(t *testing.T) {
 }
 
 func TestModel_CtrlLOpensModelSelectorViaBinding(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -298,7 +298,7 @@ func TestModel_CtrlLOpensModelSelectorViaBinding(t *testing.T) {
 }
 
 func TestModel_ExtensionKeybinding(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -318,7 +318,7 @@ func TestModel_ExtensionKeybinding(t *testing.T) {
 }
 
 func TestModel_OverlayDismissStillWorks(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -367,7 +367,7 @@ func TestKeyString_V2ModifierCombinations(t *testing.T) {
 }
 
 func TestModel_V2KeyDispatch_CtrlD(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -381,7 +381,7 @@ func TestModel_V2KeyDispatch_CtrlD(t *testing.T) {
 }
 
 func TestModel_V2KeyDispatch_CtrlCClearsEditor(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.editor = m.editor.SetValue("some text")
@@ -395,7 +395,7 @@ func TestModel_V2KeyDispatch_CtrlCClearsEditor(t *testing.T) {
 }
 
 func TestModel_V2KeyDispatch_EscapeInterrupts(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -407,7 +407,7 @@ func TestModel_V2KeyDispatch_EscapeInterrupts(t *testing.T) {
 }
 
 func TestModel_V2KeyDispatch_PrintableChars(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -420,7 +420,7 @@ func TestModel_V2KeyDispatch_PrintableChars(t *testing.T) {
 }
 
 func TestModel_V2KeyDispatch_MultiRuneText(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 

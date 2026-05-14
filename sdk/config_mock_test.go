@@ -26,20 +26,11 @@ var _ Config = &ConfigMock{}
 //			IsHeadlessFunc: func() bool {
 //				panic("mock out the IsHeadless method")
 //			},
-//			PreferencesFunc: func(target any) error {
-//				panic("mock out the Preferences method")
-//			},
 //			ProjectDirFunc: func() string {
 //				panic("mock out the ProjectDir method")
 //			},
 //			RespectGitignoreFunc: func() bool {
 //				panic("mock out the RespectGitignore method")
-//			},
-//			SavePreferencesFunc: func(target any) error {
-//				panic("mock out the SavePreferences method")
-//			},
-//			SaveProviderKeyFunc: func(providerName string, apiKey string) error {
-//				panic("mock out the SaveProviderKey method")
 //			},
 //		}
 //
@@ -57,20 +48,11 @@ type ConfigMock struct {
 	// IsHeadlessFunc mocks the IsHeadless method.
 	IsHeadlessFunc func() bool
 
-	// PreferencesFunc mocks the Preferences method.
-	PreferencesFunc func(target any) error
-
 	// ProjectDirFunc mocks the ProjectDir method.
 	ProjectDirFunc func() string
 
 	// RespectGitignoreFunc mocks the RespectGitignore method.
 	RespectGitignoreFunc func() bool
-
-	// SavePreferencesFunc mocks the SavePreferences method.
-	SavePreferencesFunc func(target any) error
-
-	// SaveProviderKeyFunc mocks the SaveProviderKey method.
-	SaveProviderKeyFunc func(providerName string, apiKey string) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -89,38 +71,18 @@ type ConfigMock struct {
 		// IsHeadless holds details about calls to the IsHeadless method.
 		IsHeadless []struct {
 		}
-		// Preferences holds details about calls to the Preferences method.
-		Preferences []struct {
-			// Target is the target argument value.
-			Target any
-		}
 		// ProjectDir holds details about calls to the ProjectDir method.
 		ProjectDir []struct {
 		}
 		// RespectGitignore holds details about calls to the RespectGitignore method.
 		RespectGitignore []struct {
 		}
-		// SavePreferences holds details about calls to the SavePreferences method.
-		SavePreferences []struct {
-			// Target is the target argument value.
-			Target any
-		}
-		// SaveProviderKey holds details about calls to the SaveProviderKey method.
-		SaveProviderKey []struct {
-			// ProviderName is the providerName argument value.
-			ProviderName string
-			// ApiKey is the apiKey argument value.
-			ApiKey string
-		}
 	}
 	lockExtensionConfig  sync.RWMutex
 	lockFilePath         sync.RWMutex
 	lockIsHeadless       sync.RWMutex
-	lockPreferences      sync.RWMutex
 	lockProjectDir       sync.RWMutex
 	lockRespectGitignore sync.RWMutex
-	lockSavePreferences  sync.RWMutex
-	lockSaveProviderKey  sync.RWMutex
 }
 
 // ExtensionConfig calls ExtensionConfigFunc.
@@ -226,41 +188,6 @@ func (mock *ConfigMock) IsHeadlessCalls() []struct {
 	return calls
 }
 
-// Preferences calls PreferencesFunc.
-func (mock *ConfigMock) Preferences(target any) error {
-	callInfo := struct {
-		Target any
-	}{
-		Target: target,
-	}
-	mock.lockPreferences.Lock()
-	mock.calls.Preferences = append(mock.calls.Preferences, callInfo)
-	mock.lockPreferences.Unlock()
-	if mock.PreferencesFunc == nil {
-		var (
-			errOut error
-		)
-		return errOut
-	}
-	return mock.PreferencesFunc(target)
-}
-
-// PreferencesCalls gets all the calls that were made to Preferences.
-// Check the length with:
-//
-//	len(mockedConfig.PreferencesCalls())
-func (mock *ConfigMock) PreferencesCalls() []struct {
-	Target any
-} {
-	var calls []struct {
-		Target any
-	}
-	mock.lockPreferences.RLock()
-	calls = mock.calls.Preferences
-	mock.lockPreferences.RUnlock()
-	return calls
-}
-
 // ProjectDir calls ProjectDirFunc.
 func (mock *ConfigMock) ProjectDir() string {
 	callInfo := struct {
@@ -318,79 +245,5 @@ func (mock *ConfigMock) RespectGitignoreCalls() []struct {
 	mock.lockRespectGitignore.RLock()
 	calls = mock.calls.RespectGitignore
 	mock.lockRespectGitignore.RUnlock()
-	return calls
-}
-
-// SavePreferences calls SavePreferencesFunc.
-func (mock *ConfigMock) SavePreferences(target any) error {
-	callInfo := struct {
-		Target any
-	}{
-		Target: target,
-	}
-	mock.lockSavePreferences.Lock()
-	mock.calls.SavePreferences = append(mock.calls.SavePreferences, callInfo)
-	mock.lockSavePreferences.Unlock()
-	if mock.SavePreferencesFunc == nil {
-		var (
-			errOut error
-		)
-		return errOut
-	}
-	return mock.SavePreferencesFunc(target)
-}
-
-// SavePreferencesCalls gets all the calls that were made to SavePreferences.
-// Check the length with:
-//
-//	len(mockedConfig.SavePreferencesCalls())
-func (mock *ConfigMock) SavePreferencesCalls() []struct {
-	Target any
-} {
-	var calls []struct {
-		Target any
-	}
-	mock.lockSavePreferences.RLock()
-	calls = mock.calls.SavePreferences
-	mock.lockSavePreferences.RUnlock()
-	return calls
-}
-
-// SaveProviderKey calls SaveProviderKeyFunc.
-func (mock *ConfigMock) SaveProviderKey(providerName string, apiKey string) error {
-	callInfo := struct {
-		ProviderName string
-		ApiKey       string
-	}{
-		ProviderName: providerName,
-		ApiKey:       apiKey,
-	}
-	mock.lockSaveProviderKey.Lock()
-	mock.calls.SaveProviderKey = append(mock.calls.SaveProviderKey, callInfo)
-	mock.lockSaveProviderKey.Unlock()
-	if mock.SaveProviderKeyFunc == nil {
-		var (
-			errOut error
-		)
-		return errOut
-	}
-	return mock.SaveProviderKeyFunc(providerName, apiKey)
-}
-
-// SaveProviderKeyCalls gets all the calls that were made to SaveProviderKey.
-// Check the length with:
-//
-//	len(mockedConfig.SaveProviderKeyCalls())
-func (mock *ConfigMock) SaveProviderKeyCalls() []struct {
-	ProviderName string
-	ApiKey       string
-} {
-	var calls []struct {
-		ProviderName string
-		ApiKey       string
-	}
-	mock.lockSaveProviderKey.RLock()
-	calls = mock.calls.SaveProviderKey
-	mock.lockSaveProviderKey.RUnlock()
 	return calls
 }

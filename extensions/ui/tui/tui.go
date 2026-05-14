@@ -24,8 +24,8 @@ func init() {
 		})
 	})
 
-	sdk.RegisterExtensionWithScope[TUIConfig]("tui", "ui", func(cfg sdk.Config, tuiCfg TUIConfig) (sdk.Extension, error) {
-		t, err := NewTUI(cfg, tuiCfg)
+	sdk.RegisterExtensionWithScope[TUIConfig]("tui", "ui", func(cfg sdk.Config, ps sdk.PreferenceStore, tuiCfg TUIConfig) (sdk.Extension, error) {
+		t, err := NewTUI(cfg, ps, tuiCfg)
 		if err != nil {
 			return nil, err
 		}
@@ -39,6 +39,7 @@ func init() {
 // TUI is the terminal UI extension.
 type TUI struct {
 	cfg    sdk.Config
+	ps     sdk.PreferenceStore
 	tuiCfg TUIConfig
 
 	mu      sync.Mutex
@@ -49,7 +50,7 @@ type TUI struct {
 
 // NewTUI creates a new TUI extension.
 // Returns ErrNoTTY if stdin is not a terminal.
-func NewTUI(cfg sdk.Config, tuiCfg TUIConfig) (*TUI, error) {
+func NewTUI(cfg sdk.Config, ps sdk.PreferenceStore, tuiCfg TUIConfig) (*TUI, error) {
 	if !isTerminal() {
 		return nil, ErrNoTTY
 	}
@@ -58,6 +59,7 @@ func NewTUI(cfg sdk.Config, tuiCfg TUIConfig) (*TUI, error) {
 
 	return &TUI{
 		cfg:    cfg,
+		ps:     ps,
 		done:   make(chan struct{}),
 		ui:     ui,
 		tuiCfg: tuiCfg,
@@ -106,7 +108,7 @@ func (t *TUI) Subscribe(bus sdk.Bus) error {
 		return nil
 	})
 
-	model := newModelWithConfig(bus, t.cfg, t.ui, t.tuiCfg)
+	model := newModelWithConfig(bus, t.cfg, t.ps, t.ui, t.tuiCfg)
 
 	t.mu.Lock()
 	t.program = tea.NewProgram(model)

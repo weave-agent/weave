@@ -36,7 +36,7 @@ func init() {
 		})
 	})
 
-	sdk.RegisterTool[struct{}]("read", func(_ sdk.Config, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool[struct{}]("read", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
 		return &tool{}, nil
 	})
 }

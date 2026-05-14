@@ -1,10 +1,14 @@
 package kimi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
@@ -12,6 +16,50 @@ import (
 	"weave/sdk"
 	"weave/sdk/model"
 )
+
+// debugTransport logs request and response bodies to stderr for debugging.
+type debugTransport struct {
+	base http.RoundTripper
+}
+
+func (t *debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	var bodyBytes []byte
+	if req.Body != nil {
+		bodyBytes, _ = io.ReadAll(req.Body)
+		req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+	}
+
+	fmt.Fprintf(os.Stderr, "\n=== KIMI REQUEST %s %s ===\n", req.Method, req.URL)
+	fmt.Fprintf(os.Stderr, "Headers:\n")
+
+	for k, v := range req.Header {
+		fmt.Fprintf(os.Stderr, "  %s: %v\n", k, v)
+	}
+
+	if len(bodyBytes) > 0 {
+		fmt.Fprintf(os.Stderr, "Body:\n%s\n", string(bodyBytes))
+	}
+
+	fmt.Fprintf(os.Stderr, "=== END REQUEST ===\n")
+
+	resp, err := t.base.RoundTrip(req)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "\n=== KIMI RESPONSE ERROR: %v ===\n", err)
+		return resp, err
+	}
+
+	var respBody []byte
+	if resp.Body != nil {
+		respBody, _ = io.ReadAll(resp.Body)
+		resp.Body = io.NopCloser(bytes.NewReader(respBody))
+	}
+
+	fmt.Fprintf(os.Stderr, "\n=== KIMI RESPONSE %d ===\n", resp.StatusCode)
+	fmt.Fprintf(os.Stderr, "%s\n", string(respBody))
+	fmt.Fprintf(os.Stderr, "=== END RESPONSE ===\n")
+
+	return resp, nil
+}
 
 const (
 	defaultModel     = "kimi-for-coding"
@@ -44,10 +92,15 @@ func init() {
 			return nil, errors.New("kimi: API key required (set KIMI_API_KEY or add to ~/.weave/auth.json)")
 		}
 
+		httpClient := &http.Client{
+			Transport: &debugTransport{base: http.DefaultTransport},
+		}
+
 		client := anthropic.NewClient(
 			option.WithAPIKey(a.APIKey),
 			option.WithBaseURL(kc.BaseURL),
-			option.WithHeader("User-Agent", "weave/0.1.0"),
+			option.WithHeader("User-Agent", "KimiCLI/1.5"),
+			option.WithHTTPClient(httpClient),
 		)
 
 		return &provider{
@@ -96,6 +149,13 @@ func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest, opts ...
 
 	go func() {
 		defer close(ch)
+
+		raw, err := json.MarshalIndent(params, "", "  ")
+		if err != nil {
+			os.WriteFile("/tmp/kimi_params_error.txt", []byte(fmt.Sprintf("marshal error: %v\n\nparams: %+v", err, params)), 0o644)
+		} else {
+			os.WriteFile("/tmp/kimi_params.json", raw, 0o644)
+		}
 
 		stream := p.client.Messages.NewStreaming(ctx, params)
 

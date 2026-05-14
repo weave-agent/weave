@@ -24,19 +24,19 @@ func resetRegistries() {
 }
 
 func TestNewAgentExtension(t *testing.T) {
-	ext, err := NewAgentExtension(sdk.FilePathConfig(""))
+	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{})
 	require.NoError(t, err)
 	assert.Equal(t, "agent", ext.Name())
 }
 
 func TestAgentExtension_Close(t *testing.T) {
-	ext, err := NewAgentExtension(sdk.FilePathConfig(""))
+	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{})
 	require.NoError(t, err)
 	assert.NoError(t, ext.Close())
 }
 
 func TestAgentExtension_SubscribeAndClose(t *testing.T) {
-	ext, err := NewAgentExtension(sdk.FilePathConfig(""))
+	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{})
 	require.NoError(t, err)
 
 	b := bus.New()
@@ -47,7 +47,7 @@ func TestAgentExtension_SubscribeAndClose(t *testing.T) {
 }
 
 func TestAgentExtension_SubscribeTwiceWithoutClose(t *testing.T) {
-	ext, err := NewAgentExtension(sdk.FilePathConfig(""))
+	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{})
 	require.NoError(t, err)
 
 	b := bus.New()
@@ -63,7 +63,7 @@ func TestAgentExtension_SubscribeTwiceWithoutClose(t *testing.T) {
 }
 
 func TestAgentExtension_ReSubscribeAfterClose(t *testing.T) {
-	ext, err := NewAgentExtension(sdk.FilePathConfig(""))
+	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{})
 	require.NoError(t, err)
 
 	b := bus.New()
@@ -80,8 +80,8 @@ func TestAgentExtension_RegisterAsExtension(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	sdk.RegisterExtension("agent", func(cfg sdk.Config, _ struct{}) (sdk.Extension, error) {
-		return NewAgentExtension(cfg)
+	sdk.RegisterExtension("agent", func(cfg sdk.Config, ps sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
+		return NewAgentExtension(cfg, ps)
 	})
 
 	ext, err := sdk.GetExtension("agent", nil)
@@ -98,7 +98,7 @@ func TestAgentExtension_ProjectDir(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(configPath), 0o755))
 	require.NoError(t, os.WriteFile(configPath, []byte(`{}`), 0o644))
 
-	ext, err := NewAgentExtension(sdk.FilePathConfig(configPath))
+	ext, err := NewAgentExtension(sdk.FilePathConfig(configPath), sdk.NoopPreferenceStore{})
 	require.NoError(t, err)
 
 	assert.Equal(t, projectDir, ext.projectDir())
@@ -110,7 +110,7 @@ func TestAgentExtension_ProjectDir_FromFilePath(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(`{}`), 0o644))
 
 	cfg := sdk.FilePathConfig(configPath)
-	ext, err := NewAgentExtension(cfg)
+	ext, err := NewAgentExtension(cfg, sdk.NoopPreferenceStore{})
 	require.NoError(t, err)
 
 	// FilePathConfig returns empty ProjectDir, so it falls back to deriving from FilePath.
@@ -143,7 +143,7 @@ func TestAgentExtension_Subscribe_RegistersSkillCommands(t *testing.T) {
 
 	defer sdk.ResetUIRegistry()
 
-	ext, err := NewAgentExtension(sdk.FilePathConfig(""))
+	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{})
 	require.NoError(t, err)
 
 	ext.skillDiscoveryPaths = []string{filepath.Dir(skillDir)}

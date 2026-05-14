@@ -275,7 +275,7 @@ func TestCommandRegistry_HelpListsAll(t *testing.T) {
 }
 
 func TestModel_SlashCommandQuit(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 10
 	m.chat = m.chat.SetSize(80, 10)
@@ -293,7 +293,7 @@ func TestModel_SlashCommandQuit(t *testing.T) {
 }
 
 func TestModel_SlashCommandNewClearsChat(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 10
 	m.chat = m.chat.SetSize(80, 10)
@@ -311,7 +311,7 @@ func TestModel_SlashCommandNewClearsChat(t *testing.T) {
 }
 
 func TestModel_SlashCommandClear(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 10
 	m.chat = m.chat.SetSize(80, 10)
@@ -351,7 +351,7 @@ func TestModel_RegularSubmitPublishesPrompt(t *testing.T) {
 
 	ch := subscribeToChan(b, topicPrompt)
 
-	m := newModel(b, nil, nil)
+	m := newModel(b, nil, nil, nil)
 	m.width = 80
 	m.height = 10
 	m.chat = m.chat.SetSize(80, 10)
@@ -376,7 +376,7 @@ func TestModel_RegularSubmitFollowup(t *testing.T) {
 
 	ch := subscribeToChan(b, topicFollowup)
 
-	m := newModel(b, nil, nil)
+	m := newModel(b, nil, nil, nil)
 	m.width = 80
 	m.height = 10
 	m.chat = m.chat.SetSize(80, 10)
@@ -410,13 +410,13 @@ func TestModel_UnknownCommandShowsError(t *testing.T) {
 }
 
 func TestModel_ThinkingCommandRegistered(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	_, ok := m.commands.Lookup("/thinking")
 	assert.True(t, ok, "/thinking command should be registered")
 }
 
 func TestModel_ThinkingCommandInHelp(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 10
 	m.chat = m.chat.SetSize(80, 10)

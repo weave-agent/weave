@@ -141,13 +141,13 @@ func TestBuild_WithToolDescriptions(t *testing.T) {
 	sdk.ResetToolRegistry()
 	defer sdk.ResetToolRegistry()
 
-	sdk.RegisterTool("bash", func(_ sdk.Config, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool("bash", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
 		return &mockTool{
 			name:        "bash",
 			description: "Execute shell commands",
 		}, nil
 	})
-	sdk.RegisterTool("read", func(_ sdk.Config, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool("read", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
 		return &mockTool{
 			name:        "read",
 			description: "Read file contents",
@@ -176,7 +176,7 @@ func TestBuild_AllLayersCombined(t *testing.T) {
 	sdk.ResetToolRegistry()
 	defer sdk.ResetToolRegistry()
 
-	sdk.RegisterTool("bash", func(_ sdk.Config, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool("bash", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
 		return &mockTool{name: "bash", description: "Run commands"}, nil
 	})
 
@@ -206,7 +206,7 @@ func TestBuild_LayerOrdering(t *testing.T) {
 	sdk.ResetToolRegistry()
 	defer sdk.ResetToolRegistry()
 
-	sdk.RegisterTool("bash", func(_ sdk.Config, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool("bash", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
 		return &mockTool{name: "bash", description: "Run commands"}, nil
 	})
 
@@ -306,7 +306,7 @@ func TestBuild_ToolWithoutDescription(t *testing.T) {
 	sdk.ResetToolRegistry()
 	defer sdk.ResetToolRegistry()
 
-	sdk.RegisterTool("mystery", func(_ sdk.Config, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool("mystery", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
 		return &mockTool{name: "mystery", description: ""}, nil
 	})
 
@@ -341,9 +341,6 @@ func (c *configWithProjectDir) FilePath() string                         { retur
 func (c *configWithProjectDir) ProjectDir() string                       { return c.projectDir }
 func (c *configWithProjectDir) ExtensionConfig(_, _ string, _ any) error { return nil }
 func (c *configWithProjectDir) IsHeadless() bool                         { return true }
-func (c *configWithProjectDir) Preferences(any) error                    { return nil }
-func (c *configWithProjectDir) SavePreferences(any) error                { return nil }
-func (c *configWithProjectDir) SaveProviderKey(_, _ string) error        { return nil }
 func (c *configWithProjectDir) RespectGitignore() bool                   { return true }
 
 func assertHasSubstring(t *testing.T, s, substr string) int {

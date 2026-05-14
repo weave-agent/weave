@@ -30,15 +30,15 @@ type AgentExtension struct {
 }
 
 func init() {
-	sdk.RegisterExtension("agent", func(cfg sdk.Config, _ struct{}) (sdk.Extension, error) {
-		return NewAgentExtension(cfg)
+	sdk.RegisterExtension("agent", func(cfg sdk.Config, ps sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
+		return NewAgentExtension(cfg, ps)
 	})
 }
 
-func NewAgentExtension(cfg sdk.Config) (*AgentExtension, error) {
-	provider := resolveProviderName(os.Getenv("WEAVE_PROVIDER"), cfg)
+func NewAgentExtension(cfg sdk.Config, ps sdk.PreferenceStore) (*AgentExtension, error) {
+	provider := resolveProviderName(os.Getenv("WEAVE_PROVIDER"), ps)
 
-	modelName := resolveModelName(cfg)
+	modelName := resolveModelName(ps)
 	if modelName != "" {
 		if m, ok := model.GetModel(modelName); ok && m.Provider != provider {
 			modelName = ""
@@ -50,7 +50,7 @@ func NewAgentExtension(cfg sdk.Config) (*AgentExtension, error) {
 		providerName:  provider,
 		modelName:     modelName,
 		singleTurn:    os.Getenv("WEAVE_SINGLE_TURN") == "1",
-		thinkingLevel: resolveThinkingLevel(cfg),
+		thinkingLevel: resolveThinkingLevel(ps),
 	}, nil
 }
 
@@ -217,7 +217,7 @@ func (a *AgentExtension) registerSkillCommands(bus sdk.Bus) {
 //  2. settings.json "provider" field (persisted user preference)
 //  3. alphabetically first registered provider (sdk.ListProviders()[0])
 //  4. "anthropic" (ultimate fallback)
-func resolveProviderName(envProvider string, cfg sdk.Config) string {
+func resolveProviderName(envProvider string, ps sdk.PreferenceStore) string {
 	if envProvider != "" {
 		return envProvider
 	}
@@ -226,7 +226,7 @@ func resolveProviderName(envProvider string, cfg sdk.Config) string {
 		Provider string `json:"provider"`
 	}
 
-	if cfg != nil && cfg.Preferences(&prefs) == nil && prefs.Provider != "" {
+	if ps != nil && ps.Preferences(&prefs) == nil && prefs.Provider != "" {
 		return prefs.Provider
 	}
 
@@ -239,8 +239,8 @@ func resolveProviderName(envProvider string, cfg sdk.Config) string {
 
 // resolveModelName reads the persisted model from settings. Returns empty
 // string when no model is set, which lets the provider use its default.
-func resolveModelName(cfg sdk.Config) string {
-	if cfg == nil {
+func resolveModelName(ps sdk.PreferenceStore) string {
+	if ps == nil {
 		return ""
 	}
 
@@ -248,7 +248,7 @@ func resolveModelName(cfg sdk.Config) string {
 		Model string `json:"model,omitempty"`
 	}
 
-	if cfg.Preferences(&prefs) == nil {
+	if ps.Preferences(&prefs) == nil {
 		return prefs.Model
 	}
 
@@ -257,13 +257,13 @@ func resolveModelName(cfg sdk.Config) string {
 
 // resolveThinkingLevel reads the persisted thinking level from settings,
 // falling back to WEAVE_THINKING_LEVEL env var, then medium.
-func resolveThinkingLevel(cfg sdk.Config) model.ThinkingLevel {
-	if cfg != nil {
+func resolveThinkingLevel(ps sdk.PreferenceStore) model.ThinkingLevel {
+	if ps != nil {
 		var prefs struct {
 			ThinkingLevel string `json:"thinking_level,omitempty"`
 		}
 
-		if cfg.Preferences(&prefs) == nil && prefs.ThinkingLevel != "" {
+		if ps.Preferences(&prefs) == nil && prefs.ThinkingLevel != "" {
 			if lvl, err := model.ParseThinkingLevel(prefs.ThinkingLevel); err == nil {
 				return lvl
 			}

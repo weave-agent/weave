@@ -14,7 +14,7 @@ func TestRegisterAndRetrieve(t *testing.T) {
 
 	ext := NewExtensionFunc("test", func(bus Bus) error { return nil })
 
-	RegisterExtension[struct{}]("test", func(Config, struct{}) (Extension, error) { return ext, nil })
+	RegisterExtension[struct{}]("test", func(Config, PreferenceStore, struct{}) (Extension, error) { return ext, nil })
 
 	got, err := GetExtension("test", nil)
 	require.NoError(t, err, "GetExtension")
@@ -24,12 +24,12 @@ func TestRegisterAndRetrieve(t *testing.T) {
 func TestDuplicateRegistration(t *testing.T) {
 	ResetExtensionRegistry()
 
-	RegisterExtension[struct{}]("dup", func(Config, struct{}) (Extension, error) {
+	RegisterExtension[struct{}]("dup", func(Config, PreferenceStore, struct{}) (Extension, error) {
 		return NewExtensionFunc("dup", func(bus Bus) error { return nil }), nil
 	})
 
 	// Duplicate extension registration logs a warning; first registration wins.
-	RegisterExtension[struct{}]("dup", func(Config, struct{}) (Extension, error) {
+	RegisterExtension[struct{}]("dup", func(Config, PreferenceStore, struct{}) (Extension, error) {
 		return NewExtensionFunc("dup-v2", func(bus Bus) error { return nil }), nil
 	})
 
@@ -48,7 +48,7 @@ func TestMissingExtension(t *testing.T) {
 func TestGetExtension_FactoryError(t *testing.T) {
 	ResetExtensionRegistry()
 
-	RegisterExtension[struct{}]("fail", func(Config, struct{}) (Extension, error) {
+	RegisterExtension[struct{}]("fail", func(Config, PreferenceStore, struct{}) (Extension, error) {
 		return nil, errors.New("boom")
 	})
 
@@ -60,8 +60,8 @@ func TestGetExtension_FactoryError(t *testing.T) {
 func TestListExtensions(t *testing.T) {
 	ResetExtensionRegistry()
 
-	RegisterExtension[struct{}]("alpha", func(Config, struct{}) (Extension, error) { return NewExtensionFunc("alpha", nil), nil })
-	RegisterExtension[struct{}]("beta", func(Config, struct{}) (Extension, error) { return NewExtensionFunc("beta", nil), nil })
+	RegisterExtension[struct{}]("alpha", func(Config, PreferenceStore, struct{}) (Extension, error) { return NewExtensionFunc("alpha", nil), nil })
+	RegisterExtension[struct{}]("beta", func(Config, PreferenceStore, struct{}) (Extension, error) { return NewExtensionFunc("beta", nil), nil })
 
 	names := ListExtensions()
 	sort.Strings(names)

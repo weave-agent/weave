@@ -58,14 +58,14 @@ func subscribeToChan(b *bus.Bus, topic string) <-chan sdk.Event {
 // newModelNoLanding creates a model with landing screen disabled.
 // Use in tests that check chat view content.
 func newModelNoLanding() Model {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.showLanding = false
 
 	return m
 }
 
 func TestModel_HandlesMessageStart(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 10
 	m.chat = m.chat.SetSize(80, 10)
@@ -82,7 +82,7 @@ func TestModel_HandlesMessageStart(t *testing.T) {
 }
 
 func TestModel_HandlesMessageUpdate(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 10
 	m.chat = m.chat.SetSize(80, 10)
@@ -107,7 +107,7 @@ func TestModel_HandlesMessageUpdate(t *testing.T) {
 }
 
 func TestModel_HandlesMessageEnd(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 10
 	m.chat = m.chat.SetSize(80, 10)
@@ -131,7 +131,7 @@ func TestModel_HandlesMessageEnd(t *testing.T) {
 }
 
 func TestModel_FullStreamingFlow(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -193,7 +193,7 @@ func TestModel_ViewShowsChatContent(t *testing.T) {
 }
 
 func TestModel_UpdateWithoutStartIgnored(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 10
 	m.chat = m.chat.SetSize(80, 10)
@@ -206,7 +206,7 @@ func TestModel_UpdateWithoutStartIgnored(t *testing.T) {
 }
 
 func TestModel_Shutdown(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	_, cmd := m.Update(ShutdownMsg{})
 	require.NotNil(t, cmd)
 	// tea.Quit is a func, so we verify it produces a tea.QuitMsg
@@ -216,7 +216,7 @@ func TestModel_Shutdown(t *testing.T) {
 }
 
 func TestModel_WindowResize(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	model, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	m = model.(Model)
 	assert.Equal(t, 120, m.width)
@@ -226,7 +226,7 @@ func TestModel_WindowResize(t *testing.T) {
 }
 
 func TestModel_ResizeRedistributesHeight(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 
 	// Large terminal
 	model, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
@@ -249,7 +249,7 @@ func TestModel_ResizeRedistributesHeight(t *testing.T) {
 }
 
 func TestModel_ResizeWithSpinner(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 
 	// Show spinner
 	model, _ := m.Update(MessageStartMsg{})
@@ -273,7 +273,7 @@ func TestModel_ResizeWithSpinner(t *testing.T) {
 }
 
 func TestModel_MultipleTurns(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -320,7 +320,7 @@ func TestToolPanelItemIdentity(t *testing.T) {
 }
 
 func TestModel_MessageEndCreatesToolPanels(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -365,7 +365,7 @@ func TestModel_MessageEndCreatesToolPanels(t *testing.T) {
 }
 
 func TestModel_ToolResultUpdatesPanel(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -399,7 +399,7 @@ func TestModel_ToolResultUpdatesPanel(t *testing.T) {
 }
 
 func TestModel_ToolResultError(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -426,7 +426,7 @@ func TestModel_ToolResultError(t *testing.T) {
 }
 
 func TestModel_ToolResultUnknownID(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -506,7 +506,7 @@ func TestModel_ToolPanelInlineInChat(t *testing.T) {
 }
 
 func TestModel_MessageEndWithThinking(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -539,7 +539,7 @@ func TestModel_MessageEndWithThinking(t *testing.T) {
 }
 
 func TestModel_MessageEndWithoutThinking(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -577,7 +577,7 @@ func TestModel_ThinkingBlockInChatView(t *testing.T) {
 }
 
 func TestModel_ThinkingBlockWithToolCalls(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 30
 	m.chat = m.chat.SetSize(80, 30)
@@ -621,7 +621,7 @@ func TestModel_ResumeCommandDispatches(t *testing.T) {
 }
 
 func TestModel_SessionListResultShowsOverlay(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -644,7 +644,7 @@ func TestModel_SessionListResultShowsOverlay(t *testing.T) {
 }
 
 func TestModel_SessionListEmpty(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.chat = m.chat.SetSize(80, 10)
@@ -662,7 +662,7 @@ func TestModel_SessionListEmpty(t *testing.T) {
 }
 
 func TestModel_SessionListError(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.chat = m.chat.SetSize(80, 10)
@@ -680,7 +680,7 @@ func TestModel_SessionListError(t *testing.T) {
 }
 
 func TestModel_SessionSelectorCancel(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -700,7 +700,7 @@ func TestModel_SessionSelectorCancel(t *testing.T) {
 }
 
 func TestModel_SessionSelectorEscape(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -740,7 +740,7 @@ func TestModel_SessionSelectorSelect(t *testing.T) {
 
 	ch := subscribeToChan(b, topicSessionResume)
 
-	m := newModel(b, nil, nil)
+	m := newModel(b, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.chat = m.chat.SetSize(80, 10)
@@ -797,7 +797,7 @@ func TestModel_SessionSelectorSelect(t *testing.T) {
 }
 
 func TestModel_OverlayInterceptsKeys(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -818,7 +818,7 @@ func TestModel_OverlayInterceptsKeys(t *testing.T) {
 }
 
 func TestModel_OverlayCtrlCDoesNotQuit(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -868,7 +868,7 @@ func TestModel_RebuildChatFromSession(t *testing.T) {
 	err := os.WriteFile(filepath.Join(dir, sessionID+".jsonl"), []byte(content), 0o644)
 	require.NoError(t, err)
 
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.chat = m.chat.SetSize(80, 10)
@@ -897,7 +897,7 @@ func TestModel_RebuildChatFromSession(t *testing.T) {
 }
 
 func TestModel_ViewShowsOverlayWhenActive(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -922,7 +922,7 @@ func TestModel_ResumeSlashCommandIntegration(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
-	m := newModel(b, nil, nil)
+	m := newModel(b, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.chat = m.chat.SetSize(80, 10)
@@ -954,7 +954,7 @@ func TestModel_InterruptStreaming(t *testing.T) {
 
 	ch := subscribeToChan(b, topicInterrupt)
 
-	m := newModel(b, nil, nil)
+	m := newModel(b, nil, nil, nil)
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -991,7 +991,7 @@ func TestModel_InterruptStreaming(t *testing.T) {
 }
 
 func TestModel_InterruptNoStreamingMessage(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -1005,7 +1005,7 @@ func TestModel_InterruptNoStreamingMessage(t *testing.T) {
 }
 
 func TestModel_AgentEndMsg_WithError(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -1023,7 +1023,7 @@ func TestModel_AgentEndMsg_WithError(t *testing.T) {
 }
 
 func TestModel_AgentEndMsg_WithNilPayload(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -1037,7 +1037,7 @@ func TestModel_AgentEndMsg_WithNilPayload(t *testing.T) {
 }
 
 func TestModel_AgentEndMsg_WithEmptyString(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -1049,7 +1049,7 @@ func TestModel_AgentEndMsg_WithEmptyString(t *testing.T) {
 }
 
 func TestModel_GracefulShutdown(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 
 	// Ctrl+D triggers exit
 	_, cmd := m.dispatchBinding(ActionExit)
@@ -1060,7 +1060,7 @@ func TestModel_GracefulShutdown(t *testing.T) {
 }
 
 func TestModel_QuitCommand(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 20
 
@@ -1074,7 +1074,7 @@ func TestModel_QuitCommand(t *testing.T) {
 }
 
 func TestModel_DefaultThinkingLevel(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	assert.Equal(t, sdkmodel.ThinkingMedium, m.thinkingLevel)
 	assert.Equal(t, "medium", m.footer.ThinkingLevel())
 }
@@ -1082,7 +1082,7 @@ func TestModel_DefaultThinkingLevel(t *testing.T) {
 func TestModel_ThinkingLevelFromEnv(t *testing.T) {
 	t.Setenv("WEAVE_THINKING_LEVEL", "high")
 
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	assert.Equal(t, sdkmodel.ThinkingHigh, m.thinkingLevel)
 	assert.Equal(t, "high", m.footer.ThinkingLevel())
 }
@@ -1090,7 +1090,7 @@ func TestModel_ThinkingLevelFromEnv(t *testing.T) {
 func TestModel_ThinkingLevelInvalidEnv(t *testing.T) {
 	t.Setenv("WEAVE_THINKING_LEVEL", "invalid")
 
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	assert.Equal(t, sdkmodel.ThinkingMedium, m.thinkingLevel)
 }
 
@@ -1100,7 +1100,7 @@ func TestModel_CycleThinkingLevel(t *testing.T) {
 
 	defer sdkmodel.ResetModelRegistry()
 
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-6"}
@@ -1120,7 +1120,7 @@ func TestModel_CycleThinkingLevel(t *testing.T) {
 }
 
 func TestModel_CycleThinkingLevelWraps(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.thinkingLevel = sdkmodel.ThinkingXHigh
@@ -1148,7 +1148,7 @@ func TestModel_CycleThinkingLevelSkipsClampedForSonnet(t *testing.T) {
 
 	defer sdkmodel.ResetModelRegistry()
 
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-6"}
@@ -1177,7 +1177,7 @@ func TestModel_CycleThinkingLevelAllLevels(t *testing.T) {
 
 	defer sdkmodel.ResetModelRegistry()
 
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-opus-4-7"}
@@ -1205,7 +1205,7 @@ func TestModel_CycleThinkingPublishesEvent(t *testing.T) {
 
 	ch := subscribeToChan(b, topicThinkingChange)
 
-	m := newModel(b, nil, nil)
+	m := newModel(b, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -1225,7 +1225,7 @@ func TestModel_CycleThinkingPublishesEvent(t *testing.T) {
 }
 
 func TestModel_EditorBorderMatchesThinkingLevel(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	assert.Equal(t, "99", m.editor.BorderColor) // medium = "99"
 }
 
@@ -1235,7 +1235,7 @@ func TestModel_ThinkingLevelUpdatesEditorBorder(t *testing.T) {
 
 	defer sdkmodel.ResetModelRegistry()
 
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-opus-4-7"}
@@ -1264,7 +1264,7 @@ func TestModel_ThinkingCommand(t *testing.T) {
 
 	ch := subscribeToChan(b, topicThinkingChange)
 
-	m := newModel(b, nil, nil)
+	m := newModel(b, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.chat = m.chat.SetSize(80, 10)
@@ -1304,7 +1304,7 @@ func TestModel_ThinkingCommand(t *testing.T) {
 }
 
 func TestModel_ThinkingCommandNoArgs(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.chat = m.chat.SetSize(80, 10)
@@ -1322,7 +1322,7 @@ func TestModel_ThinkingCommandNoArgs(t *testing.T) {
 }
 
 func TestModel_ThinkingCommandInvalid(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.chat = m.chat.SetSize(80, 10)
@@ -1343,7 +1343,7 @@ func TestModel_ThinkingCommandXHighClamped(t *testing.T) {
 
 	defer sdkmodel.ResetModelRegistry()
 
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.chat = m.chat.SetSize(80, 10)
@@ -1373,7 +1373,7 @@ func TestModel_ThinkingCommandAllLevels(t *testing.T) {
 
 	defer sdkmodel.ResetModelRegistry()
 
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-opus-4-7"}
@@ -1398,7 +1398,7 @@ func TestModel_ThinkingCommandAllLevels(t *testing.T) {
 }
 
 func TestModel_StartupHintsShownInitially(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -1412,7 +1412,7 @@ func TestModel_StartupHintsShownInitially(t *testing.T) {
 }
 
 func TestModel_StartupHintsDismissOnKeypress(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -1429,7 +1429,7 @@ func TestModel_StartupHintsDismissOnKeypress(t *testing.T) {
 }
 
 func TestModel_StartupHintsHiddenAfterPrompt(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -1453,7 +1453,7 @@ func TestModel_StartupHintsHiddenAfterPrompt(t *testing.T) {
 }
 
 func TestModel_StartupHintsHiddenAfterChat(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.chat = m.chat.SetSize(80, 10)
@@ -1469,7 +1469,7 @@ func TestModel_StartupHintsHiddenAfterChat(t *testing.T) {
 // --- Draw tests (screen buffer rendering) ---
 
 func TestModel_Draw_RendersAllSections(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 120
 	m.height = 40
 
@@ -1499,7 +1499,7 @@ func TestModel_Draw_ShowsChatContent(t *testing.T) {
 }
 
 func TestModel_Draw_HintsInHeader(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 120
 	m.height = 30
 
@@ -1530,7 +1530,7 @@ func TestModel_Draw_NoHintsAfterFirstPrompt(t *testing.T) {
 }
 
 func TestModel_Draw_SpinnerInPills(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 120
 	m.height = 30
 
@@ -1553,7 +1553,7 @@ func TestModel_Draw_SpinnerInPills(t *testing.T) {
 }
 
 func TestModel_Draw_StatusInPills(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 120
 	m.height = 30
 
@@ -1567,7 +1567,7 @@ func TestModel_Draw_StatusInPills(t *testing.T) {
 }
 
 func TestModel_Draw_OverlayFillsScreen(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -1589,7 +1589,7 @@ func TestModel_Draw_OverlayFillsScreen(t *testing.T) {
 }
 
 func TestModel_Draw_SmallTerminal(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 40
 	m.height = 8
 
@@ -1638,7 +1638,7 @@ func TestModel_Draw_LayoutSyncsChatSize(t *testing.T) {
 }
 
 func TestModel_TokenRatePassedToFooter(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -1653,7 +1653,7 @@ func TestModel_TokenRatePassedToFooter(t *testing.T) {
 }
 
 func TestModel_TokenRateClearedOnMessageEnd(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 20
 	m.chat = m.chat.SetSize(80, 20)
@@ -1671,7 +1671,7 @@ func TestModel_TokenRateClearedOnMessageEnd(t *testing.T) {
 }
 
 func TestModel_TurnEndSetsScrollIndicator(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 10
 	m.chat = m.chat.SetSize(80, 5) // small viewport
@@ -1693,7 +1693,7 @@ func TestModel_TurnEndSetsScrollIndicator(t *testing.T) {
 }
 
 func TestModel_ScrollToBottomClearsIndicator(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 10
 	m.chat = m.chat.SetSize(80, 5)
@@ -1722,7 +1722,7 @@ func (s stubItem) View(width int) string { return s.text }
 // --- Attachment integration tests ---
 
 func TestModel_PasteDetection_ConvertsToAttachment(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -1746,7 +1746,7 @@ func TestModel_PasteDetection_ConvertsToAttachment(t *testing.T) {
 }
 
 func TestModel_PasteDetection_ShortPastePassesThrough(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -1759,7 +1759,7 @@ func TestModel_PasteDetection_ShortPastePassesThrough(t *testing.T) {
 }
 
 func TestModel_PasteDetection_CharThreshold(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -1773,7 +1773,7 @@ func TestModel_PasteDetection_CharThreshold(t *testing.T) {
 }
 
 func TestModel_AttachmentDeleteMode_Toggle(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m = addTestAttachment(m, "a.go", "content a", 1)
@@ -1790,7 +1790,7 @@ func TestModel_AttachmentDeleteMode_Toggle(t *testing.T) {
 }
 
 func TestModel_AttachmentDeleteMode_NavigateAndDelete(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m = addTestAttachment(m, "a.go", "aaa", 1)
@@ -1813,7 +1813,7 @@ func TestModel_AttachmentDeleteMode_NavigateAndDelete(t *testing.T) {
 }
 
 func TestModel_AttachmentDeleteMode_EscapeExits(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m = addTestAttachment(m, "a.go", "aaa", 1)
@@ -1825,7 +1825,7 @@ func TestModel_AttachmentDeleteMode_EscapeExits(t *testing.T) {
 }
 
 func TestModel_AttachmentDeleteMode_UpNav(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m = addTestAttachment(m, "a.go", "aaa", 1)
@@ -1840,7 +1840,7 @@ func TestModel_AttachmentDeleteMode_UpNav(t *testing.T) {
 
 func TestModel_SubmitWithAttachments(t *testing.T) {
 	b := bus.New()
-	m := newModel(b, nil, nil)
+	m := newModel(b, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m = addTestAttachment(m, "test.go", "package main", 1)
@@ -1870,7 +1870,7 @@ func TestModel_SubmitWithAttachments(t *testing.T) {
 
 func TestModel_SubmitNoAttachments(t *testing.T) {
 	b := bus.New()
-	m := newModel(b, nil, nil)
+	m := newModel(b, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m.prompted = true
@@ -1890,7 +1890,7 @@ func TestModel_SubmitNoAttachments(t *testing.T) {
 }
 
 func TestModel_NewSessionClearsAttachments(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m = addTestAttachment(m, "a.go", "aaa", 1)
@@ -1903,21 +1903,21 @@ func TestModel_NewSessionClearsAttachments(t *testing.T) {
 // --- Completion integration tests ---
 
 func TestModel_RefreshEditorCompletion_Empty(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.editor = m.editor.SetValue("")
 	m = m.refreshEditorCompletion()
 	assert.False(t, m.editor.CompletionActive())
 }
 
 func TestModel_RefreshEditorCompletion_PlainText(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.editor = m.editor.SetValue("hello world")
 	m = m.refreshEditorCompletion()
 	assert.False(t, m.editor.CompletionActive())
 }
 
 func TestModel_RefreshEditorCompletion_SlashCommand(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.editor = m.editor.SetValue("/he")
 	m = m.refreshEditorCompletion()
 	assert.True(t, m.editor.CompletionActive())
@@ -1926,7 +1926,7 @@ func TestModel_RefreshEditorCompletion_SlashCommand(t *testing.T) {
 }
 
 func TestModel_RefreshEditorCompletion_SlashCommandNoFilter(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.editor = m.editor.SetValue("/")
 	m = m.refreshEditorCompletion()
 	assert.True(t, m.editor.CompletionActive())
@@ -1935,14 +1935,14 @@ func TestModel_RefreshEditorCompletion_SlashCommandNoFilter(t *testing.T) {
 }
 
 func TestModel_RefreshEditorCompletion_SlashCommandWithSpaceNoAcceptsFiles(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.editor = m.editor.SetValue("/help ")
 	m = m.refreshEditorCompletion()
 	assert.False(t, m.editor.CompletionActive())
 }
 
 func TestModel_RefreshEditorCompletion_SlashCommandWithSpaceAcceptsFiles(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.commands.Register("/upload", "Upload files", true, func(_ string) CommandResult {
 		return CommandResult{}
 	})
@@ -1953,7 +1953,7 @@ func TestModel_RefreshEditorCompletion_SlashCommandWithSpaceAcceptsFiles(t *test
 }
 
 func TestModel_RefreshEditorCompletion_AtTrigger(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.editor = m.editor.SetValue("text @")
 	m = m.refreshEditorCompletion()
 	assert.True(t, m.editor.CompletionActive())
@@ -1961,7 +1961,7 @@ func TestModel_RefreshEditorCompletion_AtTrigger(t *testing.T) {
 }
 
 func TestModel_RefreshEditorCompletion_AtTriggerWithFilter(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.editor = m.editor.SetValue("text @go")
 	m = m.refreshEditorCompletion()
 	assert.True(t, m.editor.CompletionActive())
@@ -1969,7 +1969,7 @@ func TestModel_RefreshEditorCompletion_AtTriggerWithFilter(t *testing.T) {
 }
 
 func TestModel_RefreshEditorCompletion_AtTriggerAtStart(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.editor = m.editor.SetValue("@mod")
 	m = m.refreshEditorCompletion()
 	assert.True(t, m.editor.CompletionActive())
@@ -1977,14 +1977,14 @@ func TestModel_RefreshEditorCompletion_AtTriggerAtStart(t *testing.T) {
 }
 
 func TestModel_RefreshEditorCompletion_NoWhitespaceBeforeAt(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.editor = m.editor.SetValue("hello@world")
 	m = m.refreshEditorCompletion()
 	assert.False(t, m.editor.CompletionActive())
 }
 
 func TestModel_RefreshEditorCompletion_HidesWhenContextGone(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.editor = m.editor.SetValue("/he")
 	m = m.refreshEditorCompletion()
 	assert.True(t, m.editor.CompletionActive())
@@ -1995,7 +1995,7 @@ func TestModel_RefreshEditorCompletion_HidesWhenContextGone(t *testing.T) {
 }
 
 func TestModel_SlashCommandsUpdatedMsg_RefreshesCompletion(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.editor = m.editor.SetValue("/")
 	m = m.refreshEditorCompletion()
 	assert.True(t, m.editor.CompletionActive())
@@ -2016,7 +2016,7 @@ func TestModel_SlashCommandsUpdatedMsg_RefreshesCompletion(t *testing.T) {
 }
 
 func TestModel_SlashCommandsUpdatedMsg_NoCompletionInactive(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.editor = m.editor.SetValue("plain text")
 	m = m.refreshEditorCompletion()
 	assert.False(t, m.editor.CompletionActive())
@@ -2032,7 +2032,7 @@ func TestModel_SlashCommandsUpdatedMsg_NoCompletionInactive(t *testing.T) {
 }
 
 func TestModel_HandleCompletionKey_WhenActive(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.editor = m.editor.SetValue("/")
 	m = m.refreshEditorCompletion()
 	require.True(t, m.editor.CompletionActive())
@@ -2043,7 +2043,7 @@ func TestModel_HandleCompletionKey_WhenActive(t *testing.T) {
 }
 
 func TestModel_HandleCompletionKey_WhenInactive(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.editor = m.editor.SetValue("plain")
 	require.False(t, m.editor.CompletionActive())
 
@@ -2053,7 +2053,7 @@ func TestModel_HandleCompletionKey_WhenInactive(t *testing.T) {
 }
 
 func TestModel_HandleCompletionKey_RegularKey(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.editor = m.editor.SetValue("/he")
 	m = m.refreshEditorCompletion()
 	require.True(t, m.editor.CompletionActive())
@@ -2064,7 +2064,7 @@ func TestModel_HandleCompletionKey_RegularKey(t *testing.T) {
 }
 
 func TestModel_CompletionKeyFlow_TabCycles(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -2080,7 +2080,7 @@ func TestModel_CompletionKeyFlow_TabCycles(t *testing.T) {
 }
 
 func TestModel_CompletionKeyFlow_EscapeDismisses(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -2094,7 +2094,7 @@ func TestModel_CompletionKeyFlow_EscapeDismisses(t *testing.T) {
 }
 
 func TestModel_CompletionKeyFlow_TypingUpdatesFilter(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -2110,7 +2110,7 @@ func TestModel_CompletionKeyFlow_TypingUpdatesFilter(t *testing.T) {
 }
 
 func TestModel_CompletionKeyFlow_AtTrigger(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -2125,7 +2125,7 @@ func TestModel_CompletionKeyFlow_AtTrigger(t *testing.T) {
 }
 
 func TestModel_Draw_CompletionVisible(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -2145,7 +2145,7 @@ func TestModel_Draw_CompletionVisible(t *testing.T) {
 }
 
 func TestModel_Draw_CompletionVisibleAtTrigger(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -2161,7 +2161,7 @@ func TestModel_Draw_CompletionVisibleAtTrigger(t *testing.T) {
 }
 
 func TestModel_Draw_CompletionNotVisible(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -2177,7 +2177,7 @@ func TestModel_Draw_CompletionNotVisible(t *testing.T) {
 }
 
 func TestModel_Draw_CompletionPopupPosition(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -2194,7 +2194,7 @@ func TestModel_Draw_CompletionPopupPosition(t *testing.T) {
 }
 
 func TestModel_Draw_CompletionWithAttachments(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 	m = addTestAttachment(m, "test.go", "package main", 1)
@@ -2211,7 +2211,7 @@ func TestModel_Draw_CompletionWithAttachments(t *testing.T) {
 }
 
 func TestModel_RefreshEditorCompletion_MultilineAtTrigger(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.editor = m.editor.SetValue("line one\nline two @")
 	// Position cursor on second line, after @
 	m.editor, _ = m.editor.Update(tea.KeyPressMsg{Code: tea.KeyEnd})
@@ -2221,7 +2221,7 @@ func TestModel_RefreshEditorCompletion_MultilineAtTrigger(t *testing.T) {
 }
 
 func TestModel_RefreshEditorCompletion_MultilineSlashCommand(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.editor = m.editor.SetValue("line one\n/help")
 	// Position cursor on second line, at end
 	m.editor, _ = m.editor.Update(tea.KeyPressMsg{Code: tea.KeyEnd})
@@ -2243,7 +2243,7 @@ func TestModel_CycleSandboxMode(t *testing.T) {
 	sb := &mockSandboxer{mode: sandbox.SandboxAuto}
 	sandboxer = sb
 
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -2265,7 +2265,7 @@ func TestModel_CycleSandboxMode_NoSandboxer(t *testing.T) {
 
 	sandboxer = nil
 
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 
@@ -2284,7 +2284,7 @@ func TestModel_CycleSandboxMode_UpdatesMode(t *testing.T) {
 	sb := &mockSandboxer{mode: sandbox.SandboxAuto}
 	sandboxer = sb
 
-	m := newModel(b, nil, nil)
+	m := newModel(b, nil, nil, nil)
 	m.width = 80
 	m.height = 24
 

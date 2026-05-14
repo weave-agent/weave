@@ -103,7 +103,7 @@ func newMockTool(name string, def sdk.ToolDef, executeFunc func(ctx context.Cont
 func setupAgent(t *testing.T, providerName string) (*AgentExtension, *bus.Bus, func()) {
 	t.Helper()
 
-	a, err := NewAgentExtension(nil)
+	a, err := NewAgentExtension(nil, nil)
 	require.NoError(t, err, "NewAgentExtension")
 
 	a.providerName = providerName
@@ -122,7 +122,7 @@ func registerMockProvider(_ string, mp *ProviderMock) {
 }
 
 func registerMockTool(mt *ToolMock) {
-	sdk.RegisterTool[struct{}](mt.NameFunc(), func(sdk.Config, struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool[struct{}](mt.NameFunc(), func(sdk.Config, sdk.PreferenceStore, struct{}) (sdk.Tool, error) {
 		return mt, nil
 	})
 }
@@ -221,7 +221,6 @@ func (m *mockPrefsConfig) Preferences(target any) error {
 
 	return nil
 }
-
 func (m *mockPrefsConfig) SavePreferences(any) error         { return nil }
 func (m *mockPrefsConfig) SaveProviderKey(_, _ string) error { return nil }
 func (m *mockPrefsConfig) RespectGitignore() bool            { return true }
@@ -1126,7 +1125,7 @@ func TestAgent_HeadlessUsesPersistedModel(t *testing.T) {
 	// Simulate headless: config has persisted model, no TUI will publish model.change
 	cfg := &mockPrefsConfig{model: "claude-opus-4-7", thinkingLevel: "high"}
 
-	a, err := NewAgentExtension(cfg)
+	a, err := NewAgentExtension(cfg, cfg)
 	require.NoError(t, err)
 
 	b := bus.New()
@@ -1231,7 +1230,7 @@ func TestAgent_SystemPromptWithContextFiles(t *testing.T) {
 	registerMockProvider("anthropic", mp)
 
 	cfg := sdk.FilePathConfig(filepath.Join(weaveDir, "settings.json"))
-	a, err := NewAgentExtension(cfg)
+	a, err := NewAgentExtension(cfg, sdk.NoopPreferenceStore{})
 	require.NoError(t, err)
 
 	b := bus.New()
@@ -1290,7 +1289,7 @@ func TestAgent_SystemPromptWithSkills(t *testing.T) {
 	registerMockProvider("anthropic", mp)
 
 	cfg := sdk.FilePathConfig(filepath.Join(weaveDir, "settings.json"))
-	a, err := NewAgentExtension(cfg)
+	a, err := NewAgentExtension(cfg, sdk.NoopPreferenceStore{})
 	require.NoError(t, err)
 
 	b := bus.New()
@@ -1349,7 +1348,7 @@ func TestAgent_SystemPromptWithSystemMD(t *testing.T) {
 	registerMockProvider("anthropic", mp)
 
 	cfg := sdk.FilePathConfig(filepath.Join(weaveDir, "settings.json"))
-	a, err := NewAgentExtension(cfg)
+	a, err := NewAgentExtension(cfg, sdk.NoopPreferenceStore{})
 	require.NoError(t, err)
 
 	b := bus.New()
@@ -1401,7 +1400,7 @@ func TestAgent_SystemPromptRebuiltOnNewConversation(t *testing.T) {
 	registerMockProvider("anthropic", mp)
 
 	cfg := sdk.FilePathConfig(filepath.Join(weaveDir, "settings.json"))
-	a, err := NewAgentExtension(cfg)
+	a, err := NewAgentExtension(cfg, sdk.NoopPreferenceStore{})
 	require.NoError(t, err)
 
 	b := bus.New()
@@ -1587,7 +1586,7 @@ func TestNewAgentExtension_ReadsModelFromSettings(t *testing.T) {
 
 	cfg := &mockPrefsConfig{model: "claude-opus-4-7", thinkingLevel: "high"}
 
-	a, err := NewAgentExtension(cfg)
+	a, err := NewAgentExtension(cfg, cfg)
 	require.NoError(t, err)
 
 	assert.Equal(t, "claude-opus-4-7", a.modelName)
@@ -1612,7 +1611,7 @@ func TestNewAgentExtension_ClearsModelWhenProviderMismatch(t *testing.T) {
 
 	cfg := &mockPrefsConfig{provider: "openai", model: "gpt-5.5"}
 
-	a, err := NewAgentExtension(cfg)
+	a, err := NewAgentExtension(cfg, cfg)
 	require.NoError(t, err)
 
 	assert.Empty(t, a.modelName, "model should be cleared when it belongs to a different provider")
@@ -1632,7 +1631,7 @@ func TestNewAgentExtension_KeepsModelWhenSameProvider(t *testing.T) {
 
 	cfg := &mockPrefsConfig{model: "claude-opus-4-7"}
 
-	a, err := NewAgentExtension(cfg)
+	a, err := NewAgentExtension(cfg, cfg)
 	require.NoError(t, err)
 
 	assert.Equal(t, "claude-opus-4-7", a.modelName, "model should be kept when provider matches")
@@ -1648,7 +1647,7 @@ func TestNewAgentExtension_KeepsUnregisteredModel(t *testing.T) {
 	// Model not in registry — user might be using a custom model name
 	cfg := &mockPrefsConfig{model: "my-custom-model"}
 
-	a, err := NewAgentExtension(cfg)
+	a, err := NewAgentExtension(cfg, cfg)
 	require.NoError(t, err)
 
 	assert.Equal(t, "my-custom-model", a.modelName, "unregistered model should be kept (custom model)")

@@ -17,7 +17,7 @@ var toolReg = registry.New[func(Config) (Tool, error)](
 // RegisterTool registers a tool factory with a typed configuration struct.
 // The framework will automatically populate the config struct from settings, env vars,
 // and CLI flags before calling the factory.
-func RegisterTool[T any](name string, factory func(Config, T) (Tool, error)) {
+func RegisterTool[T any](name string, factory func(Config, PreferenceStore, T) (Tool, error)) {
 	var zero T
 
 	schema := extractSchema(reflect.TypeOf(zero))
@@ -30,7 +30,7 @@ func RegisterTool[T any](name string, factory func(Config, T) (Tool, error)) {
 			return nil, fmt.Errorf("load tool config: %w", err)
 		}
 
-		return factory(configOrDefault(cfg), t)
+		return factory(configOrDefault(cfg), preferenceStoreFrom(cfg), t)
 	}
 
 	toolReg.Register(name, wrapper)

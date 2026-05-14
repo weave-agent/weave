@@ -65,7 +65,7 @@ type Store struct {
 }
 
 func init() {
-	sdk.RegisterExtensionWithScope[JSONLOpts]("jsonl", "jsonl", func(_ sdk.Config, opts JSONLOpts) (sdk.Extension, error) {
+	sdk.RegisterExtensionWithScope[JSONLOpts]("jsonl", "jsonl", func(_ sdk.Config, _ sdk.PreferenceStore, opts JSONLOpts) (sdk.Extension, error) {
 		return NewStore(opts)
 	})
 }

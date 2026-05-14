@@ -9,7 +9,7 @@ import (
 )
 
 func init() {
-	sdk.RegisterUIExtension("diff-viewer", func(_ sdk.Config, _ struct{}) (sdk.UIExtension, error) {
+	sdk.RegisterUIExtension("diff-viewer", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.UIExtension, error) {
 		return &DiffViewer{}, nil
 	})
 }

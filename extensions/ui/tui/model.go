@@ -51,6 +51,7 @@ type Model struct {
 	height int
 	bus    sdk.Bus
 	cfg    sdk.Config
+	ps     sdk.PreferenceStore
 
 	chat       components.ChatModel
 	editor     components.EditorModel
@@ -107,12 +108,12 @@ type Model struct {
 // via sdk.UI are visible to the model. If nil, a fresh TUIImpl is created (tests).
 //
 //nolint:unparam // cfg is always nil in tests; kept for API consistency with newModelWithConfig.
-func newModel(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl) Model {
-	return newModelWithConfig(bus, cfg, ui, TUIConfig{})
+func newModel(bus sdk.Bus, cfg sdk.Config, ps sdk.PreferenceStore, ui *TUIImpl) Model {
+	return newModelWithConfig(bus, cfg, ps, ui, TUIConfig{})
 }
 
 // newModelWithConfig creates a new root model with explicit TUI configuration.
-func newModelWithConfig(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl, tuiCfg TUIConfig) Model {
+func newModelWithConfig(bus sdk.Bus, cfg sdk.Config, ps sdk.PreferenceStore, ui *TUIImpl, tuiCfg TUIConfig) Model {
 	var cfgPath string
 	if cfg != nil {
 		cfgPath = cfg.FilePath()
@@ -150,9 +151,8 @@ func newModelWithConfig(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl, tuiCfg TUIConf
 		editor = editor.SetMaxHeight(tuiCfg.EditorMaxLines)
 	}
 
-	effectiveCfg := effectiveConfig(cfg)
 	models := listModels()
-	cur := currentModel(models, effectiveCfg)
+	cur := currentModel(models, ps)
 
 	bindings := NewBindingRegistry()
 
@@ -173,6 +173,7 @@ func newModelWithConfig(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl, tuiCfg TUIConf
 		height:        24,
 		bus:           bus,
 		cfg:           cfg,
+		ps:            ps,
 		chat:          components.NewChatModel(),
 		editor:        editor,
 		footer:        components.NewFooterModel(),
@@ -184,7 +185,7 @@ func newModelWithConfig(bus sdk.Bus, cfg sdk.Config, ui *TUIImpl, tuiCfg TUIConf
 		layout:        NewLayoutEngine(),
 		currentModel:  cur,
 		sessionDir:    sdir,
-		thinkingLevel: initialThinkingLevel(effectiveCfg),
+		thinkingLevel: initialThinkingLevel(ps),
 		noConfigured:  len(models) == 0,
 		showHints:     true,
 		showLanding:   true,
@@ -1120,7 +1121,7 @@ func (m Model) onModelChanged(msg ModelChangedMsg) (tea.Model, tea.Cmd) {
 		}
 
 		if m.cfg != nil {
-			cmds = append(cmds, saveSettingsCmd(m.cfg, m.currentModel, m.thinkingLevel))
+			cmds = append(cmds, saveSettingsCmd(m.ps, m.currentModel, m.thinkingLevel))
 		}
 
 		cmds = append(cmds, m.statusTimer)
@@ -1220,7 +1221,7 @@ func (m Model) onKeyInputDialogDone(result overlays.DialogResult, pendingCmd tea
 		return m, pendingCmd
 	}
 
-	err := m.cfg.SaveProviderKey(providerName, apiKey)
+	err := m.ps.SaveProviderKey(providerName, apiKey)
 
 	am := messages.NewAssistantMessage()
 	if err != nil {
@@ -1241,7 +1242,7 @@ func (m Model) onKeyInputDialogDone(result overlays.DialogResult, pendingCmd tea
 		models := listModels()
 		if len(models) > 0 {
 			m.noConfigured = false
-			cur := currentModel(models, m.cfg)
+			cur := currentModel(models, m.ps)
 			m.currentModel = cur
 			m.footer = m.footer.SetModel(cur.Model, cur.Provider)
 			m.footer = m.footer.SetReasoning(modelReasoning(cur.Model))
@@ -1465,7 +1466,7 @@ func (m Model) applyThinkingLevel(level sdkmodel.ThinkingLevel) (tea.Model, tea.
 		cmds = append(cmds, PublishThinkingChange(m.bus, level))
 
 		if m.cfg != nil {
-			cmds = append(cmds, saveSettingsCmd(m.cfg, m.currentModel, level))
+			cmds = append(cmds, saveSettingsCmd(m.ps, m.currentModel, level))
 		}
 	}
 

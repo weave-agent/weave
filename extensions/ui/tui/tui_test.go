@@ -13,8 +13,8 @@ func TestTUI_ExtensionRegistration(t *testing.T) {
 	sdk.ResetExtensionRegistry()
 	defer sdk.ResetExtensionRegistry()
 
-	sdk.RegisterExtensionWithScope[TUIConfig]("tui", "ui", func(cfg sdk.Config, _ TUIConfig) (sdk.Extension, error) {
-		return NewTUI(cfg, TUIConfig{})
+	sdk.RegisterExtensionWithScope[TUIConfig]("tui", "ui", func(cfg sdk.Config, _ sdk.PreferenceStore, _ TUIConfig) (sdk.Extension, error) {
+		return NewTUI(cfg, nil, TUIConfig{})
 	})
 
 	ext, err := sdk.GetExtension("tui", nil)
@@ -26,13 +26,13 @@ func TestTUI_ExtensionRegistration(t *testing.T) {
 }
 
 func TestTUI_Name(t *testing.T) {
-	tui, err := NewTUI(nil, TUIConfig{})
+	tui, err := NewTUI(nil, nil, TUIConfig{})
 	require.NoError(t, err)
 	assert.Equal(t, "tui", tui.Name())
 }
 
 func TestTUI_CloseWithoutSubscribe(t *testing.T) {
-	tui, err := NewTUI(nil, TUIConfig{})
+	tui, err := NewTUI(nil, nil, TUIConfig{})
 	require.NoError(t, err)
 
 	// Close without Subscribe should not panic or block
@@ -40,7 +40,7 @@ func TestTUI_CloseWithoutSubscribe(t *testing.T) {
 }
 
 func TestModel_View(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	// View includes: chat (empty) + editor (empty) + footer (2 lines)
 	// With no size set, chat="" and editor="" and footer renders "weave" label
 	view := m.View()
@@ -51,7 +51,7 @@ func TestModel_View(t *testing.T) {
 }
 
 func TestModel_Init(t *testing.T) {
-	m := newModel(nil, nil, nil)
+	m := newModel(nil, nil, nil, nil)
 	cmd := m.Init()
 	assert.Nil(t, cmd)
 }
@@ -81,11 +81,11 @@ func TestTUI_WireUIExtensions(t *testing.T) {
 
 	ext := &mockUIExtension{name: "test-ext"}
 
-	sdk.RegisterUIExtension("test-ext", func(_ sdk.Config, _ struct{}) (sdk.UIExtension, error) {
+	sdk.RegisterUIExtension("test-ext", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.UIExtension, error) {
 		return ext, nil
 	})
 
-	tui, err := NewTUI(nil, TUIConfig{})
+	tui, err := NewTUI(nil, nil, TUIConfig{})
 	require.NoError(t, err)
 
 	tui.wireUIExtensions(nil)
@@ -101,14 +101,14 @@ func TestTUI_WireUIExtensions_Multiple(t *testing.T) {
 	ext1 := &mockUIExtension{name: "ext-one"}
 	ext2 := &mockUIExtension{name: "ext-two"}
 
-	sdk.RegisterUIExtension("ext-one", func(_ sdk.Config, _ struct{}) (sdk.UIExtension, error) {
+	sdk.RegisterUIExtension("ext-one", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.UIExtension, error) {
 		return ext1, nil
 	})
-	sdk.RegisterUIExtension("ext-two", func(_ sdk.Config, _ struct{}) (sdk.UIExtension, error) {
+	sdk.RegisterUIExtension("ext-two", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.UIExtension, error) {
 		return ext2, nil
 	})
 
-	tui, err := NewTUI(nil, TUIConfig{})
+	tui, err := NewTUI(nil, nil, TUIConfig{})
 	require.NoError(t, err)
 
 	tui.wireUIExtensions(nil)
@@ -123,7 +123,7 @@ func TestTUI_WireUIExtensions_EmptyRegistry(t *testing.T) {
 	sdk.ResetUIExtensionRegistry()
 	defer sdk.ResetUIExtensionRegistry()
 
-	tui, err := NewTUI(nil, TUIConfig{})
+	tui, err := NewTUI(nil, nil, TUIConfig{})
 	require.NoError(t, err)
 
 	// Should not panic with empty registry
@@ -169,11 +169,11 @@ func TestTUI_WireUIExtensions_WithBus(t *testing.T) {
 
 	ext := &mockUIExtensionWithBus{name: "bus-ext"}
 
-	sdk.RegisterUIExtension("bus-ext", func(_ sdk.Config, _ struct{}) (sdk.UIExtension, error) {
+	sdk.RegisterUIExtension("bus-ext", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.UIExtension, error) {
 		return ext, nil
 	})
 
-	tui, err := NewTUI(nil, TUIConfig{})
+	tui, err := NewTUI(nil, nil, TUIConfig{})
 	require.NoError(t, err)
 
 	bus := &mockBus{}
@@ -191,11 +191,11 @@ func TestTUI_WireUIExtensions_PlainExtension_NoBus(t *testing.T) {
 
 	ext := &mockUIExtension{name: "plain-ext"}
 
-	sdk.RegisterUIExtension("plain-ext", func(_ sdk.Config, _ struct{}) (sdk.UIExtension, error) {
+	sdk.RegisterUIExtension("plain-ext", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.UIExtension, error) {
 		return ext, nil
 	})
 
-	tui, err := NewTUI(nil, TUIConfig{})
+	tui, err := NewTUI(nil, nil, TUIConfig{})
 	require.NoError(t, err)
 
 	// Should not panic even with a bus when extension doesn't implement UIExtensionWithBus
