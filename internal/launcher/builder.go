@@ -151,7 +151,7 @@ func hashMdFiles(h hash.Hash, ext ExtensionInfo) error {
 		// Build root-scoped path to avoid symlink TOCTOU (gosec G122).
 		data, readErr := os.ReadFile(filepath.Join(ext.Dir, rel))
 		if readErr != nil {
-			return fmt.Errorf("hash md file %s: %w", path, readErr)
+			return nil //nolint:nilerr // skip unreadable files
 		}
 
 		h.Write(data)
