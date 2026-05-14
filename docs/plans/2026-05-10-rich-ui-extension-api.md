@@ -318,10 +318,10 @@ When active, overlay dialogs dock at bottom of chat area instead of centered ove
 
 ### Task 12: Update CLAUDE.md documentation
 
-- [ ] update `sdk/` section with new `UI` methods, `NotifyLevel`, functional options
-- [ ] update `extensions/ui/tui/` section with `TUIExtAPI`, panel system, panel tray
-- [ ] update launcher section with `RegisterTUIExtension` detection
-- [ ] add fork territory guidance to architecture section
+- [x] update `sdk/` section with new `UI` methods, `NotifyLevel`, functional options
+- [x] update `extensions/ui/tui/` section with `TUIExtAPI`, panel system, panel tray
+- [x] update launcher section with `RegisterTUIExtension` detection
+- [x] add fork territory guidance to architecture section
 
 ## Technical Details
 
