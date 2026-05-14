@@ -77,15 +77,15 @@ Key benefits:
 - [x] Run all TUI tests — must pass before next task
 
 ### Task 2: Redesign chat messages and conversation flow
-- [ ] Add 1 blank line between chat items in `components/chat.go` (`View()` and `Draw()`)
-- [ ] Style `UserMessage` in `components/messages/user.go`: add left border bar in primary color, `❯` symbol prefix in primary, muted content color
-- [ ] Add message role indicator for assistant messages (subtle `assistant` header or icon prefix in `components/messages/assistant.go` via the renderer)
-- [ ] Update `components/chat.go` scroll indicator: render as a styled pill with background instead of plain yellow text
-- [ ] Update hints banner in `model.go`: render with `BackgroundTint` background for visual separation
-- [ ] Write tests for user message styling (verify border and label presence in rendered output)
-- [ ] Write tests for chat spacing (verify blank lines between items)
-- [ ] Write tests for scroll indicator rendering
-- [ ] Run all TUI tests — must pass before next task
+- [x] Add 1 blank line between chat items in `components/chat.go` (`View()` and `Draw()`)
+- [x] Style `UserMessage` in `components/messages/user.go`: add left border bar in primary color, `❯` symbol prefix in primary, muted content color
+- [x] Add message role indicator for assistant messages (subtle `assistant` header or icon prefix in `components/messages/assistant.go` via the renderer)
+- [x] Update `components/chat.go` scroll indicator: render as a styled pill with background instead of plain yellow text
+- [x] Update hints banner in `model.go`: render with `BackgroundTint` background for visual separation
+- [x] Write tests for user message styling (verify border and label presence in rendered output)
+- [x] Write tests for chat spacing (verify blank lines between items)
+- [x] Write tests for scroll indicator rendering
+- [x] Run all TUI tests — must pass before next task
 
 ### Task 3: Redesign thinking blocks and tool panels
 - [ ] Redesign `ThinkingBlock` in `components/messages/thinking.go`: replace `.Faint(true)` with a styled header including a lightbulb icon and `BackgroundTint` background; expanded state uses indented content with left border

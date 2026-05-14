@@ -4,6 +4,9 @@ import (
 	"strings"
 	"time"
 
+	"weave/ext/ui/tui/palette"
+
+	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 )
 
@@ -89,11 +92,19 @@ func (m *AssistantMessage) Interrupted() bool {
 func (m *AssistantMessage) View(width int) string {
 	m.renderer.SetWidth(width)
 
+	var content string
+
 	if m.streaming {
-		return m.progressiveRender()
+		content = m.progressiveRender()
+	} else {
+		content = m.renderer.Render(m.Content())
 	}
 
-	return m.renderer.Render(m.Content())
+	// Prepend subtle role indicator
+	roleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Muted))
+	roleIndicator := roleStyle.Render("◆ assistant")
+
+	return roleIndicator + "\n" + content
 }
 
 // progressiveRender returns the cached rendered output, re-rendering through

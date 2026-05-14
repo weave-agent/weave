@@ -6,6 +6,7 @@ import (
 
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestUserMessage_Content(t *testing.T) {
@@ -15,13 +16,19 @@ func TestUserMessage_Content(t *testing.T) {
 
 func TestUserMessage_View_PlainText(t *testing.T) {
 	m := NewUserMessage("fix the bug")
-	assert.Equal(t, "fix the bug", m.View(80))
+	view := m.View(80)
+	assert.Contains(t, view, "fix the bug")
+	assert.Contains(t, view, "│")
+	assert.Contains(t, view, "❯")
 }
 
 func TestUserMessage_EmptyContent(t *testing.T) {
 	m := NewUserMessage("")
 	assert.Empty(t, m.Content())
-	assert.Empty(t, m.View(80))
+	// Empty message still renders border and prefix styling
+	view := m.View(80)
+	assert.Contains(t, view, "│")
+	assert.Contains(t, view, "❯")
 }
 
 func TestUserMessage_View_ZeroWidth(t *testing.T) {
@@ -142,7 +149,9 @@ func TestUserMessage_View_SkillSpecialCharsInName(t *testing.T) {
 func TestUserMessage_View_PlainTextNotAffected(t *testing.T) {
 	m := NewUserMessage("regular message without xml")
 	view := m.View(80)
-	assert.Equal(t, "regular message without xml", view)
+	assert.Contains(t, view, "regular message without xml")
+	assert.Contains(t, view, "│")
+	assert.Contains(t, view, "❯")
 }
 
 func TestUserMessage_Draw_PlainText(t *testing.T) {
@@ -185,4 +194,36 @@ func TestUserMessage_Draw_ZeroArea(t *testing.T) {
 	m := NewUserMessage("hello")
 	canvas := uv.NewScreenBuffer(80, 5)
 	m.Draw(canvas, uv.Rect(0, 0, 0, 0))
+}
+
+// --- Styled user message tests (Task 2) ---
+
+func TestUserMessage_Styling_HasBorderAndPrefix(t *testing.T) {
+	m := NewUserMessage("test message")
+	view := m.View(80)
+
+	assert.Contains(t, view, "│", "should have left border bar")
+	assert.Contains(t, view, "❯", "should have symbol prefix")
+}
+
+func TestUserMessage_Styling_MultilineHasPrefixOnEachLine(t *testing.T) {
+	m := NewUserMessage("line1\nline2\nline3")
+	view := m.View(80)
+
+	// Each line should have the border bar
+	lines := strings.Split(view, "\n")
+	require.Len(t, lines, 3)
+
+	for _, line := range lines {
+		assert.Contains(t, line, "│", "each line should have border")
+	}
+}
+
+func TestUserMessage_Styling_SkillHasBorderAndPrefix(t *testing.T) {
+	m := NewUserMessage("<skill name=\"test\">\nbody\n</skill>")
+	view := m.View(80)
+
+	assert.Contains(t, view, "│")
+	assert.Contains(t, view, "❯")
+	assert.Contains(t, view, "[skill test]")
 }

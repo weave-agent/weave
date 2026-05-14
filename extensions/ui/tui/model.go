@@ -1732,7 +1732,10 @@ func (m Model) Draw(scr uv.Screen, area uv.Rectangle) {
 
 	// Render header
 	if headerRows > 0 {
-		hintsStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Border))
+		hintsStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(palette.DefaultTheme().Muted)).
+			Background(lipgloss.Color(palette.DefaultTheme().BackgroundTint)).
+			Padding(0, 1)
 		uv.NewStyledString(hintsStyle.Render(
 			"ctrl+p model · ctrl+l select · shift+tab thinking · ctrl+t toggle",
 		)).Draw(scr, lt.Header)

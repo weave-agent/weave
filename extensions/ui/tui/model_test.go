@@ -1466,6 +1466,24 @@ func TestModel_StartupHintsHiddenAfterChat(t *testing.T) {
 	assert.NotContains(t, view.Content, "ctrl+p cycle model")
 }
 
+func TestModel_HeaderHints_HasBackgroundTint(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	// Ensure hints are shown and landing is not
+	m.showHints = true
+	m.showLanding = false
+	m.prompted = false
+
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvas, canvas.Bounds())
+	rendered := canvas.Render()
+
+	// Hints banner should use BackgroundTint color (234)
+	assert.Contains(t, rendered, "234")
+	assert.Contains(t, rendered, "ctrl+p model")
+}
+
 // --- Draw tests (screen buffer rendering) ---
 
 func TestModel_Draw_RendersAllSections(t *testing.T) {

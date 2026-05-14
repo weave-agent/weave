@@ -295,3 +295,51 @@ func TestAssistantMessage_Draw_StreamingProgressive(t *testing.T) {
 	out3 := uv.TrimSpace(canvas3.Render())
 	assert.Contains(t, stripANSI(out3), "World", "after debounce, Draw should include new content")
 }
+
+// --- Task 2: Assistant message role indicator tests ---
+
+func TestAssistantMessage_RoleIndicator_PresentInView(t *testing.T) {
+	m := NewAssistantMessage()
+	m.Finalize("Hello world")
+
+	view := m.View(80)
+	assert.Contains(t, view, "◆ assistant")
+}
+
+func TestAssistantMessage_RoleIndicator_PresentInStreamingView(t *testing.T) {
+	m := NewAssistantMessage()
+	m.Append("streaming content")
+
+	view := m.View(80)
+	assert.Contains(t, view, "◆ assistant")
+	assert.Contains(t, stripANSI(view), "streaming content")
+}
+
+func TestAssistantMessage_RoleIndicator_PresentInDraw(t *testing.T) {
+	m := NewAssistantMessage()
+	m.Finalize("Test content")
+
+	canvas := uv.NewScreenBuffer(80, 5)
+	m.Draw(canvas, canvas.Bounds())
+	output := uv.TrimSpace(canvas.Render())
+
+	assert.Contains(t, output, "◆ assistant")
+}
+
+func TestAssistantMessage_RoleIndicator_MutedColor(t *testing.T) {
+	m := NewAssistantMessage()
+	m.Finalize("content")
+
+	view := m.View(80)
+	// The role indicator uses muted color (245)
+	assert.Contains(t, view, "245")
+}
+
+func TestAssistantMessage_RoleIndicator_NotInContent(t *testing.T) {
+	m := NewAssistantMessage()
+	m.Finalize("just content")
+
+	// Content should not include the role indicator
+	assert.Equal(t, "just content", m.Content())
+	assert.NotContains(t, m.Content(), "assistant")
+}

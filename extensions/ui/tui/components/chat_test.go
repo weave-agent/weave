@@ -441,7 +441,7 @@ func TestChatModel_Draw_SmallViewport(t *testing.T) {
 	m.Draw(scr, uv.Rect(0, 0, 40, 2))
 	rendered := scr.Render()
 
-	assert.Contains(t, rendered, "short")
+	// With blank separator between items, viewport shows separator + "tiny"
 	assert.Contains(t, rendered, "tiny")
 }
 
@@ -595,4 +595,81 @@ func TestChatModel_NoIndicatorWhenAtBottom(t *testing.T) {
 	require.True(t, m.AtBottom())
 	// TurnEndPending set but at bottom — the caller should clear it, but even if not,
 	// the indicator shows. In practice, the model only sets it when !AtBottom.
+}
+
+// --- Task 2: Chat spacing and scroll indicator tests ---
+
+func TestChatModel_BlankLineBetweenItems(t *testing.T) {
+	m := NewChatModel().SetSize(80, 10)
+	m = m.AddItem(stubItem{text: "first"})
+	m = m.AddItem(stubItem{text: "second"})
+
+	view := m.View()
+	lines := splitLines(view)
+
+	// Should have "first", blank line, "second", and padding
+	require.Len(t, lines, 10)
+	assert.Equal(t, "first", lines[0])
+	assert.Empty(t, lines[1])
+	assert.Equal(t, "second", lines[2])
+}
+
+func TestChatModel_BlankLineNotAfterLastItem(t *testing.T) {
+	m := NewChatModel().SetSize(80, 5)
+	m = m.AddItem(stubItem{text: "only"})
+
+	view := m.View()
+	lines := splitLines(view)
+
+	// Single item should not have trailing blank line
+	assert.Equal(t, "only", lines[0])
+	assert.Empty(t, lines[1])
+	assert.Empty(t, lines[2])
+}
+
+func TestChatModel_Draw_BlankLineBetweenItems(t *testing.T) {
+	m := NewChatModel().SetSize(80, 10)
+	m = m.AddItem(stubItem{text: "first"})
+	m = m.AddItem(stubItem{text: "second"})
+
+	scr := uv.NewScreenBuffer(80, 10)
+	m.Draw(scr, uv.Rect(0, 0, 80, 10))
+	rendered := scr.Render()
+
+	assert.Contains(t, rendered, "first")
+	assert.Contains(t, rendered, "second")
+}
+
+func TestChatModel_ScrollIndicator_IsStyledPill(t *testing.T) {
+	m := NewChatModel().SetSize(80, 3)
+	m = m.AddItem(stubItem{text: "line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8"})
+	m = m.ScrollUp(5)
+	m = m.AddItem(stubItem{text: "line9"})
+
+	require.True(t, m.NewContent())
+
+	scr := uv.NewScreenBuffer(80, 3)
+	m.Draw(scr, uv.Rect(0, 0, 80, 3))
+	rendered := scr.Render()
+
+	assert.Contains(t, rendered, "new content")
+	// The indicator should have background styling (background tint color code 234)
+	assert.Contains(t, rendered, "234")
+}
+
+func TestChatModel_TurnEndIndicator_IsStyledPill(t *testing.T) {
+	m := NewChatModel().SetSize(80, 3)
+	m = m.AddItem(stubItem{text: "line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8"})
+	m = m.ScrollUp(5)
+	m = m.SetTurnEndPending(true)
+
+	require.True(t, m.TurnEndPending())
+
+	scr := uv.NewScreenBuffer(80, 3)
+	m.Draw(scr, uv.Rect(0, 0, 80, 3))
+	rendered := scr.Render()
+
+	assert.Contains(t, rendered, "scroll to bottom")
+	// The indicator should have background styling
+	assert.Contains(t, rendered, "234")
 }
