@@ -8,17 +8,6 @@ import (
 	"weave/sdk"
 )
 
-//nolint:gochecknoinits // Lifecycle hook registration follows extension init pattern.
-func init() {
-	sdk.OnAppStarted(func(bus sdk.Bus, cfg sdk.Config) {
-		if cfg != nil && cfg.IsHeadless() {
-			return
-		}
-
-		FireUpdateCheck(bus)
-	})
-}
-
 // FireUpdateCheck scans user-installed extensions for available updates.
 // It lists git-sourced extensions, compares HEAD to the remote, and
 // publishes an "extension.outdated" event if any are behind.

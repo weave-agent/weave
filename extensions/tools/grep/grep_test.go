@@ -232,9 +232,10 @@ func TestExecuteSandboxDenied(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "secret.txt"), []byte("findme"), 0o644))
 
-	sandboxer := &testSandboxer{allowReadFn: func(p string) bool { return false }}
-	sdk.SetSandboxer(sandboxer)
-	t.Cleanup(func() { sdk.SetSandboxer(nil) })
+	sb := &testSandboxer{allowReadFn: func(p string) bool { return false }}
+	sandboxer = sb
+
+	t.Cleanup(func() { sandboxer = nil })
 
 	result, err := (&tool{}).Execute(context.Background(), map[string]any{
 		"pattern": "findme",
@@ -249,9 +250,10 @@ func TestExecuteSandboxAllowed(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "readable.txt"), []byte("findme here"), 0o644))
 
-	sandboxer := &testSandboxer{allowReadFn: func(p string) bool { return true }}
-	sdk.SetSandboxer(sandboxer)
-	t.Cleanup(func() { sdk.SetSandboxer(nil) })
+	sb := &testSandboxer{allowReadFn: func(p string) bool { return true }}
+	sandboxer = sb
+
+	t.Cleanup(func() { sandboxer = nil })
 
 	result, err := (&tool{}).Execute(context.Background(), map[string]any{
 		"pattern": "findme",
@@ -266,7 +268,7 @@ func TestExecuteSandboxNil(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "normal.txt"), []byte("findme normal"), 0o644))
 
-	sdk.SetSandboxer(nil)
+	sandboxer = nil
 
 	result, err := (&tool{}).Execute(context.Background(), map[string]any{
 		"pattern": "findme",
@@ -420,11 +422,12 @@ func TestRgWithSandboxerFiltersDeniedPaths(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "public.txt"), []byte("findme public"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "secret.txt"), []byte("findme secret"), 0o644))
 
-	sandboxer := &testSandboxer{allowReadFn: func(p string) bool {
+	sb := &testSandboxer{allowReadFn: func(p string) bool {
 		return !strings.Contains(p, "secret")
 	}}
-	sdk.SetSandboxer(sandboxer)
-	t.Cleanup(func() { sdk.SetSandboxer(nil) })
+	sandboxer = sb
+
+	t.Cleanup(func() { sandboxer = nil })
 
 	result, err := (&tool{}).Execute(context.Background(), map[string]any{
 		"pattern": "findme",

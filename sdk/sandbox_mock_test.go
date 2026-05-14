@@ -52,7 +52,7 @@ type SandboxerMock struct {
 	SetModeFunc func(mode string)
 
 	// WrapCommandFunc mocks the WrapCommand method.
-	WrapCommandFunc func(cmd, dir string) (string, error)
+	WrapCommandFunc func(cmd string, dir string) (string, error)
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -67,7 +67,8 @@ type SandboxerMock struct {
 			Path string
 		}
 		// Mode holds details about calls to the Mode method.
-		Mode []struct{}
+		Mode []struct {
+		}
 		// SetMode holds details about calls to the SetMode method.
 		SetMode []struct {
 			// Mode is the mode argument value.
@@ -93,17 +94,14 @@ func (mock *SandboxerMock) AllowRead(path string) bool {
 	if mock.AllowReadFunc == nil {
 		panic("SandboxerMock.AllowReadFunc: method is nil but Sandboxer.AllowRead was just called")
 	}
-
 	callInfo := struct {
 		Path string
 	}{
 		Path: path,
 	}
-
 	mock.lockAllowRead.Lock()
 	mock.calls.AllowRead = append(mock.calls.AllowRead, callInfo)
 	mock.lockAllowRead.Unlock()
-
 	return mock.AllowReadFunc(path)
 }
 
@@ -117,11 +115,9 @@ func (mock *SandboxerMock) AllowReadCalls() []struct {
 	var calls []struct {
 		Path string
 	}
-
 	mock.lockAllowRead.RLock()
 	calls = mock.calls.AllowRead
 	mock.lockAllowRead.RUnlock()
-
 	return calls
 }
 
@@ -130,17 +126,14 @@ func (mock *SandboxerMock) AllowWrite(path string) bool {
 	if mock.AllowWriteFunc == nil {
 		panic("SandboxerMock.AllowWriteFunc: method is nil but Sandboxer.AllowWrite was just called")
 	}
-
 	callInfo := struct {
 		Path string
 	}{
 		Path: path,
 	}
-
 	mock.lockAllowWrite.Lock()
 	mock.calls.AllowWrite = append(mock.calls.AllowWrite, callInfo)
 	mock.lockAllowWrite.Unlock()
-
 	return mock.AllowWriteFunc(path)
 }
 
@@ -154,11 +147,9 @@ func (mock *SandboxerMock) AllowWriteCalls() []struct {
 	var calls []struct {
 		Path string
 	}
-
 	mock.lockAllowWrite.RLock()
 	calls = mock.calls.AllowWrite
 	mock.lockAllowWrite.RUnlock()
-
 	return calls
 }
 
@@ -167,13 +158,11 @@ func (mock *SandboxerMock) Mode() string {
 	if mock.ModeFunc == nil {
 		panic("SandboxerMock.ModeFunc: method is nil but Sandboxer.Mode was just called")
 	}
-
-	callInfo := struct{}{}
-
+	callInfo := struct {
+	}{}
 	mock.lockMode.Lock()
 	mock.calls.Mode = append(mock.calls.Mode, callInfo)
 	mock.lockMode.Unlock()
-
 	return mock.ModeFunc()
 }
 
@@ -181,13 +170,13 @@ func (mock *SandboxerMock) Mode() string {
 // Check the length with:
 //
 //	len(mockedSandboxer.ModeCalls())
-func (mock *SandboxerMock) ModeCalls() []struct{} {
-	var calls []struct{}
-
+func (mock *SandboxerMock) ModeCalls() []struct {
+} {
+	var calls []struct {
+	}
 	mock.lockMode.RLock()
 	calls = mock.calls.Mode
 	mock.lockMode.RUnlock()
-
 	return calls
 }
 
@@ -196,13 +185,11 @@ func (mock *SandboxerMock) SetMode(mode string) {
 	if mock.SetModeFunc == nil {
 		panic("SandboxerMock.SetModeFunc: method is nil but Sandboxer.SetMode was just called")
 	}
-
 	callInfo := struct {
 		Mode string
 	}{
 		Mode: mode,
 	}
-
 	mock.lockSetMode.Lock()
 	mock.calls.SetMode = append(mock.calls.SetMode, callInfo)
 	mock.lockSetMode.Unlock()
@@ -219,20 +206,17 @@ func (mock *SandboxerMock) SetModeCalls() []struct {
 	var calls []struct {
 		Mode string
 	}
-
 	mock.lockSetMode.RLock()
 	calls = mock.calls.SetMode
 	mock.lockSetMode.RUnlock()
-
 	return calls
 }
 
 // WrapCommand calls WrapCommandFunc.
-func (mock *SandboxerMock) WrapCommand(cmd, dir string) (string, error) {
+func (mock *SandboxerMock) WrapCommand(cmd string, dir string) (string, error) {
 	if mock.WrapCommandFunc == nil {
 		panic("SandboxerMock.WrapCommandFunc: method is nil but Sandboxer.WrapCommand was just called")
 	}
-
 	callInfo := struct {
 		Cmd string
 		Dir string
@@ -240,11 +224,9 @@ func (mock *SandboxerMock) WrapCommand(cmd, dir string) (string, error) {
 		Cmd: cmd,
 		Dir: dir,
 	}
-
 	mock.lockWrapCommand.Lock()
 	mock.calls.WrapCommand = append(mock.calls.WrapCommand, callInfo)
 	mock.lockWrapCommand.Unlock()
-
 	return mock.WrapCommandFunc(cmd, dir)
 }
 
@@ -260,10 +242,8 @@ func (mock *SandboxerMock) WrapCommandCalls() []struct {
 		Cmd string
 		Dir string
 	}
-
 	mock.lockWrapCommand.RLock()
 	calls = mock.calls.WrapCommand
 	mock.lockWrapCommand.RUnlock()
-
 	return calls
 }

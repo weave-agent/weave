@@ -230,9 +230,10 @@ func TestExecuteSandboxDenied(t *testing.T) {
 	path := filepath.Join(dir, "secret.txt")
 	require.NoError(t, os.WriteFile(path, []byte("secret data"), 0o644))
 
-	sandboxer := &testSandboxer{allowReadFn: func(p string) bool { return false }}
-	sdk.SetSandboxer(sandboxer)
-	t.Cleanup(func() { sdk.SetSandboxer(nil) })
+	sb := &testSandboxer{allowReadFn: func(p string) bool { return false }}
+	sandboxer = sb
+
+	t.Cleanup(func() { sandboxer = nil })
 
 	result, err := tool.Execute(context.Background(), map[string]any{"path": path})
 	require.NoError(t, err)
@@ -246,9 +247,10 @@ func TestExecuteSandboxAllowed(t *testing.T) {
 	path := filepath.Join(dir, "readable.txt")
 	require.NoError(t, os.WriteFile(path, []byte("hello"), 0o644))
 
-	sandboxer := &testSandboxer{allowReadFn: func(p string) bool { return true }}
-	sdk.SetSandboxer(sandboxer)
-	t.Cleanup(func() { sdk.SetSandboxer(nil) })
+	sb := &testSandboxer{allowReadFn: func(p string) bool { return true }}
+	sandboxer = sb
+
+	t.Cleanup(func() { sandboxer = nil })
 
 	result, err := tool.Execute(context.Background(), map[string]any{"path": path})
 	require.NoError(t, err)
@@ -262,7 +264,7 @@ func TestExecuteSandboxNil(t *testing.T) {
 	path := filepath.Join(dir, "normal.txt")
 	require.NoError(t, os.WriteFile(path, []byte("normal data"), 0o644))
 
-	sdk.SetSandboxer(nil)
+	sandboxer = nil
 
 	result, err := tool.Execute(context.Background(), map[string]any{"path": path})
 	require.NoError(t, err)

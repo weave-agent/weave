@@ -28,7 +28,19 @@ type tool struct {
 	defaultLimit int
 }
 
+var sandboxer sdk.Sandboxer
+
 func init() {
+	sdk.OnBusReady(func(bus sdk.Bus) {
+		bus.On("sandbox.registered", func(ev sdk.Event) error {
+			if s, ok := ev.Payload.(sdk.Sandboxer); ok {
+				sandboxer = s
+			}
+
+			return nil
+		})
+	})
+
 	sdk.RegisterTool("ls", func(_ sdk.Config, cfg LSConfig) (sdk.Tool, error) {
 		limit := cfg.Limit
 		if limit <= 0 {
@@ -83,7 +95,7 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
 	}
 
-	if s := sdk.GetSandboxer(); s != nil {
+	if s := sandboxer; s != nil {
 		if !s.AllowRead(absPath) {
 			return sdk.ToolResult{Content: "sandbox: read denied — path is protected", IsError: true}, nil
 		}
@@ -98,7 +110,7 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		return sdk.ToolResult{Content: fmt.Sprintf("error: %s is not a directory", absPath), IsError: true}, nil
 	}
 
-	sb := sdk.GetSandboxer()
+	sb := sandboxer
 	ignorePatterns := resolveIgnorePatterns(args)
 	limit := resolveLimit(args, t.defaultLimit)
 	depth := resolveDepth(args)

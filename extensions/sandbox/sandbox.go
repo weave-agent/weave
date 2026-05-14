@@ -80,7 +80,6 @@ func NewSandbox(cfg sdk.Config, sc SandboxConfig) (*Sandbox, error) {
 	cwd := resolveAbsUnsafe()
 
 	s := &Sandbox{cfg: sc, headless: headless, cwd: cwd}
-	sdk.SetSandboxer(s)
 
 	return s, nil
 }
@@ -89,6 +88,8 @@ func (s *Sandbox) Name() string { return "sandbox" }
 
 func (s *Sandbox) Subscribe(bus sdk.Bus) error {
 	s.bus = bus
+
+	bus.Publish(sdk.NewEvent("sandbox.registered", s))
 
 	bus.On("sandbox.mode.change", func(ev sdk.Event) error {
 		mode, ok := ev.Payload.(string)
@@ -195,8 +196,6 @@ func (s *Sandbox) Close() error {
 
 	s.pending = nil
 	s.mu.Unlock()
-
-	sdk.SetSandboxer(nil)
 
 	return nil
 }

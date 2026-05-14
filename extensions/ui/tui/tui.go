@@ -11,7 +11,19 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
+var sandboxer sdk.Sandboxer
+
 func init() {
+	sdk.OnBusReady(func(bus sdk.Bus) {
+		bus.On("sandbox.registered", func(ev sdk.Event) error {
+			if s, ok := ev.Payload.(sdk.Sandboxer); ok {
+				sandboxer = s
+			}
+
+			return nil
+		})
+	})
+
 	sdk.RegisterExtensionWithScope[TUIConfig]("tui", "ui", func(cfg sdk.Config, tuiCfg TUIConfig) (sdk.Extension, error) {
 		t, err := NewTUI(cfg, tuiCfg)
 		if err != nil {

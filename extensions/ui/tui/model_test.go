@@ -2238,10 +2238,10 @@ func addTestAttachment(m Model, path, content string, lines int) Model {
 }
 
 func TestModel_CycleSandboxMode(t *testing.T) {
-	defer sdk.SetSandboxer(nil)
+	defer func() { sandboxer = nil }()
 
 	sb := &mockSandboxer{mode: sandbox.SandboxAuto}
-	sdk.SetSandboxer(sb)
+	sandboxer = sb
 
 	m := newModel(nil, nil, nil)
 	m.width = 80
@@ -2261,9 +2261,9 @@ func TestModel_CycleSandboxMode(t *testing.T) {
 }
 
 func TestModel_CycleSandboxMode_NoSandboxer(t *testing.T) {
-	defer sdk.SetSandboxer(nil)
+	defer func() { sandboxer = nil }()
 
-	sdk.SetSandboxer(nil)
+	sandboxer = nil
 
 	m := newModel(nil, nil, nil)
 	m.width = 80
@@ -2276,13 +2276,13 @@ func TestModel_CycleSandboxMode_NoSandboxer(t *testing.T) {
 }
 
 func TestModel_CycleSandboxMode_UpdatesMode(t *testing.T) {
-	defer sdk.SetSandboxer(nil)
+	defer func() { sandboxer = nil }()
 
 	b := bus.New()
 	defer b.Close()
 
 	sb := &mockSandboxer{mode: sandbox.SandboxAuto}
-	sdk.SetSandboxer(sb)
+	sandboxer = sb
 
 	m := newModel(b, nil, nil)
 	m.width = 80

@@ -7,13 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGetSandboxer_NilDefault(t *testing.T) {
-	// Reset to ensure clean state
-	SetSandboxer(nil)
-	assert.Nil(t, GetSandboxer())
-}
-
-func TestSetSandboxer_SetAndGet(t *testing.T) {
+func TestSandboxerMock_WrapCommand(t *testing.T) {
 	mock := &SandboxerMock{
 		AllowReadFunc:  func(s string) bool { return true },
 		AllowWriteFunc: func(s string) bool { return true },
@@ -22,32 +16,44 @@ func TestSetSandboxer_SetAndGet(t *testing.T) {
 		},
 	}
 
-	SetSandboxer(mock)
-	defer SetSandboxer(nil)
-
-	got := GetSandboxer()
-	require.NotNil(t, got)
-
-	wrapped, err := got.WrapCommand("ls", "/tmp")
+	wrapped, err := mock.WrapCommand("ls", "/tmp")
 	require.NoError(t, err)
 	assert.Equal(t, "wrapped:ls", wrapped)
-	assert.True(t, got.AllowWrite("/tmp/file"))
-	assert.True(t, got.AllowRead("/tmp/file"))
 }
 
-func TestSetSandboxer_Overwrite(t *testing.T) {
-	first := &SandboxerMock{
-		AllowWriteFunc: func(s string) bool { return false },
-	}
-	second := &SandboxerMock{
-		AllowWriteFunc: func(s string) bool { return true },
+func TestSandboxerMock_AllowWrite(t *testing.T) {
+	mock := &SandboxerMock{
+		AllowWriteFunc: func(s string) bool { return s == "/allowed" },
 	}
 
-	SetSandboxer(first)
-	assert.False(t, GetSandboxer().AllowWrite("/any"))
+	assert.True(t, mock.AllowWrite("/allowed"))
+	assert.False(t, mock.AllowWrite("/denied"))
+}
 
-	SetSandboxer(second)
-	assert.True(t, GetSandboxer().AllowWrite("/any"))
+func TestSandboxerMock_AllowRead(t *testing.T) {
+	mock := &SandboxerMock{
+		AllowReadFunc: func(s string) bool { return s == "/allowed" },
+	}
 
-	SetSandboxer(nil)
+	assert.True(t, mock.AllowRead("/allowed"))
+	assert.False(t, mock.AllowRead("/denied"))
+}
+
+func TestSandboxerMock_Mode(t *testing.T) {
+	mock := &SandboxerMock{
+		ModeFunc: func() string { return "auto" },
+	}
+
+	assert.Equal(t, "auto", mock.Mode())
+}
+
+func TestSandboxerMock_SetMode(t *testing.T) {
+	var lastMode string
+
+	mock := &SandboxerMock{
+		SetModeFunc: func(mode string) { lastMode = mode },
+	}
+
+	mock.SetMode("readonly")
+	assert.Equal(t, "readonly", lastMode)
 }

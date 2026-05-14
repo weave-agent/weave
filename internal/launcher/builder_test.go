@@ -371,7 +371,7 @@ func TestGenerateMainGo_AllExtensionsBlankImported(t *testing.T) {
 	// All extensions are blank-imported; no special-casing for subagent.
 	assert.Contains(t, s, `_ "weave/ext/custom/subagent"`)
 	assert.NotContains(t, s, `subagentext`)
-	assert.Contains(t, s, `sdk.SetOutputWriters(jsonOut)`)
+	assert.Contains(t, s, `sdk.OutputRedirectPayload{Writer: jsonOut}`)
 }
 
 func TestGenerateMainGo_OutputWriterSetterCalled(t *testing.T) {
@@ -387,7 +387,7 @@ func TestGenerateMainGo_OutputWriterSetterCalled(t *testing.T) {
 
 	s := string(content)
 	// Generic hook is used instead of named import.
-	assert.Contains(t, s, `sdk.SetOutputWriters(jsonOut)`)
+	assert.Contains(t, s, `sdk.OutputRedirectPayload{Writer: jsonOut}`)
 	assert.Contains(t, s, `jsonOut := &syncWriter{w: os.Stdout}`)
 	assert.NotContains(t, s, `subagentext`)
 	assert.NotContains(t, s, `SetStdoutWriter`)

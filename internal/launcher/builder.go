@@ -598,7 +598,7 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 	b.WriteString("\tvar jsonQueue chan map[string]any\n")
 	b.WriteString("\tvar jsonWg sync.WaitGroup\n")
 
-	b.WriteString("\tsdk.SetOutputWriters(jsonOut)\n")
+	b.WriteString("\tb.Publish(sdk.NewEvent(\"output.redirect\", sdk.OutputRedirectPayload{Writer: jsonOut}))\n")
 	b.WriteString("\n")
 	b.WriteString("\tif outputMode == \"json\" {\n")
 	b.WriteString("\t\tjsonQueue = make(chan map[string]any, 10000)\n")

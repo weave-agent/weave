@@ -9,6 +9,7 @@ import (
 	"os"
 	"slices"
 
+	"weave/internal/extmanage"
 	"weave/internal/filemut"
 	"weave/internal/filetracker"
 	"weave/sdk"
@@ -111,24 +112,23 @@ func WireWithCore(core CoreWireConfig, optExts []string, bus sdk.Bus, cfg sdk.Co
 
 	extNames := mergeCoreAndOptional(core.AgentLoop, optExts)
 
-	for _, fn := range sdk.AppStartedHandlers() {
-		handler := fn
-
-		bus.On("app.started", func(e sdk.Event) error {
-			if cfg != nil {
-				handler(bus, cfg)
-			}
-
-			return nil
-		})
-	}
+	// Wire bus subscriptions for tools and other non-extension code before
+	// resolving extensions, so subscriptions are active when extensions
+	// publish their registration events (e.g. sandbox.registered).
+	sdk.InvokeBusSubscribers(bus)
 
 	wired, err := WireExtensions(extNames, bus, cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	go bus.Publish(sdk.NewEvent("app.started", nil))
+	go func() {
+		bus.Publish(sdk.NewEvent("app.started", nil))
+
+		if cfg == nil || !cfg.IsHeadless() {
+			extmanage.FireUpdateCheck(bus)
+		}
+	}()
 
 	return wired, nil
 }

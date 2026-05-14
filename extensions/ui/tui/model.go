@@ -1489,7 +1489,7 @@ func (m *Model) showStatus(msg string) {
 // cycleSandboxMode advances the sandbox to the next mode in the cycle order,
 // updates the footer status pill.
 func (m Model) cycleSandboxMode() (tea.Model, tea.Cmd) {
-	sb := sdk.GetSandboxer()
+	sb := sandboxer
 	if sb == nil {
 		m.showStatus("Sandbox: not available")
 		return m, m.statusTimer

@@ -51,24 +51,9 @@ func TestNewSandbox_DefaultConfig(t *testing.T) {
 	s, err := NewSandbox(nil, SandboxConfig{})
 	require.NoError(t, err)
 
-	defer sdk.SetSandboxer(nil)
-
 	require.NotNil(t, s)
 	assert.Equal(t, "sandbox", s.Name())
 	assert.Equal(t, SandboxAuto, s.Mode())
-
-	assert.Equal(t, s, sdk.GetSandboxer())
-}
-
-func TestNewSandbox_SetsGlobalSandboxer(t *testing.T) {
-	defer sdk.SetSandboxer(nil)
-
-	s, err := NewSandbox(nil, SandboxConfig{})
-	require.NoError(t, err)
-
-	got := sdk.GetSandboxer()
-	require.NotNil(t, got)
-	assert.Equal(t, s, got)
 }
 
 func TestSandbox_ModeOff_WrapCommand(t *testing.T) {
@@ -202,15 +187,6 @@ func TestSandbox_Close(t *testing.T) {
 	assert.NoError(t, s.Close())
 }
 
-func TestSandbox_Close_ClearsGlobalSandboxer(t *testing.T) {
-	s := &Sandbox{cfg: SandboxConfig{Mode: SandboxAuto}}
-	sdk.SetSandboxer(s)
-	assert.NotNil(t, sdk.GetSandboxer())
-
-	require.NoError(t, s.Close())
-	assert.Nil(t, sdk.GetSandboxer())
-}
-
 func TestSandbox_SetMode(t *testing.T) {
 	s := &Sandbox{cfg: SandboxConfig{Mode: SandboxAuto}}
 
@@ -245,10 +221,6 @@ func TestWrapCommand_ModeReadonly_WrapsWithNoWritable(t *testing.T) {
 		Writable: []string{"/project"},
 		Network:  true,
 	}}
-
-	defer sdk.SetSandboxer(nil)
-
-	sdk.SetSandboxer(s)
 
 	wrapped, err := s.WrapCommand("echo hello", "/tmp")
 	require.NoError(t, err)
@@ -393,9 +365,17 @@ func TestWrapCommand_ModeAsk_PublishesCommandEvent(t *testing.T) {
 		done <- err
 	}()
 
+	// Wait specifically for sandbox.approve (sandbox.registered is also published
+	// during Subscribe, so len > 0 is not sufficient).
 	require.Eventually(t, func() bool {
-		return len(bus.events()) > 0
-	}, 2*time.Second, 50*time.Millisecond)
+		for _, ev := range bus.events() {
+			if ev.Topic == "sandbox.approve" {
+				return true
+			}
+		}
+
+		return false
+	}, 2*time.Second, 50*time.Millisecond, "expected sandbox.approve event")
 
 	// Find the sandbox.approve event (not the sandbox.approved handler call).
 	var approveEv *sdk.Event
@@ -407,7 +387,7 @@ func TestWrapCommand_ModeAsk_PublishesCommandEvent(t *testing.T) {
 		}
 	}
 
-	require.NotNil(t, approveEv, "expected sandbox.approve event")
+	require.NotNil(t, approveEv)
 
 	payload, ok := approveEv.Payload.(map[string]string)
 	require.True(t, ok)
@@ -434,24 +414,18 @@ func TestSandbox_Subscribe_ApprovalHandlers(t *testing.T) {
 }
 
 func TestNewSandbox_Headless_NilConfig(t *testing.T) {
-	defer sdk.SetSandboxer(nil)
-
 	s, err := NewSandbox(nil, SandboxConfig{})
 	require.NoError(t, err)
 	assert.True(t, s.headless, "nil config should be headless")
 }
 
 func TestNewSandbox_Headless_HeadlessConfig(t *testing.T) {
-	defer sdk.SetSandboxer(nil)
-
 	s, err := NewSandbox(sdk.HeadlessConfig{Config: sdk.FilePathConfig(""), Headless: true}, SandboxConfig{})
 	require.NoError(t, err)
 	assert.True(t, s.headless)
 }
 
 func TestNewSandbox_NotHeadless(t *testing.T) {
-	defer sdk.SetSandboxer(nil)
-
 	s, err := NewSandbox(sdk.HeadlessConfig{Config: sdk.FilePathConfig(""), Headless: false}, SandboxConfig{})
 	require.NoError(t, err)
 	assert.False(t, s.headless)

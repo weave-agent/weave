@@ -33,7 +33,19 @@ type tool struct {
 	cfg sdk.Config
 }
 
+var sandboxer sdk.Sandboxer
+
 func init() {
+	sdk.OnBusReady(func(bus sdk.Bus) {
+		bus.On("sandbox.registered", func(ev sdk.Event) error {
+			if s, ok := ev.Payload.(sdk.Sandboxer); ok {
+				sandboxer = s
+			}
+
+			return nil
+		})
+	})
+
 	sdk.RegisterTool[struct{}]("grep", func(cfg sdk.Config, _ struct{}) (sdk.Tool, error) {
 		return &tool{cfg: cfg}, nil
 	})
@@ -112,7 +124,7 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 		return sdk.ToolResult{Content: fmt.Sprintf("error: %s", err), IsError: true}, nil
 	}
 
-	if s := sdk.GetSandboxer(); s != nil && !s.AllowRead(absPath) {
+	if s := sandboxer; s != nil && !s.AllowRead(absPath) {
 		return sdk.ToolResult{Content: "sandbox: read denied — path is protected", IsError: true}, nil
 	}
 
@@ -290,7 +302,7 @@ func parseRgJSON(data []byte, baseDir, include string, respectGitignore bool) ([
 			continue
 		}
 
-		if s := sdk.GetSandboxer(); s != nil && !s.AllowRead(filepath.Join(baseDir, relPath)) {
+		if s := sandboxer; s != nil && !s.AllowRead(filepath.Join(baseDir, relPath)) {
 			continue
 		}
 
@@ -330,7 +342,7 @@ func searchDir(root string, re *regexp.Regexp, contextLines int, include string,
 			return nil
 		}
 
-		if s := sdk.GetSandboxer(); s != nil && !s.AllowRead(walkPath) {
+		if s := sandboxer; s != nil && !s.AllowRead(walkPath) {
 			return nil
 		}
 

@@ -46,7 +46,19 @@ type tool struct {
 // subsequent calls because sdk.GetTool creates a fresh instance per call.
 var defaultBgMgr = NewBackgroundManager()
 
+var sandboxer sdk.Sandboxer
+
 func init() {
+	sdk.OnBusReady(func(bus sdk.Bus) {
+		bus.On("sandbox.registered", func(ev sdk.Event) error {
+			if s, ok := ev.Payload.(sdk.Sandboxer); ok {
+				sandboxer = s
+			}
+
+			return nil
+		})
+	})
+
 	sdk.RegisterTool[BashConfig]("bash", func(cfg sdk.Config, bc BashConfig) (sdk.Tool, error) {
 		timeout := time.Duration(bc.Timeout) * time.Second
 		if timeout <= 0 {
@@ -167,7 +179,7 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 		return t.checkJob(jobID), nil
 	}
 
-	if s := sdk.GetSandboxer(); s != nil {
+	if s := sandboxer; s != nil {
 		wrapped, err := s.WrapCommand(command, t.dir)
 		if err != nil {
 			return sdk.ToolResult{Content: "sandbox: " + err.Error(), IsError: true}, nil

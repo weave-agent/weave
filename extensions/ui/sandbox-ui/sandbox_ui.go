@@ -5,7 +5,19 @@ import (
 	"weave/sdk"
 )
 
+var currentSandboxer sdk.Sandboxer
+
 func init() {
+	sdk.OnBusReady(func(bus sdk.Bus) {
+		bus.On("sandbox.registered", func(ev sdk.Event) error {
+			if s, ok := ev.Payload.(sdk.Sandboxer); ok {
+				currentSandboxer = s
+			}
+
+			return nil
+		})
+	})
+
 	sdk.RegisterUIExtension(&SandboxUI{})
 }
 
@@ -37,12 +49,11 @@ func (s *SandboxUI) RegisterWithBus(ui sdk.UI, bus sdk.Bus) {
 	s.dialog.RegisterWithBus(ui, bus)
 }
 
-// currentMode returns the active sandbox mode from the global Sandboxer.
+// currentMode returns the active sandbox mode from the cached Sandboxer.
 func currentMode() string {
-	sb := sdk.GetSandboxer()
-	if sb == nil {
+	if currentSandboxer == nil {
 		return sandbox.SandboxOff
 	}
 
-	return sb.Mode()
+	return currentSandboxer.Mode()
 }

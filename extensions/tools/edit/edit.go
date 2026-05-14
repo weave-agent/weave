@@ -9,8 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"weave/internal/fileutil"
-	"weave/internal/pathutil"
 	"weave/sdk"
 	"weave/utils/truncate"
 
@@ -30,7 +28,19 @@ type tool struct {
 	fileMutex sdk.FileMuter
 }
 
+var sandboxer sdk.Sandboxer
+
 func init() {
+	sdk.OnBusReady(func(bus sdk.Bus) {
+		bus.On("sandbox.registered", func(ev sdk.Event) error {
+			if s, ok := ev.Payload.(sdk.Sandboxer); ok {
+				sandboxer = s
+			}
+
+			return nil
+		})
+	})
+
 	sdk.RegisterTool("edit", func(_ sdk.Config, _ struct{}) (sdk.Tool, error) {
 		return &tool{
 			tracker:   sdk.GetFileTracker(),
@@ -93,7 +103,7 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		defer t.fileMutex.Lock(path)()
 	}
 
-	if s := sdk.GetSandboxer(); s != nil && !s.AllowWrite(path) {
+	if s := sandboxer; s != nil && !s.AllowWrite(path) {
 		return sdk.ToolResult{Content: "sandbox: write denied — path is protected", IsError: true}, nil
 	}
 
@@ -118,7 +128,7 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		}
 	}
 
-	normalizedBytes, ending := fileutil.NormalizeToLF(originalBytes)
+	normalizedBytes, ending := normalizeToLF(originalBytes)
 	content := string(normalizedBytes)
 
 	// Normalize edit parameters to LF for consistent matching.
@@ -132,7 +142,7 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		return sdk.ToolResult{Content: err.Error(), IsError: true}, nil
 	}
 
-	finalBytes := fileutil.RestoreLineEndings([]byte(content), ending)
+	finalBytes := restoreLineEndings([]byte(content), ending)
 
 	if bytes.Equal(finalBytes, originalBytes) {
 		return sdk.ToolResult{Content: "no changes made (content is identical)", IsError: false}, nil
@@ -272,7 +282,7 @@ func normalizePath(path string) string {
 		return path
 	}
 
-	normalized := pathutil.NormalizePath(path)
+	normalized := normalizeMacOSPath(path)
 	if normalized != path {
 		if _, err := os.Stat(normalized); err == nil {
 			return normalized

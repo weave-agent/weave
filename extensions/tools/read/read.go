@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 
-	"weave/internal/pathutil"
 	"weave/sdk"
 	"weave/utils/truncate"
 )
@@ -23,6 +22,24 @@ const maxLineContentBytes = truncate.DefaultMaxBytes - 100
 const ParamPath = "path"
 
 type tool struct{}
+
+var sandboxer sdk.Sandboxer
+
+func init() {
+	sdk.OnBusReady(func(bus sdk.Bus) {
+		bus.On("sandbox.registered", func(ev sdk.Event) error {
+			if s, ok := ev.Payload.(sdk.Sandboxer); ok {
+				sandboxer = s
+			}
+
+			return nil
+		})
+	})
+
+	sdk.RegisterTool[struct{}]("read", func(_ sdk.Config, _ struct{}) (sdk.Tool, error) {
+		return &tool{}, nil
+	})
+}
 
 // readLine reads one line from r, returning at most maxBytes of content.
 // If the line exceeds maxBytes the excess is consumed but discarded and
@@ -55,12 +72,6 @@ func readLine(r *bufio.Reader, maxBytes int) (line string, truncated bool, err e
 
 		return buf.String(), truncated, sliceErr
 	}
-}
-
-func init() {
-	sdk.RegisterTool[struct{}]("read", func(_ sdk.Config, _ struct{}) (sdk.Tool, error) {
-		return &tool{}, nil
-	})
 }
 
 func (t *tool) Name() string { return "read" }
@@ -116,7 +127,7 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 
 	info, err := os.Stat(path)
 	if err != nil {
-		normalized := pathutil.NormalizePath(path)
+		normalized := normalizeMacOSPath(path)
 		if normalized != path {
 			info, err = os.Stat(normalized)
 			if err == nil {
@@ -129,7 +140,7 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 		}
 	}
 
-	if s := sdk.GetSandboxer(); s != nil && !s.AllowRead(path) {
+	if s := sandboxer; s != nil && !s.AllowRead(path) {
 		return sdk.ToolResult{Content: "sandbox: read denied — path is protected", IsError: true}, nil
 	}
 

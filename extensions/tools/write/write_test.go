@@ -198,11 +198,12 @@ func TestExecuteSandboxDenied(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "protected.txt")
 
-	sandboxer := &testSandboxer{
+	sb := &testSandboxer{
 		allowWriteFn: func(p string) bool { return false },
 	}
-	sdk.SetSandboxer(sandboxer)
-	t.Cleanup(func() { sdk.SetSandboxer(nil) })
+	sandboxer = sb
+
+	t.Cleanup(func() { sandboxer = nil })
 
 	result, err := tool.Execute(context.Background(), map[string]any{
 		"path":    path,
@@ -221,11 +222,12 @@ func TestExecuteSandboxAllowed(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "allowed.txt")
 
-	sandboxer := &testSandboxer{
+	sb := &testSandboxer{
 		allowWriteFn: func(p string) bool { return true },
 	}
-	sdk.SetSandboxer(sandboxer)
-	t.Cleanup(func() { sdk.SetSandboxer(nil) })
+	sandboxer = sb
+
+	t.Cleanup(func() { sandboxer = nil })
 
 	result, err := tool.Execute(context.Background(), map[string]any{
 		"path":    path,
@@ -245,7 +247,7 @@ func TestExecuteSandboxNil(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "nosandbox.txt")
 
-	sdk.SetSandboxer(nil)
+	sandboxer = nil
 
 	result, err := tool.Execute(context.Background(), map[string]any{
 		"path":    path,

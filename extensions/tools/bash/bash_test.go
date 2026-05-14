@@ -392,15 +392,16 @@ func TestExecuteStreamingTimeout(t *testing.T) {
 }
 
 func TestExecuteWithSandboxer(t *testing.T) {
-	orig := sdk.GetSandboxer()
+	orig := sandboxer
 
-	sdk.SetSandboxer(nil)
-	t.Cleanup(func() { sdk.SetSandboxer(orig) })
+	sandboxer = nil
+
+	t.Cleanup(func() { sandboxer = orig })
 
 	tool := &tool{dir: "/test/dir"}
 
 	t.Run("nil sandboxer passes command through", func(t *testing.T) {
-		sdk.SetSandboxer(nil)
+		sandboxer = nil
 
 		result, err := tool.Execute(context.Background(), map[string]any{"command": "echo untouched"})
 		require.NoError(t, err)
@@ -422,7 +423,7 @@ func TestExecuteWithSandboxer(t *testing.T) {
 				return cmd, nil
 			},
 		}
-		sdk.SetSandboxer(s)
+		sandboxer = s
 
 		result, err := tool.Execute(context.Background(), map[string]any{"command": "echo wrapped"})
 		require.NoError(t, err)
@@ -440,7 +441,7 @@ func TestExecuteWithSandboxer(t *testing.T) {
 				return "", errors.New("sandbox unavailable")
 			},
 		}
-		sdk.SetSandboxer(s)
+		sandboxer = s
 
 		result, err := tool.Execute(context.Background(), map[string]any{"command": "echo fail"})
 		require.NoError(t, err)

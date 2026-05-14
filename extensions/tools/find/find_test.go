@@ -191,9 +191,10 @@ func TestExecuteSandboxDenied(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "secret.txt"), []byte("data"), 0o644))
 
-	sandboxer := &testSandboxer{allowReadFn: func(p string) bool { return false }}
-	sdk.SetSandboxer(sandboxer)
-	t.Cleanup(func() { sdk.SetSandboxer(nil) })
+	sb := &testSandboxer{allowReadFn: func(p string) bool { return false }}
+	sandboxer = sb
+
+	t.Cleanup(func() { sandboxer = nil })
 
 	result, err := (&tool{}).Execute(context.Background(), map[string]any{
 		"pattern": "*.txt",
@@ -208,9 +209,10 @@ func TestExecuteSandboxAllowed(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "readable.txt"), []byte("data"), 0o644))
 
-	sandboxer := &testSandboxer{allowReadFn: func(p string) bool { return true }}
-	sdk.SetSandboxer(sandboxer)
-	t.Cleanup(func() { sdk.SetSandboxer(nil) })
+	sb := &testSandboxer{allowReadFn: func(p string) bool { return true }}
+	sandboxer = sb
+
+	t.Cleanup(func() { sandboxer = nil })
 
 	result, err := (&tool{}).Execute(context.Background(), map[string]any{
 		"pattern": "*.txt",
@@ -225,7 +227,7 @@ func TestExecuteSandboxNil(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "normal.txt"), []byte("data"), 0o644))
 
-	sdk.SetSandboxer(nil)
+	sandboxer = nil
 
 	result, err := (&tool{}).Execute(context.Background(), map[string]any{
 		"pattern": "*.txt",
@@ -397,11 +399,12 @@ func TestRgWithSandboxerFiltersDeniedPaths(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "public.go"), []byte("package main"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "secret.go"), []byte("package secret"), 0o644))
 
-	sandboxer := &testSandboxer{allowReadFn: func(p string) bool {
+	sb := &testSandboxer{allowReadFn: func(p string) bool {
 		return !strings.Contains(p, "secret")
 	}}
-	sdk.SetSandboxer(sandboxer)
-	t.Cleanup(func() { sdk.SetSandboxer(nil) })
+	sandboxer = sb
+
+	t.Cleanup(func() { sandboxer = nil })
 
 	result, err := (&tool{}).Execute(context.Background(), map[string]any{
 		"pattern": "*.go",

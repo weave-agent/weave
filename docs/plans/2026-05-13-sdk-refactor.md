@@ -96,14 +96,16 @@ Address architectural, API design, and code quality findings from the SDK review
 
 ### Task 7: Replace global mutable state with bus events
 
-- [ ] Add `sandbox.mode.change` subscription pattern for tools instead of `GetSandboxer()`
-- [ ] Add `output.redirect` event type for output writer hooks instead of global setters
-- [ ] Keep `app.started` for lifecycle (already event-based); remove `OnAppStarted` global
-- [ ] Update tool extensions (bash, read, edit, write) to subscribe to bus for sandboxer
-- [ ] Update TUI to publish `output.redirect` instead of calling `RegisterOutputWriterSetter`
-- [ ] Remove `SetSandboxer`/`GetSandboxer`, `RegisterOutputWriterSetter`, `OnAppStarted` from `sdk/`
-- [ ] Write tests for new bus events
-- [ ] Run `go test ./sdk/...` — must pass
+- [x] Add `sandbox.registered` bus event pattern for tools instead of `GetSandboxer()`
+- [x] Add `output.redirect` event type for output writer hooks instead of global setters
+- [x] Keep `app.started` for lifecycle (already event-based); remove `OnAppStarted` global
+- [x] Update tool extensions (bash, read, edit, write, ls, grep, find) to subscribe to bus for sandboxer
+- [x] Update TUI and sandbox-ui to subscribe to bus for sandboxer
+- [x] Update generated main builder to publish `output.redirect` instead of calling `RegisterOutputWriterSetter`
+- [x] Update sandbox extension to publish `sandbox.registered` during Subscribe
+- [x] Remove `SetSandboxer`/`GetSandboxer`, `RegisterOutputWriterSetter`, `OnAppStarted` from `sdk/`
+- [x] Write tests for new bus events (`sdk/bus_ready_test.go`)
+- [x] Run `go test ./sdk/...` — must pass
 
 ### Task 8: Make `RegisterUIExtension` generic with config
 

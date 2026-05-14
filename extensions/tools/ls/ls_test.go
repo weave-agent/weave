@@ -144,9 +144,10 @@ func TestExecuteSandboxDenied(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "secret.txt"), []byte("data"), 0o644))
 
-	sandboxer := &testSandboxer{allowReadFn: func(p string) bool { return false }}
-	sdk.SetSandboxer(sandboxer)
-	t.Cleanup(func() { sdk.SetSandboxer(nil) })
+	sb := &testSandboxer{allowReadFn: func(p string) bool { return false }}
+	sandboxer = sb
+
+	t.Cleanup(func() { sandboxer = nil })
 
 	result, err := (&tool{}).Execute(context.Background(), map[string]any{"path": dir})
 	require.NoError(t, err)
@@ -158,9 +159,10 @@ func TestExecuteSandboxAllowed(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "readable.txt"), []byte("data"), 0o644))
 
-	sandboxer := &testSandboxer{allowReadFn: func(p string) bool { return true }}
-	sdk.SetSandboxer(sandboxer)
-	t.Cleanup(func() { sdk.SetSandboxer(nil) })
+	sb := &testSandboxer{allowReadFn: func(p string) bool { return true }}
+	sandboxer = sb
+
+	t.Cleanup(func() { sandboxer = nil })
 
 	result, err := (&tool{}).Execute(context.Background(), map[string]any{"path": dir})
 	require.NoError(t, err)
@@ -172,7 +174,7 @@ func TestExecuteSandboxNil(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "normal.txt"), []byte("data"), 0o644))
 
-	sdk.SetSandboxer(nil)
+	sandboxer = nil
 
 	result, err := (&tool{}).Execute(context.Background(), map[string]any{"path": dir})
 	require.NoError(t, err)
@@ -187,11 +189,12 @@ func TestExecuteSandboxPerEntryFiltering(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "readme.md"), []byte("b"), 0o644))
 
 	// Allow the directory and visible files, but deny .env.
-	sandboxer := &testSandboxer{allowReadFn: func(p string) bool {
+	sb := &testSandboxer{allowReadFn: func(p string) bool {
 		return !strings.HasSuffix(p, "/.env")
 	}}
-	sdk.SetSandboxer(sandboxer)
-	t.Cleanup(func() { sdk.SetSandboxer(nil) })
+	sandboxer = sb
+
+	t.Cleanup(func() { sandboxer = nil })
 
 	result, err := (&tool{}).Execute(context.Background(), map[string]any{"path": dir})
 	require.NoError(t, err)
@@ -605,11 +608,12 @@ func TestExecuteTreeSandboxFiltering(t *testing.T) {
 	require.NoError(t, os.Mkdir(filepath.Join(dir, "secrets"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "secrets", "key.txt"), []byte("key"), 0o644))
 
-	sandboxer := &testSandboxer{allowReadFn: func(p string) bool {
+	sb := &testSandboxer{allowReadFn: func(p string) bool {
 		return !strings.Contains(p, ".env") && !strings.Contains(p, "secrets")
 	}}
-	sdk.SetSandboxer(sandboxer)
-	t.Cleanup(func() { sdk.SetSandboxer(nil) })
+	sandboxer = sb
+
+	t.Cleanup(func() { sandboxer = nil })
 
 	result, err := (&tool{defaultLimit: 500}).Execute(context.Background(), map[string]any{
 		"path":  dir,

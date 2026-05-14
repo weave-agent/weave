@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"weave/internal/filemut"
 	"weave/sdk"
 
 	"github.com/stretchr/testify/assert"
@@ -339,11 +338,12 @@ func TestExecuteSandboxDenied(t *testing.T) {
 	path := filepath.Join(tmpDir, "protected.txt")
 	require.NoError(t, os.WriteFile(path, []byte("original"), 0o644))
 
-	sandboxer := &testSandboxer{
+	sb := &testSandboxer{
 		allowWriteFn: func(p string) bool { return false },
 	}
-	sdk.SetSandboxer(sandboxer)
-	t.Cleanup(func() { sdk.SetSandboxer(nil) })
+	sandboxer = sb
+
+	t.Cleanup(func() { sandboxer = nil })
 
 	result, err := tool.Execute(context.Background(), map[string]any{
 		"path": path,
@@ -366,11 +366,12 @@ func TestExecuteSandboxAllowed(t *testing.T) {
 	path := filepath.Join(tmpDir, "allowed.txt")
 	require.NoError(t, os.WriteFile(path, []byte("hello"), 0o644))
 
-	sandboxer := &testSandboxer{
+	sb := &testSandboxer{
 		allowWriteFn: func(p string) bool { return true },
 	}
-	sdk.SetSandboxer(sandboxer)
-	t.Cleanup(func() { sdk.SetSandboxer(nil) })
+	sandboxer = sb
+
+	t.Cleanup(func() { sandboxer = nil })
 
 	result, err := tool.Execute(context.Background(), map[string]any{
 		"path": path,
@@ -394,7 +395,7 @@ func TestExecuteSandboxNil(t *testing.T) {
 	path := filepath.Join(tmpDir, "nosandbox.txt")
 	require.NoError(t, os.WriteFile(path, []byte("before"), 0o644))
 
-	sdk.SetSandboxer(nil)
+	sandboxer = nil
 
 	result, err := tool.Execute(context.Background(), map[string]any{
 		"path": path,
@@ -592,7 +593,7 @@ func TestConcurrentEditsToSameFileAreSerialized(t *testing.T) {
 	require.NoError(t, os.WriteFile(path, []byte(strings.Join(placeholders, " ")), 0o644))
 
 	// Use the real filemut.Mutex to verify actual serialization.
-	fm := filemut.New()
+	fm := newTestMutex()
 	tool := &tool{fileMutex: fm}
 
 	var wg sync.WaitGroup
@@ -652,7 +653,7 @@ func TestConcurrentEditsToDifferentFilesRunInParallel(t *testing.T) {
 	}
 
 	// Use the real filemut.Mutex — different paths use different locks.
-	fm := filemut.New()
+	fm := newTestMutex()
 	tool := &tool{fileMutex: fm}
 
 	var wg sync.WaitGroup

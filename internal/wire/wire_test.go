@@ -461,58 +461,49 @@ func TestWire_MultipleExtensionsRegisterHandlers(t *testing.T) {
 func TestWireWithCore_PublishesAppStarted(t *testing.T) {
 	sdk.ResetExtensionRegistry()
 
-	sdk.ResetAppStartedHandlers()
-	defer sdk.ResetAppStartedHandlers()
-
-	var handlerCalled atomic.Bool
-
-	sdk.OnAppStarted(func(bus sdk.Bus, cfg sdk.Config) {
-		handlerCalled.Store(true)
-	})
-
 	sdk.RegisterExtension("agent", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFunc("agent", func(sdk.Bus) error { return nil }), nil
 	})
 
 	realBus := eventbus.New()
 	defer realBus.Close()
+
+	var appStartedReceived atomic.Bool
+
+	realBus.On("app.started", func(e sdk.Event) error {
+		appStartedReceived.Store(true)
+		return nil
+	})
 
 	_, err := WireWithCore(coreCfg(), nil, realBus, sdk.FilePathConfig(""))
 	require.NoError(t, err, "WireWithCore")
 
-	// Wait for the async publish + handler to run.
-	require.Eventually(t, handlerCalled.Load, 100*time.Millisecond, 5*time.Millisecond, "app.started handler should be called")
+	// Wait for the async publish to run.
+	require.Eventually(t, appStartedReceived.Load, 100*time.Millisecond, 5*time.Millisecond, "app.started event should be published")
 }
 
-func TestWireWithCore_AppStartedNotCalledWhenHeadless(t *testing.T) {
+func TestWireWithCore_InvokesBusSubscribers(t *testing.T) {
 	sdk.ResetExtensionRegistry()
+	sdk.ResetBusSubscribers()
 
-	sdk.ResetAppStartedHandlers()
-	defer sdk.ResetAppStartedHandlers()
+	defer sdk.ResetBusSubscribers()
 
-	var handlerCalled atomic.Bool
+	var subscriberCalled atomic.Bool
 
-	sdk.OnAppStarted(func(bus sdk.Bus, cfg sdk.Config) {
-		if cfg != nil && cfg.IsHeadless() {
-			return
-		}
-
-		handlerCalled.Store(true)
+	sdk.OnBusReady(func(bus sdk.Bus) {
+		subscriberCalled.Store(true)
 	})
 
 	sdk.RegisterExtension("agent", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFunc("agent", func(sdk.Bus) error { return nil }), nil
 	})
 
-	realBus := eventbus.New()
-	defer realBus.Close()
+	bus := &BusMock{}
 
-	headlessCfg := sdk.HeadlessConfig{Config: sdk.FilePathConfig(""), Headless: true}
-	_, err := WireWithCore(coreCfg(), nil, realBus, headlessCfg)
-	require.NoError(t, err, "WireWithCore")
+	_, err := WireWithCore(coreCfg(), nil, bus, nil)
+	require.NoError(t, err)
 
-	// Give the async handler a chance to run, then verify it was skipped.
-	assert.Never(t, handlerCalled.Load, 50*time.Millisecond, 5*time.Millisecond, "app.started handler should NOT be called when headless")
+	assert.True(t, subscriberCalled.Load(), "bus subscriber should be called")
 }
 
 func TestWireWithCore_ExtensionUsesBusOn(t *testing.T) {

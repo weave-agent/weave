@@ -72,6 +72,14 @@ func init() {
 			mgr.setBus(bus)
 			startStdinListener(bus)
 
+			bus.On("output.redirect", func(ev sdk.Event) error {
+				if payload, ok := ev.Payload.(sdk.OutputRedirectPayload); ok {
+					SetStdoutWriter(payload.Writer)
+				}
+
+				return nil
+			})
+
 			return nil
 		}, func() error {
 			mgr.cancel()
