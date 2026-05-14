@@ -322,3 +322,65 @@ func (d *InputDialog) Handles(msg tea.Msg) bool {
 
 	return false
 }
+
+// --- Editor Dialog Adapter ---
+
+// EditorDialog wraps an EditorModel as a Dialog.
+type EditorDialog struct {
+	id     string
+	model  EditorModel
+	done   bool
+	result DialogResult
+}
+
+// NewEditorDialog creates a dialog wrapping an EditorModel.
+func NewEditorDialog(id string, model EditorModel) *EditorDialog {
+	return &EditorDialog{id: id, model: model}
+}
+
+func (d *EditorDialog) ID() string           { return d.id }
+func (d *EditorDialog) Done() bool           { return d.done }
+func (d *EditorDialog) Result() DialogResult { return d.result }
+func (d *EditorDialog) Model() EditorModel   { return d.model }
+
+func (d *EditorDialog) SetSize(width, height int) Dialog {
+	d.model = d.model.SetSize(width, height)
+	return d
+}
+
+func (d *EditorDialog) Update(msg tea.Msg) (Dialog, tea.Cmd) {
+	switch msg := msg.(type) {
+	case EditorResultMsg:
+		d.done = true
+
+		if msg.Ok {
+			d.result = DialogResult{Value: msg.Value}
+		} else {
+			d.result = DialogResult{Err: errors.New("canceled")}
+		}
+
+		return d, nil
+
+	default:
+		var cmd tea.Cmd
+
+		d.model, cmd = d.model.Update(msg)
+
+		return d, cmd
+	}
+}
+
+func (d *EditorDialog) Draw(scr uv.Screen, area uv.Rectangle) {
+	d.model.Draw(scr, area)
+}
+
+func (d *EditorDialog) Handles(msg tea.Msg) bool {
+	switch msg.(type) {
+	case tea.KeyPressMsg:
+		return true
+	case EditorResultMsg:
+		return true
+	}
+
+	return false
+}

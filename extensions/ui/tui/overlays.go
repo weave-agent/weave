@@ -24,15 +24,17 @@ const (
 	requestSelect overlayRequestKind = iota
 	requestConfirm
 	requestInput
+	requestEditor
 )
 
 // overlayRequest is an internal message sent to the Bubble Tea program
-// to trigger a popup overlay (Select, Confirm, or Input).
+// to trigger a popup overlay (Select, Confirm, Input, or Editor).
 type overlayRequest struct {
 	kind    overlayRequestKind
 	title   string
 	message string
 	items   []string
+	initial string
 	result  chan overlayResponse
 }
 
@@ -92,6 +94,8 @@ func nextPopupDialogID(kind overlayRequestKind, seq *int) string {
 		prefix = "popup-confirm"
 	case requestInput:
 		prefix = "popup-input"
+	case requestEditor:
+		prefix = "popup-editor"
 	}
 
 	return fmt.Sprintf("%s-%d", prefix, *seq)
@@ -128,6 +132,13 @@ func pushPopupDialog(m Model, req *overlayRequest) (Model, tea.Cmd) {
 		input = input.Show()
 
 		m.dialogStack = m.dialogStack.Push(overlays.NewInputDialog(id, input))
+
+	case requestEditor:
+		editor := overlays.NewEditorModel(req.title, req.initial)
+		editor = editor.SetSize(m.width, m.height)
+		editor = editor.Show()
+
+		m.dialogStack = m.dialogStack.Push(overlays.NewEditorDialog(id, editor))
 	}
 
 	return m, nil

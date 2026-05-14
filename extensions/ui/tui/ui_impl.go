@@ -271,10 +271,22 @@ func (u *TUIImpl) MultiSelect(title string, items []string, defaults []bool, _ .
 
 // Editor shows an editor overlay and blocks until the user responds.
 func (u *TUIImpl) Editor(prompt, initial string, _ ...sdk.EditorOption) (string, error) {
-	_ = prompt
-	_ = initial
+	req := &overlayRequest{
+		kind:    requestEditor,
+		title:   prompt,
+		initial: initial,
+		result:  make(chan overlayResponse, 1),
+	}
+	if err := u.enqueue(req); err != nil {
+		return "", err
+	}
 
-	return "", errors.New("not implemented")
+	select {
+	case resp := <-req.result:
+		return resp.value, resp.err
+	case <-u.done:
+		return "", errors.New("tui shutting down")
+	}
 }
 
 // NotifyTyped shows a typed notification in the chat area.

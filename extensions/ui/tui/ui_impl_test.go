@@ -552,6 +552,102 @@ func TestModel_PopupInputCancel(t *testing.T) {
 	assert.True(t, m.dialogStack.Empty())
 }
 
+func TestModel_HandlePopupPending_Editor(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.ui = ui
+
+	req := &overlayRequest{
+		kind:    requestEditor,
+		title:   "Edit note:",
+		initial: "prefill",
+		result:  make(chan overlayResponse, 1),
+	}
+
+	m = activatePopup(m, ui, req)
+	assert.False(t, m.dialogStack.Empty())
+	top := m.dialogStack.Peek()
+	require.NotNil(t, top)
+	_, ok := top.(*overlays.EditorDialog)
+	assert.True(t, ok, "expected EditorDialog on stack")
+}
+
+func TestModel_PopupEditorSubmit(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.ui = ui
+
+	req := &overlayRequest{
+		kind:    requestEditor,
+		title:   "Edit:",
+		initial: "",
+		result:  make(chan overlayResponse, 1),
+	}
+	m = activatePopup(m, ui, req)
+	require.False(t, m.dialogStack.Empty())
+
+	updated, _ := m.Update(overlays.EditorResultMsg{Value: "edited text", Ok: true})
+	m = updated.(Model)
+
+	select {
+	case resp := <-req.result:
+		assert.Equal(t, "edited text", resp.value)
+		require.NoError(t, resp.err)
+	default:
+		t.Fatal("expected response on result channel")
+	}
+
+	assert.True(t, m.dialogStack.Empty())
+}
+
+func TestModel_PopupEditorCancel(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.ui = ui
+
+	req := &overlayRequest{
+		kind:    requestEditor,
+		title:   "Edit:",
+		initial: "",
+		result:  make(chan overlayResponse, 1),
+	}
+	m = activatePopup(m, ui, req)
+	require.False(t, m.dialogStack.Empty())
+
+	updated, _ := m.Update(overlays.EditorResultMsg{Ok: false})
+	m = updated.(Model)
+
+	select {
+	case resp := <-req.result:
+		require.Error(t, resp.err)
+	default:
+		t.Fatal("expected response on result channel")
+	}
+
+	assert.True(t, m.dialogStack.Empty())
+}
+
+func TestModel_PopupView_Editor(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	m.dialogStack = overlays.NewDialogStack()
+	m.dialogStack = m.dialogStack.Push(overlays.NewEditorDialog(
+		"popup-editor-1",
+		overlays.NewEditorModel("Edit note:", "").SetSize(80, 24).Show(),
+	))
+	view := m.View()
+	assert.Contains(t, view.Content, "Edit note:")
+	assert.Contains(t, view.Content, "Ctrl+Enter")
+}
+
 func TestModel_PopupSequentialQueuing(t *testing.T) {
 	ui := NewTUIImpl(nil, nil)
 	m := newModel(nil, nil, nil, nil)

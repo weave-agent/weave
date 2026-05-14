@@ -209,13 +209,13 @@ When active, overlay dialogs dock at bottom of chat area instead of centered ove
 
 ### Task 2: Implement Editor overlay in TUI
 
-- [ ] create `EditorModel` in `extensions/ui/tui/components/overlays/editor.go` — multi-line text editor using `bubbles/v2 textarea`
-- [ ] create `EditorDialog` adapter implementing `Dialog` interface
-- [ ] add `requestEditor` to `overlayRequestKind` in `overlays.go`
-- [ ] implement `Editor()` method on `TUIImpl` with blocking channel pattern
-- [ ] write tests for `EditorModel` update/draw behavior
-- [ ] write tests for `EditorDialog` adapter lifecycle
-- [ ] run `cd extensions/ui/tui && go test ./...` — must pass before next task
+- [x] create `EditorModel` in `extensions/ui/tui/components/overlays/editor.go` — multi-line text editor using `bubbles/v2 textarea`
+- [x] create `EditorDialog` adapter implementing `Dialog` interface
+- [x] add `requestEditor` to `overlayRequestKind` in `overlays.go`
+- [x] implement `Editor()` method on `TUIImpl` with blocking channel pattern
+- [x] write tests for `EditorModel` update/draw behavior
+- [x] write tests for `EditorDialog` adapter lifecycle
+- [x] run `cd extensions/ui/tui && go test ./...` — must pass before next task
 
 ### Task 3: Implement MultiSelect overlay in TUI
 

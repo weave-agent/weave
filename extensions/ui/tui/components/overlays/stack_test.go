@@ -178,6 +178,57 @@ func TestDialogStack_Draw_AllDialogs(t *testing.T) {
 	assert.True(t, d2.drawn)
 }
 
+// --- EditorDialog tests ---
+
+func TestEditorDialog_DoneOnSubmit(t *testing.T) {
+	model := NewEditorModel("Note:", "")
+	model = model.SetSize(80, 24).Show()
+	d := NewEditorDialog("test-editor", model)
+
+	assert.False(t, d.Done())
+
+	newD, _ := d.Update(EditorResultMsg{Value: "hello world", Ok: true})
+	d = newD.(*EditorDialog)
+
+	assert.True(t, d.Done())
+	assert.Equal(t, "hello world", d.Result().Value)
+	assert.NoError(t, d.Result().Err)
+}
+
+func TestEditorDialog_DoneOnCancel(t *testing.T) {
+	model := NewEditorModel("Note:", "")
+	model = model.SetSize(80, 24).Show()
+	d := NewEditorDialog("test-editor", model)
+
+	newD, _ := d.Update(EditorResultMsg{Ok: false})
+	d = newD.(*EditorDialog)
+
+	assert.True(t, d.Done())
+	require.Error(t, d.Result().Err)
+	assert.EqualError(t, d.Result().Err, "canceled")
+}
+
+func TestEditorDialog_HandlesKeyAndResult(t *testing.T) {
+	model := NewEditorModel("Note:", "")
+	model = model.SetSize(80, 24).Show()
+	d := NewEditorDialog("test-editor", model)
+
+	assert.True(t, d.Handles(tea.KeyPressMsg{Code: tea.KeyEsc}))
+	assert.True(t, d.Handles(EditorResultMsg{}))
+	assert.False(t, d.Handles(tea.WindowSizeMsg{}))
+}
+
+func TestEditorDialog_SetSize(t *testing.T) {
+	model := NewEditorModel("Note:", "")
+	d := NewEditorDialog("test-editor", model)
+
+	newD := d.SetSize(120, 40)
+	ed := newD.(*EditorDialog)
+
+	assert.Equal(t, 120, ed.Model().Width())
+	assert.Equal(t, 40, ed.Model().Height())
+}
+
 func TestDialogStack_Resize(t *testing.T) {
 	s := NewDialogStack()
 	d1 := &mockDialog{id: "d1"}
