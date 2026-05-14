@@ -267,7 +267,7 @@ func readModulePath(dir string) string {
 // moduleRoot is the path to the weave module root (containing go.mod).
 func GenerateGoMod(dir, moduleRoot string, exts []ExtensionInfo) error {
 	var b strings.Builder
-	b.WriteString("module weave-built\n\n")
+	b.WriteString("module weave/built\n\n")
 	b.WriteString(goVersion() + "\n\n")
 	b.WriteString("require (\n")
 	b.WriteString("\tweave v0.0.0\n")
@@ -434,7 +434,7 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 	b.WriteString("\t\"weave/settings\"\n")
 	b.WriteString("\t\"weave/sdk\"\n")
 	b.WriteString("\t\"weave/sdk/model\"\n")
-	b.WriteString("\t\"weave/sdk/wire\"\n")
+	b.WriteString("\t\"weave/internal/wire\"\n")
 
 	for _, ext := range exts {
 		b.WriteString("\n")

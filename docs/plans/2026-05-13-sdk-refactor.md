@@ -54,14 +54,14 @@ Address architectural, API design, and code quality findings from the SDK review
 
 ### Task 3: Move `sdk/wire/` to `internal/wire/`
 
-- [ ] Move `sdk/wire/*.go` to `internal/wire/*.go`
-- [ ] Update package declaration to `package wire` in all files
-- [ ] Update `cmd/weave/main.go` to import `weave/internal/wire` instead of `weave/sdk/wire`
-- [ ] Update launcher generated code template to import `weave/internal/wire`
-- [ ] Update all tests that import `weave/sdk/wire`
-- [ ] Write tests for moved code
-- [ ] Run `go test ./internal/wire/...` — must pass
-- [ ] Run `go test ./cmd/weave/...` — must pass
+- [x] Move `sdk/wire/*.go` to `internal/wire/*.go`
+- [x] Update package declaration to `package wire` in all files
+- [x] Update `cmd/weave/main.go` to import `weave/internal/wire` instead of `weave/sdk/wire`
+- [x] Update launcher generated code template to import `weave/internal/wire`
+- [x] Update all tests that import `weave/sdk/wire`
+- [x] Write tests for moved code (tests moved with code)
+- [x] Run `go test ./internal/wire/...` — must pass
+- [x] Run `go test ./cmd/weave/...` — must pass
 
 ### Task 4: Move `IsUIExtension()` to `launcher/`
 

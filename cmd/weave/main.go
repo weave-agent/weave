@@ -4,7 +4,7 @@ import (
 	"context"
 	"os"
 
-	"weave/sdk/wire"
+	"weave/internal/wire"
 )
 
 func main() {

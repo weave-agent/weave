@@ -1,6 +1,6 @@
 package wire
 
-//go:generate moq -fmt goimports -stub -skip-ensure -pkg wire -out wire_mock_test.go .. Bus Provider
+//go:generate moq -fmt goimports -stub -skip-ensure -pkg wire -out wire_mock_test.go weave/sdk Bus Provider
 
 import (
 	"errors"

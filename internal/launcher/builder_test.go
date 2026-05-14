@@ -265,7 +265,7 @@ func TestGenerateGoMod_Content(t *testing.T) {
 	require.NoError(t, err)
 
 	s := string(content)
-	assert.Contains(t, s, "module weave-built")
+	assert.Contains(t, s, "module weave/built")
 	assert.Contains(t, s, goVersion())
 	assert.Contains(t, s, "weave v0.0.0")
 	assert.Contains(t, s, "weave/ext/noop v0.0.0")
@@ -305,7 +305,7 @@ func TestGenerateMainGo_Content(t *testing.T) {
 	assert.Contains(t, s, "package main")
 	assert.Contains(t, s, `"weave/sdk"`)
 	assert.Contains(t, s, `"weave/sdk/model"`)
-	assert.Contains(t, s, `"weave/sdk/wire"`)
+	assert.Contains(t, s, `"weave/internal/wire"`)
 	assert.Contains(t, s, `"weave/bus"`)
 	assert.Contains(t, s, `"strings"`)
 	assert.Contains(t, s, `_ "weave/ext/noop"`)
