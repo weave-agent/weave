@@ -65,11 +65,11 @@ Address architectural, API design, and code quality findings from the SDK review
 
 ### Task 4: Move `IsUIExtension()` to `launcher/`
 
-- [ ] Move `IsUIExtension(dir string) bool` from `sdk/ui_extension_detect.go` to `launcher/ui_detect.go`
-- [ ] Update `launcher/auto_discover.go` to use local function instead of `sdk.IsUIExtension`
-- [ ] Remove `sdk/ui_extension_detect.go` if now empty
-- [ ] Update tests
-- [ ] Run `go test ./launcher/...` — must pass
+- [x] Move `IsUIExtension(dir string) bool` from `sdk/ui_extension_detect.go` to `launcher/ui_detect.go`
+- [x] Update `launcher/auto_discover.go` to use local function instead of `sdk.IsUIExtension`
+- [x] Remove `sdk/ui_extension_detect.go` if now empty
+- [x] Update tests
+- [x] Run `go test ./launcher/...` — must pass
 
 ### Task 5: Derive `envPrefix` inside `ExtensionConfig`
 

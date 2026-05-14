@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strings"
 
-	"weave/sdk"
 	"weave/settings"
 )
 
@@ -133,7 +132,7 @@ func tryAddExtension(path, root string, d fs.DirEntry, err error, seen map[strin
 
 	seen[name] = true
 
-	isUI := sdk.IsUIExtension(path)
+	isUI := isUIExtension(path)
 
 	*exts = append(*exts, ExtensionInfo{
 		Name:    name,

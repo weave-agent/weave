@@ -1,4 +1,4 @@
-package sdk
+package launcher
 
 import (
 	"errors"
@@ -13,13 +13,13 @@ const maxUIExtScanSize = 10 << 20 // 10 MB
 
 var errUIExtFound = errors.New("ui extension found")
 
-// IsUIExtension reports whether the directory at dir contains a UI extension.
+// isUIExtension reports whether the directory at dir contains a UI extension.
 // It scans .go files for RegisterUIExtension( or RegisterUI( calls,
 // respecting module boundaries (subdirectories with their own go.mod are skipped).
-func IsUIExtension(dir string) bool {
+func isUIExtension(dir string) bool {
 	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			log.Printf("sdk: skip unreadable entry %s: %v", path, err)
+			log.Printf("launcher: skip unreadable entry %s: %v", path, err)
 
 			return nil
 		}
@@ -47,14 +47,14 @@ func IsUIExtension(dir string) bool {
 
 		info, statErr := os.Stat(filepath.Join(dir, rel))
 		if statErr != nil || info.Size() > maxUIExtScanSize {
-			log.Printf("sdk: skip unreadable or oversized file %s", path)
+			log.Printf("launcher: skip unreadable or oversized file %s", path)
 
 			return nil //nolint:nilerr // logged above, skip unreadable or oversized files by design
 		}
 
 		data, readErr := os.ReadFile(filepath.Join(dir, rel))
 		if readErr != nil {
-			log.Printf("sdk: skip unreadable file %s: %v", path, readErr)
+			log.Printf("launcher: skip unreadable file %s: %v", path, readErr)
 
 			return nil
 		}

@@ -1,4 +1,4 @@
-package sdk
+package launcher
 
 import (
 	"os"
@@ -15,7 +15,7 @@ func TestIsUIExtension_DetectsRegisterUIExtension(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.go"), []byte("package x\n\nfunc init() { RegisterUIExtension(\"x\", nil) }\n"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "b.go"), []byte("package x\n"), 0o600))
 
-	assert.True(t, IsUIExtension(dir))
+	assert.True(t, isUIExtension(dir))
 }
 
 func TestIsUIExtension_DetectsRegisterUI(t *testing.T) {
@@ -23,7 +23,7 @@ func TestIsUIExtension_DetectsRegisterUI(t *testing.T) {
 
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "ui.go"), []byte("package x\n\nfunc init() { RegisterUI(\"tui\", nil) }\n"), 0o600))
 
-	assert.True(t, IsUIExtension(dir))
+	assert.True(t, isUIExtension(dir))
 }
 
 func TestIsUIExtension_NoUIRegistration(t *testing.T) {
@@ -31,7 +31,7 @@ func TestIsUIExtension_NoUIRegistration(t *testing.T) {
 
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.go"), []byte("package x\n\nfunc init() { RegisterExtension(\"x\", nil) }\n"), 0o600))
 
-	assert.False(t, IsUIExtension(dir))
+	assert.False(t, isUIExtension(dir))
 }
 
 func TestIsUIExtension_SkipsTestFiles(t *testing.T) {
@@ -39,7 +39,7 @@ func TestIsUIExtension_SkipsTestFiles(t *testing.T) {
 
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "a_test.go"), []byte("package x\n\nfunc init() { RegisterUIExtension(\"x\", nil) }\n"), 0o600))
 
-	assert.False(t, IsUIExtension(dir))
+	assert.False(t, isUIExtension(dir))
 }
 
 func TestIsUIExtension_RespectsModuleBoundaries(t *testing.T) {
@@ -54,13 +54,13 @@ func TestIsUIExtension_RespectsModuleBoundaries(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(childDir, "go.mod"), []byte("module child\n"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(childDir, "child.go"), []byte("package child\n\nfunc init() { RegisterUIExtension(\"x\", nil) }\n"), 0o600))
 
-	assert.False(t, IsUIExtension(dir))
+	assert.False(t, isUIExtension(dir))
 }
 
 func TestIsUIExtension_EmptyDir(t *testing.T) {
 	dir := t.TempDir()
 
-	assert.False(t, IsUIExtension(dir))
+	assert.False(t, isUIExtension(dir))
 }
 
 func TestIsUIExtension_SkipsOversizedFiles(t *testing.T) {
@@ -71,5 +71,5 @@ func TestIsUIExtension_SkipsOversizedFiles(t *testing.T) {
 	copy(largeContent, "package x\n\nfunc init() { RegisterUIExtension(\"x\", nil) }\n")
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.go"), largeContent, 0o600))
 
-	assert.False(t, IsUIExtension(dir))
+	assert.False(t, isUIExtension(dir))
 }
