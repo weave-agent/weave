@@ -12,13 +12,66 @@ const (
 	NotifySuccess
 )
 
+// SelectConfig holds options for Select overlay calls.
+type SelectConfig struct {
+	KeepContent bool
+}
+
+// ConfirmConfig holds options for Confirm overlay calls.
+type ConfirmConfig struct {
+	KeepContent bool
+}
+
+// InputConfig holds options for Input overlay calls.
+type InputConfig struct {
+	KeepContent bool
+}
+
+// EditorConfig holds options for Editor overlay calls.
+type EditorConfig struct {
+	KeepContent bool
+}
+
+// SelectOption is a functional option for Select.
+type SelectOption func(*SelectConfig)
+
+// ConfirmOption is a functional option for Confirm.
+type ConfirmOption func(*ConfirmConfig)
+
+// InputOption is a functional option for Input.
+type InputOption func(*InputConfig)
+
+// EditorOption is a functional option for Editor.
+type EditorOption func(*EditorConfig)
+
+// WithKeepContent docks the overlay at the bottom of the chat area
+// instead of as a centered modal, keeping chat content visible.
+func WithKeepContent() SelectOption {
+	return func(c *SelectConfig) { c.KeepContent = true }
+}
+
+// WithKeepContentConfirm docks the confirm overlay at the bottom.
+func WithKeepContentConfirm() ConfirmOption {
+	return func(c *ConfirmConfig) { c.KeepContent = true }
+}
+
+// WithKeepContentInput docks the input overlay at the bottom.
+func WithKeepContentInput() InputOption {
+	return func(c *InputConfig) { c.KeepContent = true }
+}
+
+// WithKeepContentEditor docks the editor overlay at the bottom.
+func WithKeepContentEditor() EditorOption {
+	return func(c *EditorConfig) { c.KeepContent = true }
+}
+
 // UIDialogs provides modal interaction methods.
 type UIDialogs interface {
-	Select(title string, items []string) (int, error)
-	Confirm(message string) (bool, error)
-	Input(prompt string) (string, error)
-	MultiSelect(title string, items []string) ([]int, error)
-	Editor(prompt, initial string) (string, error)
+	Select(title string, items []string, opts ...SelectOption) (int, error)
+	Confirm(message string, opts ...ConfirmOption) (bool, error)
+	Input(prompt string, opts ...InputOption) (string, error)
+	MultiSelect(title string, items []string, defaults []bool, opts ...SelectOption) ([]int, error)
+	Editor(prompt, initial string, opts ...EditorOption) (string, error)
 }
 
 // UIStatus provides status and notification methods.

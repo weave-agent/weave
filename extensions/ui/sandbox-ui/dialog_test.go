@@ -22,7 +22,7 @@ type mockSelectUI struct {
 	selectItems  []string
 }
 
-func (m *mockSelectUI) Select(title string, items []string) (int, error) {
+func (m *mockSelectUI) Select(title string, items []string, _ ...sdk.SelectOption) (int, error) {
 	m.selectCalled = true
 	m.selectTitle = title
 	m.selectItems = items

@@ -86,7 +86,7 @@ func (u *TUIImpl) Close() {
 }
 
 // Select shows a selection overlay and blocks until the user picks an item or cancels.
-func (u *TUIImpl) Select(title string, items []string) (int, error) {
+func (u *TUIImpl) Select(title string, items []string, _ ...sdk.SelectOption) (int, error) {
 	req := &overlayRequest{
 		kind:   requestSelect,
 		title:  title,
@@ -106,7 +106,7 @@ func (u *TUIImpl) Select(title string, items []string) (int, error) {
 }
 
 // Confirm shows a yes/no dialog and blocks until the user responds.
-func (u *TUIImpl) Confirm(message string) (bool, error) {
+func (u *TUIImpl) Confirm(message string, _ ...sdk.ConfirmOption) (bool, error) {
 	req := &overlayRequest{
 		kind:    requestConfirm,
 		message: message,
@@ -125,7 +125,7 @@ func (u *TUIImpl) Confirm(message string) (bool, error) {
 }
 
 // Input shows a single-line input modal and blocks until the user submits or cancels.
-func (u *TUIImpl) Input(prompt string) (string, error) {
+func (u *TUIImpl) Input(prompt string, _ ...sdk.InputOption) (string, error) {
 	req := &overlayRequest{
 		kind:    requestInput,
 		message: prompt,
@@ -261,15 +261,16 @@ func (u *TUIImpl) GetRenderer(toolName string) (sdk.ToolRenderer, bool) {
 }
 
 // MultiSelect shows a multi-selection overlay and blocks until the user responds.
-func (u *TUIImpl) MultiSelect(title string, items []string) ([]int, error) {
+func (u *TUIImpl) MultiSelect(title string, items []string, defaults []bool, _ ...sdk.SelectOption) ([]int, error) {
 	_ = title
 	_ = items
+	_ = defaults
 
 	return nil, errors.New("not implemented")
 }
 
 // Editor shows an editor overlay and blocks until the user responds.
-func (u *TUIImpl) Editor(prompt, initial string) (string, error) {
+func (u *TUIImpl) Editor(prompt, initial string, _ ...sdk.EditorOption) (string, error) {
 	_ = prompt
 	_ = initial
 

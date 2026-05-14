@@ -197,15 +197,15 @@ When active, overlay dialogs dock at bottom of chat area instead of centered ove
 
 ### Task 1: Add new types and functional options to `sdk/`
 
-- [ ] add `NotifyLevel` type and constants to `sdk/ui.go`
-- [ ] add `SelectConfig`, `ConfirmConfig`, `InputConfig`, `EditorConfig` structs to `sdk/ui.go`
-- [ ] add functional option types: `SelectOption`, `ConfirmOption`, `InputOption`, `EditorOption`
-- [ ] add `WithKeepContent()` option constructors for each overlay type
-- [ ] update `UI` interface with new method signatures (variadic opts on existing methods + 8 new methods)
-- [ ] update `NoopUI` with stubs for all new methods
-- [ ] write tests for functional options parsing
-- [ ] write tests for `NoopUI` new method stubs
-- [ ] run `make test` — must pass before next task
+- [x] add `NotifyLevel` type and constants to `sdk/ui.go`
+- [x] add `SelectConfig`, `ConfirmConfig`, `InputConfig`, `EditorConfig` structs to `sdk/ui.go`
+- [x] add functional option types: `SelectOption`, `ConfirmOption`, `InputOption`, `EditorOption`
+- [x] add `WithKeepContent()` option constructors for each overlay type
+- [x] update `UI` interface with new method signatures (variadic opts on existing methods + 8 new methods)
+- [x] update `NoopUI` with stubs for all new methods
+- [x] write tests for functional options parsing
+- [x] write tests for `NoopUI` new method stubs
+- [x] run `make test` — must pass before next task
 
 ### Task 2: Implement Editor overlay in TUI
 

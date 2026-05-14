@@ -42,7 +42,7 @@ func TestNoopUI_Input(t *testing.T) {
 func TestNoopUI_MultiSelect(t *testing.T) {
 	ui := NoopUI{}
 
-	result, err := ui.MultiSelect("pick some", []string{"a", "b"})
+	result, err := ui.MultiSelect("pick some", []string{"a", "b"}, nil)
 	require.NoError(t, err)
 	assert.Nil(t, result)
 }
@@ -51,6 +51,38 @@ func TestNoopUI_Editor(t *testing.T) {
 	ui := NoopUI{}
 
 	result, err := ui.Editor("edit", "initial")
+	require.NoError(t, err)
+	assert.Empty(t, result)
+}
+
+func TestNoopUI_SelectWithOptions(t *testing.T) {
+	ui := NoopUI{}
+
+	idx, err := ui.Select("pick one", []string{"a", "b", "c"}, WithKeepContent())
+	require.NoError(t, err)
+	assert.Equal(t, 0, idx)
+}
+
+func TestNoopUI_ConfirmWithOptions(t *testing.T) {
+	ui := NoopUI{}
+
+	result, err := ui.Confirm("are you sure?", WithKeepContentConfirm())
+	require.NoError(t, err)
+	assert.True(t, result)
+}
+
+func TestNoopUI_InputWithOptions(t *testing.T) {
+	ui := NoopUI{}
+
+	result, err := ui.Input("enter value", WithKeepContentInput())
+	require.NoError(t, err)
+	assert.Empty(t, result)
+}
+
+func TestNoopUI_EditorWithOptions(t *testing.T) {
+	ui := NoopUI{}
+
+	result, err := ui.Editor("edit", "initial", WithKeepContentEditor())
 	require.NoError(t, err)
 	assert.Empty(t, result)
 }

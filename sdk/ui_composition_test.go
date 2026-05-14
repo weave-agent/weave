@@ -32,9 +32,12 @@ func TestUIComposition(t *testing.T) {
 	assert.NotNil(t, ui)
 
 	// Verify methods from each sub-interface are accessible via UI.
-	idx, err := ui.Select("test", []string{"a"})
+	idx, err := ui.Select("test", []string{"a"}, WithKeepContent())
 	require.NoError(t, err)
 	assert.Equal(t, 0, idx)
+
+	_, err = ui.MultiSelect("test", []string{"a", "b"}, []bool{true, false})
+	require.NoError(t, err)
 
 	ui.SetStatus("key", "val")
 	ui.RegisterCommand("cmd", func(string) error { return nil })

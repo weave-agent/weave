@@ -2,7 +2,7 @@ package sdk
 
 type NoopUI struct{}
 
-func (NoopUI) Select(_ string, items []string) (int, error) {
+func (NoopUI) Select(_ string, items []string, _ ...SelectOption) (int, error) {
 	if len(items) == 0 {
 		return -1, nil
 	}
@@ -10,19 +10,19 @@ func (NoopUI) Select(_ string, items []string) (int, error) {
 	return 0, nil
 }
 
-func (NoopUI) Confirm(_ string) (bool, error) {
+func (NoopUI) Confirm(_ string, _ ...ConfirmOption) (bool, error) {
 	return true, nil
 }
 
-func (NoopUI) Input(_ string) (string, error) {
+func (NoopUI) Input(_ string, _ ...InputOption) (string, error) {
 	return "", nil
 }
 
-func (NoopUI) MultiSelect(_ string, _ []string) ([]int, error) {
+func (NoopUI) MultiSelect(_ string, _ []string, _ []bool, _ ...SelectOption) ([]int, error) {
 	return nil, nil
 }
 
-func (NoopUI) Editor(_, _ string) (string, error) {
+func (NoopUI) Editor(_, _ string, _ ...EditorOption) (string, error) {
 	return "", nil
 }
 
