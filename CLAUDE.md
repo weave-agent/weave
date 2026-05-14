@@ -175,7 +175,6 @@ Unified settings JSON format (single file — project `~/.weave/settings.json` o
   "model": "claude-sonnet-4-6",
   "thinking_level": "medium",
   "respect_gitignore": true,
-  "debug": false,
   "ui": { "editor_max_lines": 20 },
   "tools": { "bash": { "timeout": 120 } }
 }
