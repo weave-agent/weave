@@ -100,15 +100,15 @@ Key benefits:
 - [x] Run all TUI tests — must pass before next task
 
 ### Task 4: Redesign footer, landing screen, and editor
-- [ ] Restructure `FooterModel.renderLine2()` in `components/footer.go`: bold model name in primary color, thinking level as a subtle pill, token counts and cost muted, context percentage with theme threshold colors
-- [ ] Group footer information visually — model info on the right, stats on the left
-- [ ] Redesign `LandingModel` in `landing.go`: better vertical composition with a subtle horizontal rule (`Border` color) between logo and info; move placeholder into the editor textarea
-- [ ] Add `Placeholder` text to editor in `components/editor.go` ("Type a message...")
-- [ ] Improve blurred editor border distinction — use `Border` instead of `BorderFocused` dimmed
-- [ ] Write tests for footer rendering (verify model name prominence, separator grouping)
-- [ ] Write tests for landing page composition
-- [ ] Write tests for editor placeholder
-- [ ] Run all TUI tests — must pass before next task
+- [x] Restructure `FooterModel.renderLine2()` in `components/footer.go`: bold model name in primary color, thinking level as a subtle pill, token counts and cost muted, context percentage with theme threshold colors
+- [x] Group footer information visually — model info on the right, stats on the left
+- [x] Redesign `LandingModel` in `landing.go`: better vertical composition with a subtle horizontal rule (`Border` color) between logo and info; move placeholder into the editor textarea
+- [x] Add `Placeholder` text to editor in `components/editor.go` ("Type a message...")
+- [x] Improve blurred editor border distinction — use `Border` instead of `BorderFocused` dimmed
+- [x] Write tests for footer rendering (verify model name prominence, separator grouping)
+- [x] Write tests for landing page composition
+- [x] Write tests for editor placeholder
+- [x] Run all TUI tests — must pass before next task
 
 ### Task 5: Redesign attachments, overlays, and completion popup
 - [ ] Redesign `attachments.Model.Draw()` in `components/attachments/attachments.go`: replace bracketed text with pill-shaped chips using `BackgroundTint` background and rounded appearance; delete mode uses `Error` color with `×` indicator

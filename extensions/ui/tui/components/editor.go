@@ -55,6 +55,7 @@ func NewEditorModel() EditorModel {
 	ta.ShowLineNumbers = false
 	ta.SetVirtualCursor(true)
 	ta.Prompt = ""
+	ta.Placeholder = "Type a message..."
 	ta.SetHeight(3)
 	ta.Focus()
 
@@ -143,13 +144,14 @@ func (m EditorModel) SetMaxHeight(n int) EditorModel {
 	return m
 }
 
-// SetBorderColor updates the editor border color.
+// SetBorderColor updates the editor focused border color.
+// The blurred border always uses the theme's Border color for distinction.
 func (m EditorModel) SetBorderColor(color string) EditorModel {
 	m.BorderColor = color
 
 	styles := m.ta.Styles()
 	styles.Focused.Base = borderStyle(color)
-	styles.Blurred.Base = borderStyle(color)
+	styles.Blurred.Base = borderStyle(palette.DefaultTheme().Border)
 	m.ta.SetStyles(styles)
 
 	return m

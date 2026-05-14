@@ -540,7 +540,8 @@ func TestIntegration_LandingToChatAndBack(t *testing.T) {
 	require.True(t, m.showLanding)
 	view := m.View()
 	assert.Contains(t, view.Content, "█████")
-	assert.Contains(t, view.Content, "Type a message")
+	// Horizontal rule should be present in landing
+	assert.Contains(t, view.Content, "─")
 
 	// Submit hides landing
 	model, _ := m.onSubmit("hello")

@@ -220,22 +220,22 @@ func (m FooterModel) renderLine1() string {
 }
 
 func (m FooterModel) renderLine2() string {
-	parts := []string{}
+	theme := palette.DefaultTheme()
+	mutedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Muted))
 
-	// Token counts
+	// Left side: stats (tokens, cost, context)
+	leftParts := []string{}
+
 	if m.inputTokens > 0 || m.outputTokens > 0 {
-		parts = append(parts, fmt.Sprintf("in:%d out:%d", m.inputTokens, m.outputTokens))
+		leftParts = append(leftParts, mutedStyle.Render(fmt.Sprintf("in:%d out:%d", m.inputTokens, m.outputTokens)))
 	}
 
-	// Cost
 	if m.cost > 0 {
-		parts = append(parts, fmt.Sprintf("$%.4f", m.cost))
+		leftParts = append(leftParts, mutedStyle.Render(fmt.Sprintf("$%.4f", m.cost)))
 	}
 
-	// Context percentage with color thresholds
 	if m.contextPct > 0 {
 		pctStyle := lipgloss.NewStyle()
-		theme := palette.DefaultTheme()
 
 		switch {
 		case m.contextPct > 90:
@@ -246,36 +246,57 @@ func (m FooterModel) renderLine2() string {
 			pctStyle = pctStyle.Foreground(lipgloss.Color(theme.Success))
 		}
 
-		parts = append(parts, pctStyle.Render(fmt.Sprintf("ctx:%.0f%%", m.contextPct)))
+		leftParts = append(leftParts, pctStyle.Render(fmt.Sprintf("ctx:%.0f%%", m.contextPct)))
 	}
 
-	// Model + provider + thinking level
+	left := strings.Join(leftParts, " ")
+
+	// Right side: model info (model name, thinking level, token rate)
+	rightParts := []string{}
+
 	if m.modelName != "" {
+		modelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Primary)).Bold(true)
 		modelDisplay := m.modelName
+
 		if m.providerName != "" {
 			modelDisplay = m.providerName + "/" + m.modelName
 		}
 
-		if m.thinkingLevel != "" && m.reasoning {
-			modelDisplay += " · " + m.thinkingLevel
-		}
-
-		parts = append(parts, modelDisplay)
+		rightParts = append(rightParts, modelStyle.Render(modelDisplay))
 	}
 
-	// Token rate during streaming
+	if m.thinkingLevel != "" && m.reasoning {
+		pillStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.Muted)).
+			Background(lipgloss.Color(theme.BackgroundTint)).
+			Padding(0, 1)
+		rightParts = append(rightParts, pillStyle.Render(m.thinkingLevel))
+	}
+
 	if m.tokenRate > 0 {
-		parts = append(parts, fmt.Sprintf("%.1f tok/s", m.tokenRate))
+		rightParts = append(rightParts, mutedStyle.Render(fmt.Sprintf("%.1f tok/s", m.tokenRate)))
 	}
 
-	if len(parts) == 0 {
-		dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Muted))
-		return dimStyle.Render("weave")
+	right := strings.Join(rightParts, " ")
+
+	if left == "" && right == "" {
+		return mutedStyle.Render("weave")
 	}
 
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Muted))
+	if left == "" {
+		return right
+	}
 
-	return dimStyle.Render(strings.Join(parts, " │ "))
+	if right == "" {
+		return left
+	}
+
+	// Pad with spaces to push right group to the right edge
+	leftWidth := lipgloss.Width(left)
+	rightWidth := lipgloss.Width(right)
+	padding := max(m.width-leftWidth-rightWidth, 1)
+
+	return left + strings.Repeat(" ", padding) + right
 }
 
 // shortenPath replaces the home directory prefix with ~.

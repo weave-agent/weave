@@ -53,7 +53,7 @@ func (m LandingModel) Draw(scr uv.Screen, area uv.Rectangle) {
 
 	nameStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Primary)).Bold(true)
 	hintStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Border))
-	placeholderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Muted))
+	ruleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Border))
 
 	for i, line := range lines {
 		if y+i >= area.Max.Y {
@@ -67,8 +67,12 @@ func (m LandingModel) Draw(scr uv.Screen, area uv.Rectangle) {
 			rendered = nameStyle.Render(strings.TrimPrefix(line, "name:"))
 		case strings.HasPrefix(line, "hint:"):
 			rendered = hintStyle.Render(strings.TrimPrefix(line, "hint:"))
-		case strings.HasPrefix(line, "placeholder:"):
-			rendered = placeholderStyle.Render(strings.TrimPrefix(line, "placeholder:"))
+		case strings.HasPrefix(line, "rule:"):
+			// Render a horizontal rule that spans most of the width
+			ruleWidth := min(w-4, 40)
+			if ruleWidth > 0 {
+				rendered = ruleStyle.Render(strings.Repeat("─", ruleWidth))
+			}
 		default:
 			rendered = line
 		}
@@ -81,6 +85,9 @@ func (m LandingModel) Draw(scr uv.Screen, area uv.Rectangle) {
 func (m LandingModel) buildLines() []string {
 	lines := append([]string{}, m.logo()...)
 
+	// Horizontal rule between logo and info
+	lines = append(lines, "rule:")
+
 	if m.model != "" {
 		label := fmt.Sprintf("  %s (%s)", m.model, m.provider)
 		lines = append(lines, "", "name:"+label)
@@ -90,8 +97,6 @@ func (m LandingModel) buildLines() []string {
 		"",
 		"hint:  ctrl+p model  ·  ctrl+l select  ·  shift+tab thinking",
 		"hint:  ctrl+n new  ·  ctrl+o expand  ·  ctrl+t toggle",
-		"",
-		"placeholder:  Type a message to get started...",
 	)
 
 	return lines

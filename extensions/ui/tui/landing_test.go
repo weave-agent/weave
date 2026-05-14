@@ -38,13 +38,14 @@ func TestLandingModel_DrawRendersKeybindingHints(t *testing.T) {
 	assert.Contains(t, rendered, "ctrl+n new")
 }
 
-func TestLandingModel_DrawRendersPlaceholder(t *testing.T) {
+func TestLandingModel_DrawRendersRule(t *testing.T) {
 	m := NewLandingModel("glm-5.1", "anthropic")
 	scr := uv.NewScreenBuffer(60, 24)
 	m.Draw(scr, scr.Bounds())
 	rendered := scr.Render()
 
-	assert.Contains(t, rendered, "Type a message")
+	// Horizontal rule should be rendered in Border color
+	assert.Contains(t, rendered, "─")
 }
 
 func TestLandingModel_DrawZeroArea(t *testing.T) {
@@ -81,7 +82,8 @@ func TestLanding_ShownInitially(t *testing.T) {
 
 	view := m.View()
 	assert.Contains(t, view.Content, "█████", "view should contain landing logo")
-	assert.Contains(t, view.Content, "Type a message", "view should contain placeholder")
+	// Horizontal rule should be present between logo and info
+	assert.Contains(t, view.Content, "─", "view should contain horizontal rule")
 }
 
 func TestLanding_HiddenAfterFirstSubmit(t *testing.T) {
@@ -166,4 +168,36 @@ func TestLanding_EditorStillAccessibleWhenLandingActive(t *testing.T) {
 	// Verify the layout still allocates editor space by checking the model can handle input
 	m.editor = m.editor.SetValue("test input")
 	assert.Equal(t, "test input", m.editor.Value())
+}
+
+// --- Task 4: Landing composition tests ---
+
+func TestLandingModel_DrawHasRuleBetweenLogoAndInfo(t *testing.T) {
+	m := NewLandingModel("glm-5.1", "anthropic")
+	scr := uv.NewScreenBuffer(60, 24)
+	m.Draw(scr, scr.Bounds())
+	rendered := scr.Render()
+
+	// The horizontal rule should appear between logo and model info
+	assert.Contains(t, rendered, "─")
+}
+
+func TestLandingModel_DrawNoPlaceholder(t *testing.T) {
+	m := NewLandingModel("glm-5.1", "anthropic")
+	scr := uv.NewScreenBuffer(60, 24)
+	m.Draw(scr, scr.Bounds())
+	rendered := scr.Render()
+
+	// Placeholder text should NOT be in landing output (it's in the editor now)
+	assert.NotContains(t, rendered, "Type a message to get started")
+}
+
+func TestLandingModel_DrawRuleInBorderColor(t *testing.T) {
+	m := NewLandingModel("glm-5.1", "anthropic")
+	scr := uv.NewScreenBuffer(60, 24)
+	m.Draw(scr, scr.Bounds())
+	rendered := scr.Render()
+
+	// Rule should be rendered with ANSI color code for Border (240)
+	assert.Contains(t, rendered, "\x1b[38;5;240m")
 }
