@@ -31,16 +31,16 @@ Address architectural, API design, and code quality findings from the SDK review
 
 ### Task 1: Code quality batch — independent fixes
 
-- [ ] Extract `envPrefixFor(name string) string` helper; replace duplicated logic in `sdk/registry.go:37` and `sdk/tool_registry.go:30`
-- [ ] Add `const maxUIExtScanSize = 10 << 20` in `sdk/ui_extension.go`; replace magic number
-- [ ] Replace `//nolint:nilerr` suppressions in `sdk/ui_extension.go:19,47,52` with explicit logging of skipped files
-- [ ] Change `sync.Mutex` to `sync.RWMutex` in `sdk/lifecycle.go:10`
-- [ ] Remove redundant `active` bool in `sdk/tool_registry.go:45`; use `filter != nil`
-- [ ] Remove `type noopConfig = NoopConfig` alias in `sdk/config.go:35`
-- [ ] Extract helpers from `run()`: `loadConfig`, `buildLauncher`, `handleSubcommand` in `sdk/wire/run.go`
-- [ ] Split `Wire()` into `resolveExtensions()` + `subscribeExtensions()` in `sdk/wire/wire.go`
-- [ ] Write/update tests for all changes
-- [ ] Run `go test ./sdk/...` — must pass
+- [x] Extract `envPrefixFor(name string) string` helper; replace duplicated logic in `sdk/registry.go:37` and `sdk/tool_registry.go:30`
+- [x] Add `const maxUIExtScanSize = 10 << 20` in `sdk/ui_extension.go`; replace magic number
+- [x] Replace `//nolint:nilerr` suppressions in `sdk/ui_extension.go:19,47,52` with explicit logging of skipped files
+- [x] Change `sync.Mutex` to `sync.RWMutex` in `sdk/lifecycle.go:10`
+- [x] Remove redundant `active` bool in `sdk/tool_registry.go:45`; use `filter != nil`
+- [x] Remove `type noopConfig = NoopConfig` alias in `sdk/config.go:35`
+- [x] Extract helpers from `run()`: `loadConfig`, `buildLauncher`, `handleSubcommand` in `sdk/wire/run.go`
+- [x] Split `Wire()` into `resolveExtensions()` + `subscribeExtensions()` in `sdk/wire/wire.go`
+- [x] Write/update tests for all changes
+- [x] Run `go test ./sdk/...` — must pass
 
 ### Task 2: Naming and consistency batch
 

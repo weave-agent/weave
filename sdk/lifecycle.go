@@ -7,7 +7,7 @@ type LifecycleHandler func(Bus, Config)
 
 var (
 	appStartedHandlers   []LifecycleHandler
-	appStartedHandlersMu sync.Mutex
+	appStartedHandlersMu sync.RWMutex
 )
 
 // OnAppStarted registers a handler to be called when the app starts.
@@ -21,8 +21,8 @@ func OnAppStarted(fn LifecycleHandler) {
 
 // AppStartedHandlers returns the registered app.started handlers.
 func AppStartedHandlers() []LifecycleHandler {
-	appStartedHandlersMu.Lock()
-	defer appStartedHandlersMu.Unlock()
+	appStartedHandlersMu.RLock()
+	defer appStartedHandlersMu.RUnlock()
 
 	result := make([]LifecycleHandler, len(appStartedHandlers))
 	copy(result, appStartedHandlers)

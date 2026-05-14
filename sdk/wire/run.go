@@ -18,38 +18,42 @@ var errNoInput = errors.New("no prompt provided and ui is disabled — use -p to
 // Run is the main entry point for the weave CLI. It parses args, loads config,
 // discovers extensions, and runs the launcher pipeline.
 func Run(ctx context.Context, args []string) int {
-	if len(args) > 0 {
-		switch args[0] {
-		case "install":
-			return extmanage.RunInstall(args[1:])
-		case "list":
-			return extmanage.RunList(args[1:])
-		case "update":
-			return extmanage.RunUpdate(args[1:])
-		case "uninstall":
-			return extmanage.RunUninstall(args[1:])
-		}
+	if code, ok := handleSubcommand(args); ok {
+		return code
 	}
 
 	return run(ctx, args...)
 }
 
-func run(ctx context.Context, args ...string) (exitCode int) {
-	configFile, cf, rest, err := settings.Load(args)
-	if err != nil {
-		var helpErr *settings.HelpError
-
-		if errors.As(err, &helpErr) {
-			fmt.Fprint(os.Stderr, helpErr.Text)
-
-			return 0
-		}
-
-		fmt.Fprintf(os.Stderr, "weave: %v\n", err)
-
-		return 1
+func handleSubcommand(args []string) (int, bool) {
+	if len(args) == 0 {
+		return 0, false
 	}
 
+	switch args[0] {
+	case "install":
+		return extmanage.RunInstall(args[1:]), true
+	case "list":
+		return extmanage.RunList(args[1:]), true
+	case "update":
+		return extmanage.RunUpdate(args[1:]), true
+	case "uninstall":
+		return extmanage.RunUninstall(args[1:]), true
+	}
+
+	return 0, false
+}
+
+func loadConfig(args []string) (configFile string, cf *settings.Settings, rest []string, err error) {
+	configFile, cf, rest, err = settings.Load(args)
+	if err != nil {
+		return "", nil, nil, fmt.Errorf("load config: %w", err)
+	}
+
+	return configFile, cf, rest, nil
+}
+
+func buildLauncher(ctx context.Context, cf *settings.Settings, rest []string, configFile string) int {
 	cacheDir, err := launcher.DefaultCacheDir()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", err)
@@ -78,7 +82,7 @@ func run(ctx context.Context, args ...string) (exitCode int) {
 		}
 	}
 
-	if cf.Prompt == "" && (cf.UIExtension == "" || cf.UIExtension == "none") && !hasHelpFlag(args) {
+	if cf.Prompt == "" && (cf.UIExtension == "" || cf.UIExtension == "none") && !hasHelpFlag(rest) {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", errNoInput)
 		return 1
 	}
@@ -108,6 +112,25 @@ func run(ctx context.Context, args ...string) (exitCode int) {
 	}
 
 	return 0
+}
+
+func run(ctx context.Context, args ...string) (exitCode int) {
+	configFile, cf, rest, err := loadConfig(args)
+	if err != nil {
+		var helpErr *settings.HelpError
+
+		if errors.As(err, &helpErr) {
+			fmt.Fprint(os.Stderr, helpErr.Text)
+
+			return 0
+		}
+
+		fmt.Fprintf(os.Stderr, "weave: %v\n", err)
+
+		return 1
+	}
+
+	return buildLauncher(ctx, cf, rest, configFile)
 }
 
 func writePromptFile(prompt string) (path string, cleanup func(), ok bool) {

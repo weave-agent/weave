@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"reflect"
-	"strings"
 
 	"weave/sdk/registry"
 )
@@ -34,8 +33,7 @@ func RegisterExtensionWithScope[T any](name, scope string, factory func(Config, 
 	wrapper := func(cfg Config) (Extension, error) {
 		var t T
 
-		envPrefix := "WEAVE_" + strings.ReplaceAll(strings.ToUpper(name), "-", "_")
-		if err := cfg.ExtensionConfig(scope, name, &t, envPrefix); err != nil {
+		if err := cfg.ExtensionConfig(scope, name, &t, envPrefixFor(name)); err != nil {
 			return nil, fmt.Errorf("load extension config: %w", err)
 		}
 

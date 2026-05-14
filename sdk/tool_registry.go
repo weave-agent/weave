@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"reflect"
-	"strings"
 	"sync"
 
 	"weave/sdk/registry"
@@ -27,8 +26,7 @@ func RegisterTool[T any](name string, factory func(Config, T) (Tool, error)) {
 	wrapper := func(cfg Config) (Tool, error) {
 		var t T
 
-		envPrefix := "WEAVE_" + strings.ReplaceAll(strings.ToUpper(name), "-", "_")
-		if err := cfg.ExtensionConfig("tools", name, &t, envPrefix); err != nil {
+		if err := cfg.ExtensionConfig("tools", name, &t, envPrefixFor(name)); err != nil {
 			return nil, fmt.Errorf("load tool config: %w", err)
 		}
 
@@ -42,11 +40,10 @@ func GetTool(name string, cfg Config) (Tool, error) {
 	toolFilterMu.RLock()
 
 	filter := toolFilter
-	active := toolFilter != nil
 
 	toolFilterMu.RUnlock()
 
-	if active && !filter[name] {
+	if filter != nil && !filter[name] {
 		return nil, fmt.Errorf("tool %q not in allowed list", name)
 	}
 
@@ -86,12 +83,11 @@ func ListTools() []string {
 	toolFilterMu.RLock()
 
 	filter := toolFilter
-	active := toolFilter != nil
 
 	toolFilterMu.RUnlock()
 
 	all := toolReg.List()
-	if !active {
+	if filter == nil {
 		return all
 	}
 

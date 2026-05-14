@@ -686,4 +686,95 @@ func TestWire_ProviderWithNoAuthStructHasNoAuth(t *testing.T) {
 	assert.False(t, model.ProviderHasAuth("wire-test-no-auth"), "provider without auth struct should have no auth")
 }
 
+func TestResolveExtensions(t *testing.T) {
+	sdk.ResetRegistry()
+
+	var created bool
+
+	sdk.RegisterExtension("resolve-test", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
+		created = true
+		return sdk.NewExtensionFunc("resolve-test", func(sdk.Bus) error { return nil }), nil
+	})
+
+	exts, err := resolveExtensions([]string{"resolve-test"}, nil)
+	require.NoError(t, err)
+	require.Len(t, exts, 1)
+	assert.Equal(t, "resolve-test", exts[0].Name())
+	assert.True(t, created)
+}
+
+func TestResolveExtensions_Missing(t *testing.T) {
+	sdk.ResetRegistry()
+
+	_, err := resolveExtensions([]string{"missing"}, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "wire:")
+}
+
+func TestResolveExtensions_CleansUpOnError(t *testing.T) {
+	sdk.ResetRegistry()
+
+	var closed bool
+
+	sdk.RegisterExtension("good", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
+		return sdk.NewExtensionFuncWithClose("good", func(sdk.Bus) error { return nil }, func() error {
+			closed = true
+			return nil
+		}), nil
+	})
+	sdk.RegisterExtension("bad", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
+		return nil, errors.New("init failed")
+	})
+
+	_, err := resolveExtensions([]string{"good", "bad"}, nil)
+	require.Error(t, err)
+	assert.True(t, closed, "resolved extension should be closed on error")
+}
+
+func TestSubscribeExtensions(t *testing.T) {
+	sdk.ResetRegistry()
+
+	var subscribed bool
+
+	sdk.RegisterExtension("sub-test", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("sub-test", func(bus sdk.Bus) error {
+			subscribed = true
+			return nil
+		}), nil
+	})
+
+	exts, err := resolveExtensions([]string{"sub-test"}, nil)
+	require.NoError(t, err)
+
+	bus := &BusMock{}
+	require.NoError(t, subscribeExtensions(exts, bus))
+	assert.True(t, subscribed)
+}
+
+func TestSubscribeExtensions_RollsBackOnError(t *testing.T) {
+	sdk.ResetRegistry()
+
+	var closed bool
+
+	sdk.RegisterExtension("sub-ok", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
+		return sdk.NewExtensionFuncWithClose("sub-ok", func(sdk.Bus) error { return nil }, func() error {
+			closed = true
+			return nil
+		}), nil
+	})
+	sdk.RegisterExtension("sub-fail", func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
+		return sdk.NewExtensionFuncWithClose("sub-fail", func(sdk.Bus) error {
+			return errors.New("subscribe failed")
+		}, nil), nil
+	})
+
+	exts, err := resolveExtensions([]string{"sub-ok", "sub-fail"}, nil)
+	require.NoError(t, err)
+
+	bus := &BusMock{}
+	err = subscribeExtensions(exts, bus)
+	require.Error(t, err)
+	assert.True(t, closed, "previously subscribed extension should be closed on error")
+}
+
 var _ = strings.TrimSpace

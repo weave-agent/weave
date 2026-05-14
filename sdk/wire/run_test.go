@@ -191,6 +191,43 @@ func TestWritePromptFile(t *testing.T) {
 	assert.Equal(t, "hello world", string(data))
 }
 
+func TestHandleSubcommand_Install(t *testing.T) {
+	// install subcommand needs a valid extension dir, so we create one.
+	dir := t.TempDir()
+	extDir := filepath.Join(dir, "test-ext")
+	require.NoError(t, os.MkdirAll(extDir, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, "main.go"), []byte("package main\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, "go.mod"), []byte("module test/ext\n\ngo 1.22\n"), 0o600))
+
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	code, ok := handleSubcommand([]string{"install", extDir})
+	assert.True(t, ok)
+	assert.Equal(t, 0, code)
+}
+
+func TestHandleSubcommand_List(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	code, ok := handleSubcommand([]string{"list"})
+	assert.True(t, ok)
+	assert.Equal(t, 0, code)
+}
+
+func TestHandleSubcommand_Unknown(t *testing.T) {
+	code, ok := handleSubcommand([]string{"unknown"})
+	assert.False(t, ok)
+	assert.Equal(t, 0, code)
+}
+
+func TestHandleSubcommand_Empty(t *testing.T) {
+	code, ok := handleSubcommand([]string{})
+	assert.False(t, ok)
+	assert.Equal(t, 0, code)
+}
+
 func TestResolveProjectDir(t *testing.T) {
 	assert.Equal(t, "/project", settings.ProjectDirFromConfig("/project/.weave/settings.json"))
 	assert.Equal(t, "/project", settings.ProjectDirFromConfig("/project/settings.json"))

@@ -8,8 +8,8 @@ import (
 )
 
 func TestNoopConfigIsHeadless(t *testing.T) {
-	cfg := noopConfig{}
-	assert.True(t, cfg.IsHeadless(), "noopConfig should report headless")
+	cfg := NoopConfig{}
+	assert.True(t, cfg.IsHeadless(), "NoopConfig should report headless")
 }
 
 func TestFilePathConfigIsHeadless(t *testing.T) {
@@ -18,13 +18,13 @@ func TestFilePathConfigIsHeadless(t *testing.T) {
 }
 
 func TestHeadlessConfig_OverridesToHeadless(t *testing.T) {
-	inner := noopConfig{}
+	inner := NoopConfig{}
 	cfg := HeadlessConfig{Config: inner, Headless: true}
 	assert.True(t, cfg.IsHeadless(), "HeadlessConfig with Headless=true should report headless")
 }
 
 func TestHeadlessConfig_OverridesToNotHeadless(t *testing.T) {
-	inner := noopConfig{}
+	inner := NoopConfig{}
 	cfg := HeadlessConfig{Config: inner, Headless: false}
 	assert.False(t, cfg.IsHeadless(), "HeadlessConfig with Headless=false should report not headless")
 }
@@ -38,7 +38,7 @@ func TestHeadlessConfig_DelegatesOtherMethods(t *testing.T) {
 }
 
 func TestNoopConfig_ExtensionConfig(t *testing.T) {
-	cfg := noopConfig{}
+	cfg := NoopConfig{}
 
 	var target struct{ Timeout int }
 	require.NoError(t, cfg.ExtensionConfig("tools", "bash", &target, "WEAVE_BASH"))
@@ -66,4 +66,23 @@ func TestConfigMock_ExtensionConfig(t *testing.T) {
 	var target struct{ Timeout int }
 	require.NoError(t, mock.ExtensionConfig("tools", "bash", &target, "WEAVE_BASH"))
 	assert.True(t, called)
+}
+
+func TestEnvPrefixFor(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"simple", "bash", "WEAVE_BASH"},
+		{"with hyphens", "my-extension", "WEAVE_MY_EXTENSION"},
+		{"all lowercase", "read", "WEAVE_READ"},
+		{"mixed case", "My-Tool", "WEAVE_MY_TOOL"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, envPrefixFor(tt.input))
+		})
+	}
 }

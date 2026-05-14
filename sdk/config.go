@@ -1,5 +1,7 @@
 package sdk
 
+import "strings"
+
 //go:generate moq -fmt goimports -stub -out config_mock_test.go . Config
 
 // Config carries configuration data into extension factories.
@@ -26,8 +28,6 @@ func (NoopConfig) SavePreferences(any) error                          { return n
 func (NoopConfig) SaveProviderKey(_, _ string) error                  { return nil }
 func (NoopConfig) RespectGitignore() bool                             { return true }
 
-type noopConfig = NoopConfig
-
 // FilePathConfig is a Config that returns the given path from FilePath().
 type FilePathConfig string
 
@@ -40,12 +40,16 @@ func (f FilePathConfig) SavePreferences(any) error                          { re
 func (f FilePathConfig) SaveProviderKey(_, _ string) error                  { return nil }
 func (f FilePathConfig) RespectGitignore() bool                             { return true }
 
+func envPrefixFor(name string) string {
+	return "WEAVE_" + strings.ReplaceAll(strings.ToUpper(name), "-", "_")
+}
+
 func configOrDefault(cfg Config) Config {
 	if cfg != nil {
 		return cfg
 	}
 
-	return noopConfig{}
+	return NoopConfig{}
 }
 
 // HeadlessConfig wraps a Config and overrides IsHeadless.

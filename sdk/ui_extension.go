@@ -3,10 +3,13 @@ package sdk
 import (
 	"errors"
 	"io/fs"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 )
+
+const maxUIExtScanSize = 10 << 20 // 10 MB
 
 var errUIExtFound = errors.New("ui extension found")
 
@@ -16,7 +19,9 @@ var errUIExtFound = errors.New("ui extension found")
 func IsUIExtension(dir string) bool {
 	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return nil //nolint:nilerr // skip unreadable entries
+			log.Printf("sdk: skip unreadable entry %s: %v", path, err)
+
+			return nil
 		}
 
 		if d.IsDir() {
@@ -40,16 +45,18 @@ func IsUIExtension(dir string) bool {
 			rel = path
 		}
 
-		const maxFileSize = 10 << 20 // 10 MB
-
 		info, statErr := os.Stat(filepath.Join(dir, rel))
-		if statErr != nil || info.Size() > maxFileSize {
-			return nil //nolint:nilerr // skip unreadable or oversized files
+		if statErr != nil || info.Size() > maxUIExtScanSize {
+			log.Printf("sdk: skip unreadable or oversized file %s", path)
+
+			return nil //nolint:nilerr // logged above, skip unreadable or oversized files by design
 		}
 
 		data, readErr := os.ReadFile(filepath.Join(dir, rel))
 		if readErr != nil {
-			return nil //nolint:nilerr // skip unreadable files
+			log.Printf("sdk: skip unreadable file %s: %v", path, readErr)
+
+			return nil
 		}
 
 		src := string(data)

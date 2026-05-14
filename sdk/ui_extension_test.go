@@ -62,3 +62,14 @@ func TestIsUIExtension_EmptyDir(t *testing.T) {
 
 	assert.False(t, IsUIExtension(dir))
 }
+
+func TestIsUIExtension_SkipsOversizedFiles(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create a file larger than maxUIExtScanSize with UI registration.
+	largeContent := make([]byte, maxUIExtScanSize+1)
+	copy(largeContent, "package x\n\nfunc init() { RegisterUIExtension(\"x\", nil) }\n")
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.go"), largeContent, 0o600))
+
+	assert.False(t, IsUIExtension(dir))
+}
