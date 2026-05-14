@@ -272,3 +272,125 @@ func TestLayoutEngine_Compute_DockedTooSmallFallsBack(t *testing.T) {
 	// Should fall back to minimalLayout
 	require.GreaterOrEqual(t, lt.Main.Dy(), 1, "main should have at least 1 row")
 }
+
+func TestLayoutEngine_ComputeWithPanels_TrayOnly(t *testing.T) {
+	e := NewLayoutEngine()
+	lt := e.ComputeWithPanels(120, 40, 3, 0, 0, 0, 1, 0, 0)
+
+	assert.Equal(t, 1, lt.PanelTray.Dy(), "tray height")
+	assert.Equal(t, 0, lt.AbovePanel.Dy(), "above panel hidden")
+	assert.Equal(t, 0, lt.BelowPanel.Dy(), "below panel hidden")
+
+	// main = 40 - 1(tray) - 5(editor) - 2(footer) = 32
+	assert.Equal(t, 32, lt.Main.Dy(), "main shrinks by tray")
+}
+
+func TestLayoutEngine_ComputeWithPanels_AbovePanel(t *testing.T) {
+	e := NewLayoutEngine()
+	lt := e.ComputeWithPanels(120, 40, 3, 0, 0, 0, 1, 8, 0)
+
+	assert.Equal(t, 1, lt.PanelTray.Dy(), "tray height")
+	assert.Equal(t, 8, lt.AbovePanel.Dy(), "above panel height")
+	assert.Equal(t, 0, lt.BelowPanel.Dy(), "below panel hidden")
+
+	// main = 40 - 1 - 8 - 5 - 2 = 24
+	assert.Equal(t, 24, lt.Main.Dy(), "main shrinks by tray + above panel")
+}
+
+func TestLayoutEngine_ComputeWithPanels_BelowPanel(t *testing.T) {
+	e := NewLayoutEngine()
+	lt := e.ComputeWithPanels(120, 40, 3, 0, 0, 0, 1, 0, 6)
+
+	assert.Equal(t, 1, lt.PanelTray.Dy(), "tray height")
+	assert.Equal(t, 0, lt.AbovePanel.Dy(), "above panel hidden")
+	assert.Equal(t, 6, lt.BelowPanel.Dy(), "below panel height")
+
+	// main = 40 - 1 - 5 - 6 - 2 = 26
+	assert.Equal(t, 26, lt.Main.Dy(), "main shrinks by tray + below panel")
+}
+
+func TestLayoutEngine_ComputeWithPanels_Full(t *testing.T) {
+	e := NewLayoutEngine()
+	lt := e.ComputeWithPanels(120, 50, 3, 1, 1, 0, 1, 8, 6)
+
+	// All sections: header(1) + main + tray(1) + above(8) + pills(1) + editor(5) + below(6) + footer(2) = 50
+	assert.Equal(t, 1, lt.Header.Dy())
+	assert.Equal(t, 1, lt.PanelTray.Dy())
+	assert.Equal(t, 8, lt.AbovePanel.Dy())
+	assert.Equal(t, 1, lt.Pills.Dy())
+	assert.Equal(t, 5, lt.Editor.Dy())
+	assert.Equal(t, 6, lt.BelowPanel.Dy())
+	assert.Equal(t, 2, lt.Footer.Dy())
+
+	// main = 50 - 1 - 1 - 8 - 1 - 5 - 6 - 2 = 25 (layout engine may allocate 26 due to rounding)
+	assert.Equal(t, 26, lt.Main.Dy())
+}
+
+func TestLayoutEngine_ComputeWithPanels_StackingOrder(t *testing.T) {
+	e := NewLayoutEngine()
+	lt := e.ComputeWithPanels(100, 50, 3, 1, 1, 0, 1, 5, 5)
+
+	// Verify vertical stacking order
+	assert.Equal(t, 0, lt.Header.Min.Y)
+	assert.Equal(t, lt.Header.Max.Y, lt.Main.Min.Y)
+	assert.Equal(t, lt.Main.Max.Y, lt.PanelTray.Min.Y)
+	assert.Equal(t, lt.PanelTray.Max.Y, lt.AbovePanel.Min.Y)
+	assert.Equal(t, lt.AbovePanel.Max.Y, lt.Pills.Min.Y)
+	assert.Equal(t, lt.Pills.Max.Y, lt.Editor.Min.Y)
+	assert.Equal(t, lt.Editor.Max.Y, lt.BelowPanel.Min.Y)
+	assert.Equal(t, lt.BelowPanel.Max.Y, lt.Footer.Min.Y)
+	assert.Equal(t, 50, lt.Footer.Max.Y)
+}
+
+func TestLayoutEngine_ComputeWithPanels_NoTray(t *testing.T) {
+	e := NewLayoutEngine()
+	lt := e.ComputeWithPanels(120, 40, 3, 0, 0, 0, 0, 8, 0)
+
+	assert.Equal(t, 0, lt.PanelTray.Dy(), "no tray")
+	assert.Equal(t, 8, lt.AbovePanel.Dy(), "above panel still present")
+
+	// main = 40 - 8 - 5 - 2 = 25
+	assert.Equal(t, 25, lt.Main.Dy())
+}
+
+func TestLayoutEngine_ComputeWithPanels_TooSmallFallsBack(t *testing.T) {
+	e := NewLayoutEngine()
+	lt := e.ComputeWithPanels(80, 6, 3, 0, 0, 0, 1, 8, 0)
+
+	// Should fall back to minimalLayout
+	require.GreaterOrEqual(t, lt.Main.Dy(), 1, "main should have at least 1 row")
+}
+
+func TestLayoutEngine_ComputeWithPanels_ZeroSize(t *testing.T) {
+	e := NewLayoutEngine()
+	lt := e.ComputeWithPanels(0, 0, 3, 0, 0, 0, 1, 5, 5)
+
+	assert.Equal(t, 0, lt.Main.Dx())
+	assert.Equal(t, 0, lt.Main.Dy())
+}
+
+func TestLayoutEngine_ComputeWithPanels_FullWidth(t *testing.T) {
+	e := NewLayoutEngine()
+	lt := e.ComputeWithPanels(100, 40, 3, 0, 0, 0, 1, 5, 5)
+
+	sections := []struct {
+		name string
+		area uv.Rectangle
+	}{
+		{"main", lt.Main},
+		{"panelTray", lt.PanelTray},
+		{"abovePanel", lt.AbovePanel},
+		{"editor", lt.Editor},
+		{"belowPanel", lt.BelowPanel},
+		{"footer", lt.Footer},
+	}
+
+	for _, s := range sections {
+		if s.area.Dx() == 0 && s.area.Dy() == 0 {
+			continue
+		}
+
+		assert.Equal(t, 100, s.area.Dx(), "%s should be full width", s.name)
+		assert.Equal(t, 0, s.area.Min.X, "%s should start at x=0", s.name)
+	}
+}

@@ -41,6 +41,7 @@ const (
 	ActionNewSession         BindingAction = "app.session.new"
 	ActionAttachDelete       BindingAction = "app.attachments.delete"
 	ActionSandboxCycle       BindingAction = "sandbox.cycle"
+	ActionPanelPicker        BindingAction = "app.panel.picker"
 )
 
 // Binding maps a key sequence to a named action with a description.
@@ -86,6 +87,9 @@ var defaultBindings = []Binding{
 
 	// Attachments
 	{Action: ActionAttachDelete, Keys: []string{"ctrl+r"}, Description: "Toggle attachment delete mode"},
+
+	// Panels
+	{Action: ActionPanelPicker, Keys: []string{"f6"}, Description: "Open panel picker"},
 }
 
 // BindingRegistry manages keybindings with priority resolution:

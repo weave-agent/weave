@@ -261,17 +261,17 @@ When active, overlay dialogs dock at bottom of chat area instead of centered ove
 
 ### Task 7: Implement Panel system and Panel tray
 
-- [ ] define `PanelConfig`, `PanelPlacement`, `PanelDrawer` types in `extensions/ui/tui/`
-- [ ] create `PanelManager` to track registered panels (show/hide/remove/visible)
-- [ ] create `PanelTray` component — tab strip rendering active panels
-- [ ] update `LayoutEngine` to include panel regions (AboveEditor, BelowEditor, tray)
-- [ ] implement panel focus chain: editor → tray → active panel → editor (Tab/Shift+Tab)
-- [ ] implement Esc to return focus to editor from panel
-- [ ] register keybinding for panel picker overlay
-- [ ] write tests for `PanelManager` show/hide/remove lifecycle
-- [ ] write tests for layout engine with panel regions
-- [ ] write tests for focus chain cycling
-- [ ] run `cd extensions/ui/tui && go test ./...` — must pass before next task
+- [x] define `PanelConfig`, `PanelPlacement`, `PanelDrawer` types in `extensions/ui/tui/`
+- [x] create `PanelManager` to track registered panels (show/hide/remove/visible)
+- [x] create `PanelTray` component — tab strip rendering active panels
+- [x] update `LayoutEngine` to include panel regions (AboveEditor, BelowEditor, tray)
+- [x] implement panel focus chain: editor → tray → active panel → editor (Tab/Shift+Tab)
+- [x] implement Esc to return focus to editor from panel
+- [x] register keybinding for panel picker overlay
+- [x] write tests for `PanelManager` show/hide/remove lifecycle
+- [x] write tests for layout engine with panel regions
+- [x] write tests for focus chain cycling
+- [x] run `cd extensions/ui/tui && go test ./...` — must pass before next task
 
 ### Task 8: Define TUIExtAPI and TUIExtension registration
 

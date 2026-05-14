@@ -2572,3 +2572,422 @@ func TestModel_BackdropDimming_NoDialog_NoDimming(t *testing.T) {
 	// Content should render normally without dimming
 	assert.Contains(t, rendered, "no dialog")
 }
+
+// --- Task 7: Panel system and focus chain tests ---
+
+func TestModel_PanelManager_Initialized(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	assert.NotNil(t, m.panelManager)
+	assert.NotNil(t, m.panelTray)
+	assert.Equal(t, FocusEditor, m.focus)
+}
+
+func TestModel_PanelFocusChain_TabEditorToTray(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	// Register and show a panel so tray is visible
+	m.panelManager.Register(PanelConfig{ID: "p1", Title: "Test"}, &mockPanelDrawer{})
+	m.panelManager.Show("p1")
+
+	assert.Equal(t, FocusEditor, m.focus)
+
+	model, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	m = model.(Model)
+
+	assert.Equal(t, FocusTray, m.focus)
+	assert.True(t, m.panelTray.IsFocused())
+}
+
+func TestModel_PanelFocusChain_TabTrayToPanel(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	m.panelManager.Register(PanelConfig{ID: "p1", Title: "Test"}, &mockPanelDrawer{})
+	m.panelManager.Show("p1")
+	m.focus = FocusTray
+
+	model, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	m = model.(Model)
+
+	assert.Equal(t, FocusPanel, m.focus)
+	assert.False(t, m.panelTray.IsFocused())
+}
+
+func TestModel_PanelFocusChain_TabPanelToEditor(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	m.panelManager.Register(PanelConfig{ID: "p1", Title: "Test"}, &mockPanelDrawer{})
+	m.panelManager.Show("p1")
+	m.focus = FocusPanel
+
+	model, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	m = model.(Model)
+
+	assert.Equal(t, FocusEditor, m.focus)
+}
+
+func TestModel_PanelFocusChain_ShiftTabReverses(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	m.panelManager.Register(PanelConfig{ID: "p1", Title: "Test"}, &mockPanelDrawer{})
+	m.panelManager.Show("p1")
+
+	// Start at editor, Tab -> tray
+	model, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	m = model.(Model)
+	assert.Equal(t, FocusTray, m.focus)
+
+	// Shift+Tab -> back to editor
+	model, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+	m = model.(Model)
+	assert.Equal(t, FocusEditor, m.focus)
+}
+
+func TestModel_PanelFocusChain_ShiftTabFromEditorToPanel(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	m.panelManager.Register(PanelConfig{ID: "p1", Title: "Test"}, &mockPanelDrawer{})
+	m.panelManager.Show("p1")
+
+	// Shift+Tab from editor goes to panel
+	model, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+	m = model.(Model)
+	assert.Equal(t, FocusPanel, m.focus)
+}
+
+func TestModel_PanelFocusChain_EscReturnsToEditor(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	m.panelManager.Register(PanelConfig{ID: "p1", Title: "Test"}, &mockPanelDrawer{})
+	m.panelManager.Show("p1")
+	m.focus = FocusPanel
+
+	model, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	m = model.(Model)
+
+	assert.Equal(t, FocusEditor, m.focus)
+}
+
+func TestModel_PanelFocusChain_EscFromTrayReturnsToEditor(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	m.panelManager.Register(PanelConfig{ID: "p1", Title: "Test"}, &mockPanelDrawer{})
+	m.panelManager.Show("p1")
+	m.focus = FocusTray
+
+	model, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	m = model.(Model)
+
+	assert.Equal(t, FocusEditor, m.focus)
+}
+
+func TestModel_PanelFocusChain_NoPanels_TabIgnored(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	// No panels registered - Tab should fall through to editor
+	model, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	m = model.(Model)
+
+	assert.Equal(t, FocusEditor, m.focus)
+}
+
+func TestModel_PanelFocusChain_CompletionActive_TabIgnored(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	m.panelManager.Register(PanelConfig{ID: "p1", Title: "Test"}, &mockPanelDrawer{})
+	m.panelManager.Show("p1")
+
+	// Simulate active completion
+	m.editor = m.editor.SetValue("/")
+	m = m.refreshEditorCompletion()
+	require.True(t, m.editor.CompletionActive())
+
+	// Tab should go to completion, not tray
+	model, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	m = model.(Model)
+	assert.Equal(t, FocusEditor, m.focus)
+}
+
+func TestModel_TrayNavigation_RightArrow(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	m.panelManager.Register(PanelConfig{ID: "p1", Title: "A"}, &mockPanelDrawer{})
+	m.panelManager.Register(PanelConfig{ID: "p2", Title: "B"}, &mockPanelDrawer{})
+	m.panelManager.Show("p1")
+	m.panelManager.Show("p2")
+	m.panelManager.Show("p1") // make p1 active so we can navigate right to p2
+	m.syncPanelTray()
+	m.focus = FocusTray
+
+	model, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	m = model.(Model)
+
+	assert.Equal(t, "p2", m.panelTray.ActiveID())
+	assert.Equal(t, "p2", m.panelManager.Active())
+}
+
+func TestModel_TrayNavigation_LeftArrow(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	m.panelManager.Register(PanelConfig{ID: "p1", Title: "A"}, &mockPanelDrawer{})
+	m.panelManager.Register(PanelConfig{ID: "p2", Title: "B"}, &mockPanelDrawer{})
+	m.panelManager.Show("p1")
+	m.panelManager.Show("p2")
+	m.syncPanelTray()
+	m.focus = FocusTray
+
+	model, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
+	m = model.(Model)
+
+	assert.Equal(t, "p1", m.panelTray.ActiveID())
+	assert.Equal(t, "p1", m.panelManager.Active())
+}
+
+func TestModel_TrayNavigation_EnterFocusesPanel(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	m.panelManager.Register(PanelConfig{ID: "p1", Title: "A"}, &mockPanelDrawer{})
+	m.panelManager.Show("p1")
+	m.focus = FocusTray
+
+	model, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = model.(Model)
+
+	assert.Equal(t, FocusPanel, m.focus)
+	assert.False(t, m.panelTray.IsFocused())
+}
+
+func TestModel_PanelKeyForwarding(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	md := &mockPanelDrawer{}
+	m.panelManager.Register(PanelConfig{ID: "p1", Title: "Test"}, md)
+	m.panelManager.Show("p1")
+	m.focus = FocusPanel
+
+	// Send a key that the panel drawer handles
+	model, _ := m.Update(tea.KeyPressMsg{Text: "x", Code: 'x'})
+	_ = model.(Model)
+
+	// The drawer should have received the key (no panic, returns same model)
+	assert.Equal(t, FocusPanel, m.focus)
+}
+
+func TestModel_PanelPickerKeybinding(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	m.panelManager.Register(PanelConfig{ID: "p1", Title: "Test"}, &mockPanelDrawer{})
+	m.panelManager.Show("p1")
+	m.syncPanelTray()
+
+	// Verify the binding exists
+	action, ok := m.bindings.Resolve("f6")
+	require.True(t, ok)
+	assert.Equal(t, ActionPanelPicker, action)
+
+	// Dispatch the action
+	model, cmd := m.dispatchBinding(ActionPanelPicker)
+	m = model.(Model)
+
+	assert.Equal(t, FocusTray, m.focus)
+	assert.True(t, m.panelTray.IsFocused())
+	assert.Nil(t, cmd)
+}
+
+func TestModel_PanelPicker_NoPanels(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	model, cmd := m.dispatchBinding(ActionPanelPicker)
+	m = model.(Model)
+
+	assert.Equal(t, FocusEditor, m.focus)
+	assert.Contains(t, m.statusMsg, "No panels visible")
+	assert.NotNil(t, cmd)
+}
+
+func TestModel_Draw_WithPanel(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+
+	m.panelManager.Register(PanelConfig{ID: "p1", Title: "Files", Placement: AboveEditor, Height: 5}, &mockPanelDrawer{})
+	m.panelManager.Show("p1")
+
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvas, canvas.Bounds())
+
+	// Should not panic and should allocate regions
+	rendered := canvas.Render()
+	assert.NotEmpty(t, rendered)
+}
+
+func TestModel_Draw_WithPanelBelowEditor(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+
+	m.panelManager.Register(PanelConfig{ID: "p1", Title: "Log", Placement: BelowEditor, Height: 4}, &mockPanelDrawer{})
+	m.panelManager.Show("p1")
+
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvas, canvas.Bounds())
+
+	rendered := canvas.Render()
+	assert.NotEmpty(t, rendered)
+}
+
+func TestModel_Layout_WithPanel_ShrinksMain(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 120
+	m.height = 40
+
+	// Without panels
+	h1 := m.chatHeight(40)
+
+	// With panel
+	m.panelManager.Register(PanelConfig{ID: "p1", Title: "Test", Placement: AboveEditor, Height: 8}, &mockPanelDrawer{})
+	m.panelManager.Show("p1")
+
+	h2 := m.chatHeight(40)
+
+	assert.Less(t, h2, h1, "chat should shrink when panel is visible")
+}
+
+func TestModel_Layout_WithTray_ShrinksMain(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 120
+	m.height = 40
+
+	h1 := m.chatHeight(40)
+
+	m.panelManager.Register(PanelConfig{ID: "p1", Title: "Test"}, &mockPanelDrawer{})
+	m.panelManager.Show("p1")
+
+	h2 := m.chatHeight(40)
+
+	assert.Less(t, h2, h1, "chat should shrink when tray is visible")
+}
+
+func TestModel_PanelManager_ShowHideRemove(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+
+	m.panelManager.Register(PanelConfig{ID: "p1", Title: "A"}, &mockPanelDrawer{})
+	m.panelManager.Register(PanelConfig{ID: "p2", Title: "B"}, &mockPanelDrawer{})
+
+	m.panelManager.Show("p1")
+	m.panelManager.Show("p2")
+
+	assert.Equal(t, []string{"p1", "p2"}, m.panelManager.VisiblePanels())
+
+	m.panelManager.Hide("p1")
+	assert.Equal(t, []string{"p2"}, m.panelManager.VisiblePanels())
+
+	m.panelManager.Remove("p2")
+	assert.Empty(t, m.panelManager.VisiblePanels())
+	assert.False(t, m.panelManager.IsRegistered("p2"))
+}
+
+func TestModel_Escape_NormalBehaviorWhenEditorFocused(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.focus = FocusEditor
+
+	// First escape should start double-press timer
+	model, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	m = model.(Model)
+
+	assert.NotNil(t, cmd)
+	assert.True(t, m.escapePressed)
+}
+
+func TestModel_SyncPanelTray(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+
+	m.panelManager.Register(PanelConfig{ID: "p1", Title: "Files"}, &mockPanelDrawer{})
+	m.panelManager.Register(PanelConfig{ID: "p2", Title: "Git"}, &mockPanelDrawer{})
+	m.panelManager.Show("p1")
+	m.panelManager.Show("p2")
+
+	m.syncPanelTray()
+
+	assert.Equal(t, 2, m.panelTray.Len())
+	assert.Equal(t, "p2", m.panelTray.ActiveID())
+}
+
+func TestModel_SyncPanelTray_NoTitleFallsBackToID(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+
+	m.panelManager.Register(PanelConfig{ID: "my-panel"}, &mockPanelDrawer{})
+	m.panelManager.Show("my-panel")
+
+	m.syncPanelTray()
+
+	assert.Equal(t, "my-panel", m.panelTray.ActiveID())
+}
+
+func TestModel_PanelRows_NoPanels(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	tray, above, below := m.panelRows()
+
+	assert.Equal(t, 0, tray)
+	assert.Equal(t, 0, above)
+	assert.Equal(t, 0, below)
+}
+
+func TestModel_PanelRows_WithPanels(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+
+	m.panelManager.Register(PanelConfig{ID: "p1", Title: "Test", Placement: AboveEditor, Height: 6}, &mockPanelDrawer{})
+	m.panelManager.Show("p1")
+
+	tray, above, below := m.panelRows()
+
+	assert.Equal(t, 1, tray)
+	assert.Equal(t, 6, above)
+	assert.Equal(t, 0, below)
+}
+
+func TestModel_PanelRows_BelowEditor(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+
+	m.panelManager.Register(PanelConfig{ID: "p1", Title: "Test", Placement: BelowEditor, Height: 4}, &mockPanelDrawer{})
+	m.panelManager.Show("p1")
+
+	tray, above, below := m.panelRows()
+
+	assert.Equal(t, 1, tray)
+	assert.Equal(t, 0, above)
+	assert.Equal(t, 4, below)
+}

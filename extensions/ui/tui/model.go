@@ -110,6 +110,11 @@ type Model struct {
 
 	// theme is the active color theme for rendering.
 	theme *palette.Theme
+
+	// panel system
+	panelManager *PanelManager
+	panelTray    PanelTray
+	focus        FocusTarget
 }
 
 // newModel creates a new root model.
@@ -202,6 +207,9 @@ func newModelWithConfig(bus sdk.Bus, cfg sdk.Config, ps sdk.PreferenceStore, ui 
 		dialogStack:   overlays.NewDialogStack(),
 		popupChans:    make(map[string]chan overlayResponse),
 		theme:         palette.DefaultTheme(),
+		panelManager:  NewPanelManager(),
+		panelTray:     NewPanelTray(),
+		focus:         FocusEditor,
 	}
 	m.footer = m.footer.SetModel(cur.Model, cur.Provider)
 	m.footer = m.footer.SetReasoning(modelReasoning(cur.Model))
@@ -243,6 +251,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Clear status entrance animation flag after first frame
 	m.statusNew = false
 
+	// Keep panel tray in sync with panel manager state
+	m.syncPanelTray()
+
 	// Dialog stack gets priority when non-empty.
 	if !m.dialogStack.Empty() {
 		// Ctrl+C force-dismisses the top dialog.
@@ -283,6 +294,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.footer = m.footer.SetSize(m.width)
 		m.spinner = m.spinner.SetSize(m.width)
 		m.dialogStack = m.dialogStack.Resize(m.width, m.height)
+		m.panelTray = m.panelTray.SetSize(m.width)
 
 		return m, nil
 
@@ -321,6 +333,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Handle escape with double-press: first interrupts, second clears editor
 		if msg.Code == tea.KeyEsc {
+			// If focus is not on editor, return focus to editor first
+			if m.focus != FocusEditor {
+				m.focus = FocusEditor
+				m.panelTray = m.panelTray.SetFocused(false)
+
+				return m, nil
+			}
+
 			// If completion is active, dismiss it instead
 			if m.editor.CompletionActive() {
 				m.editor = m.editor.HideCompletion()
@@ -331,9 +351,49 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleEscape()
 		}
 
+		// Panel focus chain: Tab cycles editor → tray → panel (before keybinding resolver
+		// so it takes priority over shift+tab thinking cycle when panels are visible)
+		if msg.Code == tea.KeyTab && m.panelTray.Len() > 0 && !m.editor.CompletionActive() {
+			return m.cycleFocus(msg.Mod == tea.ModShift)
+		}
+
 		// Try keybinding resolver
 		if action, ok := m.bindings.Resolve(keyString(msg)); ok {
 			return m.dispatchBinding(action)
+		}
+
+		// Tray key navigation when focused
+		if m.focus == FocusTray {
+			switch msg.Code {
+			case tea.KeyRight:
+				m.panelTray = m.panelTray.Next()
+				m.panelManager.Show(m.panelTray.ActiveID())
+
+				return m, nil
+			case tea.KeyLeft:
+				m.panelTray = m.panelTray.Prev()
+				m.panelManager.Show(m.panelTray.ActiveID())
+
+				return m, nil
+			case tea.KeyEnter:
+				m.focus = FocusPanel
+				m.panelTray = m.panelTray.SetFocused(false)
+				m.panelManager.Show(m.panelTray.ActiveID())
+
+				return m, nil
+			}
+		}
+
+		// Forward keys to active panel when focused
+		if m.focus == FocusPanel && m.panelManager.Active() != "" {
+			if entry, ok := m.panelManager.Get(m.panelManager.Active()); ok && entry.Drawer != nil {
+				if entry.Drawer.Handles(msg) {
+					newDrawer, cmd := entry.Drawer.Update(msg)
+					entry.Drawer = newDrawer
+
+					return m, cmd
+				}
+			}
 		}
 
 		// Completion key interception
@@ -703,6 +763,17 @@ func (m Model) dispatchBinding(action BindingAction) (tea.Model, tea.Cmd) {
 		}
 
 		return m, nil
+
+	// Panels
+	case ActionPanelPicker:
+		if m.panelTray.Len() > 0 {
+			m.focus = FocusTray
+			m.panelTray = m.panelTray.SetFocused(true)
+		} else {
+			m.showStatus("No panels visible")
+		}
+
+		return m, m.statusTimer
 
 	// Sandbox
 	case ActionSandboxCycle:
@@ -1506,6 +1577,37 @@ func (m Model) applyThinkingLevel(level sdkmodel.ThinkingLevel) (tea.Model, tea.
 	return m, tea.Batch(cmds...)
 }
 
+// cycleFocus moves focus through the editor → tray → panel cycle.
+func (m Model) cycleFocus(reverse bool) (tea.Model, tea.Cmd) {
+	if reverse {
+		switch m.focus {
+		case FocusEditor:
+			m.focus = FocusPanel
+			m.panelTray = m.panelTray.SetFocused(false)
+		case FocusTray:
+			m.focus = FocusEditor
+			m.panelTray = m.panelTray.SetFocused(false)
+		case FocusPanel:
+			m.focus = FocusTray
+			m.panelTray = m.panelTray.SetFocused(true)
+		}
+	} else {
+		switch m.focus {
+		case FocusEditor:
+			m.focus = FocusTray
+			m.panelTray = m.panelTray.SetFocused(true)
+		case FocusTray:
+			m.focus = FocusPanel
+			m.panelTray = m.panelTray.SetFocused(false)
+		case FocusPanel:
+			m.focus = FocusEditor
+			m.panelTray = m.panelTray.SetFocused(false)
+		}
+	}
+
+	return m, nil
+}
+
 // showStatus sets a transient status message that clears after a timeout.
 func (m *Model) showStatus(msg string) {
 	m.statusMsg = msg
@@ -1718,9 +1820,65 @@ func (m Model) chatHeight(totalHeight int) int {
 	}
 
 	editorH := m.editor.Height() + m.attach.Height()
-	lt := m.layout.ComputeFull(m.width, totalHeight, editorH, headerRows, pillRows, m.dockedRows())
+	trayRows, abovePanelRows, belowPanelRows := m.panelRows()
+	lt := m.layout.ComputeWithPanels(m.width, totalHeight, editorH, headerRows, pillRows, m.dockedRows(), trayRows, abovePanelRows, belowPanelRows)
 
 	return max(lt.Main.Dy(), 1)
+}
+
+// panelRows returns the tray, above-panel, and below-panel row counts.
+func (m Model) panelRows() (trayRows, abovePanelRows, belowPanelRows int) {
+	if m.panelManager == nil {
+		return 0, 0, 0
+	}
+
+	visible := m.panelManager.VisiblePanels()
+	if len(visible) > 0 {
+		trayRows = 1
+	}
+
+	if m.panelManager.Active() != "" {
+		placement := m.panelManager.ActivePanelPlacement()
+		height := m.panelManager.ActivePanelHeight()
+
+		switch placement {
+		case AboveEditor:
+			abovePanelRows = height
+		case BelowEditor:
+			belowPanelRows = height
+		case AsOverlay:
+			// overlay panels don't allocate fixed rows
+		}
+	}
+
+	return trayRows, abovePanelRows, belowPanelRows
+}
+
+// syncPanelTray updates the tray tabs from the panel manager's visible panels.
+func (m *Model) syncPanelTray() {
+	if m.panelManager == nil {
+		return
+	}
+
+	visible := m.panelManager.VisiblePanels()
+	tabs := make([]PanelTab, len(visible))
+	activeIdx := -1
+
+	for i, id := range visible {
+		if entry, ok := m.panelManager.Get(id); ok {
+			title := entry.Config.Title
+			if title == "" {
+				title = id
+			}
+
+			tabs[i] = PanelTab{ID: id, Title: title}
+			if id == m.panelManager.Active() {
+				activeIdx = i
+			}
+		}
+	}
+
+	m.panelTray = m.panelTray.SetTabs(tabs, activeIdx)
 }
 
 // dockedRows returns the number of rows to allocate for a docked overlay.
@@ -1759,13 +1917,39 @@ func (m Model) Draw(scr uv.Screen, area uv.Rectangle) {
 // When dockedRows > 0, allocates space for a docked overlay dialog.
 // Returns the computed layout for caller use (e.g., dialog placement).
 func (m Model) drawNormalUI(scr uv.Screen, area uv.Rectangle, dockedRows int) Layout {
-	// Compute dynamic layout parameters
-	headerRows := 0
+	headerRows, pillRows := m.countLayoutRows()
+
+	editorH := m.editor.Height() + m.attach.Height()
+	m.syncPanelTray()
+	trayRows, abovePanelRows, belowPanelRows := m.panelRows()
+	lt := m.layout.ComputeWithPanels(
+		area.Dx(), area.Dy(),
+		editorH, headerRows, pillRows, dockedRows,
+		trayRows, abovePanelRows, belowPanelRows,
+	)
+
+	if lt.Main.Dy() > 0 {
+		m.chat = m.chat.SetSize(lt.Main.Dx(), lt.Main.Dy())
+	}
+
+	m.drawHeader(scr, lt.Header)
+	m.drawMainContent(scr, lt.Main)
+	m.drawPanelTray(scr, lt.PanelTray)
+	m.drawActivePanel(scr, lt.AbovePanel)
+	m.drawPills(scr, lt.Pills)
+	editorArea := m.drawEditorWithAttachments(scr, lt.Editor)
+	m.drawCompletionPopupIfActive(scr, editorArea)
+	m.drawActivePanel(scr, lt.BelowPanel)
+	m.footer.Draw(scr, lt.Footer)
+
+	return lt
+}
+
+func (m Model) countLayoutRows() (headerRows, pillRows int) {
 	if !m.showLanding && m.showHints && !m.prompted && len(m.chat.Items()) == 0 {
 		headerRows = 1
 	}
 
-	pillRows := 0
 	if m.spinner.Visible() {
 		pillRows++
 	}
@@ -1774,89 +1958,105 @@ func (m Model) drawNormalUI(scr uv.Screen, area uv.Rectangle, dockedRows int) La
 		pillRows++
 	}
 
-	// Compute layout to determine actual component sizes
-	editorH := m.editor.Height() + m.attach.Height()
-	lt := m.layout.ComputeFull(
-		area.Dx(), area.Dy(),
-		editorH, headerRows, pillRows, dockedRows,
-	)
+	return headerRows, pillRows
+}
 
-	// Sync chat size to allocated main area so it renders only visible content
-	if lt.Main.Dy() > 0 {
-		m.chat = m.chat.SetSize(lt.Main.Dx(), lt.Main.Dy())
+func (m Model) drawHeader(scr uv.Screen, area uv.Rectangle) {
+	if area.Dy() == 0 {
+		return
 	}
 
-	// Render header
-	if headerRows > 0 {
-		hintsStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color(m.theme.Muted)).
-			Background(lipgloss.Color(m.theme.BackgroundTint)).
-			Padding(0, 1)
-		uv.NewStyledString(hintsStyle.Render(
-			"ctrl+p model · ctrl+l select · shift+tab thinking · ctrl+t toggle",
-		)).Draw(scr, lt.Header)
-	}
+	hintsStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(m.theme.Muted)).
+		Background(lipgloss.Color(m.theme.BackgroundTint)).
+		Padding(0, 1)
+	uv.NewStyledString(hintsStyle.Render(
+		"ctrl+p model · ctrl+l select · shift+tab thinking · ctrl+t toggle",
+	)).Draw(scr, area)
+}
 
-	// Render main (chat or landing)
+func (m Model) drawMainContent(scr uv.Screen, area uv.Rectangle) {
 	if m.showLanding {
-		m.landing = m.landing.SetSize(lt.Main.Dx(), lt.Main.Dy())
-		m.landing.Draw(scr, lt.Main)
+		m.landing = m.landing.SetSize(area.Dx(), area.Dy())
+		m.landing.Draw(scr, area)
 	} else {
-		m.chat.Draw(scr, lt.Main)
+		m.chat.Draw(scr, area)
+	}
+}
+
+func (m Model) drawPanelTray(scr uv.Screen, area uv.Rectangle) {
+	if area.Dy() == 0 {
+		return
 	}
 
-	// Render pills (spinner + status)
-	if pillRows > 0 && lt.Pills.Dy() > 0 {
-		y := lt.Pills.Min.Y
+	m.panelTray.Draw(scr, area, m.theme)
+}
 
-		if m.spinner.Visible() {
-			spArea := uv.Rect(lt.Pills.Min.X, y, lt.Pills.Dx(), 1)
-			m.spinner.Draw(scr, spArea)
-
-			y++
-		}
-
-		if m.statusMsg != "" {
-			// Entrance animation: muted for first frame, then full brightness
-			statusColor := m.theme.Foreground
-			if m.statusNew {
-				statusColor = m.theme.Muted
-			}
-
-			statusStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(statusColor))
-			stArea := uv.Rect(lt.Pills.Min.X, y, lt.Pills.Dx(), 1)
-			uv.NewStyledString(statusStyle.Render(m.statusMsg)).Draw(scr, stArea)
-		}
+func (m Model) drawActivePanel(scr uv.Screen, area uv.Rectangle) {
+	if area.Dy() == 0 {
+		return
 	}
 
-	// Render attachments + editor
+	if activeID := m.panelManager.Active(); activeID != "" {
+		if entry, ok := m.panelManager.Get(activeID); ok && entry.Visible && entry.Drawer != nil {
+			entry.Drawer.Draw(scr, area)
+		}
+	}
+}
+
+func (m Model) drawPills(scr uv.Screen, area uv.Rectangle) {
+	if area.Dy() == 0 {
+		return
+	}
+
+	y := area.Min.Y
+
+	if m.spinner.Visible() {
+		spArea := uv.Rect(area.Min.X, y, area.Dx(), 1)
+		m.spinner.Draw(scr, spArea)
+
+		y++
+	}
+
+	if m.statusMsg != "" {
+		statusColor := m.theme.Foreground
+		if m.statusNew {
+			statusColor = m.theme.Muted
+		}
+
+		statusStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(statusColor))
+		stArea := uv.Rect(area.Min.X, y, area.Dx(), 1)
+		uv.NewStyledString(statusStyle.Render(m.statusMsg)).Draw(scr, stArea)
+	}
+}
+
+func (m Model) drawEditorWithAttachments(scr uv.Screen, area uv.Rectangle) uv.Rectangle {
 	attachH := m.attach.Height()
 
-	var editorArea uv.Rectangle
-
-	if attachH > 0 && lt.Editor.Dy() > attachH {
-		attachArea := uv.Rect(lt.Editor.Min.X, lt.Editor.Min.Y, lt.Editor.Dx(), attachH)
-		editorArea = uv.Rect(lt.Editor.Min.X, lt.Editor.Min.Y+attachH, lt.Editor.Dx(), lt.Editor.Dy()-attachH)
+	if attachH > 0 && area.Dy() > attachH {
+		attachArea := uv.Rect(area.Min.X, area.Min.Y, area.Dx(), attachH)
+		editorArea := uv.Rect(area.Min.X, area.Min.Y+attachH, area.Dx(), area.Dy()-attachH)
 
 		m.attach.Draw(scr, attachArea)
 		m.editor.Draw(scr, editorArea)
-	} else {
-		editorArea = lt.Editor
-		m.editor.Draw(scr, editorArea)
+
+		return editorArea
 	}
 
-	// Render completion popup above cursor
-	if m.editor.CompletionActive() {
-		comp := m.editor.Completion()
-		if comp.FilteredCount() > 0 {
-			m.drawCompletionPopup(scr, editorArea)
-		}
+	m.editor.Draw(scr, area)
+
+	return area
+}
+
+func (m Model) drawCompletionPopupIfActive(scr uv.Screen, editorArea uv.Rectangle) {
+	if !m.editor.CompletionActive() {
+		return
 	}
 
-	// Render footer
-	m.footer.Draw(scr, lt.Footer)
-
-	return lt
+	comp := m.editor.Completion()
+	if comp.FilteredCount() > 0 {
+		m.drawCompletionPopup(scr, editorArea)
+	}
 }
 
 // applyBackdropDimming sets the foreground color of all rendered cells to muted,

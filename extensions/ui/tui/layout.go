@@ -16,21 +16,30 @@ const footerRows = 2
 //	│  Main (flex)                    │  chat viewport or landing
 //	│                                 │
 //	├─────────────────────────────────┤
+//	│  PanelTray (0-1 rows)           │  tab strip for visible panels
+//	├─────────────────────────────────┤
+//	│  AbovePanel (0-N rows)          │  active panel above editor
+//	├─────────────────────────────────┤
 //	│  Docked (0-N rows)              │  docked overlay dialog
 //	├─────────────────────────────────┤
 //	│  Pills (0-1 rows)               │  spinner, status, tool progress
 //	├─────────────────────────────────┤
 //	│  Editor (3-15 rows, dynamic)    │  textarea with border
 //	├─────────────────────────────────┤
+//	│  BelowPanel (0-N rows)          │  active panel below editor
+//	├─────────────────────────────────┤
 //	│  Footer (2 rows)                │  status bar + token rate
 //	└─────────────────────────────────┘
 type Layout struct {
-	Header uv.Rectangle
-	Main   uv.Rectangle
-	Docked uv.Rectangle
-	Pills  uv.Rectangle
-	Editor uv.Rectangle
-	Footer uv.Rectangle
+	Header     uv.Rectangle
+	Main       uv.Rectangle
+	PanelTray  uv.Rectangle
+	AbovePanel uv.Rectangle
+	Docked     uv.Rectangle
+	Pills      uv.Rectangle
+	Editor     uv.Rectangle
+	BelowPanel uv.Rectangle
+	Footer     uv.Rectangle
 }
 
 // LayoutEngine computes Layout regions from terminal dimensions using
@@ -43,7 +52,7 @@ func NewLayoutEngine() LayoutEngine {
 }
 
 // Compute calculates regions for the minimum layout: main + editor + footer.
-// Header and pills are hidden (0 rows).
+// Header, pills, and panels are hidden (0 rows).
 func (e LayoutEngine) Compute(width, height, editorLines int) Layout {
 	return e.ComputeFull(width, height, editorLines, 0, 0, 0)
 }
@@ -55,22 +64,32 @@ func (e LayoutEngine) Compute(width, height, editorLines int) Layout {
 // pillRows is 0-1 rows for the pills section.
 // dockedRows is 0-N rows for a docked overlay dialog.
 func (e LayoutEngine) ComputeFull(width, height, editorLines, headerRows, pillRows, dockedRows int) Layout {
+	return e.ComputeWithPanels(width, height, editorLines, headerRows, pillRows, dockedRows, 0, 0, 0)
+}
+
+// ComputeWithPanels calculates regions with optional panel areas.
+//
+// trayRows is 0-1 rows for the panel tab strip.
+// abovePanelRows is 0-N rows for a panel above the editor.
+// belowPanelRows is 0-N rows for a panel below the editor (above footer).
+func (e LayoutEngine) ComputeWithPanels(width, height, editorLines, headerRows, pillRows, dockedRows, trayRows, abovePanelRows, belowPanelRows int) Layout {
 	if width <= 0 || height <= 0 {
 		return Layout{}
 	}
 
 	editorRows := editorLines + 2 // content + top/bottom border
-	mainRows := height - headerRows - pillRows - dockedRows - editorRows - footerRows
+	mainRows := height - headerRows - trayRows - abovePanelRows - pillRows - dockedRows - editorRows - belowPanelRows - footerRows
 
 	if mainRows < 1 {
 		return minimalLayout(width, height)
 	}
 
-	var constraints []layout.Constraint
+	var (
+		constraints []layout.Constraint
+		targets     []*uv.Rectangle
+	)
 
-	var targets []*uv.Rectangle
-
-	var header, main, docked, pills, editor, footer uv.Rectangle
+	var header, main, tray, abovePanel, docked, pills, editor, belowPanel, footer uv.Rectangle
 
 	if headerRows > 0 {
 		constraints = append(constraints, layout.Len(headerRows))
@@ -79,6 +98,16 @@ func (e LayoutEngine) ComputeFull(width, height, editorLines, headerRows, pillRo
 
 	constraints = append(constraints, layout.Fill(1))
 	targets = append(targets, &main)
+
+	if trayRows > 0 {
+		constraints = append(constraints, layout.Len(trayRows))
+		targets = append(targets, &tray)
+	}
+
+	if abovePanelRows > 0 {
+		constraints = append(constraints, layout.Len(abovePanelRows))
+		targets = append(targets, &abovePanel)
+	}
 
 	if dockedRows > 0 {
 		constraints = append(constraints, layout.Len(dockedRows))
@@ -93,6 +122,11 @@ func (e LayoutEngine) ComputeFull(width, height, editorLines, headerRows, pillRo
 	constraints = append(constraints, layout.Len(editorRows))
 	targets = append(targets, &editor)
 
+	if belowPanelRows > 0 {
+		constraints = append(constraints, layout.Len(belowPanelRows))
+		targets = append(targets, &belowPanel)
+	}
+
 	constraints = append(constraints, layout.Len(footerRows))
 	targets = append(targets, &footer)
 
@@ -100,12 +134,15 @@ func (e LayoutEngine) ComputeFull(width, height, editorLines, headerRows, pillRo
 	layout.Vertical(constraints...).Split(area).Assign(targets...)
 
 	return Layout{
-		Header: header,
-		Main:   main,
-		Docked: docked,
-		Pills:  pills,
-		Editor: editor,
-		Footer: footer,
+		Header:     header,
+		Main:       main,
+		PanelTray:  tray,
+		AbovePanel: abovePanel,
+		Docked:     docked,
+		Pills:      pills,
+		Editor:     editor,
+		BelowPanel: belowPanel,
+		Footer:     footer,
 	}
 }
 
