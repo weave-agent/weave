@@ -194,10 +194,10 @@ type mockPrefsConfig struct {
 	prefsErr      error
 }
 
-func (m *mockPrefsConfig) FilePath() string                                   { return "" }
-func (m *mockPrefsConfig) ProjectDir() string                                 { return "" }
-func (m *mockPrefsConfig) ExtensionConfig(_, _ string, _ any, _ string) error { return nil }
-func (m *mockPrefsConfig) IsHeadless() bool                                   { return true }
+func (m *mockPrefsConfig) FilePath() string                         { return "" }
+func (m *mockPrefsConfig) ProjectDir() string                       { return "" }
+func (m *mockPrefsConfig) ExtensionConfig(_, _ string, _ any) error { return nil }
+func (m *mockPrefsConfig) IsHeadless() bool                         { return true }
 
 func (m *mockPrefsConfig) Preferences(target any) error {
 	if m.prefsErr != nil {

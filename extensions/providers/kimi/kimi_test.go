@@ -1349,7 +1349,7 @@ type testConfig struct {
 
 func (m *testConfig) FilePath() string   { return "" }
 func (m *testConfig) ProjectDir() string { return "" }
-func (m *testConfig) ExtensionConfig(scope, name string, target any, envPrefix string) error {
+func (m *testConfig) ExtensionConfig(scope, name string, target any) error {
 	if scope != "providers" || name != "kimi" {
 		return nil
 	}
@@ -1361,7 +1361,7 @@ func (m *testConfig) ExtensionConfig(scope, name string, target any, envPrefix s
 
 	loader := settings.Loader{
 		Data:      m.providerData,
-		EnvPrefix: envPrefix,
+		EnvPrefix: "",
 	}
 	if err := loader.Load(cfg); err != nil {
 		return fmt.Errorf("load config: %w", err)

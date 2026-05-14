@@ -337,14 +337,14 @@ var _ sdk.Tool = (*mockTool)(nil)
 
 type configWithProjectDir struct{ projectDir string }
 
-func (c *configWithProjectDir) FilePath() string                                   { return "" }
-func (c *configWithProjectDir) ProjectDir() string                                 { return c.projectDir }
-func (c *configWithProjectDir) ExtensionConfig(_, _ string, _ any, _ string) error { return nil }
-func (c *configWithProjectDir) IsHeadless() bool                                   { return true }
-func (c *configWithProjectDir) Preferences(any) error                              { return nil }
-func (c *configWithProjectDir) SavePreferences(any) error                          { return nil }
-func (c *configWithProjectDir) SaveProviderKey(_, _ string) error                  { return nil }
-func (c *configWithProjectDir) RespectGitignore() bool                             { return true }
+func (c *configWithProjectDir) FilePath() string                         { return "" }
+func (c *configWithProjectDir) ProjectDir() string                       { return c.projectDir }
+func (c *configWithProjectDir) ExtensionConfig(_, _ string, _ any) error { return nil }
+func (c *configWithProjectDir) IsHeadless() bool                         { return true }
+func (c *configWithProjectDir) Preferences(any) error                    { return nil }
+func (c *configWithProjectDir) SavePreferences(any) error                { return nil }
+func (c *configWithProjectDir) SaveProviderKey(_, _ string) error        { return nil }
+func (c *configWithProjectDir) RespectGitignore() bool                   { return true }
 
 func assertHasSubstring(t *testing.T, s, substr string) int {
 	t.Helper()

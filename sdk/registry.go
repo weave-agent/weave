@@ -33,7 +33,7 @@ func RegisterExtensionWithScope[T any](name, scope string, factory func(Config, 
 	wrapper := func(cfg Config) (Extension, error) {
 		var t T
 
-		if err := cfg.ExtensionConfig(scope, name, &t, envPrefixFor(name)); err != nil {
+		if err := cfg.ExtensionConfig(scope, name, &t); err != nil {
 			return nil, fmt.Errorf("load extension config: %w", err)
 		}
 

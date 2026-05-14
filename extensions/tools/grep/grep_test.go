@@ -439,11 +439,11 @@ type testConfig struct {
 	respectGitignore bool
 }
 
-func (testConfig) FilePath() string                                   { return "" }
-func (testConfig) ProjectDir() string                                 { return "" }
-func (testConfig) ExtensionConfig(_, _ string, _ any, _ string) error { return nil }
-func (testConfig) IsHeadless() bool                                   { return false }
-func (testConfig) Preferences(any) error                              { return nil }
-func (testConfig) SavePreferences(any) error                          { return nil }
-func (testConfig) SaveProviderKey(_, _ string) error                  { return nil }
-func (tc testConfig) RespectGitignore() bool                          { return tc.respectGitignore }
+func (testConfig) FilePath() string                         { return "" }
+func (testConfig) ProjectDir() string                       { return "" }
+func (testConfig) ExtensionConfig(_, _ string, _ any) error { return nil }
+func (testConfig) IsHeadless() bool                         { return false }
+func (testConfig) Preferences(any) error                    { return nil }
+func (testConfig) SavePreferences(any) error                { return nil }
+func (testConfig) SaveProviderKey(_, _ string) error        { return nil }
+func (tc testConfig) RespectGitignore() bool                { return tc.respectGitignore }

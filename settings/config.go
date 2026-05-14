@@ -401,7 +401,7 @@ func ProjectDirFromConfig(configPath string) string {
 	return dir
 }
 
-func (c *FullConfig) ExtensionConfig(scope, name string, target any, envPrefix string) error {
+func (c *FullConfig) ExtensionConfig(scope, name string, target any) error {
 	layered, err := c.getLayeredSettings()
 	if err != nil {
 		return fmt.Errorf("load settings for %s.%s: %w", scope, name, err)
@@ -435,6 +435,13 @@ func (c *FullConfig) ExtensionConfig(scope, name string, target any, envPrefix s
 	data, err := toMapAny(raw)
 	if err != nil {
 		return fmt.Errorf("convert config for %s.%s: %w", scope, name, err)
+	}
+
+	var envPrefix string
+	if scope == "providers" {
+		envPrefix = ""
+	} else {
+		envPrefix = "WEAVE_" + strings.ReplaceAll(strings.ToUpper(name), "-", "_")
 	}
 
 	loader := Loader{

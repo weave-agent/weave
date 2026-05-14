@@ -902,7 +902,7 @@ type mockConfig struct {
 
 func (m *mockConfig) FilePath() string   { return m.filePath }
 func (m *mockConfig) ProjectDir() string { return "" }
-func (m *mockConfig) ExtensionConfig(_, _ string, target any, _ string) error {
+func (m *mockConfig) ExtensionConfig(_, _ string, target any) error {
 	if m.uiConfig == nil {
 		return nil
 	}

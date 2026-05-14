@@ -103,7 +103,7 @@ func TestExtensionConfig_ToolPopulatedStruct(t *testing.T) {
 	var target struct {
 		Timeout int `json:"timeout"`
 	}
-	require.NoError(t, cfg.ExtensionConfig("tools", "bash", &target, ""))
+	require.NoError(t, cfg.ExtensionConfig("tools", "bash", &target))
 	assert.Equal(t, 60, target.Timeout)
 }
 
@@ -132,7 +132,7 @@ func TestExtensionConfig_ToolDefaultsApplied(t *testing.T) {
 	var target struct {
 		Timeout int `json:"timeout" default:"120"`
 	}
-	require.NoError(t, cfg.ExtensionConfig("tools", "bash", &target, ""))
+	require.NoError(t, cfg.ExtensionConfig("tools", "bash", &target))
 	assert.Equal(t, 120, target.Timeout)
 }
 
@@ -152,7 +152,7 @@ func TestExtensionConfig_ToolMissingSection(t *testing.T) {
 	var target struct {
 		Timeout int `json:"timeout" default:"42"`
 	}
-	require.NoError(t, cfg.ExtensionConfig("tools", "bash", &target, ""))
+	require.NoError(t, cfg.ExtensionConfig("tools", "bash", &target))
 	assert.Equal(t, 42, target.Timeout, "default should be applied when no settings file exists")
 }
 
@@ -181,7 +181,7 @@ func TestExtensionConfig_ToolMissingToolName(t *testing.T) {
 	var target struct {
 		Timeout int `json:"timeout" default:"99"`
 	}
-	require.NoError(t, cfg.ExtensionConfig("tools", "bash", &target, ""))
+	require.NoError(t, cfg.ExtensionConfig("tools", "bash", &target))
 	assert.Equal(t, 99, target.Timeout, "default should be applied when tool not in settings")
 }
 
@@ -212,7 +212,7 @@ func TestExtensionConfig_UIPopulatedStruct(t *testing.T) {
 		Theme          string `json:"theme,omitempty"`
 		EditorMaxLines int    `json:"editor_max_lines,omitempty"`
 	}
-	require.NoError(t, cfg.ExtensionConfig("ui", "", &target, ""))
+	require.NoError(t, cfg.ExtensionConfig("ui", "", &target))
 	assert.Equal(t, "dark", target.Theme)
 	assert.Equal(t, 40, target.EditorMaxLines)
 }
@@ -241,7 +241,7 @@ func TestExtensionConfig_UIDefaultsApplied(t *testing.T) {
 		Theme          string `json:"theme" default:"dark"`
 		EditorMaxLines int    `json:"editor_max_lines" default:"15"`
 	}
-	require.NoError(t, cfg.ExtensionConfig("ui", "", &target, ""))
+	require.NoError(t, cfg.ExtensionConfig("ui", "", &target))
 	assert.Equal(t, "dark", target.Theme)
 	assert.Equal(t, 15, target.EditorMaxLines)
 }
@@ -262,7 +262,7 @@ func TestExtensionConfig_UIMissingSection(t *testing.T) {
 	var target struct {
 		Theme string `json:"theme" default:"dark"`
 	}
-	require.NoError(t, cfg.ExtensionConfig("ui", "", &target, ""))
+	require.NoError(t, cfg.ExtensionConfig("ui", "", &target))
 	assert.Equal(t, "dark", target.Theme, "default should be applied when no UI settings")
 }
 
@@ -365,7 +365,7 @@ func TestLayeredSettings_IntegrationWithExtensionConfig(t *testing.T) {
 	var target struct {
 		Timeout int `json:"timeout"`
 	}
-	require.NoError(t, cfg.ExtensionConfig("tools", "bash", &target, ""))
+	require.NoError(t, cfg.ExtensionConfig("tools", "bash", &target))
 	assert.Equal(t, 30, target.Timeout, "local layer should override global")
 }
 
@@ -394,7 +394,7 @@ func TestExtensionConfig_ToolLocalOnlyFromWeaveDir(t *testing.T) {
 	var target struct {
 		Timeout int `json:"timeout" default:"120"`
 	}
-	require.NoError(t, cfg.ExtensionConfig("tools", "bash", &target, ""))
+	require.NoError(t, cfg.ExtensionConfig("tools", "bash", &target))
 	assert.Equal(t, 45, target.Timeout, "local settings should be found when config is inside .weave/")
 }
 
@@ -412,7 +412,7 @@ func TestExtensionConfig_SandboxScope(t *testing.T) {
 		Mode     string   `json:"mode" default:"auto"`
 		Writable []string `json:"writable"`
 	}
-	require.NoError(t, cfg.ExtensionConfig("sandbox", "", &target, ""))
+	require.NoError(t, cfg.ExtensionConfig("sandbox", "", &target))
 	assert.Equal(t, "readonly", target.Mode)
 	assert.Equal(t, []string{"/tmp"}, target.Writable)
 }
@@ -430,8 +430,68 @@ func TestExtensionConfig_JSONLScope(t *testing.T) {
 	var target struct {
 		Dir string `json:"dir" default:"~/.weave/sessions"`
 	}
-	require.NoError(t, cfg.ExtensionConfig("jsonl", "", &target, ""))
+	require.NoError(t, cfg.ExtensionConfig("jsonl", "", &target))
 	assert.Equal(t, "/custom/sessions", target.Dir)
+}
+
+func TestExtensionConfig_DerivesEnvPrefixForTools(t *testing.T) {
+	t.Setenv("WEAVE_BASH_TIMEOUT", "77")
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".weave", "settings.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
+	writeFile(t, dir, ".weave/settings.json", `{}`)
+
+	cfg := &FullConfig{
+		filePath: path,
+		settings: mustLoadSettings(t, path),
+	}
+
+	var target struct {
+		Timeout int `json:"timeout" env:"TIMEOUT"`
+	}
+	require.NoError(t, cfg.ExtensionConfig("tools", "bash", &target))
+	assert.Equal(t, 77, target.Timeout, "tool env prefix should be WEAVE_BASH_")
+}
+
+func TestExtensionConfig_DerivesEnvPrefixForProviders(t *testing.T) {
+	t.Setenv("ANTHROPIC_MODEL", "claude-test")
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".weave", "settings.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
+	writeFile(t, dir, ".weave/settings.json", `{}`)
+
+	cfg := &FullConfig{
+		filePath: path,
+		settings: mustLoadSettings(t, path),
+	}
+
+	var target struct {
+		Model string `json:"model" env:"ANTHROPIC_MODEL"`
+	}
+	require.NoError(t, cfg.ExtensionConfig("providers", "anthropic", &target))
+	assert.Equal(t, "claude-test", target.Model, "provider env prefix should be empty")
+}
+
+func TestExtensionConfig_DerivesEnvPrefixWithHyphens(t *testing.T) {
+	t.Setenv("WEAVE_MY_TOOL_TIMEOUT", "99")
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".weave", "settings.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
+	writeFile(t, dir, ".weave/settings.json", `{}`)
+
+	cfg := &FullConfig{
+		filePath: path,
+		settings: mustLoadSettings(t, path),
+	}
+
+	var target struct {
+		Timeout int `json:"timeout" env:"TIMEOUT"`
+	}
+	require.NoError(t, cfg.ExtensionConfig("tools", "my-tool", &target))
+	assert.Equal(t, 99, target.Timeout, "hyphens in name should become underscores in prefix")
 }
 
 func TestProjectDirFromConfig(t *testing.T) {

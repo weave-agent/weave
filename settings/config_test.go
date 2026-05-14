@@ -772,7 +772,7 @@ func TestExtensionConfig_ProvidersUsesLayeredSettings(t *testing.T) {
 		Model   string `json:"model"`
 		BaseURL string `json:"base_url"`
 	}
-	require.NoError(t, cfg.ExtensionConfig("providers", "openai", &pc, ""))
+	require.NoError(t, cfg.ExtensionConfig("providers", "openai", &pc))
 	assert.Equal(t, "gpt-project", pc.Model, "project model should be preserved")
 	assert.Equal(t, "https://local.example.com", pc.BaseURL, "local base_url should override global and project")
 }
@@ -799,7 +799,7 @@ func TestExtensionConfig_ProvidersFallbackToProjectWhenNoLayered(t *testing.T) {
 	var pc struct {
 		Model string `json:"model"`
 	}
-	require.NoError(t, cfg.ExtensionConfig("providers", "anthropic", &pc, ""))
+	require.NoError(t, cfg.ExtensionConfig("providers", "anthropic", &pc))
 	assert.Equal(t, "claude-project", pc.Model)
 }
 

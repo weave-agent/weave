@@ -26,7 +26,7 @@ func RegisterTool[T any](name string, factory func(Config, T) (Tool, error)) {
 	wrapper := func(cfg Config) (Tool, error) {
 		var t T
 
-		if err := cfg.ExtensionConfig("tools", name, &t, envPrefixFor(name)); err != nil {
+		if err := cfg.ExtensionConfig("tools", name, &t); err != nil {
 			return nil, fmt.Errorf("load tool config: %w", err)
 		}
 

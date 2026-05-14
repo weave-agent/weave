@@ -73,15 +73,15 @@ Address architectural, API design, and code quality findings from the SDK review
 
 ### Task 5: Derive `envPrefix` inside `ExtensionConfig`
 
-- [ ] Remove `envPrefix` parameter from `ExtensionConfig(scope, name, target)` in `sdk/config.go`
-- [ ] Derive prefix inside `settings/config.go:445` based on scope: providers get `""`, tools/extensions get `"WEAVE_"+name`
-- [ ] Update `sdk/provider_registry.go:28` (remove `""` arg)
-- [ ] Update `sdk/tool_registry.go:30` (remove prefix arg)
-- [ ] Update `sdk/registry.go:37` (remove prefix arg)
-- [ ] Update `NoopConfig.ExtensionConfig` and `FilePathConfig.ExtensionConfig` stubs
-- [ ] Regenerate mocks via `make gen`
-- [ ] Write/update tests
-- [ ] Run `go test ./sdk/... ./settings/...` — must pass
+- [x] Remove `envPrefix` parameter from `ExtensionConfig(scope, name, target)` in `sdk/config.go`
+- [x] Derive prefix inside `settings/config.go:445` based on scope: providers get `""`, tools/extensions get `"WEAVE_"+name`
+- [x] Update `sdk/provider_registry.go:28` (remove `""` arg)
+- [x] Update `sdk/tool_registry.go:30` (remove prefix arg)
+- [x] Update `sdk/registry.go:37` (remove prefix arg)
+- [x] Update `NoopConfig.ExtensionConfig` and `FilePathConfig.ExtensionConfig` stubs
+- [x] Regenerate mocks via `make gen`
+- [x] Write/update tests
+- [x] Run `go test ./sdk/... ./settings/...` — must pass
 
 ### Task 6: Split `UI` interface
 

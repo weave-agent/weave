@@ -33,7 +33,7 @@ func RegisterProvider[TConfig, TAuth any](name string, factory func(Config, TCon
 	wrapper := func(cfg Config) (Provider, error) {
 		var tc TConfig
 
-		if err := cfg.ExtensionConfig("providers", name, &tc, ""); err != nil {
+		if err := cfg.ExtensionConfig("providers", name, &tc); err != nil {
 			return nil, fmt.Errorf("load provider config: %w", err)
 		}
 

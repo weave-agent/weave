@@ -188,7 +188,7 @@ func TestRegisterTool_ConfigPopulation(t *testing.T) {
 	})
 
 	mock := &ConfigMock{
-		ExtensionConfigFunc: func(scope, name string, target any, envPrefix string) error {
+		ExtensionConfigFunc: func(scope, name string, target any) error {
 			// Simulate populating the config
 			if tc, ok := target.(*testToolConfig); ok {
 				tc.Timeout = 60
@@ -214,7 +214,7 @@ func TestRegisterTool_ConfigPopulationError(t *testing.T) {
 	})
 
 	mock := &ConfigMock{
-		ExtensionConfigFunc: func(scope, name string, target any, envPrefix string) error {
+		ExtensionConfigFunc: func(scope, name string, target any) error {
 			return errors.New("config error")
 		},
 	}
