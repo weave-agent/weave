@@ -141,13 +141,16 @@ func TestGenerateSeatbeltProfile_WriteDenySSHDir(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Contains(t, profile, `WRITABLE_DENY_0`)
+
 	found := false
+
 	for _, p := range params {
 		if strings.HasPrefix(p, "WRITABLE_DENY_0=") && strings.Contains(p, sshDir) {
 			found = true
 			break
 		}
 	}
+
 	assert.True(t, found, "SSH dir should be in deny params")
 	assert.Contains(t, profile, `(require-not (subpath (param "WRITABLE_DENY_0")))`)
 }
@@ -163,7 +166,7 @@ func TestGenerateSeatbeltProfile_WriteDenyShellFiles(t *testing.T) {
 	assert.Contains(t, profile, `WRITABLE_DENY_3`)
 	assert.Contains(t, profile, `WRITABLE_DENY_4`)
 
-	bashrcParam := fmt.Sprintf("WRITABLE_DENY_1=%s", filepath.Join(home, ".bashrc"))
+	bashrcParam := "WRITABLE_DENY_1=" + filepath.Join(home, ".bashrc")
 	assert.Contains(t, params, bashrcParam)
 }
 
@@ -179,7 +182,7 @@ func TestGenerateSeatbeltProfile_UserDenyWriteDirs(t *testing.T) {
 	paramKey := fmt.Sprintf("WRITABLE_DENY_%d", offset)
 	assert.Contains(t, profile, paramKey)
 	assert.Contains(t, params, paramKey+"=/secret/dir/")
-	assert.Contains(t, profile, fmt.Sprintf(`(require-not (subpath (param "%s")))`, paramKey))
+	assert.Contains(t, profile, fmt.Sprintf("(require-not (subpath (param %q)))", paramKey))
 }
 
 func TestGenerateSeatbeltProfile_UserDenyWriteFiles(t *testing.T) {
@@ -194,7 +197,7 @@ func TestGenerateSeatbeltProfile_UserDenyWriteFiles(t *testing.T) {
 	paramKey := fmt.Sprintf("WRITABLE_DENY_%d", offset)
 	assert.Contains(t, profile, paramKey)
 	assert.Contains(t, params, paramKey+"=/secret/file.txt")
-	assert.Contains(t, profile, fmt.Sprintf(`(require-not (literal (param "%s")))`, paramKey))
+	assert.Contains(t, profile, fmt.Sprintf("(require-not (literal (param %q)))", paramKey))
 }
 
 func TestGenerateSeatbeltProfile_UserDenyReadDirs(t *testing.T) {
@@ -274,4 +277,3 @@ func TestWrapCommandDarwin_ReadonlyMode(t *testing.T) {
 	assert.Contains(t, wrapped, "sandbox-exec ")
 	assert.NotContains(t, wrapped, "WRITABLE_ROOT")
 }
-

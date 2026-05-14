@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -218,10 +219,14 @@ func (m *mockPrefsConfig) Preferences(target any) error {
 
 	raw, err := json.Marshal(p)
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal preferences: %w", err)
 	}
 
-	return json.Unmarshal(raw, target)
+	if err := json.Unmarshal(raw, target); err != nil {
+		return fmt.Errorf("unmarshal preferences: %w", err)
+	}
+
+	return nil
 }
 func (m *mockPrefsConfig) SavePreferences(any) error         { return nil }
 func (m *mockPrefsConfig) SaveProviderKey(_, _ string) error { return nil }
