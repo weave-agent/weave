@@ -8,7 +8,12 @@ import (
 	"weave/internal/wire"
 )
 
-const debugFlag = "--weave-debug=true"
+const (
+	debugFlag      = "--weave-debug=true"
+	debugFlagFalse = "--weave-debug=false"
+	debugArg       = "--debug"
+	debugArgPrefix = "--debug="
+)
 
 func main() {
 	args := prependDebugFlag(os.Args[1:])
@@ -25,20 +30,32 @@ func prependDebugFlag(args []string) []string {
 
 	// Also check for --debug in args and translate to --weave-debug.
 	for i, a := range args {
-		if a == "--debug" {
+		if a == debugArg {
 			args = append(args[:i], args[i+1:]...)
+
+			// Check if next arg is a boolean value (space-separated form).
+			if i < len(args) {
+				switch args[i] {
+				case "true", "1":
+					args = append(args[:i], args[i+1:]...)
+					return append([]string{debugFlag}, args...)
+				case "false", "0":
+					args = append(args[:i], args[i+1:]...)
+					return append([]string{debugFlagFalse}, args...)
+				}
+			}
 
 			return append([]string{debugFlag}, args...)
 		}
 
-		if val, ok := strings.CutPrefix(a, "--debug="); ok {
+		if val, ok := strings.CutPrefix(a, debugArgPrefix); ok {
 			args = append(args[:i], args[i+1:]...)
 
 			if val == "true" || val == "1" {
 				return append([]string{debugFlag}, args...)
 			}
 
-			return append([]string{"--weave-debug=false"}, args...)
+			return append([]string{debugFlagFalse}, args...)
 		}
 	}
 

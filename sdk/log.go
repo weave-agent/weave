@@ -8,9 +8,9 @@ import "log/slog"
 //
 // Standard: extensions must use slog (via Logger or slog.Default) for all
 // diagnostic output. Direct writes to os.Stderr or os.Stdout (log.Printf,
-// fmt.Fprintf(os.Stderr, ...)) corrupt the Bubble Tea TUI display. In headless
-// mode the default slog handler mirrors to stderr; in TUI mode all logs route
-// to ~/.weave/logs/weave.log.
+// fmt.Fprintf(os.Stderr, ...)) corrupt the Bubble Tea TUI display. The
+// framework configures slog.Default() with a file handler (and stderr mirror
+// in headless mode); Logger simply wraps that default.
 func Logger(name string) *slog.Logger {
 	return slog.Default().With("ext", name)
 }

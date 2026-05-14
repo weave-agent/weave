@@ -54,6 +54,26 @@ func TestPrependDebugFlag_EnvVarFalse(t *testing.T) {
 	assert.Equal(t, []string{"--prompt", "hello"}, got)
 }
 
+func TestPrependDebugFlag_FlagSpaceSeparatedFalse(t *testing.T) {
+	got := prependDebugFlag([]string{"--debug", "false", "--prompt", "hello"})
+	assert.Equal(t, []string{"--weave-debug=false", "--prompt", "hello"}, got)
+}
+
+func TestPrependDebugFlag_FlagSpaceSeparatedZero(t *testing.T) {
+	got := prependDebugFlag([]string{"--debug", "0", "--prompt", "hello"})
+	assert.Equal(t, []string{"--weave-debug=false", "--prompt", "hello"}, got)
+}
+
+func TestPrependDebugFlag_FlagSpaceSeparatedTrue(t *testing.T) {
+	got := prependDebugFlag([]string{"--debug", "true", "--prompt", "hello"})
+	assert.Equal(t, []string{"--weave-debug=true", "--prompt", "hello"}, got)
+}
+
+func TestPrependDebugFlag_FlagSpaceSeparatedOne(t *testing.T) {
+	got := prependDebugFlag([]string{"--debug", "1", "--prompt", "hello"})
+	assert.Equal(t, []string{"--weave-debug=true", "--prompt", "hello"}, got)
+}
+
 func TestPrependDebugFlag_FlagRemoved(t *testing.T) {
 	got := prependDebugFlag([]string{"--prompt", "hello"})
 	assert.Equal(t, []string{"--prompt", "hello"}, got)
