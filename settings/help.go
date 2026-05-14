@@ -85,14 +85,15 @@ func writeExtensionFlags(b *strings.Builder) {
 		})
 	}
 
-	scopeOrder := []string{"tools", "providers", "ui", "sandbox", "jsonl", "extensions"}
+	scopeOrder := []string{"tools", "providers", "ui", "sandbox", "jsonl", "extensions", "ui_extensions"}
 	scopeTitles := map[string]string{
-		"tools":      "Tool options",
-		"providers":  "Provider options",
-		"ui":         "UI options",
-		"sandbox":    "Sandbox options",
-		"jsonl":      "JSONL options",
-		"extensions": "Extension options",
+		"tools":         "Tool options",
+		"providers":     "Provider options",
+		"ui":            "UI options",
+		"sandbox":       "Sandbox options",
+		"jsonl":         "JSONL options",
+		"extensions":    "Extension options",
+		"ui_extensions": "UI extension options",
 	}
 
 	for _, scope := range scopeOrder {

@@ -36,6 +36,7 @@ func MergeSettings(layers ...*Settings) *Settings {
 		mergeSandbox(result, layer)
 		mergeJSONL(result, layer)
 		mergeExtensions(result, layer)
+		mergeUIExtensions(result, layer)
 	}
 
 	return result
@@ -159,6 +160,24 @@ func mergeExtensions(result, layer *Settings) {
 			result.Extensions[k] = deepMergeValues(existing, v)
 		} else {
 			result.Extensions[k] = v
+		}
+	}
+}
+
+func mergeUIExtensions(result, layer *Settings) {
+	if layer.UIExtensions == nil {
+		return
+	}
+
+	if result.UIExtensions == nil {
+		result.UIExtensions = make(map[string]any, len(layer.UIExtensions))
+	}
+
+	for k, v := range layer.UIExtensions {
+		if existing, ok := result.UIExtensions[k]; ok {
+			result.UIExtensions[k] = deepMergeValues(existing, v)
+		} else {
+			result.UIExtensions[k] = v
 		}
 	}
 }

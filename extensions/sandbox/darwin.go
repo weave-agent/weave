@@ -82,7 +82,10 @@ func buildReadPolicy(_ SandboxConfig, _, _ string) (string, []string) {
 
 func buildWritePolicy(cfg SandboxConfig, home, dir string) (string, []string) {
 	writable := cfg.Writable
+
+	readonly := false
 	if len(writable) == 1 && writable[0] == "" {
+		readonly = true
 		writable = nil
 	} else if len(writable) == 0 {
 		writable = []string{dir}
@@ -132,6 +135,11 @@ func buildWritePolicy(cfg SandboxConfig, home, dir string) (string, []string) {
 
 	if len(parts) == 0 {
 		return "", nil
+	}
+
+	if readonly {
+		// No positive writable paths: deny all writes.
+		return "(deny file-write*)", nil
 	}
 
 	policy := fmt.Sprintf("(allow file-write*\n  (require-all\n    %s\n  )\n)", strings.Join(parts, "\n    "))
@@ -186,8 +194,10 @@ func wrapCommandDarwinWithConfig(cmd, dir string, cfg SandboxConfig) (string, er
 	var args []string
 
 	args = append(args, "-p", "'"+escapedProfile+"'")
+
 	for _, param := range params {
-		args = append(args, "-D"+param)
+		escapedParam := strings.ReplaceAll(param, "'", "'\\''")
+		args = append(args, "'-D"+escapedParam+"'")
 	}
 
 	args = append(args, "bash", "-c", "'"+strings.ReplaceAll(cmd, "'", "'\\''")+"'")

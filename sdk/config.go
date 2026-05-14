@@ -66,3 +66,27 @@ type HeadlessConfig struct {
 }
 
 func (h HeadlessConfig) IsHeadless() bool { return h.Headless }
+
+func (h HeadlessConfig) Preferences(target any) error {
+	if ps, ok := h.Config.(PreferenceStore); ok {
+		return ps.Preferences(target) //nolint:wrapcheck // transparent delegation
+	}
+
+	return NoopPreferenceStore{}.Preferences(target)
+}
+
+func (h HeadlessConfig) SavePreferences(target any) error {
+	if ps, ok := h.Config.(PreferenceStore); ok {
+		return ps.SavePreferences(target) //nolint:wrapcheck // transparent delegation
+	}
+
+	return NoopPreferenceStore{}.SavePreferences(target)
+}
+
+func (h HeadlessConfig) SaveProviderKey(providerName, apiKey string) error {
+	if ps, ok := h.Config.(PreferenceStore); ok {
+		return ps.SaveProviderKey(providerName, apiKey) //nolint:wrapcheck // transparent delegation
+	}
+
+	return NoopPreferenceStore{}.SaveProviderKey(providerName, apiKey)
+}
