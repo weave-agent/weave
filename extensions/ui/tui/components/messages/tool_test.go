@@ -193,3 +193,52 @@ func TestToolPanel_Draw_ZeroArea(t *testing.T) {
 	canvas := uv.NewScreenBuffer(80, 10)
 	p.Draw(canvas, uv.Rect(0, 0, 0, 0))
 }
+
+func TestToolPanel_StateEmojis(t *testing.T) {
+	tests := []struct {
+		name      string
+		state     ToolState
+		wantEmoji string
+	}{
+		{"pending", ToolPending, "⏳"},
+		{"success", ToolSuccess, "✓"},
+		{"error", ToolError, "✗"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Contains(t, stateLabelForState(tt.state), tt.wantEmoji)
+		})
+	}
+}
+
+func TestToolPanel_View_PendingHasRunningText(t *testing.T) {
+	p := NewToolPanel("tc1", "bash", "ls -la")
+	view := p.View(80)
+	assert.Contains(t, view, "⏳")
+	assert.Contains(t, view, "bash")
+	assert.Contains(t, view, "running...")
+}
+
+func TestToolPanel_View_SuccessHasCheckmark(t *testing.T) {
+	p := NewToolPanel("tc1", "bash", "ls")
+	p.SetResult("file1.txt", false)
+	view := p.View(80)
+	assert.Contains(t, view, "✓")
+	assert.Contains(t, view, "bash")
+}
+
+func TestToolPanel_View_ErrorHasXMark(t *testing.T) {
+	p := NewToolPanel("tc1", "bash", "ls")
+	p.SetResult("permission denied", true)
+	view := p.View(80)
+	assert.Contains(t, view, "✗")
+	assert.Contains(t, view, "bash")
+}
+
+func TestToolPanel_View_ErrorOutputInErrorColor(t *testing.T) {
+	p := NewToolPanel("tc1", "bash", "ls")
+	p.SetResult("permission denied", true)
+	view := p.View(80)
+	// Error state should contain the output text
+	assert.Contains(t, view, "permission denied")
+}

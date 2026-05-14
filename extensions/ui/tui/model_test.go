@@ -20,9 +20,12 @@ import (
 	sdkmodel "weave/sdk/model"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"weave/ext/ui/tui/palette"
 )
 
 // executeBatchCmd handles tea.Cmd results that may be tea.BatchMsg.
@@ -573,7 +576,7 @@ func TestModel_ThinkingBlockInChatView(t *testing.T) {
 	m = model.(Model)
 
 	view := m.View()
-	assert.Contains(t, view.Content, "[thinking]")
+	assert.Contains(t, view.Content, "Thinking")
 }
 
 func TestModel_ThinkingBlockWithToolCalls(t *testing.T) {
@@ -1111,7 +1114,7 @@ func TestModel_CycleThinkingLevel(t *testing.T) {
 	m = model.(Model)
 	assert.Equal(t, sdkmodel.ThinkingHigh, m.thinkingLevel)
 	assert.Equal(t, "high", m.footer.ThinkingLevel())
-	assert.Equal(t, "139", m.editor.BorderColor)
+	assert.Equal(t, "141", m.editor.BorderColor)
 
 	// Second press skips xhigh (clamped for Sonnet) and goes to off
 	model, _ = m.dispatchBinding(ActionThinkingCycle)
@@ -1226,7 +1229,7 @@ func TestModel_CycleThinkingPublishesEvent(t *testing.T) {
 
 func TestModel_EditorBorderMatchesThinkingLevel(t *testing.T) {
 	m := newModel(nil, nil, nil, nil)
-	assert.Equal(t, "99", m.editor.BorderColor) // medium = "99"
+	assert.Equal(t, "69", m.editor.BorderColor) // medium = "69"
 }
 
 func TestModel_ThinkingLevelUpdatesEditorBorder(t *testing.T) {
@@ -1244,7 +1247,7 @@ func TestModel_ThinkingLevelUpdatesEditorBorder(t *testing.T) {
 	model, _ := m.dispatchBinding(ActionThinkingCycle)
 	m = model.(Model)
 	assert.Equal(t, sdkmodel.ThinkingHigh, m.thinkingLevel)
-	assert.Equal(t, "139", m.editor.BorderColor) // high = "139"
+	assert.Equal(t, "141", m.editor.BorderColor) // high = "139"
 
 	// high -> xhigh
 	model, _ = m.dispatchBinding(ActionThinkingCycle)
@@ -1289,7 +1292,7 @@ func TestModel_ThinkingCommand(t *testing.T) {
 
 	assert.Equal(t, sdkmodel.ThinkingHigh, m.thinkingLevel)
 	assert.Equal(t, "high", m.footer.ThinkingLevel())
-	assert.Equal(t, "139", m.editor.BorderColor)
+	assert.Equal(t, "141", m.editor.BorderColor)
 
 	// Execute the batch cmd to trigger bus publish
 	require.NotNil(t, updateCmd)
@@ -1364,7 +1367,7 @@ func TestModel_ThinkingCommandXHighClamped(t *testing.T) {
 
 	// xhigh should be clamped to high for Sonnet
 	assert.Equal(t, sdkmodel.ThinkingHigh, m.thinkingLevel)
-	assert.Equal(t, "139", m.editor.BorderColor)
+	assert.Equal(t, "141", m.editor.BorderColor)
 }
 
 func TestModel_ThinkingCommandAllLevels(t *testing.T) {
@@ -1466,21 +1469,46 @@ func TestModel_StartupHintsHiddenAfterChat(t *testing.T) {
 	assert.NotContains(t, view.Content, "ctrl+p cycle model")
 }
 
-// --- Draw tests (screen buffer rendering) ---
-
-func TestModel_Draw_RendersAllSections(t *testing.T) {
-	m := newModel(nil, nil, nil, nil)
-	m.width = 120
-	m.height = 40
+func TestModel_HeaderHints_HasBackgroundTint(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	// Ensure hints are shown and landing is not
+	m.showHints = true
+	m.showLanding = false
+	m.prompted = false
 
 	canvas := uv.NewScreenBuffer(m.width, m.height)
 	m.Draw(canvas, canvas.Bounds())
 	rendered := canvas.Render()
 
-	// Footer should contain model info (at minimum the provider name)
-	assert.NotEmpty(t, m.footer.View())
+	// Hints banner should use BackgroundTint color (234)
+	assert.Contains(t, rendered, "234")
+	assert.Contains(t, rendered, "ctrl+p model")
+}
+
+// --- Draw tests (screen buffer rendering) ---
+
+func TestModel_Draw_RendersAllSections(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 120
+	m.height = 40
+	m.chat = m.chat.SetSize(120, m.chatHeight(40))
+
+	m.AddUserMessage("test message")
+
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvas, canvas.Bounds())
+	rendered := canvas.Render()
+
+	// Chat content should be rendered
+	assert.Contains(t, rendered, "test message")
+	// Footer should contain CWD info
+	assert.Contains(t, rendered, "weave")
 	// Editor border should be present
 	assert.Contains(t, rendered, "│")
+	// Hints banner should NOT appear after first prompt
+	assert.NotContains(t, rendered, "ctrl+p model")
 }
 
 func TestModel_Draw_ShowsChatContent(t *testing.T) {
@@ -2311,3 +2339,138 @@ func (m *mockSandboxer) AllowWrite(path string) bool                 { return tr
 func (m *mockSandboxer) AllowRead(path string) bool                  { return true }
 func (m *mockSandboxer) Mode() string                                { return m.mode }
 func (m *mockSandboxer) SetMode(mode string)                         { m.mode = mode }
+
+// --- Task 6: Status message entrance animation tests ---
+
+func TestModel_StatusEntrance_SetsStatusNew(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	assert.False(t, m.statusNew)
+
+	m.showStatus("test message")
+	assert.True(t, m.statusNew)
+	assert.Equal(t, "test message", m.statusMsg)
+}
+
+func TestModel_StatusEntrance_FirstDraw_Muted(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 10
+
+	m.showStatus("test status")
+	require.True(t, m.statusNew)
+
+	// Draw while statusNew is true should render muted
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvas, canvas.Bounds())
+	rendered := canvas.Render()
+	assert.Contains(t, rendered, "test status")
+}
+
+func TestModel_StatusEntrance_AfterUpdate_FullBrightness(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 10
+
+	m.showStatus("test status")
+	require.True(t, m.statusNew)
+
+	// Any Update clears statusNew
+	model, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 10})
+	m = model.(Model)
+	assert.False(t, m.statusNew)
+
+	// Draw after Update should render at full brightness
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvas, canvas.Bounds())
+	rendered := canvas.Render()
+	assert.Contains(t, rendered, "test status")
+}
+
+// --- Task 6: Dialog backdrop dimming tests ---
+
+func TestModel_BackdropDimming_UIRenderedUnderDialog(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+
+	// Add some chat content
+	m.AddUserMessage("hello world")
+
+	// Open a dialog
+	items := []overlays.SelectorItem{
+		{Title: "Model A"},
+		{Title: "Model B"},
+	}
+	sel := overlays.NewSelectorModel("Select Model", items)
+	sel = sel.SetSize(80, 24).Show()
+	m.dialogStack = m.dialogStack.Push(overlays.NewSelectorDialog(dialogModelSelect, sel))
+
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvas, canvas.Bounds())
+	rendered := canvas.Render()
+
+	// Dialog should be visible
+	assert.Contains(t, rendered, "Select Model")
+}
+
+func TestModel_BackdropDimming_UIRenderedBeforeDimming(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 40
+	m.height = 10
+	m.chat = m.chat.SetSize(40, m.chatHeight(10))
+
+	// Add content that will be rendered
+	m.AddUserMessage("test")
+
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+
+	// Render UI first
+	m.drawNormalUI(canvas, canvas.Bounds())
+	rendered := canvas.Render()
+	assert.Contains(t, rendered, "test")
+
+	// Apply dimming
+	m.applyBackdropDimming(canvas, canvas.Bounds())
+
+	// Check that some cell has been dimmed (foreground changed to muted color 245)
+	foundDimmed := false
+	mutedColor := lipgloss.Color(palette.DefaultTheme().Muted)
+
+	for y := range 5 {
+		for x := range 40 {
+			cell := canvas.CellAt(x, y)
+			if cell == nil || cell.IsZero() {
+				continue
+			}
+
+			if cell.Style.Fg == mutedColor {
+				foundDimmed = true
+
+				break
+			}
+		}
+
+		if foundDimmed {
+			break
+		}
+	}
+
+	assert.True(t, foundDimmed, "expected some cells to be dimmed to muted color")
+}
+
+func TestModel_BackdropDimming_NoDialog_NoDimming(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 40
+	m.height = 10
+	m.chat = m.chat.SetSize(40, m.chatHeight(10))
+
+	m.AddUserMessage("no dialog")
+
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvas, canvas.Bounds())
+	rendered := canvas.Render()
+
+	// Content should render normally without dimming
+	assert.Contains(t, rendered, "no dialog")
+}

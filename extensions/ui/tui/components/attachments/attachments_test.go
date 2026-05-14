@@ -1,12 +1,20 @@
 package attachments
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/stretchr/testify/assert"
 )
+
+// stripANSI removes ANSI escape sequences from a string.
+var ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+func stripANSI(s string) string {
+	return ansiRe.ReplaceAllString(s, "")
+}
 
 func TestNew(t *testing.T) {
 	m := New()
@@ -239,4 +247,33 @@ func TestDraw_DeleteMode(t *testing.T) {
 	m.Draw(scr, uv.Rect(0, 0, 80, 2))
 	rendered := scr.Render()
 	assert.Contains(t, rendered, "b.go")
+}
+
+func TestDraw_PillShapeRendering(t *testing.T) {
+	m := New()
+	m = m.Add(Attachment{Path: "test.go", Lines: 42})
+
+	scr := uv.NewScreenBuffer(80, 5)
+	m.Draw(scr, uv.Rect(0, 0, 80, 1))
+	rendered := stripANSI(scr.Render())
+
+	// Pill should contain attachment info without brackets
+	assert.Contains(t, rendered, "test.go")
+	assert.Contains(t, rendered, "42 lines")
+	assert.NotContains(t, rendered, "[")
+	assert.NotContains(t, rendered, "]")
+}
+
+func TestDraw_DeleteModeWithIndicator(t *testing.T) {
+	m := New()
+	m = m.Add(Attachment{Path: "a.go", Lines: 1})
+	m = m.ToggleDeleteMode()
+
+	scr := uv.NewScreenBuffer(80, 5)
+	m.Draw(scr, uv.Rect(0, 0, 80, 1))
+	rendered := stripANSI(scr.Render())
+
+	// Delete mode should show the × indicator and attachment info
+	assert.Contains(t, rendered, "×")
+	assert.Contains(t, rendered, "a.go")
 }

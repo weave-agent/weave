@@ -11,12 +11,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"weave/ext/ui/tui/components"
+	"weave/ext/ui/tui/palette"
 )
 
 // TestLipglossV2_NewStyleRendering verifies that basic lipgloss v2 style
 // creation and rendering produces non-empty output.
 func TestLipglossV2_NewStyleRendering(t *testing.T) {
-	style := lipgloss.NewStyle().Foreground(lipgloss.Color("63")).Bold(true)
+	style := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Primary)).Bold(true)
 	rendered := style.Render("hello")
 	assert.NotEmpty(t, rendered)
 	assert.Contains(t, rendered, "hello")
@@ -26,8 +27,8 @@ func TestLipglossV2_NewStyleRendering(t *testing.T) {
 // produces expected results (foreground + background + bold).
 func TestLipglossV2_StyleChaining(t *testing.T) {
 	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("15")).
-		Background(lipgloss.Color("63")).
+		Foreground(lipgloss.Color(palette.DefaultTheme().Foreground)).
+		Background(lipgloss.Color(palette.DefaultTheme().Primary)).
 		Bold(true)
 
 	rendered := style.Render("test")
@@ -52,7 +53,7 @@ func TestLipglossV2_WidthConstraint(t *testing.T) {
 func TestLipglossV2_BorderRendering(t *testing.T) {
 	style := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("63")).
+		BorderForeground(lipgloss.Color(palette.DefaultTheme().Primary)).
 		Width(20).
 		Padding(0, 1)
 
@@ -116,7 +117,7 @@ func TestLipglossV2_WidthMeasurement(t *testing.T) {
 
 // TestLipglossV2_ColorFunction verifies lipgloss.Color creates valid color values.
 func TestLipglossV2_ColorFunction(t *testing.T) {
-	c := lipgloss.Color("99")
+	c := lipgloss.Color(palette.DefaultTheme().Primary)
 	assert.NotNil(t, c)
 
 	style := lipgloss.NewStyle().Foreground(c)
@@ -134,7 +135,7 @@ func TestLipglossV2_RoundedBorder(t *testing.T) {
 // via inline rendering (inner content styled differently from outer).
 func TestLipglossV2_StyleComposition(t *testing.T) {
 	outer := lipgloss.NewStyle().Width(30)
-	inner := lipgloss.NewStyle().Foreground(lipgloss.Color("82"))
+	inner := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Success))
 
 	content := inner.Render("green")
 	rendered := outer.Render(content)
@@ -144,7 +145,7 @@ func TestLipglossV2_StyleComposition(t *testing.T) {
 // TestScreenBuffer_StyleRendering verifies that styled strings render
 // correctly through ultraviolet screen buffers (the TUI rendering path).
 func TestScreenBuffer_StyleRendering(t *testing.T) {
-	style := lipgloss.NewStyle().Foreground(lipgloss.Color("63")).Bold(true)
+	style := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Primary)).Bold(true)
 	styled := style.Render("styled text")
 
 	canvas := uv.NewScreenBuffer(40, 1)
@@ -157,8 +158,8 @@ func TestScreenBuffer_StyleRendering(t *testing.T) {
 // TestScreenBuffer_MultiStyleRendering verifies multiple styled segments
 // in one line render correctly through screen buffers.
 func TestScreenBuffer_MultiStyleRendering(t *testing.T) {
-	red := lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Render("red")
-	green := lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Render("green")
+	red := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Error)).Render("red")
+	green := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Success)).Render("green")
 	combined := red + " " + green
 
 	canvas := uv.NewScreenBuffer(40, 1)

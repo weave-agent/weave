@@ -106,8 +106,11 @@ func tryAddExtension(path, root string, d fs.DirEntry, err error, seen map[strin
 
 	// Check if this directory has a go.mod
 	goModPath := filepath.Join(path, "go.mod")
-	if _, statErr := os.Stat(goModPath); statErr != nil {
-		return nil //nolint:nilerr // skip dirs without go.mod
+	_, statErr := os.Stat(goModPath)
+
+	hasGoMod := statErr == nil
+	if !hasGoMod {
+		return nil
 	}
 
 	// Collect .go files within module boundary

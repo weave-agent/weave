@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"weave/ext/ui/tui/palette"
+
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
@@ -114,24 +116,25 @@ func (m ConfirmModel) View() string {
 		return ""
 	}
 
+	theme := palette.DefaultTheme()
 	boxWidth := min(50, m.width-4)
 
 	borderStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("63")).
+		BorderForeground(lipgloss.Color(theme.Warning)).
 		Width(boxWidth-2).
 		Padding(0, 1)
 
 	messageStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("15"))
+		Foreground(lipgloss.Color(theme.Foreground))
 
 	activeBtnStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("15")).
-		Background(lipgloss.Color("63")).
+		Foreground(lipgloss.Color(theme.Foreground)).
+		Background(lipgloss.Color(theme.Warning)).
 		Padding(0, 2)
 
 	inactiveBtnStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("243")).
+		Foreground(lipgloss.Color(theme.Muted)).
 		Padding(0, 2)
 
 	yesBtn := inactiveBtnStyle.Render("Yes")

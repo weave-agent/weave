@@ -101,6 +101,7 @@ type Model struct {
 	statusMsg   string
 	statusTimer tea.Cmd
 	statusGen   int
+	statusNew   bool // true for first frame after status is set (entrance animation)
 }
 
 // newModel creates a new root model.
@@ -230,6 +231,9 @@ func (m Model) Init() tea.Cmd {
 //
 //nolint:gocyclo // central message dispatch for the TUI
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Clear status entrance animation flag after first frame
+	m.statusNew = false
+
 	// Dialog stack gets priority when non-empty.
 	if !m.dialogStack.Empty() {
 		// Ctrl+C force-dismisses the top dialog.
@@ -1480,6 +1484,7 @@ func (m Model) applyThinkingLevel(level sdkmodel.ThinkingLevel) (tea.Model, tea.
 // showStatus sets a transient status message that clears after a timeout.
 func (m *Model) showStatus(msg string) {
 	m.statusMsg = msg
+	m.statusNew = true
 	m.statusGen++
 	gen := m.statusGen
 	m.statusTimer = tea.Tick(statusMessageTimeout, func(_ time.Time) tea.Msg {
@@ -1696,13 +1701,21 @@ func (m Model) chatHeight(totalHeight int) int {
 // Draw renders the TUI into an ultraviolet screen buffer.
 // It computes layout regions and delegates to each component.
 func (m Model) Draw(scr uv.Screen, area uv.Rectangle) {
-	// Dialog stack takes highest priority — renders all dialogs bottom-to-top.
+	// When dialogs are open, render the underlying UI first with dimming,
+	// then overlay the dialog stack on top.
 	if !m.dialogStack.Empty() {
+		m.drawNormalUI(scr, area)
+		m.applyBackdropDimming(scr, area)
 		m.dialogStack.Draw(scr, area)
 
 		return
 	}
 
+	m.drawNormalUI(scr, area)
+}
+
+// drawNormalUI renders the standard TUI layout without dialogs.
+func (m Model) drawNormalUI(scr uv.Screen, area uv.Rectangle) {
 	// Compute dynamic layout parameters
 	headerRows := 0
 	if !m.showLanding && m.showHints && !m.prompted && len(m.chat.Items()) == 0 {
@@ -1732,7 +1745,10 @@ func (m Model) Draw(scr uv.Screen, area uv.Rectangle) {
 
 	// Render header
 	if headerRows > 0 {
-		hintsStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("242"))
+		hintsStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(palette.DefaultTheme().Muted)).
+			Background(lipgloss.Color(palette.DefaultTheme().BackgroundTint)).
+			Padding(0, 1)
 		uv.NewStyledString(hintsStyle.Render(
 			"ctrl+p model · ctrl+l select · shift+tab thinking · ctrl+t toggle",
 		)).Draw(scr, lt.Header)
@@ -1758,7 +1774,13 @@ func (m Model) Draw(scr uv.Screen, area uv.Rectangle) {
 		}
 
 		if m.statusMsg != "" {
-			statusStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+			// Entrance animation: muted for first frame, then full brightness
+			statusColor := palette.DefaultTheme().Foreground
+			if m.statusNew {
+				statusColor = palette.DefaultTheme().Muted
+			}
+
+			statusStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(statusColor))
 			stArea := uv.Rect(lt.Pills.Min.X, y, lt.Pills.Dx(), 1)
 			uv.NewStyledString(statusStyle.Render(m.statusMsg)).Draw(scr, stArea)
 		}
@@ -1790,6 +1812,25 @@ func (m Model) Draw(scr uv.Screen, area uv.Rectangle) {
 
 	// Render footer
 	m.footer.Draw(scr, lt.Footer)
+}
+
+// applyBackdropDimming sets the foreground color of all rendered cells to muted,
+// creating a dimmed appearance for the underlying UI when dialogs are open.
+func (m Model) applyBackdropDimming(scr uv.Screen, area uv.Rectangle) {
+	mutedColor := lipgloss.Color(palette.DefaultTheme().Muted)
+
+	for y := area.Min.Y; y < area.Max.Y; y++ {
+		for x := area.Min.X; x < area.Max.X; x++ {
+			cell := scr.CellAt(x, y)
+			if cell == nil || cell.IsZero() {
+				continue
+			}
+
+			newCell := cell.Clone()
+			newCell.Style.Fg = mutedColor
+			scr.SetCell(x, y, newCell)
+		}
+	}
 }
 
 // drawCompletionPopup renders the completion popup positioned relative to the

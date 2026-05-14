@@ -190,3 +190,12 @@ func TestInputDraw_ZeroArea(t *testing.T) {
 	canvas := uv.NewScreenBuffer(60, 20)
 	m.Draw(canvas, uv.Rect(0, 0, 0, 0))
 }
+
+func TestInputView_StyledWithRoundedBorder(t *testing.T) {
+	m := NewInputModel("Enter name:").Show().SetSize(60, 20)
+	view := m.View()
+	assert.Contains(t, view, "Enter name:")
+	assert.Contains(t, view, "confirm")
+	// Rounded border should be present
+	assert.Contains(t, view, "╭")
+}

@@ -540,7 +540,8 @@ func TestIntegration_LandingToChatAndBack(t *testing.T) {
 	require.True(t, m.showLanding)
 	view := m.View()
 	assert.Contains(t, view.Content, "█████")
-	assert.Contains(t, view.Content, "Type a message")
+	// Horizontal rule should be present in landing
+	assert.Contains(t, view.Content, "─")
 
 	// Submit hides landing
 	model, _ := m.onSubmit("hello")
@@ -629,7 +630,7 @@ func TestIntegration_ThinkingLevelCycleWithModelChange(t *testing.T) {
 	model, _ := m.dispatchBinding(ActionThinkingCycle)
 	m = model.(Model)
 	assert.Equal(t, sdkmodel.ThinkingHigh, m.thinkingLevel)
-	assert.Equal(t, "139", m.editor.BorderColor)
+	assert.Equal(t, "141", m.editor.BorderColor)
 
 	// Switch to non-reasoning model — forces thinking off
 	model, _ = m.Update(ModelChangedMsg{Entry: ModelEntry{Provider: "openai", Model: "gpt-4.1"}})

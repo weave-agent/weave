@@ -5,6 +5,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"weave/ext/ui/tui/palette"
+
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -13,10 +15,11 @@ import (
 
 // SpinnerModel displays an animated spinner with a "Thinking..." label during streaming.
 type SpinnerModel struct {
-	sp      spinner.Model
-	visible bool
-	label   string
-	width   int
+	sp        spinner.Model
+	visible   bool
+	label     string
+	width     int
+	tickCount int
 }
 
 // NewSpinnerModel creates a new spinner model.
@@ -26,7 +29,7 @@ func NewSpinnerModel() SpinnerModel {
 			Frames: []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"},
 			FPS:    time.Second / 10,
 		}),
-		spinner.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("99"))),
+		spinner.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Primary))),
 	)
 
 	return SpinnerModel{
@@ -56,9 +59,6 @@ func (m SpinnerModel) Hide() SpinnerModel {
 // Visible returns whether the spinner is currently shown.
 func (m SpinnerModel) Visible() bool { return m.visible }
 
-// Frame returns the current spinner frame index.
-func (m SpinnerModel) Frame() int { return 0 }
-
 // SetLabel updates the spinner label text.
 func (m SpinnerModel) SetLabel(label string) SpinnerModel {
 	m.label = label
@@ -74,6 +74,16 @@ func (m SpinnerModel) Update(msg tea.Msg) (SpinnerModel, tea.Cmd) {
 	var cmd tea.Cmd
 
 	m.sp, cmd = m.sp.Update(msg)
+
+	// Color pulse: alternate between Primary and PrimaryBright every 3 ticks
+	if _, ok := msg.(spinner.TickMsg); ok {
+		m.tickCount++
+		if m.tickCount%6 < 3 {
+			m.sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Primary))
+		} else {
+			m.sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().PrimaryBright))
+		}
+	}
 
 	return m, cmd
 }

@@ -145,3 +145,57 @@ func TestSpinnerModel_Draw_ZeroArea(t *testing.T) {
 	canvas := uv.NewScreenBuffer(80, 1)
 	s.Draw(canvas, uv.Rect(0, 0, 0, 0))
 }
+
+// --- Task 6: Spinner color pulse tests ---
+
+func TestSpinnerModel_ColorPulse_Alternates(t *testing.T) {
+	s := NewSpinnerModel().Show()
+
+	// First 2 ticks should use Primary color (63)
+	for range 2 {
+		s, _ = s.Update(spinner.TickMsg{Time: time.Now()})
+	}
+
+	view := s.View()
+	assert.Contains(t, view, "63")
+
+	// Next 3 ticks should use PrimaryBright color (69)
+	for range 3 {
+		s, _ = s.Update(spinner.TickMsg{Time: time.Now()})
+	}
+
+	view = s.View()
+	assert.Contains(t, view, "69")
+}
+
+func TestSpinnerModel_ColorPulse_CyclesBack(t *testing.T) {
+	s := NewSpinnerModel().Show()
+
+	// 6 ticks complete one full cycle (3 Primary + 3 PrimaryBright)
+	for range 6 {
+		s, _ = s.Update(spinner.TickMsg{Time: time.Now()})
+	}
+	// After a full cycle, back to Primary (63)
+	view := s.View()
+	assert.Contains(t, view, "63")
+}
+
+func TestSpinnerModel_TickCount_Increments(t *testing.T) {
+	s := NewSpinnerModel().Show()
+	assert.Equal(t, 0, s.tickCount)
+
+	s, _ = s.Update(spinner.TickMsg{Time: time.Now()})
+	assert.Equal(t, 1, s.tickCount)
+
+	s, _ = s.Update(spinner.TickMsg{Time: time.Now()})
+	assert.Equal(t, 2, s.tickCount)
+}
+
+func TestSpinnerModel_NonTickMsg_DoesNotChangeTickCount(t *testing.T) {
+	s := NewSpinnerModel().Show()
+	assert.Equal(t, 0, s.tickCount)
+
+	// Window size message should not increment tick count
+	s, _ = s.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	assert.Equal(t, 0, s.tickCount)
+}

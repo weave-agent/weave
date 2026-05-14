@@ -5,6 +5,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"weave/ext/ui/tui/palette"
 	"weave/sdk"
 
 	"charm.land/lipgloss/v2"
@@ -123,8 +124,10 @@ func (p *ToolPanel) renderHeader() string {
 }
 
 func (p *ToolPanel) renderBody(width int) string {
+	theme := palette.DefaultTheme()
+
 	if p.output == "" {
-		dim := lipgloss.NewStyle().Faint(true)
+		dim := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Muted))
 		if p.state == ToolPending {
 			return dim.Render("  running...")
 		}
@@ -150,7 +153,7 @@ func (p *ToolPanel) renderBody(width int) string {
 
 		body := strings.Join(visible, "\n")
 		if p.state == ToolError {
-			body = lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Render(body)
+			body = lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Error)).Render(body)
 		}
 
 		return body + fmt.Sprintf("\n  ... %d more lines (collapsed)", hidden)
@@ -158,29 +161,34 @@ func (p *ToolPanel) renderBody(width int) string {
 
 	body := strings.Join(lines, "\n")
 	if p.state == ToolError {
-		body = lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Render(body)
+		body = lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Error)).Render(body)
 	}
 
 	return body
 }
 
 func borderStyleForState(state ToolState, width int) lipgloss.Style {
+	theme := palette.DefaultTheme()
+
 	switch state {
 	case ToolPending:
 		return lipgloss.NewStyle().
 			Width(width - 2).
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("8")) // dim gray
+			BorderForeground(lipgloss.Color(theme.Muted)).
+			Background(lipgloss.Color(theme.BackgroundTintPending))
 	case ToolSuccess:
 		return lipgloss.NewStyle().
 			Width(width - 2).
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("2")) // green
+			BorderForeground(lipgloss.Color(theme.Success)).
+			Background(lipgloss.Color(theme.BackgroundTintSuccess))
 	case ToolError:
 		return lipgloss.NewStyle().
 			Width(width - 2).
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("1")) // red
+			BorderForeground(lipgloss.Color(theme.Error)).
+			Background(lipgloss.Color(theme.BackgroundTintError))
 	default:
 		return lipgloss.NewStyle().
 			Width(width - 2).

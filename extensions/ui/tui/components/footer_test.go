@@ -182,7 +182,8 @@ func TestFooterModel_SetThinkingLevel(t *testing.T) {
 func TestFooterView_ThinkingLevelAfterModel(t *testing.T) {
 	f := NewFooterModel().SetSize(80).SetModel("claude-sonnet-4", "anthropic").SetReasoning(true).SetThinkingLevel("high")
 	view := f.View()
-	assert.Contains(t, view, "anthropic/claude-sonnet-4 · high")
+	assert.Contains(t, view, "anthropic/claude-sonnet-4")
+	assert.Contains(t, view, "high")
 }
 
 func TestFooterView_ThinkingLevelEmpty(t *testing.T) {
@@ -195,7 +196,8 @@ func TestFooterView_ThinkingLevelEmpty(t *testing.T) {
 func TestFooterView_ThinkingLevelOff(t *testing.T) {
 	f := NewFooterModel().SetSize(80).SetModel("gpt-5.5", "openai").SetReasoning(true).SetThinkingLevel("off")
 	view := f.View()
-	assert.Contains(t, view, "openai/gpt-5.5 · off")
+	assert.Contains(t, view, "openai/gpt-5.5")
+	assert.Contains(t, view, "off")
 }
 
 func TestFooterView_ThinkingLevelHiddenForNonReasoning(t *testing.T) {
@@ -208,7 +210,8 @@ func TestFooterView_ThinkingLevelHiddenForNonReasoning(t *testing.T) {
 func TestFooterView_ThinkingLevelShownForReasoning(t *testing.T) {
 	f := NewFooterModel().SetSize(80).SetModel("claude-sonnet-4", "anthropic").SetReasoning(true).SetThinkingLevel("medium")
 	view := f.View()
-	assert.Contains(t, view, "anthropic/claude-sonnet-4 · medium")
+	assert.Contains(t, view, "anthropic/claude-sonnet-4")
+	assert.Contains(t, view, "medium")
 }
 
 func TestFooterModel_Draw(t *testing.T) {
@@ -267,4 +270,94 @@ func TestFooterView_TokenRateInDraw(t *testing.T) {
 	f.Draw(canvas, canvas.Bounds())
 	output := uv.TrimSpace(canvas.Render())
 	assert.Contains(t, output, "123.4 tok/s")
+}
+
+// --- Task 4: Footer redesign tests ---
+
+func TestFooterView_ModelNameBoldAndPrimary(t *testing.T) {
+	f := NewFooterModel().SetSize(80).SetModel("claude-sonnet-4", "anthropic")
+	view := f.View()
+	lines := strings.Split(view, "\n")
+	require.Len(t, lines, 2)
+	// Model name should be on line 2 with ANSI bold + primary color codes
+	assert.Contains(t, lines[1], "anthropic/claude-sonnet-4")
+	// Bold ANSI code (1;) should be present in the styled output
+	assert.Contains(t, lines[1], "\x1b[1;")
+}
+
+func TestFooterView_LeftRightGrouping(t *testing.T) {
+	f := NewFooterModel().SetSize(80).
+		SetTokenUsage(100, 50, 0.01).
+		SetContextPct(50).
+		SetModel("claude-sonnet-4", "anthropic")
+	view := f.View()
+	lines := strings.Split(view, "\n")
+	require.Len(t, lines, 2)
+	line2 := lines[1]
+	// Both stats and model should be present
+	assert.Contains(t, line2, "in:100")
+	assert.Contains(t, line2, "anthropic/claude-sonnet-4")
+	// Model name should appear after stats with padding between
+	idxIn := strings.Index(line2, "in:100")
+	idxModel := strings.Index(line2, "anthropic/claude-sonnet-4")
+	require.Greater(t, idxModel, idxIn, "model should appear after stats (right-aligned)")
+}
+
+func TestFooterView_ThinkingLevelAsPill(t *testing.T) {
+	f := NewFooterModel().SetSize(80).SetModel("claude-sonnet-4", "anthropic").SetReasoning(true).SetThinkingLevel("medium")
+	view := f.View()
+	// Thinking level should appear
+	assert.Contains(t, view, "medium")
+}
+
+func TestFooterView_StatsMuted(t *testing.T) {
+	f := NewFooterModel().SetSize(80).SetTokenUsage(100, 50, 0)
+	view := f.View()
+	lines := strings.Split(view, "\n")
+	require.Len(t, lines, 2)
+	// Token counts should appear with muted color (ANSI 245)
+	assert.Contains(t, lines[1], "in:100")
+	assert.Contains(t, lines[1], "out:50")
+	// Verify muted color code is applied
+	assert.Contains(t, lines[1], "38;5;245", "stats should render with muted color")
+}
+
+func TestFooterView_ModelAndStatsBothPresent(t *testing.T) {
+	f := NewFooterModel().SetSize(80).
+		SetTokenUsage(1000, 200, 0.005).
+		SetContextPct(30).
+		SetModel("gpt-5.5", "openai").
+		SetTokenRate(25.5)
+	view := f.View()
+	lines := strings.Split(view, "\n")
+	require.Len(t, lines, 2)
+	line2 := lines[1]
+	// All left-side stats
+	assert.Contains(t, line2, "in:1000")
+	assert.Contains(t, line2, "out:200")
+	assert.Contains(t, line2, "$0.0050")
+	assert.Contains(t, line2, "ctx:30%")
+	// All right-side model info
+	assert.Contains(t, line2, "openai/gpt-5.5")
+	assert.Contains(t, line2, "25.5 tok/s")
+}
+
+func TestFooterView_EmptyModelWithStats(t *testing.T) {
+	f := NewFooterModel().SetSize(80).SetTokenUsage(100, 50, 0)
+	view := f.View()
+	lines := strings.Split(view, "\n")
+	require.Len(t, lines, 2)
+	// Only left side should be present, no model info
+	assert.Contains(t, lines[1], "in:100")
+	assert.NotContains(t, lines[1], "anthropic")
+}
+
+func TestFooterView_ModelOnlyNoStats(t *testing.T) {
+	f := NewFooterModel().SetSize(80).SetModel("claude-sonnet-4", "anthropic")
+	view := f.View()
+	lines := strings.Split(view, "\n")
+	require.Len(t, lines, 2)
+	// Only right side should be present
+	assert.Contains(t, lines[1], "anthropic/claude-sonnet-4")
+	assert.NotContains(t, lines[1], "in:")
 }

@@ -3,7 +3,10 @@ package components
 import (
 	"testing"
 
+	"weave/ext/ui/tui/palette"
+
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -620,4 +623,51 @@ func TestEditorSetMaxHeight_IgnoresNegative(t *testing.T) {
 	m := NewEditorModel().SetMaxHeight(25)
 	m = m.SetMaxHeight(-5)
 	assert.Equal(t, 25, m.ta.MaxHeight)
+}
+
+// --- Task 4: Editor placeholder and border tests ---
+
+func TestEditorPlaceholderSet(t *testing.T) {
+	m := NewEditorModel()
+	assert.Equal(t, "Type a message...", m.ta.Placeholder)
+}
+
+func TestEditorPlaceholderRendered(t *testing.T) {
+	m := NewEditorModel().SetSize(40, 3)
+	view := m.View()
+	// The placeholder should appear in the view when the editor is empty.
+	// The textarea may split the first character for cursor styling, so check
+	// for a contiguous substring that avoids the cursor position.
+	assert.Contains(t, view, "ype a message...")
+}
+
+func TestEditorBlurredBorderUsesThemeBorder(t *testing.T) {
+	m := NewEditorModel()
+	// Initially focused uses BorderFocused
+	focusedBorder := m.ta.Styles().Focused.Base.GetBorderTopForeground()
+	assert.Equal(t, lipgloss.Color(palette.DefaultTheme().BorderFocused), focusedBorder)
+
+	// Blurred uses Border
+	blurredBorder := m.ta.Styles().Blurred.Base.GetBorderTopForeground()
+	assert.Equal(t, lipgloss.Color(palette.DefaultTheme().Border), blurredBorder)
+}
+
+func TestEditorSetBorderColorPreservesBlurredBorder(t *testing.T) {
+	m := NewEditorModel().SetBorderColor("177")
+
+	// Focused border should be the new color
+	focusedBorder := m.ta.Styles().Focused.Base.GetBorderTopForeground()
+	assert.Equal(t, lipgloss.Color("177"), focusedBorder)
+
+	// Blurred border should remain the theme's Border color
+	blurredBorder := m.ta.Styles().Blurred.Base.GetBorderTopForeground()
+	assert.Equal(t, lipgloss.Color(palette.DefaultTheme().Border), blurredBorder)
+}
+
+func TestEditorPlaceholderStyleIsMuted(t *testing.T) {
+	m := NewEditorModel()
+	styles := m.ta.Styles()
+	// Placeholder should use muted color
+	placeholderFg := styles.Focused.Placeholder.GetForeground()
+	assert.Equal(t, lipgloss.Color(palette.DefaultTheme().Muted), placeholderFg)
 }

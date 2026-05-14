@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strings"
 
+	"weave/ext/ui/tui/palette"
+
 	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 )
@@ -62,37 +64,49 @@ func (m *UserMessage) IsSkillInvocation() bool {
 	return ok
 }
 
-// View renders the user message.
+// View renders the user message with styled border and prefix.
 func (m *UserMessage) View(width int) string {
-	block, ok := parseSkillXML(m.content)
-	if !ok {
-		return m.content
-	}
-
 	if width <= 0 {
 		width = 80
 	}
 
-	dimStyle := lipgloss.NewStyle().Faint(true).Width(width - 2)
+	theme := palette.DefaultTheme()
+
+	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Primary))
+	prefixStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Primary))
+	contentStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Muted))
+
+	borderBar := borderStyle.Render("│")
+	prefix := prefixStyle.Render("❯ ")
+
+	// Content width accounts for border + prefix
+	contentWidth := max(1, width-4)
+
+	block, ok := parseSkillXML(m.content)
+	if !ok {
+		return styleUserContent(m.content, borderBar, prefix, contentStyle, contentWidth)
+	}
+
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Muted)).Width(contentWidth)
 
 	if !m.expanded {
-		label := fmt.Sprintf("  [skill %s]", block.name)
+		label := fmt.Sprintf("[skill %s]", block.name)
 		if block.trailing != "" {
 			label += " " + block.trailing
 		}
 
-		return dimStyle.Render(label)
+		return borderBar + prefix + dimStyle.Render(label)
 	}
 
 	var bldr strings.Builder
 
-	header := fmt.Sprintf("  [skill %s] ▼", block.name)
-	bldr.WriteString(dimStyle.Render(header))
+	header := fmt.Sprintf("[skill %s] ▼", block.name)
+	bldr.WriteString(borderBar + prefix + dimStyle.Render(header))
 	bldr.WriteString("\n")
 
 	if block.body != "" {
 		for line := range strings.SplitSeq(block.body, "\n") {
-			bldr.WriteString(dimStyle.Render("  " + line))
+			bldr.WriteString(borderBar + "  " + contentStyle.Render(line))
 			bldr.WriteString("\n")
 		}
 	}
@@ -101,12 +115,31 @@ func (m *UserMessage) View(width int) string {
 		bldr.WriteString("\n")
 
 		for line := range strings.SplitSeq(block.trailing, "\n") {
-			bldr.WriteString(dimStyle.Render("  " + line))
+			bldr.WriteString(borderBar + "  " + contentStyle.Render(line))
 			bldr.WriteString("\n")
 		}
 	}
 
 	return strings.TrimRight(bldr.String(), "\n")
+}
+
+// styleUserContent prefixes each line with the border bar and symbol,
+// applying the content style to the text.
+func styleUserContent(content, borderBar, prefix string, contentStyle lipgloss.Style, width int) string {
+	lines := strings.Split(content, "\n")
+
+	var bldr strings.Builder
+
+	for i, line := range lines {
+		styledLine := contentStyle.Width(width).Render(line)
+		bldr.WriteString(borderBar + prefix + styledLine)
+
+		if i < len(lines)-1 {
+			bldr.WriteString("\n")
+		}
+	}
+
+	return bldr.String()
 }
 
 // Draw renders the user message into a screen buffer region.

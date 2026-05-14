@@ -4,6 +4,9 @@ import (
 	"strings"
 	"time"
 
+	"weave/ext/ui/tui/palette"
+
+	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 )
 
@@ -21,6 +24,7 @@ type AssistantMessage struct {
 	lastRender    time.Time
 	cachedRender  string
 	renderStarted bool
+	createdAt     time.Time
 }
 
 // NewAssistantMessage creates a new assistant message in streaming mode.
@@ -28,6 +32,7 @@ func NewAssistantMessage() *AssistantMessage {
 	return &AssistantMessage{
 		streaming: true,
 		renderer:  NewMarkdownRenderer(80),
+		createdAt: time.Now(),
 	}
 }
 
@@ -83,17 +88,52 @@ func (m *AssistantMessage) Interrupted() bool {
 	return m.interrupted
 }
 
+// fadeColor returns a progressively brighter foreground color based on elapsed
+// time since creation. For the first 150ms the color transitions from dim
+// (240) through light (252) to full brightness (15), creating a subtle
+// materializing effect.
+func (m *AssistantMessage) fadeColor() string {
+	elapsed := time.Since(m.createdAt)
+	if elapsed >= 150*time.Millisecond {
+		return palette.DefaultTheme().Foreground
+	}
+
+	if elapsed < 50*time.Millisecond {
+		return "240"
+	}
+
+	if elapsed < 100*time.Millisecond {
+		return "252"
+	}
+
+	return "15"
+}
+
 // View renders the assistant message. Finalized messages use markdown rendering.
 // Streaming messages progressively render through Glamour with ~100ms debounce
 // to avoid re-rendering on every tiny delta while still providing formatted output.
 func (m *AssistantMessage) View(width int) string {
 	m.renderer.SetWidth(width)
 
+	var content string
+
 	if m.streaming {
-		return m.progressiveRender()
+		content = m.progressiveRender()
+	} else {
+		content = m.renderer.Render(m.Content())
 	}
 
-	return m.renderer.Render(m.Content())
+	// Apply fade-in effect during first 150ms while streaming
+	if m.streaming {
+		fadeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(m.fadeColor()))
+		content = fadeStyle.Render(content)
+	}
+
+	// Prepend subtle role indicator
+	roleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Muted))
+	roleIndicator := roleStyle.Render("◆ assistant")
+
+	return roleIndicator + "\n" + content
 }
 
 // progressiveRender returns the cached rendered output, re-rendering through

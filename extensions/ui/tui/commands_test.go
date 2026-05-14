@@ -343,11 +343,13 @@ func TestModel_SlashCommandHelpShowsMessage(t *testing.T) {
 	items := m2.chat.Items()
 	require.Len(t, items, 1)
 
-	_, ok := items[0].(*messages.AssistantMessage)
-	assert.True(t, ok)
+	am, ok := items[0].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Contains(t, am.Content(), "Available commands")
 
-	view := m2.View()
-	assert.Contains(t, view.Content, "Available commands")
+	// Verify the message renders with the role indicator
+	view := am.View(80)
+	assert.Contains(t, view, "◆ assistant")
 }
 
 func TestModel_RegularSubmitPublishesPrompt(t *testing.T) {
@@ -410,8 +412,16 @@ func TestModel_UnknownCommandShowsError(t *testing.T) {
 	model, _ := m.onSubmit("/bogus")
 	m2 := model.(Model)
 
-	view := m2.View()
-	assert.Contains(t, view.Content, "unknown command: /bogus")
+	items := m2.chat.Items()
+	require.Len(t, items, 1)
+
+	am, ok := items[0].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Contains(t, am.Content(), "unknown command: /bogus")
+
+	// Verify the message renders with the role indicator
+	view := am.View(80)
+	assert.Contains(t, view, "◆ assistant")
 }
 
 func TestModel_ThinkingCommandRegistered(t *testing.T) {

@@ -3,6 +3,8 @@ package components
 import (
 	"strings"
 
+	"weave/ext/ui/tui/palette"
+
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -53,15 +55,16 @@ func NewEditorModel() EditorModel {
 	ta.ShowLineNumbers = false
 	ta.SetVirtualCursor(true)
 	ta.Prompt = ""
+	ta.Placeholder = "Type a message..."
 	ta.SetHeight(3)
 	ta.Focus()
 
 	styles := textarea.DefaultStyles(false)
-	styles.Focused.Base = borderStyle("63")
-	styles.Blurred.Base = borderStyle("240")
+	styles.Focused.Base = borderStyle(palette.DefaultTheme().BorderFocused)
+	styles.Blurred.Base = borderStyle(palette.DefaultTheme().Border)
 	styles.Focused.Text = lipgloss.NewStyle()
 	styles.Blurred.Text = lipgloss.NewStyle()
-	styles.Focused.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	styles.Focused.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Muted))
 
 	// Override light-mode defaults that cause white background on cursor line
 	// and visible end-of-buffer characters.
@@ -80,7 +83,7 @@ func NewEditorModel() EditorModel {
 	return EditorModel{
 		ta:          ta,
 		focused:     true,
-		BorderColor: "63",
+		BorderColor: palette.DefaultTheme().BorderFocused,
 		completion:  NewCompletionModel(),
 	}
 }
@@ -141,13 +144,14 @@ func (m EditorModel) SetMaxHeight(n int) EditorModel {
 	return m
 }
 
-// SetBorderColor updates the editor border color.
+// SetBorderColor updates the editor focused border color.
+// The blurred border always uses the theme's Border color for distinction.
 func (m EditorModel) SetBorderColor(color string) EditorModel {
 	m.BorderColor = color
 
 	styles := m.ta.Styles()
 	styles.Focused.Base = borderStyle(color)
-	styles.Blurred.Base = borderStyle(color)
+	styles.Blurred.Base = borderStyle(palette.DefaultTheme().Border)
 	m.ta.SetStyles(styles)
 
 	return m

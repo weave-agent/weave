@@ -1,9 +1,9 @@
 package components
 
 import (
-	"fmt"
 	"strings"
-	"unicode/utf8"
+
+	"weave/ext/ui/tui/palette"
 
 	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
@@ -256,12 +256,17 @@ func (m *ChatModel) scrollToBottom() {
 }
 
 // totalLines counts the total rendered lines across all items, using cache where possible.
+// Includes blank separator lines between items.
 func (m *ChatModel) totalLines() int {
 	m.ensureCache()
 
 	total := 0
 	for i := range m.items {
 		total += len((*m.cache)[i].lines)
+		// Blank separator line between items (not after the last one)
+		if i < len(m.items)-1 {
+			total++
+		}
 	}
 
 	return total
@@ -308,6 +313,10 @@ func (m ChatModel) View() string {
 
 	for i := range m.items {
 		allLines = append(allLines, (*m.cache)[i].lines...)
+		// Add blank line between items (not after the last one)
+		if i < len(m.items)-1 {
+			allLines = append(allLines, "")
+		}
 	}
 
 	total := len(allLines)
@@ -340,6 +349,10 @@ func (m ChatModel) Draw(scr uv.Screen, area uv.Rectangle) {
 
 	for i := range m.items {
 		allLines = append(allLines, (*m.cache)[i].lines...)
+		// Add blank line between items (not after the last one)
+		if i < len(m.items)-1 {
+			allLines = append(allLines, "")
+		}
 	}
 
 	viewportHeight := area.Dy()
@@ -355,17 +368,22 @@ func (m ChatModel) Draw(scr uv.Screen, area uv.Rectangle) {
 		uv.NewStyledString(line).Draw(scr, lineRect)
 	}
 
-	// Render scroll indicators on the last visible line
+	// Render scroll indicators on the last visible line as a styled pill
 	if m.newContent || m.turnEndPending {
 		indicator := "↓ new content"
 		if m.turnEndPending && !m.newContent {
 			indicator = "↓ scroll to bottom"
 		}
 
-		indStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("220"))
+		indStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(palette.DefaultTheme().Warning)).
+			Background(lipgloss.Color(palette.DefaultTheme().BackgroundTint)).
+			Padding(0, 1)
 		lastRow := area.Min.Y + viewportHeight - 1
 		indRect := uv.Rect(area.Min.X, lastRow, area.Dx(), 1)
-		uv.NewStyledString(fmt.Sprintf("%s%s", strings.Repeat(" ", max(0, area.Dx()-utf8.RuneCountInString(indicator)-2)), indStyle.Render(indicator))).Draw(scr, indRect)
+		paddedIndicator := " " + indStyle.Render(indicator) + " "
+		spaces := max(0, area.Dx()-lipgloss.Width(paddedIndicator))
+		uv.NewStyledString(strings.Repeat(" ", spaces)+paddedIndicator).Draw(scr, indRect)
 	}
 }
 
