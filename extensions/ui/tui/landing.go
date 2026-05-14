@@ -85,9 +85,6 @@ func (m LandingModel) Draw(scr uv.Screen, area uv.Rectangle) {
 func (m LandingModel) buildLines() []string {
 	lines := append([]string{}, m.logo()...)
 
-	// Horizontal rule between logo and info
-	lines = append(lines, "rule:")
-
 	if m.model != "" {
 		label := fmt.Sprintf("  %s (%s)", m.model, m.provider)
 		lines = append(lines, "", "name:"+label)

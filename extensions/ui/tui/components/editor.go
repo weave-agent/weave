@@ -55,7 +55,7 @@ func NewEditorModel() EditorModel {
 	ta.ShowLineNumbers = false
 	ta.SetVirtualCursor(true)
 	ta.Prompt = ""
-	ta.Placeholder = "Type a message..."
+	ta.Placeholder = ""
 	ta.SetHeight(3)
 	ta.Focus()
 
