@@ -1039,6 +1039,133 @@ func TestFormatOutdatedBanner_Single(t *testing.T) {
 	assert.Contains(t, banner, "mcp has a newer version available.")
 }
 
+// --- Task 6: Theme support tests ---
+
+func TestTUIImpl_SetTheme_SwitchesActiveTheme(t *testing.T) {
+	sender := &mockSender{}
+	ui := NewTUIImpl(nil, nil)
+	ui.SetProgram(sender)
+
+	// Register a custom theme
+	err := ui.RegisterTheme("custom", ThemeDef{Primary: "123", Foreground: "255"})
+	require.NoError(t, err)
+
+	// Switch to it
+	err = ui.SetTheme("custom")
+	require.NoError(t, err)
+
+	// Should have sent a themeChangedMsg
+	require.Len(t, sender.msgs, 1)
+	msg, ok := sender.msgs[0].(themeChangedMsg)
+	require.True(t, ok)
+	assert.Equal(t, "123", msg.theme.Primary)
+	assert.Equal(t, "255", msg.theme.Foreground)
+}
+
+func TestTUIImpl_SetTheme_UnknownTheme(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+
+	err := ui.SetTheme("nonexistent")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown theme")
+}
+
+func TestTUIImpl_SetTheme_NoProgram(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+	// No program set
+
+	err := ui.RegisterTheme("dark", ThemeDef{Primary: "60"})
+	require.NoError(t, err)
+
+	// Should not panic and should succeed
+	err = ui.SetTheme("dark")
+	require.NoError(t, err)
+}
+
+func TestTUIImpl_ListThemes(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+
+	// Default theme should be present
+	names := ui.ListThemes()
+	assert.Contains(t, names, "default")
+
+	// Register more themes
+	err := ui.RegisterTheme("dark", ThemeDef{})
+	require.NoError(t, err)
+	err = ui.RegisterTheme("light", ThemeDef{})
+	require.NoError(t, err)
+
+	names = ui.ListThemes()
+	assert.Len(t, names, 3)
+	assert.Contains(t, names, "default")
+	assert.Contains(t, names, "dark")
+	assert.Contains(t, names, "light")
+
+	// Should be sorted
+	assert.Equal(t, []string{"dark", "default", "light"}, names)
+}
+
+func TestTUIImpl_RegisterTheme(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+
+	err := ui.RegisterTheme("ocean", ThemeDef{
+		Primary:    "33",
+		Foreground: "15",
+	})
+	require.NoError(t, err)
+
+	// Should be listable
+	names := ui.ListThemes()
+	assert.Contains(t, names, "ocean")
+
+	// Should be settable
+	err = ui.SetTheme("ocean")
+	require.NoError(t, err)
+
+	info := ui.Theme()
+	assert.Equal(t, "ocean", info.Name)
+	assert.Equal(t, "33", info.Primary)
+	assert.Equal(t, "15", info.Foreground)
+}
+
+func TestTUIImpl_RegisterTheme_EmptyName(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+
+	err := ui.RegisterTheme("", ThemeDef{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "empty")
+}
+
+func TestTUIImpl_RegisterTheme_ReservedDefault(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+
+	err := ui.RegisterTheme("default", ThemeDef{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "default")
+}
+
+func TestTUIImpl_Theme_ReturnsActiveTheme(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+
+	info := ui.Theme()
+	assert.Equal(t, "default", info.Name)
+	assert.NotEmpty(t, info.Primary)
+}
+
+func TestTUIImpl_Theme_AfterSwitch(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+
+	err := ui.RegisterTheme("red", ThemeDef{Primary: "196", Error: "196"})
+	require.NoError(t, err)
+
+	_ = ui.SetTheme("red")
+
+	info := ui.Theme()
+	assert.Equal(t, "red", info.Name)
+	assert.Equal(t, "196", info.Primary)
+	assert.Equal(t, "196", info.Error)
+}
+
 // --- Task 5: WithKeepContent docked overlay tests ---
 
 func TestTUIImpl_Select_WithKeepContent(t *testing.T) {

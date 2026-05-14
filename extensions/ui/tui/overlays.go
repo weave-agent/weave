@@ -5,6 +5,7 @@ import (
 
 	"weave/ext/ui/tui/components/messages"
 	"weave/ext/ui/tui/components/overlays"
+	"weave/ext/ui/tui/palette"
 	"weave/sdk"
 
 	tea "charm.land/bubbletea/v2"
@@ -72,6 +73,11 @@ type notifyTypedMsg struct {
 // slashCommandsUpdatedMsg is sent when commands are dynamically registered,
 // so the editor can refresh its autocomplete list.
 type slashCommandsUpdatedMsg struct{}
+
+// themeChangedMsg is sent when the active theme is switched.
+type themeChangedMsg struct {
+	theme *palette.Theme
+}
 
 // checkNextPopupCmd returns a tea.Cmd that sends popupPendingMsg
 // if there are more queued popups.

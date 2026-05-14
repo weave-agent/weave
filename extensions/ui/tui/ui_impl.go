@@ -3,9 +3,11 @@ package tui
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 
+	"weave/ext/ui/tui/palette"
 	"weave/sdk"
 
 	tea "charm.land/bubbletea/v2"
@@ -36,6 +38,9 @@ type TUIImpl struct {
 	pending         []pendingCommand
 	pendingStatuses []pendingStatus
 	done            chan struct{}
+
+	themeRegistry map[string]*palette.Theme
+	activeTheme   string
 }
 
 // NewTUIImpl creates a UI implementation backed by the given registries.
@@ -46,6 +51,10 @@ func NewTUIImpl(commands *CommandRegistry, bindings *BindingRegistry) *TUIImpl {
 		bindings:  bindings,
 		renderers: make(map[string]sdk.ToolRenderer),
 		done:      make(chan struct{}),
+		themeRegistry: map[string]*palette.Theme{
+			"default": palette.DefaultTheme(),
+		},
+		activeTheme: "default",
 	}
 }
 
@@ -357,16 +366,84 @@ func (u *TUIImpl) ClearWorking() {
 	u.SetStatus("working", "")
 }
 
-// SetTheme sets the UI theme.
+// SetTheme sets the active UI theme.
 func (u *TUIImpl) SetTheme(name string) error {
-	_ = name
+	u.mu.Lock()
+	defer u.mu.Unlock()
 
-	return errors.New("not implemented")
+	t, ok := u.themeRegistry[name]
+	if !ok {
+		return fmt.Errorf("unknown theme: %s", name)
+	}
+
+	u.activeTheme = name
+
+	if u.program != nil {
+		u.program.Send(themeChangedMsg{theme: t})
+	}
+
+	return nil
 }
 
 // ListThemes returns available theme names.
 func (u *TUIImpl) ListThemes() []string {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	names := make([]string, 0, len(u.themeRegistry))
+	for name := range u.themeRegistry {
+		names = append(names, name)
+	}
+
+	sort.Strings(names)
+
+	return names
+}
+
+// RegisterTheme implements TUIExtAPI.
+func (u *TUIImpl) RegisterTheme(name string, theme ThemeDef) error {
+	if name == "" {
+		return errors.New("theme name cannot be empty")
+	}
+
+	if name == "default" {
+		return errors.New("cannot override default theme")
+	}
+
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	u.themeRegistry[name] = theme.toPaletteTheme()
+
 	return nil
+}
+
+// Theme implements TUIExtAPI.
+func (u *TUIImpl) Theme() sdk.ThemeInfo {
+	u.mu.Lock()
+	t := u.themeRegistry[u.activeTheme]
+	name := u.activeTheme
+	u.mu.Unlock()
+
+	if t == nil {
+		t = palette.DefaultTheme()
+	}
+
+	return sdk.ThemeInfo{
+		Name:             name,
+		Primary:          t.Primary,
+		PrimaryDim:       t.PrimaryDim,
+		PrimaryBright:    t.PrimaryBright,
+		Success:          t.Success,
+		Error:            t.Error,
+		Warning:          t.Warning,
+		Muted:            t.Muted,
+		MutedBright:      t.MutedBright,
+		Border:           t.Border,
+		BorderFocused:    t.BorderFocused,
+		Foreground:       t.Foreground,
+		ForegroundBright: t.ForegroundBright,
+	}
 }
 
 // enqueue adds a request to the popup queue and notifies the program.

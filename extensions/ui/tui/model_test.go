@@ -2265,6 +2265,104 @@ func addTestAttachment(m Model, path, content string, lines int) Model {
 	return m
 }
 
+func TestModel_ThemeChangedMsg(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	// Default theme should be set
+	require.NotNil(t, m.theme)
+	assert.Equal(t, palette.DefaultTheme().Primary, m.theme.Primary)
+
+	// Switch to a custom theme
+	customTheme := &palette.Theme{
+		Primary:    "123",
+		Foreground: "255",
+	}
+	updated, _ := m.Update(themeChangedMsg{theme: customTheme})
+	m = updated.(Model)
+
+	assert.Equal(t, "123", m.theme.Primary)
+	assert.Equal(t, "255", m.theme.Foreground)
+}
+
+func TestModel_ThemeChangedMsg_NilTheme(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+
+	original := m.theme
+	updated, _ := m.Update(themeChangedMsg{theme: nil})
+	m = updated.(Model)
+
+	// Nil theme should be ignored
+	assert.Equal(t, original, m.theme)
+}
+
+func TestModel_ThemeUsedInRendering(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+
+	// Set a custom theme with recognizable colors
+	m.theme = &palette.Theme{
+		Muted:          "111",
+		BackgroundTint: "222",
+		Foreground:     "333",
+	}
+
+	m.showHints = true
+	m.showLanding = false
+	m.prompted = false
+
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvas, canvas.Bounds())
+
+	// Should render without panic
+	rendered := canvas.Render()
+	assert.Contains(t, rendered, "ctrl+p model")
+}
+
+func TestModel_ThemeUsedInBackdropDimming(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 40
+	m.height = 10
+	m.chat = m.chat.SetSize(40, m.chatHeight(10))
+
+	m.theme = &palette.Theme{
+		Muted: "99",
+	}
+
+	m.AddUserMessage("test")
+
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+	m.drawNormalUI(canvas, canvas.Bounds(), 0)
+	m.applyBackdropDimming(canvas, canvas.Bounds())
+
+	// Check that some cell has been dimmed to the custom muted color
+	foundDimmed := false
+	mutedColor := lipgloss.Color("99")
+
+	for y := range 5 {
+		for x := range 40 {
+			cell := canvas.CellAt(x, y)
+			if cell == nil || cell.IsZero() {
+				continue
+			}
+
+			if cell.Style.Fg == mutedColor {
+				foundDimmed = true
+				break
+			}
+		}
+
+		if foundDimmed {
+			break
+		}
+	}
+
+	assert.True(t, foundDimmed, "expected some cells to be dimmed to custom muted color")
+}
+
 func TestModel_CycleSandboxMode(t *testing.T) {
 	defer func() { setSandboxer(nil) }()
 

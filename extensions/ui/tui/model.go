@@ -107,6 +107,9 @@ type Model struct {
 	statusTimer tea.Cmd
 	statusGen   int
 	statusNew   bool // true for first frame after status is set (entrance animation)
+
+	// theme is the active color theme for rendering.
+	theme *palette.Theme
 }
 
 // newModel creates a new root model.
@@ -198,6 +201,7 @@ func newModelWithConfig(bus sdk.Bus, cfg sdk.Config, ps sdk.PreferenceStore, ui 
 		landing:       NewLandingModel(cur.Model, cur.Provider),
 		dialogStack:   overlays.NewDialogStack(),
 		popupChans:    make(map[string]chan overlayResponse),
+		theme:         palette.DefaultTheme(),
 	}
 	m.footer = m.footer.SetModel(cur.Model, cur.Provider)
 	m.footer = m.footer.SetReasoning(modelReasoning(cur.Model))
@@ -531,6 +535,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case slashCommandsUpdatedMsg:
 		if m.editor.CompletionActive() {
 			m = m.refreshEditorCompletion()
+		}
+
+		return m, nil
+
+	case themeChangedMsg:
+		if msg.theme != nil {
+			m.theme = msg.theme
 		}
 
 		return m, nil
@@ -1778,8 +1789,8 @@ func (m Model) drawNormalUI(scr uv.Screen, area uv.Rectangle, dockedRows int) La
 	// Render header
 	if headerRows > 0 {
 		hintsStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color(palette.DefaultTheme().Muted)).
-			Background(lipgloss.Color(palette.DefaultTheme().BackgroundTint)).
+			Foreground(lipgloss.Color(m.theme.Muted)).
+			Background(lipgloss.Color(m.theme.BackgroundTint)).
 			Padding(0, 1)
 		uv.NewStyledString(hintsStyle.Render(
 			"ctrl+p model · ctrl+l select · shift+tab thinking · ctrl+t toggle",
@@ -1807,9 +1818,9 @@ func (m Model) drawNormalUI(scr uv.Screen, area uv.Rectangle, dockedRows int) La
 
 		if m.statusMsg != "" {
 			// Entrance animation: muted for first frame, then full brightness
-			statusColor := palette.DefaultTheme().Foreground
+			statusColor := m.theme.Foreground
 			if m.statusNew {
-				statusColor = palette.DefaultTheme().Muted
+				statusColor = m.theme.Muted
 			}
 
 			statusStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(statusColor))
@@ -1851,7 +1862,7 @@ func (m Model) drawNormalUI(scr uv.Screen, area uv.Rectangle, dockedRows int) La
 // applyBackdropDimming sets the foreground color of all rendered cells to muted,
 // creating a dimmed appearance for the underlying UI when dialogs are open.
 func (m Model) applyBackdropDimming(scr uv.Screen, area uv.Rectangle) {
-	mutedColor := lipgloss.Color(palette.DefaultTheme().Muted)
+	mutedColor := lipgloss.Color(m.theme.Muted)
 
 	for y := area.Min.Y; y < area.Max.Y; y++ {
 		for x := area.Min.X; x < area.Max.X; x++ {

@@ -249,15 +249,15 @@ When active, overlay dialogs dock at bottom of chat area instead of centered ove
 
 ### Task 6: Implement theme support
 
-- [ ] define `ThemeInfo` struct in `sdk/` with color/style fields (read-only info for extensions)
-- [ ] define `ThemeDef` struct in TUI for theme registration
-- [ ] implement `SetTheme(name string) error` on `TUIImpl` — switch active theme
-- [ ] implement `ListThemes() []string` on `TUIImpl` — return available theme names
-- [ ] implement `RegisterTheme(name string, theme ThemeDef) error` on `TUIExtAPI`
-- [ ] implement `Theme() ThemeInfo` on `TUIExtAPI`
-- [ ] write tests for theme switching
-- [ ] write tests for theme registration and listing
-- [ ] run `make test` — must pass before next task
+- [x] define `ThemeInfo` struct in `sdk/` with color/style fields (read-only info for extensions)
+- [x] define `ThemeDef` struct in TUI for theme registration
+- [x] implement `SetTheme(name string) error` on `TUIImpl` — switch active theme
+- [x] implement `ListThemes() []string` on `TUIImpl` — return available theme names
+- [x] implement `RegisterTheme(name string, theme ThemeDef) error` on `TUIExtAPI`
+- [x] implement `Theme() ThemeInfo` on `TUIExtAPI`
+- [x] write tests for theme switching
+- [x] write tests for theme registration and listing
+- [x] run `make test` — must pass before next task
 
 ### Task 7: Implement Panel system and Panel tray
 

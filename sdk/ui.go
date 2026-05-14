@@ -107,6 +107,23 @@ type Keybinding struct {
 	Description string
 }
 
+// ThemeInfo provides read-only theme information for extensions.
+type ThemeInfo struct {
+	Name             string
+	Primary          string
+	PrimaryDim       string
+	PrimaryBright    string
+	Success          string
+	Error            string
+	Warning          string
+	Muted            string
+	MutedBright      string
+	Border           string
+	BorderFocused    string
+	Foreground       string
+	ForegroundBright string
+}
+
 type ToolRenderer interface {
 	Render(content string, width int) string
 }
