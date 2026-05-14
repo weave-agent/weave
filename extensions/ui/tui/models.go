@@ -18,15 +18,6 @@ type preferences struct {
 	ThinkingLevel string `json:"thinking_level,omitempty"`
 }
 
-// effectiveConfig returns cfg if non-nil, otherwise a no-op implementation.
-func effectiveConfig(cfg sdk.Config) sdk.Config {
-	if cfg != nil {
-		return cfg
-	}
-
-	return sdk.NoopConfig{}
-}
-
 func preferenceStoreOrDefault(ps sdk.PreferenceStore) sdk.PreferenceStore {
 	if ps != nil {
 		return ps

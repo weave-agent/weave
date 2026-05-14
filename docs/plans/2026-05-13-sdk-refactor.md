@@ -132,16 +132,16 @@ Address architectural, API design, and code quality findings from the SDK review
 
 ### Task 10: Verify acceptance criteria
 
-- [ ] All root module tests pass (`go test ./...`)
-- [ ] All extension modules compile (`cd extensions/* && go test ./...` for each)
-- [ ] `make lint` passes
-- [ ] `make fmt` produces no changes
-- [ ] No `ResetRegistry()` calls remain
-- [ ] No `wire.Wire()` calls remain
-- [ ] No `sdk.IsUIExtension` calls remain outside launcher
-- [ ] No global `GetSandboxer()` calls remain in tools
-- [ ] No global `OnAppStarted` calls remain
-- [ ] `--help` still shows all extension flags correctly
+- [x] All root module tests pass (`go test ./...`)
+- [x] All extension modules compile (`cd extensions/* && go test ./...` for each)
+- [x] `make lint` passes
+- [x] `make fmt` produces no changes
+- [x] No `ResetRegistry()` calls remain
+- [x] No `wire.Wire()` calls remain
+- [x] No `sdk.IsUIExtension` calls remain outside launcher
+- [x] No global `GetSandboxer()` calls remain in tools
+- [x] No global `OnAppStarted` calls remain
+- [x] `--help` still shows all extension flags correctly
 
 ## Technical Details
 

@@ -294,12 +294,11 @@ func convertMessages(msgs []sdk.Message) []anthropic.MessageParam {
 			}
 
 			for _, tc := range msg.ToolCalls {
-				inputJSON, _ := json.Marshal(tc.Arguments)
 				blocks = append(blocks, anthropic.ContentBlockParamUnion{
 					OfToolUse: &anthropic.ToolUseBlockParam{
 						ID:    tc.ID,
 						Name:  tc.Name,
-						Input: inputJSON,
+						Input: tc.Arguments,
 					},
 				})
 			}

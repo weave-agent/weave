@@ -3,7 +3,7 @@ GOLANGCI_LINT ?= golangci-lint
 EXT_DIRS := $(sort $(dir $(wildcard extensions/*/*/go.mod extensions/*/go.mod)))
 
 .DEFAULT_GOAL := help
-.PHONY: help tools gen fmt lint fix test bench
+.PHONY: help tools gen fmt lint tidy fix test bench
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | sort | \
@@ -44,6 +44,15 @@ lint: ## Run golangci-lint
 	@for dir in $(EXT_DIRS); do \
 		echo "lint $$dir"; \
 		(cd $$dir && $(GOLANGCI_LINT) run --config $(CURDIR)/.golangci.yml ./...) || exit 1; \
+	done
+
+##@ Dependencies
+tidy: ## Run go mod tidy in root and all extension modules
+	@echo "Running go mod tidy..."
+	go mod tidy
+	@for dir in $(EXT_DIRS); do \
+		echo "tidy $$dir"; \
+		(cd $$dir && go mod tidy) || exit 1; \
 	done
 
 ##@ Fix (format + auto-fix linter issues)
