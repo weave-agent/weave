@@ -30,19 +30,19 @@ Introduce a unified, file-based logging system that prevents stdout/stderr outpu
 ## Implementation Steps
 
 ### Task 1: Add lumberjack dependency and create internal/log package
-- [ ] `go get gopkg.in/natefinch/lumberjack.v2` in root module
-- [ ] create `internal/log/setup.go` with:
+- [x] `go get gopkg.in/natefinch/lumberjack.v2` in root module
+- [x] create `internal/log/setup.go` with:
   - `Setup(logFile string, debug bool, extraWriters ...io.Writer)` — configures `slog.Default()` with a JSON handler writing to lumberjack, plus optional extra handlers (e.g. stderr in headless mode)
   - `Initialized() bool` — atomic flag so callers know if logging is ready
   - default log level: `Info`; debug flag sets `Debug`
   - lumberjack config: MaxSize=10, MaxAge=30, Compress=false
-- [ ] create `internal/log/setup_test.go`:
+- [x] create `internal/log/setup_test.go`:
   - test Setup creates `~/.weave/logs/` directory
   - test log file is written after Setup
   - test debug flag changes level
   - test Initialized() returns true after Setup
   - test second Setup call is ignored (sync.Once)
-- [ ] run root module tests — must pass
+- [x] run root module tests — must pass
 
 ### Task 2: Create sdk.Logger helper
 - [ ] create `sdk/log.go` with:
