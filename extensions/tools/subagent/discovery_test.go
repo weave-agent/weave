@@ -2,7 +2,7 @@ package subagent
 
 import (
 	"bytes"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -55,8 +55,11 @@ func TestDiscoverFilesystemAgents_MissingDir(t *testing.T) {
 func TestDiscoverFilesystemAgents_InvalidFilesSkipped(t *testing.T) {
 	var buf bytes.Buffer
 
-	log.SetOutput(&buf)
-	defer log.SetOutput(os.Stderr)
+	oldLogger := slog.Default()
+	defer slog.SetDefault(oldLogger)
+
+	handler := slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})
+	slog.SetDefault(slog.New(handler))
 
 	dir := t.TempDir()
 
@@ -80,7 +83,7 @@ description: Valid agent
 
 	warningOutput := buf.String()
 	assert.Contains(t, warningOutput, "invalid.md")
-	assert.Contains(t, warningOutput, "warning:")
+	assert.Contains(t, warningOutput, "WARN")
 }
 
 func TestDiscoverFilesystemAgents_NonMarkdownIgnored(t *testing.T) {
@@ -249,8 +252,11 @@ description: Second agent
 func TestDiscoverAgents_InvalidProjectFileSkipped(t *testing.T) {
 	var buf bytes.Buffer
 
-	log.SetOutput(&buf)
-	defer log.SetOutput(os.Stderr)
+	oldLogger := slog.Default()
+	defer slog.SetDefault(oldLogger)
+
+	handler := slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})
+	slog.SetDefault(slog.New(handler))
 
 	dir := t.TempDir()
 
@@ -283,4 +289,5 @@ description: Valid project agent
 
 	warningOutput := buf.String()
 	assert.Contains(t, warningOutput, "invalid.md")
+	assert.Contains(t, warningOutput, "WARN")
 }

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"strings"
 	"sync"
@@ -107,7 +106,7 @@ func (sl *stdinListener) run() {
 	select {
 	case <-scanDone:
 		if err := scanner.Err(); err != nil {
-			log.Printf("stdin listener: scanner error: %v", err)
+			sdk.Logger("subagent").Warn("scanner error", "error", err)
 		}
 	case <-sl.ctx.Done():
 		// Give the scanner a brief moment to finish if stdin was just
@@ -116,7 +115,7 @@ func (sl *stdinListener) run() {
 		select {
 		case <-scanDone:
 			if err := scanner.Err(); err != nil {
-				log.Printf("stdin listener: scanner error: %v", err)
+				sdk.Logger("subagent").Warn("scanner error", "error", err)
 			}
 		case <-time.After(50 * time.Millisecond):
 		}

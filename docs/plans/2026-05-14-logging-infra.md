@@ -62,13 +62,13 @@ Introduce a unified, file-based logging system that prevents stdout/stderr outpu
 - [x] run root module tests — must pass
 
 ### Task 4: Migrate subagent extension from log.Printf to slog
-- [ ] in `extensions/tools/subagent/discovery.go`:
+- [x] in `extensions/tools/subagent/discovery.go`:
   - replace `log.Printf` warnings with `slog.Warn` (or `sdk.Logger("subagent").Warn`)
-- [ ] in `extensions/tools/subagent/broker.go`:
+- [x] in `extensions/tools/subagent/broker.go`:
   - replace `log.Printf` with `slog.Warn`/`slog.Error`
-- [ ] in `extensions/tools/subagent/stdin_listener.go`:
+- [x] in `extensions/tools/subagent/stdin_listener.go`:
   - replace `log.Printf` with `slog.Warn`/`slog.Error`
-- [ ] run subagent extension tests (`cd extensions/tools/subagent && go test ./...`) — must pass
+- [x] run subagent extension tests (`cd extensions/tools/subagent && go test ./...`) — must pass
 
 ### Task 5: Wire file logger into launcher generated main.go
 - [ ] modify `internal/launcher/builder.go`:

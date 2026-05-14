@@ -3,11 +3,12 @@ package subagent
 import (
 	"embed"
 	"fmt"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
+
+	"weave/sdk"
 )
 
 //go:embed agents/*.md
@@ -29,13 +30,13 @@ func loadBuiltinAgents() ([]*AgentDef, error) {
 
 		data, err := builtinAgentsFS.ReadFile(path.Join("agents", entry.Name()))
 		if err != nil {
-			log.Printf("warning: failed to read embedded agent %q: %v", entry.Name(), err)
+			sdk.Logger("subagent").Warn("failed to read embedded agent", "name", entry.Name(), "error", err)
 			continue
 		}
 
 		agent, err := ParseAgent(data)
 		if err != nil {
-			log.Printf("warning: failed to parse embedded agent %q: %v", entry.Name(), err)
+			sdk.Logger("subagent").Warn("failed to parse embedded agent", "name", entry.Name(), "error", err)
 			continue
 		}
 
@@ -77,13 +78,13 @@ func discoverFilesystemAgents(dir string) ([]*AgentDef, error) {
 
 		data, err := os.ReadFile(agentPath)
 		if err != nil {
-			log.Printf("warning: failed to read agent file %q: %v", agentPath, err)
+			sdk.Logger("subagent").Warn("failed to read agent file", "path", agentPath, "error", err)
 			continue
 		}
 
 		agent, err := ParseAgent(data)
 		if err != nil {
-			log.Printf("warning: failed to parse agent file %q: %v", agentPath, err)
+			sdk.Logger("subagent").Warn("failed to parse agent file", "path", agentPath, "error", err)
 			continue
 		}
 

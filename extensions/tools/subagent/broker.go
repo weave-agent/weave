@@ -6,10 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	"weave/sdk"
 )
 
 // Protocol message type constants.
@@ -72,7 +73,7 @@ func NewBroker() *Broker {
 // After registration, the current roster is injected into the new agent.
 func (b *Broker) Register(id, name string, stdin io.WriteCloser) {
 	if stdin == nil {
-		log.Printf("broker: refusing to register %s with nil stdin", id)
+		sdk.Logger("subagent").Warn("refusing to register agent with nil stdin", "id", id)
 
 		return
 	}
@@ -92,7 +93,7 @@ func (b *Broker) Register(id, name string, stdin io.WriteCloser) {
 	// be on the critical path of spawning subagents).
 	go func() {
 		if err := b.injectRoster(id, roster); err != nil {
-			log.Printf("broker: inject roster to %s failed: %v", id, err)
+			sdk.Logger("subagent").Warn("inject roster failed", "id", id, "error", err)
 		}
 	}()
 }
@@ -166,15 +167,15 @@ func (b *Broker) monitorStdout(id string, stdout io.Reader) (string, error) {
 		switch msg.Type {
 		case msgTypeSend:
 			if err := b.routeSend(id, msg.To, msg.Content); err != nil {
-				log.Printf("broker: route send failed: %v", err)
+				sdk.Logger("subagent").Warn("route send failed", "error", err)
 			}
 		case msgTypeBroadcast:
 			for _, err := range b.routeBroadcast(id, msg.Content) {
-				log.Printf("broker: route broadcast failed: %v", err)
+				sdk.Logger("subagent").Warn("route broadcast failed", "error", err)
 			}
 		case msgTypeListAgents:
 			if err := b.respondListAgents(id); err != nil {
-				log.Printf("broker: respond list agents failed: %v", err)
+				sdk.Logger("subagent").Warn("respond list agents failed", "error", err)
 			}
 		case msgTypeMessageEnd:
 			finalContent = msg.Content
