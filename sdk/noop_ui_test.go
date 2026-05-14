@@ -39,6 +39,22 @@ func TestNoopUI_Input(t *testing.T) {
 	assert.Empty(t, result)
 }
 
+func TestNoopUI_MultiSelect(t *testing.T) {
+	ui := NoopUI{}
+
+	result, err := ui.MultiSelect("pick some", []string{"a", "b"})
+	require.NoError(t, err)
+	assert.Nil(t, result)
+}
+
+func TestNoopUI_Editor(t *testing.T) {
+	ui := NoopUI{}
+
+	result, err := ui.Editor("edit", "initial")
+	require.NoError(t, err)
+	assert.Empty(t, result)
+}
+
 func TestNoopUI_SetStatus(t *testing.T) {
 	ui := NoopUI{}
 
@@ -52,6 +68,38 @@ func TestNoopUI_Notify(t *testing.T) {
 
 	assert.NotPanics(t, func() {
 		ui.Notify("hello")
+	})
+}
+
+func TestNoopUI_NotifyTyped(t *testing.T) {
+	ui := NoopUI{}
+
+	assert.NotPanics(t, func() {
+		ui.NotifyTyped("hello", NotifyWarning)
+	})
+}
+
+func TestNoopUI_ShowError(t *testing.T) {
+	ui := NoopUI{}
+
+	assert.NotPanics(t, func() {
+		ui.ShowError("oops")
+	})
+}
+
+func TestNoopUI_SetWorking(t *testing.T) {
+	ui := NoopUI{}
+
+	assert.NotPanics(t, func() {
+		ui.SetWorking("busy")
+	})
+}
+
+func TestNoopUI_ClearWorking(t *testing.T) {
+	ui := NoopUI{}
+
+	assert.NotPanics(t, func() {
+		ui.ClearWorking()
 	})
 }
 
@@ -81,4 +129,18 @@ func TestNoopUI_RegisterKeybinding(t *testing.T) {
 			Description: "test binding",
 		})
 	})
+}
+
+func TestNoopUI_SetTheme(t *testing.T) {
+	ui := NoopUI{}
+
+	err := ui.SetTheme("dark")
+	require.NoError(t, err)
+}
+
+func TestNoopUI_ListThemes(t *testing.T) {
+	ui := NoopUI{}
+
+	result := ui.ListThemes()
+	assert.Nil(t, result)
 }

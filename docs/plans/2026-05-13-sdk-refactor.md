@@ -85,14 +85,14 @@ Address architectural, API design, and code quality findings from the SDK review
 
 ### Task 6: Split `UI` interface
 
-- [ ] Define `UIDialogs` interface in `sdk/ui.go` with `Select`, `Confirm`, `Input`, `MultiSelect`, `Editor`
-- [ ] Define `UIStatus` interface in `sdk/ui.go` with `SetStatus`, `Notify`, `NotifyTyped`, `ShowError`, `SetWorking`, `ClearWorking`
-- [ ] Define `UIRegistry` interface in `sdk/ui.go` with `RegisterCommand`, `RegisterRenderer`, `RegisterKeybinding`, `SetTheme`, `ListThemes`
-- [ ] Compose `UI` interface from `UIDialogs` + `UIStatus` + `UIRegistry` (backward compat)
-- [ ] Update `NoopUI` to implement all three sub-interfaces
-- [ ] Regenerate mocks via `make gen`
-- [ ] Write tests for sub-interface composition
-- [ ] Run `go test ./sdk/...` — must pass
+- [x] Define `UIDialogs` interface in `sdk/ui.go` with `Select`, `Confirm`, `Input`, `MultiSelect`, `Editor`
+- [x] Define `UIStatus` interface in `sdk/ui.go` with `SetStatus`, `Notify`, `NotifyTyped`, `ShowError`, `SetWorking`, `ClearWorking`
+- [x] Define `UIRegistry` interface in `sdk/ui.go` with `RegisterCommand`, `RegisterRenderer`, `RegisterKeybinding`, `SetTheme`, `ListThemes`
+- [x] Compose `UI` interface from `UIDialogs` + `UIStatus` + `UIRegistry` (backward compat)
+- [x] Update `NoopUI` to implement all three sub-interfaces
+- [x] Regenerate mocks via `make gen`
+- [x] Write tests for sub-interface composition
+- [x] Run `go test ./sdk/...` — must pass
 
 ### Task 7: Replace global mutable state with bus events
 

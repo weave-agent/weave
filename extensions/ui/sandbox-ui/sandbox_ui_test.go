@@ -26,11 +26,17 @@ func newMockUI() *mockUI {
 	}
 }
 
-func (m *mockUI) Select(title string, items []string) (int, error) { return -1, nil }
-func (m *mockUI) Confirm(message string) (bool, error)             { return false, nil }
-func (m *mockUI) Input(prompt string) (string, error)              { return "", nil }
-func (m *mockUI) SetStatus(key, text string)                       { m.statuses[key] = text }
-func (m *mockUI) Notify(message string)                            {}
+func (m *mockUI) Select(title string, items []string) (int, error)        { return -1, nil }
+func (m *mockUI) Confirm(message string) (bool, error)                    { return false, nil }
+func (m *mockUI) Input(prompt string) (string, error)                     { return "", nil }
+func (m *mockUI) MultiSelect(title string, items []string) ([]int, error) { return nil, nil }
+func (m *mockUI) Editor(prompt, initial string) (string, error)           { return "", nil }
+func (m *mockUI) SetStatus(key, text string)                              { m.statuses[key] = text }
+func (m *mockUI) Notify(message string)                                   {}
+func (m *mockUI) NotifyTyped(message string, level sdk.NotifyLevel)       {}
+func (m *mockUI) ShowError(message string)                                {}
+func (m *mockUI) SetWorking(message string)                               {}
+func (m *mockUI) ClearWorking()                                           {}
 func (m *mockUI) RegisterCommand(name string, handler func(args string) error) {
 	m.commands[name] = handler
 }
@@ -42,6 +48,9 @@ func (m *mockUI) RegisterRenderer(toolName string, renderer sdk.ToolRenderer) {
 func (m *mockUI) RegisterKeybinding(kb sdk.Keybinding) {
 	m.bindings = append(m.bindings, kb)
 }
+
+func (m *mockUI) SetTheme(name string) error { return nil }
+func (m *mockUI) ListThemes() []string       { return nil }
 
 // mockSandboxer implements sdk.Sandboxer for testing.
 type mockSandboxer struct {

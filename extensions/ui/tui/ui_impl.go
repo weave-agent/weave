@@ -260,6 +260,56 @@ func (u *TUIImpl) GetRenderer(toolName string) (sdk.ToolRenderer, bool) {
 	return r, ok
 }
 
+// MultiSelect shows a multi-selection overlay and blocks until the user responds.
+func (u *TUIImpl) MultiSelect(title string, items []string) ([]int, error) {
+	_ = title
+	_ = items
+
+	return nil, errors.New("not implemented")
+}
+
+// Editor shows an editor overlay and blocks until the user responds.
+func (u *TUIImpl) Editor(prompt, initial string) (string, error) {
+	_ = prompt
+	_ = initial
+
+	return "", errors.New("not implemented")
+}
+
+// NotifyTyped shows a typed notification in the chat area.
+func (u *TUIImpl) NotifyTyped(message string, level sdk.NotifyLevel) {
+	_ = level
+
+	u.Notify(message)
+}
+
+// ShowError shows an error notification in the chat area.
+func (u *TUIImpl) ShowError(message string) {
+	u.Notify("error: " + message)
+}
+
+// SetWorking sets a working indicator in the UI.
+func (u *TUIImpl) SetWorking(message string) {
+	u.SetStatus("working", message)
+}
+
+// ClearWorking clears the working indicator.
+func (u *TUIImpl) ClearWorking() {
+	u.SetStatus("working", "")
+}
+
+// SetTheme sets the UI theme.
+func (u *TUIImpl) SetTheme(name string) error {
+	_ = name
+
+	return errors.New("not implemented")
+}
+
+// ListThemes returns available theme names.
+func (u *TUIImpl) ListThemes() []string {
+	return nil
+}
+
 // enqueue adds a request to the popup queue and notifies the program.
 // Returns an error if the program is not running.
 func (u *TUIImpl) enqueue(req *overlayRequest) error {
