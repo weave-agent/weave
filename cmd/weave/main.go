@@ -28,6 +28,9 @@ func prependDebugFlag(args []string) []string {
 		return append([]string{debugFlag}, args...)
 	}
 
+	// Make a copy to avoid mutating the caller's slice.
+	args = append([]string(nil), args...)
+
 	// Also check for --debug in args and translate to --weave-debug.
 	for i, a := range args {
 		if a == debugArg {

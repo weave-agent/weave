@@ -78,3 +78,11 @@ func TestPrependDebugFlag_FlagRemoved(t *testing.T) {
 	got := prependDebugFlag([]string{"--prompt", "hello"})
 	assert.Equal(t, []string{"--prompt", "hello"}, got)
 }
+
+func TestPrependDebugFlag_DoesNotMutateInput(t *testing.T) {
+	original := []string{"--debug", "false", "--prompt", "hello"}
+	want := []string{"--debug", "false", "--prompt", "hello"}
+
+	_ = prependDebugFlag(original)
+	assert.Equal(t, want, original, "prependDebugFlag must not modify the input slice")
+}

@@ -38,8 +38,7 @@ func DefaultSettings() *Settings {
 func DefaultConfigJSON() string {
 	return `{
   "agent_loop": "agent",
-  "ui_extension": "tui",
-  "debug": false
+  "ui_extension": "tui"
 }`
 }
 
