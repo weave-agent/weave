@@ -67,22 +67,3 @@ func TestConfigMock_ExtensionConfig(t *testing.T) {
 	require.NoError(t, mock.ExtensionConfig("tools", "bash", &target))
 	assert.True(t, called)
 }
-
-func TestEnvPrefixFor(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{"simple", "bash", "WEAVE_BASH"},
-		{"with hyphens", "my-extension", "WEAVE_MY_EXTENSION"},
-		{"all lowercase", "read", "WEAVE_READ"},
-		{"mixed case", "My-Tool", "WEAVE_MY_TOOL"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, envPrefixFor(tt.input))
-		})
-	}
-}

@@ -1,7 +1,6 @@
 package sdk
 
 import (
-	"context"
 	"errors"
 	"sort"
 	"testing"
@@ -246,6 +245,3 @@ func TestRegisterTool_SchemaExtraction(t *testing.T) {
 	assert.Equal(t, "string", fieldMap["shell"].Type)
 	assert.Equal(t, "bash", fieldMap["shell"].Default)
 }
-
-// Suppress unused import warning.
-var _ = context.Background

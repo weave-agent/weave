@@ -1,7 +1,5 @@
 package sdk
 
-import "strings"
-
 //go:generate moq -fmt goimports -stub -out config_mock_test.go . Config
 
 // Config carries configuration data into extension factories.
@@ -44,10 +42,6 @@ func (f FilePathConfig) ProjectDir() string                       { return "" }
 func (f FilePathConfig) ExtensionConfig(_, _ string, _ any) error { return nil }
 func (f FilePathConfig) IsHeadless() bool                         { return true }
 func (f FilePathConfig) RespectGitignore() bool                   { return true }
-
-func envPrefixFor(name string) string {
-	return "WEAVE_" + strings.ReplaceAll(strings.ToUpper(name), "-", "_")
-}
 
 func configOrDefault(cfg Config) Config {
 	if cfg != nil {
