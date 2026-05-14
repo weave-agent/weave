@@ -18,16 +18,20 @@ Move all extensions from the monorepo into independent repositories under `githu
 
 ## Context (from discovery)
 
+**Prerequisite work completed:**
+- SDK refactor (`2026-05-13-sdk-refactor.md`) completed — `sdk/wire/` moved to `internal/wire/`, `launcher/` moved to `internal/launcher/`, extension management extracted to `internal/extmanage/`
+- Loop, skills, and instructions extensions merged into single `agent` extension (`extensions/agent/`)
+
 **Files/components involved:**
 - `go.mod` — root module path change
 - All `*.go` files — import path updates (`weave/...` → `github.com/weave-agent/weave/...`)
-- `sdk/wire/run.go` — `findModuleRoot()`, `isWeaveModule()` check `module weave`
-- `launcher/builder.go` — `GenerateGoMod`, `GenerateMainGo`, `ensureExtGoMod`, `extModulePath`, `Build`
-- `launcher/discovery.go` — `AutoDiscover` (already implemented, uses basename for name)
-- `launcher/launcher.go` — `BuildFunc` signature, `Run`, `buildAndCache`
+- `internal/wire/run.go` — `findModuleRoot()`, `isWeaveModule()` check `module weave`
+- `internal/launcher/builder.go` — `GenerateGoMod`, `GenerateMainGo`, `ensureExtGoMod`, `extModulePath`, `Build`
+- `internal/launcher/discovery.go` — `AutoDiscover` (already implemented, uses basename for name)
+- `internal/launcher/launcher.go` — `BuildFunc` signature, `Run`, `buildAndCache`
 - All `extensions/*/go.mod` — module path + dependency changes
-- `sdk/wire/install.go` — `weave install` command
-- `sdk/wire/extmanage.go` — extension listing/updating
+- `internal/extmanage/install.go` — `weave install` command
+- `internal/extmanage/extmanage.go` — extension listing/updating
 
 **Related patterns found:**
 - Extensions self-register via `init()` + `sdk.RegisterExtension/RegisterProvider/RegisterTool/RegisterUIExtension`
@@ -42,6 +46,7 @@ Move all extensions from the monorepo into independent repositories under `githu
 - `openaicompat` is in `utils/openaicompat/` (part of main module, not a separate extension)
 - TUI has nested UI extensions (`diff-viewer`) under `extensions/ui/tui/extensions/`
 - All built-in extensions already have their own `go.mod`
+- `sandbox` extension (`extensions/sandbox/`) and `sandbox-ui` (`extensions/ui/sandbox-ui/`) were added after initial plan
 
 ## Development Approach
 
@@ -56,10 +61,10 @@ Move all extensions from the monorepo into independent repositories under `githu
 ## Testing Strategy
 
 - **Unit tests:** Required for every task
-  - `launcher/builder_test.go` — test `GenerateGoMod` with new module paths
-  - `launcher/builder_test.go` — test `GenerateMainGo` imports use full module path
-  - `launcher/discovery_test.go` — test `AutoDiscover` with updated module paths
-  - `sdk/wire/run_test.go` — test `findModuleRoot` with new module name
+  - `internal/launcher/builder_test.go` — test `GenerateGoMod` with new module paths
+  - `internal/launcher/builder_test.go` — test `GenerateMainGo` imports use full module path
+  - `internal/launcher/discovery_test.go` — test `AutoDiscover` with updated module paths
+  - `internal/wire/run_test.go` — test `findModuleRoot` with new module name
   - `config/*_test.go` — verify no regressions from import changes
   - Each extension module: `cd extensions/<name> && go test ./...`
 - **Integration tests:** `make test` from root, build and exec binary
@@ -78,23 +83,24 @@ Move all extensions from the monorepo into independent repositories under `githu
 ### Task 1: Update SDK module path in main repo
 
 - [ ] Update `go.mod`: change `module weave` to `module github.com/weave-agent/weave`
-- [ ] Update ALL imports in main repo (`sdk/`, `bus/`, `config/`, `launcher/`, `utils/`, `cmd/`) from `weave/...` to `github.com/weave-agent/weave/...`
-- [ ] Update `sdk/wire/run.go` `isWeaveModule()`: check for `module github.com/weave-agent/weave`
-- [ ] Update `launcher/builder.go` `extModulePath` fallback: `"github.com/weave-agent/weave/ext/" + ext.Name`
-- [ ] Update `launcher/builder.go` `GenerateGoMod`: use `github.com/weave-agent/weave` instead of `weave`
-- [ ] Update `launcher/builder.go` `GenerateMainGo`: imports use `github.com/weave-agent/weave/...`
-- [ ] Update `launcher/builder.go` `ensureExtGoMod` shim: `module github.com/weave-agent/weave/ext/<name>`, `require github.com/weave-agent/weave`, `replace github.com/weave-agent/weave => <moduleRoot>`
+- [ ] Update ALL imports in main repo (`sdk/`, `bus/`, `config/`, `internal/launcher/`, `internal/wire/`, `internal/extmanage/`, `utils/`, `cmd/`, `settings/`) from `weave/...` to `github.com/weave-agent/weave/...`
+- [ ] Update `internal/wire/run.go` `isWeaveModule()`: check for `module github.com/weave-agent/weave`
+- [ ] Update `internal/launcher/builder.go` `extModulePath` fallback: `"github.com/weave-agent/weave/ext/" + ext.Name`
+- [ ] Update `internal/launcher/builder.go` `GenerateGoMod`: use `github.com/weave-agent/weave` instead of `weave`
+- [ ] Update `internal/launcher/builder.go` `GenerateMainGo`: imports use `github.com/weave-agent/weave/...`
+- [ ] Update `internal/launcher/builder.go` `ensureExtGoMod` shim: `module github.com/weave-agent/weave/ext/<name>`, `require github.com/weave-agent/weave`, `replace github.com/weave-agent/weave => <moduleRoot>`
 - [ ] Run `make fmt` and `make fix`
 - [ ] Run `go test ./...` from root — must pass
 - [ ] Run `make test` — must pass
 
 ### Task 2: Update extension module paths
 
-For each extension directory (`extensions/instructions/`, `extensions/loop/`, `extensions/skills/`, `extensions/store/jsonl/`, `extensions/tools/{bash,read,edit,write,grep,find,ls}/`, `extensions/providers/{anthropic,openai,zai}/`, `extensions/ui/tui/`, `extensions/ui/tui/extensions/diff-viewer/`):
+For each extension directory (`extensions/agent/`, `extensions/sandbox/`, `extensions/instructions/` [merged into agent], `extensions/loop/` [merged into agent], `extensions/skills/` [merged into agent], `extensions/store/jsonl/`, `extensions/tools/{bash,read,edit,write,grep,find,ls,subagent}/`, `extensions/providers/{anthropic,openai,zai,kimi}/`, `extensions/ui/tui/`, `extensions/ui/sandbox-ui/`, `extensions/ui/tui/extensions/diff-viewer/`):
 
 - [ ] Update `go.mod`: change `module weave/ext/...` to `module github.com/weave-agent/weave-<name>`
   - Naming: `bash` not `tools-bash`, `anthropic` not `providers-anthropic`, `tui` not `ui-tui`
   - `diff-viewer` → `github.com/weave-agent/weave-diff-viewer`
+  - `sandbox-ui` → `github.com/weave-agent/weave-sandbox-ui`
 - [ ] Remove `replace weave => ...` line from go.mod
 - [ ] Add `require github.com/weave-agent/weave v0.0.0`
 - [ ] Update ALL imports in extension `.go` files from `weave/...` to `github.com/weave-agent/weave/...`
@@ -103,14 +109,14 @@ For each extension directory (`extensions/instructions/`, `extensions/loop/`, `e
 
 ### Task 3: Update builder tests for new module paths
 
-- [ ] Update `launcher/builder_test.go` test cases that reference `weave` module path
-- [ ] Update `launcher/builder_test.go` `GenerateGoMod` tests: verify output contains `github.com/weave-agent/weave`
-- [ ] Update `launcher/builder_test.go` `GenerateMainGo` tests: verify imports use full module path
-- [ ] Update `launcher/builder_test.go` `ensureExtGoMod` tests: verify shim uses new module path
-- [ ] Update `launcher/discovery_test.go` test fixtures that write go.mod files with old module paths
-- [ ] Update `launcher/launcher_test.go` if it references old module paths
-- [ ] Update `sdk/wire/run_test.go` `findModuleRoot` tests with new module name
-- [ ] Run `go test ./launcher/... ./sdk/wire/...` — must pass
+- [ ] Update `internal/launcher/builder_test.go` test cases that reference `weave` module path
+- [ ] Update `internal/launcher/builder_test.go` `GenerateGoMod` tests: verify output contains `github.com/weave-agent/weave`
+- [ ] Update `internal/launcher/builder_test.go` `GenerateMainGo` tests: verify imports use full module path
+- [ ] Update `internal/launcher/builder_test.go` `ensureExtGoMod` tests: verify shim uses new module path
+- [ ] Update `internal/launcher/discovery_test.go` test fixtures that write go.mod files with old module paths
+- [ ] Update `internal/launcher/launcher_test.go` if it references old module paths
+- [ ] Update `internal/wire/run_test.go` `findModuleRoot` tests with new module name
+- [ ] Run `go test ./internal/launcher/... ./internal/wire/...` — must pass
 
 ### Task 4: Verify end-to-end build
 
@@ -144,15 +150,17 @@ Repeat for each remaining extension:
 - [ ] `github.com/weave-agent/weave-grep`
 - [ ] `github.com/weave-agent/weave-find`
 - [ ] `github.com/weave-agent/weave-ls`
+- [ ] `github.com/weave-agent/weave-subagent`
 - [ ] `github.com/weave-agent/weave-anthropic`
 - [ ] `github.com/weave-agent/weave-openai`
 - [ ] `github.com/weave-agent/weave-zai`
-- [ ] `github.com/weave-agent/weave-loop`
-- [ ] `github.com/weave-agent/weave-instructions`
-- [ ] `github.com/weave-agent/weave-skills`
+- [ ] `github.com/weave-agent/weave-kimi`
+- [ ] `github.com/weave-agent/weave-agent`
+- [ ] `github.com/weave-agent/weave-sandbox`
+- [ ] `github.com/weave-agent/weave-sandbox-ui`
 - [ ] `github.com/weave-agent/weave-jsonl`
 - [ ] `github.com/weave-agent/weave-tui`
-- [ ] `github.com/weave-agent/weave-tui-diff-viewer`
+- [ ] `github.com/weave-agent/weave-diff-viewer`
 
 For each:
 - Copy extension contents to temp dir, update go.mod/imports
@@ -169,11 +177,11 @@ For each:
 
 ### Task 7: Implement first-run bootstrap
 
-- [ ] Create `sdk/wire/bootstrap.go` with `BootstrapCoreExtensions(homeDir string) error`
+- [ ] Create `internal/extmanage/bootstrap.go` with `BootstrapCoreExtensions(homeDir string) error`
   - Checks if `~/.weave/extensions/` has core extensions installed
   - If not, runs equivalent of `weave install github.com/weave-agent/weave-<name> --name <name>` for each core extension
-  - Core list: bash, read, edit, write, grep, find, ls, anthropic, openai, zai, loop, instructions, skills, jsonl, tui, tui-diff-viewer
-- [ ] Call bootstrap in `sdk/wire/run.go` before launcher runs, if `~/.weave/extensions/` is empty
+  - Core list: bash, read, edit, write, grep, find, ls, subagent, anthropic, openai, zai, kimi, agent, sandbox, sandbox-ui, jsonl, tui, diff-viewer
+- [ ] Call bootstrap in `internal/wire/run.go` before launcher runs, if `~/.weave/extensions/` is empty
 - [ ] Add `--skip-bootstrap` flag to skip auto-install
 - [ ] Write tests for bootstrap logic
 - [ ] Run tests — must pass
@@ -218,15 +226,17 @@ For each:
 | `extensions/tools/grep` | `weave/ext/tools/grep` | `github.com/weave-agent/weave-grep` |
 | `extensions/tools/find` | `weave/ext/tools/find` | `github.com/weave-agent/weave-find` |
 | `extensions/tools/ls` | `weave/ext/tools/ls` | `github.com/weave-agent/weave-ls` |
+| `extensions/tools/subagent` | `weave/ext/tools/subagent` | `github.com/weave-agent/weave-subagent` |
 | `extensions/providers/anthropic` | `weave/ext/providers/anthropic` | `github.com/weave-agent/weave-anthropic` |
 | `extensions/providers/openai` | `weave/ext/providers/openai` | `github.com/weave-agent/weave-openai` |
 | `extensions/providers/zai` | `weave/ext/providers/zai` | `github.com/weave-agent/weave-zai` |
-| `extensions/loop` | `weave/ext/loop` | `github.com/weave-agent/weave-loop` |
-| `extensions/instructions` | `weave/ext/instructions` | `github.com/weave-agent/weave-instructions` |
-| `extensions/skills` | `weave/ext/skills` | `github.com/weave-agent/weave-skills` |
+| `extensions/providers/kimi` | `weave/ext/providers/kimi` | `github.com/weave-agent/weave-kimi` |
+| `extensions/agent` | `weave/ext/agent` | `github.com/weave-agent/weave-agent` |
+| `extensions/sandbox` | `weave/extensions/sandbox` | `github.com/weave-agent/weave-sandbox` |
+| `extensions/ui/sandbox-ui` | `weave/ext/ui/sandboxui` | `github.com/weave-agent/weave-sandbox-ui` |
 | `extensions/store/jsonl` | `weave/ext/store/jsonl` | `github.com/weave-agent/weave-jsonl` |
 | `extensions/ui/tui` | `weave/ext/ui/tui` | `github.com/weave-agent/weave-tui` |
-| `extensions/ui/tui/extensions/diff-viewer` | `weave/ext/ui/tui/extensions/diff-viewer` | `github.com/weave-agent/weave-tui-diff-viewer` |
+| `extensions/ui/tui/extensions/diff-viewer` | `weave/ext/ui/tui/extensions/diff-viewer` | `github.com/weave-agent/weave-diff-viewer` |
 
 ### Generated temp go.mod structure
 
