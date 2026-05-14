@@ -1,7 +1,9 @@
 package sdk
 
 import (
+	"fmt"
 	"io"
+	"log/slog"
 	"sync"
 )
 
@@ -35,7 +37,15 @@ func InvokeBusSubscribers(bus Bus) {
 	busReadyFuncsMu.Unlock()
 
 	for _, fn := range funcs {
-		fn(bus)
+		func(f BusReadyFunc) {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("panic in bus ready callback", "error", fmt.Sprintf("%v", r))
+				}
+			}()
+
+			f(bus)
+		}(fn)
 	}
 }
 

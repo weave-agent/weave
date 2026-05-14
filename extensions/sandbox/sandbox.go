@@ -165,20 +165,36 @@ func (s *Sandbox) resolvePending(ev sdk.Event, approved bool) error {
 	cmd := payload[keyCommand]
 
 	s.mu.Lock()
-	for i, p := range s.pending {
+
+	var resolved []*askPending
+
+	for _, p := range s.pending {
 		if p.cmd == cmd {
-			s.pending = append(s.pending[:i], s.pending[i+1:]...)
-			s.mu.Unlock()
-
-			select {
-			case p.result <- approved:
-			default:
-			}
-
-			return nil
+			resolved = append(resolved, p)
 		}
 	}
+
+	// Remove resolved entries from pending.
+	if len(resolved) > 0 {
+		newPending := s.pending[:0]
+
+		for _, p := range s.pending {
+			if p.cmd != cmd {
+				newPending = append(newPending, p)
+			}
+		}
+
+		s.pending = newPending
+	}
+
 	s.mu.Unlock()
+
+	for _, p := range resolved {
+		select {
+		case p.result <- approved:
+		default:
+		}
+	}
 
 	return nil
 }

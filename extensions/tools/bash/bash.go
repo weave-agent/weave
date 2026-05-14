@@ -350,10 +350,15 @@ func (t *tool) executeSync(ctx context.Context, command string, timeout time.Dur
 
 	stderrPipe, err := cmd.StderrPipe()
 	if err != nil {
+		_ = stdoutPipe.Close()
+
 		return sdk.ToolResult{Content: "error: " + err.Error(), IsError: true}, nil
 	}
 
 	if err := cmd.Start(); err != nil {
+		_ = stdoutPipe.Close()
+		_ = stderrPipe.Close()
+
 		return sdk.ToolResult{Content: "error: " + err.Error(), IsError: true}, nil
 	}
 

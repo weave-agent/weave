@@ -45,16 +45,15 @@ func isUIExtension(dir string) bool {
 			rel = path
 		}
 
-		info, statErr := os.Stat(filepath.Join(dir, rel))
-		if statErr != nil || info.Size() > maxUIExtScanSize {
-			log.Printf("launcher: skip unreadable or oversized file %s", path)
-
-			return nil //nolint:nilerr // logged above, skip unreadable or oversized files by design
-		}
-
 		data, readErr := os.ReadFile(filepath.Join(dir, rel))
 		if readErr != nil {
 			log.Printf("launcher: skip unreadable file %s: %v", path, readErr)
+
+			return nil
+		}
+
+		if int64(len(data)) > maxUIExtScanSize {
+			log.Printf("launcher: skip oversized file %s", path)
 
 			return nil
 		}
