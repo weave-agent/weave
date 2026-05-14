@@ -305,16 +305,16 @@ When active, overlay dialogs dock at bottom of chat area instead of centered ove
 
 ### Task 11: Verify acceptance criteria
 
-- [ ] verify all `sdk.UI` new methods work through TUI implementation
-- [ ] verify all `TUIExtAPI` methods work through extension registration
-- [ ] verify `NoopUI` stubs return sensible defaults for all new methods
-- [ ] verify launcher excludes TUI-dependent extensions from non-TUI builds
-- [ ] verify `WithKeepContent` docks overlays at bottom with chat visible
-- [ ] verify panel tray shows/hides correctly
-- [ ] verify focus chain works (editor → tray → panel → editor)
-- [ ] verify theme switching and registration
-- [ ] run full test suite (`make test`)
-- [ ] run linter (`make lint`) — all issues must be fixed
+- [x] verify all `sdk.UI` new methods work through TUI implementation
+- [x] verify all `TUIExtAPI` methods work through extension registration
+- [x] verify `NoopUI` stubs return sensible defaults for all new methods
+- [x] verify launcher excludes TUI-dependent extensions from non-TUI builds
+- [x] verify `WithKeepContent` docks overlays at bottom with chat visible
+- [x] verify panel tray shows/hides correctly
+- [x] verify focus chain works (editor → tray → panel → editor)
+- [x] verify theme switching and registration
+- [x] run full test suite (`make test`)
+- [x] run linter (`make lint`) — all issues must be fixed
 
 ### Task 12: Update CLAUDE.md documentation
 
