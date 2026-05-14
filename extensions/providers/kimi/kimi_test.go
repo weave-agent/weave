@@ -253,11 +253,11 @@ func TestStream_WithThinkingLevel(t *testing.T) {
 	require.NoError(t, err)
 	collectEvents(t, ch)
 
-	assert.Contains(t, receivedBody, `"thinking"`)
-	assert.Contains(t, receivedBody, `"adaptive"`)
-	assert.Contains(t, receivedBody, `"output_config"`)
-	assert.Contains(t, receivedBody, `"effort"`)
-	assert.Contains(t, receivedBody, `"high"`)
+	// Kimi API does not support Anthropic-specific adaptive thinking params.
+	assert.NotContains(t, receivedBody, `"thinking"`)
+	assert.NotContains(t, receivedBody, `"adaptive"`)
+	assert.NotContains(t, receivedBody, `"output_config"`)
+	assert.NotContains(t, receivedBody, `"effort"`)
 }
 
 func TestStream_ThinkingOff_NoThinkingParam(t *testing.T) {
@@ -828,9 +828,9 @@ func TestResolveThinkingLevel_Clamping(t *testing.T) {
 
 	RegisterModels()
 
-	// kimi-for-coding supports xhigh
+	// kimi-for-coding does not support reasoning via Anthropic adaptive thinking params
 	level := resolveThinkingLevel("kimi-for-coding", model.ThinkingXHigh)
-	assert.Equal(t, model.ThinkingXHigh, level)
+	assert.Equal(t, model.ThinkingOff, level)
 
 	// Model without xhigh support should clamp to high
 	model.RegisterModel(model.ModelDef{
@@ -1131,6 +1131,9 @@ func TestProviderInit_MissingAPIKey(t *testing.T) {
 	defer model.ResetModelRegistry()
 
 	RegisterModels()
+
+	// Isolate from real auth.json in ~/.weave/
+	t.Setenv("HOME", t.TempDir())
 
 	cfg := &testConfig{providerData: map[string]any{"base_url": "http://example.com"}}
 	_, err := sdk.GetProvider("kimi", cfg)

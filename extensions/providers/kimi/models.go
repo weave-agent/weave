@@ -12,7 +12,7 @@ func init() {
 func RegisterModels() {
 	model.RegisterModel(model.ModelDef{
 		ID: "kimi-for-coding", Provider: "kimi",
-		DisplayName: "Kimi For Coding", Reasoning: true, SupportsXHigh: true,
+		DisplayName: "Kimi For Coding", Reasoning: false, SupportsXHigh: false,
 		ContextWindow: 262144, MaxTokens: 32768, Default: true,
 	})
 }
