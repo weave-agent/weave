@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"time"
 
 	"weave/internal/pathutil"
 	"weave/sdk"
@@ -43,6 +44,38 @@ func normalizePath(path string) string {
 	}
 
 	return path
+}
+
+// readExistingForWrite reads an existing file to detect no-op writes and to
+// capture its permissions. It records the read in the global FileTracker so
+// that subsequent edits are allowed. Returns the file's permission bits and
+// true when the existing content matches the desired content (no-op).
+func (t *tool) readExistingForWrite(path, content string) (fs.FileMode, bool) {
+	perm := fs.FileMode(0o644)
+
+	f, err := os.Open(path)
+	if err != nil {
+		return perm, false
+	}
+	defer f.Close()
+
+	var modTime time.Time
+
+	if info, statErr := f.Stat(); statErr == nil {
+		perm = info.Mode().Perm()
+		modTime = info.ModTime()
+	}
+
+	existing, readErr := io.ReadAll(f)
+	if readErr != nil {
+		return perm, false
+	}
+
+	if ft := sdk.GetFileTracker(); ft != nil && !modTime.IsZero() {
+		ft.RecordRead(path, modTime)
+	}
+
+	return perm, string(existing) == content
 }
 
 func (t *tool) Name() string { return "write" }
@@ -93,28 +126,11 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		}
 	}
 
-	perm := fs.FileMode(0o644)
-
-	// No-op detection: skip write if content is identical.
-	// Use a single file descriptor to avoid a race between read and stat.
-	f, openErr := os.Open(path)
-	if openErr == nil {
-		existing, readErr := io.ReadAll(f)
-		if readErr == nil {
-			if string(existing) == content {
-				_ = f.Close()
-
-				return sdk.ToolResult{
-					Content: fmt.Sprintf("file %s already contains the exact content, no changes made", path),
-				}, nil
-			}
-		}
-
-		if info, statErr := f.Stat(); statErr == nil {
-			perm = info.Mode().Perm()
-		}
-
-		_ = f.Close()
+	perm, isNoOp := t.readExistingForWrite(path, content)
+	if isNoOp {
+		return sdk.ToolResult{
+			Content: fmt.Sprintf("file %s already contains the exact content, no changes made", path),
+		}, nil
 	}
 
 	if err := os.WriteFile(path, []byte(content), perm); err != nil {
