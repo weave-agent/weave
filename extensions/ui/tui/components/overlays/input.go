@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"weave/ext/ui/tui/palette"
+
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
@@ -142,22 +144,23 @@ func (m InputModel) View() string {
 		return ""
 	}
 
+	theme := palette.DefaultTheme()
 	boxWidth := min(50, m.width-4)
 
 	borderStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("63")).
+		BorderForeground(lipgloss.Color(theme.BorderFocused)).
 		Width(boxWidth-2).
 		Padding(0, 1)
 
 	promptStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("15"))
+		Foreground(lipgloss.Color(theme.Foreground))
 
 	inputStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("252"))
+		Foreground(lipgloss.Color(theme.MutedBright))
 
 	hintStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("243"))
+		Foreground(lipgloss.Color(theme.Muted))
 
 	text := string(m.value)
 

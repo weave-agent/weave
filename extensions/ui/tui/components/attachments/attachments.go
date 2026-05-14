@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"weave/ext/ui/tui/palette"
+
 	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 )
@@ -174,9 +176,17 @@ func (m Model) Draw(scr uv.Screen, area uv.Rectangle) {
 	y := area.Min.Y
 	maxY := area.Min.Y + area.Dy()
 
-	attachStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("63"))
-	deleteStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	bracketStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	theme := palette.DefaultTheme()
+
+	pillStyle := lipgloss.NewStyle().
+		Background(lipgloss.Color(theme.BackgroundTint)).
+		Foreground(lipgloss.Color(theme.Primary)).
+		Padding(0, 1)
+
+	deletePillStyle := lipgloss.NewStyle().
+		Background(lipgloss.Color(theme.BackgroundTint)).
+		Foreground(lipgloss.Color(theme.Error)).
+		Padding(0, 1)
 
 	for i, a := range m.items {
 		if y >= maxY {
@@ -184,17 +194,15 @@ func (m Model) Draw(scr uv.Screen, area uv.Rectangle) {
 		}
 
 		name := filepath.Base(a.Path)
-		label := fmt.Sprintf(" %s (%d lines) ", name, a.Lines)
+		label := fmt.Sprintf("%s (%d lines)", name, a.Lines)
 
 		lineArea := uv.Rect(area.Min.X, y, area.Dx(), 1)
 
 		if m.deleteMode && i == m.deleteIdx {
-			text := deleteStyle.Render(label)
+			text := deletePillStyle.Render("× " + label)
 			uv.NewStyledString(text).Draw(scr, lineArea)
 		} else {
-			prefix := bracketStyle.Render("[")
-			suffix := bracketStyle.Render("]")
-			text := prefix + attachStyle.Render(label) + suffix
+			text := pillStyle.Render(label)
 			uv.NewStyledString(text).Draw(scr, lineArea)
 		}
 

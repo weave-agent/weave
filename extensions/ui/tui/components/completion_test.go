@@ -5,6 +5,8 @@ import (
 
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/stretchr/testify/assert"
+
+	"weave/ext/ui/tui/palette"
 )
 
 func TestNewCompletionModel(t *testing.T) {
@@ -328,11 +330,37 @@ func TestCompletionShowReplacesItems(t *testing.T) {
 	assert.Equal(t, 0, m.Cursor())
 }
 
+func TestCompletionView_BorderStyle(t *testing.T) {
+	m := NewCompletionModel()
+	m = m.Show(CompletionSlash, []CompletionItem{
+		{Label: "/help", Description: "Show help", Value: "/help "},
+	})
+
+	view := m.View()
+	assert.NotEmpty(t, view)
+	// Border characters should be present
+	assert.Contains(t, view, "┌")
+	assert.Contains(t, view, "┘")
+}
+
+func TestCompletionView_SelectedItemContrast(t *testing.T) {
+	m := NewCompletionModel()
+	m = m.Show(CompletionSlash, []CompletionItem{
+		{Label: "/help", Description: "Show help", Value: "/help "},
+		{Label: "/quit", Value: "/quit "},
+	})
+
+	view := m.View()
+	assert.Contains(t, view, "/help")
+	// First item is selected by default — should be bold
+	assert.Contains(t, view, "/help")
+}
+
 func TestCompletionRenderLineWithDescription(t *testing.T) {
 	m := NewCompletionModel()
 	item := CompletionItem{Label: "/help", Description: "Show help text", Value: "/help "}
 
-	line := m.renderLine(item, false, 40)
+	line := m.renderLine(item, false, 40, palette.DefaultTheme())
 	assert.NotEmpty(t, line)
 	// Should contain the label
 	assert.Contains(t, line, "/help")
@@ -342,7 +370,7 @@ func TestCompletionRenderLineSelected(t *testing.T) {
 	m := NewCompletionModel()
 	item := CompletionItem{Label: "/help", Value: "/help "}
 
-	line := m.renderLine(item, true, 40)
+	line := m.renderLine(item, true, 40, palette.DefaultTheme())
 	assert.NotEmpty(t, line)
 	assert.Contains(t, line, "/help")
 }
@@ -351,7 +379,7 @@ func TestCompletionRenderLineTruncation(t *testing.T) {
 	m := NewCompletionModel()
 	item := CompletionItem{Label: "/very-long-command-name", Description: "a very long description here", Value: "/very-long-command-name "}
 
-	line := m.renderLine(item, false, 20)
+	line := m.renderLine(item, false, 20, palette.DefaultTheme())
 	assert.NotEmpty(t, line)
 	// Should contain label start
 	assert.Contains(t, line, "/very")

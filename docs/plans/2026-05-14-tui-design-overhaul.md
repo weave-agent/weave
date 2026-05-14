@@ -111,14 +111,14 @@ Key benefits:
 - [x] Run all TUI tests — must pass before next task
 
 ### Task 5: Redesign attachments, overlays, and completion popup
-- [ ] Redesign `attachments.Model.Draw()` in `components/attachments/attachments.go`: replace bracketed text with pill-shaped chips using `BackgroundTint` background and rounded appearance; delete mode uses `Error` color with `×` indicator
-- [ ] Unify overlay border styles in `components/overlays/confirm.go`, `input.go`, `selector.go`: all use `RoundedBorder` consistently with `BorderFocused` color
-- [ ] Differentiate overlay types visually: selector uses primary accent, confirm uses warning accent for destructive actions
-- [ ] Update `components/completion.go`: use `Border` for popup border, improve selected item contrast
-- [ ] Write tests for attachment pill rendering
-- [ ] Write tests for overlay styling
-- [ ] Write tests for completion popup rendering
-- [ ] Run all TUI tests — must pass before next task
+- [x] Redesign `attachments.Model.Draw()` in `components/attachments/attachments.go`: replace bracketed text with pill-shaped chips using `BackgroundTint` background and rounded appearance; delete mode uses `Error` color with `×` indicator
+- [x] Unify overlay border styles in `components/overlays/confirm.go`, `input.go`, `selector.go`: all use `RoundedBorder` consistently with `BorderFocused` color
+- [x] Differentiate overlay types visually: selector uses primary accent, confirm uses warning accent for destructive actions
+- [x] Update `components/completion.go`: use `Border` for popup border, improve selected item contrast
+- [x] Write tests for attachment pill rendering
+- [x] Write tests for overlay styling
+- [x] Write tests for completion popup rendering
+- [x] Run all TUI tests — must pass before next task
 
 ### Task 6: Add motion and animation polish
 - [ ] Implement message fade-in in `components/messages/assistant.go`: first 2-3 frames render at progressively brighter foreground colors to create a subtle materializing effect; use a frame counter or timestamp on the message
@@ -138,9 +138,9 @@ Key benefits:
   - [ ] Thinking blocks are visually prominent
   - [ ] Footer has information hierarchy
   - [ ] Landing screen is better composed
-  - [ ] Attachments use pill shapes
-  - [ ] Tool panels have state-specific backgrounds
-  - [ ] Overlays are visually differentiated
+  - [x] Attachments use pill shapes
+  - [x] Tool panels have state-specific backgrounds
+  - [x] Overlays are visually differentiated
   - [ ] Motion/animation added
 - [ ] Run full test suite (`make test-all`)
 - [ ] Run linter (`make lint`) — all issues fixed

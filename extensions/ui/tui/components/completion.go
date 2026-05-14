@@ -4,6 +4,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"weave/ext/ui/tui/palette"
+
 	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 )
@@ -165,9 +167,11 @@ func (m CompletionModel) View() string {
 		return ""
 	}
 
+	theme := palette.DefaultTheme()
+
 	borderStyle := lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("240"))
+		BorderForeground(lipgloss.Color(theme.Border))
 
 	innerWidth := m.width - 2 // account for left/right border
 	visibleCount := min(len(m.filtered)-m.scrollOffset, m.maxVisible)
@@ -176,7 +180,7 @@ func (m CompletionModel) View() string {
 
 	for i := range visibleCount {
 		item := m.filtered[m.scrollOffset+i]
-		line := m.renderLine(item, m.scrollOffset+i == m.cursor, innerWidth)
+		line := m.renderLine(item, m.scrollOffset+i == m.cursor, innerWidth, theme)
 		lines = append(lines, line)
 	}
 
@@ -194,7 +198,7 @@ func (m CompletionModel) Draw(scr uv.Screen, area uv.Rectangle) {
 	uv.NewStyledString(m.View()).Draw(scr, area)
 }
 
-func (m CompletionModel) renderLine(item CompletionItem, selected bool, width int) string {
+func (m CompletionModel) renderLine(item CompletionItem, selected bool, width int, theme *palette.Theme) string {
 	if selected {
 		text := item.Label
 		if item.Description != "" {
@@ -208,8 +212,8 @@ func (m CompletionModel) renderLine(item CompletionItem, selected bool, width in
 
 		style := lipgloss.NewStyle().
 			Bold(true).
-			Background(lipgloss.Color("99")).
-			Foreground(lipgloss.Color("15")).
+			Background(lipgloss.Color(theme.Primary)).
+			Foreground(lipgloss.Color(theme.Foreground)).
 			Width(width)
 
 		return style.Render(text)
@@ -245,7 +249,7 @@ func (m CompletionModel) renderLine(item CompletionItem, selected bool, width in
 	if desc != "" {
 		descWidth = 2 + utf8.RuneCountInString(desc)
 		descStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("245")).
+			Foreground(lipgloss.Color(theme.Muted)).
 			Width(descWidth)
 		result += descStyle.Render("  " + desc)
 	}

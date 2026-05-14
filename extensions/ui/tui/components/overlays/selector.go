@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"weave/ext/ui/tui/palette"
+
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
@@ -209,6 +211,7 @@ func (m SelectorModel) View() string {
 		return ""
 	}
 
+	theme := palette.DefaultTheme()
 	filtered := m.filteredItems()
 
 	boxWidth := min(60, m.width-4)
@@ -216,7 +219,7 @@ func (m SelectorModel) View() string {
 
 	borderStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("63")).
+		BorderForeground(lipgloss.Color(theme.Primary)).
 		Width(boxWidth-2).
 		Padding(0, 1)
 
@@ -227,11 +230,11 @@ func (m SelectorModel) View() string {
 	}
 
 	titleStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("15")).
+		Foreground(lipgloss.Color(theme.Foreground)).
 		Bold(true)
 
 	filterStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("99"))
+		Foreground(lipgloss.Color(theme.PrimaryBright))
 
 	var headerRendered string
 
@@ -243,14 +246,14 @@ func (m SelectorModel) View() string {
 	}
 
 	selectedStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("15")).
-		Background(lipgloss.Color("63"))
+		Foreground(lipgloss.Color(theme.Foreground)).
+		Background(lipgloss.Color(theme.Primary))
 
 	normalStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("252"))
+		Foreground(lipgloss.Color(theme.MutedBright))
 
 	subtitleStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("243"))
+		Foreground(lipgloss.Color(theme.Muted))
 
 	// Item list
 	maxItems := boxHeight - 4 // room for header + borders + padding

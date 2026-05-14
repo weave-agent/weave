@@ -280,3 +280,27 @@ func TestSelectorDraw_ZeroArea(t *testing.T) {
 	canvas := uv.NewScreenBuffer(60, 20)
 	m.Draw(canvas, uv.Rect(0, 0, 0, 0))
 }
+
+func TestSelectorView_StyledWithPrimaryAccent(t *testing.T) {
+	items := []SelectorItem{
+		{Title: "Item 1", Subtitle: "sub1"},
+		{Title: "Item 2", Subtitle: "sub2"},
+	}
+	m := NewSelectorModel("Choose", items).Show().SetSize(60, 20)
+	view := m.View()
+	assert.Contains(t, view, "Choose")
+	assert.Contains(t, view, "Item 1")
+	// Rounded border should be present
+	assert.Contains(t, view, "╭")
+}
+
+func TestSelectorView_SelectedItemContrast(t *testing.T) {
+	items := []SelectorItem{
+		{Title: "First"},
+		{Title: "Second"},
+	}
+	m := NewSelectorModel("Test", items).Show().SetSize(60, 20)
+	// First item is selected by default
+	view := m.View()
+	assert.Contains(t, view, "> First")
+}

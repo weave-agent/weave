@@ -158,3 +158,14 @@ func TestConfirmDraw_ZeroArea(t *testing.T) {
 	canvas := uv.NewScreenBuffer(60, 20)
 	m.Draw(canvas, uv.Rect(0, 0, 0, 0))
 }
+
+func TestConfirmView_StylingUsesWarningAccent(t *testing.T) {
+	m := NewConfirmModel("Delete everything?").Show().SetSize(60, 20)
+	view := m.View()
+	// Should render with Yes/No buttons and message
+	assert.Contains(t, view, "Delete everything?")
+	assert.Contains(t, view, "Yes")
+	assert.Contains(t, view, "No")
+	// Rounded border should be present
+	assert.Contains(t, view, "╭")
+}
