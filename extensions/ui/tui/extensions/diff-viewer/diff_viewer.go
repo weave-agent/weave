@@ -50,23 +50,51 @@ func (r *richDiffRenderer) Render(content string, theme sdk.ThemeInfo, width int
 			bldr.WriteString("\n")
 		}
 
-		var rendered string
+		wrapped := wrapLine(line, width)
+		for j, wl := range wrapped {
+			if j > 0 {
+				bldr.WriteString("\n")
+			}
 
-		switch {
-		case strings.HasPrefix(line, "---") || strings.HasPrefix(line, "+++"):
-			rendered = headerStyle.Render(line)
-		case strings.HasPrefix(line, "@@"):
-			rendered = hunkStyle.Render(line)
-		case strings.HasPrefix(line, "+"):
-			rendered = addStyle.Render(line)
-		case strings.HasPrefix(line, "-"):
-			rendered = removeStyle.Render(line)
-		default:
-			rendered = contextStyle.Render(line)
+			var rendered string
+
+			switch {
+			case strings.HasPrefix(wl, "---") || strings.HasPrefix(wl, "+++"):
+				rendered = headerStyle.Render(wl)
+			case strings.HasPrefix(wl, "@@"):
+				rendered = hunkStyle.Render(wl)
+			case strings.HasPrefix(wl, "+"):
+				rendered = addStyle.Render(wl)
+			case strings.HasPrefix(wl, "-"):
+				rendered = removeStyle.Render(wl)
+			default:
+				rendered = contextStyle.Render(wl)
+			}
+
+			bldr.WriteString(rendered)
 		}
-
-		bldr.WriteString(rendered)
 	}
 
 	return bldr.String()
+}
+
+// wrapLine splits a line into chunks of at most width runes.
+// A width of zero or less disables wrapping.
+func wrapLine(line string, width int) []string {
+	if width <= 0 || len(line) <= width {
+		return []string{line}
+	}
+
+	runes := []rune(line)
+	if len(runes) <= width {
+		return []string{line}
+	}
+
+	var result []string
+	for len(runes) > width {
+		result = append(result, string(runes[:width]))
+		runes = runes[width:]
+	}
+	result = append(result, string(runes))
+	return result
 }

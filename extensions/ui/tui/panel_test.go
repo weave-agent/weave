@@ -11,12 +11,19 @@ import (
 
 // mockPanelDrawer is a test PanelDrawer implementation.
 type mockPanelDrawer struct {
-	id string
+	id          string
+	updateCount int
+	lastMsg     tea.Msg
 }
 
-func (m *mockPanelDrawer) Draw(_ uv.Screen, _ uv.Rectangle)        {}
-func (m *mockPanelDrawer) Update(_ tea.Msg) (PanelDrawer, tea.Cmd) { return m, nil }
-func (m *mockPanelDrawer) Handles(_ tea.Msg) bool                  { return true }
+func (m *mockPanelDrawer) Draw(_ uv.Screen, _ uv.Rectangle) {}
+func (m *mockPanelDrawer) Update(msg tea.Msg) (PanelDrawer, tea.Cmd) {
+	m.updateCount++
+	m.lastMsg = msg
+
+	return m, nil
+}
+func (m *mockPanelDrawer) Handles(_ tea.Msg) bool { return true }
 
 func TestPanelManager_Register(t *testing.T) {
 	pm := NewPanelManager()

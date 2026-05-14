@@ -125,8 +125,11 @@ func (pt PanelTray) Draw(scr uv.Screen, area uv.Rectangle, theme *palette.Theme)
 	}
 
 	line := strings.Join(parts, " ")
-	if len(line) > area.Dx() {
-		line = line[:area.Dx()]
+	runes := []rune(line)
+
+	if len(runes) > area.Dx() {
+		runes = runes[:area.Dx()]
+		line = string(runes)
 	}
 
 	uv.NewStyledString(line).Draw(scr, area)

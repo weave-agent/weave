@@ -1629,6 +1629,39 @@ func TestTUIImpl_SetWorkingFrames_NoProgram(t *testing.T) {
 	ui.SetWorkingFrames([]string{"|"}, 100*time.Millisecond)
 }
 
+func TestTUIImpl_Enqueue_NotRunning(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+
+	req := &overlayRequest{
+		kind:   requestSelect,
+		title:  "Pick one",
+		items:  []string{"a", "b"},
+		result: make(chan overlayResponse, 1),
+	}
+
+	err := ui.enqueue(req)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not running")
+}
+
+func TestTUIImpl_Enqueue_ShuttingDown(t *testing.T) {
+	sender := &mockSender{}
+	ui := NewTUIImpl(nil, nil)
+	ui.SetProgram(sender)
+	ui.Close()
+
+	req := &overlayRequest{
+		kind:   requestSelect,
+		title:  "Pick one",
+		items:  []string{"a", "b"},
+		result: make(chan overlayResponse, 1),
+	}
+
+	err := ui.enqueue(req)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "shutting down")
+}
+
 // Mock types for Task 9 tests
 
 type mockRichRenderer struct{}

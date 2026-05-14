@@ -2794,7 +2794,12 @@ func TestModel_PanelKeyForwarding(t *testing.T) {
 	model, _ := m.Update(tea.KeyPressMsg{Text: "x", Code: 'x'})
 	_ = model.(Model)
 
-	// The drawer should have received the key (no panic, returns same model)
+	// The drawer should have received the key
+	assert.Equal(t, 1, md.updateCount)
+	assert.NotNil(t, md.lastMsg)
+	keyMsg, ok := md.lastMsg.(tea.KeyPressMsg)
+	require.True(t, ok)
+	assert.Equal(t, 'x', keyMsg.Code)
 	assert.Equal(t, FocusPanel, m.focus)
 }
 
@@ -2923,6 +2928,7 @@ func TestModel_Escape_NormalBehaviorWhenEditorFocused(t *testing.T) {
 	m.width = 80
 	m.height = 24
 	m.focus = FocusEditor
+	m.editor = m.editor.SetValue("some text")
 
 	// First escape should start double-press timer
 	model, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
@@ -2930,6 +2936,14 @@ func TestModel_Escape_NormalBehaviorWhenEditorFocused(t *testing.T) {
 
 	assert.NotNil(t, cmd)
 	assert.True(t, m.escapePressed)
+	assert.Equal(t, "some text", m.editor.Value())
+
+	// Second escape should clear the editor
+	model, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	m = model.(Model)
+
+	assert.False(t, m.escapePressed)
+	assert.Empty(t, m.editor.Value())
 }
 
 func TestModel_SyncPanelTray(t *testing.T) {
@@ -3056,7 +3070,12 @@ func TestModel_SetWorkingFramesMsg_UpdatesSpinner(t *testing.T) {
 	updated, _ := m.Update(setWorkingFramesMsg{frames: frames, interval: 100 * time.Millisecond})
 	m = updated.(Model)
 
-	assert.True(t, m.spinner.Visible() || !m.spinner.Visible()) // just verify no panic
+	// Verify custom frames were applied by making spinner visible and checking View
+	m.spinner = m.spinner.Show()
+	view := m.spinner.View()
+	assert.NotEmpty(t, view)
+	// View should contain one of the custom frames (after ANSI style prefix)
+	assert.True(t, strings.Contains(view, "|") || strings.Contains(view, "/") || strings.Contains(view, "-") || strings.Contains(view, "\\"))
 }
 
 func TestModel_CustomFooterDrawn(t *testing.T) {

@@ -112,7 +112,10 @@ func (m MultiSelectModel) handleKey(msg tea.KeyPressMsg) (MultiSelectModel, tea.
 		return m, func() tea.Msg { return MultiSelectResultMsg{Ok: false} }
 
 	case tea.KeyUp:
-		m.cursor = max(0, m.cursor-1)
+		if len(m.items) > 0 {
+			m.cursor = max(0, m.cursor-1)
+		}
+
 		return m, nil
 
 	case tea.KeyDown:
