@@ -3,6 +3,7 @@ package launcher
 import (
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -39,7 +40,7 @@ func AutoDiscover(projectDir, homeDir, moduleRoot string, exclude []string) ([]E
 	for _, root := range roots {
 		if _, err := os.Stat(root); err != nil {
 			if !os.IsNotExist(err) {
-				fmt.Fprintf(os.Stderr, "warning: auto-discover: stat %s: %v\n", root, err)
+				slog.Warn("auto-discover: stat failed", "root", root, "error", err)
 			}
 
 			continue
@@ -81,7 +82,7 @@ func AutoDiscover(projectDir, homeDir, moduleRoot string, exclude []string) ([]E
 
 func tryAddExtension(path, root string, d fs.DirEntry, err error, seen map[string]bool, exts *[]ExtensionInfo) error {
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "warning: auto-discover: walk %s: %v\n", path, err)
+		slog.Warn("auto-discover: walk error", "path", path, "error", err)
 
 		if d != nil && d.IsDir() {
 			return fs.SkipDir
@@ -112,7 +113,7 @@ func tryAddExtension(path, root string, d fs.DirEntry, err error, seen map[strin
 	// Collect .go files within module boundary
 	goFiles, fileErr := collectGoFiles(path)
 	if fileErr != nil {
-		fmt.Fprintf(os.Stderr, "warning: auto-discover: %v\n", fileErr)
+		slog.Warn("auto-discover: file collection error", "error", fileErr)
 		return nil
 	}
 
@@ -122,7 +123,7 @@ func tryAddExtension(path, root string, d fs.DirEntry, err error, seen map[strin
 
 	name := filepath.Base(path)
 	if !settings.ValidExtName(name) {
-		fmt.Fprintf(os.Stderr, "warning: auto-discover: skipping %q: invalid extension name\n", name)
+		slog.Warn("auto-discover: skipping invalid extension name", "name", name)
 		return nil
 	}
 

@@ -3,7 +3,7 @@ package launcher
 import (
 	"errors"
 	"io/fs"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,7 +19,7 @@ var errUIExtFound = errors.New("ui extension found")
 func isUIExtension(dir string) bool {
 	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			log.Printf("launcher: skip unreadable entry %s: %v", path, err)
+			slog.Warn("launcher: skip unreadable entry", "path", path, "error", err)
 
 			return nil
 		}
@@ -47,13 +47,13 @@ func isUIExtension(dir string) bool {
 
 		data, readErr := os.ReadFile(filepath.Join(dir, rel))
 		if readErr != nil {
-			log.Printf("launcher: skip unreadable file %s: %v", path, readErr)
+			slog.Warn("launcher: skip unreadable file", "path", path, "error", readErr)
 
 			return nil
 		}
 
 		if int64(len(data)) > maxUIExtScanSize {
-			log.Printf("launcher: skip oversized file %s", path)
+			slog.Warn("launcher: skip oversized file", "path", path)
 
 			return nil
 		}

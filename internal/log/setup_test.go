@@ -21,6 +21,7 @@ func TestSetupCreatesDirectory(t *testing.T) {
 
 	defer func() {
 		setupOnce = sync.Once{}
+		setupError = nil
 
 		initialized.Store(false)
 		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
@@ -39,6 +40,7 @@ func TestSetupWritesLogFile(t *testing.T) {
 
 	defer func() {
 		setupOnce = sync.Once{}
+		setupError = nil
 
 		initialized.Store(false)
 		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
@@ -63,6 +65,7 @@ func TestSetupDebugFlag(t *testing.T) {
 
 	defer func() {
 		setupOnce = sync.Once{}
+		setupError = nil
 
 		initialized.Store(false)
 		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
@@ -85,6 +88,7 @@ func TestSetupInfoLevelIgnoresDebug(t *testing.T) {
 
 	defer func() {
 		setupOnce = sync.Once{}
+		setupError = nil
 
 		initialized.Store(false)
 		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
@@ -110,6 +114,7 @@ func TestInitializedAfterSetup(t *testing.T) {
 
 	defer func() {
 		setupOnce = sync.Once{}
+		setupError = nil
 
 		initialized.Store(false)
 		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
@@ -130,6 +135,7 @@ func TestSetupOnce(t *testing.T) {
 
 	defer func() {
 		setupOnce = sync.Once{}
+		setupError = nil
 
 		initialized.Store(false)
 		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))

@@ -39,7 +39,7 @@ func TestPrependDebugFlag_FlagEquals(t *testing.T) {
 
 func TestPrependDebugFlag_FlagEqualsFalse(t *testing.T) {
 	got := prependDebugFlag([]string{"--debug=false", "--prompt", "hello"})
-	assert.Equal(t, []string{"--prompt", "hello"}, got)
+	assert.Equal(t, []string{"--weave-debug=false", "--prompt", "hello"}, got)
 }
 
 func TestPrependDebugFlag_FlagBeforeValue(t *testing.T) {

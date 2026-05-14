@@ -15,6 +15,7 @@ import (
 var (
 	setupOnce   sync.Once
 	initialized atomic.Bool
+	setupError  error //nolint:errname // not a sentinel; stores error from first Setup call for idempotent retries
 )
 
 // Setup configures slog.Default() with a JSON handler writing to a rotating
@@ -22,13 +23,11 @@ var (
 // output. The default log level is Info; debug sets it to Debug.
 // Setup is safe to call multiple times — only the first call has effect.
 func Setup(logFile string, debug bool, extraWriters ...io.Writer) error {
-	var setupErr error
-
 	setupOnce.Do(func() {
 		dir := filepath.Dir(logFile)
 		if dir != "" && dir != "." {
 			if err := os.MkdirAll(dir, 0o750); err != nil {
-				setupErr = fmt.Errorf("create log directory: %w", err)
+				setupError = fmt.Errorf("create log directory: %w", err)
 				return
 			}
 		}
@@ -55,7 +54,7 @@ func Setup(logFile string, debug bool, extraWriters ...io.Writer) error {
 		initialized.Store(true)
 	})
 
-	return setupErr
+	return setupError
 }
 
 // Initialized returns true if Setup has been called successfully.

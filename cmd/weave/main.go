@@ -38,7 +38,7 @@ func prependDebugFlag(args []string) []string {
 				return append([]string{debugFlag}, args...)
 			}
 
-			return args
+			return append([]string{"--weave-debug=false"}, args...)
 		}
 	}
 

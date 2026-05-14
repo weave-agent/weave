@@ -57,7 +57,9 @@ func ComputeHash(exts []ExtensionInfo, moduleRoot string, headless bool, agentLo
 
 		// Hash embedded resource files (e.g., go:embed agents/*.md).
 		// These affect the compiled binary but are not .go files.
-		_ = hashMdFiles(h, ext)
+		if err := hashMdFiles(h, ext); err != nil {
+			return "", fmt.Errorf("hash: md files for %s: %w", ext.Name, err)
+		}
 
 		goModPath := filepath.Join(ext.Dir, "go.mod")
 		if data, err := os.ReadFile(goModPath); err == nil {
