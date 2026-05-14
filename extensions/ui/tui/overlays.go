@@ -5,6 +5,7 @@ import (
 
 	"weave/ext/ui/tui/components/messages"
 	"weave/ext/ui/tui/components/overlays"
+	"weave/sdk"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -60,6 +61,11 @@ type extStatusMsg struct {
 
 type notifyMsg struct {
 	message string
+}
+
+type notifyTypedMsg struct {
+	message string
+	level   sdk.NotifyLevel
 }
 
 // slashCommandsUpdatedMsg is sent when commands are dynamically registered,

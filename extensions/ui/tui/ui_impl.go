@@ -303,14 +303,18 @@ func (u *TUIImpl) Editor(prompt, initial string, _ ...sdk.EditorOption) (string,
 
 // NotifyTyped shows a typed notification in the chat area.
 func (u *TUIImpl) NotifyTyped(message string, level sdk.NotifyLevel) {
-	_ = level
+	u.mu.Lock()
+	p := u.program
+	u.mu.Unlock()
 
-	u.Notify(message)
+	if p != nil {
+		p.Send(notifyTypedMsg{message: message, level: level})
+	}
 }
 
 // ShowError shows an error notification in the chat area.
 func (u *TUIImpl) ShowError(message string) {
-	u.Notify("error: " + message)
+	u.NotifyTyped(message, sdk.NotifyError)
 }
 
 // SetWorking sets a working indicator in the UI.

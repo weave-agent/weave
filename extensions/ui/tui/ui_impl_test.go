@@ -791,6 +791,118 @@ func TestModel_PopupSequentialQueuing(t *testing.T) {
 	assert.False(t, ui.hasPendingPopups())
 }
 
+func TestTUIImpl_NotifyTyped(t *testing.T) {
+	sender := &mockSender{}
+	ui := NewTUIImpl(nil, nil)
+	ui.SetProgram(sender)
+
+	ui.NotifyTyped("warning text", sdk.NotifyWarning)
+
+	require.Len(t, sender.msgs, 1)
+	msg, ok := sender.msgs[0].(notifyTypedMsg)
+	require.True(t, ok)
+	assert.Equal(t, "warning text", msg.message)
+	assert.Equal(t, sdk.NotifyWarning, msg.level)
+}
+
+func TestTUIImpl_NotifyTyped_NoProgram(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+	// Should not panic
+	ui.NotifyTyped("test", sdk.NotifyInfo)
+}
+
+func TestTUIImpl_ShowError(t *testing.T) {
+	sender := &mockSender{}
+	ui := NewTUIImpl(nil, nil)
+	ui.SetProgram(sender)
+
+	ui.ShowError("something went wrong")
+
+	require.Len(t, sender.msgs, 1)
+	msg, ok := sender.msgs[0].(notifyTypedMsg)
+	require.True(t, ok)
+	assert.Equal(t, "something went wrong", msg.message)
+	assert.Equal(t, sdk.NotifyError, msg.level)
+}
+
+func TestTUIImpl_SetWorking(t *testing.T) {
+	sender := &mockSender{}
+	ui := NewTUIImpl(nil, nil)
+	ui.SetProgram(sender)
+
+	ui.SetWorking("compiling...")
+
+	require.Len(t, sender.msgs, 1)
+	msg, ok := sender.msgs[0].(extStatusMsg)
+	require.True(t, ok)
+	assert.Equal(t, "working", msg.key)
+	assert.Equal(t, "compiling...", msg.text)
+}
+
+func TestTUIImpl_ClearWorking(t *testing.T) {
+	sender := &mockSender{}
+	ui := NewTUIImpl(nil, nil)
+	ui.SetProgram(sender)
+
+	ui.ClearWorking()
+
+	require.Len(t, sender.msgs, 1)
+	msg, ok := sender.msgs[0].(extStatusMsg)
+	require.True(t, ok)
+	assert.Equal(t, "working", msg.key)
+	assert.Empty(t, msg.text)
+}
+
+func TestModel_NotifyTypedMsgAddsNotificationToChat(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, 10)
+
+	updated, _ := m.Update(notifyTypedMsg{message: "error occurred", level: sdk.NotifyError})
+	m = updated.(Model)
+
+	items := m.chat.Items()
+	require.Len(t, items, 1)
+	nm, ok := items[0].(*messages.NotificationMessage)
+	require.True(t, ok)
+	assert.Equal(t, "error occurred", nm.Content())
+	assert.Equal(t, sdk.NotifyError, nm.Level())
+	assert.False(t, m.showLanding)
+}
+
+func TestModel_NotifyTypedMsg_InfoLevel(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, 10)
+
+	updated, _ := m.Update(notifyTypedMsg{message: "info msg", level: sdk.NotifyInfo})
+	m = updated.(Model)
+
+	items := m.chat.Items()
+	require.Len(t, items, 1)
+	nm, ok := items[0].(*messages.NotificationMessage)
+	require.True(t, ok)
+	assert.Equal(t, sdk.NotifyInfo, nm.Level())
+}
+
+func TestModel_NotifyTypedMsg_WarningLevel(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, 10)
+
+	updated, _ := m.Update(notifyTypedMsg{message: "warning msg", level: sdk.NotifyWarning})
+	m = updated.(Model)
+
+	items := m.chat.Items()
+	require.Len(t, items, 1)
+	nm, ok := items[0].(*messages.NotificationMessage)
+	require.True(t, ok)
+	assert.Equal(t, sdk.NotifyWarning, nm.Level())
+}
+
 func TestModel_ExtStatusMsgUpdatesFooter(t *testing.T) {
 	m := newModel(nil, nil, nil, nil)
 	m.width = 80

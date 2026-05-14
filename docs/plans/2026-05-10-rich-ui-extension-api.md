@@ -229,13 +229,13 @@ When active, overlay dialogs dock at bottom of chat area instead of centered ove
 
 ### Task 4: Implement NotifyTyped, ShowError, SetWorking/ClearWorking in TUI
 
-- [ ] add `notifyTypedMsg` with `level NotifyLevel` to `overlays.go`
-- [ ] update notification rendering to style by level (info=default, warning=yellow, error=red)
-- [ ] add `ShowError()` on `TUIImpl` — renders as error notification
-- [ ] add `SetWorking()` / `ClearWorking()` on `TUIImpl` — toggles working indicator with custom message
-- [ ] write tests for typed notification rendering
-- [ ] write tests for working indicator show/hide
-- [ ] run `cd extensions/ui/tui && go test ./...` — must pass before next task
+- [x] add `notifyTypedMsg` with `level NotifyLevel` to `overlays.go`
+- [x] update notification rendering to style by level (info=default, warning=yellow, error=red)
+- [x] add `ShowError()` on `TUIImpl` — renders as error notification
+- [x] add `SetWorking()` / `ClearWorking()` on `TUIImpl` — toggles working indicator with custom message
+- [x] write tests for typed notification rendering
+- [x] write tests for working indicator show/hide
+- [x] run `cd extensions/ui/tui && go test ./...` — must pass before next task
 
 ### Task 5: Implement WithKeepContent option — docked overlay mode
 

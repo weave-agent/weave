@@ -491,6 +491,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, nil
 
+	case notifyTypedMsg:
+		m.showLanding = false
+		m.chat = m.chat.AddItem(messages.NewNotificationMessage(msg.message, msg.level))
+
+		return m, nil
+
 	case statusTimeoutMsg:
 		if msg.gen == m.statusGen {
 			m.statusMsg = ""
