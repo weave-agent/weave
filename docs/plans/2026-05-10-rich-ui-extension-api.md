@@ -275,14 +275,14 @@ When active, overlay dialogs dock at bottom of chat area instead of centered ove
 
 ### Task 8: Define TUIExtAPI and TUIExtension registration
 
-- [ ] define `TUIExtAPI` interface in `extensions/ui/tui/` with all 20 methods
-- [ ] define `TUIExtension` interface (`Name() string`, `RegisterTUI(api TUIExtAPI)`)
-- [ ] add `RegisterTUIExtension` function and registry
-- [ ] wire `TUIExtAPI` in TUI startup — create impl, pass to registered TUI extensions
-- [ ] update launcher `AutoDiscover` to detect `RegisterTUIExtension(` in source for build exclusion
-- [ ] write tests for TUI extension registration and wiring
-- [ ] write tests for launcher detection of TUI-dependent extensions
-- [ ] run `make test` — must pass before next task
+- [x] define `TUIExtAPI` interface in `extensions/ui/tui/` with all 20 methods
+- [x] define `TUIExtension` interface (`Name() string`, `RegisterTUI(api TUIExtAPI)`)
+- [x] add `RegisterTUIExtension` function and registry
+- [x] wire `TUIExtAPI` in TUI startup — create impl, pass to registered TUI extensions
+- [x] update launcher `AutoDiscover` to detect `RegisterTUIExtension(` in source for build exclusion
+- [x] write tests for TUI extension registration and wiring
+- [x] write tests for launcher detection of TUI-dependent extensions
+- [x] run `make test` — must pass before next task
 
 ### Task 9: Implement remaining TUIExtAPI methods
 

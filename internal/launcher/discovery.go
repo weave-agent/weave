@@ -17,7 +17,7 @@ type ExtensionInfo struct {
 	Dir        string
 	GoFiles    []string
 	ModulePath string // e.g. "weave/ext/tools/bash"; populated by builder
-	IsUIExt    bool   // true if the extension registers UI elements (RegisterUI or RegisterUIExtension)
+	IsUIExt    bool   // true if the extension registers UI elements (RegisterUI, RegisterUIExtension, or RegisterTUIExtension)
 }
 
 // AutoDiscover recursively scans extension directories to find all Go modules.

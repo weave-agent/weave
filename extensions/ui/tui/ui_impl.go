@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"weave/ext/ui/tui/palette"
 	"weave/sdk"
@@ -25,8 +26,8 @@ type pendingStatus struct {
 	text string
 }
 
-// TUIImpl implements sdk.UI by delegating to the TUI's internal registries
-// and overlay components.
+// TUIImpl implements sdk.UI and TUIExtAPI by delegating to the TUI's internal
+// registries and overlay components.
 type TUIImpl struct {
 	program   Sender
 	commands  *CommandRegistry
@@ -41,6 +42,18 @@ type TUIImpl struct {
 
 	themeRegistry map[string]*palette.Theme
 	activeTheme   string
+
+	panelManager *PanelManager
+	width        int
+	height       int
+
+	// Task 9: deferred implementation fields
+	richRenderers         map[string]RichToolRenderer
+	messageRenderers      map[string]MessageRenderer
+	inputHandlers         []func(KeyEvent)
+	autocompleteProviders []AutocompleteProvider
+	workingFrames         []string
+	workingInterval       time.Duration
 }
 
 // NewTUIImpl creates a UI implementation backed by the given registries.
@@ -54,7 +67,10 @@ func NewTUIImpl(commands *CommandRegistry, bindings *BindingRegistry) *TUIImpl {
 		themeRegistry: map[string]*palette.Theme{
 			"default": palette.DefaultTheme(),
 		},
-		activeTheme: "default",
+		activeTheme:      "default",
+		panelManager:     NewPanelManager(),
+		richRenderers:    make(map[string]RichToolRenderer),
+		messageRenderers: make(map[string]MessageRenderer),
 	}
 }
 
@@ -64,6 +80,15 @@ func (u *TUIImpl) SetProgram(p Sender) {
 	defer u.mu.Unlock()
 
 	u.program = p
+}
+
+// SetSize updates the cached terminal dimensions.
+func (u *TUIImpl) SetSize(width, height int) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	u.width = width
+	u.height = height
 }
 
 // SetRegistries sets the command and binding registries under lock.
@@ -446,6 +471,170 @@ func (u *TUIImpl) Theme() sdk.ThemeInfo {
 	}
 }
 
+// --- TUIExtAPI: Panels ---
+
+// ShowPanel registers and shows a panel.
+func (u *TUIImpl) ShowPanel(config PanelConfig, drawer PanelDrawer) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	u.panelManager.Register(config, drawer)
+	u.panelManager.Show(config.ID)
+
+	if u.program != nil {
+		u.program.Send(panelChangedMsg{})
+	}
+}
+
+// HidePanel hides a panel.
+func (u *TUIImpl) HidePanel(id string) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	u.panelManager.Hide(id)
+
+	if u.program != nil {
+		u.program.Send(panelChangedMsg{})
+	}
+}
+
+// RemovePanel fully removes a panel.
+func (u *TUIImpl) RemovePanel(id string) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	u.panelManager.Remove(id)
+
+	if u.program != nil {
+		u.program.Send(panelChangedMsg{})
+	}
+}
+
+// PanelVisible returns whether a panel is currently visible.
+func (u *TUIImpl) PanelVisible(id string) bool {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	return u.panelManager.PanelVisible(id)
+}
+
+// PanelTray returns the panel tray API.
+func (u *TUIImpl) PanelTray() PanelTrayAPI {
+	return u
+}
+
+// SetOrder implements PanelTrayAPI.
+func (u *TUIImpl) SetOrder(ids []string) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	u.panelManager.order = ids
+}
+
+// GetOrder implements PanelTrayAPI.
+func (u *TUIImpl) GetOrder() []string {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	result := make([]string, len(u.panelManager.order))
+	copy(result, u.panelManager.order)
+
+	return result
+}
+
+// --- TUIExtAPI: Read-only ---
+
+// Size returns the terminal dimensions.
+func (u *TUIImpl) Size() (int, int) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	return u.width, u.height
+}
+
+// --- TUIExtAPI: Editor (stubs for Task 9) ---
+
+// EditorText returns the current editor content.
+func (u *TUIImpl) EditorText() string {
+	// TODO: implement in Task 9
+	return ""
+}
+
+// SetEditorText replaces the editor content.
+func (u *TUIImpl) SetEditorText(text string) {
+	// TODO: implement in Task 9
+	if u.program != nil {
+		u.program.Send(setEditorTextMsg{text: text})
+	}
+}
+
+// PasteToEditor inserts text at the cursor position.
+func (u *TUIImpl) PasteToEditor(text string) {
+	// TODO: implement in Task 9
+	if u.program != nil {
+		u.program.Send(pasteToEditorMsg{text: text})
+	}
+}
+
+// --- TUIExtAPI: Rendering (stubs for Task 9) ---
+
+// RegisterRichRenderer registers a theme-aware tool renderer.
+func (u *TUIImpl) RegisterRichRenderer(tool string, renderer RichToolRenderer) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	u.richRenderers[tool] = renderer
+}
+
+// RegisterMessageRenderer registers a custom message type renderer.
+func (u *TUIImpl) RegisterMessageRenderer(msgType string, renderer MessageRenderer) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	u.messageRenderers[msgType] = renderer
+}
+
+// --- TUIExtAPI: Footer/Header (stubs for Task 9) ---
+
+// SetFooter replaces the footer component.
+func (u *TUIImpl) SetFooter(component TUIComponent) {
+	// TODO: implement in Task 9
+}
+
+// SetHeader replaces the header component.
+func (u *TUIImpl) SetHeader(component TUIComponent) {
+	// TODO: implement in Task 9
+}
+
+// --- TUIExtAPI: Input (stubs for Task 9) ---
+
+// OnTerminalInput registers a raw key event handler.
+func (u *TUIImpl) OnTerminalInput(handler func(KeyEvent)) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	u.inputHandlers = append(u.inputHandlers, handler)
+}
+
+// AddAutocomplete registers an autocomplete provider.
+func (u *TUIImpl) AddAutocomplete(provider AutocompleteProvider) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	u.autocompleteProviders = append(u.autocompleteProviders, provider)
+}
+
+// --- TUIExtAPI: Cosmetic (stubs for Task 9) ---
+
+// SetWorkingFrames sets custom spinner animation frames.
+func (u *TUIImpl) SetWorkingFrames(frames []string, interval time.Duration) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	u.workingFrames = frames
+	u.workingInterval = interval
+}
+
 // enqueue adds a request to the popup queue and notifies the program.
 // Returns an error if the program is not running.
 func (u *TUIImpl) enqueue(req *overlayRequest) error {
@@ -507,4 +696,16 @@ func (m Model) handlePopupPending() (Model, tea.Cmd) {
 	}
 
 	return pushPopupDialog(m, req)
+}
+
+// Internal tea.Msg types for TUIExtAPI.
+
+type panelChangedMsg struct{}
+
+type setEditorTextMsg struct {
+	text string
+}
+
+type pasteToEditorMsg struct {
+	text string
 }

@@ -43,7 +43,7 @@ func (f FilePathConfig) ExtensionConfig(_, _ string, _ any) error { return nil }
 func (f FilePathConfig) IsHeadless() bool                         { return true }
 func (f FilePathConfig) RespectGitignore() bool                   { return true }
 
-func configOrDefault(cfg Config) Config {
+func ConfigOrDefault(cfg Config) Config {
 	if cfg != nil {
 		return cfg
 	}
@@ -51,7 +51,7 @@ func configOrDefault(cfg Config) Config {
 	return NoopConfig{}
 }
 
-func preferenceStoreFrom(cfg Config) PreferenceStore {
+func PreferenceStoreFrom(cfg Config) PreferenceStore {
 	if ps, ok := cfg.(PreferenceStore); ok {
 		return ps
 	}

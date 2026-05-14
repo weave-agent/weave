@@ -31,7 +31,7 @@ func RegisterTool[T any](name string, factory func(Config, PreferenceStore, T) (
 			return nil, fmt.Errorf("load tool config: %w", err)
 		}
 
-		return factory(configOrDefault(cfg), preferenceStoreFrom(cfg), t)
+		return factory(ConfigOrDefault(cfg), PreferenceStoreFrom(cfg), t)
 	}
 
 	toolReg.Register(name, wrapper)
@@ -53,7 +53,7 @@ func GetTool(name string, cfg Config) (Tool, error) {
 		return nil, fmt.Errorf("tool %q: %w", name, ErrNotRegistered)
 	}
 
-	return factory(configOrDefault(cfg))
+	return factory(ConfigOrDefault(cfg))
 }
 
 func ToolRegistered(name string) bool {

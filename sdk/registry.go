@@ -38,7 +38,7 @@ func RegisterExtensionWithScope[T any](name, scope string, factory func(Config, 
 			return nil, fmt.Errorf("load extension config: %w", err)
 		}
 
-		return factory(configOrDefault(cfg), preferenceStoreFrom(cfg), t)
+		return factory(ConfigOrDefault(cfg), PreferenceStoreFrom(cfg), t)
 	}
 
 	extReg.Register(name, wrapper)
@@ -50,7 +50,7 @@ func GetExtension(name string, cfg Config) (Extension, error) {
 		return nil, fmt.Errorf("extension %q not registered", name)
 	}
 
-	return factory(configOrDefault(cfg))
+	return factory(ConfigOrDefault(cfg))
 }
 
 func ListExtensions() []string {

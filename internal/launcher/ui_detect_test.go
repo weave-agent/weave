@@ -57,6 +57,14 @@ func TestIsUIExtension_RespectsModuleBoundaries(t *testing.T) {
 	assert.False(t, isUIExtension(dir))
 }
 
+func TestIsUIExtension_DetectsRegisterTUIExtension(t *testing.T) {
+	dir := t.TempDir()
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.go"), []byte("package x\n\nfunc init() { RegisterTUIExtension(\"x\", nil) }\n"), 0o600))
+
+	assert.True(t, isUIExtension(dir))
+}
+
 func TestIsUIExtension_EmptyDir(t *testing.T) {
 	dir := t.TempDir()
 

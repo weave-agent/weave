@@ -34,7 +34,7 @@ func RegisterUIExtension[TConfig any](name string, factory func(Config, Preferen
 			return nil, fmt.Errorf("load ui extension config: %w", err)
 		}
 
-		return factory(configOrDefault(cfg), preferenceStoreFrom(cfg), t)
+		return factory(ConfigOrDefault(cfg), PreferenceStoreFrom(cfg), t)
 	}
 
 	uiExtReg.Register(name, uiExtEntry{factory: wrapper})
@@ -47,7 +47,7 @@ func GetUIExtension(name string, cfg Config) (UIExtension, error) {
 		return nil, fmt.Errorf("ui extension %q: %w", name, ErrNotRegistered)
 	}
 
-	return entry.factory(configOrDefault(cfg))
+	return entry.factory(ConfigOrDefault(cfg))
 }
 
 // UIExtensionRegistered reports whether a UI extension with the given name

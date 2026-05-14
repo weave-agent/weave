@@ -1,15 +1,106 @@
 package tui
 
 import (
+	"time"
+
 	"weave/ext/ui/tui/palette"
 	"weave/sdk"
+
+	tea "charm.land/bubbletea/v2"
+	uv "github.com/charmbracelet/ultraviolet"
 )
 
 // TUIExtAPI provides TUI-specific extension capabilities.
-// This is a minimal definition that will be expanded in Task 8.
+// Extensions that need deeper TUI integration implement TUIExtension and
+// receive this API during wiring.
 type TUIExtAPI interface {
-	RegisterTheme(name string, theme ThemeDef) error
+	// Panels
+	ShowPanel(config PanelConfig, drawer PanelDrawer)
+	HidePanel(id string)
+	RemovePanel(id string)
+	PanelVisible(id string) bool
+	PanelTray() PanelTrayAPI
+
+	// Read-only
 	Theme() sdk.ThemeInfo
+	Size() (int, int)
+
+	// Editor
+	EditorText() string
+	SetEditorText(text string)
+	PasteToEditor(text string)
+
+	// Rendering
+	RegisterRichRenderer(tool string, renderer RichToolRenderer)
+	RegisterMessageRenderer(msgType string, renderer MessageRenderer)
+
+	// Footer/Header
+	SetFooter(component TUIComponent)
+	SetHeader(component TUIComponent)
+
+	// Input
+	OnTerminalInput(handler func(KeyEvent))
+	AddAutocomplete(provider AutocompleteProvider)
+
+	// Cosmetic
+	SetWorkingFrames(frames []string, interval time.Duration)
+	RegisterTheme(name string, theme ThemeDef) error
+}
+
+// TUIExtension is a TUI-specific plugin that registers with the TUI's
+// extension API. TUI extensions are discovered by the launcher and wired
+// by the TUI at startup. They are silently skipped in headless mode.
+type TUIExtension interface {
+	Name() string
+	RegisterTUI(api TUIExtAPI)
+}
+
+// PanelTrayAPI provides access to the panel tray for tab ordering.
+type PanelTrayAPI interface {
+	SetOrder(ids []string)
+	GetOrder() []string
+}
+
+// RichToolRenderer renders tool output with theme access.
+type RichToolRenderer interface {
+	Render(content string, theme sdk.ThemeInfo, width int) string
+}
+
+// MessageRenderer renders custom message types.
+type MessageRenderer interface {
+	Render(content string, theme sdk.ThemeInfo, width int) string
+}
+
+// TUIComponent is a replaceable UI component (header/footer).
+type TUIComponent interface {
+	Draw(scr uv.Screen, area uv.Rectangle)
+}
+
+// KeyEvent represents a raw terminal key event.
+type KeyEvent struct {
+	Code   tea.Key
+	Mod    int
+	String string
+}
+
+// AutocompleteProvider provides completion suggestions for the editor.
+type AutocompleteProvider interface {
+	Name() string
+	Suggestions(ctx AutocompleteContext) []AutocompleteSuggestion
+}
+
+// AutocompleteContext provides context for autocomplete suggestions.
+type AutocompleteContext struct {
+	Text   string
+	Cursor int
+	Line   string
+}
+
+// AutocompleteSuggestion is a single autocomplete suggestion.
+type AutocompleteSuggestion struct {
+	Label       string
+	Description string
+	Value       string
 }
 
 // ThemeDef defines a custom theme for registration.

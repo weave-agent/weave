@@ -14,7 +14,7 @@ const maxUIExtScanSize = 10 << 20 // 10 MB
 var errUIExtFound = errors.New("ui extension found")
 
 // isUIExtension reports whether the directory at dir contains a UI extension.
-// It scans .go files for RegisterUIExtension( or RegisterUI( calls,
+// It scans .go files for RegisterUIExtension(, RegisterUI(, or RegisterTUIExtension( calls,
 // respecting module boundaries (subdirectories with their own go.mod are skipped).
 func isUIExtension(dir string) bool {
 	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
@@ -59,7 +59,7 @@ func isUIExtension(dir string) bool {
 		}
 
 		src := string(data)
-		if strings.Contains(src, "RegisterUIExtension(") || strings.Contains(src, "RegisterUI(") {
+		if strings.Contains(src, "RegisterUIExtension(") || strings.Contains(src, "RegisterUI(") || strings.Contains(src, "RegisterTUIExtension(") {
 			return errUIExtFound
 		}
 

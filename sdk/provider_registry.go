@@ -44,7 +44,7 @@ func RegisterProvider[TConfig, TAuth any](name string, factory func(Config, TCon
 			return nil, fmt.Errorf("load provider auth: %w", err)
 		}
 
-		return factory(configOrDefault(cfg), tc, ta)
+		return factory(ConfigOrDefault(cfg), tc, ta)
 	}
 
 	authChecker := makeAuthChecker[TAuth](name)
@@ -268,7 +268,7 @@ func GetProvider(name string, cfg Config) (Provider, error) {
 		return nil, fmt.Errorf("provider %q: %w", name, ErrNotRegistered)
 	}
 
-	return entry.factory(configOrDefault(cfg))
+	return entry.factory(ConfigOrDefault(cfg))
 }
 
 // CheckProviderAuth returns whether the provider has auth credentials available

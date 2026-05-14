@@ -207,7 +207,7 @@ func newModelWithConfig(bus sdk.Bus, cfg sdk.Config, ps sdk.PreferenceStore, ui 
 		dialogStack:   overlays.NewDialogStack(),
 		popupChans:    make(map[string]chan overlayResponse),
 		theme:         palette.DefaultTheme(),
-		panelManager:  NewPanelManager(),
+		panelManager:  ui.panelManager,
 		panelTray:     NewPanelTray(),
 		focus:         FocusEditor,
 	}
@@ -295,6 +295,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.spinner = m.spinner.SetSize(m.width)
 		m.dialogStack = m.dialogStack.Resize(m.width, m.height)
 		m.panelTray = m.panelTray.SetSize(m.width)
+
+		if m.ui != nil {
+			m.ui.SetSize(m.width, m.height)
+		}
 
 		return m, nil
 
@@ -603,6 +607,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.theme != nil {
 			m.theme = msg.theme
 		}
+
+		return m, nil
+
+	case panelChangedMsg:
+		return m, nil
+
+	case setEditorTextMsg:
+		m.editor = m.editor.SetValue(msg.text)
 
 		return m, nil
 	}

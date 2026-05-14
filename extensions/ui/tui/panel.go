@@ -2,6 +2,7 @@ package tui
 
 import (
 	"slices"
+	"sync"
 
 	tea "charm.land/bubbletea/v2"
 	uv "github.com/charmbracelet/ultraviolet"
@@ -42,6 +43,7 @@ type panelEntry struct {
 
 // PanelManager tracks registered panels (show/hide/remove/visible).
 type PanelManager struct {
+	mu     sync.RWMutex
 	panels map[string]*panelEntry
 	order  []string
 	active string
@@ -56,6 +58,9 @@ func NewPanelManager() *PanelManager {
 
 // Register registers a panel. If a panel with the same ID exists, it is replaced.
 func (pm *PanelManager) Register(config PanelConfig, drawer PanelDrawer) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
 	pm.panels[config.ID] = &panelEntry{
 		Config:  config,
 		Drawer:  drawer,
@@ -69,6 +74,9 @@ func (pm *PanelManager) Register(config PanelConfig, drawer PanelDrawer) {
 
 // Show makes a panel visible and sets it as the active panel.
 func (pm *PanelManager) Show(id string) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
 	entry, ok := pm.panels[id]
 	if !ok {
 		return
@@ -80,6 +88,9 @@ func (pm *PanelManager) Show(id string) {
 
 // Hide makes a panel invisible.
 func (pm *PanelManager) Hide(id string) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
 	entry, ok := pm.panels[id]
 	if !ok {
 		return
@@ -94,6 +105,9 @@ func (pm *PanelManager) Hide(id string) {
 
 // Remove fully removes a panel from the manager.
 func (pm *PanelManager) Remove(id string) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
 	delete(pm.panels, id)
 
 	newOrder := make([]string, 0, len(pm.order))
@@ -112,6 +126,9 @@ func (pm *PanelManager) Remove(id string) {
 
 // PanelVisible returns true if a panel is currently visible.
 func (pm *PanelManager) PanelVisible(id string) bool {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
 	entry, ok := pm.panels[id]
 	if !ok {
 		return false
@@ -122,17 +139,27 @@ func (pm *PanelManager) PanelVisible(id string) bool {
 
 // IsRegistered returns true if a panel is registered.
 func (pm *PanelManager) IsRegistered(id string) bool {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
 	_, ok := pm.panels[id]
+
 	return ok
 }
 
 // Active returns the currently active panel ID.
 func (pm *PanelManager) Active() string {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
 	return pm.active
 }
 
 // VisiblePanels returns IDs of all visible panels in tab order.
 func (pm *PanelManager) VisiblePanels() []string {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
 	var result []string
 
 	for _, id := range pm.order {
@@ -146,6 +173,9 @@ func (pm *PanelManager) VisiblePanels() []string {
 
 // AllPanels returns all registered panel IDs.
 func (pm *PanelManager) AllPanels() []string {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
 	result := make([]string, len(pm.order))
 	copy(result, pm.order)
 
@@ -154,12 +184,19 @@ func (pm *PanelManager) AllPanels() []string {
 
 // Get returns a panel entry by ID.
 func (pm *PanelManager) Get(id string) (*panelEntry, bool) {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
 	entry, ok := pm.panels[id]
+
 	return entry, ok
 }
 
 // ActivePanelHeight returns the height of the active panel, or 0 if none.
 func (pm *PanelManager) ActivePanelHeight() int {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
 	if pm.active == "" {
 		return 0
 	}
@@ -178,6 +215,9 @@ func (pm *PanelManager) ActivePanelHeight() int {
 
 // ActivePanelPlacement returns the placement of the active panel.
 func (pm *PanelManager) ActivePanelPlacement() PanelPlacement {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
 	if pm.active == "" {
 		return AsOverlay
 	}
