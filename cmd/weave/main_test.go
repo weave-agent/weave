@@ -8,18 +8,21 @@ import (
 
 func TestPrependDebugFlag_EnvVar(t *testing.T) {
 	t.Setenv("WEAVE_DEBUG", "1")
+
 	got := prependDebugFlag([]string{"--prompt", "hello"})
 	assert.Equal(t, []string{"--weave-debug=true", "--prompt", "hello"}, got)
 }
 
 func TestPrependDebugFlag_EnvVarTrue(t *testing.T) {
 	t.Setenv("WEAVE_DEBUG", "true")
+
 	got := prependDebugFlag([]string{"--prompt", "hello"})
 	assert.Equal(t, []string{"--weave-debug=true", "--prompt", "hello"}, got)
 }
 
 func TestPrependDebugFlag_EnvVarUnset(t *testing.T) {
 	t.Setenv("WEAVE_DEBUG", "")
+
 	got := prependDebugFlag([]string{"--prompt", "hello"})
 	assert.Equal(t, []string{"--prompt", "hello"}, got)
 }

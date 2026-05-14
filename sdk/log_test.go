@@ -13,7 +13,9 @@ import (
 
 func TestLoggerAddsExtAttribute(t *testing.T) {
 	var buf bytes.Buffer
+
 	orig := slog.Default()
+
 	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
 	defer slog.SetDefault(orig)
 
@@ -30,10 +32,12 @@ func TestLoggerAddsExtAttribute(t *testing.T) {
 
 func TestLoggerUsesCurrentDefault(t *testing.T) {
 	var buf1, buf2 bytes.Buffer
+
 	orig := slog.Default()
 	defer slog.SetDefault(orig)
 
 	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf1, &slog.HandlerOptions{Level: slog.LevelDebug})))
+
 	log1 := Logger("lazy-ext")
 	log1.Info("first")
 
@@ -55,6 +59,7 @@ func TestLoggerReturnsNilSafe(t *testing.T) {
 	defer slog.SetDefault(orig)
 
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, nil)))
+
 	log := Logger("safe-ext")
 	assert.NotNil(t, log)
 }

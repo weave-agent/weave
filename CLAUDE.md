@@ -80,6 +80,15 @@ Standard library as much as possible. Every replaceable component is an extensio
 The model selector (`Ctrl+L`) and `/model` slash command filter to only providers with valid auth credentials using `model.ListAvailableModels()`. The `/providers` slash command shows key status via `model.ProviderHasAuth()`.
 - `launcher/` — full pipeline: `AutoDiscover` recursively scans project-local `.weave/extensions/`, global `~/.weave/extensions/`, and built-in `extensions/` for Go modules (dirs with `go.mod` + `.go` files); UI extensions detected internally (scans `.go` files for `RegisterUIExtension(` or `RegisterUI(` calls); deduplicates by name (local > global > built-in); applies `exclude_extensions` list; `ComputeHash` of .go files (includes headless flag for different caches), `Cache` in `~/.weave/bin/{hash}/`, `Build` by generating go.mod+main.go with blank imports (filtering UI extensions for headless), then `syscall.Exec`; generated code imports `weave/internal/wire` and uses `wire.CoreWireConfig`/`wire.WireWithCore`; passes `WEAVE_LAUNCHER_PATH`, `WEAVE_BUILD_HASH`, and `WEAVE_ORIG_ARGS` env vars for `/reload` support
 
+## Logging
+
+Extensions must never write to `stdout` or `stderr` directly — output leaks corrupt the Bubble Tea TUI. The framework provides a unified file-based logging system for all diagnostics.
+
+- **API**: Use `sdk.Logger(name) *slog.Logger` to obtain a structured logger pre-tagged with `"ext": name`. Write logs via `slog.Info`, `slog.Warn`, `slog.Error`, or the logger returned by `sdk.Logger`.
+- **Destination**: All logs route to a rotating file at `~/.weave/logs/weave.log` (JSON format, 10 MB max size, 30 day retention). In headless/print mode logs are also mirrored to `stderr`.
+- **Setup**: The launcher-generated `main.go` calls `log.Setup(logFile, debug)` before wiring extensions. Debug level is controlled by `--debug` or `WEAVE_DEBUG`.
+- **Migration**: Replace `log.Printf`, `fmt.Fprintf(os.Stderr, ...)`, and `log.New(os.Stderr, ...)` with `slog` or `sdk.Logger()` calls.
+
 ## Agent Extension
 
 The `agent` extension owns the entire conversation lifecycle: prompt assembly, turn loop, tool execution, skill discovery, and context file loading. It subscribes to `agent.prompt`, `agent.steer`, `agent.followup`, `model.change`, and `thinking.change` events. It publishes `agent.turn_start/end`, `agent.message_start/update/end`, `agent.tool_result`, and `agent.end` events.

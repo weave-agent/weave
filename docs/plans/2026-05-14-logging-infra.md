@@ -91,8 +91,8 @@ Introduce a unified, file-based logging system that prevents stdout/stderr outpu
 - [x] run full test suite (`make test`) — must pass
 
 ### Task 8: Update documentation
-- [ ] update `CLAUDE.md` logging section (if exists) or add a note about `sdk.Logger()`
-- [ ] run linter (`make lint`) — must pass
+- [x] update `CLAUDE.md` logging section (if exists) or add a note about `sdk.Logger()`
+- [x] run linter (`make lint`) — must pass
 
 ## Post-Completion
 - **Manual verification**: run weave in TUI mode, check `~/.weave/logs/weave.log` contains structured logs; verify no stderr corruption during operation

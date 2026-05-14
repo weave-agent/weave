@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"testing"
 
@@ -18,8 +17,10 @@ func TestSetupCreatesDirectory(t *testing.T) {
 	logFile := filepath.Join(tmpDir, "logs", "weave.log")
 
 	Setup(logFile, false)
+
 	defer func() {
 		setupOnce = sync.Once{}
+
 		initialized.Store(false)
 		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}()
@@ -33,8 +34,10 @@ func TestSetupWritesLogFile(t *testing.T) {
 	logFile := filepath.Join(tmpDir, "weave.log")
 
 	Setup(logFile, false)
+
 	defer func() {
 		setupOnce = sync.Once{}
+
 		initialized.Store(false)
 		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}()
@@ -52,9 +55,12 @@ func TestSetupDebugFlag(t *testing.T) {
 	logFile := filepath.Join(tmpDir, "weave-debug.log")
 
 	var buf bytes.Buffer
+
 	Setup(logFile, true, &buf)
+
 	defer func() {
 		setupOnce = sync.Once{}
+
 		initialized.Store(false)
 		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}()
@@ -71,8 +77,10 @@ func TestSetupInfoLevelIgnoresDebug(t *testing.T) {
 	logFile := filepath.Join(tmpDir, "weave-info.log")
 
 	Setup(logFile, false)
+
 	defer func() {
 		setupOnce = sync.Once{}
+
 		initialized.Store(false)
 		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}()
@@ -83,7 +91,7 @@ func TestSetupInfoLevelIgnoresDebug(t *testing.T) {
 	content, err := os.ReadFile(logFile)
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "setup marker")
-	assert.False(t, strings.Contains(string(content), "should not appear"))
+	assert.NotContains(t, string(content), "should not appear")
 }
 
 func TestInitializedAfterSetup(t *testing.T) {
@@ -93,8 +101,10 @@ func TestInitializedAfterSetup(t *testing.T) {
 	assert.False(t, Initialized())
 
 	Setup(logFile, false)
+
 	defer func() {
 		setupOnce = sync.Once{}
+
 		initialized.Store(false)
 		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}()
@@ -108,9 +118,12 @@ func TestSetupOnce(t *testing.T) {
 	logFile2 := filepath.Join(tmpDir, "second.log")
 
 	var buf1 bytes.Buffer
+
 	Setup(logFile1, false, &buf1)
+
 	defer func() {
 		setupOnce = sync.Once{}
+
 		initialized.Store(false)
 		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}()
@@ -119,6 +132,7 @@ func TestSetupOnce(t *testing.T) {
 
 	// Second call should be ignored
 	var buf2 bytes.Buffer
+
 	Setup(logFile2, true, &buf2)
 
 	slog.Info("second")

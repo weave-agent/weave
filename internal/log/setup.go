@@ -24,7 +24,7 @@ func Setup(logFile string, debug bool, extraWriters ...io.Writer) {
 	setupOnce.Do(func() {
 		dir := filepath.Dir(logFile)
 		if dir != "" && dir != "." {
-			_ = os.MkdirAll(dir, 0o755)
+			_ = os.MkdirAll(dir, 0o750)
 		}
 
 		lj := &lumberjack.Logger{
@@ -34,7 +34,8 @@ func Setup(logFile string, debug bool, extraWriters ...io.Writer) {
 			Compress: false,
 		}
 
-		writers := []io.Writer{lj}
+		writers := make([]io.Writer, 0, 1+len(extraWriters))
+		writers = append(writers, lj)
 		writers = append(writers, extraWriters...)
 		w := io.MultiWriter(writers...)
 

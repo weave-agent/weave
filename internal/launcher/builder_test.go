@@ -437,6 +437,7 @@ func TestGenerateMainGo_LogSetupBeforeWire(t *testing.T) {
 	// log.Setup must appear before wire.WireWithCore so extension wiring logs go to file.
 	logSetupIdx := strings.Index(s, "log.Setup(")
 	wireIdx := strings.Index(s, "wire.WireWithCore")
+
 	require.NotEqual(t, -1, logSetupIdx, "generated main.go should contain log.Setup")
 	require.NotEqual(t, -1, wireIdx, "generated main.go should contain wire.WireWithCore")
 	assert.Less(t, logSetupIdx, wireIdx, "log.Setup must be called before wire.WireWithCore")

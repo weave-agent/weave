@@ -240,7 +240,7 @@ func (b *Bus) invokeHandler(e sdk.Event, h sdk.Handler) {
 	defer func() {
 		if r := recover(); r != nil {
 			stack := debug.Stack()
-				slog.Error("bus: panic in handler", "topic", e.Topic, "error", r, "stack", string(stack))
+			slog.Error("bus: panic in handler", "topic", e.Topic, "error", r, "stack", string(stack))
 
 			if !b.isDiagnosticTopic(e.Topic) {
 				b.publishDiagnostic(b.panicTopic(), fmt.Sprintf("panic: %v", r))
