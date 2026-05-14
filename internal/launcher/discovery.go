@@ -20,15 +20,6 @@ type ExtensionInfo struct {
 	IsUIExt    bool   // true if the extension registers UI elements (RegisterUI or RegisterUIExtension)
 }
 
-// legacyDenylist contains extension names that were merged into the agent
-// extension and must never be auto-discovered, even if stale installs remain
-// in project-local or global extension directories.
-var legacyDenylist = map[string]bool{
-	"loop":         true,
-	"skills":       true,
-	"instructions": true,
-}
-
 // AutoDiscover recursively scans extension directories to find all Go modules.
 // It checks three roots in order of precedence: project-local, global, built-in.
 // Within each root, it walks the directory tree looking for directories that
@@ -133,10 +124,6 @@ func tryAddExtension(path, root string, d fs.DirEntry, err error, seen map[strin
 	name := filepath.Base(path)
 	if !settings.ValidExtName(name) {
 		fmt.Fprintf(os.Stderr, "warning: auto-discover: skipping %q: invalid extension name\n", name)
-		return nil
-	}
-
-	if legacyDenylist[name] {
 		return nil
 	}
 

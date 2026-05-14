@@ -610,63 +610,6 @@ func TestMergeCoreAndOptional_KeepsDefaultLoopWhenDefaultLoop(t *testing.T) {
 	assert.Equal(t, []string{"agent", "bash", "read"}, result)
 }
 
-func TestMergeCoreAndOptional_FiltersLegacyLoop(t *testing.T) {
-	result := mergeCoreAndOptional("agent", []string{"bash", "loop", "read"})
-	assert.Equal(t, []string{"agent", "bash", "read"}, result)
-}
-
-func TestWireWithCore_MapsLoopToAgent(t *testing.T) {
-	sdk.ResetRegistry()
-
-	var names []string
-
-	reg := func(n string) {
-		sdk.RegisterExtension(n, func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
-			return sdk.NewExtensionFunc(n, func(sdk.Bus) error {
-				names = append(names, n)
-				return nil
-			}), nil
-		})
-	}
-	reg("agent")
-
-	bus := &BusMock{}
-
-	_, err := WireWithCore(CoreWireConfig{AgentLoop: "loop"}, nil, bus, nil)
-	require.NoError(t, err, "WireWithCore")
-
-	require.Len(t, names, 1)
-	assert.Equal(t, "agent", names[0])
-}
-
-func TestWireWithCore_MapsLoopToAgentAndFiltersLoopFromOptExts(t *testing.T) {
-	sdk.ResetRegistry()
-
-	var names []string
-
-	reg := func(n string) {
-		sdk.RegisterExtension(n, func(_ sdk.Config, _ struct{}) (sdk.Extension, error) {
-			return sdk.NewExtensionFunc(n, func(sdk.Bus) error {
-				names = append(names, n)
-				return nil
-			}), nil
-		})
-	}
-	reg("agent")
-	reg("loop")
-	reg("bash")
-
-	bus := &BusMock{}
-
-	_, err := WireWithCore(CoreWireConfig{AgentLoop: "loop"}, []string{"loop", "bash"}, bus, nil)
-	require.NoError(t, err, "WireWithCore")
-
-	require.Len(t, names, 2)
-	assert.Contains(t, names, "agent")
-	assert.Contains(t, names, "bash")
-	assert.NotContains(t, names, "loop")
-}
-
 type wireTestAuth struct {
 	APIKey string `env:"WIRE_TEST_AUTH_KEY"`
 }

@@ -235,25 +235,6 @@ func TestAutoDiscover_ExcludeList(t *testing.T) {
 	assert.Equal(t, "keep", exts[0].Name)
 }
 
-func TestAutoDiscover_LegacyDenylist(t *testing.T) {
-	projectDir := t.TempDir()
-	homeDir := t.TempDir()
-	moduleRoot := t.TempDir()
-
-	// Create legacy extensions that were merged into agent — they should be skipped
-	createExtension(t, filepath.Join(projectDir, ".weave", "extensions"), "loop", "package loop")
-	createExtension(t, filepath.Join(projectDir, ".weave", "extensions"), "skills", "package skills")
-	createExtension(t, filepath.Join(projectDir, ".weave", "extensions"), "instructions", "package instructions")
-	// Also create a valid extension that should be discovered
-	createExtension(t, filepath.Join(projectDir, ".weave", "extensions"), "keep", "package keep")
-
-	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
-	require.NoError(t, err)
-
-	require.Len(t, exts, 1)
-	assert.Equal(t, "keep", exts[0].Name)
-}
-
 func TestAutoDiscover_SkipsInvalidName(t *testing.T) {
 	projectDir := t.TempDir()
 	homeDir := t.TempDir()

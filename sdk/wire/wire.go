@@ -75,11 +75,6 @@ func Wire(extNames []string, bus sdk.Bus, cfg sdk.Config) (*Wired, error) {
 }
 
 func WireWithCore(core CoreWireConfig, optExts []string, bus sdk.Bus, cfg sdk.Config) (*Wired, error) {
-	// Backward compatibility: the old "loop" extension was merged into "agent".
-	if core.AgentLoop == "loop" {
-		core.AgentLoop = defaultAgentLoop
-	}
-
 	if err := validateCore(core); err != nil {
 		return nil, fmt.Errorf("wire: %w", err)
 	}
@@ -164,12 +159,6 @@ func mergeCoreAndOptional(agentLoop string, optExts []string) []string {
 		// When using a custom agent loop, skip the default "agent" to prevent
 		// concurrent turn execution.
 		if name == defaultAgentLoop && agentLoop != defaultAgentLoop {
-			continue
-		}
-
-		// Legacy "loop" extension was merged into "agent". Skip it to prevent
-		// concurrent agent loops if a legacy installation is still present.
-		if name == "loop" {
 			continue
 		}
 
