@@ -15,8 +15,7 @@ make fix           # Auto-fix linter issues
 make gen           # Regenerate mocks (moq)
 make tools         # Install dev tools (moq, golangci-lint)
 make bench         # Run build benchmarks (cold/warm/partial, with and without TUI)
-make test          # Run root module tests only
-make test-all      # Run root + all extension module tests
+make test          # Run root + all extension module tests
 make tidy          # Run go mod tidy in root and all extension modules
 go test ./launcher/...  # Run tests for a single package
 cd extensions/agent && go test ./...  # Run tests for a single extension module (must cd first)
