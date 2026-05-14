@@ -26,12 +26,14 @@ func (d *DiffViewer) Register(ui sdk.UI) {
 	ui.RegisterRenderer("edit", &diffRenderer{})
 }
 
+// Theme-aligned colors (diff-viewer is an independent extension module
+// and cannot import the TUI palette package).
 var (
-	diffHeaderStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
-	diffHunkStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("5"))
-	diffAddStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
-	diffRemoveStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
-	diffContextStyle = lipgloss.NewStyle().Faint(true)
+	diffHeaderStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("63"))  // theme.Primary
+	diffHunkStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("69"))  // theme.PrimaryBright
+	diffAddStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("84"))  // theme.Success
+	diffRemoveStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("204")) // theme.Error
+	diffContextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245")) // theme.Muted
 )
 
 // diffRenderer renders unified diff output with color coding.

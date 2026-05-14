@@ -573,7 +573,7 @@ func TestModel_ThinkingBlockInChatView(t *testing.T) {
 	m = model.(Model)
 
 	view := m.View()
-	assert.Contains(t, view.Content, "[thinking]")
+	assert.Contains(t, view.Content, "Thinking")
 }
 
 func TestModel_ThinkingBlockWithToolCalls(t *testing.T) {

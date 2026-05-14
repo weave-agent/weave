@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -181,4 +182,16 @@ func TestDiffRenderer_LargeDiff(t *testing.T) {
 	output := r.Render(bldr.String(), 80)
 	assert.Contains(t, output, "old line")
 	assert.Contains(t, output, "new line")
+}
+
+func TestDiffRenderer_UsesThemeColors(t *testing.T) {
+	r := NewDiffRenderer()
+
+	// Verify the renderer uses theme-aligned colors by checking
+	// that styles are set to the expected theme color values.
+	assert.Equal(t, lipgloss.Color("84"), r.addedStyle.GetForeground())
+	assert.Equal(t, lipgloss.Color("204"), r.removedStyle.GetForeground())
+	assert.Equal(t, lipgloss.Color("245"), r.contextStyle.GetForeground())
+	assert.Equal(t, lipgloss.Color("63"), r.headerStyle.GetForeground())
+	assert.Equal(t, lipgloss.Color("69"), r.hunkStyle.GetForeground())
 }

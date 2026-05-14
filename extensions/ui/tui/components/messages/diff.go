@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"weave/ext/ui/tui/palette"
+
 	"charm.land/lipgloss/v2"
 )
 
@@ -105,14 +107,16 @@ type DiffRenderer struct {
 	hunkStyle    lipgloss.Style
 }
 
-// NewDiffRenderer creates a new diff renderer with default colors.
+// NewDiffRenderer creates a new diff renderer with theme colors.
 func NewDiffRenderer() *DiffRenderer {
+	theme := palette.DefaultTheme()
+
 	return &DiffRenderer{
-		addedStyle:   lipgloss.NewStyle().Foreground(lipgloss.Color("2")), // green
-		removedStyle: lipgloss.NewStyle().Foreground(lipgloss.Color("1")), // red
-		contextStyle: lipgloss.NewStyle().Faint(true),                     // dim
-		headerStyle:  lipgloss.NewStyle().Foreground(lipgloss.Color("6")), // cyan
-		hunkStyle:    lipgloss.NewStyle().Foreground(lipgloss.Color("5")), // magenta
+		addedStyle:   lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Success)),
+		removedStyle: lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Error)),
+		contextStyle: lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Muted)),
+		headerStyle:  lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Primary)),
+		hunkStyle:    lipgloss.NewStyle().Foreground(lipgloss.Color(theme.PrimaryBright)),
 	}
 }
 

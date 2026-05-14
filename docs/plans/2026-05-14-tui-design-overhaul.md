@@ -88,16 +88,16 @@ Key benefits:
 - [x] Run all TUI tests — must pass before next task
 
 ### Task 3: Redesign thinking blocks and tool panels
-- [ ] Redesign `ThinkingBlock` in `components/messages/thinking.go`: replace `.Faint(true)` with a styled header including a lightbulb icon and `BackgroundTint` background; expanded state uses indented content with left border
-- [ ] Update `FormatThinkingLabel()` to produce a more prominent collapsed label
-- [ ] Redesign `ToolPanel` in `components/messages/tool.go`: add subtle background tint per state (`22`-like for success, `52`-like for error, `235` for pending); improve header spacing and typography
-- [ ] Keep emoji state indicators (⏳/✓/✗) but improve their visual context
-- [ ] Update `components/messages/diff.go` to use theme colors for diff line kinds
-- [ ] Update `extensions/diff-viewer/diff_viewer.go` to use theme colors
-- [ ] Write tests for thinking block rendering (collapsed and expanded states)
-- [ ] Write tests for tool panel state styling
-- [ ] Write tests for diff renderer color usage
-- [ ] Run all TUI tests — must pass before next task
+- [x] Redesign `ThinkingBlock` in `components/messages/thinking.go`: replace `.Faint(true)` with a styled header including a lightbulb icon and `BackgroundTint` background; expanded state uses indented content with left border
+- [x] Update `FormatThinkingLabel()` to produce a more prominent collapsed label
+- [x] Redesign `ToolPanel` in `components/messages/tool.go`: add subtle background tint per state (`22`-like for success, `52`-like for error, `235` for pending); improve header spacing and typography
+- [x] Keep emoji state indicators (⏳/✓/✗) but improve their visual context
+- [x] Update `components/messages/diff.go` to use theme colors for diff line kinds
+- [x] Update `extensions/diff-viewer/diff_viewer.go` to use theme colors
+- [x] Write tests for thinking block rendering (collapsed and expanded states)
+- [x] Write tests for tool panel state styling
+- [x] Write tests for diff renderer color usage
+- [x] Run all TUI tests — must pass before next task
 
 ### Task 4: Redesign footer, landing screen, and editor
 - [ ] Restructure `FooterModel.renderLine2()` in `components/footer.go`: bold model name in primary color, thinking level as a subtle pill, token counts and cost muted, context percentage with theme threshold colors

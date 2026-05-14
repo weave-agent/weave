@@ -5,12 +5,14 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"weave/ext/ui/tui/palette"
+
 	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 )
 
 // ThinkingBlock renders a collapsible thinking section.
-// Collapsed by default, showing a [thinking] label.
+// Collapsed by default, showing a styled header with lightbulb icon.
 type ThinkingBlock struct {
 	content  string
 	expanded bool
@@ -45,20 +47,36 @@ func (b *ThinkingBlock) View(width int) string {
 		width = 80
 	}
 
-	dimStyle := lipgloss.NewStyle().Faint(true).Width(width - 2)
+	theme := palette.DefaultTheme()
+
+	// Header with background tint and lightbulb icon
+	headerStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(theme.Primary)).
+		Background(lipgloss.Color(theme.BackgroundTint)).
+		Width(width - 2)
 
 	if !b.expanded {
-		return dimStyle.Render(FormatThinkingLabel(b.LineCount()))
+		return headerStyle.Render(FormatThinkingLabel(b.LineCount()))
 	}
 
 	lines := strings.Split(b.content, "\n")
 
 	var bldr strings.Builder
-	bldr.WriteString(dimStyle.Render("  [thinking] ▼"))
+	bldr.WriteString(headerStyle.Render(fmt.Sprintf("💡 Thinking ▼  (%d lines)", b.LineCount())))
 	bldr.WriteString("\n")
 
+	// Expanded content uses indented left border in primary color
+	borderStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(theme.Primary))
+	contentStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(theme.Muted)).
+		Width(width - 4)
+
+	borderBar := borderStyle.Render("│")
+
 	for _, line := range lines {
-		bldr.WriteString(dimStyle.Render("  " + line))
+		styledLine := contentStyle.Render(line)
+		bldr.WriteString("  " + borderBar + " " + styledLine)
 		bldr.WriteString("\n")
 	}
 
@@ -99,11 +117,11 @@ func (b *ThinkingBlock) LineCount() int {
 	return len(strings.Split(b.content, "\n"))
 }
 
-// FormatThinkingLabel creates the collapsed label text.
+// FormatThinkingLabel creates the collapsed label text with a lightbulb icon.
 func FormatThinkingLabel(lineCount int) string {
 	if lineCount <= 0 {
-		return "  [thinking]"
+		return "💡 Thinking"
 	}
 
-	return fmt.Sprintf("  [thinking] (%d lines)", lineCount)
+	return fmt.Sprintf("💡 Thinking  (%d lines)", lineCount)
 }
