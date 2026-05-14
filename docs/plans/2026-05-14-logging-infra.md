@@ -45,12 +45,12 @@ Introduce a unified, file-based logging system that prevents stdout/stderr outpu
 - [x] run root module tests — must pass
 
 ### Task 2: Create sdk.Logger helper
-- [ ] create `sdk/log.go` with:
+- [x] create `sdk/log.go` with:
   - `Logger(name string) *slog.Logger` — returns `slog.Default().With("ext", name)`
-- [ ] create `sdk/log_test.go`:
+- [x] create `sdk/log_test.go`:
   - test Logger adds "ext" attribute
   - test Logger uses current slog default (not cached)
-- [ ] run root module tests — must pass
+- [x] run root module tests — must pass
 
 ### Task 3: Migrate registry warnings from log.Logger to slog callback
 - [ ] modify `sdk/registry/registry.go`:
