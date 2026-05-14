@@ -80,7 +80,10 @@ func TestTUI_WireUIExtensions(t *testing.T) {
 	defer sdk.ResetUIExtensionRegistry()
 
 	ext := &mockUIExtension{name: "test-ext"}
-	sdk.RegisterUIExtension(ext)
+
+	sdk.RegisterUIExtension("test-ext", func(_ sdk.Config, _ struct{}) (sdk.UIExtension, error) {
+		return ext, nil
+	})
 
 	tui, err := NewTUI(nil, TUIConfig{})
 	require.NoError(t, err)
@@ -98,8 +101,12 @@ func TestTUI_WireUIExtensions_Multiple(t *testing.T) {
 	ext1 := &mockUIExtension{name: "ext-one"}
 	ext2 := &mockUIExtension{name: "ext-two"}
 
-	sdk.RegisterUIExtension(ext1)
-	sdk.RegisterUIExtension(ext2)
+	sdk.RegisterUIExtension("ext-one", func(_ sdk.Config, _ struct{}) (sdk.UIExtension, error) {
+		return ext1, nil
+	})
+	sdk.RegisterUIExtension("ext-two", func(_ sdk.Config, _ struct{}) (sdk.UIExtension, error) {
+		return ext2, nil
+	})
 
 	tui, err := NewTUI(nil, TUIConfig{})
 	require.NoError(t, err)
@@ -161,7 +168,10 @@ func TestTUI_WireUIExtensions_WithBus(t *testing.T) {
 	defer sdk.ResetUIExtensionRegistry()
 
 	ext := &mockUIExtensionWithBus{name: "bus-ext"}
-	sdk.RegisterUIExtension(ext)
+
+	sdk.RegisterUIExtension("bus-ext", func(_ sdk.Config, _ struct{}) (sdk.UIExtension, error) {
+		return ext, nil
+	})
 
 	tui, err := NewTUI(nil, TUIConfig{})
 	require.NoError(t, err)
@@ -180,7 +190,10 @@ func TestTUI_WireUIExtensions_PlainExtension_NoBus(t *testing.T) {
 	defer sdk.ResetUIExtensionRegistry()
 
 	ext := &mockUIExtension{name: "plain-ext"}
-	sdk.RegisterUIExtension(ext)
+
+	sdk.RegisterUIExtension("plain-ext", func(_ sdk.Config, _ struct{}) (sdk.UIExtension, error) {
+		return ext, nil
+	})
 
 	tui, err := NewTUI(nil, TUIConfig{})
 	require.NoError(t, err)

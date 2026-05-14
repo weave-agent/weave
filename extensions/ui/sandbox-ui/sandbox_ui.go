@@ -18,7 +18,9 @@ func init() {
 		})
 	})
 
-	sdk.RegisterUIExtension(&SandboxUI{})
+	sdk.RegisterUIExtension("sandbox-ui", func(_ sdk.Config, _ struct{}) (sdk.UIExtension, error) {
+		return &SandboxUI{}, nil
+	})
 }
 
 // SandboxUI is a TUI extension that displays the sandbox mode indicator,

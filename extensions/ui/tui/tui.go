@@ -148,7 +148,7 @@ func (t *TUI) Subscribe(bus sdk.Bus) error {
 // wireUIExtensions registers all UI extensions with the TUI's UI implementation.
 // Extensions that implement UIExtensionWithBus also receive the event bus.
 func (t *TUI) wireUIExtensions(bus sdk.Bus) {
-	for _, ext := range sdk.GetUIExtensions() {
+	for _, ext := range sdk.GetUIExtensions(t.cfg) {
 		ext.Register(t.ui)
 
 		if withBus, ok := ext.(sdk.UIExtensionWithBus); ok {

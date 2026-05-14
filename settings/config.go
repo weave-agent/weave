@@ -428,6 +428,10 @@ func (c *FullConfig) ExtensionConfig(scope, name string, target any) error {
 		if layered.Extensions != nil {
 			raw = layered.Extensions[name]
 		}
+	case "ui_extensions":
+		if layered.UIExtensions != nil {
+			raw = layered.UIExtensions[name]
+		}
 	default:
 		return fmt.Errorf("unknown config scope %q", scope)
 	}

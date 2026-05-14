@@ -114,7 +114,9 @@ func TestWire_SkipsUIExtension(t *testing.T) {
 	sdk.ResetExtensionRegistry()
 	sdk.ResetUIExtensionRegistry()
 
-	sdk.RegisterUIExtension(stubUIExt{name: "diff-viewer"})
+	sdk.RegisterUIExtension("diff-viewer", func(_ sdk.Config, _ struct{}) (sdk.UIExtension, error) {
+		return stubUIExt{name: "diff-viewer"}, nil
+	})
 
 	bus := &BusMock{}
 

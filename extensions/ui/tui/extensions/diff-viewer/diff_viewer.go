@@ -9,7 +9,9 @@ import (
 )
 
 func init() {
-	sdk.RegisterUIExtension(&DiffViewer{})
+	sdk.RegisterUIExtension("diff-viewer", func(_ sdk.Config, _ struct{}) (sdk.UIExtension, error) {
+		return &DiffViewer{}, nil
+	})
 }
 
 // DiffViewer is a UI extension that registers a colorized diff renderer

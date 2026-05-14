@@ -109,12 +109,12 @@ Address architectural, API design, and code quality findings from the SDK review
 
 ### Task 8: Make `RegisterUIExtension` generic with config
 
-- [ ] Change `RegisterUIExtension(name string, ext UIExtension)` to `RegisterUIExtension[TConfig](name string, factory func(Config, TConfig) (UIExtension, error))`
-- [ ] Add schema extraction for UI extension configs
-- [ ] Update existing UI extensions (sandbox-ui, diff-viewer) to use new signature
-- [ ] Update `sdk/wire/` to wire UI extensions with config
-- [ ] Write tests
-- [ ] Run `go test ./sdk/...` — must pass
+- [x] Change `RegisterUIExtension(name string, ext UIExtension)` to `RegisterUIExtension[TConfig](name string, factory func(Config, TConfig) (UIExtension, error))`
+- [x] Add schema extraction for UI extension configs
+- [x] Update existing UI extensions (sandbox-ui, diff-viewer) to use new signature
+- [x] Update `sdk/wire/` to wire UI extensions with config
+- [x] Write tests
+- [x] Run `go test ./sdk/...` — must pass
 
 ### Task 9: Split `Config` into `Config` + `PreferenceStore`
 
