@@ -2,7 +2,7 @@ package bus
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"reflect"
 	"runtime/debug"
 	"slices"
@@ -201,7 +201,7 @@ func (b *Bus) Publish(e sdk.Event) {
 		select {
 		case slot.ch <- e:
 		default:
-			log.Printf("[bus] dropped event on topic %q: handler channel full", e.Topic)
+			slog.Warn("bus: dropped event", "topic", e.Topic, "reason", "handler channel full")
 		}
 	}
 }
@@ -240,7 +240,7 @@ func (b *Bus) invokeHandler(e sdk.Event, h sdk.Handler) {
 	defer func() {
 		if r := recover(); r != nil {
 			stack := debug.Stack()
-			log.Printf("[bus] panic in handler on topic %q: %v\n%s", e.Topic, r, stack)
+				slog.Error("bus: panic in handler", "topic", e.Topic, "error", r, "stack", string(stack))
 
 			if !b.isDiagnosticTopic(e.Topic) {
 				b.publishDiagnostic(b.panicTopic(), fmt.Sprintf("panic: %v", r))
@@ -249,7 +249,7 @@ func (b *Bus) invokeHandler(e sdk.Event, h sdk.Handler) {
 	}()
 
 	if err := h(e); err != nil {
-		log.Printf("[bus] handler error on topic %q: %v", e.Topic, err)
+		slog.Error("bus: handler error", "topic", e.Topic, "error", err)
 
 		if !b.isDiagnosticTopic(e.Topic) {
 			b.publishDiagnostic(b.errorTopic(), err.Error())
@@ -280,7 +280,7 @@ func (b *Bus) publishDiagnostic(topic, msg string) {
 		select {
 		case slot.ch <- ev:
 		default:
-			log.Printf("[bus] dropped diagnostic event on topic %q: handler channel full", topic)
+			slog.Warn("bus: dropped diagnostic event", "topic", topic, "reason", "handler channel full")
 		}
 	}
 }

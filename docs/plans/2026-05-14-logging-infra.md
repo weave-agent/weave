@@ -86,9 +86,9 @@ Introduce a unified, file-based logging system that prevents stdout/stderr outpu
 - [x] run root module tests — must pass
 
 ### Task 7: Verify no stderr leakage during TUI runtime
-- [ ] grep the codebase for remaining `log.Printf` and `fmt.Fprintf(os.Stderr, ...)` in extension code (not launcher fatal errors)
-- [ ] document the standard: extensions must use `slog` or `sdk.Logger()`
-- [ ] run full test suite (`make test-all`) — must pass
+- [x] grep the codebase for remaining `log.Printf` and `fmt.Fprintf(os.Stderr, ...)` in extension code (not launcher fatal errors)
+- [x] document the standard: extensions must use `slog` or `sdk.Logger()`
+- [x] run full test suite (`make test`) — must pass
 
 ### Task 8: Update documentation
 - [ ] update `CLAUDE.md` logging section (if exists) or add a note about `sdk.Logger()`
