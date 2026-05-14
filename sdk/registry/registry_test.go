@@ -1,8 +1,6 @@
 package registry
 
 import (
-	"bytes"
-	"log"
 	"sync"
 	"testing"
 
@@ -37,11 +35,11 @@ func TestRegisterEmptyNamePanics(t *testing.T) {
 }
 
 func TestDuplicateWarn(t *testing.T) {
-	var buf bytes.Buffer
+	var warned []string
 
-	logger := log.New(&buf, "", 0)
-
-	r := New(WithWarn[int](logger, "item"))
+	r := New(WithWarn[int](func(name string) {
+		warned = append(warned, name)
+	}))
 
 	r.Register("x", 1)
 	r.Register("x", 2)
@@ -49,7 +47,7 @@ func TestDuplicateWarn(t *testing.T) {
 	val, ok := r.Get("x")
 	require.True(t, ok)
 	assert.Equal(t, 1, val) // first wins
-	assert.Contains(t, buf.String(), `warning: item "x" already registered; first registration wins`)
+	assert.Equal(t, []string{"x"}, warned)
 }
 
 func TestDuplicateNoOption(t *testing.T) {
@@ -160,18 +158,16 @@ func TestGenericType(t *testing.T) {
 	assert.Equal(t, 10, w.Size)
 }
 
-func TestWithWarnMessageFormat(t *testing.T) {
-	var buf bytes.Buffer
+func TestWithWarnCallbackReceivesName(t *testing.T) {
+	var warned []string
 
-	logger := log.New(&buf, "prefix: ", 0)
-
-	r := New(WithWarn[string](logger, "extension"))
+	r := New(WithWarn[string](func(name string) {
+		warned = append(warned, name)
+	}))
 	r.Register("ext1", "first")
 	r.Register("ext1", "second")
 
-	output := buf.String()
-	assert.Contains(t, output, "prefix:", "should use provided logger prefix")
-	assert.Contains(t, output, `extension "ext1"`, "should include label and name")
+	assert.Equal(t, []string{"ext1"}, warned)
 }
 
 func TestResetThenRegister(t *testing.T) {

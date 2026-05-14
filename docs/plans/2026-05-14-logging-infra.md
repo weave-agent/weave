@@ -53,13 +53,13 @@ Introduce a unified, file-based logging system that prevents stdout/stderr outpu
 - [x] run root module tests — must pass
 
 ### Task 3: Migrate registry warnings from log.Logger to slog callback
-- [ ] modify `sdk/registry/registry.go`:
+- [x] modify `sdk/registry/registry.go`:
   - change `WithWarn` signature from `(*log.Logger, string)` to `(func(name string), string)`
   - `onDup` calls the callback directly instead of `logger.Printf`
-- [ ] modify `sdk/registry.go`, `sdk/provider_registry.go`, `sdk/tool_registry.go`, `sdk/ui_registry.go`, `sdk/ui_ext_registry.go`:
+- [x] modify `sdk/registry.go`, `sdk/provider_registry.go`, `sdk/tool_registry.go`, `sdk/ui_registry.go`, `sdk/ui_ext_registry.go`:
   - replace `log.New(os.Stderr, ...)` with a `func(name string)` that calls `slog.Warn("duplicate registration", "name", name, "kind", label)`
-- [ ] update `sdk/registry/registry_test.go` if tests reference `WithWarn` signature
-- [ ] run root module tests — must pass
+- [x] update `sdk/registry/registry_test.go` if tests reference `WithWarn` signature
+- [x] run root module tests — must pass
 
 ### Task 4: Migrate subagent extension from log.Printf to slog
 - [ ] in `extensions/tools/subagent/discovery.go`:

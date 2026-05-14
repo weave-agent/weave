@@ -1,7 +1,6 @@
 package registry
 
 import (
-	"log"
 	"sort"
 	"sync"
 )
@@ -9,12 +8,10 @@ import (
 // Option configures a Registry's behavior.
 type Option[T any] func(*Registry[T])
 
-// WithWarn configures first-wins behavior with a warning logged on duplicate registration.
-func WithWarn[T any](logger *log.Logger, label string) Option[T] {
+// WithWarn configures first-wins behavior with a warning callback on duplicate registration.
+func WithWarn[T any](warn func(name string)) Option[T] {
 	return func(r *Registry[T]) {
-		r.onDup = func(name string) {
-			logger.Printf("warning: %s %q already registered; first registration wins", label, name)
-		}
+		r.onDup = warn
 	}
 }
 

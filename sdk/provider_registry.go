@@ -2,8 +2,7 @@ package sdk
 
 import (
 	"fmt"
-	"log"
-	"os"
+	"log/slog"
 	"reflect"
 	"strings"
 
@@ -17,7 +16,9 @@ type providerEntry struct {
 }
 
 var providerReg = registry.New[providerEntry](
-	registry.WithWarn[providerEntry](log.New(os.Stderr, "weave: ", 0), "provider"),
+	registry.WithWarn[providerEntry](func(name string) {
+		slog.Warn("duplicate registration", "name", name, "kind", "provider")
+	}),
 )
 
 // RegisterProvider registers a provider factory with typed configuration and auth structs.

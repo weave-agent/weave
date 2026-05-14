@@ -2,8 +2,7 @@ package sdk
 
 import (
 	"fmt"
-	"log"
-	"os"
+	"log/slog"
 	"reflect"
 	"sync"
 
@@ -11,7 +10,9 @@ import (
 )
 
 var toolReg = registry.New[func(Config) (Tool, error)](
-	registry.WithWarn[func(Config) (Tool, error)](log.New(os.Stderr, "weave: ", 0), "tool"),
+	registry.WithWarn[func(Config) (Tool, error)](func(name string) {
+		slog.Warn("duplicate registration", "name", name, "kind", "tool")
+	}),
 )
 
 // RegisterTool registers a tool factory with a typed configuration struct.

@@ -2,14 +2,15 @@ package sdk
 
 import (
 	"fmt"
-	"log"
-	"os"
+	"log/slog"
 
 	"weave/sdk/registry"
 )
 
 var uiReg = registry.New[UI](
-	registry.WithWarn[UI](log.New(os.Stderr, "weave: ", 0), "ui"),
+	registry.WithWarn[UI](func(name string) {
+		slog.Warn("duplicate registration", "name", name, "kind", "ui")
+	}),
 )
 
 func RegisterUI(name string, ui UI) {

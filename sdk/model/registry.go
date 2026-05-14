@@ -2,8 +2,7 @@ package model
 
 import (
 	"cmp"
-	"log"
-	"os"
+	"log/slog"
 	"slices"
 	"sync"
 
@@ -11,7 +10,9 @@ import (
 )
 
 var modelReg = registry.New[ModelDef](
-	registry.WithWarn[ModelDef](log.New(os.Stderr, "weave: ", 0), "model"),
+	registry.WithWarn[ModelDef](func(name string) {
+		slog.Warn("duplicate registration", "name", name, "kind", "model")
+	}),
 )
 
 var (

@@ -2,8 +2,7 @@ package sdk
 
 import (
 	"fmt"
-	"log"
-	"os"
+	"log/slog"
 	"reflect"
 
 	"weave/sdk/registry"
@@ -14,7 +13,9 @@ type uiExtEntry struct {
 }
 
 var uiExtReg = registry.New[uiExtEntry](
-	registry.WithWarn[uiExtEntry](log.New(os.Stderr, "weave: ", 0), "ui extension"),
+	registry.WithWarn[uiExtEntry](func(name string) {
+		slog.Warn("duplicate registration", "name", name, "kind", "ui extension")
+	}),
 )
 
 // RegisterUIExtension registers a UI extension factory with a typed configuration struct.

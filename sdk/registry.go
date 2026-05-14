@@ -2,15 +2,16 @@ package sdk
 
 import (
 	"fmt"
-	"log"
-	"os"
+	"log/slog"
 	"reflect"
 
 	"weave/sdk/registry"
 )
 
 var extReg = registry.New[func(Config) (Extension, error)](
-	registry.WithWarn[func(Config) (Extension, error)](log.New(os.Stderr, "weave: ", 0), "extension"),
+	registry.WithWarn[func(Config) (Extension, error)](func(name string) {
+		slog.Warn("duplicate registration", "name", name, "kind", "extension")
+	}),
 )
 
 // RegisterExtension registers an extension factory with a typed configuration struct.
