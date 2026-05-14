@@ -5,46 +5,42 @@ import (
 
 	"charm.land/lipgloss/v2"
 
+	"weave/ext/ui/tui"
 	"weave/sdk"
 )
 
 func init() {
-	sdk.RegisterUIExtension("diff-viewer", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.UIExtension, error) {
+	tui.RegisterTUIExtension("diff-viewer", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (tui.TUIExtension, error) {
 		return &DiffViewer{}, nil
 	})
 }
 
-// DiffViewer is a UI extension that registers a colorized diff renderer
+// DiffViewer is a TUI extension that registers a theme-aware diff renderer
 // for edit tool output.
 type DiffViewer struct{}
 
 // Name returns the extension name.
 func (d *DiffViewer) Name() string { return "diff-viewer" }
 
-// Register wires the diff renderer into the TUI.
-func (d *DiffViewer) Register(ui sdk.UI) {
-	ui.RegisterRenderer("edit", &diffRenderer{})
+// RegisterTUI wires the rich diff renderer into the TUI.
+func (d *DiffViewer) RegisterTUI(api tui.TUIExtAPI) {
+	api.RegisterRichRenderer("edit", &richDiffRenderer{})
 }
 
-// Theme-aligned colors (diff-viewer is an independent extension module
-// and cannot import the TUI palette package).
-var (
-	diffHeaderStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("63"))  // theme.Primary
-	diffHunkStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("69"))  // theme.PrimaryBright
-	diffAddStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("84"))  // theme.Success
-	diffRemoveStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("204")) // theme.Error
-	diffContextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245")) // theme.Muted
-)
+// richDiffRenderer renders unified diff output with theme-aware color coding.
+type richDiffRenderer struct{}
 
-// diffRenderer renders unified diff output with color coding.
-type diffRenderer struct{}
-
-// Render applies diff color coding to the content. The width parameter is
-// intentionally ignored; lipgloss handles terminal width automatically.
-func (r *diffRenderer) Render(content string, width int) string {
+// Render applies diff color coding using theme-aligned colors.
+func (r *richDiffRenderer) Render(content string, theme sdk.ThemeInfo, width int) string {
 	if content == "" {
 		return ""
 	}
+
+	headerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Primary))
+	hunkStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.PrimaryBright))
+	addStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Success))
+	removeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Error))
+	contextStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Muted))
 
 	lines := strings.Split(content, "\n")
 	var bldr strings.Builder
@@ -58,15 +54,15 @@ func (r *diffRenderer) Render(content string, width int) string {
 
 		switch {
 		case strings.HasPrefix(line, "---") || strings.HasPrefix(line, "+++"):
-			rendered = diffHeaderStyle.Render(line)
+			rendered = headerStyle.Render(line)
 		case strings.HasPrefix(line, "@@"):
-			rendered = diffHunkStyle.Render(line)
+			rendered = hunkStyle.Render(line)
 		case strings.HasPrefix(line, "+"):
-			rendered = diffAddStyle.Render(line)
+			rendered = addStyle.Render(line)
 		case strings.HasPrefix(line, "-"):
-			rendered = diffRemoveStyle.Render(line)
+			rendered = removeStyle.Render(line)
 		default:
-			rendered = diffContextStyle.Render(line)
+			rendered = contextStyle.Render(line)
 		}
 
 		bldr.WriteString(rendered)

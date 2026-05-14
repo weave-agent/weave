@@ -1781,6 +1781,7 @@ func (m Model) refreshEditorCompletion() Model {
 						Value:       s.Value,
 					}
 				}
+
 				comp := m.editor.ShowCompletion(components.CompletionCustom, items, "", lineStart)
 				if comp.Completion().FilteredCount() > 0 {
 					m.editor = comp

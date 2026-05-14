@@ -66,10 +66,23 @@ func (s *SandboxUI) Register(ui sdk.UI) {
 	})
 }
 
-// RegisterWithBus wires the approve dialog to the event bus.
+// RegisterWithBus wires the approve dialog to the event bus and listens for
+// sandbox mode changes to show typed notifications.
 // Implements sdk.UIExtensionWithBus.
 func (s *SandboxUI) RegisterWithBus(ui sdk.UI, bus sdk.Bus) {
 	s.dialog.RegisterWithBus(ui, bus)
+
+	bus.On("sandbox.mode.change", func(ev sdk.Event) error {
+		mode, ok := ev.Payload.(string)
+		if !ok {
+			return nil
+		}
+
+		ui.SetStatus("sandbox", "SB:"+mode)
+		ui.NotifyTyped("Sandbox mode: "+mode, sdk.NotifyInfo)
+
+		return nil
+	})
 }
 
 // currentMode returns the active sandbox mode from the cached Sandboxer.

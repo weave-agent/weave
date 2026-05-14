@@ -12,17 +12,24 @@ import (
 
 // mockUI records calls made to the sdk.UI interface.
 type mockUI struct {
-	statuses  map[string]string
-	bindings  []sdk.Keybinding
-	commands  map[string]func(string) error
-	renderers map[string]sdk.ToolRenderer
+	statuses         map[string]string
+	bindings         []sdk.Keybinding
+	commands         map[string]func(string) error
+	renderers        map[string]sdk.ToolRenderer
+	notifyTypedCalls []notifyTypedCall
+}
+
+type notifyTypedCall struct {
+	message string
+	level   sdk.NotifyLevel
 }
 
 func newMockUI() *mockUI {
 	return &mockUI{
-		statuses:  make(map[string]string),
-		commands:  make(map[string]func(string) error),
-		renderers: make(map[string]sdk.ToolRenderer),
+		statuses:         make(map[string]string),
+		commands:         make(map[string]func(string) error),
+		renderers:        make(map[string]sdk.ToolRenderer),
+		notifyTypedCalls: make([]notifyTypedCall, 0),
 	}
 }
 
@@ -45,12 +52,14 @@ func (m *mockUI) MultiSelect(title string, items []string, _ []bool, _ ...sdk.Se
 func (m *mockUI) Editor(prompt, initial string, _ ...sdk.EditorOption) (string, error) {
 	return "", nil
 }
-func (m *mockUI) SetStatus(key, text string)                        { m.statuses[key] = text }
-func (m *mockUI) Notify(message string)                             {}
-func (m *mockUI) NotifyTyped(message string, level sdk.NotifyLevel) {}
-func (m *mockUI) ShowError(message string)                          {}
-func (m *mockUI) SetWorking(message string)                         {}
-func (m *mockUI) ClearWorking()                                     {}
+func (m *mockUI) SetStatus(key, text string) { m.statuses[key] = text }
+func (m *mockUI) Notify(message string)      {}
+func (m *mockUI) NotifyTyped(message string, level sdk.NotifyLevel) {
+	m.notifyTypedCalls = append(m.notifyTypedCalls, notifyTypedCall{message: message, level: level})
+}
+func (m *mockUI) ShowError(message string)  {}
+func (m *mockUI) SetWorking(message string) {}
+func (m *mockUI) ClearWorking()             {}
 func (m *mockUI) RegisterCommand(name string, handler func(args string) error) {
 	m.commands[name] = handler
 }
@@ -138,4 +147,46 @@ func TestCurrentMode_WithSandboxer(t *testing.T) {
 	setSandboxer(&mockSandboxer{mode: "ask"})
 
 	assert.Equal(t, "ask", currentMode())
+}
+
+func TestSandboxUI_RegisterWithBus_ModeChangeNotification(t *testing.T) {
+	ui := newMockUI()
+	bus := newMockBus()
+
+	s := &SandboxUI{}
+	s.RegisterWithBus(ui, bus)
+
+	bus.Publish(sdk.NewEvent("sandbox.mode.change", "readonly"))
+
+	assert.Equal(t, "SB:readonly", ui.statuses["sandbox"])
+	require.Len(t, ui.notifyTypedCalls, 1)
+	assert.Equal(t, "Sandbox mode: readonly", ui.notifyTypedCalls[0].message)
+	assert.Equal(t, sdk.NotifyInfo, ui.notifyTypedCalls[0].level)
+}
+
+func TestSandboxUI_RegisterWithBus_ModeChangeInvalidPayload(t *testing.T) {
+	ui := newMockUI()
+	bus := newMockBus()
+
+	s := &SandboxUI{}
+	s.RegisterWithBus(ui, bus)
+
+	bus.Publish(sdk.NewEvent("sandbox.mode.change", 42))
+
+	assert.Empty(t, ui.statuses)
+	assert.Empty(t, ui.notifyTypedCalls)
+}
+
+func TestSandboxUI_RegisterWithBus_ModeChangeUpdatesStatus(t *testing.T) {
+	ui := newMockUI()
+	bus := newMockBus()
+
+	s := &SandboxUI{}
+	s.RegisterWithBus(ui, bus)
+
+	bus.Publish(sdk.NewEvent("sandbox.mode.change", "auto"))
+	assert.Equal(t, "SB:auto", ui.statuses["sandbox"])
+
+	bus.Publish(sdk.NewEvent("sandbox.mode.change", "off"))
+	assert.Equal(t, "SB:off", ui.statuses["sandbox"])
 }

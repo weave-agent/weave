@@ -322,4 +322,6 @@ func TestSandboxUI_RegisterWithBus(t *testing.T) {
 
 	// Verify that the approve dialog handler was registered on the bus
 	require.Len(t, bus.handlers["sandbox.approve"], 1, "expected handler for sandbox.approve")
+	// Verify that the mode change handler was also registered
+	require.Len(t, bus.handlers["sandbox.mode.change"], 1, "expected handler for sandbox.mode.change")
 }

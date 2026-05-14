@@ -2,81 +2,75 @@ package diffviewer
 
 import (
 	"testing"
+	"time"
 
+	"weave/ext/ui/tui"
 	"weave/sdk"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// mockUI records calls made to the sdk.UI interface.
-type mockUI struct {
-	renderers map[string]sdk.ToolRenderer
-	commands  map[string]func(string) error
-	bindings  []sdk.Keybinding
+// mockTUIExtAPI records calls made to the TUIExtAPI interface.
+type mockTUIExtAPI struct {
+	richRenderers map[string]tui.RichToolRenderer
 }
 
-func newMockUI() *mockUI {
-	return &mockUI{
-		renderers: make(map[string]sdk.ToolRenderer),
-		commands:  make(map[string]func(string) error),
+func newMockTUIExtAPI() *mockTUIExtAPI {
+	return &mockTUIExtAPI{
+		richRenderers: make(map[string]tui.RichToolRenderer),
 	}
 }
 
-func (m *mockUI) Select(title string, items []string) (int, error)        { return -1, nil }
-func (m *mockUI) Confirm(message string) (bool, error)                    { return false, nil }
-func (m *mockUI) Input(prompt string) (string, error)                     { return "", nil }
-func (m *mockUI) MultiSelect(title string, items []string) ([]int, error) { return nil, nil }
-func (m *mockUI) Editor(prompt, initial string) (string, error)           { return "", nil }
-func (m *mockUI) SetStatus(key, text string)                              {}
-func (m *mockUI) Notify(message string)                                   {}
-func (m *mockUI) NotifyTyped(message string, level sdk.NotifyLevel)       {}
-func (m *mockUI) ShowError(message string)                                {}
-func (m *mockUI) SetWorking(message string)                               {}
-func (m *mockUI) ClearWorking()                                           {}
-func (m *mockUI) RegisterCommand(name string, handler func(args string) error) {
-	m.commands[name] = handler
+func (m *mockTUIExtAPI) ShowPanel(config tui.PanelConfig, drawer tui.PanelDrawer) {}
+func (m *mockTUIExtAPI) HidePanel(id string)                                   {}
+func (m *mockTUIExtAPI) RemovePanel(id string)                                {}
+func (m *mockTUIExtAPI) PanelVisible(id string) bool                          { return false }
+func (m *mockTUIExtAPI) PanelTray() tui.PanelTrayAPI                          { return nil }
+func (m *mockTUIExtAPI) Theme() sdk.ThemeInfo                                 { return sdk.ThemeInfo{} }
+func (m *mockTUIExtAPI) Size() (int, int)                                     { return 0, 0 }
+func (m *mockTUIExtAPI) EditorText() string                                   { return "" }
+func (m *mockTUIExtAPI) SetEditorText(text string)                            {}
+func (m *mockTUIExtAPI) PasteToEditor(text string)                            {}
+func (m *mockTUIExtAPI) RegisterRichRenderer(tool string, renderer tui.RichToolRenderer) {
+	m.richRenderers[tool] = renderer
 }
-
-func (m *mockUI) RegisterRenderer(toolName string, renderer sdk.ToolRenderer) {
-	m.renderers[toolName] = renderer
-}
-
-func (m *mockUI) RegisterKeybinding(kb sdk.Keybinding) {
-	m.bindings = append(m.bindings, kb)
-}
-
-func (m *mockUI) SetTheme(name string) error { return nil }
-func (m *mockUI) ListThemes() []string       { return nil }
+func (m *mockTUIExtAPI) RegisterMessageRenderer(msgType string, renderer tui.MessageRenderer) {}
+func (m *mockTUIExtAPI) SetFooter(component tui.TUIComponent)                                {}
+func (m *mockTUIExtAPI) SetHeader(component tui.TUIComponent)                                {}
+func (m *mockTUIExtAPI) OnTerminalInput(handler func(tui.KeyEvent))                          {}
+func (m *mockTUIExtAPI) AddAutocomplete(provider tui.AutocompleteProvider)                     {}
+func (m *mockTUIExtAPI) SetWorkingFrames(frames []string, interval time.Duration)             {}
+func (m *mockTUIExtAPI) RegisterTheme(name string, theme tui.ThemeDef) error                  { return nil }
 
 func TestDiffViewer_Name(t *testing.T) {
 	dv := &DiffViewer{}
 	assert.Equal(t, "diff-viewer", dv.Name())
 }
 
-func TestDiffViewer_Register(t *testing.T) {
+func TestDiffViewer_RegisterTUI(t *testing.T) {
 	dv := &DiffViewer{}
-	ui := newMockUI()
+	api := newMockTUIExtAPI()
 
-	dv.Register(ui)
+	dv.RegisterTUI(api)
 
-	renderer, ok := ui.renderers["edit"]
+	renderer, ok := api.richRenderers["edit"]
 	require.True(t, ok, "expected edit renderer to be registered")
 	assert.NotNil(t, renderer)
 }
 
-func TestDiffViewer_Register_NoOtherRenderers(t *testing.T) {
+func TestDiffViewer_RegisterTUI_NoOtherRenderers(t *testing.T) {
 	dv := &DiffViewer{}
-	ui := newMockUI()
+	api := newMockTUIExtAPI()
 
-	dv.Register(ui)
+	dv.RegisterTUI(api)
 
-	assert.Len(t, ui.renderers, 1, "expected exactly one renderer to be registered")
-	assert.Contains(t, ui.renderers, "edit")
+	assert.Len(t, api.richRenderers, 1, "expected exactly one renderer to be registered")
+	assert.Contains(t, api.richRenderers, "edit")
 }
 
-func TestDiffRenderer_Render(t *testing.T) {
-	r := &diffRenderer{}
+func TestRichDiffRenderer_Render(t *testing.T) {
+	r := &richDiffRenderer{}
 
 	input := `--- a/main.go
 +++ b/main.go
@@ -89,7 +83,15 @@ func TestDiffRenderer_Render(t *testing.T) {
  }
 `
 
-	result := r.Render(input, 80)
+	theme := sdk.ThemeInfo{
+		Primary:       "63",
+		PrimaryBright: "69",
+		Success:       "84",
+		Error:         "204",
+		Muted:         "245",
+	}
+
+	result := r.Render(input, theme, 80)
 
 	// Result should contain the original content (with ANSI styling)
 	assert.Contains(t, result, "--- a/main.go")
@@ -99,17 +101,49 @@ func TestDiffRenderer_Render(t *testing.T) {
 	assert.Contains(t, result, `fmt.Println("world")`)
 }
 
-func TestDiffRenderer_RenderEmpty(t *testing.T) {
-	r := &diffRenderer{}
-	result := r.Render("", 80)
+func TestRichDiffRenderer_RenderEmpty(t *testing.T) {
+	r := &richDiffRenderer{}
+	result := r.Render("", sdk.ThemeInfo{}, 80)
 	assert.Equal(t, "", result)
 }
 
-func TestDiffRenderer_RenderNonDiff(t *testing.T) {
-	r := &diffRenderer{}
+func TestRichDiffRenderer_RenderNonDiff(t *testing.T) {
+	r := &richDiffRenderer{}
 	input := "some plain text\nwithout diff markers"
-	result := r.Render(input, 80)
+	theme := sdk.ThemeInfo{Muted: "245"}
+
+	result := r.Render(input, theme, 80)
 
 	// Should still render (as faint context lines)
 	assert.Contains(t, result, "some plain text")
+}
+
+func TestRichDiffRenderer_UsesThemeColors(t *testing.T) {
+	r := &richDiffRenderer{}
+
+	theme := sdk.ThemeInfo{
+		Primary:       "99",
+		PrimaryBright: "135",
+		Success:       "120",
+		Error:         "198",
+		Muted:         "240",
+	}
+
+	input := `--- a/file.go
++++ b/file.go
+@@ -1,2 +1,2 @@
+-old line
++new line
+ context
+`
+
+	result := r.Render(input, theme, 80)
+
+	// All content should be present with styling applied
+	assert.Contains(t, result, "--- a/file.go")
+	assert.Contains(t, result, "+++ b/file.go")
+	assert.Contains(t, result, "@@ -1,2 +1,2 @@")
+	assert.Contains(t, result, "-old line")
+	assert.Contains(t, result, "+new line")
+	assert.Contains(t, result, "context")
 }

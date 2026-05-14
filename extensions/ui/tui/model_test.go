@@ -3019,8 +3019,7 @@ func TestModel_EditorTextRequestMsg_RespondsWithValue(t *testing.T) {
 	m.editor = m.editor.SetValue("editor contents")
 
 	resp := make(chan string, 1)
-	updated, _ := m.Update(editorTextRequestMsg{response: resp})
-	m = updated.(Model)
+	_, _ = m.Update(editorTextRequestMsg{response: resp})
 
 	select {
 	case text := <-resp:
@@ -3066,6 +3065,7 @@ func TestModel_CustomFooterDrawn(t *testing.T) {
 	m.height = 24
 
 	var drawn bool
+
 	m.customFooter = &mockDrawComponent{drawFn: func(_ uv.Screen, _ uv.Rectangle) {
 		drawn = true
 	}}
@@ -3082,6 +3082,7 @@ func TestModel_CustomHeaderDrawn(t *testing.T) {
 	m.height = 24
 
 	var drawn bool
+
 	m.customHeader = &mockDrawComponent{drawFn: func(_ uv.Screen, _ uv.Rectangle) {
 		drawn = true
 	}}
@@ -3098,12 +3099,12 @@ func TestModel_InputHandlersInvokedOnKeyPress(t *testing.T) {
 	m.ui = ui
 
 	var received KeyEvent
+
 	ui.OnTerminalInput(func(ev KeyEvent) {
 		received = ev
 	})
 
-	updated, _ := m.Update(tea.KeyPressMsg{Text: "x", Code: 'x'})
-	m = updated.(Model)
+	_, _ = m.Update(tea.KeyPressMsg{Text: "x", Code: 'x'})
 
 	assert.Equal(t, 'x', received.Code)
 }
@@ -3142,7 +3143,7 @@ func TestModel_RichRendererPreferredOverStandard(t *testing.T) {
 	m = model.(Model)
 
 	model, _ = m.Update(MessageEndMsg{
-		Content: "using tool",
+		Content:   "using tool",
 		ToolCalls: []sdk.ToolCall{{ID: "tc1", Name: "test-tool", Arguments: nil}},
 	})
 	m = model.(Model)

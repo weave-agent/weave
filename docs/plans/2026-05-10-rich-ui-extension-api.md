@@ -298,10 +298,10 @@ When active, overlay dialogs dock at bottom of chat area instead of centered ove
 
 ### Task 10: Update existing extensions to use new API
 
-- [ ] update `sandbox-ui` extension to use `NotifyTyped` for mode change messages
-- [ ] update `diff-viewer` extension to use `RegisterRichRenderer` for themed diff output
-- [ ] write tests verifying updated extensions still register correctly
-- [ ] run `make test` — must pass before next task
+- [x] update `sandbox-ui` extension to use `NotifyTyped` for mode change messages
+- [x] update `diff-viewer` extension to use `RegisterRichRenderer` for themed diff output
+- [x] write tests verifying updated extensions still register correctly
+- [x] run `make test` — must pass before next task
 
 ### Task 11: Verify acceptance criteria
 

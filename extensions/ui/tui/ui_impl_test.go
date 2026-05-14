@@ -1454,6 +1454,7 @@ func TestTUIImpl_EditorText(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return len(sender.msgs) == 1
 	}, time.Second, 10*time.Millisecond)
+
 	msg, ok := sender.msgs[0].(editorTextRequestMsg)
 	require.True(t, ok)
 
@@ -1584,6 +1585,7 @@ func TestTUIImpl_OnTerminalInput(t *testing.T) {
 	ui := NewTUIImpl(nil, nil)
 
 	var received KeyEvent
+
 	ui.OnTerminalInput(func(ev KeyEvent) {
 		received = ev
 	})
