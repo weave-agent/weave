@@ -151,7 +151,7 @@ func hashMdFiles(h hash.Hash, ext ExtensionInfo) error {
 		// Build root-scoped path to avoid symlink TOCTOU (gosec G122).
 		data, readErr := os.ReadFile(filepath.Join(ext.Dir, rel))
 		if readErr != nil {
-			return nil //nolint:nilerr // skip unreadable files
+			return fmt.Errorf("hash md file %s: %w", path, readErr)
 		}
 
 		h.Write(data)
@@ -549,7 +549,11 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 	b.WriteString("\t}\n")
 	b.WriteString("\tcfg = sdk.HeadlessConfig{Config: cfg, Headless: headless}\n\n")
 	b.WriteString("\t// Setup file logging\n")
-	b.WriteString("\thomeDir, _ := os.UserHomeDir()\n")
+	b.WriteString("\thomeDir, err := os.UserHomeDir()\n")
+	b.WriteString("\tif err != nil {\n")
+	b.WriteString("\t\tfmt.Fprintf(os.Stderr, \"weave: get home directory: %v\\n\", err)\n")
+	b.WriteString("\t\tos.Exit(1)\n")
+	b.WriteString("\t}\n")
 	b.WriteString("\tlogDir := filepath.Join(homeDir, \".weave\", \"logs\")\n")
 	b.WriteString("\tlogFile := filepath.Join(logDir, \"weave.log\")\n")
 	b.WriteString("\tdebug := false\n")
@@ -565,7 +569,10 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 	b.WriteString("\tif headless {\n")
 	b.WriteString("\t\textraWriters = append(extraWriters, os.Stderr)\n")
 	b.WriteString("\t}\n")
-	b.WriteString("\tlog.Setup(logFile, debug, extraWriters...)\n\n")
+	b.WriteString("\tif err := log.Setup(logFile, debug, extraWriters...); err != nil {\n")
+	b.WriteString("\t\tfmt.Fprintf(os.Stderr, \"weave: setup logging: %v\\n\", err)\n")
+	b.WriteString("\t\tos.Exit(1)\n")
+	b.WriteString("\t}\n\n")
 
 	optExtNames := make([]string, 0, len(exts))
 	for _, ext := range exts {

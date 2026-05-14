@@ -16,7 +16,8 @@ func TestSetupCreatesDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 	logFile := filepath.Join(tmpDir, "logs", "weave.log")
 
-	Setup(logFile, false)
+	err := Setup(logFile, false)
+	require.NoError(t, err)
 
 	defer func() {
 		setupOnce = sync.Once{}
@@ -25,7 +26,7 @@ func TestSetupCreatesDirectory(t *testing.T) {
 		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	}()
 
-	_, err := os.Stat(filepath.Dir(logFile))
+	_, err = os.Stat(filepath.Dir(logFile))
 	assert.NoError(t, err, "log directory should be created")
 }
 
@@ -33,7 +34,8 @@ func TestSetupWritesLogFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	logFile := filepath.Join(tmpDir, "weave.log")
 
-	Setup(logFile, false)
+	err := Setup(logFile, false)
+	require.NoError(t, err)
 
 	defer func() {
 		setupOnce = sync.Once{}
@@ -56,7 +58,8 @@ func TestSetupDebugFlag(t *testing.T) {
 
 	var buf bytes.Buffer
 
-	Setup(logFile, true, &buf)
+	err := Setup(logFile, true, &buf)
+	require.NoError(t, err)
 
 	defer func() {
 		setupOnce = sync.Once{}
@@ -77,7 +80,8 @@ func TestSetupInfoLevelIgnoresDebug(t *testing.T) {
 	tmpDir := t.TempDir()
 	logFile := filepath.Join(tmpDir, "weave-info.log")
 
-	Setup(logFile, false)
+	err := Setup(logFile, false)
+	require.NoError(t, err)
 
 	defer func() {
 		setupOnce = sync.Once{}
@@ -101,7 +105,8 @@ func TestInitializedAfterSetup(t *testing.T) {
 
 	assert.False(t, Initialized())
 
-	Setup(logFile, false)
+	err := Setup(logFile, false)
+	require.NoError(t, err)
 
 	defer func() {
 		setupOnce = sync.Once{}
@@ -120,7 +125,8 @@ func TestSetupOnce(t *testing.T) {
 
 	var buf1 bytes.Buffer
 
-	Setup(logFile1, false, &buf1)
+	err := Setup(logFile1, false, &buf1)
+	require.NoError(t, err)
 
 	defer func() {
 		setupOnce = sync.Once{}
@@ -134,7 +140,8 @@ func TestSetupOnce(t *testing.T) {
 	// Second call should be ignored
 	var buf2 bytes.Buffer
 
-	Setup(logFile2, true, &buf2)
+	err = Setup(logFile2, true, &buf2)
+	require.NoError(t, err)
 
 	slog.Info("second")
 

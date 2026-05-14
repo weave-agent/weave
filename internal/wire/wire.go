@@ -5,7 +5,7 @@ package wire
 import (
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"slices"
 
@@ -81,7 +81,7 @@ func WireExtensions(extNames []string, bus sdk.Bus, cfg sdk.Config) (*Wired, err
 	for _, name := range sdk.ListProviders() {
 		hasAuth, err := sdk.CheckProviderAuth(name)
 		if err != nil {
-			log.Printf("weave: check auth for %s: %v", name, err)
+			slog.Warn("check auth failed", "provider", name, "error", err)
 		}
 
 		model.SetProviderAuth(name, hasAuth)

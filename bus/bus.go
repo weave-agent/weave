@@ -197,12 +197,18 @@ func (b *Bus) Publish(e sdk.Event) {
 
 	slots := b.collectSubscribers(e.Topic)
 
+	var dropped bool
+
 	for _, slot := range slots {
 		select {
 		case slot.ch <- e:
 		default:
-			slog.Warn("bus: dropped event", "topic", e.Topic, "reason", "handler channel full")
+			dropped = true
 		}
+	}
+
+	if dropped {
+		slog.Warn("bus: dropped event", "topic", e.Topic, "reason", "handler channel full")
 	}
 }
 

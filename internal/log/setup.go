@@ -1,6 +1,7 @@
 package log
 
 import (
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -20,11 +21,16 @@ var (
 // log file via lumberjack. Optional extra writers are combined with the file
 // output. The default log level is Info; debug sets it to Debug.
 // Setup is safe to call multiple times — only the first call has effect.
-func Setup(logFile string, debug bool, extraWriters ...io.Writer) {
+func Setup(logFile string, debug bool, extraWriters ...io.Writer) error {
+	var setupErr error
+
 	setupOnce.Do(func() {
 		dir := filepath.Dir(logFile)
 		if dir != "" && dir != "." {
-			_ = os.MkdirAll(dir, 0o750)
+			if err := os.MkdirAll(dir, 0o750); err != nil {
+				setupErr = fmt.Errorf("create log directory: %w", err)
+				return
+			}
 		}
 
 		lj := &lumberjack.Logger{
@@ -48,6 +54,8 @@ func Setup(logFile string, debug bool, extraWriters ...io.Writer) {
 		slog.SetDefault(slog.New(handler))
 		initialized.Store(true)
 	})
+
+	return setupErr
 }
 
 // Initialized returns true if Setup has been called successfully.
