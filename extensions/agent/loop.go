@@ -166,7 +166,7 @@ func (a *AgentExtension) run(
 					"args": tc.Arguments,
 				}))
 
-				result, err := executeTool(turnCtx, a.cfg, tc)
+				result, err := executeTool(turnCtx, bus, a.cfg, tc)
 				if err != nil {
 					result = sdk.ToolResult{Content: err.Error(), IsError: true}
 				}
@@ -455,11 +455,13 @@ func streamTurn(ctx context.Context, bus sdk.Bus, provider sdk.Provider, message
 	return resp, toolCalls, nil
 }
 
-func executeTool(ctx context.Context, cfg sdk.Config, tc sdk.ToolCall) (sdk.ToolResult, error) {
+func executeTool(ctx context.Context, bus sdk.Bus, cfg sdk.Config, tc sdk.ToolCall) (sdk.ToolResult, error) {
 	tool, err := sdk.GetTool(tc.Name, cfg)
 	if err != nil {
 		return sdk.ToolResult{}, fmt.Errorf("tool %q not found: %w", tc.Name, err)
 	}
+
+	ctx = sdk.WithBus(ctx, bus)
 
 	result, err := tool.Execute(ctx, tc.Arguments)
 	if err != nil {

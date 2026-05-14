@@ -49,7 +49,7 @@ var _ Config = &ConfigMock{}
 //	}
 type ConfigMock struct {
 	// ExtensionConfigFunc mocks the ExtensionConfig method.
-	ExtensionConfigFunc func(scope string, name string, target any, envPrefix string) error
+	ExtensionConfigFunc func(scope, name string, target any, envPrefix string) error
 
 	// FilePathFunc mocks the FilePath method.
 	FilePathFunc func() string
@@ -70,7 +70,7 @@ type ConfigMock struct {
 	SavePreferencesFunc func(target any) error
 
 	// SaveProviderKeyFunc mocks the SaveProviderKey method.
-	SaveProviderKeyFunc func(providerName string, apiKey string) error
+	SaveProviderKeyFunc func(providerName, apiKey string) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -86,22 +86,18 @@ type ConfigMock struct {
 			EnvPrefix string
 		}
 		// FilePath holds details about calls to the FilePath method.
-		FilePath []struct {
-		}
+		FilePath []struct{}
 		// IsHeadless holds details about calls to the IsHeadless method.
-		IsHeadless []struct {
-		}
+		IsHeadless []struct{}
 		// Preferences holds details about calls to the Preferences method.
 		Preferences []struct {
 			// Target is the target argument value.
 			Target any
 		}
 		// ProjectDir holds details about calls to the ProjectDir method.
-		ProjectDir []struct {
-		}
+		ProjectDir []struct{}
 		// RespectGitignore holds details about calls to the RespectGitignore method.
-		RespectGitignore []struct {
-		}
+		RespectGitignore []struct{}
 		// SavePreferences holds details about calls to the SavePreferences method.
 		SavePreferences []struct {
 			// Target is the target argument value.
@@ -126,7 +122,7 @@ type ConfigMock struct {
 }
 
 // ExtensionConfig calls ExtensionConfigFunc.
-func (mock *ConfigMock) ExtensionConfig(scope string, name string, target any, envPrefix string) error {
+func (mock *ConfigMock) ExtensionConfig(scope, name string, target any, envPrefix string) error {
 	callInfo := struct {
 		Scope     string
 		Name      string
@@ -138,15 +134,17 @@ func (mock *ConfigMock) ExtensionConfig(scope string, name string, target any, e
 		Target:    target,
 		EnvPrefix: envPrefix,
 	}
+
 	mock.lockExtensionConfig.Lock()
 	mock.calls.ExtensionConfig = append(mock.calls.ExtensionConfig, callInfo)
 	mock.lockExtensionConfig.Unlock()
+
 	if mock.ExtensionConfigFunc == nil {
-		var (
-			errOut error
-		)
+		var errOut error
+
 		return errOut
 	}
+
 	return mock.ExtensionConfigFunc(scope, name, target, envPrefix)
 }
 
@@ -166,25 +164,28 @@ func (mock *ConfigMock) ExtensionConfigCalls() []struct {
 		Target    any
 		EnvPrefix string
 	}
+
 	mock.lockExtensionConfig.RLock()
 	calls = mock.calls.ExtensionConfig
 	mock.lockExtensionConfig.RUnlock()
+
 	return calls
 }
 
 // FilePath calls FilePathFunc.
 func (mock *ConfigMock) FilePath() string {
-	callInfo := struct {
-	}{}
+	callInfo := struct{}{}
+
 	mock.lockFilePath.Lock()
 	mock.calls.FilePath = append(mock.calls.FilePath, callInfo)
 	mock.lockFilePath.Unlock()
+
 	if mock.FilePathFunc == nil {
-		var (
-			sOut string
-		)
+		var sOut string
+
 		return sOut
 	}
+
 	return mock.FilePathFunc()
 }
 
@@ -192,29 +193,30 @@ func (mock *ConfigMock) FilePath() string {
 // Check the length with:
 //
 //	len(mockedConfig.FilePathCalls())
-func (mock *ConfigMock) FilePathCalls() []struct {
-} {
-	var calls []struct {
-	}
+func (mock *ConfigMock) FilePathCalls() []struct{} {
+	var calls []struct{}
+
 	mock.lockFilePath.RLock()
 	calls = mock.calls.FilePath
 	mock.lockFilePath.RUnlock()
+
 	return calls
 }
 
 // IsHeadless calls IsHeadlessFunc.
 func (mock *ConfigMock) IsHeadless() bool {
-	callInfo := struct {
-	}{}
+	callInfo := struct{}{}
+
 	mock.lockIsHeadless.Lock()
 	mock.calls.IsHeadless = append(mock.calls.IsHeadless, callInfo)
 	mock.lockIsHeadless.Unlock()
+
 	if mock.IsHeadlessFunc == nil {
-		var (
-			bOut bool
-		)
+		var bOut bool
+
 		return bOut
 	}
+
 	return mock.IsHeadlessFunc()
 }
 
@@ -222,13 +224,13 @@ func (mock *ConfigMock) IsHeadless() bool {
 // Check the length with:
 //
 //	len(mockedConfig.IsHeadlessCalls())
-func (mock *ConfigMock) IsHeadlessCalls() []struct {
-} {
-	var calls []struct {
-	}
+func (mock *ConfigMock) IsHeadlessCalls() []struct{} {
+	var calls []struct{}
+
 	mock.lockIsHeadless.RLock()
 	calls = mock.calls.IsHeadless
 	mock.lockIsHeadless.RUnlock()
+
 	return calls
 }
 
@@ -239,15 +241,17 @@ func (mock *ConfigMock) Preferences(target any) error {
 	}{
 		Target: target,
 	}
+
 	mock.lockPreferences.Lock()
 	mock.calls.Preferences = append(mock.calls.Preferences, callInfo)
 	mock.lockPreferences.Unlock()
+
 	if mock.PreferencesFunc == nil {
-		var (
-			errOut error
-		)
+		var errOut error
+
 		return errOut
 	}
+
 	return mock.PreferencesFunc(target)
 }
 
@@ -261,25 +265,28 @@ func (mock *ConfigMock) PreferencesCalls() []struct {
 	var calls []struct {
 		Target any
 	}
+
 	mock.lockPreferences.RLock()
 	calls = mock.calls.Preferences
 	mock.lockPreferences.RUnlock()
+
 	return calls
 }
 
 // ProjectDir calls ProjectDirFunc.
 func (mock *ConfigMock) ProjectDir() string {
-	callInfo := struct {
-	}{}
+	callInfo := struct{}{}
+
 	mock.lockProjectDir.Lock()
 	mock.calls.ProjectDir = append(mock.calls.ProjectDir, callInfo)
 	mock.lockProjectDir.Unlock()
+
 	if mock.ProjectDirFunc == nil {
-		var (
-			sOut string
-		)
+		var sOut string
+
 		return sOut
 	}
+
 	return mock.ProjectDirFunc()
 }
 
@@ -287,29 +294,30 @@ func (mock *ConfigMock) ProjectDir() string {
 // Check the length with:
 //
 //	len(mockedConfig.ProjectDirCalls())
-func (mock *ConfigMock) ProjectDirCalls() []struct {
-} {
-	var calls []struct {
-	}
+func (mock *ConfigMock) ProjectDirCalls() []struct{} {
+	var calls []struct{}
+
 	mock.lockProjectDir.RLock()
 	calls = mock.calls.ProjectDir
 	mock.lockProjectDir.RUnlock()
+
 	return calls
 }
 
 // RespectGitignore calls RespectGitignoreFunc.
 func (mock *ConfigMock) RespectGitignore() bool {
-	callInfo := struct {
-	}{}
+	callInfo := struct{}{}
+
 	mock.lockRespectGitignore.Lock()
 	mock.calls.RespectGitignore = append(mock.calls.RespectGitignore, callInfo)
 	mock.lockRespectGitignore.Unlock()
+
 	if mock.RespectGitignoreFunc == nil {
-		var (
-			bOut bool
-		)
+		var bOut bool
+
 		return bOut
 	}
+
 	return mock.RespectGitignoreFunc()
 }
 
@@ -317,13 +325,13 @@ func (mock *ConfigMock) RespectGitignore() bool {
 // Check the length with:
 //
 //	len(mockedConfig.RespectGitignoreCalls())
-func (mock *ConfigMock) RespectGitignoreCalls() []struct {
-} {
-	var calls []struct {
-	}
+func (mock *ConfigMock) RespectGitignoreCalls() []struct{} {
+	var calls []struct{}
+
 	mock.lockRespectGitignore.RLock()
 	calls = mock.calls.RespectGitignore
 	mock.lockRespectGitignore.RUnlock()
+
 	return calls
 }
 
@@ -334,15 +342,17 @@ func (mock *ConfigMock) SavePreferences(target any) error {
 	}{
 		Target: target,
 	}
+
 	mock.lockSavePreferences.Lock()
 	mock.calls.SavePreferences = append(mock.calls.SavePreferences, callInfo)
 	mock.lockSavePreferences.Unlock()
+
 	if mock.SavePreferencesFunc == nil {
-		var (
-			errOut error
-		)
+		var errOut error
+
 		return errOut
 	}
+
 	return mock.SavePreferencesFunc(target)
 }
 
@@ -356,14 +366,16 @@ func (mock *ConfigMock) SavePreferencesCalls() []struct {
 	var calls []struct {
 		Target any
 	}
+
 	mock.lockSavePreferences.RLock()
 	calls = mock.calls.SavePreferences
 	mock.lockSavePreferences.RUnlock()
+
 	return calls
 }
 
 // SaveProviderKey calls SaveProviderKeyFunc.
-func (mock *ConfigMock) SaveProviderKey(providerName string, apiKey string) error {
+func (mock *ConfigMock) SaveProviderKey(providerName, apiKey string) error {
 	callInfo := struct {
 		ProviderName string
 		ApiKey       string
@@ -371,15 +383,17 @@ func (mock *ConfigMock) SaveProviderKey(providerName string, apiKey string) erro
 		ProviderName: providerName,
 		ApiKey:       apiKey,
 	}
+
 	mock.lockSaveProviderKey.Lock()
 	mock.calls.SaveProviderKey = append(mock.calls.SaveProviderKey, callInfo)
 	mock.lockSaveProviderKey.Unlock()
+
 	if mock.SaveProviderKeyFunc == nil {
-		var (
-			errOut error
-		)
+		var errOut error
+
 		return errOut
 	}
+
 	return mock.SaveProviderKeyFunc(providerName, apiKey)
 }
 
@@ -395,8 +409,10 @@ func (mock *ConfigMock) SaveProviderKeyCalls() []struct {
 		ProviderName string
 		ApiKey       string
 	}
+
 	mock.lockSaveProviderKey.RLock()
 	calls = mock.calls.SaveProviderKey
 	mock.lockSaveProviderKey.RUnlock()
+
 	return calls
 }

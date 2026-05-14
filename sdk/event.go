@@ -17,6 +17,12 @@ func NewEvent(topic string, payload any) Event {
 	}
 }
 
+// ReadDonePayload is the payload for the "tool.read.done" bus event.
+type ReadDonePayload struct {
+	Path    string    `json:"path"`
+	ModTime time.Time `json:"mod_time"`
+}
+
 // OutdatedInfo describes a single extension that has a newer version available.
 type OutdatedInfo struct {
 	Name       string

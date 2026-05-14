@@ -293,3 +293,71 @@ func (ts *testSandboxer) AllowRead(path string) bool {
 
 func (ts *testSandboxer) Mode() string   { return "auto" }
 func (ts *testSandboxer) SetMode(string) {}
+
+func TestExecuteNoop(t *testing.T) {
+	tool := &tool{}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "noop.txt")
+	content := "identical content\nwith newlines"
+
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+
+	modTime := info.ModTime()
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"path":    path,
+		"content": content,
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+	assert.Contains(t, result.Content, "already contains the exact content")
+	assert.Contains(t, result.Content, path)
+
+	// Verify file was not touched (mod time unchanged)
+	info, err = os.Stat(path)
+	require.NoError(t, err)
+	assert.Equal(t, fs.FileMode(0o644), info.Mode().Perm())
+	assert.Equal(t, modTime, info.ModTime())
+}
+
+func TestExecuteNoopDifferentContent(t *testing.T) {
+	tool := &tool{}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "overwrite.txt")
+
+	require.NoError(t, os.WriteFile(path, []byte("original content"), 0o644))
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"path":    path,
+		"content": "new content",
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+	assert.Contains(t, result.Content, "wrote 11 bytes")
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, "new content", string(data))
+}
+
+func TestExecuteNoopNewFile(t *testing.T) {
+	tool := &tool{}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "brandnew.txt")
+	content := "new file content"
+
+	result, err := tool.Execute(context.Background(), map[string]any{
+		"path":    path,
+		"content": content,
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+	assert.Contains(t, result.Content, "wrote 16 bytes")
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, content, string(data))
+}

@@ -5,8 +5,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
+	"weave/bus"
 	"weave/sdk"
 
 	"github.com/stretchr/testify/assert"
@@ -140,6 +143,35 @@ func TestExecute(t *testing.T) {
 		assert.Empty(t, result.Content)
 	})
 
+	t.Run("offset beyond file length", func(t *testing.T) {
+		path := filepath.Join(tmpDir, "short.txt")
+		content := "first\nsecond\nthird"
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+
+		result, err := tool.Execute(context.Background(), map[string]any{
+			"path":   path,
+			"offset": float64(100),
+		})
+		require.NoError(t, err)
+		assert.False(t, result.IsError)
+		assert.Empty(t, result.Content)
+	})
+
+	t.Run("limit of zero returns all lines", func(t *testing.T) {
+		path := filepath.Join(tmpDir, "limitzero.txt")
+		content := "a\nb\nc\nd\ne"
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+
+		result, err := tool.Execute(context.Background(), map[string]any{
+			"path":  path,
+			"limit": float64(0),
+		})
+		require.NoError(t, err)
+		assert.False(t, result.IsError)
+		assert.Contains(t, result.Content, "1\ta")
+		assert.Contains(t, result.Content, "5\te")
+	})
+
 	t.Run("large file truncation", func(t *testing.T) {
 		path := filepath.Join(tmpDir, "large.txt")
 
@@ -236,6 +268,216 @@ func TestExecuteSandboxNil(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, result.IsError)
 	assert.Contains(t, result.Content, "normal data")
+}
+
+func TestExecuteNormalizedPath(t *testing.T) {
+	tool := &tool{}
+	dir := t.TempDir()
+
+	t.Run("curly quotes normalized to straight quotes", func(t *testing.T) {
+		// Create file with straight quotes on disk
+		actualPath := filepath.Join(dir, `"quoted".txt`)
+		require.NoError(t, os.WriteFile(actualPath, []byte("quoted content"), 0o644))
+
+		// Try to read with curly quotes
+		curlyPath := filepath.Join(dir, "“quoted”.txt")
+		result, err := tool.Execute(context.Background(), map[string]any{"path": curlyPath})
+		require.NoError(t, err)
+		assert.False(t, result.IsError)
+		assert.Contains(t, result.Content, "quoted content")
+	})
+
+	t.Run("unicode spaces normalized to regular space", func(t *testing.T) {
+		// Create file with regular spaces on disk
+		actualPath := filepath.Join(dir, "spaced file.txt")
+		require.NoError(t, os.WriteFile(actualPath, []byte("spaced content"), 0o644))
+
+		// Try to read with non-breaking spaces
+		nbspPath := filepath.Join(dir, "spaced file.txt")
+		result, err := tool.Execute(context.Background(), map[string]any{"path": nbspPath})
+		require.NoError(t, err)
+		assert.False(t, result.IsError)
+		assert.Contains(t, result.Content, "spaced content")
+	})
+
+	t.Run("NFD normalization for unicode characters", func(t *testing.T) {
+		// Create file with NFD name on disk (decomposed é)
+		actualPath := filepath.Join(dir, "café.txt")
+		require.NoError(t, os.WriteFile(actualPath, []byte("cafe content"), 0o644))
+
+		// Try to read with NFC name (precomposed é)
+		nfcPath := filepath.Join(dir, "café.txt")
+		result, err := tool.Execute(context.Background(), map[string]any{"path": nfcPath})
+		require.NoError(t, err)
+		assert.False(t, result.IsError)
+		assert.Contains(t, result.Content, "cafe content")
+	})
+
+	t.Run("no normalization needed passthrough", func(t *testing.T) {
+		path := filepath.Join(dir, "plain.txt")
+		require.NoError(t, os.WriteFile(path, []byte("plain content"), 0o644))
+
+		result, err := tool.Execute(context.Background(), map[string]any{"path": path})
+		require.NoError(t, err)
+		assert.False(t, result.IsError)
+		assert.Contains(t, result.Content, "plain content")
+	})
+
+	t.Run("normalization does not help nonexistent file", func(t *testing.T) {
+		// A path that normalizes but still doesn't exist
+		curlyPath := filepath.Join(dir, "“nonexistent”.txt")
+		result, err := tool.Execute(context.Background(), map[string]any{"path": curlyPath})
+		require.NoError(t, err)
+		assert.True(t, result.IsError)
+		assert.Contains(t, result.Content, "error:")
+	})
+}
+
+func TestExecutePublishesReadDoneEvent(t *testing.T) {
+	tool := &tool{}
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "event.txt")
+	require.NoError(t, os.WriteFile(path, []byte("hello world"), 0o644))
+
+	b := bus.New()
+
+	var captured struct {
+		sync.Mutex
+		event sdk.Event
+		got   bool
+	}
+
+	b.On("tool.read.done", func(e sdk.Event) error {
+		captured.Lock()
+		defer captured.Unlock()
+
+		captured.event = e
+		captured.got = true
+
+		return nil
+	})
+
+	ctx := sdk.WithBus(context.Background(), b)
+	result, err := tool.Execute(ctx, map[string]any{"path": path})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	// Close waits for handlers to finish processing
+	require.NoError(t, b.Close())
+
+	captured.Lock()
+	defer captured.Unlock()
+
+	assert.True(t, captured.got, "expected tool.read.done event to be published")
+	assert.Equal(t, "tool.read.done", captured.event.Topic)
+
+	payload, ok := captured.event.Payload.(sdk.ReadDonePayload)
+	require.True(t, ok, "expected payload to be ReadDonePayload")
+	assert.Equal(t, path, payload.Path)
+	assert.False(t, payload.ModTime.IsZero())
+}
+
+func TestExecuteNoEventOnError(t *testing.T) {
+	tool := &tool{}
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "nonexistent.txt")
+
+	b := bus.New()
+
+	var captured struct {
+		sync.Mutex
+		got bool
+	}
+
+	b.On("tool.read.done", func(e sdk.Event) error {
+		captured.Lock()
+		defer captured.Unlock()
+
+		captured.got = true
+
+		return nil
+	})
+
+	ctx := sdk.WithBus(context.Background(), b)
+	result, err := tool.Execute(ctx, map[string]any{"path": path})
+	require.NoError(t, err)
+	assert.True(t, result.IsError)
+
+	require.NoError(t, b.Close())
+
+	captured.Lock()
+	defer captured.Unlock()
+
+	assert.False(t, captured.got, "expected no tool.read.done event on error")
+}
+
+func TestExecuteNoEventWithoutBus(t *testing.T) {
+	tool := &tool{}
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "nobus.txt")
+	require.NoError(t, os.WriteFile(path, []byte("content"), 0o644))
+
+	// No bus in context — should not panic
+	result, err := tool.Execute(context.Background(), map[string]any{"path": path})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+	assert.Contains(t, result.Content, "content")
+}
+
+// mockFileTracker is a test-double for sdk.FileTracker.
+type mockFileTracker struct {
+	mu    sync.RWMutex
+	reads map[string]time.Time
+}
+
+func newMockFileTracker() *mockFileTracker {
+	return &mockFileTracker{
+		reads: make(map[string]time.Time),
+	}
+}
+
+func (m *mockFileTracker) RecordRead(path string, modTime time.Time) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.reads[path] = modTime
+}
+
+func (m *mockFileTracker) WasRead(path string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	_, ok := m.reads[path]
+
+	return ok
+}
+
+func (m *mockFileTracker) GetReadTime(path string) (time.Time, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	t, ok := m.reads[path]
+
+	return t, ok
+}
+
+func TestExecuteRecordsTrackerSynchronously(t *testing.T) {
+	tool := &tool{}
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "tracker.txt")
+	require.NoError(t, os.WriteFile(path, []byte("track me"), 0o644))
+
+	tracker := newMockFileTracker()
+	sdk.SetFileTracker(tracker)
+	t.Cleanup(func() { sdk.SetFileTracker(nil) })
+
+	result, err := tool.Execute(context.Background(), map[string]any{"path": path})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	// Tracker must be updated synchronously before Execute returns,
+	// so a back-to-back edit check will not race.
+	assert.True(t, tracker.WasRead(path), "expected tracker to record read synchronously")
 }
 
 type testSandboxer struct {

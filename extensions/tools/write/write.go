@@ -3,10 +3,13 @@ package write
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"time"
 
+	"weave/internal/pathutil"
 	"weave/sdk"
 )
 
@@ -16,12 +19,63 @@ const (
 	ParamContent = "content"
 )
 
-type tool struct{}
+type tool struct {
+	fileMutex sdk.FileMuter
+}
 
 func init() {
 	sdk.RegisterTool[struct{}]("write", func(_ sdk.Config, _ struct{}) (sdk.Tool, error) {
-		return &tool{}, nil
+		return &tool{fileMutex: sdk.GetFileMutex()}, nil
 	})
+}
+
+// normalizePath applies macOS path normalization and falls back to the original
+// if the normalized path does not exist.
+func normalizePath(path string) string {
+	if _, err := os.Stat(path); err == nil {
+		return path
+	}
+
+	normalized := pathutil.NormalizePath(path)
+	if normalized != path {
+		if _, err := os.Stat(normalized); err == nil {
+			return normalized
+		}
+	}
+
+	return path
+}
+
+// readExistingForWrite reads an existing file to detect no-op writes and to
+// capture its permissions. It records the read in the global FileTracker so
+// that subsequent edits are allowed. Returns the file's permission bits and
+// true when the existing content matches the desired content (no-op).
+func (t *tool) readExistingForWrite(path, content string) (fs.FileMode, bool) {
+	perm := fs.FileMode(0o644)
+
+	f, err := os.Open(path)
+	if err != nil {
+		return perm, false
+	}
+	defer f.Close()
+
+	var modTime time.Time
+
+	if info, statErr := f.Stat(); statErr == nil {
+		perm = info.Mode().Perm()
+		modTime = info.ModTime()
+	}
+
+	existing, readErr := io.ReadAll(f)
+	if readErr != nil {
+		return perm, false
+	}
+
+	if ft := sdk.GetFileTracker(); ft != nil && !modTime.IsZero() {
+		ft.RecordRead(path, modTime)
+	}
+
+	return perm, string(existing) == content
 }
 
 func (t *tool) Name() string { return "write" }
@@ -53,6 +107,12 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		return sdk.ToolResult{Content: "error: path is required", IsError: true}, nil
 	}
 
+	path = normalizePath(path)
+
+	if t.fileMutex != nil {
+		defer t.fileMutex.Lock(path)()
+	}
+
 	if s := sdk.GetSandboxer(); s != nil && !s.AllowWrite(path) {
 		return sdk.ToolResult{Content: "sandbox: write denied — path is protected", IsError: true}, nil
 	}
@@ -66,9 +126,11 @@ func (t *tool) Execute(_ context.Context, args map[string]any) (sdk.ToolResult, 
 		}
 	}
 
-	perm := fs.FileMode(0o644)
-	if info, statErr := os.Stat(path); statErr == nil {
-		perm = info.Mode().Perm()
+	perm, isNoOp := t.readExistingForWrite(path, content)
+	if isNoOp {
+		return sdk.ToolResult{
+			Content: fmt.Sprintf("file %s already contains the exact content, no changes made", path),
+		}, nil
 	}
 
 	if err := os.WriteFile(path, []byte(content), perm); err != nil {

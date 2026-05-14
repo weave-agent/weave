@@ -138,6 +138,9 @@ linters:
           - usestdlibvars
         path: _test\.go$
       - linters:
+          - gocritic
+        path: _mock_test\.go$
+      - linters:
           - dupl
         path: sdk/registry\.go$
       - linters:
