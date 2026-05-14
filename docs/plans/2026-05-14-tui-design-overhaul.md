@@ -121,14 +121,14 @@ Key benefits:
 - [x] Run all TUI tests — must pass before next task
 
 ### Task 6: Add motion and animation polish
-- [ ] Implement message fade-in in `components/messages/assistant.go`: first 2-3 frames render at progressively brighter foreground colors to create a subtle materializing effect; use a frame counter or timestamp on the message
-- [ ] Add status message entrance animation in `model.go`: render at muted color for 1 frame, then full brightness — a quick "pop in"
-- [ ] Implement dialog backdrop dimming: when `dialogStack` is non-empty, render underlying UI at muted foreground in `model.go` `Draw()`
-- [ ] Add spinner color pulse: alternate between `Primary` and `PrimaryBright` every few frames
-- [ ] Write tests for fade-in frame progression
-- [ ] Write tests for backdrop dimming when dialogs are open
-- [ ] Write tests for spinner color alternation
-- [ ] Run all TUI tests — must pass before next task
+- [x] Implement message fade-in in `components/messages/assistant.go`: first 2-3 frames render at progressively brighter foreground colors to create a subtle materializing effect; use `createdAt` timestamp on the message
+- [x] Add status message entrance animation in `model.go`: render at muted color for 1 frame, then full brightness — a quick "pop in"
+- [x] Implement dialog backdrop dimming: when `dialogStack` is non-empty, render underlying UI at muted foreground in `model.go` `Draw()`
+- [x] Add spinner color pulse: alternate between `Primary` and `PrimaryBright` every few frames
+- [x] Write tests for fade-in frame progression
+- [x] Write tests for backdrop dimming when dialogs are open
+- [x] Write tests for spinner color alternation
+- [x] Run all TUI tests — must pass before next task
 
 ### Task 7: Verify acceptance criteria and finalize
 - [ ] Verify all audit recommendations are addressed:

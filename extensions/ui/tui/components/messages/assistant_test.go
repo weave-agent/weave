@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"weave/ext/ui/tui/palette"
+
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/assert"
@@ -342,4 +344,49 @@ func TestAssistantMessage_RoleIndicator_NotInContent(t *testing.T) {
 	// Content should not include the role indicator
 	assert.Equal(t, "just content", m.Content())
 	assert.NotContains(t, m.Content(), "assistant")
+}
+
+// --- Task 6: Fade-in animation tests ---
+
+func TestAssistantMessage_CreatedAt_IsSet(t *testing.T) {
+	m := NewAssistantMessage()
+	assert.False(t, m.createdAt.IsZero(), "createdAt should be set on creation")
+}
+
+func TestAssistantMessage_FadeColor_NewMessage_IsDim(t *testing.T) {
+	m := NewAssistantMessage()
+	// A brand-new message should start with dim color (240)
+	assert.Equal(t, "240", m.fadeColor())
+}
+
+func TestAssistantMessage_FadeColor_Progresses(t *testing.T) {
+	m := NewAssistantMessage()
+	m.createdAt = time.Now().Add(-60 * time.Millisecond)
+	// After 60ms, should be at intermediate brightness (252)
+	assert.Equal(t, "252", m.fadeColor())
+}
+
+func TestAssistantMessage_FadeColor_After150ms_IsFull(t *testing.T) {
+	m := NewAssistantMessage()
+	m.createdAt = time.Now().Add(-200 * time.Millisecond)
+	// After 150ms, should be full brightness (theme foreground)
+	assert.Equal(t, palette.DefaultTheme().Foreground, m.fadeColor())
+}
+
+func TestAssistantMessage_FadeColor_FinalizedMessage(t *testing.T) {
+	m := NewAssistantMessage()
+	m.Finalize("final content")
+	// Even for finalized messages, fade color should be full brightness after delay
+	m.createdAt = time.Now().Add(-200 * time.Millisecond)
+	assert.Equal(t, palette.DefaultTheme().Foreground, m.fadeColor())
+}
+
+func TestAssistantMessage_View_HasFadeColor(t *testing.T) {
+	m := NewAssistantMessage()
+	m.Append("hello")
+	// Force createdAt to the future so fade color is always dim (240)
+	m.createdAt = time.Now().Add(time.Hour)
+	view := m.View(80)
+	// The fade style should wrap the content with color 240
+	assert.Contains(t, view, "240")
 }

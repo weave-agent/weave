@@ -15,10 +15,11 @@ import (
 
 // SpinnerModel displays an animated spinner with a "Thinking..." label during streaming.
 type SpinnerModel struct {
-	sp      spinner.Model
-	visible bool
-	label   string
-	width   int
+	sp        spinner.Model
+	visible   bool
+	label     string
+	width     int
+	tickCount int
 }
 
 // NewSpinnerModel creates a new spinner model.
@@ -76,6 +77,16 @@ func (m SpinnerModel) Update(msg tea.Msg) (SpinnerModel, tea.Cmd) {
 	var cmd tea.Cmd
 
 	m.sp, cmd = m.sp.Update(msg)
+
+	// Color pulse: alternate between Primary and PrimaryBright every 3 ticks
+	if _, ok := msg.(spinner.TickMsg); ok {
+		m.tickCount++
+		if m.tickCount%6 < 3 {
+			m.sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Primary))
+		} else {
+			m.sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().PrimaryBright))
+		}
+	}
 
 	return m, cmd
 }
