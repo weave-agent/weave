@@ -14,10 +14,10 @@ func TestThinkingBorderColor_AllLevels(t *testing.T) {
 		want  string
 	}{
 		{model.ThinkingOff, "240"},
-		{model.ThinkingMinimal, "246"},
-		{model.ThinkingLow, "67"},
-		{model.ThinkingMedium, "99"},
-		{model.ThinkingHigh, "139"},
+		{model.ThinkingMinimal, "60"},
+		{model.ThinkingLow, "63"},
+		{model.ThinkingMedium, "69"},
+		{model.ThinkingHigh, "141"},
 		{model.ThinkingXHigh, "177"},
 	}
 

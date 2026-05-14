@@ -10,6 +10,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"weave/ext/ui/tui/palette"
+
 	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 )
@@ -212,7 +214,7 @@ func (m FooterModel) renderLine1() string {
 		parts = append(parts, m.extStatus[k])
 	}
 
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Muted))
 
 	return dimStyle.Render(strings.Join(parts, " │ "))
 }
@@ -233,14 +235,15 @@ func (m FooterModel) renderLine2() string {
 	// Context percentage with color thresholds
 	if m.contextPct > 0 {
 		pctStyle := lipgloss.NewStyle()
+		theme := palette.DefaultTheme()
 
 		switch {
 		case m.contextPct > 90:
-			pctStyle = pctStyle.Foreground(lipgloss.Color("196")) // red
+			pctStyle = pctStyle.Foreground(lipgloss.Color(theme.Error))
 		case m.contextPct > 70:
-			pctStyle = pctStyle.Foreground(lipgloss.Color("220")) // yellow
+			pctStyle = pctStyle.Foreground(lipgloss.Color(theme.Warning))
 		default:
-			pctStyle = pctStyle.Foreground(lipgloss.Color("82")) // green
+			pctStyle = pctStyle.Foreground(lipgloss.Color(theme.Success))
 		}
 
 		parts = append(parts, pctStyle.Render(fmt.Sprintf("ctx:%.0f%%", m.contextPct)))
@@ -266,11 +269,11 @@ func (m FooterModel) renderLine2() string {
 	}
 
 	if len(parts) == 0 {
-		dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+		dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Muted))
 		return dimStyle.Render("weave")
 	}
 
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Muted))
 
 	return dimStyle.Render(strings.Join(parts, " │ "))
 }

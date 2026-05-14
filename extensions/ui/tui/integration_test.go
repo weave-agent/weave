@@ -629,7 +629,7 @@ func TestIntegration_ThinkingLevelCycleWithModelChange(t *testing.T) {
 	model, _ := m.dispatchBinding(ActionThinkingCycle)
 	m = model.(Model)
 	assert.Equal(t, sdkmodel.ThinkingHigh, m.thinkingLevel)
-	assert.Equal(t, "139", m.editor.BorderColor)
+	assert.Equal(t, "141", m.editor.BorderColor)
 
 	// Switch to non-reasoning model — forces thinking off
 	model, _ = m.Update(ModelChangedMsg{Entry: ModelEntry{Provider: "openai", Model: "gpt-4.1"}})

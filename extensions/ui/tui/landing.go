@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"weave/ext/ui/tui/palette"
+
 	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 )
@@ -49,9 +51,9 @@ func (m LandingModel) Draw(scr uv.Screen, area uv.Rectangle) {
 		y = area.Min.Y + (area.Dy()-len(lines))/2
 	}
 
-	nameStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("63")).Bold(true)
-	hintStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("242"))
-	placeholderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
+	nameStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Primary)).Bold(true)
+	hintStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Border))
+	placeholderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Muted))
 
 	for i, line := range lines {
 		if y+i >= area.Max.Y {

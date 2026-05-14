@@ -62,19 +62,19 @@ Key benefits:
 ## Implementation Steps
 
 ### Task 1: Create centralized Theme system
-- [ ] Create `extensions/ui/tui/palette/theme.go` with `Theme` struct containing semantic color slots: `Primary`, `PrimaryDim`, `PrimaryBright`, `Success`, `Error`, `Warning`, `Muted`, `MutedBright`, `Border`, `BorderFocused`, `BackgroundTint`, `Foreground`, `ForegroundBright`
-- [ ] Define default dark theme with a cohesive purple-blue centered palette (primary `63`, success `84`, error `204`, warning `221`, muted `245`)
-- [ ] Add `DefaultTheme()` constructor and make it accessible to all components
-- [ ] Refactor `palette/thinking.go` to use `Theme` primary family instead of arbitrary hue shifts
-- [ ] Refactor `components/editor.go`: replace hardcoded `63`/`240` with theme colors
-- [ ] Refactor `components/footer.go`: replace hardcoded `245`/`196`/`220`/`82` with theme semantic colors
-- [ ] Refactor `components/chat.go`: replace hardcoded `220` with theme warning color
-- [ ] Refactor `landing.go`: replace hardcoded `63`/`242`/`243` with theme colors
-- [ ] Refactor `model.go`: replace hardcoded `242`/`245` with theme colors
-- [ ] Refactor `components/spinner.go`: replace hardcoded `99` with theme primary
-- [ ] Update `styles_test.go` to use theme colors instead of hardcoded values
-- [ ] Write tests for `Theme` struct and `DefaultTheme()`
-- [ ] Run all TUI tests — must pass before next task
+- [x] Create `extensions/ui/tui/palette/theme.go` with `Theme` struct containing semantic color slots: `Primary`, `PrimaryDim`, `PrimaryBright`, `Success`, `Error`, `Warning`, `Muted`, `MutedBright`, `Border`, `BorderFocused`, `BackgroundTint`, `Foreground`, `ForegroundBright`
+- [x] Define default dark theme with a cohesive purple-blue centered palette (primary `63`, success `84`, error `204`, warning `221`, muted `245`)
+- [x] Add `DefaultTheme()` constructor and make it accessible to all components
+- [x] Refactor `palette/thinking.go` to use `Theme` primary family instead of arbitrary hue shifts
+- [x] Refactor `components/editor.go`: replace hardcoded `63`/`240` with theme colors
+- [x] Refactor `components/footer.go`: replace hardcoded `245`/`196`/`220`/`82` with theme semantic colors
+- [x] Refactor `components/chat.go`: replace hardcoded `220` with theme warning color
+- [x] Refactor `landing.go`: replace hardcoded `63`/`242`/`243` with theme colors
+- [x] Refactor `model.go`: replace hardcoded `242`/`245` with theme colors
+- [x] Refactor `components/spinner.go`: replace hardcoded `99` with theme primary
+- [x] Update `styles_test.go` to use theme colors instead of hardcoded values
+- [x] Write tests for `Theme` struct and `DefaultTheme()`
+- [x] Run all TUI tests — must pass before next task
 
 ### Task 2: Redesign chat messages and conversation flow
 - [ ] Add 1 blank line between chat items in `components/chat.go` (`View()` and `Draw()`)

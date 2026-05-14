@@ -1732,7 +1732,7 @@ func (m Model) Draw(scr uv.Screen, area uv.Rectangle) {
 
 	// Render header
 	if headerRows > 0 {
-		hintsStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("242"))
+		hintsStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Border))
 		uv.NewStyledString(hintsStyle.Render(
 			"ctrl+p model · ctrl+l select · shift+tab thinking · ctrl+t toggle",
 		)).Draw(scr, lt.Header)
@@ -1758,7 +1758,7 @@ func (m Model) Draw(scr uv.Screen, area uv.Rectangle) {
 		}
 
 		if m.statusMsg != "" {
-			statusStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+			statusStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Muted))
 			stArea := uv.Rect(lt.Pills.Min.X, y, lt.Pills.Dx(), 1)
 			uv.NewStyledString(statusStyle.Render(m.statusMsg)).Draw(scr, stArea)
 		}

@@ -5,6 +5,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"weave/ext/ui/tui/palette"
+
 	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 )
@@ -362,7 +364,7 @@ func (m ChatModel) Draw(scr uv.Screen, area uv.Rectangle) {
 			indicator = "↓ scroll to bottom"
 		}
 
-		indStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("220"))
+		indStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Warning))
 		lastRow := area.Min.Y + viewportHeight - 1
 		indRect := uv.Rect(area.Min.X, lastRow, area.Dx(), 1)
 		uv.NewStyledString(fmt.Sprintf("%s%s", strings.Repeat(" ", max(0, area.Dx()-utf8.RuneCountInString(indicator)-2)), indStyle.Render(indicator))).Draw(scr, indRect)

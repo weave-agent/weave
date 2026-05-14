@@ -5,6 +5,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"weave/ext/ui/tui/palette"
+
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -26,7 +28,7 @@ func NewSpinnerModel() SpinnerModel {
 			Frames: []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"},
 			FPS:    time.Second / 10,
 		}),
-		spinner.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("99"))),
+		spinner.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Primary))),
 	)
 
 	return SpinnerModel{

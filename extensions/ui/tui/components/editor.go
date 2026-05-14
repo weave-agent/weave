@@ -3,6 +3,8 @@ package components
 import (
 	"strings"
 
+	"weave/ext/ui/tui/palette"
+
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -57,11 +59,11 @@ func NewEditorModel() EditorModel {
 	ta.Focus()
 
 	styles := textarea.DefaultStyles(false)
-	styles.Focused.Base = borderStyle("63")
-	styles.Blurred.Base = borderStyle("240")
+	styles.Focused.Base = borderStyle(palette.DefaultTheme().BorderFocused)
+	styles.Blurred.Base = borderStyle(palette.DefaultTheme().Border)
 	styles.Focused.Text = lipgloss.NewStyle()
 	styles.Blurred.Text = lipgloss.NewStyle()
-	styles.Focused.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	styles.Focused.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Muted))
 
 	// Override light-mode defaults that cause white background on cursor line
 	// and visible end-of-buffer characters.
@@ -80,7 +82,7 @@ func NewEditorModel() EditorModel {
 	return EditorModel{
 		ta:          ta,
 		focused:     true,
-		BorderColor: "63",
+		BorderColor: palette.DefaultTheme().BorderFocused,
 		completion:  NewCompletionModel(),
 	}
 }
