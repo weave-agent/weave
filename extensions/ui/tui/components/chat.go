@@ -1,9 +1,7 @@
 package components
 
 import (
-	"fmt"
 	"strings"
-	"unicode/utf8"
 
 	"weave/ext/ui/tui/palette"
 
@@ -384,7 +382,8 @@ func (m ChatModel) Draw(scr uv.Screen, area uv.Rectangle) {
 		lastRow := area.Min.Y + viewportHeight - 1
 		indRect := uv.Rect(area.Min.X, lastRow, area.Dx(), 1)
 		paddedIndicator := " " + indStyle.Render(indicator) + " "
-		uv.NewStyledString(fmt.Sprintf("%s%s", strings.Repeat(" ", max(0, area.Dx()-utf8.RuneCountInString(paddedIndicator)-2)), paddedIndicator)).Draw(scr, indRect)
+		spaces := max(0, area.Dx()-lipgloss.Width(paddedIndicator))
+		uv.NewStyledString(strings.Repeat(" ", spaces)+paddedIndicator).Draw(scr, indRect)
 	}
 }
 

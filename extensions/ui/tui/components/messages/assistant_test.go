@@ -390,3 +390,13 @@ func TestAssistantMessage_View_HasFadeColor(t *testing.T) {
 	// The fade style should wrap the content with color 240
 	assert.Contains(t, view, "240")
 }
+
+func TestAssistantMessage_View_Finalized_NoFadeColor(t *testing.T) {
+	m := NewAssistantMessage()
+	m.Finalize("final content")
+	// Force createdAt to the future so fade color would be dim (240) if applied
+	m.createdAt = time.Now().Add(time.Hour)
+	view := m.View(80)
+	// Finalized messages should NOT have fade styling — they render at full brightness
+	assert.NotContains(t, view, "240")
+}

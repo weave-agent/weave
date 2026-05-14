@@ -123,9 +123,11 @@ func (m *AssistantMessage) View(width int) string {
 		content = m.renderer.Render(m.Content())
 	}
 
-	// Apply fade-in effect during first 150ms
-	fadeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(m.fadeColor()))
-	content = fadeStyle.Render(content)
+	// Apply fade-in effect during first 150ms while streaming
+	if m.streaming {
+		fadeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(m.fadeColor()))
+		content = fadeStyle.Render(content)
+	}
 
 	// Prepend subtle role indicator
 	roleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Muted))
