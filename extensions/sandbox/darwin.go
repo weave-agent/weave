@@ -3,6 +3,7 @@
 package sandbox
 
 import (
+	_ "embed"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,83 +12,153 @@ import (
 	"strings"
 )
 
-func generateSeatbeltProfile(cfg SandboxConfig, dir string) string {
-	var b strings.Builder
-	b.WriteString("(version 1)\n")
-	b.WriteString("(deny default)\n")
-	b.WriteString("(allow file-read*)\n")
+//go:embed seatbelt_base_policy.sbpl
+var seatbeltBasePolicy string
 
+//go:embed seatbelt_network_policy.sbpl
+var seatbeltNetworkPolicy string
+
+//go:embed seatbelt_readonly_defaults.sbpl
+var seatbeltReadonlyDefaults string
+
+func generateSeatbeltProfile(cfg SandboxConfig, dir string) (string, []string, error) {
 	home, _ := os.UserHomeDir()
 
-	// Mandatory read deny rules
-	sshDir := filepath.Join(home, ".ssh")
-	fmt.Fprintf(&b, "(deny file-read* (regex #\"^%s/id_.*$\"))\n", regexp.QuoteMeta(sshDir))
-	fmt.Fprintf(&b, "(deny file-read* (literal %q))\n", filepath.Join(home, ".aws", "credentials"))
-	b.WriteString("(deny file-read* (regex #\"/\\\\.env$\") (regex #\"/\\\\.env\\\\.[^/]+$\"))\n")
-
-	// Writable paths
 	if dir == "" {
 		dir, _ = os.Getwd()
 	}
 
+	var sections []string
+	var params []string
+
+	// Base policy: process rules, sysctls, mach lookups, /dev/null, PTYs
+	sections = append(sections, seatbeltBasePolicy)
+
+	// File read policy
+	readPolicy, readParams := buildReadPolicy(cfg, home, dir)
+	if readPolicy != "" {
+		sections = append(sections, readPolicy)
+	}
+	params = append(params, readParams...)
+
+	// File write policy
+	writePolicy, writeParams := buildWritePolicy(cfg, home, dir)
+	if writePolicy != "" {
+		sections = append(sections, writePolicy)
+	}
+	params = append(params, writeParams...)
+
+	// Deny read rules (mandatory + user-configured)
+	denyReadPolicy := buildDenyReadPolicy(cfg, home, dir)
+	if denyReadPolicy != "" {
+		sections = append(sections, denyReadPolicy)
+	}
+
+	// Network policy
+	networkPolicy := buildNetworkPolicy(cfg)
+	if networkPolicy != "" {
+		sections = append(sections, networkPolicy)
+	}
+
+	// User temp dir (xcrun, many tools use $TMPDIR under /var/folders)
+	tmpDir := os.TempDir()
+	if tmpDir != "" && tmpDir != "/tmp" && tmpDir != "/private/tmp" && tmpDir != "/var/tmp" && tmpDir != "/private/var/tmp" {
+		sections = append(sections, fmt.Sprintf("(allow file-read* file-write* (subpath %q))", tmpDir))
+	}
+
+	// Platform defaults: system frameworks, /bin, /usr/bin, temp dirs, etc.
+	sections = append(sections, seatbeltReadonlyDefaults)
+
+	return strings.Join(sections, "\n"), params, nil
+}
+
+func buildReadPolicy(_ SandboxConfig, _, _ string) (string, []string) {
+	// Broad read access with targeted deny rules (see buildDenyReadPolicy).
+	// File reads are low-risk for a coding agent — the agent can already
+	// read files via the read tool.  The real protection is around writes.
+	return "(allow file-read*)\n(allow file-test-existence)", nil
+}
+
+func buildWritePolicy(cfg SandboxConfig, home, dir string) (string, []string) {
+	var parts []string
+	var params []string
+
 	writable := cfg.Writable
 	if len(writable) == 1 && writable[0] == "" {
-		// Sentinel: explicitly no writable paths (readonly mode).
 		writable = nil
 	} else if len(writable) == 0 {
 		writable = []string{dir}
 	}
 
-	for _, w := range writable {
+	for i, w := range writable {
 		if w == "." {
 			w = dir
 		}
-
-		fmt.Fprintf(&b, "(allow file-write* (subpath %q))\n", w)
+		param := fmt.Sprintf("WRITABLE_ROOT_%d", i)
+		params = append(params, fmt.Sprintf("%s=%s", param, w))
+		parts = append(parts, fmt.Sprintf("(subpath (param \"%s\"))", param))
 	}
 
-	// Mandatory write deny rules
-	for _, deny := range mandatoryDenyWritePaths {
+	// Mandatory write deny rules: expand and add as require-not clauses
+	for i, deny := range mandatoryDenyWritePaths {
 		expanded := expandDenyRule(deny, home, dir)
+		param := fmt.Sprintf("WRITABLE_DENY_%d", i)
+		params = append(params, fmt.Sprintf("%s=%s", param, expanded))
 		if strings.HasSuffix(deny, "/") {
-			fmt.Fprintf(&b, "(deny file-write* (subpath %q))\n", expanded)
+			parts = append(parts, fmt.Sprintf("(require-not (subpath (param \"%s\")))", param))
 		} else {
-			fmt.Fprintf(&b, "(deny file-write* (literal %q))\n", expanded)
+			parts = append(parts, fmt.Sprintf("(require-not (literal (param \"%s\")))", param))
 		}
 	}
 
 	// User-configured deny write paths
-	for _, deny := range cfg.DenyWrite {
+	offset := len(mandatoryDenyWritePaths)
+	for i, deny := range cfg.DenyWrite {
 		expanded := expandDenyRule(deny, home, dir)
+		param := fmt.Sprintf("WRITABLE_DENY_%d", offset+i)
+		params = append(params, fmt.Sprintf("%s=%s", param, expanded))
 		if strings.HasSuffix(deny, "/") {
-			fmt.Fprintf(&b, "(deny file-write* (subpath %q))\n", strings.TrimSuffix(expanded, "/"))
+			parts = append(parts, fmt.Sprintf("(require-not (subpath (param \"%s\")))", param))
 		} else {
-			fmt.Fprintf(&b, "(deny file-write* (literal %q))\n", expanded)
+			parts = append(parts, fmt.Sprintf("(require-not (literal (param \"%s\")))", param))
 		}
 	}
+
+	if len(parts) == 0 {
+		return "", nil
+	}
+
+	policy := fmt.Sprintf("(allow file-write*\n  (require-all\n    %s\n  )\n)", strings.Join(parts, "\n    "))
+	return policy, params
+}
+
+func buildDenyReadPolicy(cfg SandboxConfig, home, dir string) string {
+	var parts []string
+
+	// Mandatory read deny rules
+	sshDir := filepath.Join(home, ".ssh")
+	parts = append(parts, fmt.Sprintf("(deny file-read* (regex #\"^%s/id_.*$\"))", regexp.QuoteMeta(sshDir)))
+	parts = append(parts, fmt.Sprintf("(deny file-read* (literal %q))", filepath.Join(home, ".aws", "credentials")))
+	parts = append(parts, "(deny file-read* (regex #\"/\\.env$\") (regex #\"/\\.env\\.[^/]+$\"))")
 
 	// User-configured deny read paths
 	for _, deny := range cfg.DenyRead {
 		expanded := expandDenyRule(deny, home, dir)
 		if strings.HasSuffix(deny, "/") {
-			fmt.Fprintf(&b, "(deny file-read* (subpath %q))\n", strings.TrimSuffix(expanded, "/"))
+			parts = append(parts, fmt.Sprintf("(deny file-read* (subpath %q))", strings.TrimSuffix(expanded, "/")))
 		} else {
-			fmt.Fprintf(&b, "(deny file-read* (literal %q))\n", expanded)
+			parts = append(parts, fmt.Sprintf("(deny file-read* (literal %q))", expanded))
 		}
 	}
 
-	// Process rules
-	b.WriteString("(allow process-exec)\n")
-	b.WriteString("(allow process-fork)\n")
+	return strings.Join(parts, "\n")
+}
 
-	// Network rules
+func buildNetworkPolicy(cfg SandboxConfig) string {
 	if cfg.Network {
-		b.WriteString("(allow network*)\n")
-	} else {
-		b.WriteString("(deny network*)\n")
+		return "(allow network-outbound)\n(allow network-inbound)\n" + seatbeltNetworkPolicy
 	}
-
-	return b.String()
+	return "(deny network*)\n"
 }
 
 func wrapCommandDarwinWithConfig(cmd, dir string, cfg SandboxConfig) (string, error) {
@@ -95,10 +166,21 @@ func wrapCommandDarwinWithConfig(cmd, dir string, cfg SandboxConfig) (string, er
 		return "", fmt.Errorf("sandbox-exec not found: %w", err)
 	}
 
-	profile := generateSeatbeltProfile(cfg, dir)
-	escaped := strings.ReplaceAll(profile, "'", "'\\''")
+	profile, params, err := generateSeatbeltProfile(cfg, dir)
+	if err != nil {
+		return "", fmt.Errorf("generate seatbelt profile: %w", err)
+	}
 
-	return fmt.Sprintf("sandbox-exec -p '%s' bash -c '%s'", escaped, strings.ReplaceAll(cmd, "'", "'\\''")), nil
+	escapedProfile := strings.ReplaceAll(profile, "'", "'\\''")
+
+	var args []string
+	args = append(args, "-p", "'"+escapedProfile+"'")
+	for _, param := range params {
+		args = append(args, "-D"+param)
+	}
+	args = append(args, "bash", "-c", "'"+strings.ReplaceAll(cmd, "'", "'\\''")+"'")
+
+	return "sandbox-exec " + strings.Join(args, " "), nil
 }
 
 func wrapCommandLinuxWithConfig(cmd, dir string, cfg SandboxConfig) (string, error) {
