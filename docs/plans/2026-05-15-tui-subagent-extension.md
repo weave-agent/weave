@@ -92,11 +92,11 @@ A TUI extension that visualizes running subagents as per-agent panels in the pan
 - [x] Write tests verifying rendered output matches expected format
 
 ### Task 6: Implement rich tool renderer
-- [ ] Create `renderer.go` with `subagentRenderer` implementing `tui.RichToolRenderer`
-- [ ] Register renderer for all `subagent_*` tool names dynamically (discover from agent registry or use prefix matching if supported)
-- [ ] Render running state with spinner placeholder
-- [ ] Render completed state with compact result card
-- [ ] Write tests for renderer output
+- [x] Create `renderer.go` with `subagentRenderer` implementing `tui.RichToolRenderer`
+- [x] Register renderer for all `subagent_*` tool names dynamically (discover from agent registry or use prefix matching if supported)
+- [x] Render running state with spinner placeholder
+- [x] Render completed state with compact result card
+- [x] Write tests for renderer output
 
 ### Task 7: Final integration and verification
 - [ ] Wire all components together in `RegisterTUI`

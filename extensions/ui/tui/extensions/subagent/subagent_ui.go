@@ -12,13 +12,15 @@ const gracePeriod = 3 * time.Second
 // SubagentExtension is a TUI extension that visualizes running subagents
 // as per-agent panels in the panel tray.
 type SubagentExtension struct {
-	api     tui.TUIExtAPI
-	tracker *AgentTracker
+	api      tui.TUIExtAPI
+	tracker  *AgentTracker
+	renderer *subagentRenderer
 }
 
 func init() {
 	ext := &SubagentExtension{
-		tracker: NewAgentTracker(gracePeriod, nil),
+		tracker:  NewAgentTracker(gracePeriod, nil),
+		renderer: &subagentRenderer{},
 	}
 
 	sdk.OnBusReady(func(bus sdk.Bus) {
@@ -42,6 +44,11 @@ func (e *SubagentExtension) RegisterTUI(api tui.TUIExtAPI) {
 			e.api.RemovePanel("subagent-" + id)
 		}
 	}
+
+	// Register rich renderer for known built-in agents.
+	for _, name := range []string{"general", "explore", "plan"} {
+		api.RegisterRichRenderer("subagent_"+name, e.renderer)
+	}
 }
 
 // subscribe sets up bus event handlers for subagent lifecycle events.
@@ -62,6 +69,9 @@ func (e *SubagentExtension) subscribe(bus sdk.Bus) {
 		agent := e.tracker.Start(id, name, mode)
 
 		if e.api != nil {
+			// Register renderer for custom agents not covered by built-ins.
+			e.api.RegisterRichRenderer("subagent_"+name, e.renderer)
+
 			drawer := newAgentPanelDrawer(agent.ID, e.tracker, e.api.Theme())
 			e.api.ShowPanel(tui.PanelConfig{
 				ID:        agent.PanelID,

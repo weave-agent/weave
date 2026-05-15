@@ -78,12 +78,12 @@ func (b *mockBus) Off(_ sdk.Handler)    {}
 func (b *mockBus) Close() error            { return nil }
 
 func TestSubagentExtension_Name(t *testing.T) {
-	ext := &SubagentExtension{}
+	ext := &SubagentExtension{renderer: &subagentRenderer{}}
 	assert.Equal(t, "subagent", ext.Name())
 }
 
 func TestSubagentExtension_RegisterTUI_NoPanics(t *testing.T) {
-	ext := &SubagentExtension{tracker: NewAgentTracker(gracePeriod, nil)}
+	ext := &SubagentExtension{tracker: NewAgentTracker(gracePeriod, nil), renderer: &subagentRenderer{}}
 	api := newMockTUIExtAPI()
 
 	assert.NotPanics(t, func() {
@@ -92,18 +92,19 @@ func TestSubagentExtension_RegisterTUI_NoPanics(t *testing.T) {
 }
 
 func TestSubagentExtension_RegisterTUI_NoRegistrations(t *testing.T) {
-	ext := &SubagentExtension{tracker: NewAgentTracker(gracePeriod, nil)}
+	ext := &SubagentExtension{tracker: NewAgentTracker(gracePeriod, nil), renderer: &subagentRenderer{}}
 	api := newMockTUIExtAPI()
 
 	ext.RegisterTUI(api)
 
-	assert.Empty(t, api.richRenderers)
+	// Rich renderers are registered for built-in agents.
+	assert.Len(t, api.richRenderers, 3)
 	assert.Empty(t, api.panelsShown)
 	assert.Empty(t, api.panelsRemoved)
 }
 
 func TestSubagentExtension_Subscribe_ShowsPanelOnStarted(t *testing.T) {
-	ext := &SubagentExtension{tracker: NewAgentTracker(gracePeriod, nil)}
+	ext := &SubagentExtension{tracker: NewAgentTracker(gracePeriod, nil), renderer: &subagentRenderer{}}
 	api := newMockTUIExtAPI()
 	bus := newMockBus()
 
@@ -130,7 +131,7 @@ func TestSubagentExtension_Subscribe_ShowsPanelOnStarted(t *testing.T) {
 }
 
 func TestSubagentExtension_Subscribe_IgnoresBadPayload(t *testing.T) {
-	ext := &SubagentExtension{tracker: NewAgentTracker(gracePeriod, nil)}
+	ext := &SubagentExtension{tracker: NewAgentTracker(gracePeriod, nil), renderer: &subagentRenderer{}}
 	api := newMockTUIExtAPI()
 	bus := newMockBus()
 
@@ -149,7 +150,7 @@ func TestSubagentExtension_Subscribe_IgnoresBadPayload(t *testing.T) {
 }
 
 func TestSubagentExtension_Subscribe_DoneUpdatesTracker(t *testing.T) {
-	ext := &SubagentExtension{tracker: NewAgentTracker(gracePeriod, nil)}
+	ext := &SubagentExtension{tracker: NewAgentTracker(gracePeriod, nil), renderer: &subagentRenderer{}}
 	api := newMockTUIExtAPI()
 	bus := newMockBus()
 
@@ -183,7 +184,7 @@ func TestSubagentExtension_Subscribe_DoneUpdatesTracker(t *testing.T) {
 }
 
 func TestSubagentExtension_Subscribe_FullLifecycle(t *testing.T) {
-	ext := &SubagentExtension{tracker: NewAgentTracker(50*time.Millisecond, nil)}
+	ext := &SubagentExtension{tracker: NewAgentTracker(50*time.Millisecond, nil), renderer: &subagentRenderer{}}
 	api := newMockTUIExtAPI()
 	bus := newMockBus()
 
@@ -221,7 +222,7 @@ func TestSubagentExtension_Subscribe_FullLifecycle(t *testing.T) {
 }
 
 func TestSubagentExtension_Subscribe_FailedAgent(t *testing.T) {
-	ext := &SubagentExtension{tracker: NewAgentTracker(50*time.Millisecond, nil)}
+	ext := &SubagentExtension{tracker: NewAgentTracker(50*time.Millisecond, nil), renderer: &subagentRenderer{}}
 	api := newMockTUIExtAPI()
 	bus := newMockBus()
 
@@ -255,7 +256,7 @@ func TestSubagentExtension_Subscribe_FailedAgent(t *testing.T) {
 }
 
 func TestSubagentExtension_Subscribe_MultipleAgents(t *testing.T) {
-	ext := &SubagentExtension{tracker: NewAgentTracker(50*time.Millisecond, nil)}
+	ext := &SubagentExtension{tracker: NewAgentTracker(50*time.Millisecond, nil), renderer: &subagentRenderer{}}
 	api := newMockTUIExtAPI()
 	bus := newMockBus()
 
@@ -291,7 +292,7 @@ func TestSubagentExtension_Subscribe_MultipleAgents(t *testing.T) {
 func TestSubagentExtension_Subscribe_BeforeRegisterTUI(t *testing.T) {
 	// Bus arrives before RegisterTUI — agents should be tracked but
 	// panels not shown until API is available.
-	ext := &SubagentExtension{tracker: NewAgentTracker(gracePeriod, nil)}
+	ext := &SubagentExtension{tracker: NewAgentTracker(gracePeriod, nil), renderer: &subagentRenderer{}}
 	bus := newMockBus()
 
 	ext.subscribe(bus)
@@ -314,7 +315,7 @@ func TestSubagentExtension_Subscribe_BeforeRegisterTUI(t *testing.T) {
 }
 
 func TestSubagentExtension_Subscribe_DoneIgnoresBadPayload(t *testing.T) {
-	ext := &SubagentExtension{tracker: NewAgentTracker(gracePeriod, nil)}
+	ext := &SubagentExtension{tracker: NewAgentTracker(gracePeriod, nil), renderer: &subagentRenderer{}}
 	api := newMockTUIExtAPI()
 	bus := newMockBus()
 
