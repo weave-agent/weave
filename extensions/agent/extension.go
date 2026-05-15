@@ -14,6 +14,14 @@ import (
 	"weave/settings"
 )
 
+// CompactionConfig controls automatic context compaction behavior.
+type CompactionConfig struct {
+	Enabled          bool   `json:"enabled" default:"true" description:"Enable auto-compaction"`
+	ReserveTokens    int    `json:"reserve_tokens" default:"16384" description:"Tokens reserved for model response"`
+	KeepRecentTokens int    `json:"keep_recent_tokens" default:"20000" description:"Recent tokens to keep (not summarized)"`
+	Model            string `json:"model" default:"" description:"Model for summary generation (empty = current model)"`
+}
+
 // AgentExtension owns the entire conversation lifecycle:
 // prompt assembly, turn loop, tool execution, skill discovery, and context file loading.
 type AgentExtension struct {
@@ -23,6 +31,7 @@ type AgentExtension struct {
 	singleTurn          bool
 	thinkingLevel       model.ThinkingLevel
 	skillDiscoveryPaths []string // override for testing
+	compactionCfg       CompactionConfig
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
@@ -30,12 +39,12 @@ type AgentExtension struct {
 }
 
 func init() {
-	sdk.RegisterExtension("agent", func(cfg sdk.Config, ps sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
-		return NewAgentExtension(cfg, ps)
+	sdk.RegisterExtension("agent", func(cfg sdk.Config, ps sdk.PreferenceStore, cc CompactionConfig) (sdk.Extension, error) {
+		return NewAgentExtension(cfg, ps, cc)
 	})
 }
 
-func NewAgentExtension(cfg sdk.Config, ps sdk.PreferenceStore) (*AgentExtension, error) {
+func NewAgentExtension(cfg sdk.Config, ps sdk.PreferenceStore, cc CompactionConfig) (*AgentExtension, error) {
 	provider := resolveProviderName(os.Getenv("WEAVE_PROVIDER"), ps)
 
 	modelName := resolveModelName(ps)
@@ -51,6 +60,7 @@ func NewAgentExtension(cfg sdk.Config, ps sdk.PreferenceStore) (*AgentExtension,
 		modelName:     modelName,
 		singleTurn:    os.Getenv("WEAVE_SINGLE_TURN") == "1",
 		thinkingLevel: resolveThinkingLevel(ps),
+		compactionCfg: cc,
 	}, nil
 }
 

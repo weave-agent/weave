@@ -54,11 +54,11 @@ Replace the existing storage-only JSONL compaction with runtime context manageme
 ## Implementation Steps
 
 ### Task 1: Add compaction config struct and registration
-- [ ] create `CompactionConfig` struct in `extensions/agent/extension.go` with fields: `Enabled bool` (default true), `ReserveTokens int` (default 16384), `KeepRecentTokens int` (default 20000), `Model string` (default empty = use current model)
-- [ ] update `init()` registration from `_ struct{}` to use `CompactionConfig` with json/default/description tags
-- [ ] store `CompactionConfig` on `AgentExtension` struct
-- [ ] write tests verifying config defaults are applied correctly
-- [ ] run tests — `cd extensions/agent && go test ./...`
+- [x] create `CompactionConfig` struct in `extensions/agent/extension.go` with fields: `Enabled bool` (default true), `ReserveTokens int` (default 16384), `KeepRecentTokens int` (default 20000), `Model string` (default empty = use current model)
+- [x] update `init()` registration from `_ struct{}` to use `CompactionConfig` with json/default/description tags
+- [x] store `CompactionConfig` on `AgentExtension` struct
+- [x] write tests verifying config defaults are applied correctly
+- [x] run tests — `cd extensions/agent && go test ./...`
 
 ### Task 2: Implement token estimation
 - [ ] create `extensions/agent/compaction.go` with `estimateTokens(msgs []sdk.Message) int` using `chars/4` heuristic

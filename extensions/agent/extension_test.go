@@ -9,6 +9,7 @@ import (
 	"weave/bus"
 	"weave/sdk"
 	"weave/sdk/model"
+	"weave/settings"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,19 +25,19 @@ func resetRegistries() {
 }
 
 func TestNewAgentExtension(t *testing.T) {
-	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{})
+	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{}, CompactionConfig{})
 	require.NoError(t, err)
 	assert.Equal(t, "agent", ext.Name())
 }
 
 func TestAgentExtension_Close(t *testing.T) {
-	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{})
+	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{}, CompactionConfig{})
 	require.NoError(t, err)
 	assert.NoError(t, ext.Close())
 }
 
 func TestAgentExtension_SubscribeAndClose(t *testing.T) {
-	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{})
+	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{}, CompactionConfig{})
 	require.NoError(t, err)
 
 	b := bus.New()
@@ -47,7 +48,7 @@ func TestAgentExtension_SubscribeAndClose(t *testing.T) {
 }
 
 func TestAgentExtension_SubscribeTwiceWithoutClose(t *testing.T) {
-	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{})
+	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{}, CompactionConfig{})
 	require.NoError(t, err)
 
 	b := bus.New()
@@ -63,7 +64,7 @@ func TestAgentExtension_SubscribeTwiceWithoutClose(t *testing.T) {
 }
 
 func TestAgentExtension_ReSubscribeAfterClose(t *testing.T) {
-	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{})
+	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{}, CompactionConfig{})
 	require.NoError(t, err)
 
 	b := bus.New()
@@ -80,8 +81,8 @@ func TestAgentExtension_RegisterAsExtension(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	sdk.RegisterExtension("agent", func(cfg sdk.Config, ps sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
-		return NewAgentExtension(cfg, ps)
+	sdk.RegisterExtension("agent", func(cfg sdk.Config, ps sdk.PreferenceStore, cc CompactionConfig) (sdk.Extension, error) {
+		return NewAgentExtension(cfg, ps, cc)
 	})
 
 	ext, err := sdk.GetExtension("agent", nil)
@@ -98,7 +99,7 @@ func TestAgentExtension_ProjectDir(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(configPath), 0o755))
 	require.NoError(t, os.WriteFile(configPath, []byte(`{}`), 0o644))
 
-	ext, err := NewAgentExtension(sdk.FilePathConfig(configPath), sdk.NoopPreferenceStore{})
+	ext, err := NewAgentExtension(sdk.FilePathConfig(configPath), sdk.NoopPreferenceStore{}, CompactionConfig{})
 	require.NoError(t, err)
 
 	assert.Equal(t, projectDir, ext.projectDir())
@@ -110,7 +111,7 @@ func TestAgentExtension_ProjectDir_FromFilePath(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte(`{}`), 0o644))
 
 	cfg := sdk.FilePathConfig(configPath)
-	ext, err := NewAgentExtension(cfg, sdk.NoopPreferenceStore{})
+	ext, err := NewAgentExtension(cfg, sdk.NoopPreferenceStore{}, CompactionConfig{})
 	require.NoError(t, err)
 
 	// FilePathConfig returns empty ProjectDir, so it falls back to deriving from FilePath.
@@ -143,7 +144,7 @@ func TestAgentExtension_Subscribe_RegistersSkillCommands(t *testing.T) {
 
 	defer sdk.ResetUIRegistry()
 
-	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{})
+	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{}, CompactionConfig{})
 	require.NoError(t, err)
 
 	ext.skillDiscoveryPaths = []string{filepath.Dir(skillDir)}
@@ -266,4 +267,65 @@ func TestMakeSkillHandler_FrontmatterStripped(t *testing.T) {
 	assert.NotContains(t, payload, "---")
 	assert.NotContains(t, payload, "name: fm-skill")
 	assert.Contains(t, payload, "Real instructions here.")
+}
+
+func TestCompactionConfig_Defaults(t *testing.T) {
+	var cfg CompactionConfig
+
+	loader := settings.Loader{}
+	require.NoError(t, loader.Load(&cfg), "apply defaults")
+
+	assert.True(t, cfg.Enabled, "default Enabled should be true")
+	assert.Equal(t, 16384, cfg.ReserveTokens, "default ReserveTokens should be 16384")
+	assert.Equal(t, 20000, cfg.KeepRecentTokens, "default KeepRecentTokens should be 20000")
+	assert.Empty(t, cfg.Model, "default Model should be empty")
+}
+
+func TestCompactionConfig_DataOverride(t *testing.T) {
+	var cfg CompactionConfig
+
+	loader := settings.Loader{
+		Data: map[string]any{
+			"enabled":            false,
+			"reserve_tokens":     8192,
+			"keep_recent_tokens": 10000,
+			"model":              "claude-haiku-4-5-20251001",
+		},
+	}
+	require.NoError(t, loader.Load(&cfg))
+
+	assert.False(t, cfg.Enabled)
+	assert.Equal(t, 8192, cfg.ReserveTokens)
+	assert.Equal(t, 10000, cfg.KeepRecentTokens)
+	assert.Equal(t, "claude-haiku-4-5-20251001", cfg.Model)
+}
+
+func TestCompactionConfig_PartialOverride(t *testing.T) {
+	var cfg CompactionConfig
+
+	loader := settings.Loader{
+		Data: map[string]any{
+			"enabled": false,
+		},
+	}
+	require.NoError(t, loader.Load(&cfg))
+
+	assert.False(t, cfg.Enabled, "overridden value")
+	assert.Equal(t, 16384, cfg.ReserveTokens, "default value preserved")
+	assert.Equal(t, 20000, cfg.KeepRecentTokens, "default value preserved")
+	assert.Empty(t, cfg.Model, "default value preserved")
+}
+
+func TestNewAgentExtension_StoresCompactionConfig(t *testing.T) {
+	cc := CompactionConfig{
+		Enabled:          false,
+		ReserveTokens:    4096,
+		KeepRecentTokens: 5000,
+		Model:            "test-model",
+	}
+
+	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{}, cc)
+	require.NoError(t, err)
+
+	assert.Equal(t, cc, ext.compactionCfg)
 }
