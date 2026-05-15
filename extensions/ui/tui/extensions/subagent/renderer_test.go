@@ -210,5 +210,19 @@ func TestSubagentRenderer_RenderNonBackgroundJSON(t *testing.T) {
 	assert.Contains(t, result, "message")
 }
 
+func TestSubagentRenderer_RenderJSONWithIDButUnknownStatus(t *testing.T) {
+	r := &subagentRenderer{}
+	theme := sdk.ThemeInfo{Foreground: "15"}
+
+	// JSON with "id" but non-background status — should render as foreground.
+	content := `{"id": "file-1", "status": "ok", "content": "found 3 matches"}`
+	result := r.Render(content, theme, 80)
+
+	// Should NOT render as a background card.
+	assert.NotContains(t, result, "↗")
+	// Should fall through to foreground output rendering.
+	assert.Contains(t, result, "file-1")
+}
+
 // Ensure the renderer implements the interface.
 var _ tui.RichToolRenderer = (*subagentRenderer)(nil)

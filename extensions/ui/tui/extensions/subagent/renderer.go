@@ -27,7 +27,11 @@ func (r *subagentRenderer) Render(content string, theme sdk.ThemeInfo, width int
 		Status string `json:"status"`
 	}
 	if json.Unmarshal([]byte(content), &bgResp) == nil && bgResp.ID != "" {
-		return r.renderBackgroundResponse(bgResp.ID, bgResp.Status, theme)
+		// Only treat as background if status is a known background value.
+		switch bgResp.Status {
+		case "running", "completed", "failed":
+			return r.renderBackgroundResponse(bgResp.ID, bgResp.Status, theme)
+		}
 	}
 
 	// Foreground agent output — truncate long results.
@@ -70,10 +74,11 @@ func (r *subagentRenderer) renderForegroundOutput(content string, theme sdk.Them
 		}
 
 		// Truncate wide lines if width is specified.
-		if width > 0 && len(line) > width {
+		if width > 3 && len(line) > width {
 			runes := []rune(line)
-			if len(runes) > width-3 {
-				runes = runes[:width-3]
+			truncateAt := max(width-3, 0)
+			if len(runes) > truncateAt {
+				runes = runes[:truncateAt]
 			}
 
 			line = string(runes) + "..."

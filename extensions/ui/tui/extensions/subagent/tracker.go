@@ -112,12 +112,20 @@ func (t *AgentTracker) Done(id, status, result string) {
 	}
 }
 
-// Get returns a tracked agent by ID, or nil if not found.
+// Get returns a snapshot copy of a tracked agent by ID, or nil if not found.
+// Returns a value (not pointer) so callers can read fields without races.
 func (t *AgentTracker) Get(id string) *TrackedAgent {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
-	return t.agents[id]
+	a, ok := t.agents[id]
+	if !ok {
+		return nil
+	}
+
+	cp := *a
+
+	return &cp
 }
 
 // List returns all tracked agents.

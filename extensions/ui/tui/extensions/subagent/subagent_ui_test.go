@@ -1,6 +1,8 @@
 package subagent
 
 import (
+	"maps"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,6 +18,7 @@ var _ tui.TUIExtAPI = (*mockTUIExtAPI)(nil)
 
 // mockTUIExtAPI records calls made to the TUIExtAPI interface.
 type mockTUIExtAPI struct {
+	mu            sync.Mutex
 	richRenderers map[string]tui.RichToolRenderer
 	panelsShown   []tui.PanelConfig
 	panelDrawers  []tui.PanelDrawer
@@ -29,11 +32,17 @@ func newMockTUIExtAPI() *mockTUIExtAPI {
 }
 
 func (m *mockTUIExtAPI) ShowPanel(config tui.PanelConfig, drawer tui.PanelDrawer) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.panelsShown = append(m.panelsShown, config)
 	m.panelDrawers = append(m.panelDrawers, drawer)
 }
 func (m *mockTUIExtAPI) HidePanel(id string)         {}
-func (m *mockTUIExtAPI) RemovePanel(id string)       { m.panelsRemoved = append(m.panelsRemoved, id) }
+func (m *mockTUIExtAPI) RemovePanel(id string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.panelsRemoved = append(m.panelsRemoved, id)
+}
 func (m *mockTUIExtAPI) PanelVisible(id string) bool { return false }
 func (m *mockTUIExtAPI) PanelTray() tui.PanelTrayAPI { return nil }
 func (m *mockTUIExtAPI) Theme() sdk.ThemeInfo        { return sdk.ThemeInfo{} }
@@ -42,7 +51,33 @@ func (m *mockTUIExtAPI) EditorText() string          { return "" }
 func (m *mockTUIExtAPI) SetEditorText(text string)   {}
 func (m *mockTUIExtAPI) PasteToEditor(text string)   {}
 func (m *mockTUIExtAPI) RegisterRichRenderer(tool string, renderer tui.RichToolRenderer) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.richRenderers[tool] = renderer
+}
+
+func (m *mockTUIExtAPI) getPanelsRemoved() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	cp := make([]string, len(m.panelsRemoved))
+	copy(cp, m.panelsRemoved)
+	return cp
+}
+
+func (m *mockTUIExtAPI) getPanelsShown() []tui.PanelConfig {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	cp := make([]tui.PanelConfig, len(m.panelsShown))
+	copy(cp, m.panelsShown)
+	return cp
+}
+
+func (m *mockTUIExtAPI) getRichRenderers() map[string]tui.RichToolRenderer {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	cp := make(map[string]tui.RichToolRenderer, len(m.richRenderers))
+	maps.Copy(cp, m.richRenderers)
+	return cp
 }
 func (m *mockTUIExtAPI) RegisterMessageRenderer(msgType string, renderer sdk.MessageRenderer) {}
 func (m *mockTUIExtAPI) SetFooter(component tui.TUIComponent)                                 {}
@@ -204,15 +239,16 @@ func TestSubagentExtension_Subscribe_FullLifecycle(t *testing.T) {
 
 	// During grace period: agent still tracked, no removal yet
 	assert.NotNil(t, ext.tracker.Get("agent-789"))
-	assert.Empty(t, api.panelsRemoved)
+	assert.Empty(t, api.getPanelsRemoved())
 
 	// Wait for grace period
 	time.Sleep(150 * time.Millisecond)
 
 	// After grace period: agent removed from tracker, panel removed
 	assert.Nil(t, ext.tracker.Get("agent-789"))
-	require.Len(t, api.panelsRemoved, 1)
-	assert.Equal(t, "subagent-agent-789", api.panelsRemoved[0])
+	removed := api.getPanelsRemoved()
+	require.Len(t, removed, 1)
+	assert.Equal(t, "subagent-agent-789", removed[0])
 }
 
 func TestSubagentExtension_Subscribe_FailedAgent(t *testing.T) {
@@ -245,8 +281,9 @@ func TestSubagentExtension_Subscribe_FailedAgent(t *testing.T) {
 	time.Sleep(150 * time.Millisecond)
 
 	assert.Nil(t, ext.tracker.Get("agent-fail"))
-	require.Len(t, api.panelsRemoved, 1)
-	assert.Equal(t, "subagent-agent-fail", api.panelsRemoved[0])
+	removed := api.getPanelsRemoved()
+	require.Len(t, removed, 1)
+	assert.Equal(t, "subagent-agent-fail", removed[0])
 }
 
 func TestSubagentExtension_Subscribe_MultipleAgents(t *testing.T) {
@@ -279,8 +316,8 @@ func TestSubagentExtension_Subscribe_MultipleAgents(t *testing.T) {
 	// agent-a removed, agent-b still running
 	assert.Nil(t, ext.tracker.Get("agent-a"))
 	require.NotNil(t, ext.tracker.Get("agent-b"))
-	require.Len(t, api.panelsRemoved, 1)
-	assert.Equal(t, "subagent-agent-a", api.panelsRemoved[0])
+	require.Len(t, api.getPanelsRemoved(), 1)
+	assert.Equal(t, "subagent-agent-a", api.getPanelsRemoved()[0])
 }
 
 func TestSubagentExtension_Subscribe_BeforeRegisterTUI(t *testing.T) {
@@ -398,7 +435,7 @@ func TestSubagentExtension_AgentEnd_TriggersCleanup(t *testing.T) {
 
 	// Grace-period timers should not fire (they were canceled)
 	time.Sleep(150 * time.Millisecond)
-	assert.Empty(t, api.panelsRemoved)
+	assert.Empty(t, api.getPanelsRemoved())
 }
 
 func TestSubagentExtension_NoPanelLeak_OnDone(t *testing.T) {
@@ -428,14 +465,15 @@ func TestSubagentExtension_NoPanelLeak_OnDone(t *testing.T) {
 	time.Sleep(150 * time.Millisecond)
 
 	// Every shown panel should have been removed
-	require.Len(t, api.panelsRemoved, 3)
+	removed := api.getPanelsRemoved()
+	require.Len(t, removed, 3)
 
 	shownIDs := make(map[string]bool)
-	for _, p := range api.panelsShown {
+	for _, p := range api.getPanelsShown() {
 		shownIDs[p.ID] = true
 	}
 
-	for _, id := range api.panelsRemoved {
+	for _, id := range removed {
 		assert.True(t, shownIDs[id], "removed panel %s was never shown", id)
 	}
 
