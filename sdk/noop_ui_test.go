@@ -44,7 +44,7 @@ func TestNoopUI_MultiSelect(t *testing.T) {
 
 	result, err := ui.MultiSelect("pick some", []string{"a", "b"}, nil)
 	require.NoError(t, err)
-	assert.Nil(t, result)
+	assert.Empty(t, result)
 }
 
 func TestNoopUI_Editor(t *testing.T) {

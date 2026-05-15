@@ -39,6 +39,7 @@ type TUIImpl struct {
 	pending         []pendingCommand
 	pendingStatuses []pendingStatus
 	done            chan struct{}
+	closeOnce       sync.Once
 
 	themeRegistry map[string]*palette.Theme
 	activeTheme   string
@@ -108,15 +109,9 @@ func (u *TUIImpl) SetRegistries(commands *CommandRegistry, bindings *BindingRegi
 
 // Close signals that the TUI is shutting down, unblocking any pending overlay calls.
 func (u *TUIImpl) Close() {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-
-	select {
-	case <-u.done:
-		// Already closed
-	default:
+	u.closeOnce.Do(func() {
 		close(u.done)
-	}
+	})
 }
 
 // Select shows a selection overlay and blocks until the user picks an item or cancels.
@@ -448,13 +443,13 @@ func (u *TUIImpl) Theme() sdk.ThemeInfo {
 	u.mu.Lock()
 	t := u.themeRegistry[u.activeTheme]
 	name := u.activeTheme
-	u.mu.Unlock()
 
 	if t == nil {
 		t = palette.DefaultTheme()
+		name = "default"
 	}
 
-	return sdk.ThemeInfo{
+	info := sdk.ThemeInfo{
 		Name:             name,
 		Primary:          t.Primary,
 		PrimaryDim:       t.PrimaryDim,
@@ -469,6 +464,9 @@ func (u *TUIImpl) Theme() sdk.ThemeInfo {
 		Foreground:       t.Foreground,
 		ForegroundBright: t.ForegroundBright,
 	}
+	u.mu.Unlock()
+
+	return info
 }
 
 // --- TUIExtAPI: Panels ---
@@ -525,10 +523,7 @@ func (u *TUIImpl) PanelTray() PanelTrayAPI {
 
 // SetOrder implements PanelTrayAPI.
 func (u *TUIImpl) SetOrder(ids []string) {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-
-	u.panelManager.order = ids
+	u.panelManager.SetOrder(ids)
 }
 
 // GetOrder implements PanelTrayAPI.
@@ -683,9 +678,6 @@ func (u *TUIImpl) AddAutocomplete(provider AutocompleteProvider) {
 func (u *TUIImpl) SetWorkingFrames(frames []string, interval time.Duration) {
 	u.mu.Lock()
 	p := u.program
-	u.mu.Unlock()
-
-	u.mu.Lock()
 	u.workingFrames = frames
 	u.workingInterval = interval
 	u.mu.Unlock()

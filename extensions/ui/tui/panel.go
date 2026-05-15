@@ -61,10 +61,15 @@ func (pm *PanelManager) Register(config PanelConfig, drawer PanelDrawer) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
+	visible := false
+	if old, ok := pm.panels[config.ID]; ok {
+		visible = old.Visible
+	}
+
 	pm.panels[config.ID] = &panelEntry{
 		Config:  config,
 		Drawer:  drawer,
-		Visible: false,
+		Visible: visible,
 	}
 
 	if !slices.Contains(pm.order, config.ID) {
@@ -211,6 +216,14 @@ func (pm *PanelManager) ActivePanelHeight() int {
 	}
 
 	return 10 // default panel height
+}
+
+// SetOrder updates the tab order of visible panels.
+func (pm *PanelManager) SetOrder(ids []string) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	pm.order = ids
 }
 
 // ActivePanelPlacement returns the placement of the active panel.
