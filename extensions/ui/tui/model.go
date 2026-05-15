@@ -337,17 +337,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.ui.mu.Unlock()
 
 			ev := KeyEvent{Code: msg.Code, Mod: int(msg.Mod), String: msg.String()}
-			for _, h := range handlers {
-				go func(handler func(KeyEvent), event KeyEvent) {
-					defer func() {
-						if r := recover(); r != nil {
-							slog.Error("panic in raw input handler", "recover", r)
-						}
-					}()
+			go func(handlers []func(KeyEvent), event KeyEvent) {
+				for _, handler := range handlers {
+					func(h func(KeyEvent)) {
+						defer func() {
+							if r := recover(); r != nil {
+								slog.Error("panic in raw input handler", "recover", r)
+							}
+						}()
 
-					handler(event)
-				}(h, ev)
-			}
+						h(event)
+					}(handler)
+				}
+			}(handlers, ev)
 		}
 
 		// Attachment delete mode: intercept navigation keys
@@ -845,6 +847,18 @@ func (m Model) dispatchBinding(action BindingAction) (tea.Model, tea.Cmd) {
 		m.prompted = false
 		m.showLanding = true
 		m.attach = m.attach.Clear()
+		m.dockedOverlay = false
+		m.dialogStack = overlays.NewDialogStack()
+
+		// Clean up any pending popup channels to prevent goroutine leaks.
+		for id, ch := range m.popupChans {
+			select {
+			case ch <- overlayResponse{err: errors.New("session reset")}:
+			default:
+			}
+
+			delete(m.popupChans, id)
+		}
 
 		return m, nil
 

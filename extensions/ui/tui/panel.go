@@ -254,7 +254,7 @@ func (pm *PanelManager) UpdateDrawer(id string, msg tea.Msg) (tea.Cmd, bool) {
 	newDrawer, cmd := drawer.Update(msg)
 
 	pm.mu.Lock()
-	if e, stillOk := pm.panels[id]; stillOk {
+	if e, stillOk := pm.panels[id]; stillOk && e.Drawer == drawer {
 		e.Drawer = newDrawer
 	}
 	pm.mu.Unlock()

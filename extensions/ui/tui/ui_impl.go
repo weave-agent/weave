@@ -584,6 +584,8 @@ func (u *TUIImpl) EditorText() string {
 		return text
 	case <-u.done:
 		return ""
+	case <-time.After(5 * time.Second):
+		return ""
 	}
 }
 
