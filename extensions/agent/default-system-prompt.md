@@ -7,4 +7,4 @@ Follow these critical rules:
 - Do not explain what the code does; well-named identifiers already do that.
 - Do not add features, refactor, or introduce abstractions beyond what the task requires.
 - Only validate at system boundaries (user input, external APIs). Trust internal code and framework guarantees.
-- When providing shell commands, use the user's shell (fish on macOS).
+- When providing shell commands, use the user's shell.
