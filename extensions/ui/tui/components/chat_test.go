@@ -432,6 +432,270 @@ func TestChatModel_Draw_MatchesView(t *testing.T) {
 	assert.Contains(t, viewRendered, "epsilon")
 }
 
+// --- Selection state tests ---
+
+func TestChatModel_StartSelection(t *testing.T) {
+	m := NewChatModel().SetSize(80, 10)
+	m = m.StartSelection(5, 10)
+
+	assert.True(t, m.selActive)
+	assert.True(t, m.mouseDown)
+	assert.Equal(t, 5, m.selStartLine)
+	assert.Equal(t, 10, m.selStartCol)
+	assert.Equal(t, 5, m.selEndLine)
+	assert.Equal(t, 10, m.selEndCol)
+}
+
+func TestChatModel_ExtendSelection(t *testing.T) {
+	m := NewChatModel().SetSize(80, 10)
+	m = m.StartSelection(5, 10)
+	m = m.ExtendSelection(7, 20)
+
+	assert.Equal(t, 5, m.selStartLine)
+	assert.Equal(t, 10, m.selStartCol)
+	assert.Equal(t, 7, m.selEndLine)
+	assert.Equal(t, 20, m.selEndCol)
+}
+
+func TestChatModel_ExtendSelection_NoMouseDown(t *testing.T) {
+	m := NewChatModel().SetSize(80, 10)
+	m = m.StartSelection(5, 10)
+	m = m.EndSelection()
+	m = m.ExtendSelection(7, 20)
+
+	// Should not change since mouseDown is false
+	assert.Equal(t, 5, m.selEndLine)
+	assert.Equal(t, 10, m.selEndCol)
+}
+
+func TestChatModel_EndSelection_Normalizes(t *testing.T) {
+	m := NewChatModel().SetSize(80, 10)
+	m = m.StartSelection(7, 20)
+	m = m.ExtendSelection(5, 10)
+	m = m.EndSelection()
+
+	// After end, start should be <= end
+	sl, sc, el, ec := m.SelectionBounds()
+	assert.Equal(t, 5, sl)
+	assert.Equal(t, 10, sc)
+	assert.Equal(t, 7, el)
+	assert.Equal(t, 20, ec)
+	assert.False(t, m.mouseDown)
+}
+
+func TestChatModel_EndSelection_NormalizesSameLine(t *testing.T) {
+	m := NewChatModel().SetSize(80, 10)
+	m = m.StartSelection(5, 20)
+	m = m.ExtendSelection(5, 10)
+	m = m.EndSelection()
+
+	sl, sc, el, ec := m.SelectionBounds()
+	assert.Equal(t, 5, sl)
+	assert.Equal(t, 10, sc)
+	assert.Equal(t, 5, el)
+	assert.Equal(t, 20, ec)
+}
+
+func TestChatModel_ClearSelection(t *testing.T) {
+	m := NewChatModel().SetSize(80, 10)
+	m = m.StartSelection(5, 10)
+	m = m.ExtendSelection(7, 20)
+	m = m.ClearSelection()
+
+	assert.False(t, m.selActive)
+	assert.False(t, m.mouseDown)
+	assert.False(t, m.HasSelection())
+}
+
+func TestChatModel_HasSelection(t *testing.T) {
+	m := NewChatModel().SetSize(80, 10)
+
+	// No selection initially
+	assert.False(t, m.HasSelection())
+
+	// Single-point selection is not a selection
+	m = m.StartSelection(5, 10)
+	m = m.EndSelection()
+	assert.False(t, m.HasSelection())
+
+	// Multi-line selection
+	m = m.StartSelection(5, 10)
+	m = m.ExtendSelection(7, 20)
+	m = m.EndSelection()
+	assert.True(t, m.HasSelection())
+
+	// Same line, different columns
+	m = m.ClearSelection()
+	m = m.StartSelection(5, 10)
+	m = m.ExtendSelection(5, 15)
+	m = m.EndSelection()
+	assert.True(t, m.HasSelection())
+}
+
+func TestChatModel_MouseDown(t *testing.T) {
+	m := NewChatModel().SetSize(80, 10)
+	assert.False(t, m.MouseDown())
+
+	m = m.StartSelection(5, 10)
+	assert.True(t, m.MouseDown())
+
+	m = m.EndSelection()
+	assert.False(t, m.MouseDown())
+}
+
+func TestChatModel_SelectionBounds(t *testing.T) {
+	m := NewChatModel().SetSize(80, 10)
+
+	// No selection
+	sl, sc, el, ec := m.SelectionBounds()
+	assert.Equal(t, 0, sl)
+	assert.Equal(t, 0, sc)
+	assert.Equal(t, 0, el)
+	assert.Equal(t, 0, ec)
+
+	// Forward selection
+	m = m.StartSelection(3, 5)
+	m = m.ExtendSelection(7, 15)
+	sl, sc, el, ec = m.SelectionBounds()
+	assert.Equal(t, 3, sl)
+	assert.Equal(t, 5, sc)
+	assert.Equal(t, 7, el)
+	assert.Equal(t, 15, ec)
+
+	// Backward selection (should normalize)
+	m = m.StartSelection(7, 15)
+	m = m.ExtendSelection(3, 5)
+	sl, sc, el, ec = m.SelectionBounds()
+	assert.Equal(t, 3, sl)
+	assert.Equal(t, 5, sc)
+	assert.Equal(t, 7, el)
+	assert.Equal(t, 15, ec)
+}
+
+func TestChatModel_SelectionForLine(t *testing.T) {
+	m := NewChatModel().SetSize(80, 10)
+
+	// No selection
+	assert.Nil(t, m.selectionForLine(0))
+
+	// Single-line selection
+	m = m.StartSelection(2, 5)
+	m = m.ExtendSelection(2, 15)
+	m = m.EndSelection()
+
+	span := m.selectionForLine(2)
+	require.NotNil(t, span)
+	assert.Equal(t, 5, span.startCol)
+	assert.Equal(t, 15, span.endCol)
+
+	// Line before selection
+	assert.Nil(t, m.selectionForLine(1))
+	// Line after selection
+	assert.Nil(t, m.selectionForLine(3))
+
+	// Multi-line selection
+	m = m.ClearSelection()
+	m = m.StartSelection(2, 5)
+	m = m.ExtendSelection(4, 10)
+	m = m.EndSelection()
+
+	// Start line
+	span = m.selectionForLine(2)
+	require.NotNil(t, span)
+	assert.Equal(t, 5, span.startCol)
+	assert.Equal(t, 80, span.endCol) // to end of line
+
+	// Middle line
+	span = m.selectionForLine(3)
+	require.NotNil(t, span)
+	assert.Equal(t, 0, span.startCol)
+	assert.Equal(t, 80, span.endCol)
+
+	// End line
+	span = m.selectionForLine(4)
+	require.NotNil(t, span)
+	assert.Equal(t, 0, span.startCol)
+	assert.Equal(t, 10, span.endCol)
+
+	// Empty single-point selection returns nil
+	m = m.ClearSelection()
+	m = m.StartSelection(2, 5)
+	m = m.EndSelection()
+	assert.Nil(t, m.selectionForLine(2))
+}
+
+func TestChatModel_LineToItem(t *testing.T) {
+	m := NewChatModel().SetSize(80, 10)
+	m = m.AddItem(stubItem{text: "line1\nline2"})
+	m = m.AddItem(stubItem{text: "line3"})
+	m = m.AddItem(stubItem{text: "line4\nline5\nline6"})
+
+	// First item, first line
+	itemIdx, lineIdx := m.lineToItem(0)
+	assert.Equal(t, 0, itemIdx)
+	assert.Equal(t, 0, lineIdx)
+
+	// First item, second line
+	itemIdx, lineIdx = m.lineToItem(1)
+	assert.Equal(t, 0, itemIdx)
+	assert.Equal(t, 1, lineIdx)
+
+	// Blank separator line between item 0 and 1
+	itemIdx, lineIdx = m.lineToItem(2)
+	assert.Equal(t, -1, itemIdx)
+	assert.Equal(t, -1, lineIdx)
+
+	// Second item, first line
+	itemIdx, lineIdx = m.lineToItem(3)
+	assert.Equal(t, 1, itemIdx)
+	assert.Equal(t, 0, lineIdx)
+
+	// Blank separator between item 1 and 2
+	itemIdx, lineIdx = m.lineToItem(4)
+	assert.Equal(t, -1, itemIdx)
+	assert.Equal(t, -1, lineIdx)
+
+	// Third item, lines 0-2
+	itemIdx, lineIdx = m.lineToItem(5)
+	assert.Equal(t, 2, itemIdx)
+	assert.Equal(t, 0, lineIdx)
+
+	itemIdx, lineIdx = m.lineToItem(6)
+	assert.Equal(t, 2, itemIdx)
+	assert.Equal(t, 1, lineIdx)
+
+	itemIdx, lineIdx = m.lineToItem(7)
+	assert.Equal(t, 2, itemIdx)
+	assert.Equal(t, 2, lineIdx)
+
+	// Out of bounds
+	itemIdx, lineIdx = m.lineToItem(100)
+	assert.Equal(t, -1, itemIdx)
+	assert.Equal(t, -1, lineIdx)
+}
+
+func TestChatModel_LineToItem_Empty(t *testing.T) {
+	m := NewChatModel().SetSize(80, 10)
+
+	itemIdx, lineIdx := m.lineToItem(0)
+	assert.Equal(t, -1, itemIdx)
+	assert.Equal(t, -1, lineIdx)
+}
+
+func TestChatModel_LineToItem_SingleItem(t *testing.T) {
+	m := NewChatModel().SetSize(80, 10)
+	m = m.AddItem(stubItem{text: "only"})
+
+	itemIdx, lineIdx := m.lineToItem(0)
+	assert.Equal(t, 0, itemIdx)
+	assert.Equal(t, 0, lineIdx)
+
+	// No separator after last item
+	itemIdx, lineIdx = m.lineToItem(1)
+	assert.Equal(t, -1, itemIdx)
+	assert.Equal(t, -1, lineIdx)
+}
+
 func TestChatModel_Draw_SmallViewport(t *testing.T) {
 	m := NewChatModel().SetSize(40, 2)
 	m = m.AddItem(stubItem{text: "short"})

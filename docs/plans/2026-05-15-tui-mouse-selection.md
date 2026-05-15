@@ -50,13 +50,13 @@ Implement in-app mouse text selection for the weave TUI chat. Currently, enablin
 ## Implementation Steps
 
 ### Task 1: Add selection state to ChatModel
-- [ ] Add selection fields to `ChatModel` (`selActive`, `selStartLine`, `selStartCol`, `selEndLine`, `selEndCol`, `mouseDown`)
-- [ ] Add methods: `StartSelection(line, col)`, `ExtendSelection(line, col)`, `EndSelection()`, `ClearSelection()`, `HasSelection()`, `MouseDown()`
-- [ ] Add `selectionForLine(globalLine)` helper returning start/end cols for a line
-- [ ] Add `lineToItem(contentLine)` helper mapping global content line to item index and line within item
-- [ ] write tests for selection state methods (normalize, clear, query)
-- [ ] write tests for `lineToItem` mapping
-- [ ] run tests — must pass before next task
+- [x] Add selection fields to `ChatModel` (`selActive`, `selStartLine`, `selStartCol`, `selEndLine`, `selEndCol`, `mouseDown`)
+- [x] Add methods: `StartSelection(line, col)`, `ExtendSelection(line, col)`, `EndSelection()`, `ClearSelection()`, `HasSelection()`, `MouseDown()`
+- [x] Add `selectionForLine(globalLine)` helper returning start/end cols for a line
+- [x] Add `lineToItem(contentLine)` helper mapping global content line to item index and line within item
+- [x] write tests for selection state methods (normalize, clear, query)
+- [x] write tests for `lineToItem` mapping
+- [x] run tests — must pass before next task
 
 ### Task 2: Render selection highlight in ChatModel.Draw()
 - [ ] Modify `ChatModel.Draw()` to apply `uv.AttrReverse` to cells in selection range after drawing each line

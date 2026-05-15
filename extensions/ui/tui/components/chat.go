@@ -47,6 +47,14 @@ type ChatModel struct {
 	newContent bool
 	// turnEndPending is set externally when a turn ends while not at the bottom.
 	turnEndPending bool
+
+	// text selection state (mouse click-and-drag)
+	selActive    bool
+	selStartLine int
+	selStartCol  int
+	selEndLine   int
+	selEndCol    int
+	mouseDown    bool
 }
 
 // NewChatModel creates a new chat model.
@@ -299,6 +307,143 @@ func (m *ChatModel) ensureCache() {
 			}
 		}
 	}
+}
+
+// --- Selection methods ---
+
+// StartSelection begins a new text selection at the given global line and column.
+func (m ChatModel) StartSelection(line, col int) ChatModel {
+	m.selActive = true
+	m.selStartLine = line
+	m.selStartCol = col
+	m.selEndLine = line
+	m.selEndCol = col
+	m.mouseDown = true
+	return m
+}
+
+// ExtendSelection updates the end point of the current selection.
+func (m ChatModel) ExtendSelection(line, col int) ChatModel {
+	if !m.mouseDown {
+		return m
+	}
+	m.selEndLine = line
+	m.selEndCol = col
+	return m
+}
+
+// EndSelection finalizes the current selection and clears mouseDown.
+func (m ChatModel) EndSelection() ChatModel {
+	m.mouseDown = false
+	// Normalize: ensure start <= end for line and column
+	if m.selStartLine > m.selEndLine {
+		m.selStartLine, m.selEndLine = m.selEndLine, m.selStartLine
+		m.selStartCol, m.selEndCol = m.selEndCol, m.selStartCol
+	} else if m.selStartLine == m.selEndLine && m.selStartCol > m.selEndCol {
+		m.selStartCol, m.selEndCol = m.selEndCol, m.selStartCol
+	}
+	return m
+}
+
+// ClearSelection removes the active selection.
+func (m ChatModel) ClearSelection() ChatModel {
+	m.selActive = false
+	m.selStartLine = 0
+	m.selStartCol = 0
+	m.selEndLine = 0
+	m.selEndCol = 0
+	m.mouseDown = false
+	return m
+}
+
+// HasSelection returns true if there is an active non-empty selection.
+func (m ChatModel) HasSelection() bool {
+	if !m.selActive {
+		return false
+	}
+	if m.selStartLine == m.selEndLine {
+		return m.selStartCol != m.selEndCol
+	}
+	return true
+}
+
+// MouseDown returns true if the mouse button is currently held down.
+func (m ChatModel) MouseDown() bool {
+	return m.mouseDown
+}
+
+// SelectionBounds returns the normalized selection bounds as (startLine, startCol, endLine, endCol).
+// Start is always <= end (by line, then by column).
+func (m ChatModel) SelectionBounds() (int, int, int, int) {
+	if !m.selActive {
+		return 0, 0, 0, 0
+	}
+	sl, sc, el, ec := m.selStartLine, m.selStartCol, m.selEndLine, m.selEndCol
+	if sl > el {
+		sl, el = el, sl
+		sc, ec = ec, sc
+	} else if sl == el && sc > ec {
+		sc, ec = ec, sc
+	}
+	return sl, sc, el, ec
+}
+
+// selectionSpan represents the start and end columns for a selected line.
+type selectionSpan struct {
+	startCol int
+	endCol   int
+}
+
+// selectionForLine returns the column span for the given global content line
+// if it falls within the current selection. Returns nil if the line is not selected.
+func (m ChatModel) selectionForLine(globalLine int) *selectionSpan {
+	if !m.selActive {
+		return nil
+	}
+	sl, sc, el, ec := m.SelectionBounds()
+	if globalLine < sl || globalLine > el {
+		return nil
+	}
+	span := &selectionSpan{}
+	if globalLine == sl {
+		span.startCol = sc
+	} else {
+		span.startCol = 0
+	}
+	if globalLine == el {
+		span.endCol = ec
+	} else {
+		// For intermediate lines, select to end of line (use a large value)
+		span.endCol = m.width
+	}
+	// Empty span on a single line
+	if globalLine == sl && globalLine == el && span.startCol == span.endCol {
+		return nil
+	}
+	return span
+}
+
+// lineToItem maps a global content line to the item index and the line index within that item.
+// Returns (-1, -1) if the line is out of bounds.
+func (m ChatModel) lineToItem(contentLine int) (itemIdx, lineInItem int) {
+	m.ensureCache()
+	currentLine := 0
+	for i := range m.items {
+		itemLines := len((*m.cache)[i].lines)
+		if contentLine >= currentLine && contentLine < currentLine+itemLines {
+			return i, contentLine - currentLine
+		}
+		currentLine += itemLines
+		// Blank separator line between items
+		if i < len(m.items)-1 {
+			if contentLine == currentLine {
+				// This is a separator line, not part of any item
+				return -1, -1
+			}
+			currentLine++
+		}
+	}
+	return -1, -1
 }
 
 // View renders the visible portion of the chat as a string.
