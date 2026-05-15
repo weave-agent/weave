@@ -622,6 +622,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case panelChangedMsg:
+		m.syncPanelTray()
+
+		if m.focus == FocusPanel && m.panelManager.Active() == "" {
+			m.focus = FocusEditor
+		}
+
 		return m, nil
 
 	case setEditorTextMsg:
@@ -990,7 +996,7 @@ func (m *Model) onMessageEnd(msg MessageEndMsg) {
 		panel := messages.NewToolPanel(tc.ID, tc.Name, argsStr)
 		if m.ui != nil {
 			if r, ok := m.ui.GetRichRenderer(tc.Name); ok {
-				panel.SetRenderer(&richRendererAdapter{renderer: r, theme: m.ui.Theme()})
+				panel.SetRenderer(&richRendererAdapter{renderer: r, themeFunc: m.ui.Theme})
 			} else if r, ok := m.ui.GetRenderer(tc.Name); ok {
 				panel.SetRenderer(r)
 			} else {

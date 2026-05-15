@@ -4,6 +4,7 @@ go 1.26.2
 
 require (
 	charm.land/lipgloss/v2 v2.0.3
+	github.com/mattn/go-runewidth v0.0.23
 	github.com/stretchr/testify v1.11.1
 	weave v0.0.0
 	weave/ext/ui/tui v0.0.0
@@ -33,7 +34,6 @@ require (
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mattn/go-runewidth v0.0.23 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.27 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/reflow v0.3.0 // indirect

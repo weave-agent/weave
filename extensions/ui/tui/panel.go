@@ -21,7 +21,6 @@ const (
 type PanelConfig struct {
 	ID        string
 	Placement PanelPlacement
-	Blocking  bool
 	Width     int
 	Height    int
 	Title     string

@@ -199,7 +199,6 @@ func TestPanelConfig_ZeroValues(t *testing.T) {
 	cfg := PanelConfig{ID: "test"}
 	assert.Equal(t, "test", cfg.ID)
 	assert.Equal(t, AsOverlay, cfg.Placement)
-	assert.False(t, cfg.Blocking)
 	assert.Equal(t, 0, cfg.Width)
 	assert.Equal(t, 0, cfg.Height)
 	assert.Empty(t, cfg.Title)

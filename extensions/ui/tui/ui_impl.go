@@ -768,12 +768,12 @@ func (m Model) handlePopupPending() (Model, tea.Cmd) {
 
 // richRendererAdapter adapts a RichToolRenderer to sdk.ToolRenderer.
 type richRendererAdapter struct {
-	renderer RichToolRenderer
-	theme    sdk.ThemeInfo
+	renderer  RichToolRenderer
+	themeFunc func() sdk.ThemeInfo
 }
 
 func (a *richRendererAdapter) Render(content string, width int) string {
-	return a.renderer.Render(content, a.theme, width)
+	return a.renderer.Render(content, a.themeFunc(), width)
 }
 
 // Internal tea.Msg types for TUIExtAPI.

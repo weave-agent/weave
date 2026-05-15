@@ -2,8 +2,10 @@ package diffviewer
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	"charm.land/lipgloss/v2"
+	"github.com/mattn/go-runewidth"
 
 	"weave/ext/ui/tui"
 	"weave/sdk"
@@ -78,23 +80,38 @@ func (r *richDiffRenderer) Render(content string, theme sdk.ThemeInfo, width int
 	return bldr.String()
 }
 
-// wrapLine splits a line into chunks of at most width runes.
+// wrapLine splits a line into chunks of at most width display cells.
 // A width of zero or less disables wrapping.
 func wrapLine(line string, width int) []string {
 	if width <= 0 {
 		return []string{line}
 	}
 
-	runes := []rune(line)
-	if len(runes) <= width {
+	if runewidth.StringWidth(line) <= width {
 		return []string{line}
 	}
 
 	var result []string
-	for len(runes) > width {
-		result = append(result, string(runes[:width]))
-		runes = runes[width:]
+	start := 0
+	for start < len(line) {
+		end := start
+		w := 0
+		for end < len(line) {
+			r, size := utf8.DecodeRuneInString(line[end:])
+			rw := runewidth.RuneWidth(r)
+			if w+rw > width {
+				break
+			}
+			w += rw
+			end += size
+		}
+		if end == start {
+			// Fallback for a single rune wider than width
+			_, size := utf8.DecodeRuneInString(line[start:])
+			end = start + size
+		}
+		result = append(result, line[start:end])
+		start = end
 	}
-	result = append(result, string(runes))
 	return result
 }
