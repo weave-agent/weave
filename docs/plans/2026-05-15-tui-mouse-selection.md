@@ -66,11 +66,11 @@ Implement in-app mouse text selection for the weave TUI chat. Currently, enablin
 - [x] run tests — must pass before next task
 
 ### Task 3: Extract selected text from ChatModel
-- [ ] Add `ExtractSelection() string` method that renders each selected line into a temp screen buffer and reads cell contents
-- [ ] Handle multi-line selection with proper newline insertion
-- [ ] Strip trailing whitespace from extracted text
-- [ ] write tests for text extraction (single line, multi-line, ANSI sequences, wide characters)
-- [ ] run tests — must pass before next task
+- [x] Add `ExtractSelection() string` method that renders each selected line into a temp screen buffer and reads cell contents
+- [x] Handle multi-line selection with proper newline insertion
+- [x] Strip trailing whitespace from extracted text
+- [x] write tests for text extraction (single line, multi-line, ANSI sequences, wide characters)
+- [x] run tests — must pass before next task
 
 ### Task 4: Handle mouse events in model.Update()
 - [ ] Change `v.MouseMode = tea.MouseModeCellMotion` to `tea.MouseModeAllMotion` in `View()`

@@ -319,6 +319,7 @@ func (m ChatModel) StartSelection(line, col int) ChatModel {
 	m.selEndLine = line
 	m.selEndCol = col
 	m.mouseDown = true
+
 	return m
 }
 
@@ -327,8 +328,10 @@ func (m ChatModel) ExtendSelection(line, col int) ChatModel {
 	if !m.mouseDown {
 		return m
 	}
+
 	m.selEndLine = line
 	m.selEndCol = col
+
 	return m
 }
 
@@ -342,6 +345,7 @@ func (m ChatModel) EndSelection() ChatModel {
 	} else if m.selStartLine == m.selEndLine && m.selStartCol > m.selEndCol {
 		m.selStartCol, m.selEndCol = m.selEndCol, m.selStartCol
 	}
+
 	return m
 }
 
@@ -353,6 +357,7 @@ func (m ChatModel) ClearSelection() ChatModel {
 	m.selEndLine = 0
 	m.selEndCol = 0
 	m.mouseDown = false
+
 	return m
 }
 
@@ -361,9 +366,11 @@ func (m ChatModel) HasSelection() bool {
 	if !m.selActive {
 		return false
 	}
+
 	if m.selStartLine == m.selEndLine {
 		return m.selStartCol != m.selEndCol
 	}
+
 	return true
 }
 
@@ -378,13 +385,16 @@ func (m ChatModel) SelectionBounds() (int, int, int, int) {
 	if !m.selActive {
 		return 0, 0, 0, 0
 	}
+
 	sl, sc, el, ec := m.selStartLine, m.selStartCol, m.selEndLine, m.selEndCol
+
 	if sl > el {
 		sl, el = el, sl
 		sc, ec = ec, sc
 	} else if sl == el && sc > ec {
 		sc, ec = ec, sc
 	}
+
 	return sl, sc, el, ec
 }
 
@@ -400,49 +410,129 @@ func (m ChatModel) selectionForLine(globalLine int) *selectionSpan {
 	if !m.selActive {
 		return nil
 	}
+
 	sl, sc, el, ec := m.SelectionBounds()
 	if globalLine < sl || globalLine > el {
 		return nil
 	}
+
 	span := &selectionSpan{}
+
 	if globalLine == sl {
 		span.startCol = sc
 	} else {
 		span.startCol = 0
 	}
+
 	if globalLine == el {
 		span.endCol = ec
 	} else {
 		// For intermediate lines, select to end of line (use a large value)
 		span.endCol = m.width
 	}
+
 	// Empty span on a single line
-	if globalLine == sl && globalLine == el && span.startCol == span.endCol {
+	if sl == el && span.startCol == span.endCol {
 		return nil
 	}
+
 	return span
+}
+
+// ExtractSelection returns the text content of the current selection.
+// It renders each selected line into a temporary screen buffer to extract
+// the actual character content (stripping ANSI sequences) within the selection span.
+func (m ChatModel) ExtractSelection() string {
+	if !m.HasSelection() {
+		return ""
+	}
+
+	m.ensureCache()
+
+	var allLines []string
+
+	for i := range m.items {
+		allLines = append(allLines, (*m.cache)[i].lines...)
+
+		if i < len(m.items)-1 {
+			allLines = append(allLines, "")
+		}
+	}
+
+	sl, _, el, _ := m.SelectionBounds()
+
+	var selectedLines []string
+
+	for line := sl; line <= el; line++ {
+		span := m.selectionForLine(line)
+
+		if span == nil {
+			continue
+		}
+
+		if line < 0 || line >= len(allLines) {
+			continue
+		}
+
+		lineText := allLines[line]
+		buf := uv.NewScreenBuffer(m.width, 1)
+		lineRect := uv.Rect(0, 0, m.width, 1)
+		uv.NewStyledString(lineText).Draw(buf, lineRect)
+
+		var sb strings.Builder
+
+		startCol := span.startCol
+		endCol := span.endCol
+
+		if startCol < 0 {
+			startCol = 0
+		}
+
+		if endCol > m.width {
+			endCol = m.width
+		}
+
+		for col := startCol; col < endCol; col++ {
+			if cell := buf.CellAt(col, 0); cell != nil {
+				sb.WriteString(cell.Content)
+			}
+		}
+
+		// Trim trailing spaces that come from buffer padding beyond actual text
+		selectedLines = append(selectedLines, strings.TrimRight(sb.String(), " "))
+	}
+
+	result := strings.Join(selectedLines, "\n")
+
+	return strings.TrimRight(result, " \t\n\r")
 }
 
 // lineToItem maps a global content line to the item index and the line index within that item.
 // Returns (-1, -1) if the line is out of bounds.
 func (m ChatModel) lineToItem(contentLine int) (itemIdx, lineInItem int) {
 	m.ensureCache()
+
 	currentLine := 0
+
 	for i := range m.items {
 		itemLines := len((*m.cache)[i].lines)
 		if contentLine >= currentLine && contentLine < currentLine+itemLines {
 			return i, contentLine - currentLine
 		}
+
 		currentLine += itemLines
+
 		// Blank separator line between items
 		if i < len(m.items)-1 {
 			if contentLine == currentLine {
 				// This is a separator line, not part of any item
 				return -1, -1
 			}
+
 			currentLine++
 		}
 	}
+
 	return -1, -1
 }
 

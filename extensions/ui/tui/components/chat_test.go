@@ -5,6 +5,7 @@ import (
 
 	"weave/ext/ui/tui/components/messages"
 
+	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/assert"
@@ -1199,4 +1200,185 @@ func TestChatModel_Draw_BackwardSelection(t *testing.T) {
 	cell = scr.CellAt(11, 0)
 	require.NotNil(t, cell)
 	assert.Equal(t, uint8(0), cell.Style.Attrs&uv.AttrReverse)
+}
+
+// --- Task 3: ExtractSelection tests ---
+
+func TestChatModel_ExtractSelection_SingleLine(t *testing.T) {
+	m := NewChatModel().SetSize(80, 3)
+	m = m.AddItem(stubItem{text: "hello world"})
+
+	m = m.StartSelection(0, 6)
+	m = m.ExtendSelection(0, 11)
+	m = m.EndSelection()
+
+	result := m.ExtractSelection()
+	assert.Equal(t, "world", result)
+}
+
+func TestChatModel_ExtractSelection_MultiLine(t *testing.T) {
+	m := NewChatModel().SetSize(80, 5)
+	m = m.AddItem(stubItem{text: "hello world line1\nhello world line2\nhello world line3"})
+
+	// Select from line 1, col 6 to line 2, col 11
+	m = m.StartSelection(1, 6)
+	m = m.ExtendSelection(2, 11)
+	m = m.EndSelection()
+
+	result := m.ExtractSelection()
+	assert.Equal(t, "world line2\nhello world", result)
+}
+
+func TestChatModel_ExtractSelection_FullLine(t *testing.T) {
+	m := NewChatModel().SetSize(80, 3)
+	m = m.AddItem(stubItem{text: "hello world"})
+
+	m = m.StartSelection(0, 0)
+	m = m.ExtendSelection(0, 80)
+	m = m.EndSelection()
+
+	result := m.ExtractSelection()
+	assert.Equal(t, "hello world", result)
+}
+
+func TestChatModel_ExtractSelection_EmptySelection(t *testing.T) {
+	m := NewChatModel().SetSize(80, 3)
+	m = m.AddItem(stubItem{text: "hello world"})
+
+	// No selection
+	assert.Empty(t, m.ExtractSelection())
+
+	// Single-point selection
+	m = m.StartSelection(0, 5)
+	m = m.EndSelection()
+	assert.Empty(t, m.ExtractSelection())
+}
+
+func TestChatModel_ExtractSelection_BackwardSelection(t *testing.T) {
+	m := NewChatModel().SetSize(80, 3)
+	m = m.AddItem(stubItem{text: "hello world"})
+
+	// Backward selection (should normalize after EndSelection)
+	m = m.StartSelection(0, 11)
+	m = m.ExtendSelection(0, 6)
+	m = m.EndSelection()
+
+	result := m.ExtractSelection()
+	assert.Equal(t, "world", result)
+}
+
+func TestChatModel_ExtractSelection_StripsTrailingWhitespace(t *testing.T) {
+	m := NewChatModel().SetSize(80, 3)
+	m = m.AddItem(stubItem{text: "hello world  "})
+
+	m = m.StartSelection(0, 0)
+	m = m.ExtendSelection(0, 80)
+	m = m.EndSelection()
+
+	result := m.ExtractSelection()
+	assert.Equal(t, "hello world", result)
+}
+
+func TestChatModel_ExtractSelection_MultiLineTrailingWhitespace(t *testing.T) {
+	m := NewChatModel().SetSize(80, 5)
+	m = m.AddItem(stubItem{text: "line1   \nline2   \nline3"})
+
+	m = m.StartSelection(0, 0)
+	m = m.ExtendSelection(2, 80)
+	m = m.EndSelection()
+
+	result := m.ExtractSelection()
+	assert.Equal(t, "line1\nline2\nline3", result)
+}
+
+func TestChatModel_ExtractSelection_WithANSI(t *testing.T) {
+	m := NewChatModel().SetSize(80, 3)
+	// Styled text using lipgloss
+	style := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF0000"))
+	styledText := style.Render("hello world")
+	m = m.AddItem(stubItem{text: styledText})
+
+	m = m.StartSelection(0, 6)
+	m = m.ExtendSelection(0, 11)
+	m = m.EndSelection()
+
+	result := m.ExtractSelection()
+	// Should extract plain text without ANSI sequences
+	assert.Equal(t, "world", result)
+}
+
+func TestChatModel_ExtractSelection_MultiLineWithANSI(t *testing.T) {
+	m := NewChatModel().SetSize(80, 5)
+	style := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF0000"))
+	line1 := style.Render("red text here")
+	line2 := "plain text here"
+	m = m.AddItem(stubItem{text: line1 + "\n" + line2})
+
+	m = m.StartSelection(0, 0)
+	m = m.ExtendSelection(1, 80)
+	m = m.EndSelection()
+
+	result := m.ExtractSelection()
+	assert.Equal(t, "red text here\nplain text here", result)
+}
+
+func TestChatModel_ExtractSelection_WithWideCharacters(t *testing.T) {
+	m := NewChatModel().SetSize(80, 3)
+	// Emoji and CJK characters are wide (2 columns each)
+	m = m.AddItem(stubItem{text: "hello 世界 world"}) // hello 世界 world
+
+	m = m.StartSelection(0, 6)
+	m = m.ExtendSelection(0, 10)
+	m = m.EndSelection()
+
+	result := m.ExtractSelection()
+	// Should extract the wide characters correctly
+	assert.Equal(t, "世界", result)
+}
+
+func TestChatModel_ExtractSelection_AcrossMultipleItems(t *testing.T) {
+	m := NewChatModel().SetSize(80, 10)
+	m = m.AddItem(stubItem{text: "first item line1\nfirst item line2"})
+	m = m.AddItem(stubItem{text: "second item line1\nsecond item line2"})
+
+	// Select from line 1 of first item through line 1 of second item
+	// Global lines: 0=first line1, 1=first line2, 2=blank sep, 3=second line1, 4=second line2
+	m = m.StartSelection(1, 6)
+	m = m.ExtendSelection(3, 7)
+	m = m.EndSelection()
+
+	result := m.ExtractSelection()
+	assert.Equal(t, "item line2\n\nsecond", result)
+}
+
+func TestChatModel_ExtractSelection_PartiallyBeyondContent(t *testing.T) {
+	m := NewChatModel().SetSize(80, 3)
+	m = m.AddItem(stubItem{text: "hi"})
+
+	m = m.StartSelection(0, 0)
+	m = m.ExtendSelection(0, 100)
+	m = m.EndSelection()
+
+	result := m.ExtractSelection()
+	assert.Equal(t, "hi", result)
+}
+
+func TestChatModel_ExtractSelection_NoActiveSelection(t *testing.T) {
+	m := NewChatModel().SetSize(80, 3)
+	m = m.AddItem(stubItem{text: "hello world"})
+
+	assert.Empty(t, m.ExtractSelection())
+}
+
+func TestChatModel_ExtractSelection_ClearedSelection(t *testing.T) {
+	m := NewChatModel().SetSize(80, 3)
+	m = m.AddItem(stubItem{text: "hello world"})
+
+	m = m.StartSelection(0, 6)
+	m = m.ExtendSelection(0, 11)
+	m = m.EndSelection()
+	require.Equal(t, "world", m.ExtractSelection())
+
+	m = m.ClearSelection()
+	assert.Empty(t, m.ExtractSelection())
 }
