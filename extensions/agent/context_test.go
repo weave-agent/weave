@@ -3,6 +3,7 @@ package agent
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -256,4 +257,34 @@ func TestResolveCompactPrompt_DefaultWhenNothingFound(t *testing.T) {
 	result := resolveCompactPrompt("", projectDir, globalDir)
 	assert.Contains(t, result, "Summarize the following conversation")
 	assert.Contains(t, result, "## Goal")
+}
+
+func TestLoadFirstWithLimit_SkipsOversizedFile(t *testing.T) {
+	projectDir := t.TempDir()
+	globalDir := t.TempDir()
+
+	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".weave"), 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(projectDir, ".weave", "COMPACT.md"),
+		[]byte(strings.Repeat("x", maxCompactPromptSize+1)),
+		0o644,
+	))
+
+	result := loadFirstWithLimit("COMPACT.md", projectDir, globalDir, maxCompactPromptSize)
+	assert.Empty(t, result, "file exceeding max size should be skipped")
+}
+
+func TestLoadFirstWithLimit_WithinLimit(t *testing.T) {
+	projectDir := t.TempDir()
+	globalDir := t.TempDir()
+
+	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".weave"), 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(projectDir, ".weave", "COMPACT.md"),
+		[]byte("compact prompt content"),
+		0o644,
+	))
+
+	result := loadFirstWithLimit("COMPACT.md", projectDir, globalDir, maxCompactPromptSize)
+	assert.Equal(t, "compact prompt content", result)
 }

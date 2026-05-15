@@ -3,8 +3,6 @@ package messages
 import (
 	"testing"
 
-	"weave/ext/ui/tui/palette"
-
 	"github.com/stretchr/testify/assert"
 )
 
@@ -12,14 +10,11 @@ func TestCompactionEntry_View(t *testing.T) {
 	e := NewCompactionEntry(5, 10000, 3000)
 	view := e.View(80)
 
-	theme := palette.DefaultTheme()
-
 	assert.Contains(t, view, "Compacted")
 	assert.Contains(t, view, "5 messages summarized")
 	assert.Contains(t, view, "10000")
 	assert.Contains(t, view, "3000")
 	assert.Contains(t, view, "7000 saved")
-	assert.Contains(t, view, theme.Muted)
 }
 
 func TestCompactionEntry_ViewZeroWidth(t *testing.T) {

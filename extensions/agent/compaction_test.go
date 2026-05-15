@@ -609,6 +609,7 @@ func TestAgent_FileOpsTrackingInLoop(t *testing.T) {
 
 	require.NotNil(t, a.fileOps)
 	assert.True(t, a.fileOps.readFiles["/tracked.go"])
+	assert.Empty(t, a.fileOps.modifiedFiles, "read tool should not populate modifiedFiles")
 }
 
 func TestAgent_FileOpsResetOnNewConversation(t *testing.T) {
@@ -1432,7 +1433,7 @@ func TestAgent_CompactionErrorInWaitForInputRecovers(t *testing.T) {
 	require.True(t, ok)
 
 	errStr, _ := payload["error"].(string)
-	assert.Contains(t, errStr, "context deadline exceeded")
+	assert.Contains(t, errStr, "compaction stream: context deadline exceeded")
 
 	// Agent should still be alive — send another prompt
 	b.Publish(sdk.NewEvent(TopicFollowup, "continue after error"))
@@ -1475,8 +1476,8 @@ func TestAgent_CompactionDisabledNoAutoTrigger(t *testing.T) {
 	_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
 	require.True(t, ok, "timeout waiting for turn_end")
 
-	compactedEvts := collectTopic(allCh, TopicCompacted, 500*time.Millisecond)
-	assert.Empty(t, compactedEvts, "should not auto-compact when disabled")
+	// Verify no compaction occurred by checking provider was called exactly once.
+	assert.Len(t, mp.StreamCalls(), 1, "provider should only be called once when compaction is disabled")
 
 	require.NoError(t, a.Close())
 }
@@ -1597,4 +1598,42 @@ func TestAgent_AutoCompactionErrorInInnerLoopRecovers(t *testing.T) {
 	msgEndPayload, ok := msgEnd.Payload.(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "recovered", msgEndPayload["content"])
+}
+
+func TestTrackFileOps_NonStringFilePathIgnored(t *testing.T) {
+	msg := sdk.NewAssistantMessage("")
+	msg.ToolCalls = []sdk.ToolCall{
+		{Name: "read", Arguments: map[string]any{"file_path": 123}},
+		{Name: "edit", Arguments: map[string]any{"file_path": []string{"/path.go"}}},
+		{Name: "read", Arguments: map[string]any{"other_key": "/path.go"}},
+	}
+	ops := newFileOperations()
+	trackFileOps([]sdk.Message{msg}, ops)
+	assert.Empty(t, ops.readFiles, "non-string file_path should be ignored")
+	assert.Empty(t, ops.modifiedFiles, "non-string file_path should be ignored")
+}
+
+func TestShouldCompact_BudgetLessThanOrEqualZero(t *testing.T) {
+	model.ResetModelRegistry()
+	defer model.ResetModelRegistry()
+
+	model.RegisterModel(model.ModelDef{
+		ID:            "test-model",
+		Provider:      "test",
+		ContextWindow: 1000,
+	})
+
+	// ReserveTokens exceeds context window, so budget = 1000 - 2000 = -1000.
+	// Fallback should use contextWindow / 2 = 500.
+	cfg := CompactionConfig{Enabled: true, ReserveTokens: 2000}
+	msgs := []sdk.Message{sdk.NewUserMessage(makeLongText(2000))} // 500 tokens
+
+	// 500 tokens < 500 budget (not >), so should not compact
+	assert.False(t, shouldCompact(msgs, "", cfg, "test-model"),
+		"exactly at fallback budget should not compact")
+
+	// 501 tokens > 500 budget, so should compact
+	msgs = []sdk.Message{sdk.NewUserMessage(makeLongText(2004))} // 501 tokens
+	assert.True(t, shouldCompact(msgs, "", cfg, "test-model"),
+		"one token over fallback budget should compact")
 }

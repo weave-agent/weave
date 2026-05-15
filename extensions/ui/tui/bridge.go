@@ -232,19 +232,6 @@ func translateCompacted(payload any) CompactedMsg {
 	tokensBefore, _ := m["tokens_before"].(int)
 	tokensAfter, _ := m["tokens_after"].(int)
 
-	// JSON numbers decode as float64
-	if f, ok := m["summarized"].(float64); ok {
-		summarized = int(f)
-	}
-
-	if f, ok := m["tokens_before"].(float64); ok {
-		tokensBefore = int(f)
-	}
-
-	if f, ok := m["tokens_after"].(float64); ok {
-		tokensAfter = int(f)
-	}
-
 	return CompactedMsg{
 		Summarized:   summarized,
 		TokensBefore: tokensBefore,

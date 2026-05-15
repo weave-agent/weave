@@ -577,21 +577,6 @@ func TestTranslateEvent_Compacted(t *testing.T) {
 	assert.Empty(t, c.Error)
 }
 
-func TestTranslateEvent_Compacted_WithFloat64(t *testing.T) {
-	payload := map[string]any{
-		"summarized":    float64(5),
-		"tokens_before": float64(10000),
-		"tokens_after":  float64(3000),
-	}
-
-	msg := translateEvent(sdk.NewEvent(topicCompacted, payload))
-	c, ok := msg.(CompactedMsg)
-	require.True(t, ok)
-	assert.Equal(t, 5, c.Summarized)
-	assert.Equal(t, 10000, c.TokensBefore)
-	assert.Equal(t, 3000, c.TokensAfter)
-}
-
 func TestTranslateEvent_Compacted_WithError(t *testing.T) {
 	payload := map[string]any{
 		"error": "compaction stream: timeout",
