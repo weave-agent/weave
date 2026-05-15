@@ -68,12 +68,12 @@ A TUI extension that visualizes running subagents as per-agent panels in the pan
 - [x] Verify module compiles: `cd extensions/ui/tui/extensions/subagent && go build ./...`
 
 ### Task 3: Implement `AgentTracker`
-- [ ] Create `tracker.go` with `AgentTracker` struct and `TrackedAgent` type
-- [ ] Methods: `Start(id, name, mode)`, `Done(id, status, result)`, `Get(id)`, `List()`, `Remove(id)`
-- [ ] Grace period handling: `Done()` marks status but `Remove()` is deferred (3-second timer or tick-based)
-- [ ] Thread-safe using `sync.RWMutex`
-- [ ] Write tests for all tracker methods (success + concurrent access cases)
-- [ ] Write tests for grace period logic
+- [x] Create `tracker.go` with `AgentTracker` struct and `TrackedAgent` type
+- [x] Methods: `Start(id, name, mode)`, `Done(id, status, result)`, `Get(id)`, `List()`, `Remove(id)`
+- [x] Grace period handling: `Done()` marks status but `Remove()` is deferred (3-second timer or tick-based)
+- [x] Thread-safe using `sync.RWMutex`
+- [x] Write tests for all tracker methods (success + concurrent access cases)
+- [x] Write tests for grace period logic
 
 ### Task 4: Implement bus subscription and panel lifecycle
 - [ ] In `RegisterTUI`, create `AgentTracker` instance
