@@ -84,13 +84,13 @@ Implement in-app mouse text selection for the weave TUI chat. Currently, enablin
 - [x] run tests — must pass before next task
 
 ### Task 5: Add clipboard integration and copy keybinding
-- [ ] Add `github.com/atotto/clipboard` as direct dependency
-- [ ] Add `ActionCopySelection` to `keybindings.go` with default `ctrl+shift+c`
-- [ ] Add `copySelectionCmd() tea.Cmd` using dual strategy (`tea.SetClipboard` + `clipboard.WriteAll`)
-- [ ] Add `dispatchBinding` handler for `ActionCopySelection`
-- [ ] Show typed notification on successful copy
-- [ ] write tests for copy keybinding dispatch
-- [ ] run tests — must pass before next task
+- [x] Add `github.com/atotto/clipboard` as direct dependency
+- [x] Add `ActionCopySelection` to `keybindings.go` with default `ctrl+shift+c`
+- [x] Add `copySelectionCmd() tea.Cmd` using dual strategy (`tea.SetClipboard` + `clipboard.WriteAll`)
+- [x] Add `dispatchBinding` handler for `ActionCopySelection`
+- [x] Show typed notification on successful copy
+- [x] write tests for copy keybinding dispatch
+- [x] run tests — must pass before next task
 
 ### Task 6: Verify acceptance criteria
 - [ ] verify click-and-drag in chat area highlights text with inverted colors

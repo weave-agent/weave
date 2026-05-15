@@ -41,6 +41,7 @@ const (
 	ActionAttachDelete       BindingAction = "app.attachments.delete"
 	ActionSandboxCycle       BindingAction = "sandbox.cycle"
 	ActionPanelPicker        BindingAction = "app.panel.picker"
+	ActionCopySelection      BindingAction = "app.copy.selection"
 )
 
 // Binding maps a key sequence to a named action with a description.
@@ -88,6 +89,9 @@ var defaultBindings = []Binding{
 
 	// Panels
 	{Action: ActionPanelPicker, Keys: []string{"f6"}, Description: "Open panel picker"},
+
+	// Copy
+	{Action: ActionCopySelection, Keys: []string{"ctrl+shift+c"}, Description: "Copy selection to clipboard"},
 }
 
 // BindingRegistry manages keybindings with priority resolution:

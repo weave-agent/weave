@@ -24,6 +24,7 @@ import (
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/atotto/clipboard"
 	uv "github.com/charmbracelet/ultraviolet"
 )
 
@@ -760,6 +761,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.chat = m.chat.EndSelection()
 
+		if m.chat.HasSelection() {
+			text := m.chat.ExtractSelection()
+			if text != "" {
+				return m, copySelectionCmd(text)
+			}
+		}
+
 		return m, nil
 	}
 
@@ -972,6 +980,19 @@ func (m Model) dispatchBinding(action BindingAction) (tea.Model, tea.Cmd) {
 	case ActionSandboxCycle:
 		return m.cycleSandboxMode()
 
+	// Copy selection
+	case ActionCopySelection:
+		if m.chat.HasSelection() {
+			text := m.chat.ExtractSelection()
+			if text != "" {
+				return m, copySelectionCmd(text)
+			}
+		}
+
+		m.showStatus("Nothing selected")
+
+		return m, m.statusTimer
+
 	default:
 		return m, nil
 	}
@@ -995,6 +1016,22 @@ func (m *Model) toggleLastToolOutput() {
 			return
 		}
 	}
+}
+
+// copySelectionCmd returns a command that copies the given text to the clipboard
+// using a dual strategy: OSC 52 escape sequences (for terminal-based copy) and
+// the OS clipboard API (for direct system clipboard access).
+func copySelectionCmd(text string) tea.Cmd {
+	return tea.Batch(
+		tea.SetClipboard(text),
+		func() tea.Msg {
+			if err := clipboard.WriteAll(text); err != nil {
+				return notifyTypedMsg{message: "Copy failed: " + err.Error(), level: sdk.NotifyError}
+			}
+
+			return notifyTypedMsg{message: "Copied to clipboard", level: sdk.NotifySuccess}
+		},
+	)
 }
 
 // externalEditorMsg is sent when the external editor finishes.

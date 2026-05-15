@@ -3553,3 +3553,114 @@ func TestModel_MouseSelection_WheelScroll_DoesNotAffectSelection(t *testing.T) {
 	assert.Greater(t, m.chat.ScrollOffset(), oldScroll, "wheel should scroll down")
 	assert.False(t, m.chat.MouseDown(), "wheel should not affect selection state")
 }
+
+// --- Task 5: Clipboard integration tests ---
+
+func TestModel_DispatchBinding_CopySelection_WithSelection(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+	m.AddUserMessage("hello world")
+
+	area := m.chatArea()
+	startX := area.Min.X + 2
+	startY := area.Min.Y + 0
+	endX := area.Min.X + 8
+	endY := area.Min.Y + 0
+
+	// Create a selection via click and drag
+	model, _ := m.Update(tea.MouseClickMsg{X: startX, Y: startY, Button: tea.MouseLeft})
+	m = model.(Model)
+	model, _ = m.Update(tea.MouseMotionMsg{X: endX, Y: endY, Button: tea.MouseLeft})
+	m = model.(Model)
+	model, _ = m.Update(tea.MouseReleaseMsg{X: endX, Y: endY, Button: tea.MouseLeft})
+	m = model.(Model)
+
+	require.True(t, m.chat.HasSelection(), "should have a selection")
+
+	// Trigger copy binding
+	_, cmd := m.dispatchBinding(ActionCopySelection)
+	assert.NotNil(t, cmd, "copy binding should return a command when selection exists")
+}
+
+func TestModel_DispatchBinding_CopySelection_NoSelection(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+
+	// Trigger copy binding without selection
+	model, cmd := m.dispatchBinding(ActionCopySelection)
+	m = model.(Model)
+
+	assert.NotNil(t, cmd, "copy binding should return a status timer command")
+	assert.Equal(t, "Nothing selected", m.statusMsg)
+}
+
+func TestModel_MouseRelease_WithSelection_TriggersCopy(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+	m.AddUserMessage("hello world")
+
+	area := m.chatArea()
+	startX := area.Min.X + 2
+	startY := area.Min.Y + 0
+	endX := area.Min.X + 8
+	endY := area.Min.Y + 0
+
+	// Click and drag to create a selection
+	model, _ := m.Update(tea.MouseClickMsg{X: startX, Y: startY, Button: tea.MouseLeft})
+	m = model.(Model)
+	model, _ = m.Update(tea.MouseMotionMsg{X: endX, Y: endY, Button: tea.MouseLeft})
+	m = model.(Model)
+
+	// Release should return a copy command
+	_, cmd := m.Update(tea.MouseReleaseMsg{X: endX, Y: endY, Button: tea.MouseLeft})
+	assert.NotNil(t, cmd, "mouse release with selection should return a copy command")
+}
+
+func TestModel_MouseRelease_NoSelection_NoCopy(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+	m.AddUserMessage("hello world")
+
+	area := m.chatArea()
+	startX := area.Min.X + 2
+	startY := area.Min.Y + 0
+
+	// Click only (no drag = no real selection)
+	model, _ := m.Update(tea.MouseClickMsg{X: startX, Y: startY, Button: tea.MouseLeft})
+	m = model.(Model)
+
+	// Release without drag should not trigger copy
+	_, cmd := m.Update(tea.MouseReleaseMsg{X: startX, Y: startY, Button: tea.MouseLeft})
+	assert.Nil(t, cmd, "mouse release without selection should not return a command")
+}
+
+func TestCopySelectionCmd(t *testing.T) {
+	cmd := copySelectionCmd("test text")
+	require.NotNil(t, cmd)
+
+	msg := cmd()
+	batch, ok := msg.(tea.BatchMsg)
+	require.True(t, ok, "expected tea.BatchMsg, got %T", msg)
+	require.Len(t, batch, 2, "batch should contain 2 commands")
+
+	// The second command should return a notifyTypedMsg (success or error)
+	result := batch[1]()
+	_, ok = result.(notifyTypedMsg)
+	require.True(t, ok, "expected notifyTypedMsg, got %T", result)
+}
+
+func TestKeybindings_CopySelection_IsRegistered(t *testing.T) {
+	bindings := NewBindingRegistry()
+
+	action, ok := bindings.Resolve("ctrl+shift+c")
+	assert.True(t, ok, "ctrl+shift+c should be registered")
+	assert.Equal(t, ActionCopySelection, action)
+}
