@@ -41,7 +41,7 @@ type skillFrontmatter struct {
 
 var (
 	skillNameRegex = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`)
-	reservedNames  = []string{"anthropic", "claude"}
+	reservedNames  = []string{defaultProviderName, "claude"}
 )
 
 func validateName(name string) error {

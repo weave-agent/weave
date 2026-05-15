@@ -137,23 +137,32 @@ func (a *AgentExtension) run(
 		continueLoop := true
 
 		for continueLoop {
-			var compactInstr string
-			var compactRequested bool
+			var (
+				compactInstr     string
+				compactRequested bool
+			)
+
 			messages, _, compactInstr, compactRequested = drainSteering(steerCh, messages)
 
 			// Compaction check: manual (from /compact steering) or auto (token budget exceeded).
 			if compactRequested || shouldCompact(messages, systemPrompt, a.compactionCfg, a.modelName) {
 				compactPrompt := resolveCompactPrompt(compactInstr, a.projectDir(), globalConfigDir())
+
 				result, err := compact(turnCtx, provider, messages, a.compactionCfg, a.modelName, a.fileOps, compactPrompt)
 				if err != nil {
 					bus.Publish(sdk.NewEvent(TopicTurnEnd, nil))
+
 					endPayload = fmt.Sprintf("compaction error: %v", err)
+
 					turnCancel()
 					<-turnDone
+
 					return
 				}
-				if result != nil {
-					messages = result.messages
+
+				messages = result.messages
+
+				if result.summarized > 0 {
 					bus.Publish(sdk.NewEvent(TopicCompacted, map[string]any{
 						"summarized":    result.summarized,
 						"tokens_before": result.tokensBefore,
@@ -248,22 +257,7 @@ func (a *AgentExtension) run(
 
 			payload, _ := evt.Payload.(string)
 			if payload == "compact" || strings.HasPrefix(payload, "compact ") {
-				var compactInstr string
-				if rest, ok := strings.CutPrefix(payload, "compact "); ok {
-					compactInstr = rest
-				}
-				compactPrompt := resolveCompactPrompt(compactInstr, a.projectDir(), globalConfigDir())
-				result, err := compact(ctx, provider, messages, a.compactionCfg, a.modelName, a.fileOps, compactPrompt)
-				if err != nil {
-					bus.Publish(sdk.NewEvent(TopicCompacted, map[string]any{"error": err.Error()}))
-				} else if result != nil {
-					messages = result.messages
-					bus.Publish(sdk.NewEvent(TopicCompacted, map[string]any{
-						"summarized":    result.summarized,
-						"tokens_before": result.tokensBefore,
-						"tokens_after":  result.tokensAfter,
-					}))
-				}
+				messages = a.handleManualCompact(ctx, payload, provider, messages, bus)
 			}
 
 			goto waitForInput
@@ -324,6 +318,39 @@ func (a *AgentExtension) buildSystemPrompt() string {
 		systemAppend: systemAppend,
 		skills:       skills,
 	})
+}
+
+func (a *AgentExtension) handleManualCompact(
+	ctx context.Context,
+	payload string,
+	provider sdk.Provider,
+	messages []sdk.Message,
+	bus sdk.Bus,
+) []sdk.Message {
+	var compactInstr string
+
+	if rest, ok := strings.CutPrefix(payload, "compact "); ok {
+		compactInstr = rest
+	}
+
+	compactPrompt := resolveCompactPrompt(compactInstr, a.projectDir(), globalConfigDir())
+
+	result, err := compact(ctx, provider, messages, a.compactionCfg, a.modelName, a.fileOps, compactPrompt)
+	if err != nil {
+		bus.Publish(sdk.NewEvent(TopicCompacted, map[string]any{"error": err.Error()}))
+
+		return messages
+	}
+
+	if result.summarized > 0 {
+		bus.Publish(sdk.NewEvent(TopicCompacted, map[string]any{
+			"summarized":    result.summarized,
+			"tokens_before": result.tokensBefore,
+			"tokens_after":  result.tokensAfter,
+		}))
+	}
+
+	return result.messages
 }
 
 func drainInterrupts(ch <-chan sdk.Event) {
@@ -427,7 +454,9 @@ func (a *AgentExtension) streamOpts() []model.StreamOption {
 
 func drainSteering(steerCh <-chan sdk.Event, messages []sdk.Message) ([]sdk.Message, bool, string, bool) {
 	hasSteering := false
+
 	var compactInstructions string
+
 	compactRequested := false
 
 	for {

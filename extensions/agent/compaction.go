@@ -3,7 +3,9 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -11,7 +13,12 @@ import (
 	"weave/sdk/model"
 )
 
-const tokensPerChar = 4
+const (
+	tokensPerChar = 4
+	toolNameRead  = "read"
+	toolNameEdit  = "edit"
+	toolNameWrite = "write"
+)
 
 // estimateTokens returns a rough token count for the given messages using
 // the chars/4 heuristic.
@@ -68,8 +75,8 @@ func findCutPoint(msgs []sdk.Message, keepRecentTokens int) int {
 	acc := 0
 	cutIdx := 0
 
-	for i := len(msgs) - 1; i >= 0; i-- {
-		acc += estimateMessageTokens(msgs[i])
+	for i, v := range slices.Backward(msgs) {
+		acc += estimateMessageTokens(v)
 
 		if acc >= keepRecentTokens {
 			// We've accumulated enough tokens — find the next valid boundary
@@ -100,12 +107,13 @@ func findValidBoundary(msgs []sdk.Message, startIdx int) int {
 			for _, tc := range msg.ToolCalls {
 				toolCallIDs[tc.ID] = true
 			}
+
 			for j := i + 1; j < len(msgs); j++ {
-				if msgs[j].Role == sdk.RoleToolResult && toolCallIDs[msgs[j].ToolCallID] {
-					i = j
-				} else {
+				if msgs[j].Role != sdk.RoleToolResult || !toolCallIDs[msgs[j].ToolCallID] {
 					break
 				}
+
+				i = j
 			}
 			// Loop continues from i+1, iterating past the tool result group.
 		case sdk.RoleToolResult:
@@ -141,11 +149,11 @@ func trackFileOps(msgs []sdk.Message, ops *fileOperations) {
 	for _, msg := range msgs {
 		for _, tc := range msg.ToolCalls {
 			switch tc.Name {
-			case "read":
+			case toolNameRead:
 				if path, ok := tc.Arguments["file_path"]; ok {
 					ops.readFiles[fmt.Sprint(path)] = true
 				}
-			case "edit", "write":
+			case toolNameEdit, toolNameWrite:
 				if path, ok := tc.Arguments["file_path"]; ok {
 					ops.modifiedFiles[fmt.Sprint(path)] = true
 				}
@@ -179,6 +187,7 @@ func serializeForSummary(msgs []sdk.Message, previousSummary string, ops *fileOp
 					fmt.Fprintf(&b, "[Tool call]: %s(%s)\n", tc.Name, string(args))
 				}
 			}
+
 			if content := contentString(msg.Content); content != "" {
 				fmt.Fprintf(&b, "[Assistant]: %s\n", content)
 			}
@@ -187,6 +196,7 @@ func serializeForSummary(msgs []sdk.Message, previousSummary string, ops *fileOp
 			if len(content) > maxToolResultLen {
 				content = content[:maxToolResultLen] + "... (truncated)"
 			}
+
 			fmt.Fprintf(&b, "[Tool result]: %s\n", content)
 		}
 	}
@@ -205,17 +215,21 @@ func fileOpsXML(ops *fileOperations) string {
 
 	if len(ops.readFiles) > 0 {
 		b.WriteString("\n<read-files>\n")
+
 		for _, path := range sortedKeys(ops.readFiles) {
 			fmt.Fprintf(&b, "- %s\n", path)
 		}
+
 		b.WriteString("</read-files>\n")
 	}
 
 	if len(ops.modifiedFiles) > 0 {
 		b.WriteString("\n<modified-files>\n")
+
 		for _, path := range sortedKeys(ops.modifiedFiles) {
 			fmt.Fprintf(&b, "- %s\n", path)
 		}
+
 		b.WriteString("</modified-files>\n")
 	}
 
@@ -240,7 +254,9 @@ func sortedKeys(m map[string]bool) []string {
 	for k := range m {
 		keys = append(keys, k)
 	}
+
 	sort.Strings(keys)
+
 	return keys
 }
 
@@ -253,28 +269,23 @@ func shouldCompact(messages []sdk.Message, systemPrompt string, cfg CompactionCo
 		return false
 	}
 
-	contextWindow := contextWindowSize(modelName)
+	if modelName == "" {
+		return false
+	}
+
+	m, ok := model.GetModel(modelName)
+	if !ok {
+		return false
+	}
+
+	contextWindow := m.ContextWindow
 	if contextWindow == 0 {
 		return false
 	}
 
 	total := len(systemPrompt)/tokensPerChar + estimateTokens(messages)
+
 	return total > contextWindow-cfg.ReserveTokens
-}
-
-// contextWindowSize returns the context window for the given model, or 0 if
-// the model is unknown.
-func contextWindowSize(modelName string) int {
-	if modelName == "" {
-		return 0
-	}
-
-	m, ok := model.GetModel(modelName)
-	if !ok {
-		return 0
-	}
-
-	return m.ContextWindow
 }
 
 // compactResult holds the data returned by a compaction operation.
@@ -301,7 +312,12 @@ func compact(
 
 	cutIdx := findCutPoint(messages, cfg.KeepRecentTokens)
 	if cutIdx == 0 {
-		return nil, nil // nothing to compact
+		return &compactResult{
+			messages:     messages,
+			summarized:   0,
+			tokensBefore: tokensBefore,
+			tokensAfter:  tokensBefore,
+		}, nil
 	}
 
 	toSummarize := messages[:cutIdx]
@@ -312,6 +328,7 @@ func compact(
 
 	// Extract any previous summary from the conversation.
 	var previousSummary string
+
 	if len(messages) > 0 && messages[0].Role == sdk.RoleAssistant {
 		if content, ok := messages[0].Content.(string); ok && strings.HasPrefix(content, compactionSummaryPrefix) {
 			previousSummary = strings.TrimPrefix(content, compactionSummaryPrefix)
@@ -332,6 +349,7 @@ func compact(
 	} else if modelName != "" {
 		opts = append(opts, model.WithModel(modelName))
 	}
+
 	opts = append(opts, model.WithThinkingLevel(model.ThinkingOff))
 
 	ch, err := provider.Stream(ctx, req, opts...)
@@ -340,6 +358,7 @@ func compact(
 	}
 
 	var summary strings.Builder
+
 	for evt := range ch {
 		switch evt.Type {
 		case sdk.ProviderEventTextDelta:
@@ -352,7 +371,7 @@ func compact(
 	}
 
 	if summary.Len() == 0 {
-		return nil, fmt.Errorf("compaction produced empty summary")
+		return nil, errors.New("compaction produced empty summary")
 	}
 
 	summaryMsg := sdk.NewAssistantMessage(compactionSummaryPrefix + summary.String())

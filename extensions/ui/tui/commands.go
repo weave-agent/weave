@@ -75,6 +75,7 @@ func NewCommandRegistry(bus sdk.Bus, sessionDir string) *CommandRegistry {
 		if args != "" {
 			payload = "compact " + args
 		}
+
 		return CommandResult{Command: PublishSteer(bus, payload)}
 	})
 

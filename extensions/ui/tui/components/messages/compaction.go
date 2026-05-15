@@ -33,6 +33,7 @@ func (e *CompactionEntry) View(width int) string {
 	}
 
 	theme := palette.DefaultTheme()
+
 	if GetThemeInfo != nil {
 		info := GetThemeInfo()
 		theme = &palette.Theme{
@@ -45,9 +46,8 @@ func (e *CompactionEntry) View(width int) string {
 		Width(width)
 
 	saved := e.tokensBefore - e.tokensAfter
-	if saved < 0 {
-		saved = 0
-	}
+	saved = max(saved, 0)
+
 	detail := fmt.Sprintf("%d messages summarized (%d → %d tokens, %d saved)",
 		e.summarized, e.tokensBefore, e.tokensAfter, saved)
 

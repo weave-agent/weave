@@ -90,9 +90,10 @@ func TestEstimateTokens(t *testing.T) {
 
 	t.Run("integer content uses Sprint", func(t *testing.T) {
 		msgs := []sdk.Message{
-			{Role: sdk.RoleUser, Content: 42},
+			{Role: sdk.RoleUser, Content: 12345},
 		}
-		assert.Equal(t, 0, estimateTokens(msgs))
+		// 12345 -> "12345" = 5 chars -> 1 token
+		assert.Equal(t, 1, estimateTokens(msgs))
 	})
 
 	t.Run("large text scales linearly", func(t *testing.T) {
@@ -168,7 +169,7 @@ func TestFindCutPoint(t *testing.T) {
 		}
 
 		cut := findCutPoint(msgs, 300)
-		assert.Greater(t, cut, 0, "should find a cut point")
+		assert.Positive(t, cut, "should find a cut point")
 		assert.Less(t, cut, len(msgs), "cut should be within bounds")
 		assert.Equal(t, sdk.RoleUser, msgs[cut].Role, "cut should be at a user message")
 	})
@@ -182,31 +183,30 @@ func TestFindCutPoint(t *testing.T) {
 		toolResult := sdk.NewToolResultMessage("tc1", "bash", makeLongText(400), false)
 		asstText := sdk.NewAssistantMessage("done")
 
-		bigMsgs := make([]sdk.Message, 5)
-		for i := range bigMsgs {
-			bigMsgs[i] = sdk.NewUserMessage(makeLongText(400))
+		msgs := make([]sdk.Message, 0, 9)
+		for range 5 {
+			msgs = append(msgs, sdk.NewUserMessage(makeLongText(400)))
 		}
 
-		msgs := append(
-			bigMsgs,
-			user, asstWithTool, toolResult, asstText,
-		)
+		msgs = append(msgs, user, asstWithTool, toolResult, asstText)
 
 		cut := findCutPoint(msgs, 200)
+		require.Positive(t, cut, "should find a cut point")
+		require.Less(t, cut, len(msgs), "cut should be within bounds")
 
-		if cut > 0 && cut < len(msgs) {
-			assert.NotEqual(t, sdk.RoleToolResult, msgs[cut].Role,
-				"cut point must never be a tool_result message")
-		}
+		assert.NotEqual(t, sdk.RoleToolResult, msgs[cut].Role,
+			"cut point must never be a tool_result message")
 
-		toolResultIdx := len(bigMsgs) + 1
-		if cut > 0 && cut <= toolResultIdx {
-			asstIdx := len(bigMsgs) + 1
-			resultIdx := len(bigMsgs) + 2
-			if cut > asstIdx && cut <= resultIdx {
-				t.Errorf("cut at %d splits assistant(tool) at %d from result at %d",
-					cut, asstIdx, resultIdx)
-			}
+		// The tool call/result pair starts at index 6 (after 5 big messages).
+		// findValidBoundary should skip past the tool result.
+		const bigMsgCount = 5
+
+		asstIdx := bigMsgCount + 1
+
+		resultIdx := bigMsgCount + 2
+		if cut > asstIdx && cut <= resultIdx {
+			t.Errorf("cut at %d splits assistant(tool) at %d from result at %d",
+				cut, asstIdx, resultIdx)
 		}
 	})
 
@@ -289,14 +289,16 @@ func TestFindValidBoundary(t *testing.T) {
 	})
 
 	t.Run("consecutive tool groups iterate without stack overflow", func(t *testing.T) {
-		msgs := make([]sdk.Message, 0)
-		for i := 0; i < 100; i++ {
+		msgs := make([]sdk.Message, 0, 201)
+
+		for i := range 100 {
 			asst := sdk.NewAssistantMessage("")
 			asst.ToolCalls = []sdk.ToolCall{
 				{ID: fmt.Sprintf("tc%d", i), Name: "bash", Arguments: map[string]any{}},
 			}
 			msgs = append(msgs, asst, sdk.NewToolResultMessage(fmt.Sprintf("tc%d", i), "bash", "out", false))
 		}
+
 		msgs = append(msgs, sdk.NewUserMessage("next"))
 		assert.Equal(t, len(msgs)-1, findValidBoundary(msgs, 0))
 	})
@@ -316,6 +318,21 @@ func TestFindValidBoundary(t *testing.T) {
 		// Starting from asstA (index 0), should skip tcA result (index 1),
 		// then stop at the interleaved user message (index 2).
 		assert.Equal(t, 2, findValidBoundary(msgs, 0))
+	})
+
+	t.Run("all tool results returns len", func(t *testing.T) {
+		// A conversation ending with orphaned tool results (no trailing user/assistant).
+		asst := sdk.NewAssistantMessage("")
+		asst.ToolCalls = []sdk.ToolCall{
+			{ID: "tc1", Name: "bash", Arguments: map[string]any{}},
+		}
+		msgs := []sdk.Message{
+			asst,
+			sdk.NewToolResultMessage("tc1", "bash", "out", false),
+			sdk.NewToolResultMessage("tc1", "bash", "more out", false),
+		}
+		// No valid boundary after startIdx, should return len(msgs).
+		assert.Equal(t, len(msgs), findValidBoundary(msgs, 1))
 	})
 }
 
@@ -388,6 +405,10 @@ func TestSerializeForSummary(t *testing.T) {
 		result := serializeForSummary(msgs, "", nil)
 		assert.Contains(t, result, "... (truncated)")
 		assert.Less(t, len(result), 2500)
+
+		// Verify exact truncation point: 2000 chars of 'x' + suffix.
+		prefix := "[Tool result]: " + strings.Repeat("x", maxToolResultLen)
+		assert.Contains(t, result, prefix, "truncation should preserve exactly %d chars", maxToolResultLen)
 	})
 
 	t.Run("previous summary inclusion", func(t *testing.T) {
@@ -548,6 +569,7 @@ func TestFileOpsXML(t *testing.T) {
 		idxA := strings.Index(result, "/a.go")
 		idxM := strings.Index(result, "/m.go")
 		idxZ := strings.Index(result, "/z.go")
+
 		assert.Less(t, idxA, idxM)
 		assert.Less(t, idxM, idxZ)
 	})
@@ -654,6 +676,7 @@ func TestShouldCompact(t *testing.T) {
 	t.Run("under budget returns false", func(t *testing.T) {
 		model.ResetModelRegistry()
 		defer model.ResetModelRegistry()
+
 		model.RegisterModel(model.ModelDef{
 			ID:            "test-model",
 			Provider:      "test",
@@ -668,6 +691,7 @@ func TestShouldCompact(t *testing.T) {
 	t.Run("over budget returns true", func(t *testing.T) {
 		model.ResetModelRegistry()
 		defer model.ResetModelRegistry()
+
 		model.RegisterModel(model.ModelDef{
 			ID:            "test-model",
 			Provider:      "test",
@@ -682,6 +706,7 @@ func TestShouldCompact(t *testing.T) {
 	t.Run("system prompt included in total", func(t *testing.T) {
 		model.ResetModelRegistry()
 		defer model.ResetModelRegistry()
+
 		model.RegisterModel(model.ModelDef{
 			ID:            "test-model",
 			Provider:      "test",
@@ -694,26 +719,27 @@ func TestShouldCompact(t *testing.T) {
 		// System prompt of 2000 chars = 500 tokens, total = 1000 > 900
 		assert.True(t, shouldCompact(msgs, makeLongText(2000), cfg, "test-model"), "with system prompt should exceed")
 	})
-}
 
-func TestContextWindowSize(t *testing.T) {
-	t.Run("empty model name", func(t *testing.T) {
-		assert.Equal(t, 0, contextWindowSize(""))
-	})
-
-	t.Run("unknown model", func(t *testing.T) {
-		assert.Equal(t, 0, contextWindowSize("nonexistent"))
-	})
-
-	t.Run("known model", func(t *testing.T) {
+	t.Run("exact boundary", func(t *testing.T) {
 		model.ResetModelRegistry()
 		defer model.ResetModelRegistry()
+
 		model.RegisterModel(model.ModelDef{
-			ID:            "test-ctx-model",
+			ID:            "test-model",
 			Provider:      "test",
-			ContextWindow: 50000,
+			ContextWindow: 1000,
 		})
-		assert.Equal(t, 50000, contextWindowSize("test-ctx-model"))
+
+		cfg := CompactionConfig{Enabled: true, ReserveTokens: 100}
+		// 900 tokens exactly at the boundary should NOT compact.
+		msgs := []sdk.Message{sdk.NewUserMessage(makeLongText(900 * tokensPerChar))}
+		assert.False(t, shouldCompact(msgs, "", cfg, "test-model"),
+			"exactly at boundary should not compact")
+
+		// 901 tokens should compact.
+		msgs = []sdk.Message{sdk.NewUserMessage(makeLongText(901 * tokensPerChar))}
+		assert.True(t, shouldCompact(msgs, "", cfg, "test-model"),
+			"one token over boundary should compact")
 	})
 }
 
@@ -741,13 +767,12 @@ func TestCompact(t *testing.T) {
 
 	t.Run("basic compaction with mock provider", func(t *testing.T) {
 		// Create enough messages to force a cut
-		msgs := make([]sdk.Message, 10)
-		for i := range msgs {
-			msgs[i] = sdk.NewUserMessage(makeLongText(400))
+		msgs := make([]sdk.Message, 0, 12)
+		for range 10 {
+			msgs = append(msgs, sdk.NewUserMessage(makeLongText(400)))
 		}
 		// Last 2 messages should be kept
-		msgs = append(msgs, sdk.NewUserMessage("keep me"))
-		msgs = append(msgs, sdk.NewAssistantMessage("kept reply"))
+		msgs = append(msgs, sdk.NewUserMessage("keep me"), sdk.NewAssistantMessage("kept reply"))
 
 		mp := newMockProvider([]providerResponse{
 			{textDeltas: []string{"## Goal\nTest goal\n\n## Progress\nDid stuff"}},
@@ -768,7 +793,7 @@ func TestCompact(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, result)
 
-		assert.Greater(t, result.summarized, 0, "should summarize some messages")
+		assert.Positive(t, result.summarized, "should summarize some messages")
 		assert.Less(t, result.summarized, len(msgs), "should keep some messages")
 		assert.Greater(t, result.tokensBefore, result.tokensAfter, "tokens should decrease after compaction")
 
@@ -801,11 +826,16 @@ func TestCompact(t *testing.T) {
 		}
 
 		// Build messages where the tool call is in the to-summarize portion
-		msgs := make([]sdk.Message, 10)
-		for i := range msgs {
-			msgs[i] = sdk.NewUserMessage(makeLongText(400))
+		msgs := make([]sdk.Message, 0, 11)
+
+		for i := range 10 {
+			if i == 3 {
+				msgs = append(msgs, readMsg)
+			} else {
+				msgs = append(msgs, sdk.NewUserMessage(makeLongText(400)))
+			}
 		}
-		msgs[3] = readMsg // read call in old portion
+
 		msgs = append(msgs, sdk.NewUserMessage("keep me"))
 
 		mp := newMockProvider([]providerResponse{
@@ -834,10 +864,14 @@ func TestCompact(t *testing.T) {
 		// First message is an existing summary
 		summaryMsg := sdk.NewAssistantMessage("[Compaction Summary]\nOld summary here")
 
-		msgs := []sdk.Message{summaryMsg}
+		msgs := make([]sdk.Message, 1, 12)
+
+		msgs[0] = summaryMsg
+
 		for range 10 {
 			msgs = append(msgs, sdk.NewUserMessage(makeLongText(400)))
 		}
+
 		msgs = append(msgs, sdk.NewUserMessage("keep me"))
 
 		var capturedReq sdk.ProviderRequest
@@ -847,9 +881,12 @@ func TestCompact(t *testing.T) {
 				<-chan sdk.ProviderEvent, error,
 			) {
 				capturedReq = req
+
 				ch := make(chan sdk.ProviderEvent, 1)
 				ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "new summary"}
+
 				close(ch)
+
 				return ch, nil
 			},
 		}
@@ -876,10 +913,11 @@ func TestCompact(t *testing.T) {
 	})
 
 	t.Run("provider error returns error", func(t *testing.T) {
-		msgs := make([]sdk.Message, 10)
-		for i := range msgs {
-			msgs[i] = sdk.NewUserMessage(makeLongText(400))
+		msgs := make([]sdk.Message, 0, 11)
+		for range 10 {
+			msgs = append(msgs, sdk.NewUserMessage(makeLongText(400)))
 		}
+
 		msgs = append(msgs, sdk.NewUserMessage("keep me"))
 
 		mp := newMockProvider([]providerResponse{
@@ -898,15 +936,16 @@ func TestCompact(t *testing.T) {
 			ops,
 			"summarize this",
 		)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, result)
 	})
 
 	t.Run("provider event error returns error", func(t *testing.T) {
-		msgs := make([]sdk.Message, 10)
-		for i := range msgs {
-			msgs[i] = sdk.NewUserMessage(makeLongText(400))
+		msgs := make([]sdk.Message, 0, 11)
+		for range 10 {
+			msgs = append(msgs, sdk.NewUserMessage(makeLongText(400)))
 		}
+
 		msgs = append(msgs, sdk.NewUserMessage("keep me"))
 
 		mp := &ProviderMock{
@@ -915,7 +954,9 @@ func TestCompact(t *testing.T) {
 			) {
 				ch := make(chan sdk.ProviderEvent, 1)
 				ch <- sdk.ProviderEvent{Type: sdk.ProviderEventError, Content: "boom"}
+
 				close(ch)
+
 				return ch, nil
 			},
 		}
@@ -932,16 +973,17 @@ func TestCompact(t *testing.T) {
 			ops,
 			"summarize this",
 		)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "boom")
 		assert.Nil(t, result)
 	})
 
 	t.Run("custom model option passed to provider", func(t *testing.T) {
-		msgs := make([]sdk.Message, 10)
-		for i := range msgs {
-			msgs[i] = sdk.NewUserMessage(makeLongText(400))
+		msgs := make([]sdk.Message, 0, 11)
+		for range 10 {
+			msgs = append(msgs, sdk.NewUserMessage(makeLongText(400)))
 		}
+
 		msgs = append(msgs, sdk.NewUserMessage("keep me"))
 
 		var capturedOpts []model.StreamOption
@@ -951,9 +993,12 @@ func TestCompact(t *testing.T) {
 				<-chan sdk.ProviderEvent, error,
 			) {
 				capturedOpts = opts
+
 				ch := make(chan sdk.ProviderEvent, 1)
 				ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "summary"}
+
 				close(ch)
+
 				return ch, nil
 			},
 		}
@@ -981,10 +1026,11 @@ func TestCompact(t *testing.T) {
 	})
 
 	t.Run("falls back to current model when no custom model", func(t *testing.T) {
-		msgs := make([]sdk.Message, 10)
-		for i := range msgs {
-			msgs[i] = sdk.NewUserMessage(makeLongText(400))
+		msgs := make([]sdk.Message, 0, 11)
+		for range 10 {
+			msgs = append(msgs, sdk.NewUserMessage(makeLongText(400)))
 		}
+
 		msgs = append(msgs, sdk.NewUserMessage("keep me"))
 
 		var capturedOpts []model.StreamOption
@@ -994,9 +1040,12 @@ func TestCompact(t *testing.T) {
 				<-chan sdk.ProviderEvent, error,
 			) {
 				capturedOpts = opts
+
 				ch := make(chan sdk.ProviderEvent, 1)
 				ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "summary"}
+
 				close(ch)
+
 				return ch, nil
 			},
 		}
@@ -1020,10 +1069,11 @@ func TestCompact(t *testing.T) {
 	})
 
 	t.Run("context cancellation propagated to provider", func(t *testing.T) {
-		msgs := make([]sdk.Message, 10)
-		for i := range msgs {
-			msgs[i] = sdk.NewUserMessage(makeLongText(400))
+		msgs := make([]sdk.Message, 0, 11)
+		for range 10 {
+			msgs = append(msgs, sdk.NewUserMessage(makeLongText(400)))
 		}
+
 		msgs = append(msgs, sdk.NewUserMessage("keep me"))
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -1037,9 +1087,12 @@ func TestCompact(t *testing.T) {
 				if ctx.Err() != nil {
 					return nil, ctx.Err()
 				}
+
 				ch := make(chan sdk.ProviderEvent, 1)
 				ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "summary"}
+
 				close(ch)
+
 				return ch, nil
 			},
 		}
@@ -1090,6 +1143,7 @@ func TestDrainSteeringCompactExtraction(t *testing.T) {
 	t.Run("mixed steering and compact", func(t *testing.T) {
 		steerCh := make(chan sdk.Event, 4)
 		steerCh <- sdk.NewEvent(TopicSteer, "some steering")
+
 		steerCh <- sdk.NewEvent(TopicSteer, "compact focus on auth")
 
 		messages, hasSteering, compactInstr, compactRequested := drainSteering(steerCh, nil)
@@ -1105,11 +1159,43 @@ func TestAgent_ManualCompactionViaSteering(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	mp := newMockProvider([]providerResponse{
+	var capturedReqs []sdk.ProviderRequest
+
+	responses := []providerResponse{
 		{textDeltas: []string{"initial response"}},
 		{textDeltas: []string{"## Goal\nRefactoring auth\n\n## Progress\nStarted work"}},
 		{textDeltas: []string{"after compaction"}},
-	})
+	}
+	idx := 0
+	mp := &ProviderMock{
+		StreamFunc: func(_ context.Context, req sdk.ProviderRequest, _ ...model.StreamOption) (
+			<-chan sdk.ProviderEvent, error,
+		) {
+			capturedReqs = append(capturedReqs, req)
+			ch := make(chan sdk.ProviderEvent, 1)
+
+			if idx < len(responses) {
+				if responses[idx].err != nil {
+					close(ch)
+					return ch, responses[idx].err
+				}
+
+				for _, d := range responses[idx].textDeltas {
+					ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: d}
+				}
+
+				for _, tc := range responses[idx].toolCalls {
+					ch <- sdk.ProviderEvent{Type: sdk.ProviderEventToolCall, Content: tc}
+				}
+
+				idx++
+			}
+
+			close(ch)
+
+			return ch, nil
+		},
+	}
 	registerMockProvider("anthropic", mp)
 
 	a, b, cleanup := setupAgent(t, "anthropic")
@@ -1130,6 +1216,18 @@ func TestAgent_ManualCompactionViaSteering(t *testing.T) {
 	payload, ok := compactedEvt.Payload.(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, 1, payload["summarized"], "should have summarized the initial messages")
+
+	// Verify compaction occurred: second provider request should be the summary
+	// request with the compact prompt as system prompt.
+	require.Eventually(t, func() bool {
+		return len(capturedReqs) >= 2
+	}, 2*time.Second, 100*time.Millisecond, "should have 2 provider requests")
+
+	// Second request is the compaction summary request.
+	req := capturedReqs[1]
+	assert.Equal(t, "focus on auth refactoring", req.SystemPrompt,
+		"compaction request should use custom instructions as system prompt")
+	assert.Len(t, req.Messages, 1, "compaction request should have exactly one user message")
 
 	require.NoError(t, a.Close())
 }
@@ -1169,6 +1267,7 @@ func TestAgent_ManualCompactionNoArgs(t *testing.T) {
 func TestAgent_AutoCompaction(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
+
 	model.ResetModelRegistry()
 	defer model.ResetModelRegistry()
 
@@ -1179,12 +1278,43 @@ func TestAgent_AutoCompaction(t *testing.T) {
 		ContextWindow: 1000,
 	})
 
-	// First response is large (4000 chars = 1000 tokens), second is compaction summary, third is final
-	mp := newMockProvider([]providerResponse{
+	var capturedReqs []sdk.ProviderRequest
+
+	responses := []providerResponse{
 		{textDeltas: []string{strings.Repeat("x", 4000)}},
 		{textDeltas: []string{"compacted summary"}},
 		{textDeltas: []string{"final response"}},
-	})
+	}
+	idx := 0
+	mp := &ProviderMock{
+		StreamFunc: func(_ context.Context, req sdk.ProviderRequest, _ ...model.StreamOption) (
+			<-chan sdk.ProviderEvent, error,
+		) {
+			capturedReqs = append(capturedReqs, req)
+			ch := make(chan sdk.ProviderEvent, 1)
+
+			if idx < len(responses) {
+				if responses[idx].err != nil {
+					close(ch)
+					return ch, responses[idx].err
+				}
+
+				for _, d := range responses[idx].textDeltas {
+					ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: d}
+				}
+
+				for _, tc := range responses[idx].toolCalls {
+					ch <- sdk.ProviderEvent{Type: sdk.ProviderEventToolCall, Content: tc}
+				}
+
+				idx++
+			}
+
+			close(ch)
+
+			return ch, nil
+		},
+	}
 	registerMockProvider("anthropic", mp)
 
 	a, b, cleanup := setupAgent(t, "anthropic")
@@ -1194,6 +1324,7 @@ func TestAgent_AutoCompaction(t *testing.T) {
 		ReserveTokens:    100,
 		KeepRecentTokens: 50,
 	}
+
 	defer cleanup()
 
 	allCh := subscribeAllToChan(b)
@@ -1212,7 +1343,24 @@ func TestAgent_AutoCompaction(t *testing.T) {
 	require.True(t, ok, "timeout waiting for auto compacted event")
 	payload, ok := compactedEvt.Payload.(map[string]any)
 	require.True(t, ok)
-	assert.Greater(t, payload["summarized"], 0)
+	assert.Positive(t, payload["summarized"])
+
+	// Verify the messages slice was actually replaced by checking the provider
+	// request after compaction.
+	require.Eventually(t, func() bool {
+		return len(capturedReqs) >= 3
+	}, 2*time.Second, 100*time.Millisecond, "should have 3 provider requests")
+
+	// Third request (post-compaction turn) should include the summary message.
+	req := capturedReqs[2]
+	require.NotEmpty(t, req.Messages, "request after compaction should have messages")
+
+	if len(req.Messages) > 0 {
+		content, ok := req.Messages[0].Content.(string)
+		require.True(t, ok, "first message should have string content")
+		assert.True(t, strings.HasPrefix(content, compactionSummaryPrefix),
+			"first message after compaction should be the summary, got: %s", content)
+	}
 
 	require.NoError(t, a.Close())
 }
@@ -1248,6 +1396,7 @@ func TestAgent_CompactionErrorInWaitForInputRecovers(t *testing.T) {
 	require.True(t, ok, "timeout waiting for compacted event after error")
 	payload, ok := compactedEvt.Payload.(map[string]any)
 	require.True(t, ok)
+
 	errStr, _ := payload["error"].(string)
 	assert.Contains(t, errStr, "context deadline exceeded")
 
@@ -1263,6 +1412,7 @@ func TestAgent_CompactionErrorInWaitForInputRecovers(t *testing.T) {
 func TestAgent_CompactionDisabledNoAutoTrigger(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
+
 	model.ResetModelRegistry()
 	defer model.ResetModelRegistry()
 
@@ -1280,6 +1430,7 @@ func TestAgent_CompactionDisabledNoAutoTrigger(t *testing.T) {
 	a, b, cleanup := setupAgent(t, "anthropic")
 	a.modelName = "test-tiny-model"
 	a.compactionCfg = CompactionConfig{Enabled: false}
+
 	defer cleanup()
 
 	allCh := subscribeAllToChan(b)
@@ -1309,6 +1460,12 @@ func TestSerializeForSummary_AssistantWithContentAndToolCalls(t *testing.T) {
 	result := serializeForSummary(msgs, "", nil)
 	assert.Contains(t, result, "[Tool call]: bash(")
 	assert.Contains(t, result, "[Assistant]: I'll run that for you.")
+
+	// Tool calls must appear before assistant content in serialization.
+	toolCallIdx := strings.Index(result, "[Tool call]")
+	assistantIdx := strings.Index(result, "[Assistant]: I'll run that for you.")
+	require.Greater(t, assistantIdx, toolCallIdx,
+		"tool calls should be serialized before assistant content")
 }
 
 func TestFindCutPoint_ZeroKeepRecentTokens(t *testing.T) {
@@ -1323,10 +1480,11 @@ func TestFindCutPoint_ZeroKeepRecentTokens(t *testing.T) {
 }
 
 func TestCompact_EmptySummaryError(t *testing.T) {
-	msgs := make([]sdk.Message, 10)
-	for i := range msgs {
-		msgs[i] = sdk.NewUserMessage(makeLongText(400))
+	msgs := make([]sdk.Message, 0, 11)
+	for range 10 {
+		msgs = append(msgs, sdk.NewUserMessage(makeLongText(400)))
 	}
+
 	msgs = append(msgs, sdk.NewUserMessage("keep me"))
 
 	mp := &ProviderMock{
@@ -1335,6 +1493,7 @@ func TestCompact_EmptySummaryError(t *testing.T) {
 		) {
 			ch := make(chan sdk.ProviderEvent)
 			close(ch) // no events — empty summary
+
 			return ch, nil
 		},
 	}
@@ -1343,7 +1502,7 @@ func TestCompact_EmptySummaryError(t *testing.T) {
 	ops := newFileOperations()
 
 	result, err := compact(context.Background(), mp, msgs, cfg, "test-model", ops, "summarize this")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "empty summary")
 	assert.Nil(t, result)
 }
@@ -1351,6 +1510,7 @@ func TestCompact_EmptySummaryError(t *testing.T) {
 func TestAgent_AutoCompactionErrorInInnerLoopAborts(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
+
 	model.ResetModelRegistry()
 	defer model.ResetModelRegistry()
 
@@ -1375,6 +1535,7 @@ func TestAgent_AutoCompactionErrorInInnerLoopAborts(t *testing.T) {
 		ReserveTokens:    100,
 		KeepRecentTokens: 50,
 	}
+
 	defer cleanup()
 
 	allCh := subscribeAllToChan(b)

@@ -14,6 +14,8 @@ import (
 	"weave/settings"
 )
 
+const defaultProviderName = "anthropic"
+
 // CompactionConfig controls automatic context compaction behavior.
 type CompactionConfig struct {
 	Enabled          bool   `json:"enabled" default:"true" description:"Enable auto-compaction"`
@@ -246,7 +248,7 @@ func resolveProviderName(envProvider string, ps sdk.PreferenceStore) string {
 		return providers[0]
 	}
 
-	return "anthropic"
+	return defaultProviderName
 }
 
 // resolveModelName reads the persisted model from settings. Returns empty

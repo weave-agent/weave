@@ -89,6 +89,7 @@ func newMockProvider(responses []providerResponse) *ProviderMock {
 	}
 }
 
+//nolint:unparam // executeFunc is for tests that need custom tool behavior
 func newMockTool(name string, def sdk.ToolDef, executeFunc func(ctx context.Context, args map[string]any) (sdk.ToolResult, error)) *ToolMock {
 	mt := &ToolMock{
 		NameFunc:       func() string { return name },

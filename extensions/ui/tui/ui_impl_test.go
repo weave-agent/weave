@@ -926,6 +926,7 @@ func TestModel_CompactedMsg_AddsNotificationAndEntry(t *testing.T) {
 
 	ce, ok := items[1].(*messages.CompactionEntry)
 	require.True(t, ok)
+
 	view := ce.View(80)
 	assert.Contains(t, view, "5 messages summarized")
 	assert.Contains(t, view, "7000 saved")

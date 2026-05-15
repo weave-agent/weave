@@ -211,7 +211,15 @@ Unified settings JSON format (single file — project `~/.weave/settings.json` o
   },
   "sandbox": { "mode": "auto", "writable": ["."] },
   "jsonl": { "dir": "~/.weave/sessions" },
-  "extensions": { "myext": { "key": "value" } },
+  "extensions": {
+    "myext": { "key": "value" },
+    "agent": {
+      "enabled": true,
+      "reserve_tokens": 16384,
+      "keep_recent_tokens": 20000,
+      "model": ""
+    }
+  },
   "provider": "anthropic",
   "model": "claude-sonnet-4-6",
   "thinking_level": "medium",
@@ -281,7 +289,23 @@ Built-in config scopes are hardcoded in `FullConfig.ExtensionConfig`: `tools`, `
 
 **Provider env vars are a special case:** providers receive an empty `envPrefix`, so both their config env tags (e.g. `ANTHROPIC_MODEL`, `KIMI_MODEL`) and auth env tags (e.g. `ANTHROPIC_API_KEY`, `KIMI_API_KEY`) resolve directly without a `WEAVE_` prefix. Tools and extensions use `WEAVE_<NAME>` as prefix.
 
+Agent extension env vars (using `WEAVE_AGENT_` prefix):
+```bash
+WEAVE_AGENT_ENABLED=false              # Disable auto-compaction
+WEAVE_AGENT_RESERVE_TOKENS=8192        # Reserve tokens for model response
+WEAVE_AGENT_KEEP_RECENT_TOKENS=10000   # Recent tokens to preserve
+WEAVE_AGENT_MODEL=claude-haiku-4-5     # Model for summary generation
+```
+
 **Extension-specific CLI flags** are prefixed with the extension name: `--bash-timeout 60`, `--kimi-model kimi-for-coding`. The framework strips the prefix before passing args to the extension's loader. Boolean flags support `--flag=true`/`--flag=false` syntax. Unknown flags are silently ignored by the loader, so extensions don't need to defensively parse args.
+
+Agent extension compaction flags:
+```bash
+--agent-enabled=false                  # Disable auto-compaction
+--agent-reserve-tokens=8192            # Reserve tokens for model response
+--agent-keep-recent-tokens=10000       # Recent tokens to preserve
+--agent-model=claude-haiku-4-5         # Model for summary generation
+```
 
 **Extension configs are resolved from layered settings** (global → project → local), not just the project config file. This means a tool's timeout can be set globally and overridden per-project.
 
