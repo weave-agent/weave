@@ -182,3 +182,78 @@ func TestLoadSystemPrompt_AppendSystemProjectOverridesGlobal(t *testing.T) {
 	assert.Empty(t, base)
 	assert.Equal(t, "project append", append_)
 }
+
+// --- discoverCompactPrompt tests ---
+
+func TestDiscoverCompactPrompt_NoFiles(t *testing.T) {
+	projectDir := t.TempDir()
+	globalDir := t.TempDir()
+
+	result := discoverCompactPrompt(projectDir, globalDir)
+	assert.Empty(t, result)
+}
+
+func TestDiscoverCompactPrompt_ProjectOverridesGlobal(t *testing.T) {
+	projectDir := t.TempDir()
+	globalDir := t.TempDir()
+
+	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".weave"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(projectDir, ".weave", "COMPACT.md"), []byte("project compact"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(globalDir, "COMPACT.md"), []byte("global compact"), 0o644))
+
+	result := discoverCompactPrompt(projectDir, globalDir)
+	assert.Equal(t, "project compact", result)
+}
+
+func TestDiscoverCompactPrompt_GlobalFallback(t *testing.T) {
+	projectDir := t.TempDir()
+	globalDir := t.TempDir()
+
+	require.NoError(t, os.WriteFile(filepath.Join(globalDir, "COMPACT.md"), []byte("global compact"), 0o644))
+
+	result := discoverCompactPrompt(projectDir, globalDir)
+	assert.Equal(t, "global compact", result)
+}
+
+func TestDiscoverCompactPrompt_EmptyGlobalDir(t *testing.T) {
+	projectDir := t.TempDir()
+
+	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".weave"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(projectDir, ".weave", "COMPACT.md"), []byte("project only"), 0o644))
+
+	result := discoverCompactPrompt(projectDir, "")
+	assert.Equal(t, "project only", result)
+}
+
+// --- resolveCompactPrompt tests ---
+
+func TestResolveCompactPrompt_CustomInstructionsWin(t *testing.T) {
+	projectDir := t.TempDir()
+	globalDir := t.TempDir()
+
+	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".weave"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(projectDir, ".weave", "COMPACT.md"), []byte("from file"), 0o644))
+
+	result := resolveCompactPrompt("custom instructions", projectDir, globalDir)
+	assert.Equal(t, "custom instructions", result)
+}
+
+func TestResolveCompactPrompt_CompactMDWhenNoCustom(t *testing.T) {
+	projectDir := t.TempDir()
+	globalDir := t.TempDir()
+
+	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".weave"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(projectDir, ".weave", "COMPACT.md"), []byte("from file"), 0o644))
+
+	result := resolveCompactPrompt("", projectDir, globalDir)
+	assert.Equal(t, "from file", result)
+}
+
+func TestResolveCompactPrompt_DefaultWhenNothingFound(t *testing.T) {
+	projectDir := t.TempDir()
+	globalDir := t.TempDir()
+
+	result := resolveCompactPrompt("", projectDir, globalDir)
+	assert.Contains(t, result, "Summarize the following conversation")
+	assert.Contains(t, result, "## Goal")
+}

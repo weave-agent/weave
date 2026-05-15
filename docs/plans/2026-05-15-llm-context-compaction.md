@@ -76,15 +76,15 @@ Replace the existing storage-only JSONL compaction with runtime context manageme
 - [x] run tests — must pass before Task 4
 
 ### Task 4: Implement COMPACT.md discovery and message serialization
-- [ ] add `discoverCompactPrompt(projectDir, globalDir string) string` in `context.go` — follows same pattern as `loadSystemPrompt()`, looks for `.weave/COMPACT.md` (project) then `~/.weave/COMPACT.md` (global), project overrides global
-- [ ] add default summarization system prompt as embedded `default-compact-prompt.md` in `extensions/agent/`
-- [ ] add `resolveCompactPrompt(customInstructions string, projectDir, globalDir string) string` that returns: custom instructions if non-empty, else COMPACT.md content if found, else default embedded prompt
-- [ ] add `serializeForSummary(msgs []sdk.Message, previousSummary string, fileOps fileOperations) string` in `compaction.go`
-- [ ] format messages as `[User]: content`, `[Assistant]: content`, `[Tool call]: name(args)`, `[Tool result]: content (truncated to 2000 chars)`
-- [ ] prepend previous summary if present (from prior compaction)
-- [ ] append cumulative file operation lists (`<read-files>` and `<modified-files>` sections)
-- [ ] write tests for: COMPACT.md discovery (project vs global vs default), serialization with empty messages, single turn, multi-turn with tools, truncation of long tool results, previous summary inclusion
-- [ ] run tests — must pass before Task 5
+- [x] add `discoverCompactPrompt(projectDir, globalDir string) string` in `context.go` — follows same pattern as `loadSystemPrompt()`, looks for `.weave/COMPACT.md` (project) then `~/.weave/COMPACT.md` (global), project overrides global
+- [x] add default summarization system prompt as embedded `default-compact-prompt.md` in `extensions/agent/`
+- [x] add `resolveCompactPrompt(customInstructions string, projectDir, globalDir string) string` that returns: custom instructions if non-empty, else COMPACT.md content if found, else default embedded prompt
+- [x] add `serializeForSummary(msgs []sdk.Message, previousSummary string, fileOps fileOperations) string` in `compaction.go`
+- [x] format messages as `[User]: content`, `[Assistant]: content`, `[Tool call]: name(args)`, `[Tool result]: content (truncated to 2000 chars)`
+- [x] prepend previous summary if present (from prior compaction)
+- [x] append cumulative file operation lists (`<read-files>` and `<modified-files>` sections)
+- [x] write tests for: COMPACT.md discovery (project vs global vs default), serialization with empty messages, single turn, multi-turn with tools, truncation of long tool results, previous summary inclusion
+- [x] run tests — must pass before Task 5
 
 ### Task 5: Implement file operation tracking
 - [ ] add `fileOperations` struct in `compaction.go` with `readFiles map[string]bool` and `modifiedFiles map[string]bool`

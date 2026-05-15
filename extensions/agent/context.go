@@ -94,6 +94,28 @@ func loadSystemPrompt(projectDir, globalDir string) (base, append_ string) {
 	return base, append_
 }
 
+// discoverCompactPrompt looks for COMPACT.md in projectDir/.weave/ first,
+// then globalDir. Project overrides global. Returns empty string if not found.
+func discoverCompactPrompt(projectDir, globalDir string) string {
+	return loadFirst("COMPACT.md", projectDir, globalDir)
+}
+
+// resolveCompactPrompt returns the summarization instructions in priority order:
+//  1. customInstructions (from /compact args) if non-empty
+//  2. COMPACT.md content (project or global) if found
+//  3. default embedded prompt
+func resolveCompactPrompt(customInstructions, projectDir, globalDir string) string {
+	if customInstructions != "" {
+		return customInstructions
+	}
+
+	if content := discoverCompactPrompt(projectDir, globalDir); content != "" {
+		return content
+	}
+
+	return defaultCompactPrompt
+}
+
 // loadFirst reads filename from projectDir/.weave/ if projectDir is set,
 // then falls back to globalDir.
 func loadFirst(filename, projectDir, globalDir string) string {

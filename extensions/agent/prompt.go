@@ -12,6 +12,9 @@ import (
 //go:embed default-system-prompt.md
 var defaultSystemPrompt string
 
+//go:embed default-compact-prompt.md
+var defaultCompactPrompt string
+
 type buildInput struct {
 	contextFiles []contextFile
 	systemBase   string

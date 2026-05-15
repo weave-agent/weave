@@ -3,6 +3,8 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
+	"strings"
 
 	"weave/sdk"
 )
@@ -134,4 +136,126 @@ func estimateContentTokens(content any) int {
 	default:
 		return len(fmt.Sprint(v)) / tokensPerChar
 	}
+}
+
+// fileOperations tracks which files have been read and modified across the
+// conversation. It accumulates across compactions — when a summary replaces
+// messages, the preserved file lists become the baseline.
+type fileOperations struct {
+	readFiles     map[string]bool
+	modifiedFiles map[string]bool
+}
+
+func newFileOperations() *fileOperations {
+	return &fileOperations{
+		readFiles:     make(map[string]bool),
+		modifiedFiles: make(map[string]bool),
+	}
+}
+
+// trackFileOps scans messages for read/edit/write tool calls and records
+// the file paths in the fileOperations tracker.
+func trackFileOps(msgs []sdk.Message, ops *fileOperations) {
+	for _, msg := range msgs {
+		for _, tc := range msg.ToolCalls {
+			switch tc.Name {
+			case "read":
+				if path, ok := tc.Arguments["file_path"]; ok {
+					ops.readFiles[fmt.Sprint(path)] = true
+				}
+			case "edit", "write":
+				if path, ok := tc.Arguments["file_path"]; ok {
+					ops.modifiedFiles[fmt.Sprint(path)] = true
+				}
+			}
+		}
+	}
+}
+
+const maxToolResultLen = 2000
+
+// serializeForSummary formats messages into a text representation suitable
+// for LLM summarization. It prepends a previous summary if present and
+// appends cumulative file operation lists.
+func serializeForSummary(msgs []sdk.Message, previousSummary string, ops *fileOperations) string {
+	var b strings.Builder
+
+	if previousSummary != "" {
+		b.WriteString("<previous-summary>\n")
+		b.WriteString(previousSummary)
+		b.WriteString("\n</previous-summary>\n\n")
+	}
+
+	for _, msg := range msgs {
+		switch msg.Role {
+		case sdk.RoleUser:
+			fmt.Fprintf(&b, "[User]: %s\n", contentString(msg.Content))
+		case sdk.RoleAssistant:
+			if len(msg.ToolCalls) > 0 {
+				for _, tc := range msg.ToolCalls {
+					args, _ := json.Marshal(tc.Arguments)
+					fmt.Fprintf(&b, "[Tool call]: %s(%s)\n", tc.Name, string(args))
+				}
+			}
+			if content := contentString(msg.Content); content != "" {
+				fmt.Fprintf(&b, "[Assistant]: %s\n", content)
+			}
+		case sdk.RoleToolResult:
+			content := contentString(msg.Content)
+			if len(content) > maxToolResultLen {
+				content = content[:maxToolResultLen] + "... (truncated)"
+			}
+			fmt.Fprintf(&b, "[Tool result]: %s\n", content)
+		}
+	}
+
+	if ops != nil {
+		b.WriteString(fileOpsXML(ops))
+	}
+
+	return b.String()
+}
+
+// fileOpsXML generates <read-files> and <modified-files> XML sections
+// from the accumulated file operations.
+func fileOpsXML(ops *fileOperations) string {
+	var b strings.Builder
+
+	if len(ops.readFiles) > 0 {
+		b.WriteString("\n<read-files>\n")
+		for _, path := range sortedKeys(ops.readFiles) {
+			fmt.Fprintf(&b, "- %s\n", path)
+		}
+		b.WriteString("</read-files>\n")
+	}
+
+	if len(ops.modifiedFiles) > 0 {
+		b.WriteString("\n<modified-files>\n")
+		for _, path := range sortedKeys(ops.modifiedFiles) {
+			fmt.Fprintf(&b, "- %s\n", path)
+		}
+		b.WriteString("</modified-files>\n")
+	}
+
+	return b.String()
+}
+
+func contentString(content any) string {
+	switch v := content.(type) {
+	case string:
+		return v
+	case nil:
+		return ""
+	default:
+		return fmt.Sprint(v)
+	}
+}
+
+func sortedKeys(m map[string]bool) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }

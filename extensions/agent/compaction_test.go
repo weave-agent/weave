@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"strings"
 	"testing"
 
 	"weave/sdk"
@@ -327,5 +328,176 @@ func TestEstimateContentTokens(t *testing.T) {
 
 	t.Run("default uses Sprint", func(t *testing.T) {
 		assert.Equal(t, 0, estimateContentTokens(42)) // "42" = 2 chars / 4 = 0
+	})
+}
+
+func TestSerializeForSummary(t *testing.T) {
+	t.Run("empty messages", func(t *testing.T) {
+		result := serializeForSummary(nil, "", nil)
+		assert.Empty(t, result)
+	})
+
+	t.Run("single user message", func(t *testing.T) {
+		msgs := []sdk.Message{
+			sdk.NewUserMessage("Hello"),
+		}
+		result := serializeForSummary(msgs, "", nil)
+		assert.Contains(t, result, "[User]: Hello")
+	})
+
+	t.Run("single turn", func(t *testing.T) {
+		msgs := []sdk.Message{
+			sdk.NewUserMessage("Write a function"),
+			sdk.NewAssistantMessage("Here is the function:"),
+		}
+		result := serializeForSummary(msgs, "", nil)
+		assert.Contains(t, result, "[User]: Write a function")
+		assert.Contains(t, result, "[Assistant]: Here is the function:")
+	})
+
+	t.Run("multi-turn with tools", func(t *testing.T) {
+		msg := sdk.NewAssistantMessage("")
+		msg.ToolCalls = []sdk.ToolCall{
+			{ID: "tc1", Name: "bash", Arguments: map[string]any{"command": "echo hi"}},
+		}
+		msgs := []sdk.Message{
+			sdk.NewUserMessage("run echo"),
+			msg,
+			sdk.NewToolResultMessage("tc1", "bash", "hi\n", false),
+			sdk.NewAssistantMessage("Done"),
+		}
+		result := serializeForSummary(msgs, "", nil)
+		assert.Contains(t, result, "[User]: run echo")
+		assert.Contains(t, result, "[Tool call]: bash(")
+		assert.Contains(t, result, `"command":"echo hi"`)
+		assert.Contains(t, result, "[Tool result]: hi")
+		assert.Contains(t, result, "[Assistant]: Done")
+	})
+
+	t.Run("truncation of long tool results", func(t *testing.T) {
+		longOutput := strings.Repeat("x", 3000)
+		msgs := []sdk.Message{
+			sdk.NewToolResultMessage("tc1", "bash", longOutput, false),
+		}
+		result := serializeForSummary(msgs, "", nil)
+		assert.Contains(t, result, "... (truncated)")
+		// Should not contain the full 3000 chars
+		assert.Less(t, len(result), 2500)
+	})
+
+	t.Run("previous summary inclusion", func(t *testing.T) {
+		msgs := []sdk.Message{
+			sdk.NewUserMessage("continue"),
+		}
+		result := serializeForSummary(msgs, "Previous conversation summary", nil)
+		assert.Contains(t, result, "<previous-summary>")
+		assert.Contains(t, result, "Previous conversation summary")
+		assert.Contains(t, result, "</previous-summary>")
+		assert.Contains(t, result, "[User]: continue")
+	})
+
+	t.Run("file operations appended", func(t *testing.T) {
+		msgs := []sdk.Message{
+			sdk.NewUserMessage("do stuff"),
+		}
+		ops := newFileOperations()
+		ops.readFiles["/path/to/read.go"] = true
+		ops.modifiedFiles["/path/to/edit.go"] = true
+
+		result := serializeForSummary(msgs, "", ops)
+		assert.Contains(t, result, "<read-files>")
+		assert.Contains(t, result, "/path/to/read.go")
+		assert.Contains(t, result, "</read-files>")
+		assert.Contains(t, result, "<modified-files>")
+		assert.Contains(t, result, "/path/to/edit.go")
+		assert.Contains(t, result, "</modified-files>")
+	})
+
+	t.Run("nil content in user message", func(t *testing.T) {
+		msgs := []sdk.Message{
+			{Role: sdk.RoleUser, Content: nil},
+		}
+		result := serializeForSummary(msgs, "", nil)
+		assert.Contains(t, result, "[User]:")
+	})
+}
+
+func TestTrackFileOps(t *testing.T) {
+	t.Run("no file ops", func(t *testing.T) {
+		msgs := []sdk.Message{
+			sdk.NewUserMessage("hello"),
+			sdk.NewAssistantMessage("hi"),
+		}
+		ops := newFileOperations()
+		trackFileOps(msgs, ops)
+		assert.Empty(t, ops.readFiles)
+		assert.Empty(t, ops.modifiedFiles)
+	})
+
+	t.Run("read tracking", func(t *testing.T) {
+		msg := sdk.NewAssistantMessage("")
+		msg.ToolCalls = []sdk.ToolCall{
+			{Name: "read", Arguments: map[string]any{"file_path": "/path/to/file.go"}},
+		}
+		msgs := []sdk.Message{msg}
+		ops := newFileOperations()
+		trackFileOps(msgs, ops)
+		assert.True(t, ops.readFiles["/path/to/file.go"])
+		assert.Empty(t, ops.modifiedFiles)
+	})
+
+	t.Run("edit/write tracking", func(t *testing.T) {
+		editMsg := sdk.NewAssistantMessage("")
+		editMsg.ToolCalls = []sdk.ToolCall{
+			{Name: "edit", Arguments: map[string]any{"file_path": "/path/to/edit.go"}},
+		}
+		writeMsg := sdk.NewAssistantMessage("")
+		writeMsg.ToolCalls = []sdk.ToolCall{
+			{Name: "write", Arguments: map[string]any{"file_path": "/path/to/write.go"}},
+		}
+		msgs := []sdk.Message{editMsg, writeMsg}
+		ops := newFileOperations()
+		trackFileOps(msgs, ops)
+		assert.Empty(t, ops.readFiles)
+		assert.True(t, ops.modifiedFiles["/path/to/edit.go"])
+		assert.True(t, ops.modifiedFiles["/path/to/write.go"])
+	})
+
+	t.Run("accumulation across calls", func(t *testing.T) {
+		msg1 := sdk.NewAssistantMessage("")
+		msg1.ToolCalls = []sdk.ToolCall{
+			{Name: "read", Arguments: map[string]any{"file_path": "/first.go"}},
+		}
+		msg2 := sdk.NewAssistantMessage("")
+		msg2.ToolCalls = []sdk.ToolCall{
+			{Name: "read", Arguments: map[string]any{"file_path": "/second.go"}},
+		}
+		ops := newFileOperations()
+		trackFileOps([]sdk.Message{msg1}, ops)
+		trackFileOps([]sdk.Message{msg2}, ops)
+		assert.True(t, ops.readFiles["/first.go"])
+		assert.True(t, ops.readFiles["/second.go"])
+	})
+}
+
+func TestFileOpsXML(t *testing.T) {
+	t.Run("empty operations", func(t *testing.T) {
+		ops := newFileOperations()
+		result := fileOpsXML(ops)
+		assert.Empty(t, result)
+	})
+
+	t.Run("sorted output", func(t *testing.T) {
+		ops := newFileOperations()
+		ops.readFiles["/z.go"] = true
+		ops.readFiles["/a.go"] = true
+		ops.readFiles["/m.go"] = true
+
+		result := fileOpsXML(ops)
+		idxA := strings.Index(result, "/a.go")
+		idxM := strings.Index(result, "/m.go")
+		idxZ := strings.Index(result, "/z.go")
+		assert.Less(t, idxA, idxM)
+		assert.Less(t, idxM, idxZ)
 	})
 }
