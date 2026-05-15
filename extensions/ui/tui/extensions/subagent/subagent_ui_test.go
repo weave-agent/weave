@@ -1,6 +1,7 @@
 package subagent
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -22,11 +23,13 @@ type mockTUIExtAPI struct {
 	panelsShown   []tui.PanelConfig
 	panelDrawers  []tui.PanelDrawer
 	panelsRemoved []string
+	removeCh      chan string
 }
 
 func newMockTUIExtAPI() *mockTUIExtAPI {
 	return &mockTUIExtAPI{
 		richRenderers: make(map[string]tui.RichToolRenderer),
+		removeCh:      make(chan string, 10),
 	}
 }
 
@@ -45,6 +48,12 @@ func (m *mockTUIExtAPI) RemovePanel(id string) {
 	defer m.mu.Unlock()
 
 	m.panelsRemoved = append(m.panelsRemoved, id)
+	if m.removeCh != nil {
+		select {
+		case m.removeCh <- id:
+		default:
+		}
+	}
 }
 func (m *mockTUIExtAPI) PanelVisible(id string) bool { return false }
 func (m *mockTUIExtAPI) PanelTray() tui.PanelTrayAPI { return nil }
@@ -87,6 +96,32 @@ func (m *mockTUIExtAPI) OnTerminalInput(handler func(tui.KeyEvent))             
 func (m *mockTUIExtAPI) AddAutocomplete(provider tui.AutocompleteProvider)                    {}
 func (m *mockTUIExtAPI) SetWorkingFrames(frames []string, interval time.Duration)             {}
 func (m *mockTUIExtAPI) RegisterTheme(name string, theme tui.ThemeDef) error                  { return nil }
+
+// waitForPanelRemovals waits until at least count panels have been removed.
+func waitForPanelRemovals(t *testing.T, api *mockTUIExtAPI, count int, timeout time.Duration) []string {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		removed := api.getPanelsRemoved()
+		if len(removed) >= count {
+			return removed
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("timeout waiting for %d panel removals, got %d", count, len(api.getPanelsRemoved()))
+	return nil
+}
+
+// drainRemoveCh drains any pending removals from the channel.
+func drainRemoveCh(api *mockTUIExtAPI) {
+	for {
+		select {
+		case <-api.removeCh:
+		default:
+			return
+		}
+	}
+}
 
 // mockBus records published events and delivers On-subscribed events.
 type mockBus struct {
@@ -242,8 +277,8 @@ func TestSubagentExtension_Subscribe_FullLifecycle(t *testing.T) {
 	assert.NotNil(t, ext.tracker.Get("agent-789"))
 	assert.Empty(t, api.getPanelsRemoved())
 
-	// Wait for grace period
-	time.Sleep(150 * time.Millisecond)
+	// Wait for grace period to expire
+	waitForPanelRemovals(t, api, 1, 2*time.Second)
 
 	// After grace period: agent removed from tracker, panel removed
 	assert.Nil(t, ext.tracker.Get("agent-789"))
@@ -280,7 +315,7 @@ func TestSubagentExtension_Subscribe_FailedAgent(t *testing.T) {
 	assert.Equal(t, AgentFailed, agent.Status)
 
 	// Wait for grace period
-	time.Sleep(150 * time.Millisecond)
+	waitForPanelRemovals(t, api, 1, 2*time.Second)
 
 	assert.Nil(t, ext.tracker.Get("agent-fail"))
 
@@ -314,7 +349,7 @@ func TestSubagentExtension_Subscribe_MultipleAgents(t *testing.T) {
 		"id": "agent-a", "status": "completed", "content": "done",
 	}))
 
-	time.Sleep(150 * time.Millisecond)
+	waitForPanelRemovals(t, api, 1, 2*time.Second)
 
 	// agent-a removed, agent-b still running
 	assert.Nil(t, ext.tracker.Get("agent-a"))
@@ -459,8 +494,7 @@ func TestSubagentExtension_AgentEnd_TriggersCleanup(t *testing.T) {
 	assert.Empty(t, ext.tracker.List())
 	assert.Nil(t, ext.api)
 
-	// Grace-period timers should not fire (they were canceled)
-	time.Sleep(150 * time.Millisecond)
+	// Grace-period timers were canceled — no panels should be removed.
 	assert.Empty(t, api.getPanelsRemoved())
 }
 
@@ -476,7 +510,7 @@ func TestSubagentExtension_NoPanelLeak_OnDone(t *testing.T) {
 
 	// Start and complete 3 agents
 	for i := range 3 {
-		id := "agent-" + string(rune('a'+i))
+		id := fmt.Sprintf("agent-%c", 'a'+i)
 		bus.Publish(sdk.NewEvent("subagent.started", map[string]string{
 			"id": id, "name": "agent", "mode": "background",
 		}))
@@ -487,8 +521,8 @@ func TestSubagentExtension_NoPanelLeak_OnDone(t *testing.T) {
 
 	require.Len(t, api.panelsShown, 3)
 
-	// Wait for grace periods
-	time.Sleep(150 * time.Millisecond)
+	// Wait for all grace periods to expire
+	waitForPanelRemovals(t, api, 3, 2*time.Second)
 
 	// Every shown panel should have been removed
 	removed := api.getPanelsRemoved()

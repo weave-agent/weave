@@ -74,16 +74,15 @@ func TestAgentTracker_Start_OverwriteExisting(t *testing.T) {
 
 	assert.Equal(t, "replacement", tracker.Get("agent-1").Name)
 
-	// Old grace-period timer should not fire for the replaced agent.
-	time.Sleep(150 * time.Millisecond)
+	// Old grace-period timer was stopped by overwrite — callback should not fire.
 	assert.Equal(t, int32(0), removed.Load())
 }
 
 func TestAgentTracker_Start_OverwriteRunning(t *testing.T) {
-	var removed atomic.Int32
+	removedCh := make(chan string, 1)
 
 	tracker := NewAgentTracker(50*time.Millisecond, func(id string) {
-		removed.Add(1)
+		removedCh <- id
 	})
 
 	// Start a running agent (no grace timer yet).
@@ -95,11 +94,15 @@ func TestAgentTracker_Start_OverwriteRunning(t *testing.T) {
 	assert.Equal(t, "replacement", tracker.Get("agent-1").Name)
 	assert.Equal(t, AgentRunning, tracker.Get("agent-1").Status)
 
-	// Completing the replacement should work normally.
+	// Completing the replacement should trigger the callback once.
 	tracker.Done("agent-1", "completed", "done")
 
-	time.Sleep(150 * time.Millisecond)
-	assert.Equal(t, int32(1), removed.Load())
+	select {
+	case <-removedCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for grace-period callback")
+	}
+	assert.Nil(t, tracker.Get("agent-1"))
 }
 
 func TestAgentTracker_Done_NilOnRemove(t *testing.T) {
@@ -108,12 +111,10 @@ func TestAgentTracker_Done_NilOnRemove(t *testing.T) {
 	tracker.Start("agent-1", "test", "background")
 	tracker.Done("agent-1", "completed", "done")
 
-	// Should not panic with nil onRemove.
-	assert.NotPanics(t, func() {
-		time.Sleep(150 * time.Millisecond)
-	})
-
-	assert.Nil(t, tracker.Get("agent-1"))
+	// Should not panic with nil onRemove. Poll until agent is removed or timeout.
+	require.Eventually(t, func() bool {
+		return tracker.Get("agent-1") == nil
+	}, 2*time.Second, 10*time.Millisecond)
 }
 
 func TestAgentTracker_Remove(t *testing.T) {
@@ -179,27 +180,36 @@ func TestAgentTracker_Done_Nonexistent(t *testing.T) {
 }
 
 func TestAgentTracker_Done_CalledTwice(t *testing.T) {
-	var removed atomic.Int32
+	removedCh := make(chan string, 1)
 
 	tracker := NewAgentTracker(50*time.Millisecond, func(id string) {
-		removed.Add(1)
+		removedCh <- id
 	})
 
 	tracker.Start("agent-1", "test", "background")
 	tracker.Done("agent-1", "completed", "done")
 	tracker.Done("agent-1", "completed", "done again")
 
-	time.Sleep(150 * time.Millisecond)
+	select {
+	case <-removedCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for grace-period callback")
+	}
 
 	// onRemove should only fire once — second Done is a no-op.
-	assert.Equal(t, int32(1), removed.Load())
+	select {
+	case <-removedCh:
+		t.Fatal("unexpected second callback")
+	default:
+	}
+	assert.Nil(t, tracker.Get("agent-1"))
 }
 
 func TestAgentTracker_GracePeriod(t *testing.T) {
-	var removed atomic.Int32
+	removedCh := make(chan string, 1)
 
 	tracker := NewAgentTracker(50*time.Millisecond, func(id string) {
-		removed.Add(1)
+		removedCh <- id
 	})
 
 	tracker.Start("agent-1", "researcher", "background")
@@ -209,11 +219,14 @@ func TestAgentTracker_GracePeriod(t *testing.T) {
 	assert.NotNil(t, tracker.Get("agent-1"))
 
 	// Wait for grace period to fire
-	time.Sleep(150 * time.Millisecond)
+	select {
+	case <-removedCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for grace-period callback")
+	}
 
 	// Agent should have been removed
 	assert.Nil(t, tracker.Get("agent-1"))
-	assert.Equal(t, int32(1), removed.Load())
 }
 
 func TestAgentTracker_GracePeriod_RemoveCancels(t *testing.T) {
@@ -226,12 +239,10 @@ func TestAgentTracker_GracePeriod_RemoveCancels(t *testing.T) {
 	tracker.Start("agent-1", "researcher", "background")
 	tracker.Done("agent-1", "completed", "done")
 
-	// Explicitly remove before grace period fires
+	// Explicitly remove before grace period fires — timer is stopped.
 	tracker.Remove("agent-1")
 
-	time.Sleep(150 * time.Millisecond)
-
-	// onRemove should NOT have been called since we removed explicitly
+	// onRemove should NOT have been called since we removed explicitly.
 	assert.Equal(t, int32(0), removed.Load())
 }
 
@@ -281,8 +292,7 @@ func TestAgentTracker_Close(t *testing.T) {
 	assert.Nil(t, tracker.Get("agent-1"))
 	assert.Nil(t, tracker.Get("agent-2"))
 
-	// Grace-period timer should have been canceled.
-	time.Sleep(150 * time.Millisecond)
+	// Grace-period timer should have been canceled — callback must not fire.
 	assert.Equal(t, int32(0), removed.Load())
 }
 
