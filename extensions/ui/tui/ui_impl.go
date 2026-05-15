@@ -450,19 +450,23 @@ func (u *TUIImpl) Theme() sdk.ThemeInfo {
 	}
 
 	info := sdk.ThemeInfo{
-		Name:             name,
-		Primary:          t.Primary,
-		PrimaryDim:       t.PrimaryDim,
-		PrimaryBright:    t.PrimaryBright,
-		Success:          t.Success,
-		Error:            t.Error,
-		Warning:          t.Warning,
-		Muted:            t.Muted,
-		MutedBright:      t.MutedBright,
-		Border:           t.Border,
-		BorderFocused:    t.BorderFocused,
-		Foreground:       t.Foreground,
-		ForegroundBright: t.ForegroundBright,
+		Name:                  name,
+		Primary:               t.Primary,
+		PrimaryDim:            t.PrimaryDim,
+		PrimaryBright:         t.PrimaryBright,
+		Success:               t.Success,
+		Error:                 t.Error,
+		Warning:               t.Warning,
+		Muted:                 t.Muted,
+		MutedBright:           t.MutedBright,
+		Border:                t.Border,
+		BorderFocused:         t.BorderFocused,
+		Foreground:            t.Foreground,
+		ForegroundBright:      t.ForegroundBright,
+		BackgroundTint:        t.BackgroundTint,
+		BackgroundTintPending: t.BackgroundTintPending,
+		BackgroundTintSuccess: t.BackgroundTintSuccess,
+		BackgroundTintError:   t.BackgroundTintError,
 	}
 	u.mu.Unlock()
 
@@ -523,6 +527,9 @@ func (u *TUIImpl) PanelTray() PanelTrayAPI {
 
 // SetOrder implements PanelTrayAPI.
 func (u *TUIImpl) SetOrder(ids []string) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
 	if u.panelManager == nil {
 		return
 	}

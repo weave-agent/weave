@@ -406,13 +406,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Forward keys to active panel when focused
 		if m.focus == FocusPanel && m.panelManager.Active() != "" {
-			if entry, ok := m.panelManager.Get(m.panelManager.Active()); ok && entry.Drawer != nil {
-				if entry.Drawer.Handles(msg) {
-					newDrawer, cmd := entry.Drawer.Update(msg)
-					entry.Drawer = newDrawer
-
-					return m, cmd
-				}
+			if cmd, ok := m.panelManager.UpdateDrawer(m.panelManager.Active(), msg); ok {
+				return m, cmd
 			}
 		}
 
@@ -2112,9 +2107,7 @@ func (m Model) drawActivePanel(scr uv.Screen, area uv.Rectangle) {
 	}
 
 	if activeID := m.panelManager.Active(); activeID != "" {
-		if entry, ok := m.panelManager.Get(activeID); ok && entry.Visible && entry.Drawer != nil {
-			entry.Drawer.Draw(scr, area)
-		}
+		m.panelManager.DrawPanel(activeID, scr, area)
 	}
 }
 

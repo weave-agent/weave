@@ -64,6 +64,8 @@ func GetTUIExtensions(cfg sdk.Config) []TUIExtension {
 	for _, name := range names {
 		ext, err := GetTUIExtension(name, cfg)
 		if err != nil {
+			sdk.Logger("tui").Error("failed to instantiate TUI extension", "name", name, "error", err)
+
 			continue
 		}
 

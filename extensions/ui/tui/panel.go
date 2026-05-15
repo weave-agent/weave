@@ -191,14 +191,50 @@ func (pm *PanelManager) AllPanels() []string {
 	return result
 }
 
-// Get returns a panel entry by ID.
-func (pm *PanelManager) Get(id string) (*panelEntry, bool) {
+// Get returns a copy of a panel entry by ID.
+func (pm *PanelManager) Get(id string) (panelEntry, bool) {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
 
 	entry, ok := pm.panels[id]
+	if !ok {
+		return panelEntry{}, false
+	}
 
-	return entry, ok
+	return *entry, true
+}
+
+// UpdateDrawer routes a message to a panel's drawer and stores the updated drawer.
+// Returns the command and true if the panel exists and its drawer handled the message.
+func (pm *PanelManager) UpdateDrawer(id string, msg tea.Msg) (tea.Cmd, bool) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
+	entry, ok := pm.panels[id]
+	if !ok || entry.Drawer == nil || !entry.Drawer.Handles(msg) {
+		return nil, false
+	}
+
+	newDrawer, cmd := entry.Drawer.Update(msg)
+	entry.Drawer = newDrawer
+
+	return cmd, true
+}
+
+// DrawPanel draws a panel's drawer if the panel is visible.
+// Returns true if the panel was drawn.
+func (pm *PanelManager) DrawPanel(id string, scr uv.Screen, area uv.Rectangle) bool {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	entry, ok := pm.panels[id]
+	if !ok || !entry.Visible || entry.Drawer == nil {
+		return false
+	}
+
+	entry.Drawer.Draw(scr, area)
+
+	return true
 }
 
 // ActivePanelHeight returns the height of the active panel, or 0 if none.
