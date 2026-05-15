@@ -54,6 +54,7 @@ type ChatModel struct {
 	selStartCol  int
 	selEndLine   int
 	selEndCol    int
+	mouseDown    bool
 }
 
 // NewChatModel creates a new chat model.
@@ -332,6 +333,7 @@ func (m *ChatModel) ensureCache() {
 // StartSelection begins a new text selection at the given global line and column.
 func (m ChatModel) StartSelection(line, col int) ChatModel {
 	m.selActive = true
+	m.mouseDown = true
 	m.selStartLine = line
 	m.selStartCol = col
 	m.selEndLine = line
@@ -354,6 +356,8 @@ func (m ChatModel) ExtendSelection(line, col int) ChatModel {
 
 // EndSelection finalizes the current selection.
 func (m ChatModel) EndSelection() ChatModel {
+	m.mouseDown = false
+
 	// Normalize: ensure start <= end for line and column
 	if m.selStartLine > m.selEndLine {
 		m.selStartLine, m.selEndLine = m.selEndLine, m.selStartLine
@@ -368,6 +372,7 @@ func (m ChatModel) EndSelection() ChatModel {
 // ClearSelection removes the active selection.
 func (m ChatModel) ClearSelection() ChatModel {
 	m.selActive = false
+	m.mouseDown = false
 	m.selStartLine = 0
 	m.selStartCol = 0
 	m.selEndLine = 0
@@ -389,9 +394,9 @@ func (m ChatModel) HasSelection() bool {
 	return true
 }
 
-// MouseDown returns true if there is an active selection (mouse is held down).
+// MouseDown returns true if the mouse button is held down (drag in progress).
 func (m ChatModel) MouseDown() bool {
-	return m.selActive
+	return m.mouseDown
 }
 
 // SelectionBounds returns the normalized selection bounds as (startLine, startCol, endLine, endCol).
@@ -512,7 +517,57 @@ func (m ChatModel) ExtractSelection() string {
 	return strings.TrimRight(result, " \t\n\r")
 }
 
-// allContentLines returns a flat slice of all rendered lines across all items,
+// SelectWord selects the word at the given global line and column position.
+func (m ChatModel) SelectWord(line, col int) ChatModel {
+	runes := m.plainLineRunes(line)
+	if runes == nil {
+		return m
+	}
+
+	start, end := findWordBounds(runes, col)
+	if start < 0 {
+		return m
+	}
+
+	m.selActive = true
+	m.mouseDown = false
+	m.selStartLine = line
+	m.selStartCol = start
+	m.selEndLine = line
+	m.selEndCol = end
+
+	return m
+}
+
+// plainLineRunes renders the given content line into a screen buffer and
+// returns the plain text as a rune slice (ANSI-stripped). Returns nil if
+// the line index is out of bounds or the model has no width.
+func (m ChatModel) plainLineRunes(line int) []rune {
+	allLines := m.allContentLines()
+	if line < 0 || line >= len(allLines) || m.width <= 0 {
+		return nil
+	}
+
+	buf := uv.NewScreenBuffer(m.width, 1)
+	uv.NewStyledString(allLines[line]).Draw(buf, uv.Rect(0, 0, m.width, 1))
+
+	var runes []rune
+
+	for x := range m.width {
+		if cell := buf.CellAt(x, 0); cell != nil && cell.Content != "" {
+			runes = append(runes, []rune(cell.Content)...)
+		} else {
+			runes = append(runes, ' ')
+		}
+	}
+
+	if len(runes) == 0 {
+		return nil
+	}
+
+	return runes
+}
+
 // including blank separator lines between items.
 func (m *ChatModel) allContentLines() []string {
 	m.ensureCache()

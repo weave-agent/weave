@@ -3396,10 +3396,10 @@ func TestModel_MouseRelease_EndsSelection(t *testing.T) {
 	assert.True(t, m.chat.MouseDown(), "mouse should be down before release")
 
 	// Release
-	model, _ = m.Update(tea.MouseReleaseMsg{X: endX, Y: endY, Button: tea.MouseLeft})
+	model, _ = m.Update(tea.MouseReleaseMsg{X: endX, Y: endY, Button: tea.MouseNone})
 	m = model.(Model)
 
-	assert.True(t, m.chat.MouseDown(), "selection should still be active after release")
+	assert.False(t, m.chat.MouseDown(), "mouse should be up after release")
 	assert.True(t, m.chat.HasSelection(), "selection should still exist after release")
 }
 
@@ -3421,7 +3421,7 @@ func TestModel_KeyPress_ClearsSelection(t *testing.T) {
 	m = model.(Model)
 	model, _ = m.Update(tea.MouseMotionMsg{X: endX, Y: endY, Button: tea.MouseLeft})
 	m = model.(Model)
-	model, _ = m.Update(tea.MouseReleaseMsg{X: endX, Y: endY, Button: tea.MouseLeft})
+	model, _ = m.Update(tea.MouseReleaseMsg{X: endX, Y: endY, Button: tea.MouseNone})
 	m = model.(Model)
 
 	assert.True(t, m.chat.HasSelection(), "selection should exist before key press")
@@ -3451,7 +3451,7 @@ func TestModel_MessageStart_ClearsSelection(t *testing.T) {
 	m = model.(Model)
 	model, _ = m.Update(tea.MouseMotionMsg{X: endX, Y: endY, Button: tea.MouseLeft})
 	m = model.(Model)
-	model, _ = m.Update(tea.MouseReleaseMsg{X: endX, Y: endY, Button: tea.MouseLeft})
+	model, _ = m.Update(tea.MouseReleaseMsg{X: endX, Y: endY, Button: tea.MouseNone})
 	m = model.(Model)
 
 	assert.True(t, m.chat.HasSelection(), "selection should exist before new message")
@@ -3553,7 +3553,7 @@ func TestModel_MouseSelection_MultiLine(t *testing.T) {
 	m = model.(Model)
 	model, _ = m.Update(tea.MouseMotionMsg{X: endX, Y: endY, Button: tea.MouseLeft})
 	m = model.(Model)
-	model, _ = m.Update(tea.MouseReleaseMsg{X: endX, Y: endY, Button: tea.MouseLeft})
+	model, _ = m.Update(tea.MouseReleaseMsg{X: endX, Y: endY, Button: tea.MouseNone})
 	m = model.(Model)
 
 	sl, _, el, _ := m.chat.SelectionBounds()
@@ -3604,7 +3604,7 @@ func TestModel_DispatchBinding_CopySelection_WithSelection(t *testing.T) {
 	m = model.(Model)
 	model, _ = m.Update(tea.MouseMotionMsg{X: endX, Y: endY, Button: tea.MouseLeft})
 	m = model.(Model)
-	model, _ = m.Update(tea.MouseReleaseMsg{X: endX, Y: endY, Button: tea.MouseLeft})
+	model, _ = m.Update(tea.MouseReleaseMsg{X: endX, Y: endY, Button: tea.MouseNone})
 	m = model.(Model)
 
 	require.True(t, m.chat.HasSelection(), "should have a selection")
@@ -3659,7 +3659,7 @@ func TestModel_MouseRelease_WithSelection_TriggersCopy(t *testing.T) {
 	m = model.(Model)
 
 	// Release should return a copy command
-	_, cmd := m.Update(tea.MouseReleaseMsg{X: endX, Y: endY, Button: tea.MouseLeft})
+	_, cmd := m.Update(tea.MouseReleaseMsg{X: endX, Y: endY, Button: tea.MouseNone})
 	require.NotNil(t, cmd, "mouse release with selection should return a copy command")
 
 	// Execute the command and verify it's a batch containing clipboard operations
@@ -3690,7 +3690,7 @@ func TestModel_MouseRelease_NoSelection_NoCopy(t *testing.T) {
 	m = model.(Model)
 
 	// Release without drag should not trigger copy
-	_, cmd := m.Update(tea.MouseReleaseMsg{X: startX, Y: startY, Button: tea.MouseLeft})
+	_, cmd := m.Update(tea.MouseReleaseMsg{X: startX, Y: startY, Button: tea.MouseNone})
 	assert.Nil(t, cmd, "mouse release without selection should not return a command")
 }
 

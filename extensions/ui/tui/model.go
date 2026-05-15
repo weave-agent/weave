@@ -122,6 +122,12 @@ type Model struct {
 	// custom components set via TUIExtAPI
 	customFooter TUIComponent
 	customHeader TUIComponent
+
+	// mouse selection state
+	mouseRegion   int       // 0=none, 1=chat, 2=editor
+	lastClickTime time.Time // double-click detection
+	lastClickX    int
+	lastClickY    int
 }
 
 // newModel creates a new root model.
@@ -325,8 +331,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyPressMsg:
-		// Clear any active text selection on key press
-		m.chat = m.chat.ClearSelection()
+		// Clear any active text selection on key press, unless the key
+		// triggers the copy action (which needs to read the selection first).
+		if action, ok := m.bindings.Resolve(keyString(msg)); !ok || action != ActionCopySelection {
+			m.chat = m.chat.ClearSelection()
+			m.editor = m.editor.ClearSelection()
+		}
 
 		// Dismiss startup hints on first keypress
 		m.showHints = false
@@ -724,48 +734,103 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		area := m.chatArea()
+		now := time.Now()
+		isDoubleClick := !m.lastClickTime.IsZero() &&
+			now.Sub(m.lastClickTime) < doublePressWindow &&
+			m.lastClickX == mouse.X && m.lastClickY == mouse.Y
+		m.lastClickTime = now
+		m.lastClickX = mouse.X
+		m.lastClickY = mouse.Y
 
-		if !pointInArea(mouse.X, mouse.Y, area) {
-			return m, nil
+		// Clear existing selections from both regions
+		if m.chat.HasSelection() {
+			m.chat = m.chat.ClearSelection()
 		}
 
-		line, col := m.chatContentPos(mouse.X, mouse.Y, area)
-		m.chat = m.chat.StartSelection(line, col)
+		if m.editor.HasSelection() {
+			m.editor = m.editor.ClearSelection()
+		}
+
+		chatRect := m.chatArea()
+		editorRect := m.editorArea()
+
+		if pointInArea(mouse.X, mouse.Y, chatRect) {
+			return m.handleChatClick(chatRect, mouse, isDoubleClick)
+		}
+
+		if pointInArea(mouse.X, mouse.Y, editorRect) {
+			return m.handleEditorClick(editorRect, mouse, isDoubleClick)
+		}
 
 		return m, nil
 
 	case tea.MouseMotionMsg:
 		mouse := msg.Mouse()
 
-		if mouse.Button != tea.MouseLeft || m.showLanding || !m.chat.MouseDown() {
+		if mouse.Button != tea.MouseLeft || m.showLanding {
 			return m, nil
 		}
 
-		area := m.chatArea()
+		switch m.mouseRegion {
+		case 1:
+			if !m.chat.MouseDown() {
+				return m, nil
+			}
 
-		if !pointInArea(mouse.X, mouse.Y, area) {
-			return m, nil
+			area := m.chatArea()
+			if !pointInArea(mouse.X, mouse.Y, area) {
+				return m, nil
+			}
+
+			line, col := m.chatContentPos(mouse.X, mouse.Y, area)
+			m.chat = m.chat.ExtendSelection(line, col)
+
+		case 2:
+			if !m.editor.MouseDown() {
+				return m, nil
+			}
+
+			area := m.editorArea()
+			if !pointInArea(mouse.X, mouse.Y, area) {
+				return m, nil
+			}
+
+			line, col := m.editorContentPos(mouse.X, mouse.Y, area)
+			m.editor = m.editor.ExtendSelection(line, col)
 		}
-
-		line, col := m.chatContentPos(mouse.X, mouse.Y, area)
-		m.chat = m.chat.ExtendSelection(line, col)
 
 		return m, nil
 
 	case tea.MouseReleaseMsg:
-		mouse := msg.Mouse()
+		switch m.mouseRegion {
+		case 1:
+			if !m.chat.MouseDown() {
+				return m, nil
+			}
 
-		if mouse.Button != tea.MouseLeft {
-			return m, nil
-		}
+			m.chat = m.chat.EndSelection()
+			m.mouseRegion = 0
 
-		m.chat = m.chat.EndSelection()
+			if m.chat.HasSelection() {
+				text := m.chat.ExtractSelection()
+				if text != "" {
+					return m, copySelectionCmd(text)
+				}
+			}
 
-		if m.chat.HasSelection() {
-			text := m.chat.ExtractSelection()
-			if text != "" {
-				return m, copySelectionCmd(text)
+		case 2:
+			if !m.editor.MouseDown() {
+				return m, nil
+			}
+
+			m.editor = m.editor.EndSelection()
+			m.mouseRegion = 0
+
+			if m.editor.HasSelection() {
+				text := m.editor.ExtractSelection()
+				if text != "" {
+					return m, copySelectionCmd(text)
+				}
 			}
 		}
 
@@ -810,6 +875,104 @@ func (m Model) chatContentPos(x, y int, area uv.Rectangle) (line, col int) {
 // pointInArea returns true if the given screen coordinates fall within area.
 func pointInArea(x, y int, area uv.Rectangle) bool {
 	return x >= area.Min.X && x < area.Max.X && y >= area.Min.Y && y < area.Max.Y
+}
+
+// editorArea computes the screen rectangle for the editor text area,
+// accounting for attachments that push the editor down within its layout region.
+func (m Model) editorArea() uv.Rectangle {
+	headerRows, pillRows := m.countLayoutRows()
+	editorH := m.editor.Height() + m.attach.Height()
+	trayRows, abovePanelRows, belowPanelRows := m.panelRows()
+	lt := m.layout.ComputeWithPanels(
+		m.width, m.height,
+		editorH, headerRows, pillRows, m.dockedRows(),
+		trayRows, abovePanelRows, belowPanelRows,
+	)
+
+	attachH := m.attach.Height()
+	if attachH > 0 && lt.Editor.Dy() > attachH {
+		return uv.Rect(
+			lt.Editor.Min.X,
+			lt.Editor.Min.Y+attachH,
+			lt.Editor.Dx(),
+			lt.Editor.Dy()-attachH,
+		)
+	}
+
+	return lt.Editor
+}
+
+// editorContentPos maps screen coordinates within the editor area to a
+// logical line and rune column in the editor content.
+func (m Model) editorContentPos(x, y int, editorRect uv.Rectangle) (line, col int) {
+	visualRow := y - (editorRect.Min.Y + 1) // top border
+	localCol := x - (editorRect.Min.X + 2)  // border(1) + padding(1)
+
+	if visualRow < 0 {
+		visualRow = 0
+	}
+
+	if localCol < 0 {
+		localCol = 0
+	}
+
+	scrollOffset := m.editor.ScrollYOffset()
+	globalVLine := scrollOffset + visualRow
+
+	line, rowOffset := m.editor.VisualLineToLogical(globalVLine)
+	col = m.editor.ColFromWrapped(line, rowOffset, localCol)
+
+	return line, col
+}
+
+// handleChatClick processes a left-click in the chat area. Returns the model
+// and an optional copy command if a double-click selected a word.
+//
+//nolint:dupl // similar structure but different component types
+func (m Model) handleChatClick(chatRect uv.Rectangle, mouse tea.Mouse, isDoubleClick bool) (Model, tea.Cmd) {
+	line, col := m.chatContentPos(mouse.X, mouse.Y, chatRect)
+
+	if isDoubleClick {
+		m.chat = m.chat.SelectWord(line, col)
+
+		if m.chat.HasSelection() {
+			if text := m.chat.ExtractSelection(); text != "" {
+				return m, copySelectionCmd(text)
+			}
+		}
+
+		return m, nil
+	}
+
+	m.mouseRegion = 1
+	m.chat = m.chat.StartSelection(line, col)
+
+	return m, nil
+}
+
+// handleEditorClick processes a left-click in the editor area. Returns the
+// model and an optional copy command if a double-click selected a word.
+//
+//nolint:dupl // similar structure but different component types
+func (m Model) handleEditorClick(editorRect uv.Rectangle, mouse tea.Mouse, isDoubleClick bool) (Model, tea.Cmd) {
+	line, col := m.editorContentPos(mouse.X, mouse.Y, editorRect)
+
+	if isDoubleClick {
+		m.editor = m.editor.SelectWord(line, col)
+
+		if m.editor.HasSelection() {
+			if text := m.editor.ExtractSelection(); text != "" {
+				return m, copySelectionCmd(text)
+			}
+		}
+
+		return m, nil
+	}
+
+	m.mouseRegion = 2
+	m.editor = m.editor.StartSelection(line, col)
+
+	return m, nil
 }
 
 // handleCtrlC implements double-press ctrl+c: first press clears editor,

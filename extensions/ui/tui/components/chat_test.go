@@ -543,11 +543,12 @@ func TestChatModel_MouseDown(t *testing.T) {
 	m = m.StartSelection(5, 10)
 	assert.True(t, m.MouseDown())
 
-	// EndSelection keeps the selection active
+	// EndSelection clears mouseDown (mouse released) but keeps selection visible
 	m = m.EndSelection()
-	assert.True(t, m.MouseDown())
+	assert.False(t, m.MouseDown())
+	assert.True(t, m.selActive)
 
-	// ClearSelection removes the active selection
+	// ClearSelection removes everything
 	m = m.ClearSelection()
 	assert.False(t, m.MouseDown())
 }

@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
+	"github.com/rivo/uniseg"
 )
 
 // SubmitMsg is emitted when the user submits the editor content.
@@ -33,6 +34,14 @@ type EditorModel struct {
 	// completion
 	completion    CompletionModel
 	triggerOffset int
+
+	// text selection state (mouse click-and-drag)
+	selActive    bool
+	selStartLine int
+	selStartCol  int
+	selEndLine   int
+	selEndCol    int
+	mouseDown    bool
 }
 
 const minEditorWidth = 20
@@ -507,6 +516,228 @@ func (m EditorModel) applyCompletion() EditorModel {
 	return m.HideCompletion()
 }
 
+// --- Selection methods ---
+
+// StartSelection begins a new text selection at the given logical line and rune column.
+func (m EditorModel) StartSelection(line, col int) EditorModel {
+	m.selActive = true
+	m.mouseDown = true
+	m.selStartLine = line
+	m.selStartCol = col
+	m.selEndLine = line
+	m.selEndCol = col
+
+	return m
+}
+
+// ExtendSelection updates the end point of the current selection.
+func (m EditorModel) ExtendSelection(line, col int) EditorModel {
+	if !m.selActive {
+		return m
+	}
+
+	m.selEndLine = line
+	m.selEndCol = col
+
+	return m
+}
+
+// EndSelection finalizes the current selection and normalizes start <= end.
+func (m EditorModel) EndSelection() EditorModel {
+	m.mouseDown = false
+
+	if m.selStartLine > m.selEndLine {
+		m.selStartLine, m.selEndLine = m.selEndLine, m.selStartLine
+		m.selStartCol, m.selEndCol = m.selEndCol, m.selStartCol
+	} else if m.selStartLine == m.selEndLine && m.selStartCol > m.selEndCol {
+		m.selStartCol, m.selEndCol = m.selEndCol, m.selStartCol
+	}
+
+	return m
+}
+
+// ClearSelection removes the active selection.
+func (m EditorModel) ClearSelection() EditorModel {
+	m.selActive = false
+	m.mouseDown = false
+	m.selStartLine = 0
+	m.selStartCol = 0
+	m.selEndLine = 0
+	m.selEndCol = 0
+
+	return m
+}
+
+// HasSelection returns true if there is an active non-empty selection.
+func (m EditorModel) HasSelection() bool {
+	if !m.selActive {
+		return false
+	}
+
+	if m.selStartLine == m.selEndLine {
+		return m.selStartCol != m.selEndCol
+	}
+
+	return true
+}
+
+// MouseDown returns true if the mouse button is held down during a drag.
+func (m EditorModel) MouseDown() bool {
+	return m.mouseDown
+}
+
+// SelectionBounds returns normalized (startLine, startCol, endLine, endCol).
+func (m EditorModel) SelectionBounds() (int, int, int, int) {
+	if !m.selActive {
+		return 0, 0, 0, 0
+	}
+
+	sl, sc, el, ec := m.selStartLine, m.selStartCol, m.selEndLine, m.selEndCol
+
+	if sl > el {
+		sl, el = el, sl
+		sc, ec = ec, sc
+	} else if sl == el && sc > ec {
+		sc, ec = ec, sc
+	}
+
+	return sl, sc, el, ec
+}
+
+// ExtractSelection returns the plain text within the current selection.
+func (m EditorModel) ExtractSelection() string {
+	if !m.HasSelection() {
+		return ""
+	}
+
+	sl, sc, el, ec := m.SelectionBounds()
+	lines := strings.Split(m.Value(), "\n")
+
+	if sl < 0 {
+		sl = 0
+	}
+
+	if el >= len(lines) {
+		el = len(lines) - 1
+	}
+
+	if sl >= len(lines) {
+		return ""
+	}
+
+	var selected []string
+
+	for line := sl; line <= el; line++ {
+		runes := []rune(lines[line])
+		startCol, endCol := 0, len(runes)
+
+		if line == sl {
+			startCol = min(sc, len(runes))
+		}
+
+		if line == el {
+			endCol = min(ec, len(runes))
+		}
+
+		if startCol > endCol {
+			startCol = endCol
+		}
+
+		selected = append(selected, string(runes[startCol:endCol]))
+	}
+
+	return strings.Join(selected, "\n")
+}
+
+// SelectWord selects the word at the given logical line and rune column.
+func (m EditorModel) SelectWord(line, col int) EditorModel {
+	lines := strings.Split(m.Value(), "\n")
+	if line < 0 || line >= len(lines) {
+		return m
+	}
+
+	runes := []rune(lines[line])
+	if len(runes) == 0 {
+		return m
+	}
+
+	start, end := findWordBounds(runes, col)
+	if start < 0 {
+		return m
+	}
+
+	m.selActive = true
+	m.mouseDown = false
+	m.selStartLine = line
+	m.selStartCol = start
+	m.selEndLine = line
+	m.selEndCol = end
+
+	return m
+}
+
+// --- Coordinate mapping ---
+
+// ScrollYOffset returns the textarea's vertical scroll offset.
+func (m EditorModel) ScrollYOffset() int {
+	return m.ta.ScrollYOffset()
+}
+
+// ContentWidth returns the textarea's internal content (wrapping) width.
+func (m EditorModel) ContentWidth() int {
+	return m.ta.Width()
+}
+
+// VisualLineToLogical maps a global visual line index to a logical line index
+// and row offset within that logical line's wrapped content.
+func (m EditorModel) VisualLineToLogical(globalVLine int) (logicalLine, rowOffset int) {
+	lines := strings.Split(m.Value(), "\n")
+	w := m.ta.Width()
+
+	if w <= 0 {
+		w = 80
+	}
+
+	accumulated := 0
+
+	for i, line := range lines {
+		vlCount := max(1, (uniseg.StringWidth(line)+w-1)/w)
+
+		if accumulated+vlCount > globalVLine {
+			return i, globalVLine - accumulated
+		}
+
+		accumulated += vlCount
+	}
+
+	if len(lines) == 0 {
+		return 0, 0
+	}
+
+	return len(lines) - 1, 0
+}
+
+// ColFromWrapped maps a row offset and screen column to a rune column
+// within the logical line.
+func (m EditorModel) ColFromWrapped(logicalLine, rowOffset, screenCol int) int {
+	lines := strings.Split(m.Value(), "\n")
+
+	if logicalLine < 0 || logicalLine >= len(lines) {
+		return 0
+	}
+
+	w := m.ta.Width()
+
+	if w <= 0 {
+		w = 80
+	}
+
+	runeOffset := rowOffset*w + screenCol
+	runes := []rune(lines[logicalLine])
+
+	return min(runeOffset, len(runes))
+}
+
 // View renders the editor.
 func (m EditorModel) View() string {
 	return m.ta.View()
@@ -519,4 +750,107 @@ func (m EditorModel) Draw(scr uv.Screen, area uv.Rectangle) {
 	}
 
 	uv.NewStyledString(m.View()).Draw(scr, area)
+	m.drawSelectionHighlight(scr, area)
+}
+
+func (m EditorModel) drawSelectionHighlight(scr uv.Screen, area uv.Rectangle) {
+	if !m.selActive {
+		return
+	}
+
+	sl, sc, el, ec := m.SelectionBounds()
+	if sl == el && sc == ec {
+		return
+	}
+
+	contentX := area.Min.X + 2
+	contentY := area.Min.Y + 1
+	contentW := area.Dx() - 3
+	contentH := area.Dy() - 2
+
+	if contentW <= 0 || contentH <= 0 {
+		return
+	}
+
+	scrollOffset := m.ta.ScrollYOffset()
+	lines := strings.Split(m.Value(), "\n")
+	wrapWidth := m.ta.Width()
+
+	if wrapWidth <= 0 {
+		wrapWidth = contentW
+	}
+
+	visualLine := 0
+
+	for logLine := range lines {
+		vlCount := max(1, (uniseg.StringWidth(lines[logLine])+wrapWidth-1)/wrapWidth)
+
+		for vlRow := range vlCount {
+			globalVLine := visualLine + vlRow
+
+			if globalVLine < scrollOffset {
+				continue
+			}
+
+			screenRow := globalVLine - scrollOffset
+			if screenRow >= contentH {
+				return
+			}
+
+			if logLine < sl || logLine > el {
+				continue
+			}
+
+			startCol, endCol := m.selectionSpan(logLine, vlRow, wrapWidth, sc, el, ec, contentW)
+			if startCol >= endCol {
+				continue
+			}
+
+			for x := contentX + startCol; x < contentX+endCol; x++ {
+				if cell := scr.CellAt(x, contentY+screenRow); cell != nil {
+					cell.Style.Attrs |= uv.AttrReverse
+				}
+			}
+		}
+
+		visualLine += vlCount
+	}
+}
+
+// selectionSpan computes the screen column span for a visual line within the selection.
+func (m EditorModel) selectionSpan(logLine, vlRow, wrapWidth, sc, el, ec, contentW int) (startCol, endCol int) {
+	startCol = 0
+	endCol = contentW
+
+	screenStart := sc - vlRow*wrapWidth
+	if vlRow == 0 {
+		screenStart = sc
+	}
+
+	if logLine == m.selStartLine {
+		if screenStart > endCol {
+			return contentW, contentW
+		}
+
+		if screenStart > startCol {
+			startCol = screenStart
+		}
+	}
+
+	screenEnd := ec - vlRow*wrapWidth
+	if vlRow == 0 {
+		screenEnd = ec
+	}
+
+	if logLine == el {
+		if screenEnd < startCol {
+			return 0, 0
+		}
+
+		if screenEnd < endCol {
+			endCol = screenEnd
+		}
+	}
+
+	return startCol, endCol
 }
