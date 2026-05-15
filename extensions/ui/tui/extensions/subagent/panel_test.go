@@ -180,6 +180,20 @@ func TestAgentPanelDrawer_Update_ReturnsSelf(t *testing.T) {
 	assert.Same(t, drawer, newDrawer)
 }
 
+func TestAgentPanelDrawer_FormatElapsed_Negative(t *testing.T) {
+	theme := testTheme()
+	drawer := newAgentPanelDrawer("x", nil, theme)
+
+	// Clock skew: DoneAt before SpawnedAt should be clamped to 0.
+	agent := &TrackedAgent{
+		Status:    AgentCompleted,
+		SpawnedAt: time.Now(),
+		DoneAt:    time.Now().Add(-5 * time.Second),
+	}
+	elapsed := drawer.formatElapsed(agent)
+	assert.Equal(t, "0s", elapsed)
+}
+
 func TestAgentPanelDrawer_StatusIndicator(t *testing.T) {
 	theme := testTheme()
 	drawer := newAgentPanelDrawer("x", nil, theme)
@@ -195,6 +209,11 @@ func TestAgentPanelDrawer_StatusIndicator(t *testing.T) {
 	icon, color = drawer.statusIndicator(AgentFailed)
 	assert.Equal(t, "✗", icon)
 	assert.Equal(t, theme.Error, color)
+
+	// Unknown status should default to muted dot.
+	icon, color = drawer.statusIndicator(AgentStatus(99))
+	assert.Equal(t, "●", icon)
+	assert.Equal(t, theme.Muted, color)
 }
 
 func TestAgentPanelDrawer_FormatElapsed(t *testing.T) {
@@ -217,6 +236,24 @@ func TestAgentPanelDrawer_FormatElapsed(t *testing.T) {
 	}
 	elapsed = drawer.formatElapsed(agent)
 	assert.Contains(t, elapsed, "1m")
+}
+
+func TestAgentPanelDrawer_FormatResult_Empty(t *testing.T) {
+	theme := testTheme()
+	drawer := newAgentPanelDrawer("x", nil, theme)
+
+	result := drawer.formatResult("", 80)
+	assert.Empty(t, result)
+}
+
+func TestAgentPanelDrawer_FormatResult_SmallMaxWidth(t *testing.T) {
+	theme := testTheme()
+	drawer := newAgentPanelDrawer("x", nil, theme)
+
+	// maxWidth=5 should be clamped to 10 runes minimum.
+	longLine := strings.Repeat("a", 50)
+	result := drawer.formatResult(longLine, 5)
+	assert.Contains(t, result, "...")
 }
 
 func TestAgentPanelDrawer_FormatResult(t *testing.T) {

@@ -105,6 +105,8 @@ func TestSubagentRenderer_RenderForegroundOutput_MultiByte(t *testing.T) {
 	assert.True(t, utf8.ValidString(result), "result should be valid UTF-8")
 	stripped := stripANSI(result)
 	assert.Contains(t, stripped, "...")
+	// Must actually truncate — result rune count should be less than input.
+	assert.Less(t, utf8.RuneCountInString(stripped), 120, "result should be truncated")
 }
 
 func TestSubagentRenderer_RenderNonJSON(t *testing.T) {
@@ -115,6 +117,26 @@ func TestSubagentRenderer_RenderNonJSON(t *testing.T) {
 	result := r.Render(content, theme, 80)
 
 	assert.Contains(t, result, "This is plain text output")
+}
+
+func TestSubagentRenderer_RenderBackgroundResponse_Failed(t *testing.T) {
+	r := &subagentRenderer{}
+	theme := sdk.ThemeInfo{
+		Primary:       "63",
+		PrimaryBright: "69",
+		MutedBright:   "252",
+		Error:         "203",
+	}
+
+	content, _ := json.Marshal(map[string]string{
+		"id":     "subagent_researcher_abc123",
+		"status": "failed",
+	})
+
+	result := r.Render(string(content), theme, 80)
+
+	assert.Contains(t, result, "subagent_researcher_abc123")
+	assert.Contains(t, result, "failed")
 }
 
 func TestSubagentRenderer_RegisterTUI_RegistersBuiltInRenderers(t *testing.T) {

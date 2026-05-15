@@ -59,6 +59,40 @@ func TestAgentTracker_ListEmpty(t *testing.T) {
 	assert.Empty(t, tracker.List())
 }
 
+func TestAgentTracker_Start_OverwriteExisting(t *testing.T) {
+	var removed atomic.Int32
+
+	tracker := NewAgentTracker(50*time.Millisecond, func(id string) {
+		removed.Add(1)
+	})
+
+	tracker.Start("agent-1", "original", "background")
+	tracker.Done("agent-1", "completed", "old result")
+
+	// Start a new agent with the same ID — old agent and timer should be cleaned up.
+	tracker.Start("agent-1", "replacement", "background")
+
+	assert.Equal(t, "replacement", tracker.Get("agent-1").Name)
+
+	// Old grace-period timer should not fire for the replaced agent.
+	time.Sleep(150 * time.Millisecond)
+	assert.Equal(t, int32(0), removed.Load())
+}
+
+func TestAgentTracker_Done_NilOnRemove(t *testing.T) {
+	tracker := NewAgentTracker(50*time.Millisecond, nil)
+
+	tracker.Start("agent-1", "test", "background")
+	tracker.Done("agent-1", "completed", "done")
+
+	// Should not panic with nil onRemove.
+	assert.NotPanics(t, func() {
+		time.Sleep(150 * time.Millisecond)
+	})
+
+	assert.Nil(t, tracker.Get("agent-1"))
+}
+
 func TestAgentTracker_Remove(t *testing.T) {
 	tracker := NewAgentTracker(0, nil)
 

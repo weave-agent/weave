@@ -50,6 +50,13 @@ func TestBackgroundSpawn_ReturnsImmediately(t *testing.T) {
 	}
 
 	mgr := newBackgroundManager(nil, "", "")
+
+	t.Cleanup(func() {
+		mgr.cancel()
+
+		testRunSubagent = original
+	})
+
 	agent := &AgentDef{Name: "test"}
 	tool := newSubagentTool(agent, mgr, nil, "", "")
 
@@ -79,12 +86,6 @@ func TestBackgroundSpawn_ReturnsImmediately(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "completed", ba.Status)
 	assert.Equal(t, "done: hello", ba.Result)
-
-	t.Cleanup(func() {
-		mgr.cancel()
-
-		testRunSubagent = original
-	})
 }
 
 func TestBackgroundSpawn_CompletesWithError(t *testing.T) {
@@ -325,13 +326,13 @@ func TestBackgroundManager_NotifyDone(t *testing.T) {
 		return "result", nil
 	}
 
-	mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
-
 	t.Cleanup(func() {
 		mgr.cancel()
 
 		testRunSubagent = original
 	})
+
+	mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
 
 	// Wait for completion.
 	time.Sleep(50 * time.Millisecond)
@@ -366,13 +367,13 @@ func TestBackgroundManager_NotifyDoneWithError(t *testing.T) {
 		return "", errors.New("failed")
 	}
 
-	mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
-
 	t.Cleanup(func() {
 		mgr.cancel()
 
 		testRunSubagent = original
 	})
+
+	mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
 
 	time.Sleep(50 * time.Millisecond)
 
@@ -395,14 +396,14 @@ func TestBackgroundManager_NotifyDoneNoBus(t *testing.T) {
 		return "result", nil
 	}
 
-	// Should not panic.
-	id := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
-
 	t.Cleanup(func() {
 		mgr.cancel()
 
 		testRunSubagent = original
 	})
+
+	// Should not panic.
+	id := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
 
 	time.Sleep(50 * time.Millisecond)
 
@@ -501,19 +502,19 @@ func TestBackgroundManager_NotifyStarted(t *testing.T) {
 		return "", ctx.Err()
 	}
 
-	id := mgr.spawn(&AgentDef{Name: "researcher"}, "find stuff", "", "")
-
-	ba, _ := mgr.get(id)
+	var id string
 
 	t.Cleanup(func() {
 		mgr.cancel()
 
-		if ba != nil {
+		if ba, ok := mgr.get(id); ok && ba != nil {
 			<-ba.done
 		}
 
 		testRunSubagent = original
 	})
+
+	id = mgr.spawn(&AgentDef{Name: "researcher"}, "find stuff", "", "")
 
 	// The started event should be published synchronously by spawn.
 	events := bus.getEvents()
@@ -538,20 +539,20 @@ func TestBackgroundManager_NotifyStartedNoBus(t *testing.T) {
 		return "", ctx.Err()
 	}
 
-	id := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
-	assert.NotEmpty(t, id)
-
-	ba, _ := mgr.get(id)
+	var id string
 
 	t.Cleanup(func() {
 		mgr.cancel()
 
-		if ba != nil {
+		if ba, ok := mgr.get(id); ok && ba != nil {
 			<-ba.done
 		}
 
 		testRunSubagent = original
 	})
+
+	id = mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	assert.NotEmpty(t, id)
 }
 
 func TestBackgroundManager_NotifyStartedWithCustomID(t *testing.T) {
@@ -567,19 +568,19 @@ func TestBackgroundManager_NotifyStartedWithCustomID(t *testing.T) {
 		return "", ctx.Err()
 	}
 
-	id := mgr.spawn(&AgentDef{Name: "explore"}, "prompt", "", "custom_id_123")
-
-	ba, _ := mgr.get(id)
+	var id string
 
 	t.Cleanup(func() {
 		mgr.cancel()
 
-		if ba != nil {
+		if ba, ok := mgr.get(id); ok && ba != nil {
 			<-ba.done
 		}
 
 		testRunSubagent = original
 	})
+
+	id = mgr.spawn(&AgentDef{Name: "explore"}, "prompt", "", "custom_id_123")
 
 	events := bus.getEvents()
 	require.Len(t, events, 1)

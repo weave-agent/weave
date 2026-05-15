@@ -63,9 +63,21 @@ func (t *AgentTracker) SetOnRemove(fn OnRemoveFunc) {
 }
 
 // Start registers a new running agent. Returns the created TrackedAgent.
+// If an agent with the same ID already exists, it is overwritten (the old
+// agent and any active grace-period timer are cleaned up first).
 func (t *AgentTracker) Start(id, name, mode string) *TrackedAgent {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+
+	// Clean up any existing agent with the same ID to prevent leaks.
+	if old, ok := t.agents[id]; ok {
+		if timer, hasTimer := t.timers[id]; hasTimer {
+			timer.Stop()
+			delete(t.timers, id)
+		}
+		delete(t.agents, id)
+		_ = old // explicitly acknowledge we're dropping the old agent
+	}
 
 	agent := &TrackedAgent{
 		ID:        id,
