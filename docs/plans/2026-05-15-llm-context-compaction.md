@@ -121,15 +121,15 @@ Replace the existing storage-only JSONL compaction with runtime context manageme
 - [x] run tests — must pass before Task 9
 
 ### Task 9: Verify acceptance criteria
-- [ ] verify auto-compaction triggers when tokens approach context window
-- [ ] verify manual `/compact` triggers immediate compaction
-- [ ] verify turn boundaries are respected (no split tool call/result)
-- [ ] verify file operations accumulate across compactions
-- [ ] verify config overrides work (disabled, custom reserve tokens, custom model)
-- [ ] verify `/compact focus on X` passes custom instructions to summarization
-- [ ] verify COMPACT.md (project or global) is used when no inline instructions provided
-- [ ] run full test suite — `cd extensions/agent && go test ./...` and `cd extensions/ui/tui && go test ./...`
-- [ ] run linter — `cd extensions/agent && make lint`
+- [x] verify auto-compaction triggers when tokens approach context window
+- [x] verify manual `/compact` triggers immediate compaction
+- [x] verify turn boundaries are respected (no split tool call/result)
+- [x] verify file operations accumulate across compactions
+- [x] verify config overrides work (disabled, custom reserve tokens, custom model)
+- [x] verify `/compact focus on X` passes custom instructions to summarization
+- [x] verify COMPACT.md (project or global) is used when no inline instructions provided
+- [x] run full test suite — `cd extensions/agent && go test ./...` and `cd extensions/ui/tui && go test ./...`
+- [x] run linter — `cd extensions/agent && make lint`
 
 ## Technical Details
 
