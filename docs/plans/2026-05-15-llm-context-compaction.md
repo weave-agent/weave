@@ -61,10 +61,10 @@ Replace the existing storage-only JSONL compaction with runtime context manageme
 - [x] run tests — `cd extensions/agent && go test ./...`
 
 ### Task 2: Implement token estimation
-- [ ] create `extensions/agent/compaction.go` with `estimateTokens(msgs []sdk.Message) int` using `chars/4` heuristic
-- [ ] handle all message content types: string content via `fmt.Sprint()`, tool calls (name + args), thinking content, images (4800 chars each)
-- [ ] write table-driven tests for: empty messages, user text, assistant with tool calls, mixed conversation, single oversized message
-- [ ] run tests — must pass before Task 3
+- [x] create `extensions/agent/compaction.go` with `estimateTokens(msgs []sdk.Message) int` using `chars/4` heuristic
+- [x] handle all message content types: string content via `fmt.Sprint()`, tool calls (name + args), thinking content, images (4800 chars each)
+- [x] write table-driven tests for: empty messages, user text, assistant with tool calls, mixed conversation, single oversized message
+- [x] run tests — must pass before Task 3
 
 ### Task 3: Implement turn-boundary-aware cut point detection
 - [ ] add `findCutPoint(msgs []sdk.Message, keepRecentTokens int) int` in `compaction.go`
