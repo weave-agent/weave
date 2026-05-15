@@ -143,7 +143,7 @@ func (m *AssistantMessage) renderCustom(width int) (string, bool) {
 
 	// Prepend subtle role indicator
 	roleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Muted))
-	roleIndicator := roleStyle.Render("◆ ")
+	roleIndicator := roleStyle.Render("◆")
 
 	return roleIndicator + content, true
 }
@@ -174,7 +174,7 @@ func (m *AssistantMessage) View(width int) string {
 
 	// Prepend subtle role indicator
 	roleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Muted))
-	roleIndicator := roleStyle.Render("◆ ")
+	roleIndicator := roleStyle.Render("◆")
 
 	return roleIndicator + content
 }

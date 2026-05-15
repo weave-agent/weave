@@ -64,7 +64,7 @@ func (m *UserMessage) IsSkillInvocation() bool {
 	return ok
 }
 
-// View renders the user message with styled border and prefix.
+// View renders the user message with styled prefix.
 func (m *UserMessage) View(width int) string {
 	if width <= 0 {
 		width = 80
@@ -72,19 +72,17 @@ func (m *UserMessage) View(width int) string {
 
 	theme := palette.DefaultTheme()
 
-	borderStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Primary))
 	prefixStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Primary))
 	contentStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Muted))
 
-	borderBar := borderStyle.Render("│")
 	prefix := prefixStyle.Render("❯ ")
 
-	// Content width accounts for border + prefix
-	contentWidth := max(1, width-4)
+	// Content width accounts for prefix
+	contentWidth := max(1, width-2)
 
 	block, ok := parseSkillXML(m.content)
 	if !ok {
-		return styleUserContent(m.content, borderBar, prefix, contentStyle, contentWidth)
+		return styleUserContent(m.content, prefix, contentStyle, contentWidth)
 	}
 
 	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Muted)).Width(contentWidth)
@@ -95,18 +93,18 @@ func (m *UserMessage) View(width int) string {
 			label += " " + block.trailing
 		}
 
-		return borderBar + prefix + dimStyle.Render(label)
+		return prefix + dimStyle.Render(label)
 	}
 
 	var bldr strings.Builder
 
 	header := fmt.Sprintf("[skill %s] ▼", block.name)
-	bldr.WriteString(borderBar + prefix + dimStyle.Render(header))
+	bldr.WriteString(prefix + dimStyle.Render(header))
 	bldr.WriteString("\n")
 
 	if block.body != "" {
 		for line := range strings.SplitSeq(block.body, "\n") {
-			bldr.WriteString(borderBar + "  " + contentStyle.Render(line))
+			bldr.WriteString("  " + contentStyle.Render(line))
 			bldr.WriteString("\n")
 		}
 	}
@@ -115,7 +113,7 @@ func (m *UserMessage) View(width int) string {
 		bldr.WriteString("\n")
 
 		for line := range strings.SplitSeq(block.trailing, "\n") {
-			bldr.WriteString(borderBar + "  " + contentStyle.Render(line))
+			bldr.WriteString("  " + contentStyle.Render(line))
 			bldr.WriteString("\n")
 		}
 	}
@@ -123,16 +121,16 @@ func (m *UserMessage) View(width int) string {
 	return strings.TrimRight(bldr.String(), "\n")
 }
 
-// styleUserContent prefixes each line with the border bar and symbol,
+// styleUserContent prefixes each line with the symbol,
 // applying the content style to the text.
-func styleUserContent(content, borderBar, prefix string, contentStyle lipgloss.Style, width int) string {
+func styleUserContent(content, prefix string, contentStyle lipgloss.Style, width int) string {
 	lines := strings.Split(content, "\n")
 
 	var bldr strings.Builder
 
 	for i, line := range lines {
 		styledLine := contentStyle.Width(width).Render(line)
-		bldr.WriteString(borderBar + prefix + styledLine)
+		bldr.WriteString(prefix + styledLine)
 
 		if i < len(lines)-1 {
 			bldr.WriteString("\n")
