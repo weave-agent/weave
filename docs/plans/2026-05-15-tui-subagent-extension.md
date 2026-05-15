@@ -54,11 +54,11 @@ A TUI extension that visualizes running subagents as per-agent panels in the pan
 ## Implementation Steps
 
 ### Task 1: Add `subagent.started` event to subagent extension
-- [ ] Add `subagent.started` event publication in `background.go` when `spawn()` creates a new agent
-- [ ] Ensure payload includes `id`, `name`, `mode` keys as `map[string]string`
-- [ ] Consider adding `subagent.started` for foreground agents in `execute.go` (if straightforward)
-- [ ] Write tests verifying the event is published with correct payload
-- [ ] Run subagent extension tests: `cd extensions/tools/subagent && go test ./...`
+- [x] Add `subagent.started` event publication in `background.go` when `spawn()` creates a new agent
+- [x] Ensure payload includes `id`, `name`, `mode` keys as `map[string]string`
+- [x] Consider adding `subagent.started` for foreground agents in `execute.go` (if straightforward)
+- [x] Write tests verifying the event is published with correct payload
+- [x] Run subagent extension tests: `cd extensions/tools/subagent && go test ./...`
 
 ### Task 2: Create subagent TUI extension module skeleton
 - [ ] Create `extensions/ui/tui/extensions/subagent/` directory

@@ -289,14 +289,21 @@ func TestBackgroundManager_NotifyDone(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	events := bus.getEvents()
-	require.Len(t, events, 1)
-	assert.Equal(t, "subagent.done", events[0].Topic)
+	require.Len(t, events, 2)
+	assert.Equal(t, "subagent.started", events[0].Topic)
+	assert.Equal(t, "subagent.done", events[1].Topic)
 
-	payload, ok := events[0].Payload.(map[string]string)
+	startedPayload, ok := events[0].Payload.(map[string]string)
 	require.True(t, ok)
-	assert.Contains(t, payload["id"], "subagent_test_")
-	assert.Equal(t, "completed", payload["status"])
-	assert.Equal(t, "result", payload["content"])
+	assert.Contains(t, startedPayload["id"], "subagent_test_")
+	assert.Equal(t, "test", startedPayload["name"])
+	assert.Equal(t, "background", startedPayload["mode"])
+
+	donePayload, ok := events[1].Payload.(map[string]string)
+	require.True(t, ok)
+	assert.Contains(t, donePayload["id"], "subagent_test_")
+	assert.Equal(t, "completed", donePayload["status"])
+	assert.Equal(t, "result", donePayload["content"])
 }
 
 func TestBackgroundManager_NotifyDoneWithError(t *testing.T) {
@@ -318,12 +325,12 @@ func TestBackgroundManager_NotifyDoneWithError(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	events := bus.getEvents()
-	require.Len(t, events, 1)
+	require.Len(t, events, 2)
 
-	payload, ok := events[0].Payload.(map[string]string)
+	donePayload, ok := events[1].Payload.(map[string]string)
 	require.True(t, ok)
-	assert.Equal(t, "failed", payload["status"])
-	assert.Contains(t, payload["content"], "failed")
+	assert.Equal(t, "failed", donePayload["status"])
+	assert.Contains(t, donePayload["content"], "failed")
 }
 
 func TestBackgroundManager_NotifyDoneNoBus(t *testing.T) {
@@ -423,4 +430,73 @@ func TestAwaitAgentTool_Definition(t *testing.T) {
 	assert.Equal(t, "await_agent", def.Name)
 	assert.NotEmpty(t, def.Description)
 	assert.NotNil(t, def.Parameters)
+}
+
+func TestBackgroundManager_NotifyStarted(t *testing.T) {
+	bus := &testBus{}
+
+	mgr := newBackgroundManager(nil, "", "")
+	mgr.setBus(bus)
+
+	original := testRunSubagent
+	t.Cleanup(func() { testRunSubagent = original })
+
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+		time.Sleep(5 * time.Second) // block so started fires first
+		return "result", nil
+	}
+
+	mgr.spawn(&AgentDef{Name: "researcher"}, "find stuff", "", "")
+
+	// The started event should be published synchronously by spawn.
+	events := bus.getEvents()
+	require.Len(t, events, 1)
+	assert.Equal(t, "subagent.started", events[0].Topic)
+
+	payload, ok := events[0].Payload.(map[string]string)
+	require.True(t, ok)
+	assert.Contains(t, payload["id"], "subagent_researcher_")
+	assert.Equal(t, "researcher", payload["name"])
+	assert.Equal(t, "background", payload["mode"])
+}
+
+func TestBackgroundManager_NotifyStartedNoBus(t *testing.T) {
+	mgr := newBackgroundManager(nil, "", "")
+	// No bus — spawn should not panic.
+
+	original := testRunSubagent
+	t.Cleanup(func() { testRunSubagent = original })
+
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+		return "result", nil
+	}
+
+	id := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	assert.NotEmpty(t, id)
+}
+
+func TestBackgroundManager_NotifyStartedWithCustomID(t *testing.T) {
+	bus := &testBus{}
+
+	mgr := newBackgroundManager(nil, "", "")
+	mgr.setBus(bus)
+
+	original := testRunSubagent
+	t.Cleanup(func() { testRunSubagent = original })
+
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+		time.Sleep(5 * time.Second)
+		return "", nil
+	}
+
+	mgr.spawn(&AgentDef{Name: "explore"}, "prompt", "", "custom_id_123")
+
+	events := bus.getEvents()
+	require.Len(t, events, 1)
+
+	payload, ok := events[0].Payload.(map[string]string)
+	require.True(t, ok)
+	assert.Equal(t, "custom_id_123", payload["id"])
+	assert.Equal(t, "explore", payload["name"])
+	assert.Equal(t, "background", payload["mode"])
 }

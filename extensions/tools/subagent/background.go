@@ -83,6 +83,8 @@ func (bm *backgroundManager) spawn(agent *AgentDef, prompt, cwd, subagentID stri
 	bm.agents[subagentID] = ba
 	bm.mu.Unlock()
 
+	bm.notifyStarted(ba)
+
 	go func() {
 		defer close(ba.done)
 
@@ -107,6 +109,24 @@ func (bm *backgroundManager) spawn(agent *AgentDef, prompt, cwd, subagentID stri
 	}()
 
 	return subagentID
+}
+
+func (bm *backgroundManager) notifyStarted(ba *backgroundAgent) {
+	bm.mu.RLock()
+	bus := bm.bus
+	bm.mu.RUnlock()
+
+	if bus == nil {
+		return
+	}
+
+	payload := map[string]string{
+		propID: ba.ID,
+		"name": ba.Agent.Name,
+		"mode": "background",
+	}
+
+	bus.Publish(sdk.NewEvent("subagent.started", payload))
 }
 
 func (bm *backgroundManager) notifyDone(ba *backgroundAgent) {
