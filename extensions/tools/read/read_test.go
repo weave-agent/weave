@@ -67,9 +67,9 @@ func TestExecute(t *testing.T) {
 		result, err := tool.Execute(context.Background(), map[string]any{"path": path})
 		require.NoError(t, err)
 		assert.False(t, result.IsError)
-		assert.Contains(t, result.Content, "1\tline one")
-		assert.Contains(t, result.Content, "2\tline two")
-		assert.Contains(t, result.Content, "3\tline three")
+		assert.Contains(t, result.Content, "1 | line one")
+		assert.Contains(t, result.Content, "2 | line two")
+		assert.Contains(t, result.Content, "3 | line three")
 	})
 
 	t.Run("read with offset", func(t *testing.T) {
@@ -83,9 +83,9 @@ func TestExecute(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.False(t, result.IsError)
-		assert.Contains(t, result.Content, "3\tthird")
-		assert.Contains(t, result.Content, "4\tfourth")
-		assert.NotContains(t, result.Content, "1\tfirst")
+		assert.Contains(t, result.Content, "3 | third")
+		assert.Contains(t, result.Content, "4 | fourth")
+		assert.NotContains(t, result.Content, "1 | first")
 	})
 
 	t.Run("read with limit", func(t *testing.T) {
@@ -99,9 +99,9 @@ func TestExecute(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.False(t, result.IsError)
-		assert.Contains(t, result.Content, "1\tfirst")
-		assert.Contains(t, result.Content, "2\tsecond")
-		assert.NotContains(t, result.Content, "3\tthird")
+		assert.Contains(t, result.Content, "1 | first")
+		assert.Contains(t, result.Content, "2 | second")
+		assert.NotContains(t, result.Content, "3 | third")
 	})
 
 	t.Run("read with offset and limit", func(t *testing.T) {
@@ -116,10 +116,10 @@ func TestExecute(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.False(t, result.IsError)
-		assert.Contains(t, result.Content, "2\tb")
-		assert.Contains(t, result.Content, "3\tc")
-		assert.NotContains(t, result.Content, "1\ta")
-		assert.NotContains(t, result.Content, "4\td")
+		assert.Contains(t, result.Content, "2 | b")
+		assert.Contains(t, result.Content, "3 | c")
+		assert.NotContains(t, result.Content, "1 | a")
+		assert.NotContains(t, result.Content, "4 | d")
 	})
 
 	t.Run("binary file", func(t *testing.T) {
@@ -168,8 +168,8 @@ func TestExecute(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.False(t, result.IsError)
-		assert.Contains(t, result.Content, "1\ta")
-		assert.Contains(t, result.Content, "5\te")
+		assert.Contains(t, result.Content, "1 | a")
+		assert.Contains(t, result.Content, "5 | e")
 	})
 
 	t.Run("large file truncation", func(t *testing.T) {
@@ -196,7 +196,7 @@ func TestExecute(t *testing.T) {
 		result, err := tool.Execute(context.Background(), map[string]any{"path": path})
 		require.NoError(t, err)
 		assert.False(t, result.IsError)
-		assert.Contains(t, result.Content, "1\tbefore")
+		assert.Contains(t, result.Content, "1 | before")
 	})
 
 	t.Run("very long line exceeds old scanner cap", func(t *testing.T) {
@@ -207,7 +207,7 @@ func TestExecute(t *testing.T) {
 		result, err := tool.Execute(context.Background(), map[string]any{"path": path})
 		require.NoError(t, err)
 		assert.False(t, result.IsError)
-		assert.Contains(t, result.Content, "1\tfirst")
+		assert.Contains(t, result.Content, "1 | first")
 	})
 
 	t.Run("single long line produces visible content", func(t *testing.T) {
@@ -218,7 +218,7 @@ func TestExecute(t *testing.T) {
 		result, err := tool.Execute(context.Background(), map[string]any{"path": path})
 		require.NoError(t, err)
 		assert.False(t, result.IsError)
-		assert.Contains(t, result.Content, "1\t")
+		assert.Contains(t, result.Content, "1 | ")
 		assert.Contains(t, result.Content, "line truncated")
 		assert.Contains(t, result.Content, "a")
 	})
