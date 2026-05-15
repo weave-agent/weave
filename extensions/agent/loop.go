@@ -150,24 +150,17 @@ func (a *AgentExtension) run(
 
 				result, err := compact(turnCtx, provider, messages, a.compactionCfg, a.modelName, a.fileOps, compactPrompt)
 				if err != nil {
-					bus.Publish(sdk.NewEvent(TopicTurnEnd, nil))
+					bus.Publish(sdk.NewEvent(TopicCompacted, map[string]any{"error": err.Error()}))
+				} else {
+					messages = result.messages
 
-					endPayload = fmt.Sprintf("compaction error: %v", err)
-
-					turnCancel()
-					<-turnDone
-
-					return
-				}
-
-				messages = result.messages
-
-				if result.summarized > 0 {
-					bus.Publish(sdk.NewEvent(TopicCompacted, map[string]any{
-						"summarized":    result.summarized,
-						"tokens_before": result.tokensBefore,
-						"tokens_after":  result.tokensAfter,
-					}))
+					if result.summarized > 0 {
+						bus.Publish(sdk.NewEvent(TopicCompacted, map[string]any{
+							"summarized":    result.summarized,
+							"tokens_before": result.tokensBefore,
+							"tokens_after":  result.tokensAfter,
+						}))
+					}
 				}
 			}
 

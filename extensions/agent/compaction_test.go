@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -662,16 +663,28 @@ func TestShouldCompact(t *testing.T) {
 		assert.False(t, shouldCompact(msgs, "", cfg, "test-model"))
 	})
 
-	t.Run("empty model returns false", func(t *testing.T) {
+	t.Run("empty model under budget returns false", func(t *testing.T) {
 		msgs := []sdk.Message{sdk.NewUserMessage(makeLongText(100000))}
 		cfg := CompactionConfig{Enabled: true}
 		assert.False(t, shouldCompact(msgs, "", cfg, ""))
 	})
 
-	t.Run("unknown model returns false", func(t *testing.T) {
+	t.Run("empty model over budget returns true", func(t *testing.T) {
+		msgs := []sdk.Message{sdk.NewUserMessage(makeLongText(800000))}
+		cfg := CompactionConfig{Enabled: true, ReserveTokens: 100}
+		assert.True(t, shouldCompact(msgs, "", cfg, ""))
+	})
+
+	t.Run("unknown model under budget returns false", func(t *testing.T) {
 		msgs := []sdk.Message{sdk.NewUserMessage(makeLongText(100000))}
 		cfg := CompactionConfig{Enabled: true}
 		assert.False(t, shouldCompact(msgs, "", cfg, "nonexistent-model"))
+	})
+
+	t.Run("unknown model over budget returns true", func(t *testing.T) {
+		msgs := []sdk.Message{sdk.NewUserMessage(makeLongText(800000))}
+		cfg := CompactionConfig{Enabled: true, ReserveTokens: 100}
+		assert.True(t, shouldCompact(msgs, "", cfg, "nonexistent-model"))
 	})
 
 	t.Run("under budget returns false", func(t *testing.T) {
@@ -1284,7 +1297,10 @@ func TestAgent_AutoCompaction(t *testing.T) {
 		ContextWindow: 1000,
 	})
 
-	var capturedReqs []sdk.ProviderRequest
+	var (
+		capturedReqs []sdk.ProviderRequest
+		mu           sync.Mutex
+	)
 
 	responses := []providerResponse{
 		{textDeltas: []string{strings.Repeat("x", 4000)}},
@@ -1298,7 +1314,11 @@ func TestAgent_AutoCompaction(t *testing.T) {
 		StreamFunc: func(_ context.Context, req sdk.ProviderRequest, _ ...model.StreamOption) (
 			<-chan sdk.ProviderEvent, error,
 		) {
+			mu.Lock()
+
 			capturedReqs = append(capturedReqs, req)
+			mu.Unlock()
+
 			ch := make(chan sdk.ProviderEvent, 1)
 
 			i := int(idx.Load())
@@ -1357,11 +1377,16 @@ func TestAgent_AutoCompaction(t *testing.T) {
 	// Verify the messages slice was actually replaced by checking the provider
 	// request after compaction.
 	require.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+
 		return len(capturedReqs) >= 3
 	}, 2*time.Second, 100*time.Millisecond, "should have 3 provider requests")
 
 	// Third request (post-compaction turn) should include the summary message.
+	mu.Lock()
 	req := capturedReqs[2]
+	mu.Unlock()
 	require.NotEmpty(t, req.Messages, "request after compaction should have messages")
 
 	if len(req.Messages) > 0 {
@@ -1516,7 +1541,7 @@ func TestCompact_EmptySummaryError(t *testing.T) {
 	assert.Nil(t, result)
 }
 
-func TestAgent_AutoCompactionErrorInInnerLoopAborts(t *testing.T) {
+func TestAgent_AutoCompactionErrorInInnerLoopRecovers(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
@@ -1524,21 +1549,22 @@ func TestAgent_AutoCompactionErrorInInnerLoopAborts(t *testing.T) {
 	defer model.ResetModelRegistry()
 
 	model.RegisterModel(model.ModelDef{
-		ID:            "test-abort-model",
+		ID:            "test-recover-model",
 		Provider:      "anthropic",
 		ContextWindow: 1000,
 	})
 
 	// First response is large (triggers auto-compaction on next loop iteration),
-	// second stream call (compaction) errors
+	// second stream call (compaction) errors, third is the recovery turn
 	mp := newMockProvider([]providerResponse{
 		{textDeltas: []string{strings.Repeat("x", 4000)}},
 		{err: context.DeadlineExceeded},
+		{textDeltas: []string{"recovered"}},
 	})
 	registerMockProvider("anthropic", mp)
 
 	a, b, cleanup := setupAgent(t, "anthropic")
-	a.modelName = "test-abort-model"
+	a.modelName = "test-recover-model"
 	a.compactionCfg = CompactionConfig{
 		Enabled:          true,
 		ReserveTokens:    100,
@@ -1558,9 +1584,17 @@ func TestAgent_AutoCompactionErrorInInnerLoopAborts(t *testing.T) {
 	// Follow-up triggers re-entry to inner loop where auto-compaction fires and fails
 	b.Publish(sdk.NewEvent(TopicFollowup, "continue"))
 
-	endEvt, ok := waitForTopic(allCh, TopicEnd, 3*time.Second)
-	require.True(t, ok, "timeout waiting for agent end after auto-compaction error")
-	payload, ok := endEvt.Payload.(string)
+	// Compaction error is published as a TopicCompacted event — agent continues
+	compactedEvt, ok := waitForTopic(allCh, TopicCompacted, 3*time.Second)
+	require.True(t, ok, "timeout waiting for compacted event after auto-compaction error")
+	payload, ok := compactedEvt.Payload.(map[string]any)
 	require.True(t, ok)
-	assert.Contains(t, payload, "compaction error")
+	assert.Contains(t, payload["error"], "compaction")
+
+	// Agent should continue with the turn normally
+	msgEnd, ok := waitForTopic(allCh, TopicMsgEnd, 3*time.Second)
+	require.True(t, ok, "timeout waiting for msg_end after compaction error recovery")
+	msgEndPayload, ok := msgEnd.Payload.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "recovered", msgEndPayload["content"])
 }

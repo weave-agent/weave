@@ -73,20 +73,22 @@ func findCutPoint(msgs []sdk.Message, keepRecentTokens int) int {
 	}
 
 	acc := 0
-	cutIdx := 0
 
 	for i, v := range slices.Backward(msgs) {
 		acc += estimateMessageTokens(v)
 
 		if acc >= keepRecentTokens {
-			// We've accumulated enough tokens — find the next valid boundary
-			// at or after the current position.
-			cutIdx = findValidBoundary(msgs, i)
-			break
+			cutIdx := findValidBoundary(msgs, i)
+			if cutIdx >= len(msgs) {
+				// No valid boundary found after startIdx — summarize everything.
+				return 0
+			}
+
+			return cutIdx
 		}
 	}
 
-	return cutIdx
+	return 0
 }
 
 // findValidBoundary walks forward from startIdx to find the first valid cut
@@ -273,14 +275,12 @@ func shouldCompact(messages []sdk.Message, systemPrompt string, cfg CompactionCo
 		return false
 	}
 
-	if modelName == "" {
-		return false
-	}
-
 	contextWindow := 200000 // Conservative default for unknown models.
 
-	if m, ok := model.GetModel(modelName); ok && m.ContextWindow > 0 {
-		contextWindow = m.ContextWindow
+	if modelName != "" {
+		if m, ok := model.GetModel(modelName); ok && m.ContextWindow > 0 {
+			contextWindow = m.ContextWindow
+		}
 	}
 
 	total := len(systemPrompt)/tokensPerChar + estimateTokens(messages)
@@ -334,9 +334,12 @@ func compact(
 	// Extract any previous summary from the conversation.
 	var previousSummary string
 
-	if len(messages) > 0 && messages[0].Role == sdk.RoleAssistant {
-		if content, ok := messages[0].Content.(string); ok && strings.HasPrefix(content, compactionSummaryPrefix) {
-			previousSummary = strings.TrimPrefix(content, compactionSummaryPrefix)
+	for _, msg := range messages {
+		if msg.Role == sdk.RoleAssistant {
+			if content, ok := msg.Content.(string); ok && strings.HasPrefix(content, compactionSummaryPrefix) {
+				previousSummary = strings.TrimPrefix(content, compactionSummaryPrefix)
+				break
+			}
 		}
 	}
 
