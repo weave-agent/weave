@@ -37,6 +37,9 @@ type AgentExtension struct {
 
 	fileOps *fileOperations
 
+	resumed   bool
+	sessionID string
+
 	mu     sync.Mutex
 	cancel context.CancelFunc
 	done   chan struct{}
@@ -85,6 +88,7 @@ func (a *AgentExtension) Subscribe(bus sdk.Bus) error {
 	interruptCh := make(chan sdk.Event, 64)
 	modelChangeCh := make(chan sdk.Event, 64)
 	thinkingCh := make(chan sdk.Event, 64)
+	sessionResumeCh := make(chan sdk.Event, 64)
 
 	bus.OnAll(func(ev sdk.Event) error {
 		select {
@@ -108,6 +112,8 @@ func (a *AgentExtension) Subscribe(bus sdk.Bus) error {
 			ch = modelChangeCh
 		case TopicThinkingChange:
 			ch = thinkingCh
+		case TopicSessionResume:
+			ch = sessionResumeCh
 		}
 
 		if ch != nil {
@@ -123,7 +129,7 @@ func (a *AgentExtension) Subscribe(bus sdk.Bus) error {
 	a.cancel = cancel
 	a.done = make(chan struct{})
 
-	go a.run(ctx, bus, promptCh, steerCh, followupCh, interruptCh, modelChangeCh, thinkingCh)
+	go a.run(ctx, bus, promptCh, steerCh, followupCh, interruptCh, modelChangeCh, thinkingCh, sessionResumeCh)
 
 	a.registerSkillCommands(bus)
 

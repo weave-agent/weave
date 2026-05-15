@@ -81,11 +81,11 @@ Add `--continue` / `-c` and `--resume` / `-r` CLI flags to weave that restore a 
 - [x] run `go test ./internal/wire/...` — must pass before next task
 
 ### Task 5: Agent loop session resume handler
-- [ ] in `extensions/agent/loop.go`, add `resumed bool` and `sessionID string` fields to the agent struct
-- [ ] subscribe to `session.resume` event in `Subscribe(bus)`: set `messages = payload.Messages`, `sessionID = payload.SessionID`, `resumed = true`
-- [ ] ensure `agent.prompt` handler checks `resumed` flag — if true, treat the prompt as a follow-up (append to messages) rather than resetting; clear `resumed`
-- [ ] write tests for session resume handler in `extensions/agent/loop_test.go` — messages restored, resumed flag set, subsequent prompt appends correctly
-- [ ] run `cd extensions/agent && go test ./...` — must pass before next task
+- [x] in `extensions/agent/loop.go`, add `resumed bool` and `sessionID string` fields to the agent struct
+- [x] subscribe to `session.resume` event in `Subscribe(bus)`: set `messages = payload.Messages`, `sessionID = payload.SessionID`, `resumed = true`
+- [x] ensure `agent.prompt` handler checks `resumed` flag — if true, treat the prompt as a follow-up (append to messages) rather than resetting; clear `resumed`
+- [x] write tests for session resume handler in `extensions/agent/loop_test.go` — messages restored, resumed flag set, subsequent prompt appends correctly
+- [x] run `cd extensions/agent && go test ./...` — must pass before next task
 
 ### Task 6: JSONL store session continuity on resume
 - [ ] in `extensions/store/jsonl/store.go`, add handler for `session.resume` event: set internal `sessionID` to the resumed session ID so subsequent events (`agent.followup`, `agent.message_end`, `agent.tool_result`) append to the existing file instead of creating a new session

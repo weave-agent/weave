@@ -29,13 +29,14 @@ const (
 	TopicModelChange       = "model.change"
 	TopicModelChangeFailed = "model.change_failed"
 	TopicThinkingChange    = "thinking.change"
+	TopicSessionResume     = "session.resume"
 )
 
 //nolint:gocyclo // central event loop with multiple channel selects
 func (a *AgentExtension) run(
 	ctx context.Context,
 	bus sdk.Bus,
-	promptCh, steerCh, followupCh, interruptCh, modelChangeCh, thinkingCh <-chan sdk.Event,
+	promptCh, steerCh, followupCh, interruptCh, modelChangeCh, thinkingCh, sessionResumeCh <-chan sdk.Event,
 ) {
 	defer close(a.done)
 
@@ -65,6 +66,19 @@ func (a *AgentExtension) run(
 			}
 
 			messages = append(messages, sdk.NewUserMessage(evt.Payload))
+			a.resumed = false
+		case evt, ok := <-sessionResumeCh:
+			if !ok {
+				return
+			}
+
+			if payload, ok := evt.Payload.(sdk.SessionResumePayload); ok {
+				messages = payload.Messages
+				a.sessionID = payload.SessionID
+				a.resumed = true
+			}
+
+			continue
 		case evt := <-modelChangeCh:
 			if m, ok := evt.Payload.(map[string]string); ok {
 				if p := m["provider"]; p != "" {
@@ -294,11 +308,16 @@ func (a *AgentExtension) run(
 			}
 
 			provider = a.drainChanges(modelChangeCh, thinkingCh, bus, provider)
-			messages = []sdk.Message{sdk.NewUserMessage(evt.Payload)}
-			turn = 1
-			a.fileOps = newFileOperations()
-			// Rebuild system prompt on new conversation
-			systemPrompt = a.buildSystemPrompt()
+			if a.resumed {
+				messages = append(messages, sdk.NewUserMessage(evt.Payload))
+				a.resumed = false
+			} else {
+				messages = []sdk.Message{sdk.NewUserMessage(evt.Payload)}
+				turn = 1
+				a.fileOps = newFileOperations()
+				// Rebuild system prompt on new conversation
+				systemPrompt = a.buildSystemPrompt()
+			}
 		case evt, ok := <-modelChangeCh:
 			if !ok {
 				return

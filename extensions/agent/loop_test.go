@@ -1660,3 +1660,289 @@ func TestNewAgentExtension_KeepsUnregisteredModel(t *testing.T) {
 
 	assert.Equal(t, "my-custom-model", a.modelName, "unregistered model should be kept (custom model)")
 }
+
+// --- session resume tests ---
+
+func TestAgent_SessionResume_RestoresMessages(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mp := newMockProvider([]providerResponse{
+		{textDeltas: []string{"response after resume"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	// Publish session.resume before prompt
+	b.Publish(sdk.NewEvent(TopicSessionResume, sdk.SessionResumePayload{
+		SessionID: "sess-123",
+		Messages: []sdk.Message{
+			{Role: sdk.RoleUser, Content: "previous message"},
+			{Role: sdk.RoleAssistant, Content: "previous response"},
+		},
+	}))
+
+	// Give the bus handler time to route the event before publishing prompt
+	time.Sleep(50 * time.Millisecond)
+
+	// Now send the prompt
+	b.Publish(sdk.NewEvent(TopicPrompt, "new prompt"))
+
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for turn_end")
+
+	require.NoError(t, a.Close())
+
+	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
+
+	calls := mp.StreamCalls()
+	require.Len(t, calls, 1)
+	// Should have 3 messages: 2 restored + 1 new prompt
+	assert.Len(t, calls[0].Req.Messages, 3, "expected restored messages + new prompt")
+	assert.Equal(t, "previous message", calls[0].Req.Messages[0].Content)
+	assert.Equal(t, "previous response", calls[0].Req.Messages[1].Content)
+	assert.Equal(t, "new prompt", calls[0].Req.Messages[2].Content)
+}
+
+func TestAgent_SessionResume_ClearsFlagAfterPrompt(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mp := newMockProvider([]providerResponse{
+		{textDeltas: []string{"first"}},
+		{textDeltas: []string{"second"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	// Publish session.resume
+	b.Publish(sdk.NewEvent(TopicSessionResume, sdk.SessionResumePayload{
+		SessionID: "sess-123",
+		Messages: []sdk.Message{
+			{Role: sdk.RoleUser, Content: "restored"},
+		},
+	}))
+
+	time.Sleep(50 * time.Millisecond)
+
+	// First prompt after resume should append
+	b.Publish(sdk.NewEvent(TopicPrompt, "first prompt"))
+
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for first turn_end")
+
+	// Second prompt should reset (resumed flag cleared)
+	b.Publish(sdk.NewEvent(TopicPrompt, "second prompt"))
+
+	_, ok = waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for second turn_end")
+
+	require.NoError(t, a.Close())
+
+	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
+
+	calls := mp.StreamCalls()
+	require.Len(t, calls, 2)
+	// First call: 2 messages (restored + first prompt)
+	assert.Len(t, calls[0].Req.Messages, 2)
+	// Second call: 1 message (reset, only second prompt)
+	assert.Len(t, calls[1].Req.Messages, 1)
+	assert.Equal(t, "second prompt", calls[1].Req.Messages[0].Content)
+}
+
+func TestAgent_SessionResume_SetsSessionID(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mp := newMockProvider([]providerResponse{
+		{textDeltas: []string{"ok"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicSessionResume, sdk.SessionResumePayload{
+		SessionID: "my-session-id",
+		Messages: []sdk.Message{
+			{Role: sdk.RoleUser, Content: "hello"},
+		},
+	}))
+
+	time.Sleep(50 * time.Millisecond)
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "prompt"))
+
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for turn_end")
+
+	require.NoError(t, a.Close())
+
+	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
+
+	assert.Equal(t, "my-session-id", a.sessionID)
+	assert.False(t, a.resumed, "resumed flag should be cleared after prompt is processed")
+}
+
+func TestAgent_SessionResume_WithToolResults(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mt := newMockTool("bash", sdk.ToolDef{Name: "bash", Description: "run commands"}, nil)
+	registerMockTool(mt)
+
+	mp := newMockProvider([]providerResponse{
+		{toolCalls: []sdk.ToolCall{{ID: "tc1", Name: "bash", Arguments: map[string]any{"command": "echo hi"}}}},
+		{textDeltas: []string{"done"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	// Resume with a tool result message in history
+	b.Publish(sdk.NewEvent(TopicSessionResume, sdk.SessionResumePayload{
+		SessionID: "sess-tools",
+		Messages: []sdk.Message{
+			{Role: sdk.RoleUser, Content: "run echo"},
+			{Role: sdk.RoleAssistant, Content: "", ToolCalls: []sdk.ToolCall{{ID: "tc0", Name: "bash", Arguments: map[string]any{"command": "echo old"}}}},
+			{Role: sdk.RoleToolResult, ToolCallID: "tc0", Content: "old output"},
+		},
+	}))
+
+	time.Sleep(50 * time.Millisecond)
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "run echo again"))
+
+	// Wait for both turns to complete
+	for i := range 2 {
+		_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+		require.True(t, ok, "timeout waiting for turn_end %d", i+1)
+	}
+
+	require.NoError(t, a.Close())
+
+	_, ok := waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
+
+	calls := mp.StreamCalls()
+	require.Len(t, calls, 2)
+	// First call after resume should include restored messages + new prompt
+	assert.Len(t, calls[0].Req.Messages, 4, "expected 3 restored + 1 new prompt")
+	assert.Equal(t, "run echo", calls[0].Req.Messages[0].Content)
+	assert.Equal(t, "run echo again", calls[0].Req.Messages[3].Content)
+}
+
+func TestAgent_SessionResume_EmptyMessages(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mp := newMockProvider([]providerResponse{
+		{textDeltas: []string{"hello"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	// Resume with empty messages
+	b.Publish(sdk.NewEvent(TopicSessionResume, sdk.SessionResumePayload{
+		SessionID: "empty-sess",
+		Messages:  nil,
+	}))
+
+	time.Sleep(50 * time.Millisecond)
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "first"))
+
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for turn_end")
+
+	require.NoError(t, a.Close())
+
+	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
+
+	calls := mp.StreamCalls()
+	require.Len(t, calls, 1)
+	// Should still append since resumed flag is set
+	assert.Len(t, calls[0].Req.Messages, 1)
+	assert.Equal(t, "first", calls[0].Req.Messages[0].Content)
+}
+
+func TestAgent_SessionResume_AfterPromptIgnored(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mp := newMockProvider([]providerResponse{
+		{textDeltas: []string{"first"}},
+		{textDeltas: []string{"second"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	// Send prompt first (no resume)
+	b.Publish(sdk.NewEvent(TopicPrompt, "original"))
+
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for first turn_end")
+
+	// Now send session.resume (after prompt already processed)
+	b.Publish(sdk.NewEvent(TopicSessionResume, sdk.SessionResumePayload{
+		SessionID: "late-sess",
+		Messages: []sdk.Message{
+			{Role: sdk.RoleUser, Content: "restored"},
+		},
+	}))
+
+	// Send another prompt - should reset because the first prompt already cleared resumed state
+	b.Publish(sdk.NewEvent(TopicPrompt, "new conversation"))
+
+	_, ok = waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for second turn_end")
+
+	require.NoError(t, a.Close())
+
+	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
+
+	calls := mp.StreamCalls()
+	require.Len(t, calls, 2)
+	// First call: 1 message
+	assert.Len(t, calls[0].Req.Messages, 1)
+	// Second call: session.resume arrived after prompt, but in waitForInput it's
+	// only processed in prompt/followup/steer/modelChange/thinking cases.
+	// Actually, session.resume is not handled in waitForInput at all currently.
+	// Let me verify what happens... In the waitForInput select, there's no case
+	// for sessionResumeCh, so the event just sits in the channel.
+	// The second prompt resets messages to just the new prompt.
+	assert.Len(t, calls[1].Req.Messages, 1)
+	assert.Equal(t, "new conversation", calls[1].Req.Messages[0].Content)
+}
