@@ -209,26 +209,16 @@ func (pm *PanelManager) Get(id string) (panelEntry, bool) {
 // UpdateDrawer routes a message to a panel's drawer and stores the updated drawer.
 // Returns the command and true if the panel exists and its drawer handled the message.
 func (pm *PanelManager) UpdateDrawer(id string, msg tea.Msg) (tea.Cmd, bool) {
-	pm.mu.RLock()
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
 
 	entry, ok := pm.panels[id]
 	if !ok || entry.Drawer == nil || !entry.Drawer.Handles(msg) {
-		pm.mu.RUnlock()
-
 		return nil, false
 	}
 
-	drawer := entry.Drawer
-
-	pm.mu.RUnlock()
-
-	newDrawer, cmd := drawer.Update(msg)
-
-	pm.mu.Lock()
-	if e, ok := pm.panels[id]; ok && e.Drawer == drawer {
-		e.Drawer = newDrawer
-	}
-	pm.mu.Unlock()
+	newDrawer, cmd := entry.Drawer.Update(msg)
+	entry.Drawer = newDrawer
 
 	return cmd, true
 }
