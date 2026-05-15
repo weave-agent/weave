@@ -1157,6 +1157,13 @@ func (m Model) dispatchBinding(action BindingAction) (tea.Model, tea.Cmd) {
 			}
 		}
 
+		if m.editor.HasSelection() {
+			text := m.editor.ExtractSelection()
+			if text != "" {
+				return m, copySelectionCmd(text)
+			}
+		}
+
 		m.showStatus("Nothing selected")
 
 		return m, m.statusTimer

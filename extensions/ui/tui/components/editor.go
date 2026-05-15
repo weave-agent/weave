@@ -801,7 +801,7 @@ func (m EditorModel) drawSelectionHighlight(scr uv.Screen, area uv.Rectangle) {
 				continue
 			}
 
-			startCol, endCol := m.selectionSpan(logLine, vlRow, wrapWidth, sc, el, ec, contentW)
+			startCol, endCol := m.selectionSpan(logLine, vlRow, wrapWidth, sl, sc, el, ec, contentW)
 			if startCol >= endCol {
 				continue
 			}
@@ -818,7 +818,7 @@ func (m EditorModel) drawSelectionHighlight(scr uv.Screen, area uv.Rectangle) {
 }
 
 // selectionSpan computes the screen column span for a visual line within the selection.
-func (m EditorModel) selectionSpan(logLine, vlRow, wrapWidth, sc, el, ec, contentW int) (startCol, endCol int) {
+func (m EditorModel) selectionSpan(logLine, vlRow, wrapWidth, sl, sc, el, ec, contentW int) (startCol, endCol int) {
 	startCol = 0
 	endCol = contentW
 
@@ -827,7 +827,7 @@ func (m EditorModel) selectionSpan(logLine, vlRow, wrapWidth, sc, el, ec, conten
 		screenStart = sc
 	}
 
-	if logLine == m.selStartLine {
+	if logLine == sl {
 		if screenStart > endCol {
 			return contentW, contentW
 		}
