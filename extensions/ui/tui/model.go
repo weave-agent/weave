@@ -2019,7 +2019,6 @@ func (m Model) drawNormalUI(scr uv.Screen, area uv.Rectangle, dockedRows int) La
 	headerRows, pillRows := m.countLayoutRows()
 
 	editorH := m.editor.Height() + m.attach.Height()
-	m.syncPanelTray()
 	trayRows, abovePanelRows, belowPanelRows := m.panelRows()
 	lt := m.layout.ComputeWithPanels(
 		area.Dx(), area.Dy(),

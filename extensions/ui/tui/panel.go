@@ -58,6 +58,10 @@ func NewPanelManager() *PanelManager {
 
 // Register registers a panel. If a panel with the same ID exists, it is replaced.
 func (pm *PanelManager) Register(config PanelConfig, drawer PanelDrawer) {
+	if drawer == nil {
+		return
+	}
+
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 

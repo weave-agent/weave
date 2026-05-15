@@ -523,6 +523,10 @@ func (u *TUIImpl) PanelTray() PanelTrayAPI {
 
 // SetOrder implements PanelTrayAPI.
 func (u *TUIImpl) SetOrder(ids []string) {
+	if u.panelManager == nil {
+		return
+	}
+
 	u.panelManager.SetOrder(ids)
 }
 
@@ -530,6 +534,10 @@ func (u *TUIImpl) SetOrder(ids []string) {
 func (u *TUIImpl) GetOrder() []string {
 	u.mu.Lock()
 	defer u.mu.Unlock()
+
+	if u.panelManager == nil {
+		return nil
+	}
 
 	result := make([]string, len(u.panelManager.order))
 	copy(result, u.panelManager.order)
@@ -678,7 +686,8 @@ func (u *TUIImpl) AddAutocomplete(provider AutocompleteProvider) {
 func (u *TUIImpl) SetWorkingFrames(frames []string, interval time.Duration) {
 	u.mu.Lock()
 	p := u.program
-	u.workingFrames = frames
+	u.workingFrames = make([]string, len(frames))
+	copy(u.workingFrames, frames)
 	u.workingInterval = interval
 	u.mu.Unlock()
 

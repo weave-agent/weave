@@ -81,7 +81,7 @@ func (r *richDiffRenderer) Render(content string, theme sdk.ThemeInfo, width int
 // wrapLine splits a line into chunks of at most width runes.
 // A width of zero or less disables wrapping.
 func wrapLine(line string, width int) []string {
-	if width <= 0 || len(line) <= width {
+	if width <= 0 {
 		return []string{line}
 	}
 
