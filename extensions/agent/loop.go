@@ -216,7 +216,25 @@ func (a *AgentExtension) run(
 
 			var hasNewSteering bool
 
-			messages, hasNewSteering, _, _ = drainSteering(steerCh, messages)
+			messages, hasNewSteering, compactInstr, compactRequested = drainSteering(steerCh, messages)
+			if compactRequested {
+				compactPrompt := resolveCompactPrompt(compactInstr, a.projectDir(), globalConfigDir())
+
+				result, err := compact(turnCtx, provider, messages, a.compactionCfg, a.modelName, a.fileOps, compactPrompt)
+				if err != nil {
+					bus.Publish(sdk.NewEvent(TopicCompacted, map[string]any{"error": err.Error()}))
+				} else {
+					messages = result.messages
+					if result.summarized > 0 {
+						bus.Publish(sdk.NewEvent(TopicCompacted, map[string]any{
+							"summarized":    result.summarized,
+							"tokens_before": result.tokensBefore,
+							"tokens_after":  result.tokensAfter,
+						}))
+					}
+				}
+			}
+
 			continueLoop = len(toolCalls) > 0 || hasNewSteering
 		}
 
@@ -265,6 +283,8 @@ func (a *AgentExtension) run(
 
 					messages = a.handleManualCompact(compactCtx, payload, provider, messages, bus)
 				}()
+			} else {
+				messages = append(messages, sdk.NewUserMessage(payload))
 			}
 
 			goto waitForInput
@@ -476,11 +496,9 @@ func drainSteering(steerCh <-chan sdk.Event, messages []sdk.Message) ([]sdk.Mess
 			payload, _ := evt.Payload.(string)
 			if payload == "compact" {
 				compactRequested = true
-				hasSteering = true
 			} else if rest, ok := strings.CutPrefix(payload, "compact "); ok {
 				compactInstructions = rest
 				compactRequested = true
-				hasSteering = true
 			} else {
 				messages = append(messages, sdk.NewUserMessage(evt.Payload))
 				hasSteering = true

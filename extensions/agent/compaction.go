@@ -152,11 +152,11 @@ func trackFileOps(msgs []sdk.Message, ops *fileOperations) {
 		for _, tc := range msg.ToolCalls {
 			switch tc.Name {
 			case toolNameRead:
-				if path, ok := tc.Arguments["file_path"].(string); ok && path != "" {
+				if path, ok := tc.Arguments["path"].(string); ok && path != "" {
 					ops.readFiles[path] = true
 				}
 			case toolNameEdit, toolNameWrite:
-				if path, ok := tc.Arguments["file_path"].(string); ok && path != "" {
+				if path, ok := tc.Arguments["path"].(string); ok && path != "" {
 					ops.modifiedFiles[path] = true
 				}
 			}
@@ -183,6 +183,11 @@ func serializeForSummary(msgs []sdk.Message, previousSummary string, ops *fileOp
 		case sdk.RoleUser:
 			fmt.Fprintf(&b, "[User]: %s\n", contentString(msg.Content))
 		case sdk.RoleAssistant:
+			// Skip compaction summary messages — they are already included as <previous-summary>.
+			if content := contentString(msg.Content); content != "" && strings.HasPrefix(content, compactionSummaryPrefix) {
+				break
+			}
+
 			if len(msg.ToolCalls) > 0 {
 				for _, tc := range msg.ToolCalls {
 					args, err := json.Marshal(tc.Arguments)

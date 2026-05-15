@@ -115,7 +115,7 @@ func TestEstimateTokens(t *testing.T) {
 			{
 				Name: "edit",
 				Arguments: map[string]any{
-					"file_path":  "/some/long/path/to/file.go",
+					"path":       "/some/long/path/to/file.go",
 					"old_string": "func old()",
 					"new_string": "func new()",
 				},
@@ -465,7 +465,7 @@ func TestTrackFileOps(t *testing.T) {
 	t.Run("read tracking", func(t *testing.T) {
 		msg := sdk.NewAssistantMessage("")
 		msg.ToolCalls = []sdk.ToolCall{
-			{Name: "read", Arguments: map[string]any{"file_path": "/path/to/file.go"}},
+			{Name: "read", Arguments: map[string]any{"path": "/path/to/file.go"}},
 		}
 		msgs := []sdk.Message{msg}
 		ops := newFileOperations()
@@ -477,11 +477,11 @@ func TestTrackFileOps(t *testing.T) {
 	t.Run("edit/write tracking", func(t *testing.T) {
 		editMsg := sdk.NewAssistantMessage("")
 		editMsg.ToolCalls = []sdk.ToolCall{
-			{Name: "edit", Arguments: map[string]any{"file_path": "/path/to/edit.go"}},
+			{Name: "edit", Arguments: map[string]any{"path": "/path/to/edit.go"}},
 		}
 		writeMsg := sdk.NewAssistantMessage("")
 		writeMsg.ToolCalls = []sdk.ToolCall{
-			{Name: "write", Arguments: map[string]any{"file_path": "/path/to/write.go"}},
+			{Name: "write", Arguments: map[string]any{"path": "/path/to/write.go"}},
 		}
 		msgs := []sdk.Message{editMsg, writeMsg}
 		ops := newFileOperations()
@@ -494,11 +494,11 @@ func TestTrackFileOps(t *testing.T) {
 	t.Run("accumulation across calls", func(t *testing.T) {
 		msg1 := sdk.NewAssistantMessage("")
 		msg1.ToolCalls = []sdk.ToolCall{
-			{Name: "read", Arguments: map[string]any{"file_path": "/first.go"}},
+			{Name: "read", Arguments: map[string]any{"path": "/first.go"}},
 		}
 		msg2 := sdk.NewAssistantMessage("")
 		msg2.ToolCalls = []sdk.ToolCall{
-			{Name: "read", Arguments: map[string]any{"file_path": "/second.go"}},
+			{Name: "read", Arguments: map[string]any{"path": "/second.go"}},
 		}
 		ops := newFileOperations()
 		trackFileOps([]sdk.Message{msg1}, ops)
@@ -513,11 +513,11 @@ func TestTrackFileOps(t *testing.T) {
 		// Phase 1: initial conversation with read and edit
 		readMsg := sdk.NewAssistantMessage("")
 		readMsg.ToolCalls = []sdk.ToolCall{
-			{Name: "read", Arguments: map[string]any{"file_path": "/old_file.go"}},
+			{Name: "read", Arguments: map[string]any{"path": "/old_file.go"}},
 		}
 		editMsg := sdk.NewAssistantMessage("")
 		editMsg.ToolCalls = []sdk.ToolCall{
-			{Name: "edit", Arguments: map[string]any{"file_path": "/old_file.go"}},
+			{Name: "edit", Arguments: map[string]any{"path": "/old_file.go"}},
 		}
 		initialMsgs := []sdk.Message{
 			sdk.NewUserMessage("refactor this"),
@@ -536,7 +536,7 @@ func TestTrackFileOps(t *testing.T) {
 		summaryMsg := sdk.NewAssistantMessage("[Compaction Summary]\nPrevious conversation about refactoring old_file.go")
 		newReadMsg := sdk.NewAssistantMessage("")
 		newReadMsg.ToolCalls = []sdk.ToolCall{
-			{Name: "read", Arguments: map[string]any{"file_path": "/new_file.go"}},
+			{Name: "read", Arguments: map[string]any{"path": "/new_file.go"}},
 		}
 		postCompactMsgs := []sdk.Message{
 			summaryMsg,
@@ -587,7 +587,7 @@ func TestAgent_FileOpsTrackingInLoop(t *testing.T) {
 	mp := newMockProvider([]providerResponse{
 		{
 			toolCalls: []sdk.ToolCall{
-				{ID: "tc1", Name: "read", Arguments: map[string]any{"file_path": "/tracked.go"}},
+				{ID: "tc1", Name: "read", Arguments: map[string]any{"path": "/tracked.go"}},
 			},
 		},
 		{textDeltas: []string{"done"}},
@@ -622,7 +622,7 @@ func TestAgent_FileOpsResetOnNewConversation(t *testing.T) {
 	mp := newMockProvider([]providerResponse{
 		{
 			toolCalls: []sdk.ToolCall{
-				{ID: "tc1", Name: "read", Arguments: map[string]any{"file_path": "/first.go"}},
+				{ID: "tc1", Name: "read", Arguments: map[string]any{"path": "/first.go"}},
 			},
 		},
 		{textDeltas: []string{"done"}},
@@ -839,7 +839,7 @@ func TestCompact(t *testing.T) {
 	t.Run("file operations tracked from summarized messages", func(t *testing.T) {
 		readMsg := sdk.NewAssistantMessage("")
 		readMsg.ToolCalls = []sdk.ToolCall{
-			{Name: "read", Arguments: map[string]any{"file_path": "/old.go"}},
+			{Name: "read", Arguments: map[string]any{"path": "/old.go"}},
 		}
 
 		// Build messages where the tool call is in the to-summarize portion
@@ -1128,7 +1128,7 @@ func TestDrainSteeringCompactExtraction(t *testing.T) {
 		steerCh <- sdk.NewEvent(TopicSteer, "compact")
 
 		messages, hasSteering, compactInstr, compactRequested := drainSteering(steerCh, nil)
-		assert.True(t, hasSteering)
+		assert.False(t, hasSteering, "compact-only steering should not count as new steering")
 		assert.True(t, compactRequested)
 		assert.Empty(t, compactInstr)
 		assert.Nil(t, messages)
@@ -1139,7 +1139,7 @@ func TestDrainSteeringCompactExtraction(t *testing.T) {
 		steerCh <- sdk.NewEvent(TopicSteer, "compact focus on the auth refactor")
 
 		messages, hasSteering, compactInstr, compactRequested := drainSteering(steerCh, nil)
-		assert.True(t, hasSteering)
+		assert.False(t, hasSteering, "compact-only steering should not count as new steering")
 		assert.True(t, compactRequested)
 		assert.Equal(t, "focus on the auth refactor", compactInstr)
 		assert.Nil(t, messages)
@@ -1603,8 +1603,8 @@ func TestAgent_AutoCompactionErrorInInnerLoopRecovers(t *testing.T) {
 func TestTrackFileOps_NonStringFilePathIgnored(t *testing.T) {
 	msg := sdk.NewAssistantMessage("")
 	msg.ToolCalls = []sdk.ToolCall{
-		{Name: "read", Arguments: map[string]any{"file_path": 123}},
-		{Name: "edit", Arguments: map[string]any{"file_path": []string{"/path.go"}}},
+		{Name: "read", Arguments: map[string]any{"path": 123}},
+		{Name: "edit", Arguments: map[string]any{"path": []string{"/path.go"}}},
 		{Name: "read", Arguments: map[string]any{"other_key": "/path.go"}},
 	}
 	ops := newFileOperations()
