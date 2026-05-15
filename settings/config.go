@@ -166,6 +166,8 @@ type flagSet struct {
 	SandboxMode string `flag:"sandbox" description:"Sandbox mode override"`
 	Model       string `flag:"model" description:"Model override for this session"`
 	Debug       bool   `flag:"debug" description:"Enable debug logging"`
+	Continue    bool   `flag:"continue" short:"c" description:"Resume most recent session"`
+	Resume      string `flag:"resume" short:"r" description:"Resume specific session by ID"`
 }
 
 func loadSettingsFromFile(path string) (Settings, error) {
@@ -265,6 +267,8 @@ func LoadFromDir(dir string, args []string) (string, *Settings, []string, error)
 	s.SandboxMode = flags.SandboxMode
 	s.ModelFlag = flags.Model
 	s.Debug = flags.Debug
+	s.Continue = flags.Continue
+	s.Resume = flags.Resume
 
 	// Detect explicitly empty --tools= so the launcher can forward it.
 	for _, a := range args {

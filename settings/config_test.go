@@ -850,6 +850,60 @@ func TestFilterExtensionArgs_MixedWithOtherFlags(t *testing.T) {
 	assert.Equal(t, []string{"--timeout", "90"}, got)
 }
 
+func TestLoad_ContinueFlag(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
+
+	_, cf, _, err := LoadFromDir(dir, []string{"--continue"})
+	require.NoError(t, err)
+	assert.True(t, cf.Continue)
+	assert.Empty(t, cf.Resume)
+}
+
+func TestLoad_ContinueShortFlag(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
+
+	_, cf, _, err := LoadFromDir(dir, []string{"-c"})
+	require.NoError(t, err)
+	assert.True(t, cf.Continue)
+	assert.Empty(t, cf.Resume)
+}
+
+func TestLoad_ResumeFlag(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
+
+	_, cf, _, err := LoadFromDir(dir, []string{"--resume", "sess-abc123"})
+	require.NoError(t, err)
+	assert.Equal(t, "sess-abc123", cf.Resume)
+	assert.False(t, cf.Continue)
+}
+
+func TestLoad_ResumeShortFlag(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
+
+	_, cf, _, err := LoadFromDir(dir, []string{"-r", "sess-xyz789"})
+	require.NoError(t, err)
+	assert.Equal(t, "sess-xyz789", cf.Resume)
+	assert.False(t, cf.Continue)
+}
+
+func TestLoad_MutualExclusion(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
+
+	_, _, _, err := LoadFromDir(dir, []string{"--continue", "--resume", "sess-abc123"})
+	require.Error(t, err)
+
+	var errs ValidationErrors
+	require.ErrorAs(t, err, &errs)
+	require.Len(t, errs, 1)
+	assert.Equal(t, "continue", errs[0].Field)
+	assert.Contains(t, errs[0].Message, "mutually exclusive")
+}
+
 func TestToMapAny_Nil(t *testing.T) {
 	got, err := toMapAny(nil)
 	require.NoError(t, err)

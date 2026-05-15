@@ -60,7 +60,7 @@ func buildBwrapArgs(cfg SandboxConfig, dir string) []string {
 			continue
 		}
 		if _, err := os.Stat(expanded); os.IsNotExist(err) {
-			_ = os.MkdirAll(expanded, 0755)
+			_ = os.MkdirAll(expanded, 0o755)
 		}
 		if _, err := os.Stat(expanded); err == nil {
 			args = append(args, "--bind", expanded, expanded)

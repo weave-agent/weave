@@ -63,11 +63,11 @@ Add `--continue` / `-c` and `--resume` / `-r` CLI flags to weave that restore a 
 - [x] run `cd extensions/store/jsonl && go test ./...` — must pass before next task
 
 ### Task 3: Add --continue and --resume CLI flags
-- [ ] add `Continue bool`, `Resume string` fields to `flagSet` in `settings/config.go` with appropriate tags (`flag:"continue" short:"c"`, `flag:"resume" short:"r"`)
-- [ ] add validation: `--continue` and `--resume` are mutually exclusive (return error if both set)
-- [ ] store resolved values on `Settings` struct (add `Continue bool` and `Resume string` fields)
-- [ ] write tests for flag parsing in `settings/config_test.go` — both flags, mutual exclusion, short flags
-- [ ] run `go test ./settings/...` — must pass before next task
+- [x] add `Continue bool`, `Resume string` fields to `flagSet` in `settings/config.go` with appropriate tags (`flag:"continue" short:"c"`, `flag:"resume" short:"r"`)
+- [x] add validation: `--continue` and `--resume` are mutually exclusive (return error if both set)
+- [x] store resolved values on `Settings` struct (add `Continue bool` and `Resume string` fields)
+- [x] write tests for flag parsing in `settings/config_test.go` — both flags, mutual exclusion, short flags
+- [x] run `go test ./settings/...` — must pass before next task
 
 ### Task 4: Wire session resolution and store injection
 - [ ] in `internal/wire/wire.go`, after creating the store extension, call `sdk.SetSessionStore(store)` (cast store to `sdk.SessionStore` interface)

@@ -156,3 +156,31 @@ func TestValidateWithConfigDir_IntegratedWithLoad(t *testing.T) {
 	_, _, _, err := LoadFromDir(dir, nil)
 	assert.NoError(t, err)
 }
+
+func TestValidate_ContinueOnly(t *testing.T) {
+	f := validSettings()
+	f.Continue = true
+	err := Validate(f)
+	assert.NoError(t, err)
+}
+
+func TestValidate_ResumeOnly(t *testing.T) {
+	f := validSettings()
+	f.Resume = "sess-abc123"
+	err := Validate(f)
+	assert.NoError(t, err)
+}
+
+func TestValidate_MutualExclusion(t *testing.T) {
+	f := validSettings()
+	f.Continue = true
+	f.Resume = "sess-abc123"
+	err := Validate(f)
+	require.Error(t, err)
+
+	var errs ValidationErrors
+	require.ErrorAs(t, err, &errs)
+	require.Len(t, errs, 1)
+	assert.Equal(t, "continue", errs[0].Field)
+	assert.Contains(t, errs[0].Message, "mutually exclusive")
+}

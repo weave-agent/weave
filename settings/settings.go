@@ -45,6 +45,8 @@ type Settings struct {
 	SandboxMode string `flag:"sandbox" json:"-" description:"Sandbox mode override"`
 	ModelFlag   string `flag:"model" json:"-" description:"Model override for this session"`
 	Debug       bool   `flag:"debug" json:"-" description:"Enable debug logging"`
+	Continue    bool   `flag:"continue" short:"c" json:"-" description:"Resume most recent session"`
+	Resume      string `flag:"resume" short:"r" json:"-" description:"Resume specific session by ID"`
 }
 
 // SettingsLayer identifies which settings file to read or write.
