@@ -55,12 +55,12 @@ Add `--continue` / `-c` and `--resume` / `-r` CLI flags to weave that restore a 
 - [x] run `go test ./sdk/...` — must pass before next task
 
 ### Task 2: Implement SessionStore on JSONL store
-- [ ] add `ListSessions() ([]sdk.SessionInfo, error)` method to `Store` in `extensions/store/jsonl/store.go` — wraps existing `List()` and converts `SessionInfo` → `sdk.SessionInfo`
-- [ ] add `LoadHistory(sessionID string) ([]sdk.Message, error)` method — wraps existing `History()`, unmarshals each `Entry.Data` (`json.RawMessage`) into `sdk.Message` structs (user, assistant, tool_result roles), skips entries that fail to unmarshal with a warning log
-- [ ] add message conversion helper: unmarshal `Entry.Data` → intermediate struct `{Role, Content, ToolCalls, ToolCallID, ToolName, IsError}` → `sdk.Message`
-- [ ] write tests for `ListSessions` (conversion, empty dir, corrupted header) in `extensions/store/jsonl/store_test.go`
-- [ ] write tests for `LoadHistory` (full history, partial corruption, empty session, tool results) in `extensions/store/jsonl/store_test.go`
-- [ ] run `cd extensions/store/jsonl && go test ./...` — must pass before next task
+- [x] add `ListSessions() ([]sdk.SessionInfo, error)` method to `Store` in `extensions/store/jsonl/store.go` — wraps existing `List()` and converts `SessionInfo` → `sdk.SessionInfo`
+- [x] add `LoadHistory(sessionID string) ([]sdk.Message, error)` method — wraps existing `History()`, unmarshals each `Entry.Data` (`json.RawMessage`) into `sdk.Message` structs (user, assistant, tool_result roles), skips entries that fail to unmarshal with a warning log
+- [x] add message conversion helper: unmarshal `Entry.Data` → intermediate struct `{Role, Content, ToolCalls, ToolCallID, ToolName, IsError}` → `sdk.Message`
+- [x] write tests for `ListSessions` (conversion, empty dir, corrupted header) in `extensions/store/jsonl/store_test.go`
+- [x] write tests for `LoadHistory` (full history, partial corruption, empty session, tool results) in `extensions/store/jsonl/store_test.go`
+- [x] run `cd extensions/store/jsonl && go test ./...` — must pass before next task
 
 ### Task 3: Add --continue and --resume CLI flags
 - [ ] add `Continue bool`, `Resume string` fields to `flagSet` in `settings/config.go` with appropriate tags (`flag:"continue" short:"c"`, `flag:"resume" short:"r"`)

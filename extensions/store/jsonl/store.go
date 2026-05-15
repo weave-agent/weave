@@ -574,6 +574,147 @@ func (s *Store) List() ([]SessionInfo, error) {
 	return infos, nil
 }
 
+// ListSessions implements sdk.SessionStore.
+func (s *Store) ListSessions() ([]sdk.SessionInfo, error) {
+	infos, err := s.List()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(infos) == 0 {
+		return nil, nil
+	}
+
+	result := make([]sdk.SessionInfo, len(infos))
+	for i, info := range infos {
+		result[i] = sdk.SessionInfo{
+			ID:        info.ID,
+			CWD:       info.CWD,
+			CreatedAt: info.CreatedAt,
+			UpdatedAt: info.UpdatedAt,
+		}
+	}
+
+	return result, nil
+}
+
+// LoadHistory implements sdk.SessionStore.
+func (s *Store) LoadHistory(sessionID string) ([]sdk.Message, error) {
+	path, err := s.sessionPath(sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read session file: %w", err)
+	}
+
+	lines := splitLines(data)
+	if len(lines) == 0 {
+		return nil, fmt.Errorf("empty session file: %s", path)
+	}
+
+	messages := make([]sdk.Message, 0, len(lines)-1)
+	for _, line := range lines[1:] {
+		var entry Entry
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			logger.Warn("jsonl: skip unparseable entry", "session", sessionID, "error", err)
+			continue
+		}
+
+		msg, err := entryToMessage(entry)
+		if err != nil {
+			logger.Warn("jsonl: skip corrupt entry", "session", sessionID, "entry", entry.ID, "error", err)
+			continue
+		}
+
+		messages = append(messages, msg)
+	}
+
+	return messages, nil
+}
+
+type rawMessage struct {
+	Role      string          `json:"role"`
+	Content   any             `json:"content"`
+	ToolCalls json.RawMessage `json:"tool_calls"`
+	Tool      json.RawMessage `json:"tool"`
+}
+
+func entryToMessage(entry Entry) (sdk.Message, error) {
+	var raw rawMessage
+	if err := json.Unmarshal(entry.Data, &raw); err != nil {
+		return sdk.Message{}, fmt.Errorf("unmarshal entry data: %w", err)
+	}
+
+	msg := sdk.Message{
+		Role:      raw.Role,
+		Content:   raw.Content,
+		Timestamp: entry.Created,
+	}
+
+	switch raw.Role {
+	case sdk.RoleAssistant:
+		if len(raw.ToolCalls) > 0 {
+			var tcs []sdk.ToolCall
+			if err := json.Unmarshal(raw.ToolCalls, &tcs); err != nil {
+				return sdk.Message{}, fmt.Errorf("unmarshal tool_calls: %w", err)
+			}
+
+			msg.ToolCalls = tcs
+		}
+	case sdk.RoleToolResult:
+		if err := applyToolResult(&msg, raw.Tool); err != nil {
+			return sdk.Message{}, err
+		}
+	}
+
+	return msg, nil
+}
+
+func applyToolResult(msg *sdk.Message, toolRaw json.RawMessage) error {
+	if len(toolRaw) == 0 {
+		return nil
+	}
+
+	var toolData map[string]any
+	if err := json.Unmarshal(toolRaw, &toolData); err != nil {
+		return fmt.Errorf("unmarshal tool data: %w", err)
+	}
+
+	if id, ok := toolData["id"].(string); ok {
+		msg.ToolCallID = id
+	}
+
+	if name, ok := toolData["tool"].(string); ok {
+		msg.ToolName = name
+	}
+
+	if result, ok := toolData["result"]; ok {
+		applyToolResultContent(msg, result)
+	}
+
+	return nil
+}
+
+func applyToolResultContent(msg *sdk.Message, result any) {
+	r, ok := result.(map[string]any)
+	if !ok {
+		msg.Content = result
+
+		return
+	}
+
+	if content, ok := r["content"]; ok {
+		msg.Content = content
+	}
+
+	if isErr, ok := r["is_error"].(bool); ok {
+		msg.IsError = isErr
+	}
+}
+
 func (s *Store) Compact(sessionID string, keepLast int) error {
 	sess, err := s.Load(sessionID)
 	if err != nil {
