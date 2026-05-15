@@ -835,3 +835,287 @@ func TestSetSingleTurnEnv_NoOpWhenFalse(t *testing.T) {
 
 	assert.Equal(t, "existing", os.Getenv("WEAVE_SINGLE_TURN"))
 }
+
+// ---- Session store test helpers ----
+
+type mockSessionStore struct {
+	listFunc func() ([]sdk.SessionInfo, error)
+	loadFunc func(string) ([]sdk.Message, error)
+}
+
+func (m *mockSessionStore) ListSessions() ([]sdk.SessionInfo, error) {
+	if m.listFunc != nil {
+		return m.listFunc()
+	}
+
+	return nil, nil
+}
+
+func (m *mockSessionStore) LoadHistory(id string) ([]sdk.Message, error) {
+	if m.loadFunc != nil {
+		return m.loadFunc(id)
+	}
+
+	return nil, nil
+}
+
+type mockStoreExt struct {
+	mockSessionStore
+	name string
+}
+
+func (m *mockStoreExt) Name() string            { return m.name }
+func (m *mockStoreExt) Subscribe(sdk.Bus) error { return nil }
+func (m *mockStoreExt) Close() error            { return nil }
+
+func TestWireExtensions_SetsSessionStore(t *testing.T) {
+	sdk.ResetExtensionRegistry()
+	sdk.ResetSessionStore()
+
+	store := &mockStoreExt{name: "test-store"}
+
+	sdk.RegisterExtension("test-store", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
+		return store, nil
+	})
+
+	bus := &BusMock{}
+	_, err := WireExtensions([]string{"test-store"}, bus, nil)
+	require.NoError(t, err)
+
+	got := sdk.GetSessionStore()
+	require.NotNil(t, got)
+	assert.Equal(t, store, got)
+}
+
+func TestWireExtensions_NoSessionStore(t *testing.T) {
+	sdk.ResetExtensionRegistry()
+	sdk.ResetSessionStore()
+
+	sdk.RegisterExtension("no-store", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("no-store", func(sdk.Bus) error { return nil }), nil
+	})
+
+	bus := &BusMock{}
+	_, err := WireExtensions([]string{"no-store"}, bus, nil)
+	require.NoError(t, err)
+
+	assert.Nil(t, sdk.GetSessionStore())
+}
+
+func TestResolveSession_NoStore(t *testing.T) {
+	sdk.ResetSessionStore()
+
+	bus := &BusMock{}
+	_, _, err := resolveSession(true, "", bus)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no session store available")
+}
+
+func TestResolveSession_ContinueNoSessions(t *testing.T) {
+	sdk.ResetSessionStore()
+
+	store := &mockSessionStore{
+		listFunc: func() ([]sdk.SessionInfo, error) {
+			return nil, nil
+		},
+	}
+	sdk.SetSessionStore(store)
+
+	bus := &BusMock{}
+	_, _, err := resolveSession(true, "", bus)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no sessions found")
+}
+
+func TestResolveSession_ContinuePicksMostRecent(t *testing.T) {
+	sdk.ResetSessionStore()
+
+	store := &mockSessionStore{
+		listFunc: func() ([]sdk.SessionInfo, error) {
+			return []sdk.SessionInfo{
+				{ID: "older", UpdatedAt: time.Now().Add(-2 * time.Hour)},
+				{ID: "newer", UpdatedAt: time.Now().Add(-1 * time.Hour)},
+				{ID: "latest", UpdatedAt: time.Now()},
+			}, nil
+		},
+		loadFunc: func(id string) ([]sdk.Message, error) {
+			if id == "latest" {
+				return []sdk.Message{
+					{Role: sdk.RoleUser, Content: "hello"},
+					{Role: sdk.RoleAssistant, Content: "hi"},
+				}, nil
+			}
+
+			return nil, fmt.Errorf("unexpected id: %s", id)
+		},
+	}
+	sdk.SetSessionStore(store)
+
+	var publishedEvent sdk.Event
+
+	bus := &BusMock{
+		PublishFunc: func(e sdk.Event) {
+			publishedEvent = e
+		},
+	}
+
+	sessionID, messages, err := resolveSession(true, "", bus)
+	require.NoError(t, err)
+	assert.Equal(t, "latest", sessionID)
+	require.Len(t, messages, 2)
+	assert.Equal(t, "hello", messages[0].Content)
+	assert.Equal(t, "hi", messages[1].Content)
+
+	require.Equal(t, "session.resume", publishedEvent.Topic)
+	payload, ok := publishedEvent.Payload.(sdk.SessionResumePayload)
+	require.True(t, ok)
+	assert.Equal(t, "latest", payload.SessionID)
+	assert.Len(t, payload.Messages, 2)
+}
+
+func TestResolveSession_ResumeValidID(t *testing.T) {
+	sdk.ResetSessionStore()
+
+	store := &mockSessionStore{
+		loadFunc: func(id string) ([]sdk.Message, error) {
+			if id == "abc123" {
+				return []sdk.Message{
+					{Role: sdk.RoleUser, Content: "test"},
+				}, nil
+			}
+
+			return nil, errors.New("session not found")
+		},
+	}
+	sdk.SetSessionStore(store)
+
+	var publishedEvent sdk.Event
+
+	bus := &BusMock{
+		PublishFunc: func(e sdk.Event) {
+			publishedEvent = e
+		},
+	}
+
+	sessionID, messages, err := resolveSession(false, "abc123", bus)
+	require.NoError(t, err)
+	assert.Equal(t, "abc123", sessionID)
+	require.Len(t, messages, 1)
+
+	require.Equal(t, "session.resume", publishedEvent.Topic)
+	payload, ok := publishedEvent.Payload.(sdk.SessionResumePayload)
+	require.True(t, ok)
+	assert.Equal(t, "abc123", payload.SessionID)
+}
+
+func TestResolveSession_ResumeInvalidID(t *testing.T) {
+	sdk.ResetSessionStore()
+
+	store := &mockSessionStore{
+		loadFunc: func(id string) ([]sdk.Message, error) {
+			return nil, errors.New("session not found")
+		},
+	}
+	sdk.SetSessionStore(store)
+
+	bus := &BusMock{}
+	_, _, err := resolveSession(false, "bad-id", bus)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "load session bad-id")
+}
+
+func TestWireWithCore_ResumePublishesSessionEvent(t *testing.T) {
+	sdk.ResetExtensionRegistry()
+	sdk.ResetSessionStore()
+
+	sdk.ResetBusSubscribers()
+	defer sdk.ResetBusSubscribers()
+
+	sdk.RegisterExtension("agent", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("agent", func(sdk.Bus) error { return nil }), nil
+	})
+
+	store := &mockStoreExt{name: "jsonl"}
+	store.listFunc = func() ([]sdk.SessionInfo, error) {
+		return []sdk.SessionInfo{{ID: "sess1", UpdatedAt: time.Now()}}, nil
+	}
+	store.loadFunc = func(id string) ([]sdk.Message, error) {
+		return []sdk.Message{{Role: sdk.RoleUser, Content: "hi"}}, nil
+	}
+
+	sdk.RegisterExtension("jsonl", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
+		return store, nil
+	})
+
+	realBus := eventbus.New()
+	defer realBus.Close()
+
+	var (
+		sessionReceived    atomic.Bool
+		appStartedReceived atomic.Bool
+	)
+
+	realBus.On("session.resume", func(e sdk.Event) error {
+		sessionReceived.Store(true)
+		return nil
+	})
+	realBus.On("app.started", func(e sdk.Event) error {
+		appStartedReceived.Store(true)
+		return nil
+	})
+
+	wired, err := WireWithCore(CoreWireConfig{AgentLoop: "agent", Continue: true}, []string{"jsonl"}, realBus, nil)
+	require.NoError(t, err)
+	require.NotNil(t, wired)
+	assert.True(t, wired.Resumed)
+	assert.Equal(t, "sess1", wired.SessionID)
+
+	require.Eventually(t, func() bool {
+		return sessionReceived.Load() && appStartedReceived.Load()
+	}, time.Second, 10*time.Millisecond, "both events should be published")
+}
+
+func TestWireWithCore_ResumeErrorHeadless(t *testing.T) {
+	sdk.ResetExtensionRegistry()
+	sdk.ResetSessionStore()
+
+	sdk.RegisterExtension("agent", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("agent", func(sdk.Bus) error { return nil }), nil
+	})
+
+	bus := &BusMock{}
+	_, err := WireWithCore(CoreWireConfig{AgentLoop: "agent", Continue: true}, nil, bus, sdk.HeadlessConfig{Config: sdk.FilePathConfig(""), Headless: true})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "session resume")
+}
+
+func TestWireWithCore_ResumeErrorTUI(t *testing.T) {
+	sdk.ResetExtensionRegistry()
+	sdk.ResetSessionStore()
+
+	sdk.RegisterExtension("agent", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("agent", func(sdk.Bus) error { return nil }), nil
+	})
+
+	bus := &BusMock{}
+	wired, err := WireWithCore(CoreWireConfig{AgentLoop: "agent", Continue: true}, nil, bus, nil)
+	require.NoError(t, err)
+	require.NotNil(t, wired)
+	assert.False(t, wired.Resumed)
+}
+
+func TestWireWithCore_NoResumeWhenNotRequested(t *testing.T) {
+	sdk.ResetExtensionRegistry()
+	sdk.ResetSessionStore()
+
+	sdk.RegisterExtension("agent", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("agent", func(sdk.Bus) error { return nil }), nil
+	})
+
+	bus := &BusMock{}
+	wired, err := WireWithCore(coreCfg(), nil, bus, nil)
+	require.NoError(t, err)
+	require.NotNil(t, wired)
+	assert.False(t, wired.Resumed)
+	assert.Empty(t, wired.SessionID)
+}

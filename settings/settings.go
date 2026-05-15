@@ -205,6 +205,14 @@ func (s *Settings) WeaveFlags() []string {
 		flags = append(flags, "--weave-model="+s.ModelFlag)
 	}
 
+	if s.Continue {
+		flags = append(flags, "--weave-continue=true")
+	}
+
+	if s.Resume != "" {
+		flags = append(flags, "--weave-resume="+s.Resume)
+	}
+
 	return flags
 }
 

@@ -70,15 +70,15 @@ Add `--continue` / `-c` and `--resume` / `-r` CLI flags to weave that restore a 
 - [x] run `go test ./settings/...` — must pass before next task
 
 ### Task 4: Wire session resolution and store injection
-- [ ] in `internal/wire/wire.go`, after creating the store extension, call `sdk.SetSessionStore(store)` (cast store to `sdk.SessionStore` interface)
-- [ ] in `internal/wire/run.go`, add `resolveSession(cfg)` function that checks `--continue`/`--resume` flags, calls `sdk.GetSessionStore()`, resolves session ID, loads messages
-- [ ] for `--continue`: call `ListSessions()`, pick most recent (sort by `UpdatedAt` desc, or most recent by CWD match if feasible)
-- [ ] for `--resume <id>`: call `LoadHistory(id)` directly
-- [ ] publish `session.resume` event with `SessionResumePayload{SessionID, Messages}` on the bus before `app.started`
-- [ ] when `-p` is used with `--continue`/`--resume`: publish `agent.followup` instead of `agent.prompt` so messages are appended to the restored history
-- [ ] add `SessionResumePayload` struct to `sdk/session.go` with `SessionID string` and `Messages []Message`
-- [ ] write tests for `resolveSession` — no session found, invalid ID, successful continue, successful resume
-- [ ] run `go test ./internal/wire/...` — must pass before next task
+- [x] in `internal/wire/wire.go`, after creating the store extension, call `sdk.SetSessionStore(store)` (cast store to `sdk.SessionStore` interface)
+- [x] in `internal/wire/run.go`, add `resolveSession(cfg)` function that checks `--continue`/`--resume` flags, calls `sdk.GetSessionStore()`, resolves session ID, loads messages
+- [x] for `--continue`: call `ListSessions()`, pick most recent (sort by `UpdatedAt` desc, or most recent by CWD match if feasible)
+- [x] for `--resume <id>`: call `LoadHistory(id)` directly
+- [x] publish `session.resume` event with `SessionResumePayload{SessionID, Messages}` on the bus before `app.started`
+- [x] when `-p` is used with `--continue`/`--resume`: publish `agent.followup` instead of `agent.prompt` so messages are appended to the restored history
+- [x] add `SessionResumePayload` struct to `sdk/session.go` with `SessionID string` and `Messages []Message`
+- [x] write tests for `resolveSession` — no session found, invalid ID, successful continue, successful resume
+- [x] run `go test ./internal/wire/...` — must pass before next task
 
 ### Task 5: Agent loop session resume handler
 - [ ] in `extensions/agent/loop.go`, add `resumed bool` and `sessionID string` fields to the agent struct

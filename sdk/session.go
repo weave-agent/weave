@@ -48,6 +48,13 @@ func GetSessionStore() SessionStore {
 	return sessionStore
 }
 
+// ResetSessionStore clears the global SessionStore. Used only in tests.
+func ResetSessionStore() {
+	sessionStoreMu.Lock()
+	sessionStore = nil
+	sessionStoreMu.Unlock()
+}
+
 // NoopSessionStore is a zero-value SessionStore that returns empty results.
 type NoopSessionStore struct{}
 

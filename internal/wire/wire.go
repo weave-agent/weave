@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"slices"
+	"sort"
 
 	"weave/internal/extmanage"
 	"weave/internal/filemut"
@@ -21,11 +22,15 @@ const defaultAgentLoop = "agent"
 type CoreWireConfig struct {
 	AgentLoop  string
 	SingleTurn bool
+	Continue   bool
+	Resume     string
 }
 
 type Wired struct {
 	extensions []sdk.Extension
 	bus        sdk.Bus
+	SessionID  string
+	Resumed    bool
 }
 
 func resolveExtensions(extNames []string, cfg sdk.Config) ([]sdk.Extension, error) {
@@ -90,11 +95,82 @@ func WireExtensions(extNames []string, bus sdk.Bus, cfg sdk.Config) (*Wired, err
 		model.SetProviderAuth(name, hasAuth)
 	}
 
+	// Register the first extension that implements SessionStore.
+	for _, ext := range exts {
+		if ss, ok := ext.(sdk.SessionStore); ok {
+			sdk.SetSessionStore(ss)
+
+			break
+		}
+	}
+
 	if err := subscribeExtensions(exts, bus); err != nil {
 		return nil, err
 	}
 
 	return &Wired{extensions: exts, bus: bus}, nil
+}
+
+func resolveSession(continueFlag bool, resumeID string, bus sdk.Bus) (string, []sdk.Message, error) {
+	store := sdk.GetSessionStore()
+	if store == nil {
+		return "", nil, errors.New("no session store available")
+	}
+
+	sessionID, messages, err := resolveSessionFromStore(store, continueFlag, resumeID)
+	if err != nil {
+		return "", nil, err
+	}
+
+	if sessionID != "" {
+		bus.Publish(sdk.NewEvent("session.resume", sdk.SessionResumePayload{
+			SessionID: sessionID,
+			Messages:  messages,
+		}))
+	}
+
+	return sessionID, messages, nil
+}
+
+func resolveSessionFromStore(store sdk.SessionStore, continueFlag bool, resumeID string) (string, []sdk.Message, error) {
+	if resumeID != "" {
+		messages, err := store.LoadHistory(resumeID)
+		if err != nil {
+			return "", nil, fmt.Errorf("load session %s: %w", resumeID, err)
+		}
+
+		return resumeID, messages, nil
+	}
+
+	if continueFlag {
+		return resolveContinueSession(store)
+	}
+
+	return "", nil, nil
+}
+
+func resolveContinueSession(store sdk.SessionStore) (string, []sdk.Message, error) {
+	sessions, err := store.ListSessions()
+	if err != nil {
+		return "", nil, fmt.Errorf("list sessions: %w", err)
+	}
+
+	if len(sessions) == 0 {
+		return "", nil, errors.New("no sessions found")
+	}
+
+	sort.Slice(sessions, func(i, j int) bool {
+		return sessions[i].UpdatedAt.After(sessions[j].UpdatedAt)
+	})
+
+	sessionID := sessions[0].ID
+
+	messages, err := store.LoadHistory(sessionID)
+	if err != nil {
+		return "", nil, fmt.Errorf("load session %s: %w", sessionID, err)
+	}
+
+	return sessionID, messages, nil
 }
 
 func WireWithCore(core CoreWireConfig, optExts []string, bus sdk.Bus, cfg sdk.Config) (*Wired, error) {
@@ -127,6 +203,20 @@ func WireWithCore(core CoreWireConfig, optExts []string, bus sdk.Bus, cfg sdk.Co
 	wired, err := WireExtensions(extNames, bus, cfg)
 	if err != nil {
 		return nil, err
+	}
+
+	if core.Continue || core.Resume != "" {
+		sessionID, _, err := resolveSession(core.Continue, core.Resume, bus)
+		if err != nil {
+			if cfg != nil && cfg.IsHeadless() {
+				return nil, fmt.Errorf("session resume: %w", err)
+			}
+
+			slog.Warn("session resume failed", "error", err)
+		} else {
+			wired.SessionID = sessionID
+			wired.Resumed = true
+		}
 	}
 
 	go func() {
