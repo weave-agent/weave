@@ -95,7 +95,7 @@ func (s *Store) Subscribe(bus sdk.Bus) error {
 		switch ev.Topic {
 		case "agent.prompt", "agent.followup", "agent.steer",
 			"agent.turn_start", "agent.message_end",
-			"agent.tool_result", "agent.end":
+			"agent.tool_result", "agent.end", "session.resume":
 			select {
 			case ch <- ev:
 			case <-ctx.Done():
@@ -156,12 +156,30 @@ func (s *Store) dispatch(ev sdk.Event) {
 		s.handleMsgEnd(ev)
 	case "agent.tool_result":
 		s.handleToolResult(ev)
+	case "session.resume":
+		s.handleSessionResume(ev)
 	case "agent.end":
 		s.cancel()
 	}
 }
 
 func (s *Store) handlePrompt(evt sdk.Event) {
+	s.mu.Lock()
+	sessionID := s.sessionID
+	lastEntry := s.lastEntry
+	turn := s.turn
+	s.mu.Unlock()
+
+	// Session was resumed; treat prompt as a follow-up instead of creating a new session.
+	if sessionID != "" {
+		s.appendUserEntry(sessionID, turn+1, lastEntry, evt)
+		s.mu.Lock()
+		s.turn = turn + 1
+		s.mu.Unlock()
+
+		return
+	}
+
 	cwd, _ := os.Getwd()
 	if cwd == "" {
 		cwd = "/"
@@ -194,6 +212,39 @@ func (s *Store) handlePrompt(evt sdk.Event) {
 	s.sessionID = sess.Header.ID
 	s.lastEntry = entryID
 	s.turn = 1
+	s.mu.Unlock()
+}
+
+func (s *Store) handleSessionResume(evt sdk.Event) {
+	payload, ok := evt.Payload.(sdk.SessionResumePayload)
+	if !ok {
+		logger.Error("jsonl: invalid session.resume payload type")
+		return
+	}
+
+	if payload.SessionID == "" {
+		return
+	}
+
+	sess, err := s.Load(payload.SessionID)
+	if err != nil {
+		logger.Error("jsonl: load session for resume", "session", payload.SessionID, "error", err)
+		return
+	}
+
+	var lastEntryID string
+	var maxTurn int
+
+	if len(sess.Entries) > 0 {
+		last := sess.Entries[len(sess.Entries)-1]
+		lastEntryID = last.ID
+		maxTurn = last.Turn
+	}
+
+	s.mu.Lock()
+	s.sessionID = payload.SessionID
+	s.lastEntry = lastEntryID
+	s.turn = maxTurn
 	s.mu.Unlock()
 }
 

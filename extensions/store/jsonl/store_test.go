@@ -699,3 +699,223 @@ func TestEntryToMessage_UnknownRole(t *testing.T) {
 	assert.Equal(t, "system", msg.Role)
 	assert.Equal(t, "hello", msg.Content)
 }
+
+func TestSubscribe_ResumesSession(t *testing.T) {
+	s := newTestStore(t)
+	b := eventbus.New()
+
+	require.NoError(t, s.Subscribe(b))
+	defer s.Close()
+
+	// Create a session with some entries
+	sess, err := s.Create("/tmp/project")
+	require.NoError(t, err)
+
+	entry1 := Entry{Type: "message", Turn: 1, Data: json.RawMessage(`{"role":"user","content":"hello"}`)}
+	_, err = s.Append(sess.Header.ID, entry1)
+	require.NoError(t, err)
+
+	entry2 := Entry{Type: "message", Turn: 2, Data: json.RawMessage(`{"role":"assistant","content":"hi there"}`)}
+	id2, err := s.Append(sess.Header.ID, entry2)
+	require.NoError(t, err)
+
+	// Publish session.resume
+	b.Publish(sdk.NewEvent("session.resume", sdk.SessionResumePayload{
+		SessionID: sess.Header.ID,
+		Messages:  []sdk.Message{},
+	}))
+	time.Sleep(50 * time.Millisecond)
+
+	// Verify internal state
+	s.mu.Lock()
+	assert.Equal(t, sess.Header.ID, s.sessionID)
+	assert.Equal(t, id2, s.lastEntry)
+	assert.Equal(t, 2, s.turn)
+	s.mu.Unlock()
+
+	// Now publish agent.prompt - should append to resumed session, not create new
+	b.Publish(sdk.NewEvent("agent.prompt", "follow up"))
+	time.Sleep(50 * time.Millisecond)
+
+	// Load and verify
+	loaded, err := s.Load(sess.Header.ID)
+	require.NoError(t, err)
+	require.Len(t, loaded.Entries, 3)
+
+	assert.Equal(t, 3, loaded.Entries[2].Turn)
+	var data map[string]any
+	require.NoError(t, json.Unmarshal(loaded.Entries[2].Data, &data))
+	assert.Equal(t, "user", data["role"])
+	assert.Equal(t, "follow up", data["content"])
+	assert.Equal(t, id2, loaded.Entries[2].ParentID)
+
+	// Verify no new session was created
+	infos, err := s.List()
+	require.NoError(t, err)
+	require.Len(t, infos, 1)
+}
+
+func TestSubscribe_ResumesSession_Followup(t *testing.T) {
+	s := newTestStore(t)
+	b := eventbus.New()
+
+	require.NoError(t, s.Subscribe(b))
+	defer s.Close()
+
+	sess, err := s.Create("/tmp/project")
+	require.NoError(t, err)
+
+	entry1 := Entry{Type: "message", Turn: 1, Data: json.RawMessage(`{"role":"user","content":"hello"}`)}
+	id1, err := s.Append(sess.Header.ID, entry1)
+	require.NoError(t, err)
+
+	b.Publish(sdk.NewEvent("session.resume", sdk.SessionResumePayload{
+		SessionID: sess.Header.ID,
+		Messages:  []sdk.Message{},
+	}))
+	time.Sleep(50 * time.Millisecond)
+
+	b.Publish(sdk.NewEvent("agent.followup", "follow up"))
+	time.Sleep(50 * time.Millisecond)
+
+	loaded, err := s.Load(sess.Header.ID)
+	require.NoError(t, err)
+	require.Len(t, loaded.Entries, 2)
+
+	assert.Equal(t, 2, loaded.Entries[1].Turn)
+	var data map[string]any
+	require.NoError(t, json.Unmarshal(loaded.Entries[1].Data, &data))
+	assert.Equal(t, "user", data["role"])
+	assert.Equal(t, "follow up", data["content"])
+	assert.Equal(t, id1, loaded.Entries[1].ParentID)
+}
+
+func TestSubscribe_ResumesSession_MsgEndAndToolResult(t *testing.T) {
+	s := newTestStore(t)
+	b := eventbus.New()
+
+	require.NoError(t, s.Subscribe(b))
+	defer s.Close()
+
+	sess, err := s.Create("/tmp/project")
+	require.NoError(t, err)
+
+	entry1 := Entry{Type: "message", Turn: 1, Data: json.RawMessage(`{"role":"user","content":"list files"}`)}
+	_, err = s.Append(sess.Header.ID, entry1)
+	require.NoError(t, err)
+
+	b.Publish(sdk.NewEvent("session.resume", sdk.SessionResumePayload{
+		SessionID: sess.Header.ID,
+		Messages:  []sdk.Message{},
+	}))
+	time.Sleep(50 * time.Millisecond)
+
+	b.Publish(sdk.NewEvent("agent.prompt", "show me"))
+	time.Sleep(50 * time.Millisecond)
+
+	b.Publish(sdk.NewEvent("agent.turn_start", 2))
+	b.Publish(sdk.NewEvent("agent.message_end", "here are the files"))
+	time.Sleep(50 * time.Millisecond)
+
+	b.Publish(sdk.NewEvent("agent.tool_result", map[string]any{
+		"id":     "call-123",
+		"tool":   "bash",
+		"result": "file1.txt\nfile2.txt",
+	}))
+	time.Sleep(50 * time.Millisecond)
+
+	loaded, err := s.Load(sess.Header.ID)
+	require.NoError(t, err)
+	require.Len(t, loaded.Entries, 4)
+
+	// Entry 1: original user message
+	// Entry 2: resumed prompt "show me"
+	// Entry 3: assistant message "here are the files"
+	// Entry 4: tool result
+
+	assert.Equal(t, 2, loaded.Entries[1].Turn)
+	assert.Equal(t, 2, loaded.Entries[2].Turn)
+	assert.Equal(t, 2, loaded.Entries[3].Turn)
+
+	var data3 map[string]any
+	require.NoError(t, json.Unmarshal(loaded.Entries[2].Data, &data3))
+	assert.Equal(t, "assistant", data3["role"])
+	assert.Equal(t, "here are the files", data3["content"])
+
+	var data4 map[string]any
+	require.NoError(t, json.Unmarshal(loaded.Entries[3].Data, &data4))
+	assert.Equal(t, "tool_result", data4["role"])
+}
+
+func TestSubscribe_ResumeInvalidPayload(t *testing.T) {
+	s := newTestStore(t)
+	b := eventbus.New()
+
+	require.NoError(t, s.Subscribe(b))
+	defer s.Close()
+
+	b.Publish(sdk.NewEvent("session.resume", "not a payload"))
+	time.Sleep(50 * time.Millisecond)
+
+	s.mu.Lock()
+	assert.Empty(t, s.sessionID)
+	s.mu.Unlock()
+}
+
+func TestSubscribe_ResumeEmptySession(t *testing.T) {
+	s := newTestStore(t)
+	b := eventbus.New()
+
+	require.NoError(t, s.Subscribe(b))
+	defer s.Close()
+
+	sess, err := s.Create("/tmp/project")
+	require.NoError(t, err)
+
+	b.Publish(sdk.NewEvent("session.resume", sdk.SessionResumePayload{
+		SessionID: sess.Header.ID,
+		Messages:  []sdk.Message{},
+	}))
+	time.Sleep(50 * time.Millisecond)
+
+	s.mu.Lock()
+	assert.Equal(t, sess.Header.ID, s.sessionID)
+	assert.Empty(t, s.lastEntry)
+	assert.Equal(t, 0, s.turn)
+	s.mu.Unlock()
+
+	// Prompt after resuming empty session should append with turn 1
+	b.Publish(sdk.NewEvent("agent.prompt", "hello"))
+	time.Sleep(50 * time.Millisecond)
+
+	loaded, err := s.Load(sess.Header.ID)
+	require.NoError(t, err)
+	require.Len(t, loaded.Entries, 1)
+	assert.Equal(t, 1, loaded.Entries[0].Turn)
+}
+
+func TestSubscribe_PromptCreatesNewSessionWhenNotResumed(t *testing.T) {
+	s := newTestStore(t)
+	b := eventbus.New()
+
+	require.NoError(t, s.Subscribe(b))
+	defer s.Close()
+
+	b.Publish(sdk.NewEvent("agent.prompt", "hello world"))
+	time.Sleep(50 * time.Millisecond)
+
+	s.mu.Lock()
+	sessionID := s.sessionID
+	s.mu.Unlock()
+
+	require.NotEmpty(t, sessionID)
+
+	sess, err := s.Load(sessionID)
+	require.NoError(t, err)
+	require.Len(t, sess.Entries, 1)
+
+	var data map[string]any
+	require.NoError(t, json.Unmarshal(sess.Entries[0].Data, &data))
+	assert.Equal(t, "user", data["role"])
+	assert.Equal(t, "hello world", data["content"])
+}

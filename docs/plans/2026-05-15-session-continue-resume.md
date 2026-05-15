@@ -88,9 +88,9 @@ Add `--continue` / `-c` and `--resume` / `-r` CLI flags to weave that restore a 
 - [x] run `cd extensions/agent && go test ./...` — must pass before next task
 
 ### Task 6: JSONL store session continuity on resume
-- [ ] in `extensions/store/jsonl/store.go`, add handler for `session.resume` event: set internal `sessionID` to the resumed session ID so subsequent events (`agent.followup`, `agent.message_end`, `agent.tool_result`) append to the existing file instead of creating a new session
-- [ ] write tests verifying that after `session.resume`, subsequent events are stored in the resumed session file
-- [ ] run `cd extensions/store/jsonl && go test ./...` — must pass before next task
+- [x] in `extensions/store/jsonl/store.go`, add handler for `session.resume` event: set internal `sessionID` to the resumed session ID so subsequent events (`agent.followup`, `agent.message_end`, `agent.tool_result`) append to the existing file instead of creating a new session
+- [x] write tests verifying that after `session.resume`, subsequent events are stored in the resumed session file
+- [x] run `cd extensions/store/jsonl && go test ./...` — must pass before next task
 
 ### Task 7: TUI integration for --continue/--resume
 - [ ] in `extensions/ui/tui/bridge.go`, ensure `session.resume` event from wire triggers `rebuildChatFromSession()` (may already work via existing bus listener — verify)
