@@ -534,6 +534,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case MessageStartMsg:
 		m.chat = m.chat.AddItem(messages.NewAssistantMessage())
+		m.chat = m.chat.ClearSelection()
 
 		// Keep render loop active so progressive renders show through
 		if m.spinner.Visible() {

@@ -3433,6 +3433,36 @@ func TestModel_KeyPress_ClearsSelection(t *testing.T) {
 	assert.False(t, m.chat.HasSelection(), "selection should be cleared after key press")
 }
 
+func TestModel_MessageStart_ClearsSelection(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+	m.AddUserMessage("hello world")
+
+	area := m.chatArea()
+	startX := area.Min.X + 2
+	startY := area.Min.Y + 1
+	endX := area.Min.X + 8
+	endY := area.Min.Y + 1
+
+	// Create a selection
+	model, _ := m.Update(tea.MouseClickMsg{X: startX, Y: startY, Button: tea.MouseLeft})
+	m = model.(Model)
+	model, _ = m.Update(tea.MouseMotionMsg{X: endX, Y: endY, Button: tea.MouseLeft})
+	m = model.(Model)
+	model, _ = m.Update(tea.MouseReleaseMsg{X: endX, Y: endY, Button: tea.MouseLeft})
+	m = model.(Model)
+
+	assert.True(t, m.chat.HasSelection(), "selection should exist before new message")
+
+	// New assistant message should clear selection
+	model, _ = m.Update(MessageStartMsg{})
+	m = model.(Model)
+
+	assert.False(t, m.chat.HasSelection(), "selection should be cleared on new message")
+}
+
 func TestModel_MouseClick_DialogOpen_Ignored(t *testing.T) {
 	m := newModelNoLanding()
 	m.width = 80
