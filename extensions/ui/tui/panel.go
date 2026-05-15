@@ -56,9 +56,10 @@ func NewPanelManager() *PanelManager {
 }
 
 // Register registers a panel. If a panel with the same ID exists, it is replaced.
-func (pm *PanelManager) Register(config PanelConfig, drawer PanelDrawer) {
+// Returns false if drawer is nil (panel not registered).
+func (pm *PanelManager) Register(config PanelConfig, drawer PanelDrawer) bool {
 	if drawer == nil {
-		return
+		return false
 	}
 
 	pm.mu.Lock()
@@ -78,6 +79,8 @@ func (pm *PanelManager) Register(config PanelConfig, drawer PanelDrawer) {
 	if !slices.Contains(pm.order, config.ID) {
 		pm.order = append(pm.order, config.ID)
 	}
+
+	return true
 }
 
 // Show makes a panel visible and sets it as the active panel.
@@ -206,16 +209,26 @@ func (pm *PanelManager) Get(id string) (panelEntry, bool) {
 // UpdateDrawer routes a message to a panel's drawer and stores the updated drawer.
 // Returns the command and true if the panel exists and its drawer handled the message.
 func (pm *PanelManager) UpdateDrawer(id string, msg tea.Msg) (tea.Cmd, bool) {
-	pm.mu.Lock()
-	defer pm.mu.Unlock()
+	pm.mu.RLock()
 
 	entry, ok := pm.panels[id]
 	if !ok || entry.Drawer == nil || !entry.Drawer.Handles(msg) {
+		pm.mu.RUnlock()
+
 		return nil, false
 	}
 
-	newDrawer, cmd := entry.Drawer.Update(msg)
-	entry.Drawer = newDrawer
+	drawer := entry.Drawer
+
+	pm.mu.RUnlock()
+
+	newDrawer, cmd := drawer.Update(msg)
+
+	pm.mu.Lock()
+	if e, ok := pm.panels[id]; ok && e.Drawer == drawer {
+		e.Drawer = newDrawer
+	}
+	pm.mu.Unlock()
 
 	return cmd, true
 }
@@ -263,6 +276,17 @@ func (pm *PanelManager) SetOrder(ids []string) {
 	defer pm.mu.Unlock()
 
 	pm.order = ids
+}
+
+// GetOrder returns a copy of the current tab order.
+func (pm *PanelManager) GetOrder() []string {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	result := make([]string, len(pm.order))
+	copy(result, pm.order)
+
+	return result
 }
 
 // ActivePanelPlacement returns the placement of the active panel.

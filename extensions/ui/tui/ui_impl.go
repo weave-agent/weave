@@ -480,7 +480,10 @@ func (u *TUIImpl) ShowPanel(config PanelConfig, drawer PanelDrawer) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 
-	u.panelManager.Register(config, drawer)
+	if !u.panelManager.Register(config, drawer) {
+		return
+	}
+
 	u.panelManager.Show(config.ID)
 
 	if u.program != nil {
@@ -546,10 +549,7 @@ func (u *TUIImpl) GetOrder() []string {
 		return nil
 	}
 
-	result := make([]string, len(u.panelManager.order))
-	copy(result, u.panelManager.order)
-
-	return result
+	return u.panelManager.GetOrder()
 }
 
 // --- TUIExtAPI: Read-only ---
