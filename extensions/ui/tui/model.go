@@ -595,6 +595,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, nil
 
+	case CompactedMsg:
+		m.showLanding = false
+		if msg.Error != "" {
+			m.chat = m.chat.AddItem(messages.NewNotificationMessage(
+				"Compaction failed: "+msg.Error, sdk.NotifyError))
+		} else {
+			m.chat = m.chat.AddItem(messages.NewNotificationMessage(
+				fmt.Sprintf("Context compacted: %d messages summarized", msg.Summarized),
+				sdk.NotifyInfo))
+			m.chat = m.chat.AddItem(messages.NewCompactionEntry(
+				msg.Summarized, msg.TokensBefore, msg.TokensAfter))
+		}
+
+		return m, nil
+
 	case SessionListResultMsg:
 		return m.onSessionListResult(msg)
 

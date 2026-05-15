@@ -907,6 +907,50 @@ func TestModel_NotifyTypedMsg_WarningLevel(t *testing.T) {
 	assert.Equal(t, sdk.NotifyWarning, nm.Level())
 }
 
+func TestModel_CompactedMsg_AddsNotificationAndEntry(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, 10)
+
+	updated, _ := m.Update(CompactedMsg{Summarized: 5, TokensBefore: 10000, TokensAfter: 3000})
+	m = updated.(Model)
+
+	items := m.chat.Items()
+	require.Len(t, items, 2)
+
+	nm, ok := items[0].(*messages.NotificationMessage)
+	require.True(t, ok)
+	assert.Equal(t, "Context compacted: 5 messages summarized", nm.Content())
+	assert.Equal(t, sdk.NotifyInfo, nm.Level())
+
+	ce, ok := items[1].(*messages.CompactionEntry)
+	require.True(t, ok)
+	view := ce.View(80)
+	assert.Contains(t, view, "5 messages summarized")
+	assert.Contains(t, view, "7000 saved")
+	assert.False(t, m.showLanding)
+}
+
+func TestModel_CompactedMsg_WithError(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, 10)
+
+	updated, _ := m.Update(CompactedMsg{Error: "compaction stream: timeout"})
+	m = updated.(Model)
+
+	items := m.chat.Items()
+	require.Len(t, items, 1)
+
+	nm, ok := items[0].(*messages.NotificationMessage)
+	require.True(t, ok)
+	assert.Contains(t, nm.Content(), "Compaction failed")
+	assert.Contains(t, nm.Content(), "timeout")
+	assert.Equal(t, sdk.NotifyError, nm.Level())
+}
+
 func TestModel_ExtStatusMsgUpdatesFooter(t *testing.T) {
 	m := newModel(nil, nil, nil, nil)
 	m.width = 80

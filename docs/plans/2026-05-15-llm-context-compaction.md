@@ -115,10 +115,10 @@ Replace the existing storage-only JSONL compaction with runtime context manageme
 - [x] run tests — must pass before Task 8
 
 ### Task 8: Add TUI compaction notification
-- [ ] handle `agent.compacted` bus event in `extensions/ui/tui/bridge.go`
-- [ ] show `NotifyTyped` with `NotifyInfo`: "Context compacted: N messages summarized"
-- [ ] add a visual chat entry for the compaction summary (similar to thinking block styling with `BackgroundTint`)
-- [ ] run tests — must pass before Task 9
+- [x] handle `agent.compacted` bus event in `extensions/ui/tui/bridge.go`
+- [x] show `NotifyTyped` with `NotifyInfo`: "Context compacted: N messages summarized"
+- [x] add a visual chat entry for the compaction summary (similar to thinking block styling with `BackgroundTint`)
+- [x] run tests — must pass before Task 9
 
 ### Task 9: Verify acceptance criteria
 - [ ] verify auto-compaction triggers when tokens approach context window

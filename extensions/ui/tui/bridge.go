@@ -32,6 +32,8 @@ const (
 	topicModelChangeFailed = "model.change_failed"
 	topicThinkingChange    = "thinking.change"
 
+	topicCompacted = "agent.compacted"
+
 	topicExtOutdated = "extension.outdated"
 
 	keyProvider = "provider"
@@ -113,6 +115,14 @@ type OutdatedNotificationMsg struct {
 	Extensions []sdk.OutdatedInfo
 }
 
+// CompactedMsg is sent when the agent compacts the conversation context.
+type CompactedMsg struct {
+	Summarized   int
+	TokensBefore int
+	TokensAfter  int
+	Error        string
+}
+
 // ProviderListResultMsg carries the result of listing providers with key status.
 type ProviderListResultMsg struct {
 	Providers []ProviderEntry
@@ -145,6 +155,8 @@ func translateEvent(evt sdk.Event) tea.Msg {
 		return translateModelChangeFailed(evt.Payload)
 	case topicExtOutdated:
 		return translateExtOutdated(evt.Payload)
+	case topicCompacted:
+		return translateCompacted(evt.Payload)
 	default:
 		return nil
 	}
@@ -204,6 +216,40 @@ func translateExtOutdated(payload any) OutdatedNotificationMsg {
 	}
 
 	return OutdatedNotificationMsg{Extensions: evt.Extensions}
+}
+
+func translateCompacted(payload any) CompactedMsg {
+	m, ok := payload.(map[string]any)
+	if !ok {
+		return CompactedMsg{}
+	}
+
+	if errStr, ok := m["error"].(string); ok {
+		return CompactedMsg{Error: errStr}
+	}
+
+	summarized, _ := m["summarized"].(int)
+	tokensBefore, _ := m["tokens_before"].(int)
+	tokensAfter, _ := m["tokens_after"].(int)
+
+	// JSON numbers decode as float64
+	if f, ok := m["summarized"].(float64); ok {
+		summarized = int(f)
+	}
+
+	if f, ok := m["tokens_before"].(float64); ok {
+		tokensBefore = int(f)
+	}
+
+	if f, ok := m["tokens_after"].(float64); ok {
+		tokensAfter = int(f)
+	}
+
+	return CompactedMsg{
+		Summarized:   summarized,
+		TokensBefore: tokensBefore,
+		TokensAfter:  tokensAfter,
+	}
 }
 
 // Bridge reads bus events and sends them as tea.Msg to the program.

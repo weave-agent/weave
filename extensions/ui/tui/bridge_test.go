@@ -561,6 +561,63 @@ func TestBridge_TokenRateResetsOnMessageEnd(t *testing.T) {
 	assert.Greater(t, rates[1], float64(0), "second message rate should be > 0 (independent)")
 }
 
+func TestTranslateEvent_Compacted(t *testing.T) {
+	payload := map[string]any{
+		"summarized":    5,
+		"tokens_before": 10000,
+		"tokens_after":  3000,
+	}
+
+	msg := translateEvent(sdk.NewEvent(topicCompacted, payload))
+	c, ok := msg.(CompactedMsg)
+	require.True(t, ok)
+	assert.Equal(t, 5, c.Summarized)
+	assert.Equal(t, 10000, c.TokensBefore)
+	assert.Equal(t, 3000, c.TokensAfter)
+	assert.Empty(t, c.Error)
+}
+
+func TestTranslateEvent_Compacted_WithFloat64(t *testing.T) {
+	payload := map[string]any{
+		"summarized":    float64(5),
+		"tokens_before": float64(10000),
+		"tokens_after":  float64(3000),
+	}
+
+	msg := translateEvent(sdk.NewEvent(topicCompacted, payload))
+	c, ok := msg.(CompactedMsg)
+	require.True(t, ok)
+	assert.Equal(t, 5, c.Summarized)
+	assert.Equal(t, 10000, c.TokensBefore)
+	assert.Equal(t, 3000, c.TokensAfter)
+}
+
+func TestTranslateEvent_Compacted_WithError(t *testing.T) {
+	payload := map[string]any{
+		"error": "compaction stream: timeout",
+	}
+
+	msg := translateEvent(sdk.NewEvent(topicCompacted, payload))
+	c, ok := msg.(CompactedMsg)
+	require.True(t, ok)
+	assert.Equal(t, "compaction stream: timeout", c.Error)
+}
+
+func TestTranslateEvent_Compacted_NilPayload(t *testing.T) {
+	msg := translateEvent(sdk.NewEvent(topicCompacted, nil))
+	c, ok := msg.(CompactedMsg)
+	require.True(t, ok)
+	assert.Empty(t, c.Error)
+	assert.Zero(t, c.Summarized)
+}
+
+func TestTranslateEvent_Compacted_NonMapPayload(t *testing.T) {
+	msg := translateEvent(sdk.NewEvent(topicCompacted, "not a map"))
+	c, ok := msg.(CompactedMsg)
+	require.True(t, ok)
+	assert.Empty(t, c.Error)
+}
+
 func TestCalcTokenRate(t *testing.T) {
 	tests := []struct {
 		name       string
