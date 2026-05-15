@@ -76,12 +76,12 @@ A TUI extension that visualizes running subagents as per-agent panels in the pan
 - [x] Write tests for grace period logic
 
 ### Task 4: Implement bus subscription and panel lifecycle
-- [ ] In `RegisterTUI`, create `AgentTracker` instance
-- [ ] Access the event bus (may need dual registration as `sdk.UIExtensionWithBus` if bus not available via TUIExtAPI)
-- [ ] Subscribe to `subagent.started`: create `TrackedAgent`, call `api.ShowPanel()` with panel drawer
-- [ ] Subscribe to `subagent.done`: update agent status/result, schedule panel removal after grace period
-- [ ] Implement panel removal logic: after grace period, call `api.RemovePanel()` and `tracker.Remove()`
-- [ ] Write tests for panel lifecycle: start → done → removal
+- [x] In `RegisterTUI`, create `AgentTracker` instance
+- [x] Access the event bus (may need dual registration as `sdk.UIExtensionWithBus` if bus not available via TUIExtAPI)
+- [x] Subscribe to `subagent.started`: create `TrackedAgent`, call `api.ShowPanel()` with panel drawer
+- [x] Subscribe to `subagent.done`: update agent status/result, schedule panel removal after grace period
+- [x] Implement panel removal logic: after grace period, call `api.RemovePanel()` and `tracker.Remove()`
+- [x] Write tests for panel lifecycle: start → done → removal
 
 ### Task 5: Implement panel drawer
 - [ ] Create `panel.go` with `agentPanelDrawer` implementing `tui.PanelDrawer`
