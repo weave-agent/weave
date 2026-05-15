@@ -61,11 +61,11 @@ A TUI extension that visualizes running subagents as per-agent panels in the pan
 - [x] Run subagent extension tests: `cd extensions/tools/subagent && go test ./...`
 
 ### Task 2: Create subagent TUI extension module skeleton
-- [ ] Create `extensions/ui/tui/extensions/subagent/` directory
-- [ ] Create `go.mod` with proper module path (`weave/ext/ui/tui/extensions/subagent`) and replacements
-- [ ] Create main `subagent_ui.go` with `init()` registering via `tui.RegisterTUIExtension`
-- [ ] Implement stub `TUIExtension` interface (`Name()`, `RegisterTUI(api)`)
-- [ ] Verify module compiles: `cd extensions/ui/tui/extensions/subagent && go build ./...`
+- [x] Create `extensions/ui/tui/extensions/subagent/` directory
+- [x] Create `go.mod` with proper module path (`weave/ext/ui/tui/extensions/subagent`) and replacements
+- [x] Create main `subagent_ui.go` with `init()` registering via `tui.RegisterTUIExtension`
+- [x] Implement stub `TUIExtension` interface (`Name()`, `RegisterTUI(api)`)
+- [x] Verify module compiles: `cd extensions/ui/tui/extensions/subagent && go build ./...`
 
 ### Task 3: Implement `AgentTracker`
 - [ ] Create `tracker.go` with `AgentTracker` struct and `TrackedAgent` type
