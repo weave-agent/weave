@@ -3,6 +3,9 @@ module weave/ext/ui/tui/extensions/subagent
 go 1.26.2
 
 require (
+	charm.land/bubbletea/v2 v2.0.6
+	charm.land/lipgloss/v2 v2.0.3
+	github.com/charmbracelet/ultraviolet v0.0.0-20260422141423-a0f1f21775f7
 	github.com/stretchr/testify v1.11.1
 	weave v0.0.0
 	weave/ext/ui/tui v0.0.0
@@ -10,8 +13,6 @@ require (
 
 require (
 	charm.land/bubbles/v2 v2.1.0 // indirect
-	charm.land/bubbletea/v2 v2.0.6 // indirect
-	charm.land/lipgloss/v2 v2.0.3 // indirect
 	github.com/alecthomas/chroma/v2 v2.20.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
@@ -19,7 +20,6 @@ require (
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
 	github.com/charmbracelet/glamour v1.0.0 // indirect
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834 // indirect
-	github.com/charmbracelet/ultraviolet v0.0.0-20260422141423-a0f1f21775f7 // indirect
 	github.com/charmbracelet/x/ansi v0.11.7 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.15 // indirect
 	github.com/charmbracelet/x/exp/slice v0.0.0-20250327172914-2fdc97757edf // indirect

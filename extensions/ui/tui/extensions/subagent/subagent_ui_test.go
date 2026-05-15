@@ -1,7 +1,6 @@
 package subagent
 
 import (
-	"maps"
 	"sync"
 	"testing"
 	"time"
@@ -34,13 +33,17 @@ func newMockTUIExtAPI() *mockTUIExtAPI {
 func (m *mockTUIExtAPI) ShowPanel(config tui.PanelConfig, drawer tui.PanelDrawer) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	m.panelsShown = append(m.panelsShown, config)
 	m.panelDrawers = append(m.panelDrawers, drawer)
 }
-func (m *mockTUIExtAPI) HidePanel(id string)         {}
+
+func (m *mockTUIExtAPI) HidePanel(id string) {}
+
 func (m *mockTUIExtAPI) RemovePanel(id string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	m.panelsRemoved = append(m.panelsRemoved, id)
 }
 func (m *mockTUIExtAPI) PanelVisible(id string) bool { return false }
@@ -53,32 +56,30 @@ func (m *mockTUIExtAPI) PasteToEditor(text string)   {}
 func (m *mockTUIExtAPI) RegisterRichRenderer(tool string, renderer tui.RichToolRenderer) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	m.richRenderers[tool] = renderer
 }
 
 func (m *mockTUIExtAPI) getPanelsRemoved() []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	cp := make([]string, len(m.panelsRemoved))
 	copy(cp, m.panelsRemoved)
+
 	return cp
 }
 
 func (m *mockTUIExtAPI) getPanelsShown() []tui.PanelConfig {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	cp := make([]tui.PanelConfig, len(m.panelsShown))
 	copy(cp, m.panelsShown)
+
 	return cp
 }
 
-func (m *mockTUIExtAPI) getRichRenderers() map[string]tui.RichToolRenderer {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	cp := make(map[string]tui.RichToolRenderer, len(m.richRenderers))
-	maps.Copy(cp, m.richRenderers)
-	return cp
-}
 func (m *mockTUIExtAPI) RegisterMessageRenderer(msgType string, renderer sdk.MessageRenderer) {}
 func (m *mockTUIExtAPI) SetFooter(component tui.TUIComponent)                                 {}
 func (m *mockTUIExtAPI) SetHeader(component tui.TUIComponent)                                 {}
@@ -246,6 +247,7 @@ func TestSubagentExtension_Subscribe_FullLifecycle(t *testing.T) {
 
 	// After grace period: agent removed from tracker, panel removed
 	assert.Nil(t, ext.tracker.Get("agent-789"))
+
 	removed := api.getPanelsRemoved()
 	require.Len(t, removed, 1)
 	assert.Equal(t, "subagent-agent-789", removed[0])
@@ -281,6 +283,7 @@ func TestSubagentExtension_Subscribe_FailedAgent(t *testing.T) {
 	time.Sleep(150 * time.Millisecond)
 
 	assert.Nil(t, ext.tracker.Get("agent-fail"))
+
 	removed := api.getPanelsRemoved()
 	require.Len(t, removed, 1)
 	assert.Equal(t, "subagent-agent-fail", removed[0])

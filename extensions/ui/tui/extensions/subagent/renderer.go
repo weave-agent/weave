@@ -10,6 +10,12 @@ import (
 	lipgloss "charm.land/lipgloss/v2"
 )
 
+const (
+	statusCompleted = "completed"
+	statusFailed    = "failed"
+	statusRunning   = "running"
+)
+
 // subagentRenderer implements tui.RichToolRenderer for subagent tool output.
 // It renders background agent responses as compact cards and foreground
 // responses with truncated output.
@@ -29,7 +35,7 @@ func (r *subagentRenderer) Render(content string, theme sdk.ThemeInfo, width int
 	if json.Unmarshal([]byte(content), &bgResp) == nil && bgResp.ID != "" {
 		// Only treat as background if status is a known background value.
 		switch bgResp.Status {
-		case "running", "completed", "failed":
+		case statusRunning, statusCompleted, statusFailed:
 			return r.renderBackgroundResponse(bgResp.ID, bgResp.Status, theme)
 		}
 	}
@@ -76,6 +82,7 @@ func (r *subagentRenderer) renderForegroundOutput(content string, theme sdk.Them
 		// Truncate wide lines if width is specified.
 		if width > 3 && len(line) > width {
 			runes := []rune(line)
+
 			truncateAt := max(width-3, 0)
 			if len(runes) > truncateAt {
 				runes = runes[:truncateAt]

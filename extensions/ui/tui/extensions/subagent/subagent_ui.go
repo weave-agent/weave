@@ -44,7 +44,7 @@ func (e *SubagentExtension) RegisterTUI(api tui.TUIExtAPI) {
 	defer e.mu.Unlock()
 
 	e.api = api
-	e.tracker.onRemove = func(id string) {
+	e.tracker.SetOnRemove(func(id string) {
 		e.mu.Lock()
 		a := e.api
 		e.mu.Unlock()
@@ -52,7 +52,7 @@ func (e *SubagentExtension) RegisterTUI(api tui.TUIExtAPI) {
 		if a != nil {
 			a.RemovePanel("subagent-" + id)
 		}
-	}
+	})
 
 	// Register rich renderer for known built-in agents.
 	for _, name := range []string{"general", "explore", "plan"} {

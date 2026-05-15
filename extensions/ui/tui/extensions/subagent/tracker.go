@@ -40,7 +40,7 @@ type AgentTracker struct {
 }
 
 // NewAgentTracker creates a new tracker. The onRemove callback is invoked
-// when the grace period expires after an agent finishes.
+// when the grace period expires after an agent finishes. May be nil.
 func NewAgentTracker(gracePeriod time.Duration, onRemove OnRemoveFunc) *AgentTracker {
 	if gracePeriod <= 0 {
 		gracePeriod = 3 * time.Second
@@ -52,6 +52,14 @@ func NewAgentTracker(gracePeriod time.Duration, onRemove OnRemoveFunc) *AgentTra
 		onRemove:    onRemove,
 		gracePeriod: gracePeriod,
 	}
+}
+
+// SetOnRemove sets the callback invoked after grace-period cleanup.
+func (t *AgentTracker) SetOnRemove(fn OnRemoveFunc) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	t.onRemove = fn
 }
 
 // Start registers a new running agent. Returns the created TrackedAgent.
@@ -89,9 +97,9 @@ func (t *AgentTracker) Done(id, status, result string) {
 	}
 
 	switch status {
-	case "completed":
+	case statusCompleted:
 		agent.Status = AgentCompleted
-	case "failed":
+	case statusFailed:
 		agent.Status = AgentFailed
 	default:
 		agent.Status = AgentFailed
@@ -100,16 +108,19 @@ func (t *AgentTracker) Done(id, status, result string) {
 	agent.Result = result
 	agent.DoneAt = time.Now()
 
-	if t.onRemove != nil {
-		timer := time.AfterFunc(t.gracePeriod, func() {
-			t.mu.Lock()
-			delete(t.agents, id)
-			delete(t.timers, id)
-			t.mu.Unlock()
-			t.onRemove(id)
-		})
-		t.timers[id] = timer
-	}
+	onRemove := t.onRemove
+
+	timer := time.AfterFunc(t.gracePeriod, func() {
+		t.mu.Lock()
+		delete(t.agents, id)
+		delete(t.timers, id)
+		t.mu.Unlock()
+
+		if onRemove != nil {
+			onRemove(id)
+		}
+	})
+	t.timers[id] = timer
 }
 
 // Get returns a snapshot copy of a tracked agent by ID, or nil if not found.
@@ -128,14 +139,15 @@ func (t *AgentTracker) Get(id string) *TrackedAgent {
 	return &cp
 }
 
-// List returns all tracked agents.
+// List returns snapshot copies of all tracked agents.
 func (t *AgentTracker) List() []*TrackedAgent {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
 	result := make([]*TrackedAgent, 0, len(t.agents))
 	for _, a := range t.agents {
-		result = append(result, a)
+		cp := *a
+		result = append(result, &cp)
 	}
 
 	return result
