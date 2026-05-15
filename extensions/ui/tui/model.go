@@ -701,6 +701,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.spinner = m.spinner.SetCustomFrames(msg.frames, msg.interval)
 
 		return m, nil
+
+	case tea.MouseWheelMsg:
+		switch msg.Button {
+		case uv.MouseWheelUp:
+			m.chat = m.chat.ScrollUp(1)
+		case uv.MouseWheelDown:
+			m.chat = m.chat.ScrollDown(1)
+		}
+
+		return m, nil
 	}
 
 	// Forward spinner ticks to advance animation.
@@ -2307,6 +2317,7 @@ func (m Model) View() tea.View {
 
 	v := tea.NewView(uv.TrimSpace(canvas.Render()))
 	v.AltScreen = true
+	v.MouseMode = tea.MouseModeCellMotion
 
 	return v
 }
