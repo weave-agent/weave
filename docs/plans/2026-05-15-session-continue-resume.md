@@ -100,9 +100,9 @@ Add `--continue` / `-c` and `--resume` / `-r` CLI flags to weave that restore a 
 - [x] run `cd extensions/ui/tui && go test ./...` — must pass before next task
 
 ### Task 8: Update CLAUDE.md documentation
-- [ ] add `--continue` / `-c` and `--resume` / `-r` flags to CLI documentation section
-- [ ] document session-related env vars and bus events (`session.resume`, `SessionResumePayload`)
-- [ ] document `SessionStore` interface in SDK section
+- [x] add `--continue` / `-c` and `--resume` / `-r` flags to CLI documentation section
+- [x] document session-related env vars and bus events (`session.resume`, `SessionResumePayload`)
+- [x] document `SessionStore` interface in SDK section
 
 ## Technical Details
 
