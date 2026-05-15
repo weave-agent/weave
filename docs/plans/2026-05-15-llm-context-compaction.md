@@ -95,14 +95,14 @@ Replace the existing storage-only JSONL compaction with runtime context manageme
 - [x] run tests — must pass before Task 6
 
 ### Task 6: Implement compaction execution (LLM summary generation)
-- [ ] add `compact(ctx context.Context, bus sdk.Bus, provider sdk.Provider, msgs []sdk.Message, cfg CompactionConfig, model string, ops *fileOperations) ([]sdk.Message, error)` in `compaction.go`
-- [ ] call `findCutPoint` to determine what to summarize
-- [ ] call `serializeForSummary` to build the summarization prompt
-- [ ] call `provider.Stream()` with a summarization system prompt and the serialized conversation
-- [ ] parse the response into a summary string
-- [ ] return new message slice: [summary message] + [kept messages]
-- [ ] write tests using mock provider that returns a canned summary
-- [ ] run tests — must pass before Task 7
+- [x] add `compact(ctx context.Context, bus sdk.Bus, provider sdk.Provider, msgs []sdk.Message, cfg CompactionConfig, model string, ops *fileOperations) ([]sdk.Message, error)` in `compaction.go`
+- [x] call `findCutPoint` to determine what to summarize
+- [x] call `serializeForSummary` to build the summarization prompt
+- [x] call `provider.Stream()` with a summarization system prompt and the serialized conversation
+- [x] parse the response into a summary string
+- [x] return new message slice: [summary message] + [kept messages]
+- [x] write tests using mock provider that returns a canned summary
+- [x] run tests — must pass before Task 7
 
 ### Task 7: Integrate compaction into agent turn loop
 - [ ] update `/compact` command in `commands.go` to pass `args` through: `PublishSteer(bus, "compact "+args)` — allows `/compact focus on the auth refactor`

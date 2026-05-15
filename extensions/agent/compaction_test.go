@@ -1,11 +1,13 @@
 package agent
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
 
 	"weave/sdk"
+	"weave/sdk/model"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -598,4 +600,424 @@ func TestAgent_FileOpsResetOnNewConversation(t *testing.T) {
 	require.NoError(t, a.Close())
 
 	assert.False(t, a.fileOps.readFiles["/first.go"], "file ops should be reset on new conversation")
+}
+
+func TestShouldCompact(t *testing.T) {
+	t.Run("disabled returns false", func(t *testing.T) {
+		msgs := []sdk.Message{sdk.NewUserMessage(makeLongText(100000))}
+		cfg := CompactionConfig{Enabled: false}
+		assert.False(t, shouldCompact(msgs, "", cfg, "test-model"))
+	})
+
+	t.Run("empty model returns false", func(t *testing.T) {
+		msgs := []sdk.Message{sdk.NewUserMessage(makeLongText(100000))}
+		cfg := CompactionConfig{Enabled: true}
+		assert.False(t, shouldCompact(msgs, "", cfg, ""))
+	})
+
+	t.Run("unknown model returns false", func(t *testing.T) {
+		msgs := []sdk.Message{sdk.NewUserMessage(makeLongText(100000))}
+		cfg := CompactionConfig{Enabled: true}
+		assert.False(t, shouldCompact(msgs, "", cfg, "nonexistent-model"))
+	})
+
+	t.Run("under budget returns false", func(t *testing.T) {
+		model.ResetModelRegistry()
+		defer model.ResetModelRegistry()
+		model.RegisterModel(model.ModelDef{
+			ID:             "test-model",
+			Provider:       "test",
+			ContextWindow:  100000,
+		})
+
+		msgs := []sdk.Message{sdk.NewUserMessage("short message")}
+		cfg := CompactionConfig{Enabled: true, ReserveTokens: 16384}
+		assert.False(t, shouldCompact(msgs, "", cfg, "test-model"))
+	})
+
+	t.Run("over budget returns true", func(t *testing.T) {
+		model.ResetModelRegistry()
+		defer model.ResetModelRegistry()
+		model.RegisterModel(model.ModelDef{
+			ID:             "test-model",
+			Provider:       "test",
+			ContextWindow:  1000,
+		})
+
+		msgs := []sdk.Message{sdk.NewUserMessage(makeLongText(4000))}
+		cfg := CompactionConfig{Enabled: true, ReserveTokens: 100}
+		assert.True(t, shouldCompact(msgs, "", cfg, "test-model"))
+	})
+
+	t.Run("system prompt included in total", func(t *testing.T) {
+		model.ResetModelRegistry()
+		defer model.ResetModelRegistry()
+		model.RegisterModel(model.ModelDef{
+			ID:             "test-model",
+			Provider:       "test",
+			ContextWindow:  1000,
+		})
+
+		msgs := []sdk.Message{sdk.NewUserMessage(makeLongText(2000))} // 500 tokens
+		cfg := CompactionConfig{Enabled: true, ReserveTokens: 100}
+		assert.False(t, shouldCompact(msgs, "", cfg, "test-model"), "500 tokens should fit in 900 budget")
+		// System prompt of 2000 chars = 500 tokens, total = 1000 > 900
+		assert.True(t, shouldCompact(msgs, makeLongText(2000), cfg, "test-model"), "with system prompt should exceed")
+	})
+}
+
+func TestContextWindowSize(t *testing.T) {
+	t.Run("empty model name", func(t *testing.T) {
+		assert.Equal(t, 0, contextWindowSize(""))
+	})
+
+	t.Run("unknown model", func(t *testing.T) {
+		assert.Equal(t, 0, contextWindowSize("nonexistent"))
+	})
+
+	t.Run("known model", func(t *testing.T) {
+		model.ResetModelRegistry()
+		defer model.ResetModelRegistry()
+		model.RegisterModel(model.ModelDef{
+			ID:             "test-ctx-model",
+			Provider:       "test",
+			ContextWindow:  50000,
+		})
+		assert.Equal(t, 50000, contextWindowSize("test-ctx-model"))
+	})
+}
+
+func TestCompact(t *testing.T) {
+	t.Run("nothing to compact returns nil", func(t *testing.T) {
+		msgs := []sdk.Message{
+			sdk.NewUserMessage("short"),
+			sdk.NewAssistantMessage("reply"),
+		}
+		cfg := CompactionConfig{KeepRecentTokens: 100000}
+		ops := newFileOperations()
+
+		result, err := compact(
+			context.Background(),
+			&ProviderMock{},
+			msgs,
+			cfg,
+			"test-model",
+			ops,
+			"summarize this",
+		)
+		require.NoError(t, err)
+		assert.Nil(t, result, "should return nil when no cut point found")
+	})
+
+	t.Run("basic compaction with mock provider", func(t *testing.T) {
+		// Create enough messages to force a cut
+		msgs := make([]sdk.Message, 10)
+		for i := range msgs {
+			msgs[i] = sdk.NewUserMessage(makeLongText(400))
+		}
+		// Last 2 messages should be kept
+		msgs = append(msgs, sdk.NewUserMessage("keep me"))
+		msgs = append(msgs, sdk.NewAssistantMessage("kept reply"))
+
+		mp := newMockProvider([]providerResponse{
+			{textDeltas: []string{"## Goal\nTest goal\n\n## Progress\nDid stuff"}},
+		})
+
+		cfg := CompactionConfig{KeepRecentTokens: 200}
+		ops := newFileOperations()
+
+		result, err := compact(
+			context.Background(),
+			mp,
+			msgs,
+			cfg,
+			"test-model",
+			ops,
+			"summarize this",
+		)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+
+		assert.Greater(t, result.summarized, 0, "should summarize some messages")
+		assert.Less(t, result.summarized, len(msgs), "should keep some messages")
+		assert.Greater(t, result.tokensBefore, result.tokensAfter, "tokens should decrease after compaction")
+
+		// First message should be the summary
+		require.GreaterOrEqual(t, len(result.messages), 3, "should have summary + kept messages")
+		assert.Equal(t, sdk.RoleAssistant, result.messages[0].Role)
+		content, ok := result.messages[0].Content.(string)
+		require.True(t, ok)
+		assert.True(t, strings.HasPrefix(content, "[Compaction Summary]\n"))
+		assert.Contains(t, content, "Test goal")
+		assert.Contains(t, content, "Did stuff")
+
+		// Last kept messages preserved
+		lastIdx := len(result.messages) - 1
+		assert.Equal(t, sdk.RoleAssistant, result.messages[lastIdx].Role)
+		assert.Equal(t, "kept reply", result.messages[lastIdx].Content)
+
+		// Provider was called with summary prompt
+		calls := mp.StreamCalls()
+		require.Len(t, calls, 1)
+		assert.Equal(t, "summarize this", calls[0].Req.SystemPrompt)
+		assert.Len(t, calls[0].Req.Messages, 1)
+		assert.Empty(t, calls[0].Req.Tools)
+	})
+
+	t.Run("file operations tracked from summarized messages", func(t *testing.T) {
+		readMsg := sdk.NewAssistantMessage("")
+		readMsg.ToolCalls = []sdk.ToolCall{
+			{Name: "read", Arguments: map[string]any{"file_path": "/old.go"}},
+		}
+
+		// Build messages where the tool call is in the to-summarize portion
+		msgs := make([]sdk.Message, 10)
+		for i := range msgs {
+			msgs[i] = sdk.NewUserMessage(makeLongText(400))
+		}
+		msgs[3] = readMsg // read call in old portion
+		msgs = append(msgs, sdk.NewUserMessage("keep me"))
+
+		mp := newMockProvider([]providerResponse{
+			{textDeltas: []string{"summary"}},
+		})
+
+		cfg := CompactionConfig{KeepRecentTokens: 200}
+		ops := newFileOperations()
+
+		result, err := compact(
+			context.Background(),
+			mp,
+			msgs,
+			cfg,
+			"test-model",
+			ops,
+			"summarize this",
+		)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+
+		assert.True(t, ops.readFiles["/old.go"], "file ops from summarized messages should be tracked")
+	})
+
+	t.Run("previous summary extracted", func(t *testing.T) {
+		// First message is an existing summary
+		summaryMsg := sdk.NewAssistantMessage("[Compaction Summary]\nOld summary here")
+
+		msgs := []sdk.Message{summaryMsg}
+		for i := 0; i < 10; i++ {
+			msgs = append(msgs, sdk.NewUserMessage(makeLongText(400)))
+		}
+		msgs = append(msgs, sdk.NewUserMessage("keep me"))
+
+		var capturedReq sdk.ProviderRequest
+
+		mp := &ProviderMock{
+			StreamFunc: func(_ context.Context, req sdk.ProviderRequest, _ ...model.StreamOption) (
+				<-chan sdk.ProviderEvent, error,
+			) {
+				capturedReq = req
+				ch := make(chan sdk.ProviderEvent, 1)
+				ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "new summary"}
+				close(ch)
+				return ch, nil
+			},
+		}
+
+		cfg := CompactionConfig{KeepRecentTokens: 200}
+		ops := newFileOperations()
+
+		result, err := compact(
+			context.Background(),
+			mp,
+			msgs,
+			cfg,
+			"test-model",
+			ops,
+			"summarize this",
+		)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+
+		// The serialized prompt should contain the previous summary
+		assert.Contains(t, capturedReq.Messages[0].Content, "<previous-summary>")
+		assert.Contains(t, capturedReq.Messages[0].Content, "Old summary here")
+		assert.Contains(t, capturedReq.Messages[0].Content, "</previous-summary>")
+	})
+
+	t.Run("provider error returns error", func(t *testing.T) {
+		msgs := make([]sdk.Message, 10)
+		for i := range msgs {
+			msgs[i] = sdk.NewUserMessage(makeLongText(400))
+		}
+		msgs = append(msgs, sdk.NewUserMessage("keep me"))
+
+		mp := newMockProvider([]providerResponse{
+			{err: context.DeadlineExceeded},
+		})
+
+		cfg := CompactionConfig{KeepRecentTokens: 200}
+		ops := newFileOperations()
+
+		result, err := compact(
+			context.Background(),
+			mp,
+			msgs,
+			cfg,
+			"test-model",
+			ops,
+			"summarize this",
+		)
+		assert.Error(t, err)
+		assert.Nil(t, result)
+	})
+
+	t.Run("provider event error returns error", func(t *testing.T) {
+		msgs := make([]sdk.Message, 10)
+		for i := range msgs {
+			msgs[i] = sdk.NewUserMessage(makeLongText(400))
+		}
+		msgs = append(msgs, sdk.NewUserMessage("keep me"))
+
+		mp := &ProviderMock{
+			StreamFunc: func(_ context.Context, _ sdk.ProviderRequest, _ ...model.StreamOption) (
+				<-chan sdk.ProviderEvent, error,
+			) {
+				ch := make(chan sdk.ProviderEvent, 1)
+				ch <- sdk.ProviderEvent{Type: sdk.ProviderEventError, Content: "boom"}
+				close(ch)
+				return ch, nil
+			},
+		}
+
+		cfg := CompactionConfig{KeepRecentTokens: 200}
+		ops := newFileOperations()
+
+		result, err := compact(
+			context.Background(),
+			mp,
+			msgs,
+			cfg,
+			"test-model",
+			ops,
+			"summarize this",
+		)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "boom")
+		assert.Nil(t, result)
+	})
+
+	t.Run("custom model option passed to provider", func(t *testing.T) {
+		msgs := make([]sdk.Message, 10)
+		for i := range msgs {
+			msgs[i] = sdk.NewUserMessage(makeLongText(400))
+		}
+		msgs = append(msgs, sdk.NewUserMessage("keep me"))
+
+		var capturedOpts []model.StreamOption
+
+		mp := &ProviderMock{
+			StreamFunc: func(_ context.Context, _ sdk.ProviderRequest, opts ...model.StreamOption) (
+				<-chan sdk.ProviderEvent, error,
+			) {
+				capturedOpts = opts
+				ch := make(chan sdk.ProviderEvent, 1)
+				ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "summary"}
+				close(ch)
+				return ch, nil
+			},
+		}
+
+		cfg := CompactionConfig{
+			KeepRecentTokens: 200,
+			Model:            "custom-summary-model",
+		}
+		ops := newFileOperations()
+
+		_, err := compact(
+			context.Background(),
+			mp,
+			msgs,
+			cfg,
+			"default-model",
+			ops,
+			"summarize this",
+		)
+		require.NoError(t, err)
+
+		so := model.NewStreamOptions(capturedOpts...)
+		assert.Equal(t, "custom-summary-model", so.Model, "should use config model for summarization")
+		assert.Equal(t, model.ThinkingOff, so.ThinkingLevel, "thinking should be off for summarization")
+	})
+
+	t.Run("falls back to current model when no custom model", func(t *testing.T) {
+		msgs := make([]sdk.Message, 10)
+		for i := range msgs {
+			msgs[i] = sdk.NewUserMessage(makeLongText(400))
+		}
+		msgs = append(msgs, sdk.NewUserMessage("keep me"))
+
+		var capturedOpts []model.StreamOption
+
+		mp := &ProviderMock{
+			StreamFunc: func(_ context.Context, _ sdk.ProviderRequest, opts ...model.StreamOption) (
+				<-chan sdk.ProviderEvent, error,
+			) {
+				capturedOpts = opts
+				ch := make(chan sdk.ProviderEvent, 1)
+				ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "summary"}
+				close(ch)
+				return ch, nil
+			},
+		}
+
+		cfg := CompactionConfig{KeepRecentTokens: 200}
+		ops := newFileOperations()
+
+		_, err := compact(
+			context.Background(),
+			mp,
+			msgs,
+			cfg,
+			"current-model",
+			ops,
+			"summarize this",
+		)
+		require.NoError(t, err)
+
+		so := model.NewStreamOptions(capturedOpts...)
+		assert.Equal(t, "current-model", so.Model, "should use current model when no custom model set")
+	})
+
+	t.Run("context cancellation propagated to provider", func(t *testing.T) {
+		msgs := make([]sdk.Message, 10)
+		for i := range msgs {
+			msgs[i] = sdk.NewUserMessage(makeLongText(400))
+		}
+		msgs = append(msgs, sdk.NewUserMessage("keep me"))
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // cancel immediately
+
+		mp := &ProviderMock{
+			StreamFunc: func(ctx context.Context, _ sdk.ProviderRequest, _ ...model.StreamOption) (
+				<-chan sdk.ProviderEvent, error,
+			) {
+				// Respect context cancellation
+				if ctx.Err() != nil {
+					return nil, ctx.Err()
+				}
+				ch := make(chan sdk.ProviderEvent, 1)
+				ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: "summary"}
+				close(ch)
+				return ch, nil
+			},
+		}
+
+		cfg := CompactionConfig{KeepRecentTokens: 200}
+		ops := newFileOperations()
+
+		_, err := compact(ctx, mp, msgs, cfg, "test-model", ops, "summarize this")
+		assert.Error(t, err)
+	})
 }

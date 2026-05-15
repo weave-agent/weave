@@ -1,12 +1,14 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
 
 	"weave/sdk"
+	"weave/sdk/model"
 )
 
 const (
@@ -258,4 +260,125 @@ func sortedKeys(m map[string]bool) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+const compactionSummaryPrefix = "[Compaction Summary]\n"
+
+// shouldCompact checks whether the current token usage exceeds the context
+// window budget (context window minus reserve tokens).
+func shouldCompact(messages []sdk.Message, systemPrompt string, cfg CompactionConfig, modelName string) bool {
+	if !cfg.Enabled {
+		return false
+	}
+
+	contextWindow := contextWindowSize(modelName)
+	if contextWindow == 0 {
+		return false
+	}
+
+	total := len(systemPrompt)/tokensPerChar + estimateTokens(messages)
+	return total > contextWindow-cfg.ReserveTokens
+}
+
+// contextWindowSize returns the context window for the given model, or 0 if
+// the model is unknown.
+func contextWindowSize(modelName string) int {
+	if modelName == "" {
+		return 0
+	}
+
+	m, ok := model.GetModel(modelName)
+	if !ok {
+		return 0
+	}
+
+	return m.ContextWindow
+}
+
+// compactResult holds the data returned by a compaction operation.
+type compactResult struct {
+	messages      []sdk.Message
+	summarized    int
+	tokensBefore  int
+	tokensAfter   int
+}
+
+// compact summarizes old messages using the LLM provider and returns a new
+// message slice with [summary] + [kept messages]. It tracks file operations
+// across compactions by accumulating into the provided ops tracker.
+func compact(
+	ctx context.Context,
+	provider sdk.Provider,
+	messages []sdk.Message,
+	cfg CompactionConfig,
+	modelName string,
+	ops *fileOperations,
+	compactPrompt string,
+) (*compactResult, error) {
+	tokensBefore := estimateTokens(messages)
+
+	cutIdx := findCutPoint(messages, cfg.KeepRecentTokens)
+	if cutIdx == 0 {
+		return nil, nil // nothing to compact
+	}
+
+	toSummarize := messages[:cutIdx]
+	kept := messages[cutIdx:]
+
+	// Track file ops in the messages being summarized before they're replaced.
+	trackFileOps(toSummarize, ops)
+
+	// Extract any previous summary from the conversation.
+	var previousSummary string
+	if len(messages) > 0 && messages[0].Role == sdk.RoleAssistant {
+		if content, ok := messages[0].Content.(string); ok && strings.HasPrefix(content, compactionSummaryPrefix) {
+			previousSummary = content
+		}
+	}
+
+	serialized := serializeForSummary(toSummarize, previousSummary, ops)
+
+	// Build a summarization request — no tools, just system prompt + user message.
+	req := sdk.ProviderRequest{
+		SystemPrompt: compactPrompt,
+		Messages:     []sdk.Message{sdk.NewUserMessage(serialized)},
+	}
+
+	var opts []model.StreamOption
+	if cfg.Model != "" {
+		opts = append(opts, model.WithModel(cfg.Model))
+	} else if modelName != "" {
+		opts = append(opts, model.WithModel(modelName))
+	}
+	opts = append(opts, model.WithThinkingLevel(model.ThinkingOff))
+
+	ch, err := provider.Stream(ctx, req, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("compaction stream: %w", err)
+	}
+
+	var summary strings.Builder
+	for evt := range ch {
+		switch evt.Type {
+		case sdk.ProviderEventTextDelta:
+			if s, ok := evt.Content.(string); ok {
+				summary.WriteString(s)
+			}
+		case sdk.ProviderEventError:
+			return nil, fmt.Errorf("compaction provider error: %v", evt.Content)
+		}
+	}
+
+	summaryMsg := sdk.NewAssistantMessage(compactionSummaryPrefix + summary.String())
+
+	result := make([]sdk.Message, 0, 1+len(kept))
+	result = append(result, summaryMsg)
+	result = append(result, kept...)
+
+	return &compactResult{
+		messages:     result,
+		summarized:   cutIdx,
+		tokensBefore: tokensBefore,
+		tokensAfter:  estimateTokens(result),
+	}, nil
 }
