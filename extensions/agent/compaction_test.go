@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1168,7 +1169,9 @@ func TestAgent_ManualCompactionViaSteering(t *testing.T) {
 		{textDeltas: []string{"## Goal\nRefactoring auth\n\n## Progress\nStarted work"}},
 		{textDeltas: []string{"after compaction"}},
 	}
-	idx := 0
+
+	var idx atomic.Int32
+
 	mp := &ProviderMock{
 		StreamFunc: func(_ context.Context, req sdk.ProviderRequest, _ ...model.StreamOption) (
 			<-chan sdk.ProviderEvent, error,
@@ -1176,21 +1179,22 @@ func TestAgent_ManualCompactionViaSteering(t *testing.T) {
 			capturedReqs = append(capturedReqs, req)
 			ch := make(chan sdk.ProviderEvent, 1)
 
-			if idx < len(responses) {
-				if responses[idx].err != nil {
+			i := int(idx.Load())
+			if i < len(responses) {
+				if responses[i].err != nil {
 					close(ch)
-					return ch, responses[idx].err
+					return ch, responses[i].err
 				}
 
-				for _, d := range responses[idx].textDeltas {
+				for _, d := range responses[i].textDeltas {
 					ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: d}
 				}
 
-				for _, tc := range responses[idx].toolCalls {
+				for _, tc := range responses[i].toolCalls {
 					ch <- sdk.ProviderEvent{Type: sdk.ProviderEventToolCall, Content: tc}
 				}
 
-				idx++
+				idx.Add(1)
 			}
 
 			close(ch)
@@ -1287,7 +1291,9 @@ func TestAgent_AutoCompaction(t *testing.T) {
 		{textDeltas: []string{"compacted summary"}},
 		{textDeltas: []string{"final response"}},
 	}
-	idx := 0
+
+	var idx atomic.Int32
+
 	mp := &ProviderMock{
 		StreamFunc: func(_ context.Context, req sdk.ProviderRequest, _ ...model.StreamOption) (
 			<-chan sdk.ProviderEvent, error,
@@ -1295,21 +1301,22 @@ func TestAgent_AutoCompaction(t *testing.T) {
 			capturedReqs = append(capturedReqs, req)
 			ch := make(chan sdk.ProviderEvent, 1)
 
-			if idx < len(responses) {
-				if responses[idx].err != nil {
+			i := int(idx.Load())
+			if i < len(responses) {
+				if responses[i].err != nil {
 					close(ch)
-					return ch, responses[idx].err
+					return ch, responses[i].err
 				}
 
-				for _, d := range responses[idx].textDeltas {
+				for _, d := range responses[i].textDeltas {
 					ch <- sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: d}
 				}
 
-				for _, tc := range responses[idx].toolCalls {
+				for _, tc := range responses[i].toolCalls {
 					ch <- sdk.ProviderEvent{Type: sdk.ProviderEventToolCall, Content: tc}
 				}
 
-				idx++
+				idx.Add(1)
 			}
 
 			close(ch)

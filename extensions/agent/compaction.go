@@ -183,8 +183,12 @@ func serializeForSummary(msgs []sdk.Message, previousSummary string, ops *fileOp
 		case sdk.RoleAssistant:
 			if len(msg.ToolCalls) > 0 {
 				for _, tc := range msg.ToolCalls {
-					args, _ := json.Marshal(tc.Arguments)
-					fmt.Fprintf(&b, "[Tool call]: %s(%s)\n", tc.Name, string(args))
+					args, err := json.Marshal(tc.Arguments)
+					if err != nil {
+						fmt.Fprintf(&b, "[Tool call]: %s(<marshal error: %v>)\n", tc.Name, err)
+					} else {
+						fmt.Fprintf(&b, "[Tool call]: %s(%s)\n", tc.Name, string(args))
+					}
 				}
 			}
 
@@ -281,7 +285,12 @@ func shouldCompact(messages []sdk.Message, systemPrompt string, cfg CompactionCo
 
 	total := len(systemPrompt)/tokensPerChar + estimateTokens(messages)
 
-	return total > contextWindow-cfg.ReserveTokens
+	budget := contextWindow - cfg.ReserveTokens
+	if budget <= 0 {
+		budget = contextWindow / 2
+	}
+
+	return total > budget
 }
 
 // compactResult holds the data returned by a compaction operation.
@@ -362,12 +371,13 @@ func compact(
 				summary.WriteString(s)
 			}
 		case sdk.ProviderEventError:
+			err := fmt.Errorf("compaction provider error: %v", evt.Content)
 			// Drain remaining events to avoid leaking the provider's send goroutine.
 			for range ch {
-				// Consume and discard remaining events.
+				_ = struct{}{}
 			}
 
-			return nil, fmt.Errorf("compaction provider error: %v", evt.Content)
+			return nil, err
 		}
 	}
 

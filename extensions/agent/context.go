@@ -96,8 +96,10 @@ func loadSystemPrompt(projectDir, globalDir string) (base, append_ string) {
 
 // discoverCompactPrompt looks for COMPACT.md in projectDir/.weave/ first,
 // then globalDir. Project overrides global. Returns empty string if not found.
+const maxCompactPromptSize = 100 * 1024 // 100KB max
+
 func discoverCompactPrompt(projectDir, globalDir string) string {
-	return loadFirst("COMPACT.md", projectDir, globalDir)
+	return loadFirstWithLimit("COMPACT.md", projectDir, globalDir, maxCompactPromptSize)
 }
 
 // resolveCompactPrompt returns the summarization instructions in priority order:
@@ -134,4 +136,38 @@ func loadFirst(filename, projectDir, globalDir string) string {
 	}
 
 	return ""
+}
+
+// loadFirstWithLimit reads filename from projectDir/.weave/ if projectDir is set,
+// then falls back to globalDir (directly, no .weave/ subdir), but skips files
+// larger than maxSize bytes.
+func loadFirstWithLimit(filename, projectDir, globalDir string, maxSize int64) string {
+	tryRead := func(dir string, subdir bool) string {
+		if dir == "" {
+			return ""
+		}
+
+		path := filepath.Join(dir, filename)
+		if subdir {
+			path = filepath.Join(dir, ".weave", filename)
+		}
+
+		info, err := os.Stat(path)
+		if err != nil || info.Size() > maxSize {
+			return ""
+		}
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return ""
+		}
+
+		return string(data)
+	}
+
+	if content := tryRead(projectDir, true); content != "" {
+		return content
+	}
+
+	return tryRead(globalDir, false)
 }

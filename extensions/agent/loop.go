@@ -258,19 +258,20 @@ func (a *AgentExtension) run(
 			payload, _ := evt.Payload.(string)
 			if payload == "compact" || strings.HasPrefix(payload, "compact ") {
 				// Use a cancellable context so manual compaction can be interrupted.
-				compactCtx, compactCancel := context.WithCancel(ctx)
+				func() {
+					compactCtx, compactCancel := context.WithCancel(ctx)
+					defer compactCancel()
 
-				go func() {
-					select {
-					case <-interruptCh:
-						compactCancel()
-					case <-compactCtx.Done():
-					}
+					go func() {
+						select {
+						case <-interruptCh:
+							compactCancel()
+						case <-compactCtx.Done():
+						}
+					}()
+
+					messages = a.handleManualCompact(compactCtx, payload, provider, messages, bus)
 				}()
-
-				messages = a.handleManualCompact(compactCtx, payload, provider, messages, bus)
-
-				compactCancel()
 			}
 
 			goto waitForInput
