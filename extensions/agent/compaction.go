@@ -93,7 +93,7 @@ func findCutPoint(msgs []sdk.Message, keepRecentTokens int) int {
 // boundary. A valid boundary is a user message or an assistant message
 // without pending tool calls. tool_result messages are never valid boundaries.
 func findValidBoundary(msgs []sdk.Message, startIdx int) int {
-	for i := startIdx; i < len(msgs); i++ {
+	for i := startIdx; i < len(msgs); {
 		msg := msgs[i]
 		switch msg.Role {
 		case sdk.RoleUser:
@@ -108,16 +108,16 @@ func findValidBoundary(msgs []sdk.Message, startIdx int) int {
 				toolCallIDs[tc.ID] = true
 			}
 
-			for j := i + 1; j < len(msgs); j++ {
+			j := i + 1
+			for ; j < len(msgs); j++ {
 				if msgs[j].Role != sdk.RoleToolResult || !toolCallIDs[msgs[j].ToolCallID] {
 					break
 				}
-
-				i = j
 			}
-			// Loop continues from i+1, iterating past the tool result group.
+			// Advance past the assistant and its tool results.
+			i = j
 		case sdk.RoleToolResult:
-			continue
+			i++
 		}
 	}
 
@@ -150,12 +150,12 @@ func trackFileOps(msgs []sdk.Message, ops *fileOperations) {
 		for _, tc := range msg.ToolCalls {
 			switch tc.Name {
 			case toolNameRead:
-				if path, ok := tc.Arguments["file_path"]; ok {
-					ops.readFiles[fmt.Sprint(path)] = true
+				if path, ok := tc.Arguments["file_path"].(string); ok && path != "" {
+					ops.readFiles[path] = true
 				}
 			case toolNameEdit, toolNameWrite:
-				if path, ok := tc.Arguments["file_path"]; ok {
-					ops.modifiedFiles[fmt.Sprint(path)] = true
+				if path, ok := tc.Arguments["file_path"].(string); ok && path != "" {
+					ops.modifiedFiles[path] = true
 				}
 			}
 		}
@@ -273,14 +273,10 @@ func shouldCompact(messages []sdk.Message, systemPrompt string, cfg CompactionCo
 		return false
 	}
 
-	m, ok := model.GetModel(modelName)
-	if !ok {
-		return false
-	}
+	contextWindow := 200000 // Conservative default for unknown models.
 
-	contextWindow := m.ContextWindow
-	if contextWindow == 0 {
-		return false
+	if m, ok := model.GetModel(modelName); ok && m.ContextWindow > 0 {
+		contextWindow = m.ContextWindow
 	}
 
 	total := len(systemPrompt)/tokensPerChar + estimateTokens(messages)
@@ -311,7 +307,7 @@ func compact(
 	tokensBefore := estimateTokens(messages)
 
 	cutIdx := findCutPoint(messages, cfg.KeepRecentTokens)
-	if cutIdx == 0 {
+	if cutIdx == 0 || cutIdx >= len(messages) {
 		return &compactResult{
 			messages:     messages,
 			summarized:   0,
@@ -366,6 +362,11 @@ func compact(
 				summary.WriteString(s)
 			}
 		case sdk.ProviderEventError:
+			// Drain remaining events to avoid leaking the provider's send goroutine.
+			for range ch {
+				// Consume and discard remaining events.
+			}
+
 			return nil, fmt.Errorf("compaction provider error: %v", evt.Content)
 		}
 	}

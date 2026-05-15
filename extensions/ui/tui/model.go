@@ -600,7 +600,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Error != "" {
 			m.chat = m.chat.AddItem(messages.NewNotificationMessage(
 				"Compaction failed: "+msg.Error, sdk.NotifyError))
-		} else {
+		} else if msg.Summarized > 0 {
 			m.chat = m.chat.AddItem(messages.NewNotificationMessage(
 				fmt.Sprintf("Context compacted: %d messages summarized", msg.Summarized),
 				sdk.NotifyInfo))

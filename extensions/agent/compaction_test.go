@@ -762,7 +762,9 @@ func TestCompact(t *testing.T) {
 			"summarize this",
 		)
 		require.NoError(t, err)
-		assert.Nil(t, result, "should return nil when no cut point found")
+		require.NotNil(t, result)
+		assert.Equal(t, 0, result.summarized)
+		assert.Equal(t, msgs, result.messages)
 	})
 
 	t.Run("basic compaction with mock provider", func(t *testing.T) {
