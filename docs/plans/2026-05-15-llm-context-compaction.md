@@ -105,14 +105,14 @@ Replace the existing storage-only JSONL compaction with runtime context manageme
 - [x] run tests — must pass before Task 7
 
 ### Task 7: Integrate compaction into agent turn loop
-- [ ] update `/compact` command in `commands.go` to pass `args` through: `PublishSteer(bus, "compact "+args)` — allows `/compact focus on the auth refactor`
-- [ ] add `shouldCompact(messages []sdk.Message, systemPrompt string, cfg CompactionConfig, modelName string) bool` helper
-- [ ] add `compactionCheck` step in inner loop at `loop.go:137` — after `drainSteering`, before `streamTurn`
-- [ ] handle the "compact" steering event specially: parse args from payload, pass to `compact()` as `customInstructions`, trigger compaction immediately instead of adding as user message
-- [ ] publish `agent.compacted` bus event with metadata (messages removed, tokens saved)
-- [ ] reset `fileOperations` tracker on new conversation (`/new`)
-- [ ] write tests for: steering event with custom instructions, auto-trigger flow, manual trigger without args
-- [ ] run tests — must pass before Task 8
+- [x] update `/compact` command in `commands.go` to pass `args` through: `PublishSteer(bus, "compact "+args)` — allows `/compact focus on the auth refactor`
+- [x] add `shouldCompact(messages []sdk.Message, systemPrompt string, cfg CompactionConfig, modelName string) bool` helper
+- [x] add `compactionCheck` step in inner loop at `loop.go:137` — after `drainSteering`, before `streamTurn`
+- [x] handle the "compact" steering event specially: parse args from payload, pass to `compact()` as `customInstructions`, trigger compaction immediately instead of adding as user message
+- [x] publish `agent.compacted` bus event with metadata (messages removed, tokens saved)
+- [x] reset `fileOperations` tracker on new conversation (`/new`)
+- [x] write tests for: steering event with custom instructions, auto-trigger flow, manual trigger without args
+- [x] run tests — must pass before Task 8
 
 ### Task 8: Add TUI compaction notification
 - [ ] handle `agent.compacted` bus event in `extensions/ui/tui/bridge.go`

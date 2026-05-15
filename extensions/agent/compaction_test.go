@@ -188,7 +188,8 @@ func TestFindCutPoint(t *testing.T) {
 			bigMsgs[i] = sdk.NewUserMessage(makeLongText(400))
 		}
 
-		msgs := append(bigMsgs,
+		msgs := append(
+			bigMsgs,
 			user, asstWithTool, toolResult, asstText,
 		)
 
@@ -625,9 +626,9 @@ func TestShouldCompact(t *testing.T) {
 		model.ResetModelRegistry()
 		defer model.ResetModelRegistry()
 		model.RegisterModel(model.ModelDef{
-			ID:             "test-model",
-			Provider:       "test",
-			ContextWindow:  100000,
+			ID:            "test-model",
+			Provider:      "test",
+			ContextWindow: 100000,
 		})
 
 		msgs := []sdk.Message{sdk.NewUserMessage("short message")}
@@ -639,9 +640,9 @@ func TestShouldCompact(t *testing.T) {
 		model.ResetModelRegistry()
 		defer model.ResetModelRegistry()
 		model.RegisterModel(model.ModelDef{
-			ID:             "test-model",
-			Provider:       "test",
-			ContextWindow:  1000,
+			ID:            "test-model",
+			Provider:      "test",
+			ContextWindow: 1000,
 		})
 
 		msgs := []sdk.Message{sdk.NewUserMessage(makeLongText(4000))}
@@ -653,9 +654,9 @@ func TestShouldCompact(t *testing.T) {
 		model.ResetModelRegistry()
 		defer model.ResetModelRegistry()
 		model.RegisterModel(model.ModelDef{
-			ID:             "test-model",
-			Provider:       "test",
-			ContextWindow:  1000,
+			ID:            "test-model",
+			Provider:      "test",
+			ContextWindow: 1000,
 		})
 
 		msgs := []sdk.Message{sdk.NewUserMessage(makeLongText(2000))} // 500 tokens
@@ -679,9 +680,9 @@ func TestContextWindowSize(t *testing.T) {
 		model.ResetModelRegistry()
 		defer model.ResetModelRegistry()
 		model.RegisterModel(model.ModelDef{
-			ID:             "test-ctx-model",
-			Provider:       "test",
-			ContextWindow:  50000,
+			ID:            "test-ctx-model",
+			Provider:      "test",
+			ContextWindow: 50000,
 		})
 		assert.Equal(t, 50000, contextWindowSize("test-ctx-model"))
 	})
@@ -1020,4 +1021,248 @@ func TestCompact(t *testing.T) {
 		_, err := compact(ctx, mp, msgs, cfg, "test-model", ops, "summarize this")
 		assert.Error(t, err)
 	})
+}
+
+func TestDrainSteeringCompactExtraction(t *testing.T) {
+	t.Run("compact without args", func(t *testing.T) {
+		steerCh := make(chan sdk.Event, 4)
+		steerCh <- sdk.NewEvent(TopicSteer, "compact")
+
+		messages, hasSteering, compactInstr, compactRequested := drainSteering(steerCh, nil)
+		assert.True(t, hasSteering)
+		assert.True(t, compactRequested)
+		assert.Empty(t, compactInstr)
+		assert.Nil(t, messages)
+	})
+
+	t.Run("compact with custom instructions", func(t *testing.T) {
+		steerCh := make(chan sdk.Event, 4)
+		steerCh <- sdk.NewEvent(TopicSteer, "compact focus on the auth refactor")
+
+		messages, hasSteering, compactInstr, compactRequested := drainSteering(steerCh, nil)
+		assert.True(t, hasSteering)
+		assert.True(t, compactRequested)
+		assert.Equal(t, "focus on the auth refactor", compactInstr)
+		assert.Nil(t, messages)
+	})
+
+	t.Run("non-compact steering adds as user message", func(t *testing.T) {
+		steerCh := make(chan sdk.Event, 4)
+		steerCh <- sdk.NewEvent(TopicSteer, "steer this")
+
+		messages, hasSteering, compactInstr, compactRequested := drainSteering(steerCh, nil)
+		assert.True(t, hasSteering)
+		assert.False(t, compactRequested)
+		assert.Empty(t, compactInstr)
+		require.Len(t, messages, 1)
+		assert.Equal(t, "steer this", messages[0].Content)
+	})
+
+	t.Run("mixed steering and compact", func(t *testing.T) {
+		steerCh := make(chan sdk.Event, 4)
+		steerCh <- sdk.NewEvent(TopicSteer, "some steering")
+		steerCh <- sdk.NewEvent(TopicSteer, "compact focus on auth")
+
+		messages, hasSteering, compactInstr, compactRequested := drainSteering(steerCh, nil)
+		assert.True(t, hasSteering)
+		assert.True(t, compactRequested)
+		assert.Equal(t, "focus on auth", compactInstr)
+		require.Len(t, messages, 1)
+		assert.Equal(t, "some steering", messages[0].Content)
+	})
+}
+
+func TestAgent_ManualCompactionViaSteering(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mp := newMockProvider([]providerResponse{
+		{textDeltas: []string{"initial response"}},
+		{textDeltas: []string{"## Goal\nRefactoring auth\n\n## Progress\nStarted work"}},
+		{textDeltas: []string{"after compaction"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "start conversation"))
+
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for first turn_end")
+
+	b.Publish(sdk.NewEvent(TopicSteer, "compact focus on auth refactoring"))
+
+	compactedEvt, ok := waitForTopic(allCh, TopicCompacted, 2*time.Second)
+	require.True(t, ok, "timeout waiting for compacted event")
+	payload, ok := compactedEvt.Payload.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, 1, payload["summarized"], "should have summarized the initial messages")
+
+	require.NoError(t, a.Close())
+}
+
+func TestAgent_ManualCompactionNoArgs(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mp := newMockProvider([]providerResponse{
+		{textDeltas: []string{"initial response"}},
+		{textDeltas: []string{"summary of conversation"}},
+		{textDeltas: []string{"after compaction"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "start"))
+
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for first turn_end")
+
+	b.Publish(sdk.NewEvent(TopicSteer, "compact"))
+
+	compactedEvt, ok := waitForTopic(allCh, TopicCompacted, 2*time.Second)
+	require.True(t, ok, "timeout waiting for compacted event")
+	_, ok = compactedEvt.Payload.(map[string]any)
+	require.True(t, ok)
+
+	require.NoError(t, a.Close())
+}
+
+func TestAgent_AutoCompaction(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+	model.ResetModelRegistry()
+	defer model.ResetModelRegistry()
+
+	// Small context window so accumulated messages trigger auto-compaction
+	model.RegisterModel(model.ModelDef{
+		ID:            "test-small-model",
+		Provider:      "anthropic",
+		ContextWindow: 1000,
+	})
+
+	// First response is large (4000 chars = 1000 tokens), second is compaction summary, third is final
+	mp := newMockProvider([]providerResponse{
+		{textDeltas: []string{strings.Repeat("x", 4000)}},
+		{textDeltas: []string{"compacted summary"}},
+		{textDeltas: []string{"final response"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	a.modelName = "test-small-model"
+	a.compactionCfg = CompactionConfig{
+		Enabled:          true,
+		ReserveTokens:    100,
+		KeepRecentTokens: 50,
+	}
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	// First turn: large response builds up message history
+	b.Publish(sdk.NewEvent(TopicPrompt, "start"))
+
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for first turn_end")
+
+	// Follow-up triggers re-entry to inner loop where shouldCompact is checked
+	b.Publish(sdk.NewEvent(TopicFollowup, "continue"))
+
+	compactedEvt, ok := waitForTopic(allCh, TopicCompacted, 3*time.Second)
+	require.True(t, ok, "timeout waiting for auto compacted event")
+	payload, ok := compactedEvt.Payload.(map[string]any)
+	require.True(t, ok)
+	assert.Greater(t, payload["summarized"], 0)
+
+	require.NoError(t, a.Close())
+}
+
+func TestAgent_CompactionErrorAborts(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	// Provider: first turn produces large output, second stream call errors
+	mp := newMockProvider([]providerResponse{
+		{textDeltas: []string{strings.Repeat("y", 4000)}},
+		{err: context.DeadlineExceeded},
+		{textDeltas: []string{"recovery after error (should not reach)"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "start"))
+
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for first turn_end")
+
+	// Send /compact — the messages are large enough to compact, but the provider errors
+	b.Publish(sdk.NewEvent(TopicSteer, "compact"))
+
+	// In waitForInput, compaction errors publish TopicCompacted with error field and continue
+	compactedEvt, ok := waitForTopic(allCh, TopicCompacted, 3*time.Second)
+	require.True(t, ok, "timeout waiting for compacted event after error")
+	payload, ok := compactedEvt.Payload.(map[string]any)
+	require.True(t, ok)
+	errStr, _ := payload["error"].(string)
+	assert.Contains(t, errStr, "context deadline exceeded")
+
+	// Agent should still be alive — send another prompt
+	b.Publish(sdk.NewEvent(TopicFollowup, "continue after error"))
+
+	_, ok = waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for turn_end after compaction error recovery")
+
+	require.NoError(t, a.Close())
+}
+
+func TestAgent_CompactionDisabledNoAutoTrigger(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+	model.ResetModelRegistry()
+	defer model.ResetModelRegistry()
+
+	model.RegisterModel(model.ModelDef{
+		ID:            "test-tiny-model",
+		Provider:      "anthropic",
+		ContextWindow: 500,
+	})
+
+	mp := newMockProvider([]providerResponse{
+		{textDeltas: []string{"response"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	a.modelName = "test-tiny-model"
+	a.compactionCfg = CompactionConfig{Enabled: false}
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "start"))
+
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for turn_end")
+
+	compactedEvts := collectTopic(allCh, TopicCompacted, 500*time.Millisecond)
+	assert.Empty(t, compactedEvts, "should not auto-compact when disabled")
+
+	require.NoError(t, a.Close())
 }

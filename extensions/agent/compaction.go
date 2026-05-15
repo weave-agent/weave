@@ -297,10 +297,10 @@ func contextWindowSize(modelName string) int {
 
 // compactResult holds the data returned by a compaction operation.
 type compactResult struct {
-	messages      []sdk.Message
-	summarized    int
-	tokensBefore  int
-	tokensAfter   int
+	messages     []sdk.Message
+	summarized   int
+	tokensBefore int
+	tokensAfter  int
 }
 
 // compact summarizes old messages using the LLM provider and returns a new

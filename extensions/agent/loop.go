@@ -25,6 +25,7 @@ const (
 	TopicToolCall          = "agent.tool_call"
 	TopicToolResult        = "agent.tool_result"
 	TopicEnd               = "agent.end"
+	TopicCompacted         = "agent.compacted"
 	TopicModelChange       = "model.change"
 	TopicModelChangeFailed = "model.change_failed"
 	TopicThinkingChange    = "thinking.change"
@@ -136,7 +137,30 @@ func (a *AgentExtension) run(
 		continueLoop := true
 
 		for continueLoop {
-			messages, _ = drainSteering(steerCh, messages)
+			var compactInstr string
+			var compactRequested bool
+			messages, _, compactInstr, compactRequested = drainSteering(steerCh, messages)
+
+			// Compaction check: manual (from /compact steering) or auto (token budget exceeded).
+			if compactRequested || shouldCompact(messages, systemPrompt, a.compactionCfg, a.modelName) {
+				compactPrompt := resolveCompactPrompt(compactInstr, a.projectDir(), globalConfigDir())
+				result, err := compact(turnCtx, provider, messages, a.compactionCfg, a.modelName, a.fileOps, compactPrompt)
+				if err != nil {
+					bus.Publish(sdk.NewEvent(TopicTurnEnd, nil))
+					endPayload = fmt.Sprintf("compaction error: %v", err)
+					turnCancel()
+					<-turnDone
+					return
+				}
+				if result != nil {
+					messages = result.messages
+					bus.Publish(sdk.NewEvent(TopicCompacted, map[string]any{
+						"summarized":    result.summarized,
+						"tokens_before": result.tokensBefore,
+						"tokens_after":  result.tokensAfter,
+					}))
+				}
+			}
 
 			bus.Publish(sdk.NewEvent(TopicTurnStart, turn))
 
@@ -190,7 +214,7 @@ func (a *AgentExtension) run(
 
 			var hasNewSteering bool
 
-			messages, hasNewSteering = drainSteering(steerCh, messages)
+			messages, hasNewSteering, _, _ = drainSteering(steerCh, messages)
 			continueLoop = len(toolCalls) > 0 || hasNewSteering
 		}
 
@@ -217,6 +241,32 @@ func (a *AgentExtension) run(
 			provider = a.drainChanges(modelChangeCh, thinkingCh, bus, provider)
 
 			messages = append(messages, sdk.NewUserMessage(evt.Payload))
+		case evt, ok := <-steerCh:
+			if !ok {
+				return
+			}
+
+			payload, _ := evt.Payload.(string)
+			if payload == "compact" || strings.HasPrefix(payload, "compact ") {
+				var compactInstr string
+				if rest, ok := strings.CutPrefix(payload, "compact "); ok {
+					compactInstr = rest
+				}
+				compactPrompt := resolveCompactPrompt(compactInstr, a.projectDir(), globalConfigDir())
+				result, err := compact(ctx, provider, messages, a.compactionCfg, a.modelName, a.fileOps, compactPrompt)
+				if err != nil {
+					bus.Publish(sdk.NewEvent(TopicCompacted, map[string]any{"error": err.Error()}))
+				} else if result != nil {
+					messages = result.messages
+					bus.Publish(sdk.NewEvent(TopicCompacted, map[string]any{
+						"summarized":    result.summarized,
+						"tokens_before": result.tokensBefore,
+						"tokens_after":  result.tokensAfter,
+					}))
+				}
+			}
+
+			goto waitForInput
 		case evt, ok := <-promptCh:
 			if !ok {
 				return
@@ -375,20 +425,32 @@ func (a *AgentExtension) streamOpts() []model.StreamOption {
 	return opts
 }
 
-func drainSteering(steerCh <-chan sdk.Event, messages []sdk.Message) ([]sdk.Message, bool) {
+func drainSteering(steerCh <-chan sdk.Event, messages []sdk.Message) ([]sdk.Message, bool, string, bool) {
 	hasSteering := false
+	var compactInstructions string
+	compactRequested := false
 
 	for {
 		select {
 		case evt, ok := <-steerCh:
 			if !ok {
-				return messages, hasSteering
+				return messages, hasSteering, compactInstructions, compactRequested
 			}
 
-			messages = append(messages, sdk.NewUserMessage(evt.Payload))
-			hasSteering = true
+			payload, _ := evt.Payload.(string)
+			if payload == "compact" {
+				compactRequested = true
+				hasSteering = true
+			} else if rest, ok := strings.CutPrefix(payload, "compact "); ok {
+				compactInstructions = rest
+				compactRequested = true
+				hasSteering = true
+			} else {
+				messages = append(messages, sdk.NewUserMessage(evt.Payload))
+				hasSteering = true
+			}
 		default:
-			return messages, hasSteering
+			return messages, hasSteering, compactInstructions, compactRequested
 		}
 	}
 }

@@ -121,6 +121,29 @@ func TestCommandRegistry_DispatchCompact(t *testing.T) {
 	}
 }
 
+func TestCommandRegistry_DispatchCompactWithArgs(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	ch := subscribeToChan(b, topicSteer)
+
+	r := NewCommandRegistry(b, "")
+
+	handled, result := r.Dispatch("/compact focus on the auth refactor")
+	require.True(t, handled)
+	assert.NotNil(t, result.Command)
+
+	msg := result.Command()
+	assert.Nil(t, msg)
+
+	select {
+	case evt := <-ch:
+		assert.Equal(t, "compact focus on the auth refactor", evt.Payload)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for compact event with args")
+	}
+}
+
 func TestCommandRegistry_DispatchNameWithArgs(t *testing.T) {
 	b := bus.New()
 	defer b.Close()

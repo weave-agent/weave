@@ -70,8 +70,12 @@ func NewCommandRegistry(bus sdk.Bus, sessionDir string) *CommandRegistry {
 		return CommandResult{Notify: r.helpText()}
 	})
 
-	r.register("/compact", "Compact conversation history", false, func(_ string) CommandResult {
-		return CommandResult{Command: PublishSteer(bus, "compact")}
+	r.register("/compact", "Compact conversation history", false, func(args string) CommandResult {
+		payload := "compact"
+		if args != "" {
+			payload = "compact " + args
+		}
+		return CommandResult{Command: PublishSteer(bus, payload)}
 	})
 
 	r.register("/name", "Set conversation name", false, func(args string) CommandResult {
