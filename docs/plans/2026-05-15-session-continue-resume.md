@@ -93,11 +93,11 @@ Add `--continue` / `-c` and `--resume` / `-r` CLI flags to weave that restore a 
 - [x] run `cd extensions/store/jsonl && go test ./...` — must pass before next task
 
 ### Task 7: TUI integration for --continue/--resume
-- [ ] in `extensions/ui/tui/bridge.go`, ensure `session.resume` event from wire triggers `rebuildChatFromSession()` (may already work via existing bus listener — verify)
-- [ ] add `/resume` slash command to open interactive session picker (may already exist — verify and extend if needed)
-- [ ] ensure TUI shows restored history on startup when `--continue` is used
-- [ ] write tests for TUI session resume flow if testable via existing patterns in `extensions/ui/tui/`
-- [ ] run `cd extensions/ui/tui && go test ./...` — must pass before next task
+- [x] in `extensions/ui/tui/bridge.go`, ensure `session.resume` event from wire triggers `rebuildChatFromSession()` (may already work via existing bus listener — verify)
+- [x] add `/resume` slash command to open interactive session picker (may already exist — verify and extend if needed)
+- [x] ensure TUI shows restored history on startup when `--continue` is used
+- [x] write tests for TUI session resume flow if testable via existing patterns in `extensions/ui/tui/`
+- [x] run `cd extensions/ui/tui && go test ./...` — must pass before next task
 
 ### Task 8: Update CLAUDE.md documentation
 - [ ] add `--continue` / `-c` and `--resume` / `-r` flags to CLI documentation section

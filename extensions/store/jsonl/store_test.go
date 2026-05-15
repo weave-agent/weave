@@ -743,6 +743,7 @@ func TestSubscribe_ResumesSession(t *testing.T) {
 	require.Len(t, loaded.Entries, 3)
 
 	assert.Equal(t, 3, loaded.Entries[2].Turn)
+
 	var data map[string]any
 	require.NoError(t, json.Unmarshal(loaded.Entries[2].Data, &data))
 	assert.Equal(t, "user", data["role"])
@@ -783,6 +784,7 @@ func TestSubscribe_ResumesSession_Followup(t *testing.T) {
 	require.Len(t, loaded.Entries, 2)
 
 	assert.Equal(t, 2, loaded.Entries[1].Turn)
+
 	var data map[string]any
 	require.NoError(t, json.Unmarshal(loaded.Entries[1].Data, &data))
 	assert.Equal(t, "user", data["role"])

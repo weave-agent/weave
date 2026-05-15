@@ -149,8 +149,14 @@ func translateEvent(evt sdk.Event) tea.Msg {
 	case topicEnd:
 		return AgentEndMsg{Payload: evt.Payload}
 	case topicSessionResume:
-		id, _ := evt.Payload.(string)
-		return SessionResumedMsg{SessionID: id}
+		switch p := evt.Payload.(type) {
+		case string:
+			return SessionResumedMsg{SessionID: p}
+		case sdk.SessionResumePayload:
+			return SessionResumedMsg{SessionID: p.SessionID}
+		default:
+			return SessionResumedMsg{}
+		}
 	case topicModelChangeFailed:
 		return translateModelChangeFailed(evt.Payload)
 	case topicExtOutdated:

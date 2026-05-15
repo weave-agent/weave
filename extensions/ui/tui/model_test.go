@@ -899,6 +899,100 @@ func TestModel_RebuildChatFromSession(t *testing.T) {
 	assert.True(t, m.prompted)
 }
 
+func TestModel_SessionResumedMsg_RebuildsChat(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("WEAVE_JSONL_DIR", dir)
+
+	sessionID := "aaa11122233344455566677788899900"
+
+	header := sessionHeader{Type: "session", ID: sessionID, Timestamp: time.Now().UTC(), CWD: "/test"}
+	headerJSON, _ := json.Marshal(header)
+
+	e1 := map[string]any{
+		"type": "message",
+		"data": map[string]any{"role": "user", "content": "previous question"},
+	}
+	e2 := map[string]any{
+		"type": "message",
+		"data": map[string]any{"role": "assistant", "content": "previous answer"},
+	}
+
+	e1JSON, _ := json.Marshal(e1)
+	e2JSON, _ := json.Marshal(e2)
+
+	content := string(headerJSON) + "\n" + string(e1JSON) + "\n" + string(e2JSON) + "\n"
+	err := os.WriteFile(filepath.Join(dir, sessionID+".jsonl"), []byte(content), 0o644)
+	require.NoError(t, err)
+
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, 10)
+	m.showLanding = true
+	m.prompted = true
+
+	model, _ := m.Update(SessionResumedMsg{SessionID: sessionID})
+	m = model.(Model)
+
+	// Chat should be rebuilt with session history
+	items := m.chat.Items()
+	require.Len(t, items, 2)
+
+	um, ok := items[0].(*messages.UserMessage)
+	require.True(t, ok)
+	assert.Equal(t, "previous question", um.Content())
+
+	am, ok := items[1].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Equal(t, "previous answer", am.Content())
+
+	// Landing should be hidden
+	assert.False(t, m.showLanding)
+	// Prompted should be reset so next submit sends agent.prompt
+	assert.False(t, m.prompted)
+}
+
+func TestModel_SessionResumedMsg_EmptySessionID(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.showLanding = true
+	m.prompted = true
+
+	model, _ := m.Update(SessionResumedMsg{SessionID: ""})
+	m = model.(Model)
+
+	// Nothing should change
+	assert.True(t, m.showLanding)
+	assert.True(t, m.prompted)
+	assert.Empty(t, m.chat.Items())
+}
+
+func TestModel_SessionResumedMsg_HandlesMissingSession(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, 10)
+	m.showLanding = true
+	m.prompted = true
+
+	model, _ := m.Update(SessionResumedMsg{SessionID: "nonexistent-session"})
+	m = model.(Model)
+
+	// Should show error message in chat
+	items := m.chat.Items()
+	require.Len(t, items, 1)
+
+	am, ok := items[0].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Contains(t, am.Content(), "Error loading session")
+
+	// Landing should still be hidden (we attempted a resume)
+	assert.False(t, m.showLanding)
+	// Prompted should still be reset
+	assert.False(t, m.prompted)
+}
+
 func TestModel_ViewShowsOverlayWhenActive(t *testing.T) {
 	m := newModel(nil, nil, nil, nil)
 	m.width = 80

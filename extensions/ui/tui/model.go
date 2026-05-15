@@ -610,6 +610,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, nil
 
+	case SessionResumedMsg:
+		if msg.SessionID != "" {
+			m.rebuildChatFromSession(msg.SessionID)
+			m.showLanding = false
+			m.prompted = false
+		}
+
+		return m, nil
+
 	case SessionListResultMsg:
 		return m.onSessionListResult(msg)
 

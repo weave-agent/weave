@@ -232,8 +232,10 @@ func (s *Store) handleSessionResume(evt sdk.Event) {
 		return
 	}
 
-	var lastEntryID string
-	var maxTurn int
+	var (
+		lastEntryID string
+		maxTurn     int
+	)
 
 	if len(sess.Entries) > 0 {
 		last := sess.Entries[len(sess.Entries)-1]
