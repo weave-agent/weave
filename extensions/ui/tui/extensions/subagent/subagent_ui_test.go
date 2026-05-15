@@ -15,6 +15,7 @@ import (
 type mockTUIExtAPI struct {
 	richRenderers map[string]tui.RichToolRenderer
 	panelsShown   []tui.PanelConfig
+	panelDrawers  []tui.PanelDrawer
 	panelsRemoved []string
 }
 
@@ -26,6 +27,7 @@ func newMockTUIExtAPI() *mockTUIExtAPI {
 
 func (m *mockTUIExtAPI) ShowPanel(config tui.PanelConfig, drawer tui.PanelDrawer) {
 	m.panelsShown = append(m.panelsShown, config)
+	m.panelDrawers = append(m.panelDrawers, drawer)
 }
 func (m *mockTUIExtAPI) HidePanel(id string)                                      {}
 func (m *mockTUIExtAPI) RemovePanel(id string)                                    { m.panelsRemoved = append(m.panelsRemoved, id) }
@@ -119,6 +121,7 @@ func TestSubagentExtension_Subscribe_ShowsPanelOnStarted(t *testing.T) {
 	assert.Equal(t, "researcher", api.panelsShown[0].Title)
 	assert.Equal(t, tui.BelowEditor, api.panelsShown[0].Placement)
 	assert.Equal(t, 6, api.panelsShown[0].Height)
+	assert.NotNil(t, api.panelDrawers[0], "panel drawer should be non-nil")
 
 	// Agent should be tracked
 	agent := ext.tracker.Get("agent-123")

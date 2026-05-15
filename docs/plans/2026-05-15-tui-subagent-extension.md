@@ -84,12 +84,12 @@ A TUI extension that visualizes running subagents as per-agent panels in the pan
 - [x] Write tests for panel lifecycle: start → done → removal
 
 ### Task 5: Implement panel drawer
-- [ ] Create `panel.go` with `agentPanelDrawer` implementing `tui.PanelDrawer`
-- [ ] `Draw()` renders: agent name, status indicator (●/✓/✗), mode, elapsed time, truncated result preview
-- [ ] `Update()` handles `tea.Msg` — on tick, trigger redraw for elapsed time updates
-- [ ] `Handles()` returns true for tick messages
-- [ ] Use `theme` colors for status indicators
-- [ ] Write tests verifying rendered output matches expected format
+- [x] Create `panel.go` with `agentPanelDrawer` implementing `tui.PanelDrawer`
+- [x] `Draw()` renders: agent name, status indicator (●/✓/✗), mode, elapsed time, truncated result preview
+- [x] `Update()` handles `tea.Msg` — on tick, trigger redraw for elapsed time updates
+- [x] `Handles()` returns true for tick messages
+- [x] Use `theme` colors for status indicators
+- [x] Write tests verifying rendered output matches expected format
 
 ### Task 6: Implement rich tool renderer
 - [ ] Create `renderer.go` with `subagentRenderer` implementing `tui.RichToolRenderer`

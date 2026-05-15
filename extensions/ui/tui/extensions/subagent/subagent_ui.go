@@ -62,12 +62,13 @@ func (e *SubagentExtension) subscribe(bus sdk.Bus) {
 		agent := e.tracker.Start(id, name, mode)
 
 		if e.api != nil {
+			drawer := newAgentPanelDrawer(agent.ID, e.tracker, e.api.Theme())
 			e.api.ShowPanel(tui.PanelConfig{
 				ID:        agent.PanelID,
 				Placement: tui.BelowEditor,
 				Title:     name,
 				Height:    6,
-			}, nil) // PanelDrawer wired in Task 5
+			}, drawer)
 		}
 
 		return nil
