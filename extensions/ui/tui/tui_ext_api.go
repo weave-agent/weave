@@ -31,6 +31,7 @@ type TUIExtAPI interface {
 
 	// Rendering
 	RegisterRichRenderer(tool string, renderer RichToolRenderer)
+	RegisterMessageRenderer(msgType string, renderer sdk.MessageRenderer)
 
 	// Footer/Header
 	SetFooter(component TUIComponent)

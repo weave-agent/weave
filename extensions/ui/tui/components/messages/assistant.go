@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"weave/ext/ui/tui/palette"
+	"weave/sdk"
 
 	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
@@ -25,6 +26,7 @@ type AssistantMessage struct {
 	cachedRender  string
 	renderStarted bool
 	createdAt     time.Time
+	msgType       string
 }
 
 // NewAssistantMessage creates a new assistant message in streaming mode.
@@ -109,11 +111,52 @@ func (m *AssistantMessage) fadeColor() string {
 	return "15"
 }
 
+// SetMessageType sets the message type for custom renderer lookup.
+func (m *AssistantMessage) SetMessageType(msgType string) {
+	m.msgType = msgType
+}
+
+// renderCustom attempts to render using a registered custom renderer.
+// Returns the rendered string and true if a renderer was found.
+func (m *AssistantMessage) renderCustom(width int) (string, bool) {
+	if m.msgType == "" {
+		return "", false
+	}
+
+	renderer, ok := GetMessageRenderer(m.msgType)
+	if !ok {
+		return "", false
+	}
+
+	theme := sdk.ThemeInfo{}
+	if GetThemeInfo != nil {
+		theme = GetThemeInfo()
+	}
+
+	content := renderer.Render(m.Content(), theme, width)
+
+	// Apply fade-in effect during first 150ms while streaming
+	if m.streaming {
+		fadeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(m.fadeColor()))
+		content = fadeStyle.Render(content)
+	}
+
+	// Prepend subtle role indicator
+	roleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Muted))
+	roleIndicator := roleStyle.Render("◆ ")
+
+	return roleIndicator + content, true
+}
+
 // View renders the assistant message. Finalized messages use markdown rendering.
 // Streaming messages progressively render through Glamour with ~100ms debounce
 // to avoid re-rendering on every tiny delta while still providing formatted output.
 func (m *AssistantMessage) View(width int) string {
 	m.renderer.SetWidth(width)
+
+	if rendered, ok := m.renderCustom(width); ok {
+		return rendered
+	}
 
 	var content string
 

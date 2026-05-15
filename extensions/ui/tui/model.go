@@ -188,6 +188,8 @@ func newModelWithConfig(bus sdk.Bus, cfg sdk.Config, ps sdk.PreferenceStore, ui 
 		ui.SetRegistries(commands, bindings)
 	}
 
+	messages.GetThemeInfo = ui.Theme
+
 	m := Model{
 		width:         80,
 		height:        24,
@@ -401,6 +403,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// so it takes priority over shift+tab thinking cycle when panels are visible)
 		if msg.Code == tea.KeyTab && m.panelTray.Len() > 0 && !m.editor.CompletionActive() {
 			return m.cycleFocus(msg.Mod == tea.ModShift)
+		}
+
+		// Blocking overlay panels intercept input before keybindings
+		if m.focus == FocusPanel && m.panelManager.Active() != "" {
+			if entry, ok := m.panelManager.Get(m.panelManager.Active()); ok && entry.Config.Blocking {
+				if cmd, handled := m.panelManager.UpdateDrawer(m.panelManager.Active(), msg); handled {
+					return m, cmd
+				}
+			}
 		}
 
 		// Try keybinding resolver
@@ -1399,6 +1410,14 @@ func (m Model) onKeyInputDialogDone(result overlays.DialogResult, pendingCmd tea
 	if m.cfg == nil {
 		am := messages.NewAssistantMessage()
 		am.Finalize("No config available to save API key.")
+		m.chat = m.chat.AddItem(am)
+
+		return m, pendingCmd
+	}
+
+	if m.ps == nil {
+		am := messages.NewAssistantMessage()
+		am.Finalize("No preference store available to save API key.")
 		m.chat = m.chat.AddItem(am)
 
 		return m, pendingCmd

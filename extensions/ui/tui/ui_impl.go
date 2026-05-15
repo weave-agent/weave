@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"weave/ext/ui/tui/components/messages"
 	"weave/ext/ui/tui/palette"
 	"weave/sdk"
 
@@ -50,6 +51,7 @@ type TUIImpl struct {
 
 	// Task 9: deferred implementation fields
 	richRenderers         map[string]RichToolRenderer
+	messageRenderers      map[string]sdk.MessageRenderer
 	inputHandlers         []func(KeyEvent)
 	autocompleteProviders []AutocompleteProvider
 	workingFrames         []string
@@ -67,9 +69,10 @@ func NewTUIImpl(commands *CommandRegistry, bindings *BindingRegistry) *TUIImpl {
 		themeRegistry: map[string]*palette.Theme{
 			"default": palette.DefaultTheme(),
 		},
-		activeTheme:   "default",
-		panelManager:  NewPanelManager(),
-		richRenderers: make(map[string]RichToolRenderer),
+		activeTheme:      "default",
+		panelManager:     NewPanelManager(),
+		richRenderers:    make(map[string]RichToolRenderer),
+		messageRenderers: make(map[string]sdk.MessageRenderer),
 	}
 }
 
@@ -616,6 +619,19 @@ func (u *TUIImpl) RegisterRichRenderer(tool string, renderer RichToolRenderer) {
 	defer u.mu.Unlock()
 
 	u.richRenderers[tool] = renderer
+}
+
+// RegisterMessageRenderer registers a custom renderer for a message type.
+func (u *TUIImpl) RegisterMessageRenderer(msgType string, renderer sdk.MessageRenderer) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	if u.messageRenderers == nil {
+		u.messageRenderers = make(map[string]sdk.MessageRenderer)
+	}
+
+	u.messageRenderers[msgType] = renderer
+	messages.SetMessageRenderer(msgType, renderer)
 }
 
 // GetRichRenderer returns a registered rich tool renderer, if any.

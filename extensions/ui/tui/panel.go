@@ -21,6 +21,7 @@ const (
 type PanelConfig struct {
 	ID        string
 	Placement PanelPlacement
+	Blocking  bool // true = modal, false = non-blocking
 	Width     int
 	Height    int
 	Title     string
@@ -156,6 +157,33 @@ func (pm *PanelManager) IsRegistered(id string) bool {
 	_, ok := pm.panels[id]
 
 	return ok
+}
+
+// IsBlocking returns true if a panel is registered and configured as blocking.
+func (pm *PanelManager) IsBlocking(id string) bool {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	entry, ok := pm.panels[id]
+	if !ok {
+		return false
+	}
+
+	return entry.Config.Blocking
+}
+
+// HasBlockingPanel returns true if any visible panel is configured as blocking.
+func (pm *PanelManager) HasBlockingPanel() bool {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+
+	for _, entry := range pm.panels {
+		if entry.Visible && entry.Config.Blocking {
+			return true
+		}
+	}
+
+	return false
 }
 
 // Active returns the currently active panel ID.

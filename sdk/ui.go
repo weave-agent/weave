@@ -131,3 +131,8 @@ type ThemeInfo struct {
 type ToolRenderer interface {
 	Render(content string, width int) string
 }
+
+// MessageRenderer renders custom message content with theme access.
+type MessageRenderer interface {
+	Render(content string, theme ThemeInfo, width int) string
+}
