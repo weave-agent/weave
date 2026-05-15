@@ -1143,12 +1143,13 @@ func (m *Model) onMessageEnd(msg MessageEndMsg) {
 		return
 	}
 
+	if msg.Thinking != "" {
+		m.chat = m.chat.InsertItemAt(idx, messages.NewThinkingBlock(msg.Thinking))
+		idx++
+	}
+
 	am.Finalize(msg.Content)
 	m.chat = m.chat.UpdateItemAt(idx, am)
-
-	if msg.Thinking != "" {
-		m.chat = m.chat.AddItem(messages.NewThinkingBlock(msg.Thinking))
-	}
 
 	for _, tc := range msg.ToolCalls {
 		args, _ := json.Marshal(tc.Arguments)

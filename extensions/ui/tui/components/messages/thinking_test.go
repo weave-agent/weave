@@ -98,7 +98,7 @@ func TestThinkingBlock_View_HasMutedIndent(t *testing.T) {
 	view := b.View(80)
 	// Content should be indented with 2 spaces
 	lines := strings.Split(view, "\n")
-	require.True(t, len(lines) >= 3)
+	require.GreaterOrEqual(t, len(lines), 3)
 	// First line is header, subsequent lines are indented content
 	assert.True(t, strings.HasPrefix(lines[1], "  "), "content should be 2-space indented")
 	assert.True(t, strings.HasPrefix(lines[2], "  "), "content should be 2-space indented")

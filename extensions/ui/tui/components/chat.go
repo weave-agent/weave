@@ -54,7 +54,6 @@ type ChatModel struct {
 	selStartCol  int
 	selEndLine   int
 	selEndCol    int
-	mouseDown    bool
 }
 
 // NewChatModel creates a new chat model.
@@ -250,6 +249,25 @@ func (m ChatModel) UpdateItemAt(index int, item ChatItem) ChatModel {
 	return m
 }
 
+// InsertItemAt inserts a new item at the given index, shifting existing items right.
+func (m ChatModel) InsertItemAt(index int, item ChatItem) ChatModel {
+	if index < 0 || index > len(m.items) {
+		return m
+	}
+
+	m.items = append(m.items[:index], append([]ChatItem{item}, m.items[index:]...)...)
+
+	if m.cache != nil {
+		*m.cache = append((*m.cache)[:index], append([]cacheEntry{{}}, (*m.cache)[index:]...)...)
+	}
+
+	if m.autoScroll {
+		m.scrollToBottom()
+	}
+
+	return m
+}
+
 // invalidate marks a single cache entry as stale.
 func (m *ChatModel) invalidate(index int) {
 	if m.cache != nil && index >= 0 && index < len(*m.cache) {
@@ -318,14 +336,13 @@ func (m ChatModel) StartSelection(line, col int) ChatModel {
 	m.selStartCol = col
 	m.selEndLine = line
 	m.selEndCol = col
-	m.mouseDown = true
 
 	return m
 }
 
 // ExtendSelection updates the end point of the current selection.
 func (m ChatModel) ExtendSelection(line, col int) ChatModel {
-	if !m.mouseDown {
+	if !m.selActive {
 		return m
 	}
 
@@ -335,9 +352,8 @@ func (m ChatModel) ExtendSelection(line, col int) ChatModel {
 	return m
 }
 
-// EndSelection finalizes the current selection and clears mouseDown.
+// EndSelection finalizes the current selection.
 func (m ChatModel) EndSelection() ChatModel {
-	m.mouseDown = false
 	// Normalize: ensure start <= end for line and column
 	if m.selStartLine > m.selEndLine {
 		m.selStartLine, m.selEndLine = m.selEndLine, m.selStartLine
@@ -356,7 +372,6 @@ func (m ChatModel) ClearSelection() ChatModel {
 	m.selStartCol = 0
 	m.selEndLine = 0
 	m.selEndCol = 0
-	m.mouseDown = false
 
 	return m
 }
@@ -374,9 +389,9 @@ func (m ChatModel) HasSelection() bool {
 	return true
 }
 
-// MouseDown returns true if the mouse button is currently held down.
+// MouseDown returns true if there is an active selection (mouse is held down).
 func (m ChatModel) MouseDown() bool {
-	return m.mouseDown
+	return m.selActive
 }
 
 // SelectionBounds returns the normalized selection bounds as (startLine, startCol, endLine, endCol).
@@ -447,17 +462,7 @@ func (m ChatModel) ExtractSelection() string {
 		return ""
 	}
 
-	m.ensureCache()
-
-	var allLines []string
-
-	for i := range m.items {
-		allLines = append(allLines, (*m.cache)[i].lines...)
-
-		if i < len(m.items)-1 {
-			allLines = append(allLines, "")
-		}
-	}
+	allLines := m.allContentLines()
 
 	sl, _, el, _ := m.SelectionBounds()
 
@@ -507,33 +512,22 @@ func (m ChatModel) ExtractSelection() string {
 	return strings.TrimRight(result, " \t\n\r")
 }
 
-// lineToItem maps a global content line to the item index and the line index within that item.
-// Returns (-1, -1) if the line is out of bounds.
-func (m ChatModel) lineToItem(contentLine int) (itemIdx, lineInItem int) {
+// allContentLines returns a flat slice of all rendered lines across all items,
+// including blank separator lines between items.
+func (m *ChatModel) allContentLines() []string {
 	m.ensureCache()
 
-	currentLine := 0
+	var lines []string
 
 	for i := range m.items {
-		itemLines := len((*m.cache)[i].lines)
-		if contentLine >= currentLine && contentLine < currentLine+itemLines {
-			return i, contentLine - currentLine
-		}
-
-		currentLine += itemLines
-
-		// Blank separator line between items
+		lines = append(lines, (*m.cache)[i].lines...)
+		// Add blank line between items (not after the last one)
 		if i < len(m.items)-1 {
-			if contentLine == currentLine {
-				// This is a separator line, not part of any item
-				return -1, -1
-			}
-
-			currentLine++
+			lines = append(lines, "")
 		}
 	}
 
-	return -1, -1
+	return lines
 }
 
 // View renders the visible portion of the chat as a string.
@@ -542,17 +536,7 @@ func (m ChatModel) View() string {
 		return ""
 	}
 
-	m.ensureCache()
-
-	var allLines []string
-
-	for i := range m.items {
-		allLines = append(allLines, (*m.cache)[i].lines...)
-		// Add blank line between items (not after the last one)
-		if i < len(m.items)-1 {
-			allLines = append(allLines, "")
-		}
-	}
+	allLines := m.allContentLines()
 
 	total := len(allLines)
 	maxScroll := max(0, total-m.height)
@@ -578,17 +562,7 @@ func (m ChatModel) Draw(scr uv.Screen, area uv.Rectangle) {
 		return
 	}
 
-	m.ensureCache()
-
-	var allLines []string
-
-	for i := range m.items {
-		allLines = append(allLines, (*m.cache)[i].lines...)
-		// Add blank line between items (not after the last one)
-		if i < len(m.items)-1 {
-			allLines = append(allLines, "")
-		}
-	}
+	allLines := m.allContentLines()
 
 	viewportHeight := area.Dy()
 	total := len(allLines)

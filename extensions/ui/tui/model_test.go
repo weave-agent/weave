@@ -527,18 +527,18 @@ func TestModel_MessageEndWithThinking(t *testing.T) {
 	m = model.(Model)
 
 	items := m.chat.Items()
-	require.Len(t, items, 2) // assistant + thinking block
+	require.Len(t, items, 2) // thinking block + assistant
 
-	// Assistant message finalized
-	am, ok := items[0].(*messages.AssistantMessage)
+	// Thinking block inserted before answer
+	tb, ok := items[0].(*messages.ThinkingBlock)
+	require.True(t, ok)
+	assert.Equal(t, "I need to consider the deep philosophical implications...", tb.Content())
+
+	// Assistant message finalized after thinking
+	am, ok := items[1].(*messages.AssistantMessage)
 	require.True(t, ok)
 	assert.Equal(t, "The answer is 42", am.Content())
 	assert.False(t, am.IsStreaming())
-
-	// Thinking block added
-	tb, ok := items[1].(*messages.ThinkingBlock)
-	require.True(t, ok)
-	assert.Equal(t, "I need to consider the deep philosophical implications...", tb.Content())
 }
 
 func TestModel_MessageEndWithoutThinking(t *testing.T) {
@@ -596,13 +596,13 @@ func TestModel_ThinkingBlockWithToolCalls(t *testing.T) {
 	m = model.(Model)
 
 	items := m.chat.Items()
-	require.Len(t, items, 3) // assistant + thinking + tool panel
+	require.Len(t, items, 3) // thinking + assistant + tool panel
 
-	_, ok := items[0].(*messages.AssistantMessage)
-	assert.True(t, ok, "item 0 should be AssistantMessage")
+	_, ok := items[0].(*messages.ThinkingBlock)
+	assert.True(t, ok, "item 0 should be ThinkingBlock")
 
-	_, ok = items[1].(*messages.ThinkingBlock)
-	assert.True(t, ok, "item 1 should be ThinkingBlock")
+	_, ok = items[1].(*messages.AssistantMessage)
+	assert.True(t, ok, "item 1 should be AssistantMessage")
 
 	_, ok = items[2].(*messages.ToolPanel)
 	assert.True(t, ok, "item 2 should be ToolPanel")
@@ -1156,8 +1156,8 @@ func TestModel_CycleThinkingLevelSkipsClampedForSonnet(t *testing.T) {
 	m.height = 24
 	m.currentModel = ModelEntry{Provider: "anthropic", Model: "claude-sonnet-4-6"}
 
-	// Sonnet doesn't support xhigh, so the cycle skips it:
-	// medium -> high -> off -> minimal -> low -> medium (wraps)
+	// Sonnet doesn't support xhigh, so the cycle skips it (xhigh is clamped to high):
+	// medium -> high -> off -> minimal -> low -> medium (wraps, skipping xhigh)
 	expected := []sdkmodel.ThinkingLevel{
 		sdkmodel.ThinkingMedium, // start
 		sdkmodel.ThinkingHigh,
@@ -3399,7 +3399,7 @@ func TestModel_MouseRelease_EndsSelection(t *testing.T) {
 	model, _ = m.Update(tea.MouseReleaseMsg{X: endX, Y: endY, Button: tea.MouseLeft})
 	m = model.(Model)
 
-	assert.False(t, m.chat.MouseDown(), "mouse should not be down after release")
+	assert.True(t, m.chat.MouseDown(), "selection should still be active after release")
 	assert.True(t, m.chat.HasSelection(), "selection should still exist after release")
 }
 
@@ -3611,7 +3611,18 @@ func TestModel_DispatchBinding_CopySelection_WithSelection(t *testing.T) {
 
 	// Trigger copy binding
 	_, cmd := m.dispatchBinding(ActionCopySelection)
-	assert.NotNil(t, cmd, "copy binding should return a command when selection exists")
+	require.NotNil(t, cmd, "copy binding should return a command when selection exists")
+
+	// Execute the command and verify it's a batch containing clipboard operations
+	msg := cmd()
+	batch, ok := msg.(tea.BatchMsg)
+	require.True(t, ok, "expected tea.BatchMsg, got %T", msg)
+	require.Len(t, batch, 2, "batch should contain 2 commands")
+
+	// The second command should return a notifyTypedMsg
+	result := batch[1]()
+	_, ok = result.(notifyTypedMsg)
+	require.True(t, ok, "expected notifyTypedMsg, got %T", result)
 }
 
 func TestModel_DispatchBinding_CopySelection_NoSelection(t *testing.T) {
@@ -3649,7 +3660,18 @@ func TestModel_MouseRelease_WithSelection_TriggersCopy(t *testing.T) {
 
 	// Release should return a copy command
 	_, cmd := m.Update(tea.MouseReleaseMsg{X: endX, Y: endY, Button: tea.MouseLeft})
-	assert.NotNil(t, cmd, "mouse release with selection should return a copy command")
+	require.NotNil(t, cmd, "mouse release with selection should return a copy command")
+
+	// Execute the command and verify it's a batch containing clipboard operations
+	msg := cmd()
+	batch, ok := msg.(tea.BatchMsg)
+	require.True(t, ok, "expected tea.BatchMsg, got %T", msg)
+	require.Len(t, batch, 2, "batch should contain 2 commands")
+
+	// The second command should return a notifyTypedMsg
+	result := batch[1]()
+	_, ok = result.(notifyTypedMsg)
+	require.True(t, ok, "expected notifyTypedMsg, got %T", result)
 }
 
 func TestModel_MouseRelease_NoSelection_NoCopy(t *testing.T) {

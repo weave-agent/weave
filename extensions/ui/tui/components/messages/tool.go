@@ -142,12 +142,12 @@ func (p *ToolPanel) renderBody(width int) string {
 
 	// Use custom renderer if registered.
 	if p.customRenderer != nil {
-		return padLeft(p.customRenderer.Render(p.output, width), 4)
+		return padLeft(p.customRenderer.Render(p.output, width))
 	}
 
 	// Auto-detect diff content and use diff renderer.
 	if p.diffRenderer != nil && IsDiffContent(p.output) {
-		return padLeft(p.diffRenderer.Render(p.output, width), 4)
+		return padLeft(p.diffRenderer.Render(p.output, width))
 	}
 
 	lines := strings.Split(p.output, "\n")
@@ -156,7 +156,7 @@ func (p *ToolPanel) renderBody(width int) string {
 		visible := lines[:maxCollapsedLines]
 		hidden := len(lines) - maxCollapsedLines
 
-		body := padLeft(strings.Join(visible, "\n"), 4)
+		body := padLeft(strings.Join(visible, "\n"))
 		if p.state == ToolError {
 			body = lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Error)).Render(body)
 		}
@@ -164,7 +164,7 @@ func (p *ToolPanel) renderBody(width int) string {
 		return body + fmt.Sprintf("\n    ... %d more lines (collapsed)", hidden)
 	}
 
-	body := padLeft(strings.Join(lines, "\n"), 4)
+	body := padLeft(strings.Join(lines, "\n"))
 	if p.state == ToolError {
 		body = lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Error)).Render(body)
 	}
@@ -240,9 +240,11 @@ func formatArgs(argsJSON string) string {
 	for k := range m {
 		keys = append(keys, k)
 	}
+
 	sort.Strings(keys)
 
 	var parts []string
+
 	for _, k := range keys {
 		v := m[k]
 		switch val := v.(type) {
@@ -264,14 +266,20 @@ func formatArgs(argsJSON string) string {
 	return strings.Join(parts, ", ")
 }
 
-func padLeft(text string, spaces int) string {
+func padLeft(text string) string {
+	const spaces = 4
+
 	if spaces <= 0 {
 		return text
 	}
+
 	prefix := strings.Repeat(" ", spaces)
+
 	lines := strings.Split(text, "\n")
+
 	for i := range lines {
 		lines[i] = prefix + lines[i]
 	}
+
 	return strings.Join(lines, "\n")
 }
