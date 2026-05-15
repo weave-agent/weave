@@ -1,7 +1,9 @@
 package messages
 
 import (
+	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"unicode/utf8"
 
@@ -23,7 +25,7 @@ const (
 	ToolError
 )
 
-// ToolPanel renders a tool call with its output in a bordered panel.
+// ToolPanel renders a tool call with its output in a panel.
 type ToolPanel struct {
 	toolID         string
 	toolName       string
@@ -91,7 +93,7 @@ func (p *ToolPanel) SetRenderer(r sdk.ToolRenderer) {
 	p.customRenderer = r
 }
 
-// View renders the tool panel as a bordered box.
+// View renders the tool panel.
 func (p *ToolPanel) View(width int) string {
 	if width <= 0 {
 		width = 80
@@ -117,7 +119,10 @@ func (p *ToolPanel) Draw(scr uv.Screen, area uv.Rectangle) {
 func (p *ToolPanel) renderHeader() string {
 	stateLabel := stateLabelForState(p.state)
 	if p.args != "" {
-		return fmt.Sprintf(" %s %s(%s)", stateLabel, p.toolName, p.args)
+		formatted := truncateArgs(formatArgs(p.args), 100)
+		if formatted != "" {
+			return fmt.Sprintf(" %s %s(%s)", stateLabel, p.toolName, formatted)
+		}
 	}
 
 	return fmt.Sprintf(" %s %s", stateLabel, p.toolName)
@@ -129,20 +134,20 @@ func (p *ToolPanel) renderBody(width int) string {
 	if p.output == "" {
 		dim := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Muted))
 		if p.state == ToolPending {
-			return dim.Render("  running...")
+			return dim.Render("    running...")
 		}
 
-		return dim.Render("  (no output)")
+		return dim.Render("    (no output)")
 	}
 
 	// Use custom renderer if registered.
 	if p.customRenderer != nil {
-		return padLeft(p.customRenderer.Render(p.output, width), 2)
+		return padLeft(p.customRenderer.Render(p.output, width), 4)
 	}
 
 	// Auto-detect diff content and use diff renderer.
 	if p.diffRenderer != nil && IsDiffContent(p.output) {
-		return padLeft(p.diffRenderer.Render(p.output, width), 2)
+		return padLeft(p.diffRenderer.Render(p.output, width), 4)
 	}
 
 	lines := strings.Split(p.output, "\n")
@@ -151,15 +156,15 @@ func (p *ToolPanel) renderBody(width int) string {
 		visible := lines[:maxCollapsedLines]
 		hidden := len(lines) - maxCollapsedLines
 
-		body := padLeft(strings.Join(visible, "\n"), 2)
+		body := padLeft(strings.Join(visible, "\n"), 4)
 		if p.state == ToolError {
 			body = lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Error)).Render(body)
 		}
 
-		return body + fmt.Sprintf("\n  ... %d more lines (collapsed)", hidden)
+		return body + fmt.Sprintf("\n    ... %d more lines (collapsed)", hidden)
 	}
 
-	body := padLeft(strings.Join(lines, "\n"), 2)
+	body := padLeft(strings.Join(lines, "\n"), 4)
 	if p.state == ToolError {
 		body = lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Error)).Render(body)
 	}
@@ -173,26 +178,19 @@ func borderStyleForState(state ToolState, width int) lipgloss.Style {
 	switch state {
 	case ToolPending:
 		return lipgloss.NewStyle().
-			Width(width - 2).
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color(theme.Muted)).
+			Width(width).
 			Background(lipgloss.Color(theme.BackgroundTintPending))
 	case ToolSuccess:
 		return lipgloss.NewStyle().
-			Width(width - 2).
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color(theme.Success)).
+			Width(width).
 			Background(lipgloss.Color(theme.BackgroundTintSuccess))
 	case ToolError:
 		return lipgloss.NewStyle().
-			Width(width - 2).
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color(theme.Error)).
+			Width(width).
 			Background(lipgloss.Color(theme.BackgroundTintError))
 	default:
 		return lipgloss.NewStyle().
-			Width(width - 2).
-			Border(lipgloss.RoundedBorder())
+			Width(width)
 	}
 }
 
@@ -219,6 +217,51 @@ func truncateArgs(args string, maxLen int) string {
 	}
 
 	return args
+}
+
+// formatArgs converts a JSON object string into a compact key: value representation.
+// {"command": "ls -la", "timeout": 60} → command: "ls -la", timeout: 60
+func formatArgs(argsJSON string) string {
+	argsJSON = strings.TrimSpace(argsJSON)
+	if argsJSON == "" || argsJSON == "{}" {
+		return ""
+	}
+
+	var m map[string]any
+	if err := json.Unmarshal([]byte(argsJSON), &m); err != nil {
+		return argsJSON
+	}
+
+	if len(m) == 0 {
+		return ""
+	}
+
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var parts []string
+	for _, k := range keys {
+		v := m[k]
+		switch val := v.(type) {
+		case string:
+			parts = append(parts, fmt.Sprintf("%s: %q", k, val))
+		case float64:
+			if val == float64(int64(val)) {
+				parts = append(parts, fmt.Sprintf("%s: %d", k, int64(val)))
+			} else {
+				parts = append(parts, fmt.Sprintf("%s: %g", k, val))
+			}
+		case bool:
+			parts = append(parts, fmt.Sprintf("%s: %t", k, val))
+		default:
+			parts = append(parts, fmt.Sprintf("%s: %v", k, val))
+		}
+	}
+
+	return strings.Join(parts, ", ")
 }
 
 func padLeft(text string, spaces int) string {
