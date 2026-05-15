@@ -108,14 +108,14 @@ A TUI extension that visualizes running subagents as per-agent panels in the pan
 - [x] Run linter: `make lint`
 
 ### Task 8: Verify acceptance criteria
-- [ ] Verify `subagent.started` event is published when background agents spawn
-- [ ] Verify panel appears in tray when agent starts
-- [ ] Verify panel shows agent name, status, and elapsed time
-- [ ] Verify panel auto-removes a few seconds after agent completes/fails
-- [ ] Verify rich renderer shows subagent tool calls in chat
-- [ ] Verify no custom keybindings are needed (tray-only interaction)
-- [ ] Run full test suite (unit tests)
-- [ ] Run linter — all issues fixed
+- [x] Verify `subagent.started` event is published when background agents spawn
+- [x] Verify panel appears in tray when agent starts
+- [x] Verify panel shows agent name, status, and elapsed time
+- [x] Verify panel auto-removes a few seconds after agent completes/fails
+- [x] Verify rich renderer shows subagent tool calls in chat
+- [x] Verify no custom keybindings are needed (tray-only interaction)
+- [x] Run full test suite (unit tests)
+- [x] Run linter — all issues fixed
 
 ### Task 9: Update documentation
 - [ ] Add brief note to TUI section in project docs about subagent panel feature
