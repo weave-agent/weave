@@ -2,8 +2,10 @@ package subagent
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"weave/ext/ui/tui"
 	"weave/sdk"
@@ -12,10 +14,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// stripANSI removes ANSI escape sequences from a string.
+var ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+func stripANSI(s string) string {
+	return ansiRe.ReplaceAllString(s, "")
+}
+
 func TestSubagentRenderer_RenderEmpty(t *testing.T) {
 	r := &subagentRenderer{}
 	result := r.Render("", sdk.ThemeInfo{}, 80)
-	assert.Equal(t, "", result)
+	assert.Empty(t, result)
 }
 
 func TestSubagentRenderer_RenderBackgroundResponse(t *testing.T) {
@@ -59,6 +68,7 @@ func TestSubagentRenderer_RenderForegroundOutput_Truncation(t *testing.T) {
 	for i := range lines {
 		lines[i] = "some output line"
 	}
+
 	content := strings.Join(lines, "\n")
 
 	result := r.Render(content, theme, 80)
@@ -77,8 +87,24 @@ func TestSubagentRenderer_RenderForegroundOutput_WideLine(t *testing.T) {
 	longLine := strings.Repeat("x", 120)
 	result := r.Render(longLine, theme, 80)
 
-	// Should contain "..." indicating truncation
+	// Result must contain "..." and be shorter than the full 120-char input.
 	assert.Contains(t, result, "...")
+	stripped := stripANSI(result)
+	assert.Less(t, len(stripped), 120)
+}
+
+func TestSubagentRenderer_RenderForegroundOutput_MultiByte(t *testing.T) {
+	r := &subagentRenderer{}
+	theme := sdk.ThemeInfo{Foreground: "15"}
+
+	// 120 Japanese characters (3 bytes each = 360 bytes).
+	longLine := strings.Repeat("日", 120)
+	result := r.Render(longLine, theme, 80)
+
+	// Must produce valid UTF-8 (byte-based slicing would break this).
+	assert.True(t, utf8.ValidString(result), "result should be valid UTF-8")
+	stripped := stripANSI(result)
+	assert.Contains(t, stripped, "...")
 }
 
 func TestSubagentRenderer_RenderNonJSON(t *testing.T) {

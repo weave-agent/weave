@@ -15,15 +15,15 @@ import (
 
 func testTheme() sdk.ThemeInfo {
 	return sdk.ThemeInfo{
-		Primary:         "63",
-		PrimaryDim:      "60",
-		PrimaryBright:   "69",
-		Success:         "82",
-		Error:           "203",
-		Warning:         "215",
-		Muted:           "243",
-		MutedBright:     "246",
-		Foreground:      "252",
+		Primary:          "63",
+		PrimaryDim:       "60",
+		PrimaryBright:    "69",
+		Success:          "82",
+		Error:            "203",
+		Warning:          "215",
+		Muted:            "243",
+		MutedBright:      "246",
+		Foreground:       "252",
 		ForegroundBright: "15",
 	}
 }
@@ -49,6 +49,7 @@ func TestAgentPanelDrawer_Draw_CompletedAgent(t *testing.T) {
 	tracker := NewAgentTracker(gracePeriod, nil)
 	agent := tracker.Start("agent-2", "planner", "background")
 	agent.SpawnedAt = time.Now().Add(-5 * time.Second)
+
 	tracker.Done("agent-2", "completed", "Task completed successfully")
 
 	// Re-fetch to get updated state
@@ -121,6 +122,7 @@ func TestAgentPanelDrawer_Draw_ZeroSize(t *testing.T) {
 	// Zero-area should not panic
 	canvas := uv.NewScreenBuffer(0, 0)
 	area := uv.Rect(0, 0, 0, 0)
+
 	assert.NotPanics(t, func() {
 		drawer.Draw(canvas, area)
 	})
@@ -129,6 +131,7 @@ func TestAgentPanelDrawer_Draw_ZeroSize(t *testing.T) {
 func TestAgentPanelDrawer_Draw_ResultTruncated(t *testing.T) {
 	tracker := NewAgentTracker(gracePeriod, nil)
 	longResult := strings.Repeat("abcdefghij", 50) // 500 chars
+
 	tracker.Start("agent-6", "writer", "background")
 	tracker.Done("agent-6", "completed", longResult)
 
@@ -146,6 +149,7 @@ func TestAgentPanelDrawer_Draw_ResultTruncated(t *testing.T) {
 func TestAgentPanelDrawer_Draw_MultilineResult(t *testing.T) {
 	tracker := NewAgentTracker(gracePeriod, nil)
 	result := "line 1\nline 2\nline 3\nline 4\nline 5"
+
 	tracker.Start("agent-7", "multi", "background")
 	tracker.Done("agent-7", "completed", result)
 
@@ -163,12 +167,7 @@ func TestAgentPanelDrawer_Draw_MultilineResult(t *testing.T) {
 	assert.NotContains(t, rendered, "line 5")
 }
 
-func TestAgentPanelDrawer_Handles_TickMsg(t *testing.T) {
-	drawer := newAgentPanelDrawer("x", nil, testTheme())
-	assert.True(t, drawer.Handles(panelTickMsg{}))
-}
-
-func TestAgentPanelDrawer_Handles_OtherMsg(t *testing.T) {
+func TestAgentPanelDrawer_Handles_AlwaysFalse(t *testing.T) {
 	drawer := newAgentPanelDrawer("x", nil, testTheme())
 	assert.False(t, drawer.Handles(tea.KeyPressMsg{}))
 	assert.False(t, drawer.Handles(tea.WindowSizeMsg{}))
@@ -176,7 +175,7 @@ func TestAgentPanelDrawer_Handles_OtherMsg(t *testing.T) {
 
 func TestAgentPanelDrawer_Update_ReturnsSelf(t *testing.T) {
 	drawer := newAgentPanelDrawer("x", nil, testTheme())
-	newDrawer, cmd := drawer.Update(panelTickMsg{})
+	newDrawer, cmd := drawer.Update(tea.KeyPressMsg{})
 	assert.Nil(t, cmd)
 	assert.Same(t, drawer, newDrawer)
 }

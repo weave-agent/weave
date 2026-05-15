@@ -13,9 +13,6 @@ import (
 	uv "github.com/charmbracelet/ultraviolet"
 )
 
-// panelTickMsg is a periodic message for updating the elapsed time display.
-type panelTickMsg struct{}
-
 // agentPanelDrawer implements tui.PanelDrawer for a single tracked subagent.
 type agentPanelDrawer struct {
 	agentID string
@@ -59,6 +56,7 @@ func (d *agentPanelDrawer) Draw(scr uv.Screen, area uv.Rectangle) {
 	if line < area.Dy() {
 		lineRect := uv.Rect(area.Min.X, area.Min.Y+line, area.Dx(), 1)
 		uv.NewStyledString(header).Draw(scr, lineRect)
+
 		line++
 	}
 
@@ -66,12 +64,15 @@ func (d *agentPanelDrawer) Draw(scr uv.Screen, area uv.Rectangle) {
 	if agent.Result != "" && line < area.Dy() {
 		result := d.formatResult(agent.Result, area.Dx())
 		resultStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Muted))
-		for _, rLine := range strings.Split(result, "\n") {
+
+		for rLine := range strings.SplitSeq(result, "\n") {
 			if line >= area.Dy() {
 				break
 			}
+
 			lineRect := uv.Rect(area.Min.X, area.Min.Y+line, area.Dx(), 1)
 			uv.NewStyledString(resultStyle.Render(rLine)).Draw(scr, lineRect)
+
 			line++
 		}
 	}
@@ -84,10 +85,6 @@ func (d *agentPanelDrawer) Update(msg tea.Msg) (tui.PanelDrawer, tea.Cmd) {
 
 // Handles returns true for messages this drawer should process.
 func (d *agentPanelDrawer) Handles(msg tea.Msg) bool {
-	switch msg.(type) {
-	case panelTickMsg:
-		return true
-	}
 	return false
 }
 
@@ -121,12 +118,14 @@ func (d *agentPanelDrawer) formatElapsed(agent *TrackedAgent) string {
 	if elapsed < time.Minute {
 		return fmt.Sprintf("%ds", int(elapsed.Seconds()))
 	}
+
 	return fmt.Sprintf("%dm%ds", int(elapsed.Minutes()), int(elapsed.Seconds())%60)
 }
 
 // formatResult truncates and formats the result for display in the panel.
 func (d *agentPanelDrawer) formatResult(result string, maxWidth int) string {
 	maxLines := 3
+
 	lines := strings.Split(strings.TrimSpace(result), "\n")
 	if len(lines) > maxLines {
 		lines = lines[:maxLines]
@@ -135,10 +134,12 @@ func (d *agentPanelDrawer) formatResult(result string, maxWidth int) string {
 	maxRunes := max(maxWidth-4, 10)
 
 	var b strings.Builder
+
 	for i, l := range lines {
 		if i > 0 {
 			b.WriteByte('\n')
 		}
+
 		runes := []rune(l)
 		if len(runes) > maxRunes {
 			b.WriteString(string(runes[:maxRunes-3]) + "...")
@@ -146,5 +147,6 @@ func (d *agentPanelDrawer) formatResult(result string, maxWidth int) string {
 			b.WriteString(l)
 		}
 	}
+
 	return b.String()
 }

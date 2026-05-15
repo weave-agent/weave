@@ -11,6 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Compile-time check that mockTUIExtAPI satisfies tui.TUIExtAPI.
+var _ tui.TUIExtAPI = (*mockTUIExtAPI)(nil)
+
 // mockTUIExtAPI records calls made to the TUIExtAPI interface.
 type mockTUIExtAPI struct {
 	richRenderers map[string]tui.RichToolRenderer
@@ -29,15 +32,15 @@ func (m *mockTUIExtAPI) ShowPanel(config tui.PanelConfig, drawer tui.PanelDrawer
 	m.panelsShown = append(m.panelsShown, config)
 	m.panelDrawers = append(m.panelDrawers, drawer)
 }
-func (m *mockTUIExtAPI) HidePanel(id string)                                      {}
-func (m *mockTUIExtAPI) RemovePanel(id string)                                    { m.panelsRemoved = append(m.panelsRemoved, id) }
-func (m *mockTUIExtAPI) PanelVisible(id string) bool                              { return false }
-func (m *mockTUIExtAPI) PanelTray() tui.PanelTrayAPI                              { return nil }
-func (m *mockTUIExtAPI) Theme() sdk.ThemeInfo                                     { return sdk.ThemeInfo{} }
-func (m *mockTUIExtAPI) Size() (int, int)                                         { return 80, 24 }
-func (m *mockTUIExtAPI) EditorText() string                                       { return "" }
-func (m *mockTUIExtAPI) SetEditorText(text string)                                {}
-func (m *mockTUIExtAPI) PasteToEditor(text string)                                {}
+func (m *mockTUIExtAPI) HidePanel(id string)         {}
+func (m *mockTUIExtAPI) RemovePanel(id string)       { m.panelsRemoved = append(m.panelsRemoved, id) }
+func (m *mockTUIExtAPI) PanelVisible(id string) bool { return false }
+func (m *mockTUIExtAPI) PanelTray() tui.PanelTrayAPI { return nil }
+func (m *mockTUIExtAPI) Theme() sdk.ThemeInfo        { return sdk.ThemeInfo{} }
+func (m *mockTUIExtAPI) Size() (int, int)            { return 80, 24 }
+func (m *mockTUIExtAPI) EditorText() string          { return "" }
+func (m *mockTUIExtAPI) SetEditorText(text string)   {}
+func (m *mockTUIExtAPI) PasteToEditor(text string)   {}
 func (m *mockTUIExtAPI) RegisterRichRenderer(tool string, renderer tui.RichToolRenderer) {
 	m.richRenderers[tool] = renderer
 }
@@ -74,21 +77,12 @@ func (b *mockBus) On(topic string, h sdk.Handler) {
 }
 
 func (b *mockBus) OnAll(_ sdk.Handler) {}
-func (b *mockBus) Off(_ sdk.Handler)    {}
-func (b *mockBus) Close() error            { return nil }
+func (b *mockBus) Off(_ sdk.Handler)   {}
+func (b *mockBus) Close() error        { return nil }
 
 func TestSubagentExtension_Name(t *testing.T) {
 	ext := &SubagentExtension{renderer: &subagentRenderer{}}
 	assert.Equal(t, "subagent", ext.Name())
-}
-
-func TestSubagentExtension_RegisterTUI_NoPanics(t *testing.T) {
-	ext := &SubagentExtension{tracker: NewAgentTracker(gracePeriod, nil), renderer: &subagentRenderer{}}
-	api := newMockTUIExtAPI()
-
-	assert.NotPanics(t, func() {
-		ext.RegisterTUI(api)
-	})
 }
 
 func TestSubagentExtension_RegisterTUI_NoRegistrations(t *testing.T) {
@@ -402,7 +396,7 @@ func TestSubagentExtension_AgentEnd_TriggersCleanup(t *testing.T) {
 	assert.Empty(t, ext.tracker.List())
 	assert.Nil(t, ext.api)
 
-	// Grace-period timers should not fire (they were cancelled)
+	// Grace-period timers should not fire (they were canceled)
 	time.Sleep(150 * time.Millisecond)
 	assert.Empty(t, api.panelsRemoved)
 }
@@ -440,6 +434,7 @@ func TestSubagentExtension_NoPanelLeak_OnDone(t *testing.T) {
 	for _, p := range api.panelsShown {
 		shownIDs[p.ID] = true
 	}
+
 	for _, id := range api.panelsRemoved {
 		assert.True(t, shownIDs[id], "removed panel %s was never shown", id)
 	}

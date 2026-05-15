@@ -1,6 +1,7 @@
 package subagent
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -48,6 +49,7 @@ func TestAgentTracker_List(t *testing.T) {
 	for _, a := range list {
 		names[a.Name] = true
 	}
+
 	assert.True(t, names["researcher"])
 	assert.True(t, names["planner"])
 }
@@ -69,6 +71,7 @@ func TestAgentTracker_Remove(t *testing.T) {
 
 func TestAgentTracker_RemoveNonexistent(t *testing.T) {
 	tracker := NewAgentTracker(0, nil)
+
 	assert.NotPanics(t, func() {
 		tracker.Remove("nonexistent")
 	})
@@ -112,13 +115,32 @@ func TestAgentTracker_Done_UnknownStatus(t *testing.T) {
 
 func TestAgentTracker_Done_Nonexistent(t *testing.T) {
 	tracker := NewAgentTracker(0, nil)
+
 	assert.NotPanics(t, func() {
 		tracker.Done("nonexistent", "completed", "")
 	})
 }
 
+func TestAgentTracker_Done_CalledTwice(t *testing.T) {
+	var removed atomic.Int32
+
+	tracker := NewAgentTracker(50*time.Millisecond, func(id string) {
+		removed.Add(1)
+	})
+
+	tracker.Start("agent-1", "test", "background")
+	tracker.Done("agent-1", "completed", "done")
+	tracker.Done("agent-1", "completed", "done again")
+
+	time.Sleep(150 * time.Millisecond)
+
+	// onRemove should only fire once — second Done is a no-op.
+	assert.Equal(t, int32(1), removed.Load())
+}
+
 func TestAgentTracker_GracePeriod(t *testing.T) {
 	var removed atomic.Int32
+
 	tracker := NewAgentTracker(50*time.Millisecond, func(id string) {
 		removed.Add(1)
 	})
@@ -139,6 +161,7 @@ func TestAgentTracker_GracePeriod(t *testing.T) {
 
 func TestAgentTracker_GracePeriod_RemoveCancels(t *testing.T) {
 	var removed atomic.Int32
+
 	tracker := NewAgentTracker(50*time.Millisecond, func(id string) {
 		removed.Add(1)
 	})
@@ -162,13 +185,15 @@ func TestAgentTracker_DefaultGracePeriod(t *testing.T) {
 
 func TestAgentTracker_ConcurrentAccess(t *testing.T) {
 	tracker := NewAgentTracker(0, nil)
+
 	var wg sync.WaitGroup
 
 	for n := range 100 {
 		wg.Add(1)
 		go func(n int) {
 			defer wg.Done()
-			id := "agent-" + string(rune(n))
+
+			id := fmt.Sprintf("agent-%d", n)
 			tracker.Start(id, "test", "background")
 			tracker.Get(id)
 			tracker.List()
@@ -182,6 +207,7 @@ func TestAgentTracker_ConcurrentAccess(t *testing.T) {
 
 func TestAgentTracker_Close(t *testing.T) {
 	var removed atomic.Int32
+
 	tracker := NewAgentTracker(50*time.Millisecond, func(id string) {
 		removed.Add(1)
 	})
@@ -198,7 +224,7 @@ func TestAgentTracker_Close(t *testing.T) {
 	assert.Nil(t, tracker.Get("agent-1"))
 	assert.Nil(t, tracker.Get("agent-2"))
 
-	// Grace-period timer should have been cancelled.
+	// Grace-period timer should have been canceled.
 	time.Sleep(150 * time.Millisecond)
 	assert.Equal(t, int32(0), removed.Load())
 }

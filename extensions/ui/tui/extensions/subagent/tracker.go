@@ -32,10 +32,10 @@ type OnRemoveFunc func(id string)
 
 // AgentTracker manages the lifecycle of tracked subagents.
 type AgentTracker struct {
-	mu     sync.RWMutex
-	agents map[string]*TrackedAgent
-	timers map[string]*time.Timer
-	onRemove OnRemoveFunc
+	mu          sync.RWMutex
+	agents      map[string]*TrackedAgent
+	timers      map[string]*time.Timer
+	onRemove    OnRemoveFunc
 	gracePeriod time.Duration
 }
 
@@ -45,6 +45,7 @@ func NewAgentTracker(gracePeriod time.Duration, onRemove OnRemoveFunc) *AgentTra
 	if gracePeriod <= 0 {
 		gracePeriod = 3 * time.Second
 	}
+
 	return &AgentTracker{
 		agents:      make(map[string]*TrackedAgent),
 		timers:      make(map[string]*time.Timer),
@@ -67,6 +68,7 @@ func (t *AgentTracker) Start(id, name, mode string) *TrackedAgent {
 		PanelID:   "subagent-" + id,
 	}
 	t.agents[id] = agent
+
 	return agent
 }
 
@@ -81,6 +83,11 @@ func (t *AgentTracker) Done(id, status, result string) {
 		return
 	}
 
+	// Guard against double-Done calls — agent already in terminal state.
+	if agent.Status != AgentRunning {
+		return
+	}
+
 	switch status {
 	case "completed":
 		agent.Status = AgentCompleted
@@ -89,6 +96,7 @@ func (t *AgentTracker) Done(id, status, result string) {
 	default:
 		agent.Status = AgentFailed
 	}
+
 	agent.Result = result
 	agent.DoneAt = time.Now()
 
@@ -108,6 +116,7 @@ func (t *AgentTracker) Done(id, status, result string) {
 func (t *AgentTracker) Get(id string) *TrackedAgent {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
+
 	return t.agents[id]
 }
 
@@ -120,6 +129,7 @@ func (t *AgentTracker) List() []*TrackedAgent {
 	for _, a := range t.agents {
 		result = append(result, a)
 	}
+
 	return result
 }
 
@@ -132,6 +142,7 @@ func (t *AgentTracker) Remove(id string) {
 		timer.Stop()
 		delete(t.timers, id)
 	}
+
 	delete(t.agents, id)
 }
 
@@ -145,6 +156,7 @@ func (t *AgentTracker) Close() {
 		timer.Stop()
 		delete(t.timers, id)
 	}
+
 	for id := range t.agents {
 		delete(t.agents, id)
 	}

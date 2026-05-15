@@ -50,6 +50,7 @@ func (r *subagentRenderer) renderBackgroundResponse(id, status string, theme sdk
 // renderForegroundOutput renders foreground agent output with truncation.
 func (r *subagentRenderer) renderForegroundOutput(content string, theme sdk.ThemeInfo, width int) string {
 	lines := strings.Split(content, "\n")
+
 	maxLines := 8
 	if len(lines) > maxLines {
 		truncated := make([]string, maxLines)
@@ -62,6 +63,7 @@ func (r *subagentRenderer) renderForegroundOutput(content string, theme sdk.Them
 	outputStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Foreground))
 
 	var b strings.Builder
+
 	for i, line := range lines {
 		if i > 0 {
 			b.WriteByte('\n')
@@ -69,7 +71,12 @@ func (r *subagentRenderer) renderForegroundOutput(content string, theme sdk.Them
 
 		// Truncate wide lines if width is specified.
 		if width > 0 && len(line) > width {
-			line = line[:width-3] + "..."
+			runes := []rune(line)
+			if len(runes) > width-3 {
+				runes = runes[:width-3]
+			}
+
+			line = string(runes) + "..."
 		}
 
 		b.WriteString(outputStyle.Render(line))
