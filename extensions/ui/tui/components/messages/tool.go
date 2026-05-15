@@ -137,12 +137,12 @@ func (p *ToolPanel) renderBody(width int) string {
 
 	// Use custom renderer if registered.
 	if p.customRenderer != nil {
-		return p.customRenderer.Render(p.output, width)
+		return padLeft(p.customRenderer.Render(p.output, width), 2)
 	}
 
 	// Auto-detect diff content and use diff renderer.
 	if p.diffRenderer != nil && IsDiffContent(p.output) {
-		return p.diffRenderer.Render(p.output, width)
+		return padLeft(p.diffRenderer.Render(p.output, width), 2)
 	}
 
 	lines := strings.Split(p.output, "\n")
@@ -151,7 +151,7 @@ func (p *ToolPanel) renderBody(width int) string {
 		visible := lines[:maxCollapsedLines]
 		hidden := len(lines) - maxCollapsedLines
 
-		body := strings.Join(visible, "\n")
+		body := padLeft(strings.Join(visible, "\n"), 2)
 		if p.state == ToolError {
 			body = lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Error)).Render(body)
 		}
@@ -159,7 +159,7 @@ func (p *ToolPanel) renderBody(width int) string {
 		return body + fmt.Sprintf("\n  ... %d more lines (collapsed)", hidden)
 	}
 
-	body := strings.Join(lines, "\n")
+	body := padLeft(strings.Join(lines, "\n"), 2)
 	if p.state == ToolError {
 		body = lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Error)).Render(body)
 	}
@@ -219,4 +219,16 @@ func truncateArgs(args string, maxLen int) string {
 	}
 
 	return args
+}
+
+func padLeft(text string, spaces int) string {
+	if spaces <= 0 {
+		return text
+	}
+	prefix := strings.Repeat(" ", spaces)
+	lines := strings.Split(text, "\n")
+	for i := range lines {
+		lines[i] = prefix + lines[i]
+	}
+	return strings.Join(lines, "\n")
 }
