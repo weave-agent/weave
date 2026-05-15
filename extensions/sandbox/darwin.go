@@ -45,6 +45,18 @@ func generateSeatbeltProfile(cfg SandboxConfig, dir string) (string, []string, e
 		sections = append(sections, writePolicy)
 	}
 
+	// Cache paths: always writable for tool caches (golangci-lint, go, npm, etc.)
+	for _, cache := range defaultCachePaths {
+		expanded := expandHome(cache, home)
+		if expanded == cache {
+			continue
+		}
+
+		if _, err := os.Stat(expanded); err == nil {
+			sections = append(sections, fmt.Sprintf("(allow file-write* (subpath %q))", expanded))
+		}
+	}
+
 	params := make([]string, 0, len(readParams)+len(writeParams))
 	params = append(params, readParams...)
 	params = append(params, writeParams...)
@@ -199,6 +211,13 @@ func wrapCommandDarwinWithConfig(cmd, dir string, cfg SandboxConfig) (string, er
 		escapedParam := strings.ReplaceAll(param, "'", "'\\''")
 		args = append(args, "'-D"+escapedParam+"'")
 	}
+
+	// macOS seatbelt does not allow writes to /var/folders/... even with an
+	// explicit (allow file-write* (subpath ...)) rule. Many tools (golangci-lint,
+	// go build, etc.) create temp files via os.TempDir() which resolves to a
+	// path under /var/folders. Redirect TMPDIR to /private/tmp which is already
+	// writable in the seatbelt policy.
+	cmd = "export TMPDIR=/private/tmp; " + cmd
 
 	args = append(args, "bash", "-c", "'"+strings.ReplaceAll(cmd, "'", "'\\''")+"'")
 

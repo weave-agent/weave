@@ -53,6 +53,20 @@ func buildBwrapArgs(cfg SandboxConfig, dir string) []string {
 		args = append(args, "--bind", w, w)
 	}
 
+	// Cache paths: always writable for tool caches
+	for _, cache := range defaultCachePaths {
+		expanded := expandHome(cache, home)
+		if expanded == cache {
+			continue
+		}
+		if _, err := os.Stat(expanded); os.IsNotExist(err) {
+			_ = os.MkdirAll(expanded, 0755)
+		}
+		if _, err := os.Stat(expanded); err == nil {
+			args = append(args, "--bind", expanded, expanded)
+		}
+	}
+
 	// Mandatory deny write paths
 	for _, deny := range mandatoryDenyWritePaths {
 		expanded := expandDenyRule(deny, home, dir)

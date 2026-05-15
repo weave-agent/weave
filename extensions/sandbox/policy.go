@@ -22,6 +22,16 @@ var mandatoryDenyWritePaths = []string{
 	"project:.weave/",
 }
 
+// defaultCachePaths are directories always allowed for writes by sandboxed
+// commands. These are standard cache locations used by developer tools
+// (golangci-lint, go build, npm, pip, etc.).
+var defaultCachePaths = []string{
+	"~/.cache",
+	"~/Library/Caches",
+	"~/.npm",
+	"~/.local/share",
+}
+
 // mandatoryDenyReadPatterns are glob patterns always blocked from reading.
 var mandatoryDenyReadPatterns = []string{
 	"~/.ssh/id_*",
