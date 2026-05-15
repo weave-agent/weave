@@ -50,7 +50,6 @@ type TUIImpl struct {
 
 	// Task 9: deferred implementation fields
 	richRenderers         map[string]RichToolRenderer
-	messageRenderers      map[string]MessageRenderer
 	inputHandlers         []func(KeyEvent)
 	autocompleteProviders []AutocompleteProvider
 	workingFrames         []string
@@ -68,10 +67,9 @@ func NewTUIImpl(commands *CommandRegistry, bindings *BindingRegistry) *TUIImpl {
 		themeRegistry: map[string]*palette.Theme{
 			"default": palette.DefaultTheme(),
 		},
-		activeTheme:      "default",
-		panelManager:     NewPanelManager(),
-		richRenderers:    make(map[string]RichToolRenderer),
-		messageRenderers: make(map[string]MessageRenderer),
+		activeTheme:   "default",
+		panelManager:  NewPanelManager(),
+		richRenderers: make(map[string]RichToolRenderer),
 	}
 }
 
@@ -389,17 +387,19 @@ func (u *TUIImpl) ClearWorking() {
 // SetTheme sets the active UI theme.
 func (u *TUIImpl) SetTheme(name string) error {
 	u.mu.Lock()
-	defer u.mu.Unlock()
 
 	t, ok := u.themeRegistry[name]
 	if !ok {
+		u.mu.Unlock()
 		return fmt.Errorf("unknown theme: %s", name)
 	}
 
 	u.activeTheme = name
+	p := u.program
+	u.mu.Unlock()
 
-	if u.program != nil {
-		u.program.Send(themeChangedMsg{theme: t})
+	if p != nil {
+		p.Send(themeChangedMsg{theme: t})
 	}
 
 	return nil
@@ -478,40 +478,41 @@ func (u *TUIImpl) Theme() sdk.ThemeInfo {
 // ShowPanel registers and shows a panel.
 func (u *TUIImpl) ShowPanel(config PanelConfig, drawer PanelDrawer) {
 	u.mu.Lock()
-	defer u.mu.Unlock()
-
 	if !u.panelManager.Register(config, drawer) {
+		u.mu.Unlock()
 		return
 	}
 
 	u.panelManager.Show(config.ID)
+	p := u.program
+	u.mu.Unlock()
 
-	if u.program != nil {
-		u.program.Send(panelChangedMsg{})
+	if p != nil {
+		p.Send(panelChangedMsg{})
 	}
 }
 
 // HidePanel hides a panel.
 func (u *TUIImpl) HidePanel(id string) {
 	u.mu.Lock()
-	defer u.mu.Unlock()
-
 	u.panelManager.Hide(id)
+	p := u.program
+	u.mu.Unlock()
 
-	if u.program != nil {
-		u.program.Send(panelChangedMsg{})
+	if p != nil {
+		p.Send(panelChangedMsg{})
 	}
 }
 
 // RemovePanel fully removes a panel.
 func (u *TUIImpl) RemovePanel(id string) {
 	u.mu.Lock()
-	defer u.mu.Unlock()
-
 	u.panelManager.Remove(id)
+	p := u.program
+	u.mu.Unlock()
 
-	if u.program != nil {
-		u.program.Send(panelChangedMsg{})
+	if p != nil {
+		p.Send(panelChangedMsg{})
 	}
 }
 
@@ -623,24 +624,6 @@ func (u *TUIImpl) GetRichRenderer(toolName string) (RichToolRenderer, bool) {
 	defer u.mu.Unlock()
 
 	r, ok := u.richRenderers[toolName]
-
-	return r, ok
-}
-
-// RegisterMessageRenderer registers a custom message type renderer.
-func (u *TUIImpl) RegisterMessageRenderer(msgType string, renderer MessageRenderer) {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-
-	u.messageRenderers[msgType] = renderer
-}
-
-// GetMessageRenderer returns a registered message renderer, if any.
-func (u *TUIImpl) GetMessageRenderer(msgType string) (MessageRenderer, bool) {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-
-	r, ok := u.messageRenderers[msgType]
 
 	return r, ok
 }

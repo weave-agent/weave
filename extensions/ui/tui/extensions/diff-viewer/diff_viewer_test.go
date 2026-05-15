@@ -35,7 +35,6 @@ func (m *mockTUIExtAPI) PasteToEditor(text string)                            {}
 func (m *mockTUIExtAPI) RegisterRichRenderer(tool string, renderer tui.RichToolRenderer) {
 	m.richRenderers[tool] = renderer
 }
-func (m *mockTUIExtAPI) RegisterMessageRenderer(msgType string, renderer tui.MessageRenderer) {}
 func (m *mockTUIExtAPI) SetFooter(component tui.TUIComponent)                                {}
 func (m *mockTUIExtAPI) SetHeader(component tui.TUIComponent)                                {}
 func (m *mockTUIExtAPI) OnTerminalInput(handler func(tui.KeyEvent))                          {}

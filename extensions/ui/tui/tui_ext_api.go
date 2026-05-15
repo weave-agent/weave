@@ -31,7 +31,6 @@ type TUIExtAPI interface {
 
 	// Rendering
 	RegisterRichRenderer(tool string, renderer RichToolRenderer)
-	RegisterMessageRenderer(msgType string, renderer MessageRenderer)
 
 	// Footer/Header
 	SetFooter(component TUIComponent)
@@ -62,11 +61,6 @@ type PanelTrayAPI interface {
 
 // RichToolRenderer renders tool output with theme access.
 type RichToolRenderer interface {
-	Render(content string, theme sdk.ThemeInfo, width int) string
-}
-
-// MessageRenderer renders custom message types.
-type MessageRenderer interface {
 	Render(content string, theme sdk.ThemeInfo, width int) string
 }
 

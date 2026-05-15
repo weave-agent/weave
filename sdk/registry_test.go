@@ -68,3 +68,16 @@ func TestListExtensions(t *testing.T) {
 
 	assert.Equal(t, []string{"alpha", "beta"}, names)
 }
+
+func TestExtensionRegistered(t *testing.T) {
+	ResetExtensionRegistry()
+
+	assert.False(t, ExtensionRegistered("test"), "unregistered extension should not be found")
+
+	RegisterExtension[struct{}]("test", func(Config, PreferenceStore, struct{}) (Extension, error) {
+		return NewExtensionFunc("test", nil), nil
+	})
+
+	assert.True(t, ExtensionRegistered("test"), "registered extension should be found")
+	assert.False(t, ExtensionRegistered("other"), "different name should not be found")
+}

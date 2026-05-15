@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"slices"
@@ -245,6 +246,19 @@ func (m Model) Init() tea.Cmd {
 		}
 	}
 
+	// Wire TUI extensions via a command so registration happens after
+	// the event loop is running. This prevents deadlock when extensions
+	// call Send-based APIs like SetFooter or ShowPanel during RegisterTUI.
+	if m.ui != nil {
+		cmds = append(cmds, func() tea.Msg {
+			for _, ext := range GetTUIExtensions(m.cfg) {
+				ext.RegisterTUI(m.ui)
+			}
+
+			return nil
+		})
+	}
+
 	return tea.Batch(cmds...)
 }
 
@@ -310,15 +324,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Dismiss startup hints on first keypress
 		m.showHints = false
 
-		// Call registered raw input handlers
+		// Call registered raw input handlers asynchronously to avoid
+		// deadlocking the Bubble Tea event loop when handlers call TUI
+		// APIs that send messages back into the loop (e.g. EditorText).
 		if m.ui != nil {
 			m.ui.mu.Lock()
 			handlers := make([]func(KeyEvent), len(m.ui.inputHandlers))
 			copy(handlers, m.ui.inputHandlers)
 			m.ui.mu.Unlock()
 
+			ev := KeyEvent{Code: msg.Code, Mod: int(msg.Mod), String: msg.String()}
 			for _, h := range handlers {
-				h(KeyEvent{Code: msg.Code, Mod: int(msg.Mod), String: msg.String()})
+				go func(handler func(KeyEvent), event KeyEvent) {
+					defer func() {
+						if r := recover(); r != nil {
+							slog.Error("panic in raw input handler", "recover", r)
+						}
+					}()
+
+					handler(event)
+				}(h, ev)
 			}
 		}
 

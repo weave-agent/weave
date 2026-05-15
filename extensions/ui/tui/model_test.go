@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -3119,13 +3120,23 @@ func TestModel_InputHandlersInvokedOnKeyPress(t *testing.T) {
 
 	var received KeyEvent
 
+	var receivedMu sync.Mutex
+
 	ui.OnTerminalInput(func(ev KeyEvent) {
+		receivedMu.Lock()
 		received = ev
+		receivedMu.Unlock()
 	})
 
 	_, _ = m.Update(tea.KeyPressMsg{Text: "x", Code: 'x'})
 
-	assert.Equal(t, 'x', received.Code)
+	// Handlers are dispatched asynchronously; wait briefly for the goroutine.
+	require.Eventually(t, func() bool {
+		receivedMu.Lock()
+		defer receivedMu.Unlock()
+
+		return received.Code == 'x'
+	}, 100*time.Millisecond, 10*time.Millisecond)
 }
 
 func TestModel_AutocompleteProviderQueried(t *testing.T) {
@@ -3173,6 +3184,37 @@ func TestModel_RichRendererPreferredOverStandard(t *testing.T) {
 	tp, ok := items[1].(*messages.ToolPanel)
 	require.True(t, ok)
 	assert.Equal(t, "tc1", tp.ToolID())
+}
+
+func TestModel_RawInputHandler_PanicRecovery(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+	m := newModel(nil, nil, nil, ui)
+	m.width = 80
+	m.height = 24
+
+	panicTriggered := make(chan struct{}, 1)
+
+	ui.OnTerminalInput(func(_ KeyEvent) {
+		panicTriggered <- struct{}{}
+
+		panic("intentional test panic")
+	})
+
+	// Simulate a keypress — the handler runs in a goroutine and panics,
+	// but the model update should complete without crashing.
+	updated, _ := m.Update(tea.KeyPressMsg{Code: 'a'})
+	_ = updated.(Model)
+
+	// Wait briefly for the goroutine to execute
+	select {
+	case <-panicTriggered:
+		// expected
+	case <-time.After(time.Second):
+		require.FailNow(t, "handler goroutine did not execute")
+	}
+
+	// Small delay to ensure panic recovery has run
+	time.Sleep(50 * time.Millisecond)
 }
 
 // mockDrawComponent is a TUIComponent that records draw calls.

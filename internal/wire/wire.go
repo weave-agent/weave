@@ -38,7 +38,10 @@ func resolveExtensions(extNames []string, cfg sdk.Config) ([]sdk.Extension, erro
 	for _, name := range extNames {
 		ext, err := sdk.GetExtension(name, cfg)
 		if err != nil {
-			if sdk.ToolRegistered(name) || sdk.ProviderRegistered(name) || sdk.UIExtensionRegistered(name) {
+			// If the name is not registered as an extension, it may be a tool,
+			// provider, or UI extension that wires through its own registry.
+			// Silently skip those as well as truly unknown names.
+			if !sdk.ExtensionRegistered(name) {
 				continue
 			}
 
@@ -105,6 +108,10 @@ func WireWithCore(core CoreWireConfig, optExts []string, bus sdk.Bus, cfg sdk.Co
 
 	if err := validateCore(core); err != nil {
 		return nil, fmt.Errorf("wire: %w", err)
+	}
+
+	if !sdk.ExtensionRegistered(core.AgentLoop) {
+		return nil, fmt.Errorf("wire: agent-loop extension %q is not registered", core.AgentLoop)
 	}
 
 	cleanup := setSingleTurnEnv(core.SingleTurn)

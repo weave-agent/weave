@@ -53,7 +53,7 @@ func TestModel_View(t *testing.T) {
 func TestModel_Init(t *testing.T) {
 	m := newModel(nil, nil, nil, nil)
 	cmd := m.Init()
-	assert.Nil(t, cmd)
+	assert.NotNil(t, cmd)
 }
 
 func TestTUI_NoTTYError(t *testing.T) {

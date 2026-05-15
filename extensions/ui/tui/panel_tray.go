@@ -7,6 +7,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
+	"github.com/mattn/go-runewidth"
 )
 
 // PanelTab represents a single tab in the panel tray.
@@ -125,12 +126,52 @@ func (pt PanelTray) Draw(scr uv.Screen, area uv.Rectangle, theme *palette.Theme)
 	}
 
 	line := strings.Join(parts, " ")
-	runes := []rune(line)
-
-	if len(runes) > area.Dx() {
-		runes = runes[:area.Dx()]
-		line = string(runes)
-	}
+	line = truncateDisplayWidth(line, area.Dx())
 
 	uv.NewStyledString(line).Draw(scr, area)
+}
+
+// truncateDisplayWidth truncates a string to fit within maxWidth display cells.
+// It is ANSI-escape aware (preserves lipgloss styling sequences) and
+// runewidth-aware (handles wide CJK characters correctly).
+func truncateDisplayWidth(s string, maxWidth int) string {
+	if lipgloss.Width(s) <= maxWidth {
+		return s
+	}
+
+	var b strings.Builder
+
+	w := 0
+	inEsc := false
+
+	for _, r := range s {
+		if inEsc {
+			b.WriteRune(r)
+
+			if r == 'm' {
+				inEsc = false
+			}
+
+			continue
+		}
+
+		if r == '\x1b' {
+			inEsc = true
+
+			b.WriteRune(r)
+
+			continue
+		}
+
+		rw := runewidth.RuneWidth(r)
+		if w+rw > maxWidth {
+			break
+		}
+
+		w += rw
+
+		b.WriteRune(r)
+	}
+
+	return b.String()
 }

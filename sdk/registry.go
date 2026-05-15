@@ -44,10 +44,16 @@ func RegisterExtensionWithScope[T any](name, scope string, factory func(Config, 
 	extReg.Register(name, wrapper)
 }
 
+// ExtensionRegistered reports whether an extension with the given name has been
+// registered without instantiating it.
+func ExtensionRegistered(name string) bool {
+	return extReg.Exists(name)
+}
+
 func GetExtension(name string, cfg Config) (Extension, error) {
 	factory, ok := extReg.Get(name)
 	if !ok {
-		return nil, fmt.Errorf("extension %q not registered", name)
+		return nil, fmt.Errorf("extension %q: %w", name, ErrNotRegistered)
 	}
 
 	return factory(ConfigOrDefault(cfg))

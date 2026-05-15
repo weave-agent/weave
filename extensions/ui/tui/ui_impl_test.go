@@ -1527,20 +1527,6 @@ func TestTUIImpl_RegisterRichRenderer(t *testing.T) {
 	assert.False(t, ok)
 }
 
-func TestTUIImpl_RegisterMessageRenderer(t *testing.T) {
-	ui := NewTUIImpl(nil, nil)
-
-	renderer := &mockMessageRenderer{}
-	ui.RegisterMessageRenderer("jira-ticket", renderer)
-
-	got, ok := ui.GetMessageRenderer("jira-ticket")
-	assert.True(t, ok)
-	assert.Equal(t, renderer, got)
-
-	_, ok = ui.GetMessageRenderer("nonexistent")
-	assert.False(t, ok)
-}
-
 func TestTUIImpl_SetFooter(t *testing.T) {
 	sender := &mockSender{}
 	ui := NewTUIImpl(nil, nil)
@@ -1668,12 +1654,6 @@ type mockRichRenderer struct{}
 
 func (m *mockRichRenderer) Render(content string, theme sdk.ThemeInfo, width int) string {
 	return "rich:" + content
-}
-
-type mockMessageRenderer struct{}
-
-func (m *mockMessageRenderer) Render(content string, theme sdk.ThemeInfo, width int) string {
-	return "msg:" + content
 }
 
 type mockTUIComponent struct{}

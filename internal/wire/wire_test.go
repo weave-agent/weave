@@ -2,6 +2,7 @@ package wire
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"sync/atomic"
 	"testing"
@@ -72,9 +73,10 @@ func TestWire_MissingExtension(t *testing.T) {
 
 	bus := &BusMock{}
 
-	_, err := WireExtensions([]string{"nonexistent"}, bus, nil)
-	require.Error(t, err)
-	assert.Equal(t, "wire: extension \"nonexistent\" not registered", err.Error())
+	wired, err := WireExtensions([]string{"nonexistent"}, bus, nil)
+	require.NoError(t, err, "unregistered extension should be silently skipped")
+	require.NotNil(t, wired)
+	assert.Empty(t, wired.extensions)
 }
 
 func TestWire_ReceiveBusInSubscribe(t *testing.T) {
@@ -105,8 +107,10 @@ func TestWire_PartialMissing(t *testing.T) {
 
 	bus := &BusMock{}
 
-	_, err := WireExtensions([]string{"good", "missing"}, bus, nil)
-	require.Error(t, err)
+	wired, err := WireExtensions([]string{"good", "missing"}, bus, nil)
+	require.NoError(t, err, "unregistered extension should be silently skipped")
+	require.Len(t, wired.extensions, 1)
+	assert.Equal(t, "good", wired.extensions[0].Name())
 }
 
 func TestWire_SkipsUIExtension(t *testing.T) {
@@ -158,6 +162,21 @@ func TestWire_FactoryError(t *testing.T) {
 
 	_, err := WireExtensions([]string{"bad"}, bus, nil)
 	require.Error(t, err)
+}
+
+func TestWire_FactoryErrorWrappingErrNotRegistered(t *testing.T) {
+	sdk.ResetExtensionRegistry()
+
+	// A registered factory that wraps ErrNotRegistered for a missing dependency
+	// should be treated as a fatal error, not silently skipped.
+	sdk.RegisterExtension("bad-dep", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
+		return nil, fmt.Errorf("missing dependency: %w", sdk.ErrNotRegistered)
+	})
+
+	bus := &BusMock{}
+
+	_, err := WireExtensions([]string{"bad-dep"}, bus, nil)
+	require.Error(t, err, "factory error wrapping ErrNotRegistered should be fatal")
 }
 
 func TestWired_Close(t *testing.T) {
@@ -305,6 +324,16 @@ func TestWireWithCore_ErrMissingAgentLoop(t *testing.T) {
 	_, err := WireWithCore(CoreWireConfig{}, nil, bus, nil)
 	require.Error(t, err)
 	assert.Equal(t, "wire: agent-loop is required", err.Error())
+}
+
+func TestWireWithCore_AgentLoopNotRegistered(t *testing.T) {
+	sdk.ResetExtensionRegistry()
+
+	bus := &BusMock{}
+
+	_, err := WireWithCore(CoreWireConfig{AgentLoop: "nonexistent"}, nil, bus, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "agent-loop extension \"nonexistent\" is not registered")
 }
 
 func TestWireWithCore_NoProviderRequired(t *testing.T) {
@@ -699,9 +728,9 @@ func TestResolveExtensions(t *testing.T) {
 func TestResolveExtensions_Missing(t *testing.T) {
 	sdk.ResetExtensionRegistry()
 
-	_, err := resolveExtensions([]string{"missing"}, nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "wire:")
+	exts, err := resolveExtensions([]string{"missing"}, nil)
+	require.NoError(t, err, "unregistered extension should be silently skipped")
+	assert.Empty(t, exts)
 }
 
 func TestResolveExtensions_CleansUpOnError(t *testing.T) {

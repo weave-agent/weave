@@ -137,9 +137,6 @@ func (t *TUI) Subscribe(bus sdk.Bus) error {
 	// SetStatus calls during registration are buffered (not sent).
 	t.wireUIExtensions(bus)
 
-	// Wire TUI-specific extensions after UI extensions.
-	t.wireTUIExtensions()
-
 	// Wire the UI implementation to the program.
 	t.ui.SetProgram(t.program)
 
@@ -178,13 +175,6 @@ func (t *TUI) wireUIExtensions(bus sdk.Bus) {
 		if withBus, ok := ext.(sdk.UIExtensionWithBus); ok {
 			withBus.RegisterWithBus(t.ui, bus)
 		}
-	}
-}
-
-// wireTUIExtensions registers all TUI-specific extensions with the TUI's extension API.
-func (t *TUI) wireTUIExtensions() {
-	for _, ext := range GetTUIExtensions(t.cfg) {
-		ext.RegisterTUI(t.ui)
 	}
 }
 
