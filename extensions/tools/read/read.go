@@ -204,15 +204,12 @@ func (t *tool) Execute(ctx context.Context, args map[string]any) (sdk.ToolResult
 
 // readLines reads formatted lines from r with the given offset and limit.
 func readLines(r *bufio.Reader, offset, limit int) ([]string, error) {
-	type lineInfo struct {
-		num  int
-		text string
-	}
-
-	var collected []lineInfo
-
-	lineNum := 0
-	count := 0
+	var (
+		collected  []string
+		lineNum    int
+		maxLineNum int
+		count      int
+	)
 
 	for {
 		line, lineTruncated, readErr := readLine(r, maxLineContentBytes)
@@ -232,7 +229,8 @@ func readLines(r *bufio.Reader, offset, limit int) ([]string, error) {
 				line += "\n[... line truncated]"
 			}
 
-			collected = append(collected, lineInfo{num: lineNum, text: line})
+			collected = append(collected, line)
+			maxLineNum = lineNum
 
 			count++
 			if limit > 0 && count >= limit {
@@ -245,19 +243,11 @@ func readLines(r *bufio.Reader, offset, limit int) ([]string, error) {
 		}
 	}
 
-	// Determine padding width from the largest line number actually output.
-	maxLineNum := 0
-	for _, info := range collected {
-		if info.num > maxLineNum {
-			maxLineNum = info.num
-		}
-	}
-
 	width := len(strconv.Itoa(maxLineNum))
 
 	lines := make([]string, len(collected))
-	for i, info := range collected {
-		lines[i] = fmt.Sprintf("%*d | %s", width, info.num, info.text)
+	for i, text := range collected {
+		lines[i] = fmt.Sprintf("%*d | %s", width, offset+i, text)
 	}
 
 	return lines, nil

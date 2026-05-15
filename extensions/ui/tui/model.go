@@ -730,7 +730,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.MouseClickMsg:
 		mouse := msg.Mouse()
 
-		if mouse.Button != tea.MouseLeft || m.showLanding {
+		if mouse.Button != tea.MouseLeft || m.showLanding || !m.dialogStack.Empty() {
 			return m, nil
 		}
 
@@ -767,7 +767,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.MouseMotionMsg:
 		mouse := msg.Mouse()
 
-		if mouse.Button != tea.MouseLeft || m.showLanding {
+		if mouse.Button != tea.MouseLeft || m.showLanding || !m.dialogStack.Empty() {
 			return m, nil
 		}
 
@@ -802,6 +802,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.MouseReleaseMsg:
+		if !m.dialogStack.Empty() {
+			return m, nil
+		}
+
 		switch m.mouseRegion {
 		case 1:
 			if !m.chat.MouseDown() {

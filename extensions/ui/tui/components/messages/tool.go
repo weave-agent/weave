@@ -269,10 +269,6 @@ func formatArgs(argsJSON string) string {
 func padLeft(text string) string {
 	const spaces = 4
 
-	if spaces <= 0 {
-		return text
-	}
-
 	prefix := strings.Repeat(" ", spaces)
 
 	lines := strings.Split(text, "\n")
