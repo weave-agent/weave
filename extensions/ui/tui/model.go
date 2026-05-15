@@ -324,6 +324,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyPressMsg:
+		// Clear any active text selection on key press
+		m.chat = m.chat.ClearSelection()
+
 		// Dismiss startup hints on first keypress
 		m.showHints = false
 
@@ -711,6 +714,53 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		return m, nil
+
+	case tea.MouseClickMsg:
+		mouse := msg.Mouse()
+
+		if mouse.Button != tea.MouseLeft || m.showLanding {
+			return m, nil
+		}
+
+		area := m.chatArea()
+
+		if !pointInArea(mouse.X, mouse.Y, area) {
+			return m, nil
+		}
+
+		line, col := m.chatContentPos(mouse.X, mouse.Y, area)
+		m.chat = m.chat.StartSelection(line, col)
+
+		return m, nil
+
+	case tea.MouseMotionMsg:
+		mouse := msg.Mouse()
+
+		if mouse.Button != tea.MouseLeft || m.showLanding || !m.chat.MouseDown() {
+			return m, nil
+		}
+
+		area := m.chatArea()
+
+		if !pointInArea(mouse.X, mouse.Y, area) {
+			return m, nil
+		}
+
+		line, col := m.chatContentPos(mouse.X, mouse.Y, area)
+		m.chat = m.chat.ExtendSelection(line, col)
+
+		return m, nil
+
+	case tea.MouseReleaseMsg:
+		mouse := msg.Mouse()
+
+		if mouse.Button != tea.MouseLeft {
+			return m, nil
+		}
+
+		m.chat = m.chat.EndSelection()
+
+		return m, nil
 	}
 
 	// Forward spinner ticks to advance animation.
@@ -723,6 +773,34 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// chatArea computes the screen rectangle for the chat viewport.
+func (m Model) chatArea() uv.Rectangle {
+	headerRows, pillRows := m.countLayoutRows()
+	editorH := m.editor.Height() + m.attach.Height()
+	trayRows, abovePanelRows, belowPanelRows := m.panelRows()
+	lt := m.layout.ComputeWithPanels(
+		m.width, m.height,
+		editorH, headerRows, pillRows, m.dockedRows(),
+		trayRows, abovePanelRows, belowPanelRows,
+	)
+
+	return lt.Main
+}
+
+// chatContentPos maps screen coordinates within the chat area to global
+// content line and column indices.
+func (m Model) chatContentPos(x, y int, area uv.Rectangle) (line, col int) {
+	line = m.chat.ScrollOffset() + (y - area.Min.Y)
+	col = x - area.Min.X
+
+	return line, col
+}
+
+// pointInArea returns true if the given screen coordinates fall within area.
+func pointInArea(x, y int, area uv.Rectangle) bool {
+	return x >= area.Min.X && x < area.Max.X && y >= area.Min.Y && y < area.Max.Y
 }
 
 // handleCtrlC implements double-press ctrl+c: first press clears editor,
@@ -2300,7 +2378,7 @@ func (m Model) View() tea.View {
 
 	v := tea.NewView(uv.TrimSpace(canvas.Render()))
 	v.AltScreen = true
-	v.MouseMode = tea.MouseModeCellMotion
+	v.MouseMode = tea.MouseModeAllMotion
 
 	return v
 }

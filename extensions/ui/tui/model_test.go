@@ -3226,3 +3226,330 @@ func (m *mockDrawComponent) Draw(scr uv.Screen, area uv.Rectangle) {
 		m.drawFn(scr, area)
 	}
 }
+
+// --- Task 4: Mouse selection tests ---
+
+func TestModel_MouseClick_InChatArea_StartsSelection(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+	m.AddUserMessage("hello world")
+
+	// Compute the chat area to find a coordinate inside it
+	area := m.chatArea()
+	require.Positive(t, area.Dy(), "chat area should have height")
+
+	// Click in the middle of the chat area
+	clickX := area.Min.X + 2
+	clickY := area.Min.Y + 1
+
+	model, _ := m.Update(tea.MouseClickMsg{X: clickX, Y: clickY, Button: tea.MouseLeft})
+	m = model.(Model)
+
+	assert.True(t, m.chat.MouseDown(), "mouse should be down after click")
+	// Single click creates a zero-width selection; HasSelection is false until drag
+	sl, sc, el, ec := m.chat.SelectionBounds()
+	assert.Equal(t, sl, el, "start and end line should be same after click")
+	assert.Equal(t, sc, ec, "start and end column should be same after click")
+}
+
+func TestModel_MouseClick_OutsideChatArea_Ignored(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+	m.AddUserMessage("hello world")
+
+	// Click below the chat area (in the editor/footer region)
+	model, _ := m.Update(tea.MouseClickMsg{X: 5, Y: m.height - 2, Button: tea.MouseLeft})
+	m = model.(Model)
+
+	assert.False(t, m.chat.MouseDown(), "mouse should not be down after click outside chat")
+	assert.False(t, m.chat.HasSelection(), "selection should not be active")
+}
+
+func TestModel_MouseClick_RightButton_Ignored(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+	m.AddUserMessage("hello world")
+
+	area := m.chatArea()
+	clickX := area.Min.X + 2
+	clickY := area.Min.Y + 1
+
+	model, _ := m.Update(tea.MouseClickMsg{X: clickX, Y: clickY, Button: tea.MouseRight})
+	m = model.(Model)
+
+	assert.False(t, m.chat.MouseDown(), "right click should not start selection")
+}
+
+func TestModel_MouseClick_LandingScreen_Ignored(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.showLanding = true
+
+	model, _ := m.Update(tea.MouseClickMsg{X: 5, Y: 5, Button: tea.MouseLeft})
+	m = model.(Model)
+
+	assert.False(t, m.chat.MouseDown(), "click on landing screen should not start selection")
+}
+
+func TestModel_MouseDrag_ExtendsSelection(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+	m.AddUserMessage("hello world")
+
+	area := m.chatArea()
+	startX := area.Min.X + 2
+	startY := area.Min.Y + 1
+	endX := area.Min.X + 8
+	endY := area.Min.Y + 1
+
+	// Start selection with click
+	model, _ := m.Update(tea.MouseClickMsg{X: startX, Y: startY, Button: tea.MouseLeft})
+	m = model.(Model)
+
+	// Drag to extend
+	model, _ = m.Update(tea.MouseMotionMsg{X: endX, Y: endY, Button: tea.MouseLeft})
+	m = model.(Model)
+
+	sl, sc, el, ec := m.chat.SelectionBounds()
+	assert.True(t, m.chat.HasSelection(), "selection should be active after drag")
+	assert.Equal(t, sl, el, "drag on same line should have same start/end line")
+	assert.Less(t, sc, ec, "end column should be greater than start column")
+}
+
+func TestModel_MouseDrag_NoButtonHeld_Ignored(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+	m.AddUserMessage("hello world")
+
+	area := m.chatArea()
+	startX := area.Min.X + 2
+	startY := area.Min.Y + 1
+
+	// Start selection
+	model, _ := m.Update(tea.MouseClickMsg{X: startX, Y: startY, Button: tea.MouseLeft})
+	m = model.(Model)
+
+	// Motion without button held should not extend
+	model, _ = m.Update(tea.MouseMotionMsg{X: startX + 5, Y: startY, Button: tea.MouseNone})
+	m = model.(Model)
+
+	sl, sc, el, ec := m.chat.SelectionBounds()
+	assert.Equal(t, sc, ec, "selection should not extend without button held")
+	assert.Equal(t, sl, el, "selection should stay on same line")
+}
+
+func TestModel_MouseDrag_OutsideChatArea_Ignored(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+	m.AddUserMessage("hello world")
+
+	area := m.chatArea()
+	startX := area.Min.X + 2
+	startY := area.Min.Y + 1
+
+	// Start selection
+	model, _ := m.Update(tea.MouseClickMsg{X: startX, Y: startY, Button: tea.MouseLeft})
+	m = model.(Model)
+
+	// Drag outside chat area
+	model, _ = m.Update(tea.MouseMotionMsg{X: 5, Y: m.height - 2, Button: tea.MouseLeft})
+	m = model.(Model)
+
+	// Selection should still have the original start point
+	sl, sc, el, ec := m.chat.SelectionBounds()
+	assert.Equal(t, sl, el, "selection should stay on original line")
+	assert.Equal(t, sc, ec, "selection should not extend outside chat")
+}
+
+func TestModel_MouseRelease_EndsSelection(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+	m.AddUserMessage("hello world")
+
+	area := m.chatArea()
+	startX := area.Min.X + 2
+	startY := area.Min.Y + 1
+	endX := area.Min.X + 8
+	endY := area.Min.Y + 1
+
+	// Click and drag
+	model, _ := m.Update(tea.MouseClickMsg{X: startX, Y: startY, Button: tea.MouseLeft})
+	m = model.(Model)
+	model, _ = m.Update(tea.MouseMotionMsg{X: endX, Y: endY, Button: tea.MouseLeft})
+	m = model.(Model)
+
+	assert.True(t, m.chat.MouseDown(), "mouse should be down before release")
+
+	// Release
+	model, _ = m.Update(tea.MouseReleaseMsg{X: endX, Y: endY, Button: tea.MouseLeft})
+	m = model.(Model)
+
+	assert.False(t, m.chat.MouseDown(), "mouse should not be down after release")
+	assert.True(t, m.chat.HasSelection(), "selection should still exist after release")
+}
+
+func TestModel_KeyPress_ClearsSelection(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+	m.AddUserMessage("hello world")
+
+	area := m.chatArea()
+	startX := area.Min.X + 2
+	startY := area.Min.Y + 1
+	endX := area.Min.X + 8
+	endY := area.Min.Y + 1
+
+	// Create a selection
+	model, _ := m.Update(tea.MouseClickMsg{X: startX, Y: startY, Button: tea.MouseLeft})
+	m = model.(Model)
+	model, _ = m.Update(tea.MouseMotionMsg{X: endX, Y: endY, Button: tea.MouseLeft})
+	m = model.(Model)
+	model, _ = m.Update(tea.MouseReleaseMsg{X: endX, Y: endY, Button: tea.MouseLeft})
+	m = model.(Model)
+
+	assert.True(t, m.chat.HasSelection(), "selection should exist before key press")
+
+	// Any key press should clear selection
+	model, _ = m.Update(tea.KeyPressMsg{Text: "a", Code: 'a'})
+	m = model.(Model)
+
+	assert.False(t, m.chat.HasSelection(), "selection should be cleared after key press")
+}
+
+func TestModel_MouseClick_DialogOpen_Ignored(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+	m.AddUserMessage("hello world")
+
+	// Open a dialog
+	items := []overlays.SelectorItem{{Title: "Item A"}}
+	sel := overlays.NewSelectorModel("Test", items)
+	sel = sel.SetSize(80, 24).Show()
+	m.dialogStack = m.dialogStack.Push(overlays.NewSelectorDialog("test-dialog", sel))
+
+	// Click anywhere should be handled by dialog, not chat
+	model, _ := m.Update(tea.MouseClickMsg{X: 5, Y: 5, Button: tea.MouseLeft})
+	m = model.(Model)
+
+	assert.False(t, m.chat.MouseDown(), "click should not start selection when dialog is open")
+}
+
+// --- Layout helper tests ---
+
+func TestPointInArea(t *testing.T) {
+	area := uv.Rect(10, 5, 20, 8) // Min(10,5) Max(30,13)
+
+	assert.True(t, pointInArea(10, 5, area), "top-left corner should be inside")
+	assert.True(t, pointInArea(15, 8, area), "center should be inside")
+	assert.True(t, pointInArea(29, 12, area), "bottom-right corner (exclusive) should be inside")
+	assert.False(t, pointInArea(9, 5, area), "left of area should be outside")
+	assert.False(t, pointInArea(10, 4, area), "above area should be outside")
+	assert.False(t, pointInArea(30, 5, area), "right of area should be outside")
+	assert.False(t, pointInArea(10, 13, area), "below area should be outside")
+}
+
+func TestChatArea(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+
+	area := m.chatArea()
+
+	assert.Positive(t, area.Dy(), "chat area should have positive height")
+	assert.Equal(t, 0, area.Min.X, "chat area should start at left edge")
+	assert.Less(t, area.Max.Y, m.height, "chat area should end before bottom")
+}
+
+func TestChatContentPos(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+	m.AddUserMessage("line one")
+	m.AddUserMessage("line two")
+
+	area := m.chatArea()
+
+	// First visible line at top of chat area
+	line, col := m.chatContentPos(area.Min.X, area.Min.Y, area)
+	assert.Equal(t, m.chat.ScrollOffset(), line, "top of chat area maps to scroll offset")
+	assert.Equal(t, 0, col, "left edge maps to column 0")
+
+	// Second visible line
+	line, col = m.chatContentPos(area.Min.X+3, area.Min.Y+1, area)
+	assert.Equal(t, m.chat.ScrollOffset()+1, line, "one row down maps to next line")
+	assert.Equal(t, 3, col, "column offset should match x offset")
+}
+
+func TestModel_MouseSelection_MultiLine(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+
+	// Add multiple items to create multiple lines
+	m.AddUserMessage("first message")
+	m.AddUserMessage("second message")
+
+	area := m.chatArea()
+
+	// Click on first line, drag to second line
+	startX := area.Min.X + 2
+	startY := area.Min.Y + 1
+	endX := area.Min.X + 5
+	endY := area.Min.Y + 3
+
+	model, _ := m.Update(tea.MouseClickMsg{X: startX, Y: startY, Button: tea.MouseLeft})
+	m = model.(Model)
+	model, _ = m.Update(tea.MouseMotionMsg{X: endX, Y: endY, Button: tea.MouseLeft})
+	m = model.(Model)
+	model, _ = m.Update(tea.MouseReleaseMsg{X: endX, Y: endY, Button: tea.MouseLeft})
+	m = model.(Model)
+
+	sl, _, el, _ := m.chat.SelectionBounds()
+	assert.True(t, m.chat.HasSelection(), "should have multi-line selection")
+	assert.Less(t, sl, el, "selection should span multiple lines")
+}
+
+func TestModel_MouseSelection_WheelScroll_DoesNotAffectSelection(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 10
+	m.chat = m.chat.SetSize(80, m.chatHeight(10))
+
+	for i := range 20 {
+		m.AddUserMessage(fmt.Sprintf("message %d", i))
+	}
+
+	// Scroll up first so wheel down has room to move
+	m.chat = m.chat.ScrollUp(5)
+	oldScroll := m.chat.ScrollOffset()
+	require.Positive(t, oldScroll, "should have scrolled up")
+
+	// Scroll down with wheel
+	model, _ := m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
+	m = model.(Model)
+
+	assert.Greater(t, m.chat.ScrollOffset(), oldScroll, "wheel should scroll down")
+	assert.False(t, m.chat.MouseDown(), "wheel should not affect selection state")
+}

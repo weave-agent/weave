@@ -73,15 +73,15 @@ Implement in-app mouse text selection for the weave TUI chat. Currently, enablin
 - [x] run tests — must pass before next task
 
 ### Task 4: Handle mouse events in model.Update()
-- [ ] Change `v.MouseMode = tea.MouseModeCellMotion` to `tea.MouseModeAllMotion` in `View()`
-- [ ] Add `tea.MouseClickMsg` case: start selection if in chat area and no dialog is open
-- [ ] Add `tea.MouseMotionMsg` case: extend selection if mouse is down and in chat area
-- [ ] Add `tea.MouseReleaseMsg` case: end selection, trigger auto-copy if selection exists
-- [ ] Add layout helpers: `chatArea() uv.Rectangle`, `chatContentPos(x, y, area) (line, col)`, `pointInArea(x, y, area) bool`
-- [ ] Clear selection on any key press (before existing key handling)
-- [ ] write tests for mouse click/drag/release handling
-- [ ] write tests for layout helpers
-- [ ] run tests — must pass before next task
+- [x] Change `v.MouseMode = tea.MouseModeCellMotion` to `tea.MouseModeAllMotion` in `View()`
+- [x] Add `tea.MouseClickMsg` case: start selection if in chat area and no dialog is open
+- [x] Add `tea.MouseMotionMsg` case: extend selection if mouse is down and in chat area
+- [x] Add `tea.MouseReleaseMsg` case: end selection, trigger auto-copy if selection exists
+- [x] Add layout helpers: `chatArea() uv.Rectangle`, `chatContentPos(x, y, area) (line, col)`, `pointInArea(x, y, area) bool`
+- [x] Clear selection on any key press (before existing key handling)
+- [x] write tests for mouse click/drag/release handling
+- [x] write tests for layout helpers
+- [x] run tests — must pass before next task
 
 ### Task 5: Add clipboard integration and copy keybinding
 - [ ] Add `github.com/atotto/clipboard` as direct dependency
