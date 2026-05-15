@@ -67,13 +67,13 @@ Replace the existing storage-only JSONL compaction with runtime context manageme
 - [x] run tests — must pass before Task 3
 
 ### Task 3: Implement turn-boundary-aware cut point detection
-- [ ] add `findCutPoint(msgs []sdk.Message, keepRecentTokens int) int` in `compaction.go`
-- [ ] walk backwards from newest message, accumulate tokens
-- [ ] valid cut points: user messages, assistant messages (without pending tool calls)
-- [ ] never cut at tool_result messages — they must stay with their parent tool call
-- [ ] return index of first message to summarize (everything before index gets summarized)
-- [ ] write tests for: cut in middle of conversation, all messages fit (no cut needed), oversized single turn, tool result boundary preservation
-- [ ] run tests — must pass before Task 4
+- [x] add `findCutPoint(msgs []sdk.Message, keepRecentTokens int) int` in `compaction.go`
+- [x] walk backwards from newest message, accumulate tokens
+- [x] valid cut points: user messages, assistant messages (without pending tool calls)
+- [x] never cut at tool_result messages — they must stay with their parent tool call
+- [x] return index of first message to summarize (everything before index gets summarized)
+- [x] write tests for: cut in middle of conversation, all messages fit (no cut needed), oversized single turn, tool result boundary preservation
+- [x] run tests — must pass before Task 4
 
 ### Task 4: Implement COMPACT.md discovery and message serialization
 - [ ] add `discoverCompactPrompt(projectDir, globalDir string) string` in `context.go` — follows same pattern as `loadSystemPrompt()`, looks for `.weave/COMPACT.md` (project) then `~/.weave/COMPACT.md` (global), project overrides global
