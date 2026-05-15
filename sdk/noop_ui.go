@@ -19,7 +19,7 @@ func (NoopUI) Input(_ string, _ ...InputOption) (string, error) {
 }
 
 func (NoopUI) MultiSelect(_ string, _ []string, _ []bool, _ ...SelectOption) ([]int, error) {
-	return []int{}, nil
+	return nil, nil
 }
 
 func (NoopUI) Editor(_, _ string, _ ...EditorOption) (string, error) {

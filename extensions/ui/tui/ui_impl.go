@@ -51,7 +51,6 @@ type TUIImpl struct {
 
 	// Task 9: deferred implementation fields
 	richRenderers         map[string]RichToolRenderer
-	messageRenderers      map[string]sdk.MessageRenderer
 	inputHandlers         []func(KeyEvent)
 	autocompleteProviders []AutocompleteProvider
 	workingFrames         []string
@@ -69,10 +68,9 @@ func NewTUIImpl(commands *CommandRegistry, bindings *BindingRegistry) *TUIImpl {
 		themeRegistry: map[string]*palette.Theme{
 			"default": palette.DefaultTheme(),
 		},
-		activeTheme:      "default",
-		panelManager:     NewPanelManager(),
-		richRenderers:    make(map[string]RichToolRenderer),
-		messageRenderers: make(map[string]sdk.MessageRenderer),
+		activeTheme:   "default",
+		panelManager:  NewPanelManager(),
+		richRenderers: make(map[string]RichToolRenderer),
 	}
 }
 
@@ -623,14 +621,6 @@ func (u *TUIImpl) RegisterRichRenderer(tool string, renderer RichToolRenderer) {
 
 // RegisterMessageRenderer registers a custom renderer for a message type.
 func (u *TUIImpl) RegisterMessageRenderer(msgType string, renderer sdk.MessageRenderer) {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-
-	if u.messageRenderers == nil {
-		u.messageRenderers = make(map[string]sdk.MessageRenderer)
-	}
-
-	u.messageRenderers[msgType] = renderer
 	messages.SetMessageRenderer(msgType, renderer)
 }
 
@@ -695,10 +685,11 @@ func (u *TUIImpl) SetWorkingFrames(frames []string, interval time.Duration) {
 	u.workingFrames = make([]string, len(frames))
 	copy(u.workingFrames, frames)
 	u.workingInterval = interval
+	workingFrames := u.workingFrames
 	u.mu.Unlock()
 
 	if p != nil {
-		p.Send(setWorkingFramesMsg{frames: u.workingFrames, interval: interval})
+		p.Send(setWorkingFramesMsg{frames: workingFrames, interval: interval})
 	}
 }
 
