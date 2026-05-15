@@ -79,6 +79,29 @@ func TestAgentTracker_Start_OverwriteExisting(t *testing.T) {
 	assert.Equal(t, int32(0), removed.Load())
 }
 
+func TestAgentTracker_Start_OverwriteRunning(t *testing.T) {
+	var removed atomic.Int32
+
+	tracker := NewAgentTracker(50*time.Millisecond, func(id string) {
+		removed.Add(1)
+	})
+
+	// Start a running agent (no grace timer yet).
+	tracker.Start("agent-1", "original", "background")
+
+	// Overwrite with a new agent before calling Done.
+	tracker.Start("agent-1", "replacement", "background")
+
+	assert.Equal(t, "replacement", tracker.Get("agent-1").Name)
+	assert.Equal(t, AgentRunning, tracker.Get("agent-1").Status)
+
+	// Completing the replacement should work normally.
+	tracker.Done("agent-1", "completed", "done")
+
+	time.Sleep(150 * time.Millisecond)
+	assert.Equal(t, int32(1), removed.Load())
+}
+
 func TestAgentTracker_Done_NilOnRemove(t *testing.T) {
 	tracker := NewAgentTracker(50*time.Millisecond, nil)
 

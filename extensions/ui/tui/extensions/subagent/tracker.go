@@ -26,22 +26,18 @@ type TrackedAgent struct {
 	PanelID   string
 }
 
-// OnRemoveFunc is called when a grace-period timer expires and the agent
-// should be cleaned up. The extension uses this to call RemovePanel.
-type OnRemoveFunc func(id string)
-
 // AgentTracker manages the lifecycle of tracked subagents.
 type AgentTracker struct {
 	mu          sync.RWMutex
 	agents      map[string]*TrackedAgent
 	timers      map[string]*time.Timer
-	onRemove    OnRemoveFunc
+	onRemove    func(id string)
 	gracePeriod time.Duration
 }
 
 // NewAgentTracker creates a new tracker. The onRemove callback is invoked
 // when the grace period expires after an agent finishes. May be nil.
-func NewAgentTracker(gracePeriod time.Duration, onRemove OnRemoveFunc) *AgentTracker {
+func NewAgentTracker(gracePeriod time.Duration, onRemove func(id string)) *AgentTracker {
 	if gracePeriod <= 0 {
 		gracePeriod = 3 * time.Second
 	}
@@ -55,7 +51,7 @@ func NewAgentTracker(gracePeriod time.Duration, onRemove OnRemoveFunc) *AgentTra
 }
 
 // SetOnRemove sets the callback invoked after grace-period cleanup.
-func (t *AgentTracker) SetOnRemove(fn OnRemoveFunc) {
+func (t *AgentTracker) SetOnRemove(fn func(id string)) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 

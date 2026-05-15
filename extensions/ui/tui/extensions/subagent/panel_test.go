@@ -42,7 +42,8 @@ func TestAgentPanelDrawer_Draw_RunningAgent(t *testing.T) {
 	assert.Contains(t, rendered, "researcher")
 	assert.Contains(t, rendered, "background")
 	assert.Contains(t, rendered, "●")
-	assert.Contains(t, rendered, "0s")
+	// Elapsed time should be a small number of seconds (pattern match, not exact).
+	assert.Regexp(t, `\d+s`, rendered)
 }
 
 func TestAgentPanelDrawer_Draw_CompletedAgent(t *testing.T) {

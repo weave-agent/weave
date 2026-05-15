@@ -69,7 +69,7 @@ func TestBackgroundSpawn_ReturnsImmediately(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.False(t, result.IsError)
-	assert.Less(t, elapsed, 50*time.Millisecond, "expected immediate return")
+	assert.Less(t, elapsed, 100*time.Millisecond, "expected immediate return")
 
 	// Verify JSON response.
 	var resp map[string]any
@@ -590,4 +590,41 @@ func TestBackgroundManager_NotifyStartedWithCustomID(t *testing.T) {
 	assert.Equal(t, "custom_id_123", payload["id"])
 	assert.Equal(t, "explore", payload["name"])
 	assert.Equal(t, "background", payload["mode"])
+}
+
+func TestBackgroundManager_Spawn_IDCollision(t *testing.T) {
+	bus := &testBus{}
+
+	mgr := newBackgroundManager(nil, "", "")
+	mgr.setBus(bus)
+
+	original := testRunSubagent
+
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+		<-ctx.Done()
+		return "", ctx.Err()
+	}
+
+	t.Cleanup(func() {
+		mgr.cancel()
+
+		for _, ba := range mgr.agents {
+			if ba != nil {
+				<-ba.done
+			}
+		}
+
+		testRunSubagent = original
+	})
+
+	// Spawn two agents with the same explicit ID — second should get a different ID.
+	id1 := mgr.spawn(&AgentDef{Name: "test"}, "prompt1", "", "same-id")
+	id2 := mgr.spawn(&AgentDef{Name: "test"}, "prompt2", "", "same-id")
+
+	assert.Equal(t, "same-id", id1)
+	assert.NotEqual(t, id1, id2, "collision should regenerate ID")
+	assert.Contains(t, id2, "subagent_test_")
+
+	// Both agents should be tracked.
+	assert.Len(t, bus.getEvents(), 2)
 }

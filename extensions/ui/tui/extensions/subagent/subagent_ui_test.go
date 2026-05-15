@@ -379,6 +379,29 @@ func TestSubagentExtension_Subscribe_DoneIgnoresBadPayload(t *testing.T) {
 	assert.Equal(t, AgentRunning, agent.Status)
 }
 
+func TestSubagentExtension_Subscribe_DoneIgnoresEmptyID(t *testing.T) {
+	ext := &SubagentExtension{tracker: NewAgentTracker(gracePeriod, nil), renderer: &subagentRenderer{}}
+	api := newMockTUIExtAPI()
+	bus := newMockBus()
+
+	ext.RegisterTUI(api)
+	ext.subscribe(bus)
+
+	// Start an agent first
+	bus.Publish(sdk.NewEvent("subagent.started", map[string]string{
+		"id": "agent-x", "name": "test", "mode": "background",
+	}))
+
+	// Empty id — should be ignored, agent still running
+	bus.Publish(sdk.NewEvent("subagent.done", map[string]string{
+		"id": "", "status": "completed", "content": "done",
+	}))
+
+	agent := ext.tracker.Get("agent-x")
+	require.NotNil(t, agent)
+	assert.Equal(t, AgentRunning, agent.Status)
+}
+
 func TestSubagentExtension_Close_ClearsAPIAndTracker(t *testing.T) {
 	ext := &SubagentExtension{tracker: NewAgentTracker(gracePeriod, nil), renderer: &subagentRenderer{}}
 	api := newMockTUIExtAPI()
