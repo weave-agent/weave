@@ -1,4 +1,4 @@
-module weave/ext/ui/tui/extensions/subagent
+module weave/ext/ui/tui/extensions/subagent-ui
 
 go 1.26.2
 

@@ -1,6 +1,6 @@
 GO_FILES ?= ./bus/... ./cmd/... ./settings/... ./internal/... ./sdk/...
 GOLANGCI_LINT ?= golangci-lint
-EXT_DIRS := $(sort $(dir $(wildcard extensions/*/*/go.mod extensions/*/go.mod)))
+EXT_DIRS := $(sort $(dir $(shell find extensions -name go.mod)))
 
 .DEFAULT_GOAL := help
 .PHONY: help tools gen fmt lint tidy fix test bench

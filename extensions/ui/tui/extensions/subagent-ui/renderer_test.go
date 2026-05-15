@@ -139,7 +139,23 @@ func TestSubagentRenderer_RenderBackgroundResponse_Failed(t *testing.T) {
 	assert.Contains(t, result, "failed")
 }
 
-func TestSubagentRenderer_RegisterTUI_RegistersBuiltInRenderers(t *testing.T) {
+func TestSubagentRenderer_RegisterTUI_RegistersSubagentRenderers(t *testing.T) {
+	// Set up test tools to verify renderer registration.
+	sdk.ResetToolRegistry()
+	sdk.RegisterTool("subagent_general", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+		return &mockTool{name: "subagent_general"}, nil
+	})
+	sdk.RegisterTool("subagent_explore", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+		return &mockTool{name: "subagent_explore"}, nil
+	})
+	sdk.RegisterTool("subagent_plan", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+		return &mockTool{name: "subagent_plan"}, nil
+	})
+	sdk.RegisterTool("bash", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+		return &mockTool{name: "bash"}, nil
+	})
+	t.Cleanup(sdk.ResetToolRegistry)
+
 	ext := &SubagentExtension{
 		tracker:  NewAgentTracker(gracePeriod, nil),
 		renderer: &subagentRenderer{},
@@ -147,11 +163,13 @@ func TestSubagentRenderer_RegisterTUI_RegistersBuiltInRenderers(t *testing.T) {
 	api := newMockTUIExtAPI()
 
 	ext.RegisterTUI(api)
+	defer ext.Close()
 
 	require.Len(t, api.richRenderers, 3)
 	assert.Contains(t, api.richRenderers, "subagent_general")
 	assert.Contains(t, api.richRenderers, "subagent_explore")
 	assert.Contains(t, api.richRenderers, "subagent_plan")
+	assert.NotContains(t, api.richRenderers, "bash")
 
 	// All three should share the same renderer instance.
 	renderer := api.richRenderers["subagent_general"]
@@ -160,7 +178,11 @@ func TestSubagentRenderer_RegisterTUI_RegistersBuiltInRenderers(t *testing.T) {
 	assert.Same(t, renderer, api.richRenderers["subagent_plan"])
 }
 
-func TestSubagentRenderer_DynamicRegistrationOnStart(t *testing.T) {
+func TestSubagentRenderer_RegisterTUI_NoDynamicRegistrationOnStart(t *testing.T) {
+	// Verify that subagent.started does NOT register renderers dynamically.
+	sdk.ResetToolRegistry()
+	t.Cleanup(sdk.ResetToolRegistry)
+
 	ext := &SubagentExtension{
 		tracker:  NewAgentTracker(gracePeriod, nil),
 		renderer: &subagentRenderer{},
@@ -169,37 +191,19 @@ func TestSubagentRenderer_DynamicRegistrationOnStart(t *testing.T) {
 	bus := newMockBus()
 
 	ext.RegisterTUI(api)
+	defer ext.Close()
+
 	ext.subscribe(bus)
 
-	// A custom agent name not in built-ins.
+	// A custom agent name not in the tool registry.
 	bus.Publish(sdk.NewEvent("subagent.started", map[string]string{
 		"id":   "custom-123",
 		"name": "researcher",
 		"mode": "background",
 	}))
 
-	// Renderer should now be registered for subagent_researcher.
-	assert.Contains(t, api.richRenderers, "subagent_researcher")
-	assert.NotNil(t, api.richRenderers["subagent_researcher"])
-}
-
-func TestSubagentRenderer_DynamicRegistration_SameRenderer(t *testing.T) {
-	ext := &SubagentExtension{
-		tracker:  NewAgentTracker(gracePeriod, nil),
-		renderer: &subagentRenderer{},
-	}
-	api := newMockTUIExtAPI()
-	bus := newMockBus()
-
-	ext.RegisterTUI(api)
-	ext.subscribe(bus)
-
-	bus.Publish(sdk.NewEvent("subagent.started", map[string]string{
-		"id": "agent-1", "name": "general", "mode": "background",
-	}))
-
-	// Built-in "general" renderer should still be the same instance.
-	assert.Same(t, ext.renderer, api.richRenderers["subagent_general"])
+	// Renderer should NOT be registered dynamically on started.
+	assert.NotContains(t, api.richRenderers, "subagent_researcher")
 }
 
 func TestSubagentRenderer_RendBackgroundResponse_ContainsIcon(t *testing.T) {

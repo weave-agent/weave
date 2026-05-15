@@ -1,6 +1,7 @@
 package subagent
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"testing"
@@ -96,6 +97,22 @@ func (m *mockTUIExtAPI) OnTerminalInput(handler func(tui.KeyEvent))             
 func (m *mockTUIExtAPI) AddAutocomplete(provider tui.AutocompleteProvider)                    {}
 func (m *mockTUIExtAPI) SetWorkingFrames(frames []string, interval time.Duration)             {}
 func (m *mockTUIExtAPI) RegisterTheme(name string, theme tui.ThemeDef) error                  { return nil }
+func (m *mockTUIExtAPI) RequestRedraw()                                                       {}
+
+// mockTool is a minimal sdk.Tool implementation for testing.
+type mockTool struct {
+	name        string
+	description string
+}
+
+func (m *mockTool) Name() string { return m.name }
+func (m *mockTool) Definition() sdk.ToolDef {
+	return sdk.ToolDef{Name: m.name, Description: m.description}
+}
+
+func (m *mockTool) Execute(_ context.Context, _ map[string]any) (sdk.ToolResult, error) {
+	return sdk.ToolResult{}, nil
+}
 
 // waitForPanelRemovals waits until at least count panels have been removed.
 func waitForPanelRemovals(t *testing.T, api *mockTUIExtAPI, count int) {
@@ -118,6 +135,7 @@ func waitForPanelRemovals(t *testing.T, api *mockTUIExtAPI, count int) {
 type mockBus struct {
 	published []sdk.Event
 	handlers  map[string][]sdk.Handler
+	onAll     []sdk.Handler
 }
 
 func newMockBus() *mockBus {
@@ -128,8 +146,12 @@ func newMockBus() *mockBus {
 
 func (b *mockBus) Publish(ev sdk.Event) {
 	b.published = append(b.published, ev)
-	// Deliver to subscribers
+	// Deliver to topic subscribers
 	for _, h := range b.handlers[ev.Topic] {
+		_ = h(ev)
+	}
+	// Deliver to OnAll subscribers
+	for _, h := range b.onAll {
 		_ = h(ev)
 	}
 }
@@ -138,23 +160,42 @@ func (b *mockBus) On(topic string, h sdk.Handler) {
 	b.handlers[topic] = append(b.handlers[topic], h)
 }
 
-func (b *mockBus) OnAll(_ sdk.Handler) {}
-func (b *mockBus) Off(_ sdk.Handler)   {}
-func (b *mockBus) Close() error        { return nil }
+func (b *mockBus) OnAll(h sdk.Handler) {
+	b.onAll = append(b.onAll, h)
+}
+func (b *mockBus) Off(_ sdk.Handler) {}
+func (b *mockBus) Close() error      { return nil }
 
 func TestSubagentExtension_Name(t *testing.T) {
 	ext := &SubagentExtension{renderer: &subagentRenderer{}}
-	assert.Equal(t, "subagent", ext.Name())
+	assert.Equal(t, "subagent-ui", ext.Name())
 }
 
-func TestSubagentExtension_RegisterTUI_NoRegistrations(t *testing.T) {
+func TestSubagentExtension_RegisterTUI_RegistersSubagentRenderers(t *testing.T) {
+	// Set up test tools to verify renderer registration.
+	sdk.ResetToolRegistry()
+	sdk.RegisterTool("subagent_general", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+		return &mockTool{name: "subagent_general"}, nil
+	})
+	sdk.RegisterTool("subagent_custom", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+		return &mockTool{name: "subagent_custom"}, nil
+	})
+	sdk.RegisterTool("bash", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+		return &mockTool{name: "bash"}, nil
+	})
+	t.Cleanup(sdk.ResetToolRegistry)
+
 	ext := &SubagentExtension{tracker: NewAgentTracker(gracePeriod, nil), renderer: &subagentRenderer{}}
 	api := newMockTUIExtAPI()
 
 	ext.RegisterTUI(api)
+	defer ext.Close()
 
-	// Rich renderers are registered for built-in agents.
-	assert.Len(t, api.richRenderers, 3)
+	// Only subagent_* tools get renderers.
+	assert.Len(t, api.richRenderers, 2)
+	assert.Contains(t, api.richRenderers, "subagent_general")
+	assert.Contains(t, api.richRenderers, "subagent_custom")
+	assert.NotContains(t, api.richRenderers, "bash")
 	assert.Empty(t, api.panelsShown)
 	assert.Empty(t, api.panelsRemoved)
 }
@@ -165,6 +206,8 @@ func TestSubagentExtension_Subscribe_ShowsPanelOnStarted(t *testing.T) {
 	bus := newMockBus()
 
 	ext.RegisterTUI(api)
+	defer ext.Close()
+
 	ext.subscribe(bus)
 
 	bus.Publish(sdk.NewEvent("subagent.started", map[string]string{
@@ -192,6 +235,8 @@ func TestSubagentExtension_Subscribe_IgnoresBadPayload(t *testing.T) {
 	bus := newMockBus()
 
 	ext.RegisterTUI(api)
+	defer ext.Close()
+
 	ext.subscribe(bus)
 
 	// Non-map payload
@@ -211,6 +256,8 @@ func TestSubagentExtension_Subscribe_DoneUpdatesTracker(t *testing.T) {
 	bus := newMockBus()
 
 	ext.RegisterTUI(api)
+	defer ext.Close()
+
 	ext.subscribe(bus)
 
 	// Start an agent
@@ -245,6 +292,8 @@ func TestSubagentExtension_Subscribe_FullLifecycle(t *testing.T) {
 	bus := newMockBus()
 
 	ext.RegisterTUI(api)
+	defer ext.Close()
+
 	ext.subscribe(bus)
 
 	// Start
@@ -285,6 +334,8 @@ func TestSubagentExtension_Subscribe_FailedAgent(t *testing.T) {
 	bus := newMockBus()
 
 	ext.RegisterTUI(api)
+	defer ext.Close()
+
 	ext.subscribe(bus)
 
 	// Start
@@ -321,6 +372,8 @@ func TestSubagentExtension_Subscribe_MultipleAgents(t *testing.T) {
 	bus := newMockBus()
 
 	ext.RegisterTUI(api)
+	defer ext.Close()
+
 	ext.subscribe(bus)
 
 	// Start two agents
@@ -368,7 +421,9 @@ func TestSubagentExtension_Subscribe_BeforeRegisterTUI(t *testing.T) {
 
 	// Now wire API
 	api := newMockTUIExtAPI()
+
 	ext.RegisterTUI(api)
+	defer ext.Close()
 
 	// Panel was NOT shown retroactively — only new agents get panels
 	assert.Empty(t, api.panelsShown)
@@ -380,6 +435,8 @@ func TestSubagentExtension_Subscribe_DoneIgnoresBadPayload(t *testing.T) {
 	bus := newMockBus()
 
 	ext.RegisterTUI(api)
+	defer ext.Close()
+
 	ext.subscribe(bus)
 
 	// Start an agent first
@@ -411,6 +468,8 @@ func TestSubagentExtension_Subscribe_DoneIgnoresEmptyID(t *testing.T) {
 	bus := newMockBus()
 
 	ext.RegisterTUI(api)
+	defer ext.Close()
+
 	ext.subscribe(bus)
 
 	// Start an agent first
@@ -497,6 +556,8 @@ func TestSubagentExtension_NoPanelLeak_OnDone(t *testing.T) {
 	bus := newMockBus()
 
 	ext.RegisterTUI(api)
+	defer ext.Close()
+
 	ext.subscribe(bus)
 
 	// Start and complete 3 agents

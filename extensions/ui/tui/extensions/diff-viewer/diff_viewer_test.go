@@ -42,6 +42,7 @@ func (m *mockTUIExtAPI) OnTerminalInput(handler func(tui.KeyEvent))             
 func (m *mockTUIExtAPI) AddAutocomplete(provider tui.AutocompleteProvider)                    {}
 func (m *mockTUIExtAPI) SetWorkingFrames(frames []string, interval time.Duration)             {}
 func (m *mockTUIExtAPI) RegisterTheme(name string, theme tui.ThemeDef) error                  { return nil }
+func (m *mockTUIExtAPI) RequestRedraw()                                                       {}
 
 func TestDiffViewer_Name(t *testing.T) {
 	dv := &DiffViewer{}
@@ -104,7 +105,7 @@ func TestRichDiffRenderer_Render(t *testing.T) {
 func TestRichDiffRenderer_RenderEmpty(t *testing.T) {
 	r := &richDiffRenderer{}
 	result := r.Render("", sdk.ThemeInfo{}, 80)
-	assert.Equal(t, "", result)
+	assert.Empty(t, result)
 }
 
 func TestRichDiffRenderer_RenderNonDiff(t *testing.T) {
