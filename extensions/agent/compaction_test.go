@@ -41,19 +41,17 @@ func TestEstimateTokens(t *testing.T) {
 		msgs := []sdk.Message{
 			sdk.NewToolResultMessage("tc1", "bash", "command output here", false),
 		}
-		got := estimateTokens(msgs)
-		assert.Positive(t, got)
+		assert.Equal(t, 4, estimateTokens(msgs))
 	})
 
 	t.Run("mixed conversation", func(t *testing.T) {
 		msgs := []sdk.Message{
-			sdk.NewUserMessage("Write a function"),
-			sdk.NewAssistantMessage("Here is the function:"),
-			sdk.NewToolResultMessage("tc1", "bash", "output", false),
-			sdk.NewAssistantMessage("Done"),
+			sdk.NewUserMessage("Write a function"),                   // 16 chars -> 4 tokens
+			sdk.NewAssistantMessage("Here is the function:"),         // 21 chars -> 5 tokens
+			sdk.NewToolResultMessage("tc1", "bash", "output", false), // 6 chars -> 1 token
+			sdk.NewAssistantMessage("Done"),                          // 4 chars -> 1 token
 		}
-		got := estimateTokens(msgs)
-		assert.Positive(t, got)
+		assert.Equal(t, 11, estimateTokens(msgs))
 	})
 
 	t.Run("with thinking blocks", func(t *testing.T) {
@@ -300,7 +298,7 @@ func TestEstimateContentTokens(t *testing.T) {
 	})
 
 	t.Run("byte slice content", func(t *testing.T) {
-		assert.Equal(t, 2, estimateContentTokens([]byte("abcdefgh")))
+		assert.Equal(t, 7, estimateContentTokens([]byte("abcdefgh")))
 	})
 
 	t.Run("default uses Sprint", func(t *testing.T) {
@@ -806,7 +804,7 @@ func TestCompact(t *testing.T) {
 		summaryMsg := sdk.NewAssistantMessage("[Compaction Summary]\nOld summary here")
 
 		msgs := []sdk.Message{summaryMsg}
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			msgs = append(msgs, sdk.NewUserMessage(makeLongText(400)))
 		}
 		msgs = append(msgs, sdk.NewUserMessage("keep me"))
@@ -1188,7 +1186,7 @@ func TestAgent_AutoCompaction(t *testing.T) {
 	require.NoError(t, a.Close())
 }
 
-func TestAgent_CompactionErrorAborts(t *testing.T) {
+func TestAgent_CompactionErrorInWaitForInputRecovers(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
@@ -1265,4 +1263,103 @@ func TestAgent_CompactionDisabledNoAutoTrigger(t *testing.T) {
 	assert.Empty(t, compactedEvts, "should not auto-compact when disabled")
 
 	require.NoError(t, a.Close())
+}
+
+func TestSerializeForSummary_AssistantWithContentAndToolCalls(t *testing.T) {
+	msg := sdk.NewAssistantMessage("I'll run that for you.")
+	msg.ToolCalls = []sdk.ToolCall{
+		{ID: "tc1", Name: "bash", Arguments: map[string]any{"command": "echo hi"}},
+	}
+	msgs := []sdk.Message{
+		sdk.NewUserMessage("run echo"),
+		msg,
+		sdk.NewToolResultMessage("tc1", "bash", "hi", false),
+	}
+	result := serializeForSummary(msgs, "", nil)
+	assert.Contains(t, result, "[Tool call]: bash(")
+	assert.Contains(t, result, "[Assistant]: I'll run that for you.")
+}
+
+func TestFindCutPoint_ZeroKeepRecentTokens(t *testing.T) {
+	msgs := []sdk.Message{
+		sdk.NewUserMessage("first"),
+		sdk.NewAssistantMessage("reply"),
+		sdk.NewUserMessage("second"),
+		sdk.NewAssistantMessage("reply2"),
+	}
+	cut := findCutPoint(msgs, 0)
+	assert.Equal(t, 3, cut, "with zero keepRecentTokens, only the last message boundary is kept")
+}
+
+func TestCompact_EmptySummaryError(t *testing.T) {
+	msgs := make([]sdk.Message, 10)
+	for i := range msgs {
+		msgs[i] = sdk.NewUserMessage(makeLongText(400))
+	}
+	msgs = append(msgs, sdk.NewUserMessage("keep me"))
+
+	mp := &ProviderMock{
+		StreamFunc: func(_ context.Context, _ sdk.ProviderRequest, _ ...model.StreamOption) (
+			<-chan sdk.ProviderEvent, error,
+		) {
+			ch := make(chan sdk.ProviderEvent)
+			close(ch) // no events — empty summary
+			return ch, nil
+		},
+	}
+
+	cfg := CompactionConfig{KeepRecentTokens: 200}
+	ops := newFileOperations()
+
+	result, err := compact(context.Background(), mp, msgs, cfg, "test-model", ops, "summarize this")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "empty summary")
+	assert.Nil(t, result)
+}
+
+func TestAgent_AutoCompactionErrorInInnerLoopAborts(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+	model.ResetModelRegistry()
+	defer model.ResetModelRegistry()
+
+	model.RegisterModel(model.ModelDef{
+		ID:            "test-abort-model",
+		Provider:      "anthropic",
+		ContextWindow: 1000,
+	})
+
+	// First response is large (triggers auto-compaction on next loop iteration),
+	// second stream call (compaction) errors
+	mp := newMockProvider([]providerResponse{
+		{textDeltas: []string{strings.Repeat("x", 4000)}},
+		{err: context.DeadlineExceeded},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	a.modelName = "test-abort-model"
+	a.compactionCfg = CompactionConfig{
+		Enabled:          true,
+		ReserveTokens:    100,
+		KeepRecentTokens: 50,
+	}
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "start"))
+
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for first turn_end")
+
+	// Follow-up triggers re-entry to inner loop where auto-compaction fires and fails
+	b.Publish(sdk.NewEvent(TopicFollowup, "continue"))
+
+	endEvt, ok := waitForTopic(allCh, TopicEnd, 3*time.Second)
+	require.True(t, ok, "timeout waiting for agent end after auto-compaction error")
+	payload, ok := endEvt.Payload.(string)
+	require.True(t, ok)
+	assert.Contains(t, payload, "compaction error")
 }

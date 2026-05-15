@@ -11,13 +11,10 @@ import (
 	"weave/sdk/model"
 )
 
-const (
-	tokensPerChar      = 4
-	imageTokenEstimate = 1200
-)
+const tokensPerChar = 4
 
 // estimateTokens returns a rough token count for the given messages using
-// the chars/4 heuristic. Each image is estimated at 1200 tokens.
+// the chars/4 heuristic.
 func estimateTokens(msgs []sdk.Message) int {
 	total := 0
 
@@ -126,18 +123,7 @@ func findValidBoundary(msgs []sdk.Message, startIdx int) int {
 }
 
 func estimateContentTokens(content any) int {
-	switch v := content.(type) {
-	case string:
-		return len(v) / tokensPerChar
-	case []byte:
-		return len(v) / tokensPerChar
-	case fmt.Stringer:
-		return len(v.String()) / tokensPerChar
-	case nil:
-		return 0
-	default:
-		return len(fmt.Sprint(v)) / tokensPerChar
-	}
+	return len(contentString(content)) / tokensPerChar
 }
 
 // fileOperations tracks which files have been read and modified across the
@@ -367,6 +353,10 @@ func compact(
 		case sdk.ProviderEventError:
 			return nil, fmt.Errorf("compaction provider error: %v", evt.Content)
 		}
+	}
+
+	if summary.Len() == 0 {
+		return nil, fmt.Errorf("compaction produced empty summary")
 	}
 
 	summaryMsg := sdk.NewAssistantMessage(compactionSummaryPrefix + summary.String())
