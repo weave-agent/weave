@@ -486,6 +486,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case tea.PasteMsg:
+		// Clear active selections before paste changes editor content
+		m.chat = m.chat.ClearSelection()
+		m.editor = m.editor.ClearSelection()
+
 		// Paste detection: auto-convert large pastes to file attachments
 		if attachments.IsPastedContent(msg.Content) {
 			m.attach = m.attach.AddPaste(msg.Content)
@@ -690,6 +694,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case pasteToEditorMsg:
+		m.chat = m.chat.ClearSelection()
+		m.editor = m.editor.ClearSelection()
+
 		var cmd tea.Cmd
 
 		m.editor, cmd = m.editor.Update(tea.PasteMsg{Content: msg.text})
