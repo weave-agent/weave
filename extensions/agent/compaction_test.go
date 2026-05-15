@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -286,6 +287,36 @@ func TestFindValidBoundary(t *testing.T) {
 		}
 		assert.Equal(t, 2, findValidBoundary(msgs, 0))
 	})
+
+	t.Run("consecutive tool groups iterate without stack overflow", func(t *testing.T) {
+		msgs := make([]sdk.Message, 0)
+		for i := 0; i < 100; i++ {
+			asst := sdk.NewAssistantMessage("")
+			asst.ToolCalls = []sdk.ToolCall{
+				{ID: fmt.Sprintf("tc%d", i), Name: "bash", Arguments: map[string]any{}},
+			}
+			msgs = append(msgs, asst, sdk.NewToolResultMessage(fmt.Sprintf("tc%d", i), "bash", "out", false))
+		}
+		msgs = append(msgs, sdk.NewUserMessage("next"))
+		assert.Equal(t, len(msgs)-1, findValidBoundary(msgs, 0))
+	})
+
+	t.Run("interleaved tool results do not skip past user message", func(t *testing.T) {
+		asstA := sdk.NewAssistantMessage("")
+		asstA.ToolCalls = []sdk.ToolCall{
+			{ID: "tcA", Name: "bash", Arguments: map[string]any{}},
+		}
+		msgs := []sdk.Message{
+			asstA,
+			sdk.NewToolResultMessage("tcA", "bash", "out", false),
+			sdk.NewUserMessage("interleaved user"),
+			sdk.NewToolResultMessage("tcB", "bash", "out", false),
+			sdk.NewUserMessage("final"),
+		}
+		// Starting from asstA (index 0), should skip tcA result (index 1),
+		// then stop at the interleaved user message (index 2).
+		assert.Equal(t, 2, findValidBoundary(msgs, 0))
+	})
 }
 
 func TestEstimateContentTokens(t *testing.T) {
@@ -298,7 +329,7 @@ func TestEstimateContentTokens(t *testing.T) {
 	})
 
 	t.Run("byte slice content", func(t *testing.T) {
-		assert.Equal(t, 7, estimateContentTokens([]byte("abcdefgh")))
+		assert.Equal(t, 2, estimateContentTokens([]byte("abcdefgh")))
 	})
 
 	t.Run("default uses Sprint", func(t *testing.T) {

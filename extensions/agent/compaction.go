@@ -92,29 +92,23 @@ func findValidBoundary(msgs []sdk.Message, startIdx int) int {
 		case sdk.RoleUser:
 			return i
 		case sdk.RoleAssistant:
-			// Only valid if there are no tool calls that need results following
 			if len(msg.ToolCalls) == 0 {
 				return i
 			}
-			// Assistant with tool calls — the cut must include all following
-			// tool_result messages, so skip past them.
+			// Skip past matching tool_result messages for this assistant's tool calls.
 			toolCallIDs := make(map[string]bool, len(msg.ToolCalls))
 			for _, tc := range msg.ToolCalls {
 				toolCallIDs[tc.ID] = true
 			}
 			for j := i + 1; j < len(msgs); j++ {
 				if msgs[j].Role == sdk.RoleToolResult && toolCallIDs[msgs[j].ToolCallID] {
-					i = j // skip past matching tool results
+					i = j
+				} else {
+					break
 				}
 			}
-			// After the tool results, the next message is a valid boundary
-			if i+1 < len(msgs) {
-				// Recurse from the next position
-				return findValidBoundary(msgs, i+1)
-			}
-			return len(msgs) // can't split — everything must be kept
+			// Loop continues from i+1, iterating past the tool result group.
 		case sdk.RoleToolResult:
-			// Skip — will be handled by the assistant tool-call case above
 			continue
 		}
 	}
@@ -232,6 +226,8 @@ func contentString(content any) string {
 	switch v := content.(type) {
 	case string:
 		return v
+	case []byte:
+		return string(v)
 	case nil:
 		return ""
 	default:
@@ -318,7 +314,7 @@ func compact(
 	var previousSummary string
 	if len(messages) > 0 && messages[0].Role == sdk.RoleAssistant {
 		if content, ok := messages[0].Content.(string); ok && strings.HasPrefix(content, compactionSummaryPrefix) {
-			previousSummary = content
+			previousSummary = strings.TrimPrefix(content, compactionSummaryPrefix)
 		}
 	}
 
