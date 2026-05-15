@@ -941,3 +941,262 @@ func TestChatModel_TurnEndIndicator_IsStyledPill(t *testing.T) {
 	// The indicator should have background styling
 	assert.Contains(t, rendered, "234")
 }
+
+// --- Selection highlight rendering tests ---
+
+func TestChatModel_Draw_SelectionWithinVisibleArea(t *testing.T) {
+	m := NewChatModel().SetSize(80, 5)
+	m = m.AddItem(stubItem{text: "hello world line1\nhello world line2\nhello world line3"})
+
+	// Select from line 1, col 6 to line 2, col 11
+	m = m.StartSelection(1, 6)
+	m = m.ExtendSelection(2, 11)
+	m = m.EndSelection()
+
+	scr := uv.NewScreenBuffer(80, 5)
+	m.Draw(scr, uv.Rect(0, 0, 80, 5))
+
+	// Check that cells in the selection have AttrReverse set
+	// Line 1 (screen row 1): col 6 to end of line (80)
+	for x := 6; x < 80; x++ {
+		cell := scr.CellAt(x, 1)
+		require.NotNil(t, cell)
+		assert.NotEqual(t, 0, cell.Style.Attrs&uv.AttrReverse, "cell at (%d,1) should have AttrReverse", x)
+	}
+
+	// Line 2 (screen row 2): col 0 to 11
+	for x := range 11 {
+		cell := scr.CellAt(x, 2)
+		require.NotNil(t, cell)
+		assert.NotEqual(t, 0, cell.Style.Attrs&uv.AttrReverse, "cell at (%d,2) should have AttrReverse", x)
+	}
+
+	// Cells outside selection should NOT have AttrReverse
+	// Line 0 (screen row 0): no selection
+	cell := scr.CellAt(0, 0)
+	require.NotNil(t, cell)
+	assert.Equal(t, uint8(0), cell.Style.Attrs&uv.AttrReverse, "cell at (0,0) should NOT have AttrReverse")
+
+	// Line 1 before col 6
+	cell = scr.CellAt(0, 1)
+	require.NotNil(t, cell)
+	assert.Equal(t, uint8(0), cell.Style.Attrs&uv.AttrReverse, "cell at (0,1) should NOT have AttrReverse")
+
+	// Line 2 after col 11
+	cell = scr.CellAt(15, 2)
+	require.NotNil(t, cell)
+	assert.Equal(t, uint8(0), cell.Style.Attrs&uv.AttrReverse, "cell at (15,2) should NOT have AttrReverse")
+}
+
+func TestChatModel_Draw_SelectionSingleLine(t *testing.T) {
+	m := NewChatModel().SetSize(80, 3)
+	m = m.AddItem(stubItem{text: "hello world"})
+
+	// Select from col 6 to col 11 on line 0
+	m = m.StartSelection(0, 6)
+	m = m.ExtendSelection(0, 11)
+	m = m.EndSelection()
+
+	scr := uv.NewScreenBuffer(80, 3)
+	m.Draw(scr, uv.Rect(0, 0, 80, 3))
+
+	// Selected cols 6-10 should have AttrReverse
+	for x := 6; x < 11; x++ {
+		cell := scr.CellAt(x, 0)
+		require.NotNil(t, cell)
+		assert.NotEqual(t, 0, cell.Style.Attrs&uv.AttrReverse, "cell at (%d,0) should have AttrReverse", x)
+	}
+
+	// Before selection
+	cell := scr.CellAt(5, 0)
+	require.NotNil(t, cell)
+	assert.Equal(t, uint8(0), cell.Style.Attrs&uv.AttrReverse)
+
+	// After selection
+	cell = scr.CellAt(11, 0)
+	require.NotNil(t, cell)
+	assert.Equal(t, uint8(0), cell.Style.Attrs&uv.AttrReverse)
+}
+
+func TestChatModel_Draw_SelectionPartiallyVisible(t *testing.T) {
+	m := NewChatModel().SetSize(80, 3)
+	m = m.AddItem(stubItem{text: "line1\nline2\nline3\nline4\nline5"})
+
+	// Select lines 1-3 (lines 2-4 in 0-indexed: "line2", "line3", "line4")
+	m = m.StartSelection(1, 5)
+	m = m.ExtendSelection(3, 3)
+	m = m.EndSelection()
+
+	// Scroll down so only part of the selection is visible (lines 2-4)
+	m = m.ScrollDown(2)
+
+	scr := uv.NewScreenBuffer(80, 3)
+	m.Draw(scr, uv.Rect(0, 0, 80, 3))
+
+	// Screen row 0 corresponds to global line 2: full line selection
+	for x := range 80 {
+		cell := scr.CellAt(x, 0)
+		require.NotNil(t, cell)
+		assert.NotEqual(t, 0, cell.Style.Attrs&uv.AttrReverse, "cell at (%d,0) should have AttrReverse", x)
+	}
+
+	// Screen row 1 corresponds to global line 3: partial (cols 0-3)
+	for x := range 3 {
+		cell := scr.CellAt(x, 1)
+		require.NotNil(t, cell)
+		assert.NotEqual(t, 0, cell.Style.Attrs&uv.AttrReverse, "cell at (%d,1) should have AttrReverse", x)
+	}
+
+	// After selection on row 1
+	cell := scr.CellAt(5, 1)
+	require.NotNil(t, cell)
+	assert.Equal(t, uint8(0), cell.Style.Attrs&uv.AttrReverse)
+}
+
+func TestChatModel_Draw_EmptySelection_NoHighlight(t *testing.T) {
+	m := NewChatModel().SetSize(80, 3)
+	m = m.AddItem(stubItem{text: "hello world"})
+
+	// Single-point selection (not a real selection)
+	m = m.StartSelection(0, 5)
+	m = m.EndSelection()
+
+	scr := uv.NewScreenBuffer(80, 3)
+	m.Draw(scr, uv.Rect(0, 0, 80, 3))
+
+	// No cells should have AttrReverse
+	for x := range 80 {
+		cell := scr.CellAt(x, 0)
+		require.NotNil(t, cell)
+		assert.Equal(t, uint8(0), cell.Style.Attrs&uv.AttrReverse, "cell at (%d,0) should NOT have AttrReverse", x)
+	}
+}
+
+func TestChatModel_Draw_SelectionClippedToAreaBounds(t *testing.T) {
+	m := NewChatModel().SetSize(80, 3)
+	m = m.AddItem(stubItem{text: "hello world"})
+
+	// Select entire line (col 0 to 80)
+	m = m.StartSelection(0, 0)
+	m = m.ExtendSelection(0, 80)
+	m = m.EndSelection()
+
+	// Draw into a smaller area (width 20)
+	scr := uv.NewScreenBuffer(80, 3)
+	m.Draw(scr, uv.Rect(0, 0, 20, 3))
+
+	// Only cols 0-19 should have AttrReverse (clipped to area width)
+	for x := range 20 {
+		cell := scr.CellAt(x, 0)
+		require.NotNil(t, cell)
+		assert.NotEqual(t, 0, cell.Style.Attrs&uv.AttrReverse, "cell at (%d,0) should have AttrReverse", x)
+	}
+
+	// Cols beyond area width should NOT have AttrReverse
+	cell := scr.CellAt(25, 0)
+	require.NotNil(t, cell)
+	assert.Equal(t, uint8(0), cell.Style.Attrs&uv.AttrReverse)
+}
+
+func TestChatModel_Draw_SelectionWithOffsetArea(t *testing.T) {
+	m := NewChatModel().SetSize(40, 3)
+	m = m.AddItem(stubItem{text: "hello world"})
+
+	// Select cols 6-11 on line 0
+	m = m.StartSelection(0, 6)
+	m = m.ExtendSelection(0, 11)
+	m = m.EndSelection()
+
+	// Draw into an offset area
+	scr := uv.NewScreenBuffer(80, 24)
+	m.Draw(scr, uv.Rect(10, 5, 40, 3))
+
+	// Selection should be at offset screen coordinates
+	// Screen row 5, cols 16-21 (10 + 6 to 10 + 11)
+	for x := 16; x < 21; x++ {
+		cell := scr.CellAt(x, 5)
+		require.NotNil(t, cell)
+		assert.NotEqual(t, 0, cell.Style.Attrs&uv.AttrReverse, "cell at (%d,5) should have AttrReverse", x)
+	}
+
+	// Before selection
+	cell := scr.CellAt(15, 5)
+	require.NotNil(t, cell)
+	assert.Equal(t, uint8(0), cell.Style.Attrs&uv.AttrReverse)
+
+	// After selection
+	cell = scr.CellAt(21, 5)
+	require.NotNil(t, cell)
+	assert.Equal(t, uint8(0), cell.Style.Attrs&uv.AttrReverse)
+}
+
+func TestChatModel_Draw_SelectionExtendsBeyondVisibleArea(t *testing.T) {
+	m := NewChatModel().SetSize(80, 3)
+	m = m.AddItem(stubItem{text: "line1\nline2\nline3\nline4\nline5"})
+
+	// Select from line 0 to line 4 (entire content)
+	m = m.StartSelection(0, 0)
+	m = m.ExtendSelection(4, 80)
+	m = m.EndSelection()
+
+	// Scroll to show only lines 2-4
+	m = m.ScrollDown(2)
+
+	scr := uv.NewScreenBuffer(80, 3)
+	m.Draw(scr, uv.Rect(0, 0, 80, 3))
+
+	// All visible rows should be highlighted
+	for row := range 3 {
+		for x := range 80 {
+			cell := scr.CellAt(x, row)
+			require.NotNil(t, cell)
+			assert.NotEqual(t, 0, cell.Style.Attrs&uv.AttrReverse,
+				"cell at (%d,%d) should have AttrReverse", x, row)
+		}
+	}
+}
+
+func TestChatModel_Draw_NoSelectionWhenInactive(t *testing.T) {
+	m := NewChatModel().SetSize(80, 3)
+	m = m.AddItem(stubItem{text: "hello world"})
+
+	scr := uv.NewScreenBuffer(80, 3)
+	m.Draw(scr, uv.Rect(0, 0, 80, 3))
+
+	// No cells should have AttrReverse without active selection
+	for x := range 80 {
+		cell := scr.CellAt(x, 0)
+		require.NotNil(t, cell)
+		assert.Equal(t, uint8(0), cell.Style.Attrs&uv.AttrReverse)
+	}
+}
+
+func TestChatModel_Draw_BackwardSelection(t *testing.T) {
+	m := NewChatModel().SetSize(80, 3)
+	m = m.AddItem(stubItem{text: "hello world"})
+
+	// Backward selection: start at col 11, end at col 6
+	m = m.StartSelection(0, 11)
+	m = m.ExtendSelection(0, 6)
+	m = m.EndSelection()
+
+	scr := uv.NewScreenBuffer(80, 3)
+	m.Draw(scr, uv.Rect(0, 0, 80, 3))
+
+	// After EndSelection normalizes, cols 6-10 should be highlighted
+	for x := 6; x < 11; x++ {
+		cell := scr.CellAt(x, 0)
+		require.NotNil(t, cell)
+		assert.NotEqual(t, 0, cell.Style.Attrs&uv.AttrReverse, "cell at (%d,0) should have AttrReverse", x)
+	}
+
+	// Before selection
+	cell := scr.CellAt(5, 0)
+	require.NotNil(t, cell)
+	assert.Equal(t, uint8(0), cell.Style.Attrs&uv.AttrReverse)
+
+	// After selection
+	cell = scr.CellAt(11, 0)
+	require.NotNil(t, cell)
+	assert.Equal(t, uint8(0), cell.Style.Attrs&uv.AttrReverse)
+}

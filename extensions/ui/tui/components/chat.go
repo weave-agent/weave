@@ -511,6 +511,27 @@ func (m ChatModel) Draw(scr uv.Screen, area uv.Rectangle) {
 	for i, line := range visible {
 		lineRect := uv.Rect(area.Min.X, area.Min.Y+i, area.Dx(), 1)
 		uv.NewStyledString(line).Draw(scr, lineRect)
+
+		// Apply selection highlight (reverse video) to selected cells
+		globalLine := m.scroll + i
+		if sel := m.selectionForLine(globalLine); sel != nil {
+			startX := area.Min.X + sel.startCol
+			endX := area.Min.X + sel.endCol
+			// Clip to area bounds
+			if startX < area.Min.X {
+				startX = area.Min.X
+			}
+
+			if endX > area.Max.X {
+				endX = area.Max.X
+			}
+
+			for x := startX; x < endX; x++ {
+				if cell := scr.CellAt(x, area.Min.Y+i); cell != nil {
+					cell.Style.Attrs |= uv.AttrReverse
+				}
+			}
+		}
 	}
 
 	// Render scroll indicators on the last visible line as a styled pill

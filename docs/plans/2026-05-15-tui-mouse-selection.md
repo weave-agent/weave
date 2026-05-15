@@ -59,11 +59,11 @@ Implement in-app mouse text selection for the weave TUI chat. Currently, enablin
 - [x] run tests — must pass before next task
 
 ### Task 2: Render selection highlight in ChatModel.Draw()
-- [ ] Modify `ChatModel.Draw()` to apply `uv.AttrReverse` to cells in selection range after drawing each line
-- [ ] Ensure highlight clips correctly at rectangle bounds
-- [ ] Handle case where selection extends beyond visible area
-- [ ] write tests for highlight rendering (selection within visible area, partially visible, empty selection)
-- [ ] run tests — must pass before next task
+- [x] Modify `ChatModel.Draw()` to apply `uv.AttrReverse` to cells in selection range after drawing each line
+- [x] Ensure highlight clips correctly at rectangle bounds
+- [x] Handle case where selection extends beyond visible area
+- [x] write tests for highlight rendering (selection within visible area, partially visible, empty selection)
+- [x] run tests — must pass before next task
 
 ### Task 3: Extract selected text from ChatModel
 - [ ] Add `ExtractSelection() string` method that renders each selected line into a temp screen buffer and reads cell contents
