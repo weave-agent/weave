@@ -252,6 +252,7 @@ func readLines(r *bufio.Reader, offset, limit int) ([]string, error) {
 			maxLineNum = info.num
 		}
 	}
+
 	width := len(strconv.Itoa(maxLineNum))
 
 	lines := make([]string, len(collected))

@@ -104,10 +104,10 @@ Implement in-app mouse text selection for the weave TUI chat. Currently, enablin
 - [x] verify test coverage meets project standard — components package at 90.3%
 
 ### Task 7: Final cleanup and documentation
-- [ ] review all changes for code quality
-- [ ] ensure no debug prints or commented-out code remain
-- [ ] run `make test` from project root
-- [ ] run `make lint` from project root
+- [x] review all changes for code quality
+- [x] ensure no debug prints or commented-out code remain
+- [x] run `make test` from project root (all pass except 2 pre-existing failures in commands_test.go)
+- [x] run `make lint` from project root (0 issues in modified files; 7 pre-existing issues in unrelated files)
 
 ## Technical Details
 
