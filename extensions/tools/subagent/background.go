@@ -123,7 +123,7 @@ func (bm *backgroundManager) notifyStarted(ba *backgroundAgent) {
 	payload := map[string]string{
 		propID: ba.ID,
 		"name": ba.Agent.Name,
-		"mode": "background",
+		"mode": paramBackground,
 	}
 
 	bus.Publish(sdk.NewEvent("subagent.started", payload))

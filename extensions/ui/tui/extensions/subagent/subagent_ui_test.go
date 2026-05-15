@@ -344,3 +344,106 @@ func TestSubagentExtension_Subscribe_DoneIgnoresBadPayload(t *testing.T) {
 	require.NotNil(t, agent)
 	assert.Equal(t, AgentRunning, agent.Status)
 }
+
+func TestSubagentExtension_Close_ClearsAPIAndTracker(t *testing.T) {
+	ext := &SubagentExtension{tracker: NewAgentTracker(gracePeriod, nil), renderer: &subagentRenderer{}}
+	api := newMockTUIExtAPI()
+
+	ext.RegisterTUI(api)
+	require.NotNil(t, ext.api)
+
+	// Start some agents
+	ext.tracker.Start("agent-1", "test", "background")
+	ext.tracker.Start("agent-2", "test", "background")
+	assert.Len(t, ext.tracker.List(), 2)
+
+	ext.Close()
+
+	assert.Nil(t, ext.api)
+	assert.Empty(t, ext.tracker.List())
+}
+
+func TestSubagentExtension_Close_Idempotent(t *testing.T) {
+	ext := &SubagentExtension{tracker: NewAgentTracker(gracePeriod, nil), renderer: &subagentRenderer{}}
+	api := newMockTUIExtAPI()
+
+	ext.RegisterTUI(api)
+
+	assert.NotPanics(t, func() {
+		ext.Close()
+		ext.Close()
+		ext.Close()
+	})
+}
+
+func TestSubagentExtension_AgentEnd_TriggersCleanup(t *testing.T) {
+	ext := &SubagentExtension{tracker: NewAgentTracker(50*time.Millisecond, nil), renderer: &subagentRenderer{}}
+	api := newMockTUIExtAPI()
+	bus := newMockBus()
+
+	ext.RegisterTUI(api)
+	ext.subscribe(bus)
+
+	// Start two agents
+	bus.Publish(sdk.NewEvent("subagent.started", map[string]string{
+		"id": "agent-a", "name": "alpha", "mode": "background",
+	}))
+	bus.Publish(sdk.NewEvent("subagent.started", map[string]string{
+		"id": "agent-b", "name": "beta", "mode": "background",
+	}))
+
+	require.Len(t, ext.tracker.List(), 2)
+	require.NotNil(t, ext.api)
+
+	// Simulate TUI shutdown
+	bus.Publish(sdk.NewEvent("agent.end", nil))
+
+	// All agents should be cleaned up, API cleared
+	assert.Empty(t, ext.tracker.List())
+	assert.Nil(t, ext.api)
+
+	// Grace-period timers should not fire (they were cancelled)
+	time.Sleep(150 * time.Millisecond)
+	assert.Empty(t, api.panelsRemoved)
+}
+
+func TestSubagentExtension_NoPanelLeak_OnDone(t *testing.T) {
+	// Verify that every ShowPanel has a corresponding RemovePanel after
+	// agents complete through the grace period.
+	ext := &SubagentExtension{tracker: NewAgentTracker(50*time.Millisecond, nil), renderer: &subagentRenderer{}}
+	api := newMockTUIExtAPI()
+	bus := newMockBus()
+
+	ext.RegisterTUI(api)
+	ext.subscribe(bus)
+
+	// Start and complete 3 agents
+	for i := range 3 {
+		id := "agent-" + string(rune('a'+i))
+		bus.Publish(sdk.NewEvent("subagent.started", map[string]string{
+			"id": id, "name": "agent", "mode": "background",
+		}))
+		bus.Publish(sdk.NewEvent("subagent.done", map[string]string{
+			"id": id, "status": "completed", "content": "done",
+		}))
+	}
+
+	require.Len(t, api.panelsShown, 3)
+
+	// Wait for grace periods
+	time.Sleep(150 * time.Millisecond)
+
+	// Every shown panel should have been removed
+	require.Len(t, api.panelsRemoved, 3)
+
+	shownIDs := make(map[string]bool)
+	for _, p := range api.panelsShown {
+		shownIDs[p.ID] = true
+	}
+	for _, id := range api.panelsRemoved {
+		assert.True(t, shownIDs[id], "removed panel %s was never shown", id)
+	}
+
+	// No agents left in tracker
+	assert.Empty(t, ext.tracker.List())
+}

@@ -99,13 +99,13 @@ A TUI extension that visualizes running subagents as per-agent panels in the pan
 - [x] Write tests for renderer output
 
 ### Task 7: Final integration and verification
-- [ ] Wire all components together in `RegisterTUI`
-- [ ] Ensure no panels leak (all removals are accounted for)
-- [ ] Add graceful handling when TUI shuts down while agents are running
-- [ ] Run full TUI extension tests: `cd extensions/ui/tui && go test ./...`
-- [ ] Run subagent extension tests: `cd extensions/tools/subagent && go test ./...`
-- [ ] Run root tests: `go test ./...`
-- [ ] Run linter: `make lint`
+- [x] Wire all components together in `RegisterTUI`
+- [x] Ensure no panels leak (all removals are accounted for)
+- [x] Add graceful handling when TUI shuts down while agents are running
+- [x] Run full TUI extension tests: `cd extensions/ui/tui && go test ./...`
+- [x] Run subagent extension tests: `cd extensions/tools/subagent && go test ./...`
+- [x] Run root tests: `go test ./...`
+- [x] Run linter: `make lint`
 
 ### Task 8: Verify acceptance criteria
 - [ ] Verify `subagent.started` event is published when background agents spawn

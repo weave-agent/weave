@@ -439,6 +439,7 @@ func TestBackgroundManager_NotifyStarted(t *testing.T) {
 	mgr.setBus(bus)
 
 	original := testRunSubagent
+
 	t.Cleanup(func() { testRunSubagent = original })
 
 	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
@@ -465,6 +466,7 @@ func TestBackgroundManager_NotifyStartedNoBus(t *testing.T) {
 	// No bus — spawn should not panic.
 
 	original := testRunSubagent
+
 	t.Cleanup(func() { testRunSubagent = original })
 
 	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
@@ -482,6 +484,7 @@ func TestBackgroundManager_NotifyStartedWithCustomID(t *testing.T) {
 	mgr.setBus(bus)
 
 	original := testRunSubagent
+
 	t.Cleanup(func() { testRunSubagent = original })
 
 	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {

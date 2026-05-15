@@ -179,3 +179,37 @@ func TestAgentTracker_ConcurrentAccess(t *testing.T) {
 	wg.Wait()
 	assert.Empty(t, tracker.List())
 }
+
+func TestAgentTracker_Close(t *testing.T) {
+	var removed atomic.Int32
+	tracker := NewAgentTracker(50*time.Millisecond, func(id string) {
+		removed.Add(1)
+	})
+
+	tracker.Start("agent-1", "researcher", "background")
+	tracker.Start("agent-2", "planner", "background")
+	tracker.Done("agent-1", "completed", "done")
+
+	assert.Len(t, tracker.List(), 2)
+
+	tracker.Close()
+
+	assert.Empty(t, tracker.List())
+	assert.Nil(t, tracker.Get("agent-1"))
+	assert.Nil(t, tracker.Get("agent-2"))
+
+	// Grace-period timer should have been cancelled.
+	time.Sleep(150 * time.Millisecond)
+	assert.Equal(t, int32(0), removed.Load())
+}
+
+func TestAgentTracker_Close_Idempotent(t *testing.T) {
+	tracker := NewAgentTracker(0, nil)
+	tracker.Start("agent-1", "test", "background")
+
+	assert.NotPanics(t, func() {
+		tracker.Close()
+		tracker.Close()
+		tracker.Close()
+	})
+}

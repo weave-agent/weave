@@ -51,6 +51,13 @@ func (e *SubagentExtension) RegisterTUI(api tui.TUIExtAPI) {
 	}
 }
 
+// Close stops all grace-period timers and releases resources. Safe to call
+// multiple times.
+func (e *SubagentExtension) Close() {
+	e.api = nil
+	e.tracker.Close()
+}
+
 // subscribe sets up bus event handlers for subagent lifecycle events.
 func (e *SubagentExtension) subscribe(bus sdk.Bus) {
 	bus.On("subagent.started", func(ev sdk.Event) error {
@@ -99,6 +106,12 @@ func (e *SubagentExtension) subscribe(bus sdk.Bus) {
 
 		e.tracker.Done(id, status, result)
 
+		return nil
+	})
+
+	// Clean up when the TUI shuts down.
+	bus.On("agent.end", func(_ sdk.Event) error {
+		e.Close()
 		return nil
 	})
 }

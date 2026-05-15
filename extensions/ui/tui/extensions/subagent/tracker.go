@@ -134,3 +134,18 @@ func (t *AgentTracker) Remove(id string) {
 	}
 	delete(t.agents, id)
 }
+
+// Close stops all grace-period timers and removes all tracked agents.
+// It is safe to call multiple times.
+func (t *AgentTracker) Close() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	for id, timer := range t.timers {
+		timer.Stop()
+		delete(t.timers, id)
+	}
+	for id := range t.agents {
+		delete(t.agents, id)
+	}
+}
