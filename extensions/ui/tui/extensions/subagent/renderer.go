@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"weave/sdk"
 
@@ -80,7 +81,7 @@ func (r *subagentRenderer) renderForegroundOutput(content string, theme sdk.Them
 		}
 
 		// Truncate wide lines if width is specified.
-		if width > 3 && len(line) > width {
+		if width > 3 && utf8.RuneCountInString(line) > width {
 			runes := []rune(line)
 
 			truncateAt := max(width-3, 0)

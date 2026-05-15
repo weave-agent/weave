@@ -102,6 +102,7 @@ func TestAgentTracker_Start_OverwriteRunning(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("timeout waiting for grace-period callback")
 	}
+
 	assert.Nil(t, tracker.Get("agent-1"))
 }
 
@@ -202,6 +203,7 @@ func TestAgentTracker_Done_CalledTwice(t *testing.T) {
 		t.Fatal("unexpected second callback")
 	default:
 	}
+
 	assert.Nil(t, tracker.Get("agent-1"))
 }
 

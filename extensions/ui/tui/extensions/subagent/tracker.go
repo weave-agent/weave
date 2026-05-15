@@ -71,7 +71,9 @@ func (t *AgentTracker) Start(id, name, mode string) *TrackedAgent {
 			timer.Stop()
 			delete(t.timers, id)
 		}
+
 		delete(t.agents, id)
+
 		_ = old // explicitly acknowledge we're dropping the old agent
 	}
 

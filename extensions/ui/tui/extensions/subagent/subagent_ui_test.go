@@ -98,29 +98,20 @@ func (m *mockTUIExtAPI) SetWorkingFrames(frames []string, interval time.Duration
 func (m *mockTUIExtAPI) RegisterTheme(name string, theme tui.ThemeDef) error                  { return nil }
 
 // waitForPanelRemovals waits until at least count panels have been removed.
-func waitForPanelRemovals(t *testing.T, api *mockTUIExtAPI, count int, timeout time.Duration) []string {
+func waitForPanelRemovals(t *testing.T, api *mockTUIExtAPI, count int) {
 	t.Helper()
-	deadline := time.Now().Add(timeout)
+
+	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		removed := api.getPanelsRemoved()
 		if len(removed) >= count {
-			return removed
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	t.Fatalf("timeout waiting for %d panel removals, got %d", count, len(api.getPanelsRemoved()))
-	return nil
-}
-
-// drainRemoveCh drains any pending removals from the channel.
-func drainRemoveCh(api *mockTUIExtAPI) {
-	for {
-		select {
-		case <-api.removeCh:
-		default:
 			return
 		}
+
+		time.Sleep(5 * time.Millisecond)
 	}
+
+	t.Fatalf("timeout waiting for %d panel removals, got %d", count, len(api.getPanelsRemoved()))
 }
 
 // mockBus records published events and delivers On-subscribed events.
@@ -278,7 +269,7 @@ func TestSubagentExtension_Subscribe_FullLifecycle(t *testing.T) {
 	assert.Empty(t, api.getPanelsRemoved())
 
 	// Wait for grace period to expire
-	waitForPanelRemovals(t, api, 1, 2*time.Second)
+	waitForPanelRemovals(t, api, 1)
 
 	// After grace period: agent removed from tracker, panel removed
 	assert.Nil(t, ext.tracker.Get("agent-789"))
@@ -315,7 +306,7 @@ func TestSubagentExtension_Subscribe_FailedAgent(t *testing.T) {
 	assert.Equal(t, AgentFailed, agent.Status)
 
 	// Wait for grace period
-	waitForPanelRemovals(t, api, 1, 2*time.Second)
+	waitForPanelRemovals(t, api, 1)
 
 	assert.Nil(t, ext.tracker.Get("agent-fail"))
 
@@ -349,7 +340,7 @@ func TestSubagentExtension_Subscribe_MultipleAgents(t *testing.T) {
 		"id": "agent-a", "status": "completed", "content": "done",
 	}))
 
-	waitForPanelRemovals(t, api, 1, 2*time.Second)
+	waitForPanelRemovals(t, api, 1)
 
 	// agent-a removed, agent-b still running
 	assert.Nil(t, ext.tracker.Get("agent-a"))
@@ -522,7 +513,7 @@ func TestSubagentExtension_NoPanelLeak_OnDone(t *testing.T) {
 	require.Len(t, api.panelsShown, 3)
 
 	// Wait for all grace periods to expire
-	waitForPanelRemovals(t, api, 3, 2*time.Second)
+	waitForPanelRemovals(t, api, 3)
 
 	// Every shown panel should have been removed
 	removed := api.getPanelsRemoved()
