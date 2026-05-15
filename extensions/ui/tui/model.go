@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -716,6 +717,7 @@ func (m Model) handleCtrlC() (tea.Model, tea.Cmd) {
 
 	// Editor is empty — check for double press
 	if m.ctrlCPressed {
+		m.ctrlCPressed = false
 		return m, tea.Quit
 	}
 
@@ -1118,7 +1120,7 @@ func (m Model) onSubmit(text string) (tea.Model, tea.Cmd) {
 	if handled, result := m.commands.Dispatch(text); handled { //nolint:nestif // command dispatch has multiple optional outcomes
 		cmdName, cmdArgs := parseCommand(text)
 		if skillName, ok := strings.CutPrefix(cmdName, "/skill:"); ok {
-			xmlContent := fmt.Sprintf("<skill name=%q>\n%s\n</skill>", skillName, cmdArgs)
+			xmlContent := fmt.Sprintf("<skill name=%q>\n%s\n</skill>", skillName, html.EscapeString(cmdArgs))
 
 			m.chat = m.chat.AddItem(messages.NewUserMessage(xmlContent))
 			m.prompted = true
@@ -2156,7 +2158,7 @@ func (m Model) drawPills(scr uv.Screen, area uv.Rectangle) {
 		y++
 	}
 
-	if m.statusMsg != "" {
+	if m.statusMsg != "" && y < area.Max.Y {
 		statusColor := m.theme.Foreground
 		if m.statusNew {
 			statusColor = m.theme.Muted

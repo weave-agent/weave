@@ -682,7 +682,7 @@ func (u *TUIImpl) SetWorkingFrames(frames []string, interval time.Duration) {
 	u.mu.Unlock()
 
 	if p != nil {
-		p.Send(setWorkingFramesMsg{frames: frames, interval: interval})
+		p.Send(setWorkingFramesMsg{frames: u.workingFrames, interval: interval})
 	}
 }
 
