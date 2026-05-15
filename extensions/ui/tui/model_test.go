@@ -539,7 +539,6 @@ func TestModel_MessageEndWithThinking(t *testing.T) {
 	tb, ok := items[1].(*messages.ThinkingBlock)
 	require.True(t, ok)
 	assert.Equal(t, "I need to consider the deep philosophical implications...", tb.Content())
-	assert.False(t, tb.Expanded())
 }
 
 func TestModel_MessageEndWithoutThinking(t *testing.T) {

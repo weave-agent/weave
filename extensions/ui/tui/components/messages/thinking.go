@@ -1,7 +1,6 @@
 package messages
 
 import (
-	"fmt"
 	"strings"
 	"unicode/utf8"
 
@@ -11,34 +10,19 @@ import (
 	uv "github.com/charmbracelet/ultraviolet"
 )
 
-// ThinkingBlock renders a collapsible thinking section.
-// Collapsed by default, showing a styled header with lightbulb icon.
+// ThinkingBlock renders a thinking section, always shown.
 type ThinkingBlock struct {
-	content  string
-	expanded bool
+	content string
 }
 
-// NewThinkingBlock creates a new collapsed thinking block.
+// NewThinkingBlock creates a new thinking block.
 func NewThinkingBlock(content string) *ThinkingBlock {
-	return &ThinkingBlock{
-		content:  content,
-		expanded: false,
-	}
+	return &ThinkingBlock{content: content}
 }
 
 // Content returns the thinking content.
 func (b *ThinkingBlock) Content() string {
 	return b.content
-}
-
-// Expanded returns whether the block is expanded.
-func (b *ThinkingBlock) Expanded() bool {
-	return b.expanded
-}
-
-// ToggleExpanded flips the expand/collapse state.
-func (b *ThinkingBlock) ToggleExpanded() {
-	b.expanded = !b.expanded
 }
 
 // View renders the thinking block.
@@ -49,34 +33,24 @@ func (b *ThinkingBlock) View(width int) string {
 
 	theme := palette.DefaultTheme()
 
-	// Header with background tint and lightbulb icon
 	headerStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.Primary)).
-		Background(lipgloss.Color(theme.BackgroundTint)).
-		Width(width - 2)
-
-	if !b.expanded {
-		return headerStyle.Render(FormatThinkingLabel(b.LineCount()))
-	}
+		Foreground(lipgloss.Color(theme.Muted)).
+		Width(width)
 
 	lines := strings.Split(b.content, "\n")
 
 	var bldr strings.Builder
-	bldr.WriteString(headerStyle.Render(fmt.Sprintf("💡 Thinking ▼  (%d lines)", b.LineCount())))
+	bldr.WriteString(headerStyle.Render("∴ Thinking…"))
 	bldr.WriteString("\n")
 
-	// Expanded content uses indented left border in primary color
-	borderStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.Primary))
+	// Content: simple 2-space indent, muted color
 	contentStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(theme.Muted)).
-		Width(width - 4)
-
-	borderBar := borderStyle.Render("│")
+		Width(width - 2)
 
 	for _, line := range lines {
 		styledLine := contentStyle.Render(line)
-		bldr.WriteString("  " + borderBar + " " + styledLine)
+		bldr.WriteString("  " + styledLine)
 		bldr.WriteString("\n")
 	}
 
@@ -86,11 +60,6 @@ func (b *ThinkingBlock) View(width int) string {
 // Draw renders the thinking block into a screen buffer region.
 func (b *ThinkingBlock) Draw(scr uv.Screen, area uv.Rectangle) {
 	drawView(scr, area, b.View(area.Dx()))
-}
-
-// SetExpanded sets the expanded state directly.
-func (b *ThinkingBlock) SetExpanded(expanded bool) {
-	b.expanded = expanded
 }
 
 // Summary returns a short preview of the thinking content.
@@ -115,13 +84,4 @@ func (b *ThinkingBlock) LineCount() int {
 	}
 
 	return len(strings.Split(b.content, "\n"))
-}
-
-// FormatThinkingLabel creates the collapsed label text with a lightbulb icon.
-func FormatThinkingLabel(lineCount int) string {
-	if lineCount <= 0 {
-		return "💡 Thinking"
-	}
-
-	return fmt.Sprintf("💡 Thinking  (%d lines)", lineCount)
 }

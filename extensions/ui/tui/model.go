@@ -843,10 +843,6 @@ func (m Model) dispatchBinding(action BindingAction) (tea.Model, tea.Cmd) {
 	case ActionToggleToolOutput:
 		m.toggleLastToolOutput()
 		return m, nil
-	case ActionToggleThinking:
-		m.toggleLastThinkingBlock()
-		return m, nil
-
 	case ActionThinkingCycle:
 		return m.cycleThinkingLevel()
 
@@ -917,19 +913,6 @@ func (m *Model) toggleLastToolOutput() {
 		if um, ok := item.(*messages.UserMessage); ok && um.IsSkillInvocation() {
 			um.ToggleExpanded()
 			m.chat = m.chat.UpdateItemAt(i, um)
-
-			return
-		}
-	}
-}
-
-// toggleLastThinkingBlock expands or collapses the last thinking block.
-func (m *Model) toggleLastThinkingBlock() {
-	items := m.chat.Items()
-	for _, item := range slices.Backward(items) {
-		if tb, ok := item.(*messages.ThinkingBlock); ok {
-			tb.ToggleExpanded()
-			m.chat = m.chat.UpdateItemByID(tb)
 
 			return
 		}

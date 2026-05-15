@@ -6,55 +6,27 @@ import (
 
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestThinkingBlock_New(t *testing.T) {
 	b := NewThinkingBlock("some thinking content")
 	assert.Equal(t, "some thinking content", b.Content())
-	assert.False(t, b.Expanded())
 }
 
-func TestThinkingBlock_ToggleExpanded(t *testing.T) {
-	b := NewThinkingBlock("thinking")
-	assert.False(t, b.Expanded())
-
-	b.ToggleExpanded()
-	assert.True(t, b.Expanded())
-
-	b.ToggleExpanded()
-	assert.False(t, b.Expanded())
-}
-
-func TestThinkingBlock_SetExpanded(t *testing.T) {
-	b := NewThinkingBlock("thinking")
-	b.SetExpanded(true)
-	assert.True(t, b.Expanded())
-
-	b.SetExpanded(false)
-	assert.False(t, b.Expanded())
-}
-
-func TestThinkingBlock_View_Collapsed(t *testing.T) {
+func TestThinkingBlock_View(t *testing.T) {
 	b := NewThinkingBlock("deep thoughts about the problem")
 	view := b.View(80)
-	assert.Contains(t, view, "Thinking")
-	// Collapsed should NOT show content
-	assert.NotContains(t, view, "deep thoughts")
-}
-
-func TestThinkingBlock_View_Expanded(t *testing.T) {
-	b := NewThinkingBlock("deep thoughts about the problem")
-	b.ToggleExpanded()
-	view := b.View(80)
+	assert.Contains(t, view, "∴")
 	assert.Contains(t, view, "Thinking")
 	assert.Contains(t, view, "deep thoughts about the problem")
 }
 
-func TestThinkingBlock_View_MultilineExpanded(t *testing.T) {
+func TestThinkingBlock_View_Multiline(t *testing.T) {
 	content := "first thought\nsecond thought\nthird thought"
 	b := NewThinkingBlock(content)
-	b.ToggleExpanded()
 	view := b.View(80)
+	assert.Contains(t, view, "∴")
 	assert.Contains(t, view, "first thought")
 	assert.Contains(t, view, "second thought")
 	assert.Contains(t, view, "third thought")
@@ -63,6 +35,7 @@ func TestThinkingBlock_View_MultilineExpanded(t *testing.T) {
 func TestThinkingBlock_View_EmptyContent(t *testing.T) {
 	b := NewThinkingBlock("")
 	view := b.View(80)
+	assert.Contains(t, view, "∴")
 	assert.Contains(t, view, "Thinking")
 }
 
@@ -70,6 +43,7 @@ func TestThinkingBlock_View_ZeroWidth(t *testing.T) {
 	b := NewThinkingBlock("thinking content")
 	// Should not panic with zero width
 	view := b.View(0)
+	assert.Contains(t, view, "∴")
 	assert.Contains(t, view, "Thinking")
 }
 
@@ -112,67 +86,26 @@ func TestThinkingBlock_Summary(t *testing.T) {
 	}
 }
 
-func TestFormatThinkingLabel(t *testing.T) {
-	tests := []struct {
-		name      string
-		lineCount int
-		expect    string
-	}{
-		{"zero lines", 0, "💡 Thinking"},
-		{"one line", 1, "💡 Thinking  (1 lines)"},
-		{"many lines", 42, "💡 Thinking  (42 lines)"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expect, FormatThinkingLabel(tt.lineCount))
-		})
-	}
-}
-
-func TestThinkingBlock_View_Collapsed_HasLightbulbIcon(t *testing.T) {
+func TestThinkingBlock_View_HasThereforeSymbol(t *testing.T) {
 	b := NewThinkingBlock("deep thoughts")
 	view := b.View(80)
-	assert.Contains(t, view, "💡")
+	assert.Contains(t, view, "∴")
 	assert.Contains(t, view, "Thinking")
 }
 
-func TestThinkingBlock_View_Expanded_HasLightbulbIcon(t *testing.T) {
-	b := NewThinkingBlock("deep thoughts")
-	b.ToggleExpanded()
+func TestThinkingBlock_View_HasMutedIndent(t *testing.T) {
+	b := NewThinkingBlock("first line\nsecond line")
 	view := b.View(80)
-	assert.Contains(t, view, "💡")
-	assert.Contains(t, view, "Thinking")
+	// Content should be indented with 2 spaces
+	lines := strings.Split(view, "\n")
+	require.True(t, len(lines) >= 3)
+	// First line is header, subsequent lines are indented content
+	assert.True(t, strings.HasPrefix(lines[1], "  "), "content should be 2-space indented")
+	assert.True(t, strings.HasPrefix(lines[2], "  "), "content should be 2-space indented")
 }
 
-func TestThinkingBlock_View_Expanded_HasBorderBar(t *testing.T) {
-	b := NewThinkingBlock("deep thoughts")
-	b.ToggleExpanded()
-	view := b.View(80)
-	// Expanded content should have border bars (│) from the primary-colored border
-	assert.Contains(t, view, "│")
-}
-
-func TestThinkingBlock_View_Collapsed_ShowsLineCount(t *testing.T) {
-	content := "line1\nline2\nline3\nline4\nline5"
-	b := NewThinkingBlock(content)
-	view := b.View(80)
-	assert.Contains(t, view, "💡")
-	assert.Contains(t, view, "5 lines")
-}
-
-func TestThinkingBlock_Draw_Collapsed(t *testing.T) {
-	b := NewThinkingBlock("secret thoughts")
-	canvas := uv.NewScreenBuffer(80, 5)
-	b.Draw(canvas, canvas.Bounds())
-	output := uv.TrimSpace(canvas.Render())
-	assert.Contains(t, output, "Thinking")
-	assert.NotContains(t, output, "secret thoughts")
-}
-
-func TestThinkingBlock_Draw_Expanded(t *testing.T) {
+func TestThinkingBlock_Draw(t *testing.T) {
 	b := NewThinkingBlock("deep thoughts\nmore thoughts")
-	b.ToggleExpanded()
-
 	canvas := uv.NewScreenBuffer(80, 10)
 	b.Draw(canvas, canvas.Bounds())
 	output := uv.TrimSpace(canvas.Render())
