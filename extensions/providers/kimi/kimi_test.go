@@ -253,11 +253,11 @@ func TestStream_WithThinkingLevel(t *testing.T) {
 	require.NoError(t, err)
 	collectEvents(t, ch)
 
-	// Kimi API does not support Anthropic-specific adaptive thinking params.
-	assert.NotContains(t, receivedBody, `"thinking"`)
-	assert.NotContains(t, receivedBody, `"adaptive"`)
-	assert.NotContains(t, receivedBody, `"output_config"`)
-	assert.NotContains(t, receivedBody, `"effort"`)
+	// With reasoning enabled, thinking and output_config params are sent.
+	assert.Contains(t, receivedBody, `"thinking"`)
+	assert.Contains(t, receivedBody, `"adaptive"`)
+	assert.Contains(t, receivedBody, `"output_config"`)
+	assert.Contains(t, receivedBody, `"effort"`)
 }
 
 func TestStream_ThinkingOff_NoThinkingParam(t *testing.T) {
@@ -828,9 +828,9 @@ func TestResolveThinkingLevel_Clamping(t *testing.T) {
 
 	RegisterModels()
 
-	// kimi-for-coding does not support reasoning via Anthropic adaptive thinking params
+	// kimi-for-coding supports reasoning but not xhigh
 	level := resolveThinkingLevel("kimi-for-coding", model.ThinkingXHigh)
-	assert.Equal(t, model.ThinkingOff, level)
+	assert.Equal(t, model.ThinkingHigh, level)
 
 	// Model without xhigh support should clamp to high
 	model.RegisterModel(model.ModelDef{
