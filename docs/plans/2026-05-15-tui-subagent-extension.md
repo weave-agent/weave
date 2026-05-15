@@ -118,8 +118,8 @@ A TUI extension that visualizes running subagents as per-agent panels in the pan
 - [x] Run linter — all issues fixed
 
 ### Task 9: Update documentation
-- [ ] Add brief note to TUI section in project docs about subagent panel feature
-- [ ] Update this plan file with any deviations discovered during implementation
+- [x] Add brief note to TUI section in project docs about subagent panel feature
+- [x] Update this plan file with any deviations discovered during implementation
 
 ## Technical Details
 
