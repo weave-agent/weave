@@ -46,6 +46,8 @@ func (a *AgentExtension) run(
 
 	var messages []sdk.Message
 
+	a.fileOps = newFileOperations()
+
 	// Build the system prompt once from discovered files and skills.
 	systemPrompt := a.buildSystemPrompt()
 
@@ -180,6 +182,10 @@ func (a *AgentExtension) run(
 				messages = append(messages, sdk.NewToolResultMessage(tc.ID, tc.Name, result.Content, result.IsError))
 			}
 
+			if len(toolCalls) > 0 {
+				trackFileOps(messages, a.fileOps)
+			}
+
 			bus.Publish(sdk.NewEvent(TopicTurnEnd, nil))
 
 			var hasNewSteering bool
@@ -219,6 +225,7 @@ func (a *AgentExtension) run(
 			provider = a.drainChanges(modelChangeCh, thinkingCh, bus, provider)
 			messages = []sdk.Message{sdk.NewUserMessage(evt.Payload)}
 			turn = 1
+			a.fileOps = newFileOperations()
 			// Rebuild system prompt on new conversation
 			systemPrompt = a.buildSystemPrompt()
 		case evt, ok := <-modelChangeCh:

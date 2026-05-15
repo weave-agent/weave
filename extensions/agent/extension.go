@@ -33,6 +33,8 @@ type AgentExtension struct {
 	skillDiscoveryPaths []string // override for testing
 	compactionCfg       CompactionConfig
 
+	fileOps *fileOperations
+
 	mu     sync.Mutex
 	cancel context.CancelFunc
 	done   chan struct{}

@@ -3,10 +3,12 @@ package agent
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"weave/sdk"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestEstimateTokens(t *testing.T) {
@@ -62,7 +64,6 @@ func TestEstimateTokens(t *testing.T) {
 		got := estimateTokens(msgs)
 		assert.Positive(t, got)
 
-		// Verify thinking content adds tokens beyond just the text content
 		plainMsg := sdk.NewAssistantMessage("answer")
 		plainTokens := estimateTokens([]sdk.Message{plainMsg})
 		assert.Greater(t, got, plainTokens, "thinking blocks should add to token estimate")
@@ -90,13 +91,12 @@ func TestEstimateTokens(t *testing.T) {
 		msgs := []sdk.Message{
 			{Role: sdk.RoleUser, Content: 42},
 		}
-		// "42" = 2 chars -> 0 tokens (integer division)
 		assert.Equal(t, 0, estimateTokens(msgs))
 	})
 
 	t.Run("large text scales linearly", func(t *testing.T) {
-		small := sdk.NewUserMessage("hi")                       // 2 chars -> 0 tokens
-		large := sdk.NewUserMessage(string(make([]byte, 4000))) // 4000 chars -> 1000 tokens
+		small := sdk.NewUserMessage("hi")
+		large := sdk.NewUserMessage(string(make([]byte, 4000)))
 
 		smallTokens := estimateTokens([]sdk.Message{small})
 		largeTokens := estimateTokens([]sdk.Message{large})
@@ -157,19 +157,15 @@ func TestFindCutPoint(t *testing.T) {
 			sdk.NewUserMessage("hi"),
 			sdk.NewAssistantMessage("hello"),
 		}
-		// keepRecentTokens=10000 is way more than these messages
 		assert.Equal(t, 0, findCutPoint(msgs, 10000))
 	})
 
 	t.Run("cut in middle of conversation", func(t *testing.T) {
-		// 10 user messages of 400 chars each (100 tokens each)
 		msgs := make([]sdk.Message, 10)
 		for i := range msgs {
 			msgs[i] = sdk.NewUserMessage(makeLongText(400))
 		}
 
-		// With keepRecentTokens=300, we want to keep the last ~3 messages
-		// (300 tokens = 3 messages of 100 tokens each)
 		cut := findCutPoint(msgs, 300)
 		assert.Greater(t, cut, 0, "should find a cut point")
 		assert.Less(t, cut, len(msgs), "cut should be within bounds")
@@ -177,7 +173,6 @@ func TestFindCutPoint(t *testing.T) {
 	})
 
 	t.Run("tool result boundary preservation", func(t *testing.T) {
-		// Build: user -> assistant(tool_call) -> tool_result -> assistant(text)
 		user := sdk.NewUserMessage("run this")
 		asstWithTool := sdk.NewAssistantMessage("")
 		asstWithTool.ToolCalls = []sdk.ToolCall{
@@ -186,7 +181,6 @@ func TestFindCutPoint(t *testing.T) {
 		toolResult := sdk.NewToolResultMessage("tc1", "bash", makeLongText(400), false)
 		asstText := sdk.NewAssistantMessage("done")
 
-		// Prepend large messages to force a cut
 		bigMsgs := make([]sdk.Message, 5)
 		for i := range bigMsgs {
 			bigMsgs[i] = sdk.NewUserMessage(makeLongText(400))
@@ -196,24 +190,15 @@ func TestFindCutPoint(t *testing.T) {
 			user, asstWithTool, toolResult, asstText,
 		)
 
-		// keepRecentTokens small enough to force cut into bigMsgs
 		cut := findCutPoint(msgs, 200)
 
-		// Verify the cut never lands on a tool_result message
 		if cut > 0 && cut < len(msgs) {
 			assert.NotEqual(t, sdk.RoleToolResult, msgs[cut].Role,
 				"cut point must never be a tool_result message")
 		}
 
-		// Verify: tool_result at index 7 (toolResult) must either be before
-		// the cut (summarized together with its parent assistant) or after
-		// the cut (kept with its parent). The parent assistant with tool
-		// calls is at index 6.
-		toolResultIdx := len(bigMsgs) + 1 // asstWithTool is at +1, toolResult at +2
+		toolResultIdx := len(bigMsgs) + 1
 		if cut > 0 && cut <= toolResultIdx {
-			// Cut is at or after the assistant with tool calls — verify it
-			// doesn't split them: cut must be <= index of asstWithTool
-			// or > index of toolResult
 			asstIdx := len(bigMsgs) + 1
 			resultIdx := len(bigMsgs) + 2
 			if cut > asstIdx && cut <= resultIdx {
@@ -224,27 +209,20 @@ func TestFindCutPoint(t *testing.T) {
 	})
 
 	t.Run("oversized single turn all kept", func(t *testing.T) {
-		// Single message larger than keepRecentTokens — must return 0
-		// (can't summarize everything, so keep all)
 		msgs := []sdk.Message{
 			sdk.NewUserMessage(makeLongText(4000)),
 		}
-		// keepRecentTokens=50, single message is 1000 tokens
-		// It exceeds keepRecentTokens but it's the only message, so cut=0
 		assert.Equal(t, 0, findCutPoint(msgs, 50))
 	})
 
 	t.Run("cut respects user message boundary", func(t *testing.T) {
-		// user(100 tok) -> assistant(100 tok) -> user(100 tok) -> assistant(100 tok)
 		msgs := []sdk.Message{
-			sdk.NewUserMessage(makeLongText(400)), // 100 tokens
+			sdk.NewUserMessage(makeLongText(400)),
 			sdk.NewAssistantMessage(makeLongText(400)),
 			sdk.NewUserMessage(makeLongText(400)),
 			sdk.NewAssistantMessage(makeLongText(400)),
 		}
 
-		// keepRecentTokens=150 -> last 2 messages (200 tokens) exceed threshold
-		// Cut should land at index 2 (third user message) or later
 		cut := findCutPoint(msgs, 150)
 		assert.GreaterOrEqual(t, cut, 2, "cut should skip to at least message 2")
 		assert.Less(t, cut, len(msgs))
@@ -258,7 +236,6 @@ func TestFindCutPoint(t *testing.T) {
 			sdk.NewAssistantMessage(makeLongText(400)),
 		}
 
-		// keepRecentTokens=150 should cut near the middle
 		cut := findCutPoint(msgs, 150)
 		if cut > 0 && cut < len(msgs) {
 			role := msgs[cut].Role
@@ -293,7 +270,6 @@ func TestFindValidBoundary(t *testing.T) {
 			sdk.NewToolResultMessage("tc1", "bash", "out", false),
 			sdk.NewUserMessage("next"),
 		}
-		// Starting at index 1 (tool_result) should skip to index 2 (user)
 		assert.Equal(t, 2, findValidBoundary(msgs, 1))
 	})
 
@@ -307,8 +283,6 @@ func TestFindValidBoundary(t *testing.T) {
 			sdk.NewToolResultMessage("tc1", "bash", "out", false),
 			sdk.NewAssistantMessage("done"),
 		}
-		// Starting at index 0 (assistant with tools), should skip past
-		// tool_result to index 2
 		assert.Equal(t, 2, findValidBoundary(msgs, 0))
 	})
 }
@@ -327,7 +301,7 @@ func TestEstimateContentTokens(t *testing.T) {
 	})
 
 	t.Run("default uses Sprint", func(t *testing.T) {
-		assert.Equal(t, 0, estimateContentTokens(42)) // "42" = 2 chars / 4 = 0
+		assert.Equal(t, 0, estimateContentTokens(42))
 	})
 }
 
@@ -381,7 +355,6 @@ func TestSerializeForSummary(t *testing.T) {
 		}
 		result := serializeForSummary(msgs, "", nil)
 		assert.Contains(t, result, "... (truncated)")
-		// Should not contain the full 3000 chars
 		assert.Less(t, len(result), 2500)
 	})
 
@@ -478,6 +451,52 @@ func TestTrackFileOps(t *testing.T) {
 		assert.True(t, ops.readFiles["/first.go"])
 		assert.True(t, ops.readFiles["/second.go"])
 	})
+
+	t.Run("accumulation across compaction", func(t *testing.T) {
+		ops := newFileOperations()
+
+		// Phase 1: initial conversation with read and edit
+		readMsg := sdk.NewAssistantMessage("")
+		readMsg.ToolCalls = []sdk.ToolCall{
+			{Name: "read", Arguments: map[string]any{"file_path": "/old_file.go"}},
+		}
+		editMsg := sdk.NewAssistantMessage("")
+		editMsg.ToolCalls = []sdk.ToolCall{
+			{Name: "edit", Arguments: map[string]any{"file_path": "/old_file.go"}},
+		}
+		initialMsgs := []sdk.Message{
+			sdk.NewUserMessage("refactor this"),
+			readMsg,
+			sdk.NewToolResultMessage("tc1", "read", "contents", false),
+			editMsg,
+			sdk.NewToolResultMessage("tc2", "edit", "ok", false),
+		}
+		trackFileOps(initialMsgs, ops)
+
+		assert.True(t, ops.readFiles["/old_file.go"])
+		assert.True(t, ops.modifiedFiles["/old_file.go"])
+
+		// Phase 2: compaction replaces old messages with a summary.
+		// New messages reference different files. The same ops tracker persists.
+		summaryMsg := sdk.NewAssistantMessage("[Compaction Summary]\nPrevious conversation about refactoring old_file.go")
+		newReadMsg := sdk.NewAssistantMessage("")
+		newReadMsg.ToolCalls = []sdk.ToolCall{
+			{Name: "read", Arguments: map[string]any{"file_path": "/new_file.go"}},
+		}
+		postCompactMsgs := []sdk.Message{
+			summaryMsg,
+			sdk.NewUserMessage("now work on new_file.go"),
+			newReadMsg,
+			sdk.NewToolResultMessage("tc3", "read", "new contents", false),
+		}
+		trackFileOps(postCompactMsgs, ops)
+
+		// Old file ops from before compaction are still tracked
+		assert.True(t, ops.readFiles["/old_file.go"], "old read should persist across compaction")
+		assert.True(t, ops.modifiedFiles["/old_file.go"], "old modification should persist across compaction")
+		// New file ops are also tracked
+		assert.True(t, ops.readFiles["/new_file.go"])
+	})
 }
 
 func TestFileOpsXML(t *testing.T) {
@@ -500,4 +519,83 @@ func TestFileOpsXML(t *testing.T) {
 		assert.Less(t, idxA, idxM)
 		assert.Less(t, idxM, idxZ)
 	})
+}
+
+func TestAgent_FileOpsTrackingInLoop(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mt := newMockTool("read", sdk.ToolDef{Name: "read", Description: "read files"}, nil)
+	registerMockTool(mt)
+
+	mp := newMockProvider([]providerResponse{
+		{
+			toolCalls: []sdk.ToolCall{
+				{ID: "tc1", Name: "read", Arguments: map[string]any{"file_path": "/tracked.go"}},
+			},
+		},
+		{textDeltas: []string{"done"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "read file"))
+
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for turn_end")
+
+	require.NoError(t, a.Close())
+
+	require.NotNil(t, a.fileOps)
+	assert.True(t, a.fileOps.readFiles["/tracked.go"])
+}
+
+func TestAgent_FileOpsResetOnNewConversation(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mt := newMockTool("read", sdk.ToolDef{Name: "read", Description: "read files"}, nil)
+	registerMockTool(mt)
+
+	mp := newMockProvider([]providerResponse{
+		{
+			toolCalls: []sdk.ToolCall{
+				{ID: "tc1", Name: "read", Arguments: map[string]any{"file_path": "/first.go"}},
+			},
+		},
+		{textDeltas: []string{"done"}},
+		{textDeltas: []string{"new conversation"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "read first"))
+
+	// First conversation: tool call turn + "done" turn = 2 turn_end events
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for tool call turn_end")
+	_, ok = waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for done turn_end")
+
+	require.NotNil(t, a.fileOps)
+	assert.True(t, a.fileOps.readFiles["/first.go"])
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "new conversation"))
+
+	_, ok = waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for second conversation turn_end")
+
+	require.NoError(t, a.Close())
+
+	assert.False(t, a.fileOps.readFiles["/first.go"], "file ops should be reset on new conversation")
 }

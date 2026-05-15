@@ -87,12 +87,12 @@ Replace the existing storage-only JSONL compaction with runtime context manageme
 - [x] run tests — must pass before Task 5
 
 ### Task 5: Implement file operation tracking
-- [ ] add `fileOperations` struct in `compaction.go` with `readFiles map[string]bool` and `modifiedFiles map[string]bool`
-- [ ] add `trackFileOp(msgs []sdk.Message, ops *fileOperations)` that scans messages for read/edit/write tool calls and tool results
-- [ ] integrate into `AgentExtension` as a field initialized on new conversation
-- [ ] accumulate across compactions — when summary replaces messages, preserved file lists become the baseline
-- [ ] write tests for: no file ops, read tracking, edit/write tracking, accumulation across compaction
-- [ ] run tests — must pass before Task 6
+- [x] add `fileOperations` struct in `compaction.go` with `readFiles map[string]bool` and `modifiedFiles map[string]bool`
+- [x] add `trackFileOp(msgs []sdk.Message, ops *fileOperations)` that scans messages for read/edit/write tool calls and tool results
+- [x] integrate into `AgentExtension` as a field initialized on new conversation
+- [x] accumulate across compactions — when summary replaces messages, preserved file lists become the baseline
+- [x] write tests for: no file ops, read tracking, edit/write tracking, accumulation across compaction
+- [x] run tests — must pass before Task 6
 
 ### Task 6: Implement compaction execution (LLM summary generation)
 - [ ] add `compact(ctx context.Context, bus sdk.Bus, provider sdk.Provider, msgs []sdk.Message, cfg CompactionConfig, model string, ops *fileOperations) ([]sdk.Message, error)` in `compaction.go`

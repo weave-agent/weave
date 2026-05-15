@@ -104,7 +104,7 @@ func newMockTool(name string, def sdk.ToolDef, executeFunc func(ctx context.Cont
 func setupAgent(t *testing.T, providerName string) (*AgentExtension, *bus.Bus, func()) {
 	t.Helper()
 
-	a, err := NewAgentExtension(nil, nil)
+	a, err := NewAgentExtension(nil, nil, CompactionConfig{})
 	require.NoError(t, err, "NewAgentExtension")
 
 	a.providerName = providerName
@@ -1132,7 +1132,7 @@ func TestAgent_HeadlessUsesPersistedModel(t *testing.T) {
 	// Simulate headless: config has persisted model, no TUI will publish model.change
 	cfg := &mockPrefsConfig{model: "claude-opus-4-7", thinkingLevel: "high"}
 
-	a, err := NewAgentExtension(cfg, cfg)
+	a, err := NewAgentExtension(cfg, cfg, CompactionConfig{})
 	require.NoError(t, err)
 
 	b := bus.New()
@@ -1237,7 +1237,7 @@ func TestAgent_SystemPromptWithContextFiles(t *testing.T) {
 	registerMockProvider("anthropic", mp)
 
 	cfg := sdk.FilePathConfig(filepath.Join(weaveDir, "settings.json"))
-	a, err := NewAgentExtension(cfg, sdk.NoopPreferenceStore{})
+	a, err := NewAgentExtension(cfg, sdk.NoopPreferenceStore{}, CompactionConfig{})
 	require.NoError(t, err)
 
 	b := bus.New()
@@ -1296,7 +1296,7 @@ func TestAgent_SystemPromptWithSkills(t *testing.T) {
 	registerMockProvider("anthropic", mp)
 
 	cfg := sdk.FilePathConfig(filepath.Join(weaveDir, "settings.json"))
-	a, err := NewAgentExtension(cfg, sdk.NoopPreferenceStore{})
+	a, err := NewAgentExtension(cfg, sdk.NoopPreferenceStore{}, CompactionConfig{})
 	require.NoError(t, err)
 
 	b := bus.New()
@@ -1355,7 +1355,7 @@ func TestAgent_SystemPromptWithSystemMD(t *testing.T) {
 	registerMockProvider("anthropic", mp)
 
 	cfg := sdk.FilePathConfig(filepath.Join(weaveDir, "settings.json"))
-	a, err := NewAgentExtension(cfg, sdk.NoopPreferenceStore{})
+	a, err := NewAgentExtension(cfg, sdk.NoopPreferenceStore{}, CompactionConfig{})
 	require.NoError(t, err)
 
 	b := bus.New()
@@ -1407,7 +1407,7 @@ func TestAgent_SystemPromptRebuiltOnNewConversation(t *testing.T) {
 	registerMockProvider("anthropic", mp)
 
 	cfg := sdk.FilePathConfig(filepath.Join(weaveDir, "settings.json"))
-	a, err := NewAgentExtension(cfg, sdk.NoopPreferenceStore{})
+	a, err := NewAgentExtension(cfg, sdk.NoopPreferenceStore{}, CompactionConfig{})
 	require.NoError(t, err)
 
 	b := bus.New()
@@ -1593,7 +1593,7 @@ func TestNewAgentExtension_ReadsModelFromSettings(t *testing.T) {
 
 	cfg := &mockPrefsConfig{model: "claude-opus-4-7", thinkingLevel: "high"}
 
-	a, err := NewAgentExtension(cfg, cfg)
+	a, err := NewAgentExtension(cfg, cfg, CompactionConfig{})
 	require.NoError(t, err)
 
 	assert.Equal(t, "claude-opus-4-7", a.modelName)
@@ -1618,7 +1618,7 @@ func TestNewAgentExtension_ClearsModelWhenProviderMismatch(t *testing.T) {
 
 	cfg := &mockPrefsConfig{provider: "openai", model: "gpt-5.5"}
 
-	a, err := NewAgentExtension(cfg, cfg)
+	a, err := NewAgentExtension(cfg, cfg, CompactionConfig{})
 	require.NoError(t, err)
 
 	assert.Empty(t, a.modelName, "model should be cleared when it belongs to a different provider")
@@ -1638,7 +1638,7 @@ func TestNewAgentExtension_KeepsModelWhenSameProvider(t *testing.T) {
 
 	cfg := &mockPrefsConfig{model: "claude-opus-4-7"}
 
-	a, err := NewAgentExtension(cfg, cfg)
+	a, err := NewAgentExtension(cfg, cfg, CompactionConfig{})
 	require.NoError(t, err)
 
 	assert.Equal(t, "claude-opus-4-7", a.modelName, "model should be kept when provider matches")
@@ -1654,7 +1654,7 @@ func TestNewAgentExtension_KeepsUnregisteredModel(t *testing.T) {
 	// Model not in registry — user might be using a custom model name
 	cfg := &mockPrefsConfig{model: "my-custom-model"}
 
-	a, err := NewAgentExtension(cfg, cfg)
+	a, err := NewAgentExtension(cfg, cfg, CompactionConfig{})
 	require.NoError(t, err)
 
 	assert.Equal(t, "my-custom-model", a.modelName, "unregistered model should be kept (custom model)")
