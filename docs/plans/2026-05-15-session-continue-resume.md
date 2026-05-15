@@ -48,11 +48,11 @@ Add `--continue` / `-c` and `--resume` / `-r` CLI flags to weave that restore a 
 ## Implementation Steps
 
 ### Task 1: Add SessionStore interface to SDK
-- [ ] create `sdk/session.go` with `SessionStore` interface, `SessionInfo` struct, and global getter/setter (`SetSessionStore`/`GetSessionStore`) following the `FileTracker`/`FileMuter` pattern in `sdk/extension.go`
-- [ ] define `ListSessions() ([]SessionInfo, error)` and `LoadHistory(sessionID string) ([]Message, error)` methods on the interface
-- [ ] add `NoopSessionStore` zero-value stub (returns empty slice, nil error) for nil-safety
-- [ ] write tests for `SetSessionStore`/`GetSessionStore` and `NoopSessionStore` in `sdk/session_test.go`
-- [ ] run `go test ./sdk/...` — must pass before next task
+- [x] create `sdk/session.go` with `SessionStore` interface, `SessionInfo` struct, and global getter/setter (`SetSessionStore`/`GetSessionStore`) following the `FileTracker`/`FileMuter` pattern in `sdk/extension.go`
+- [x] define `ListSessions() ([]SessionInfo, error)` and `LoadHistory(sessionID string) ([]Message, error)` methods on the interface
+- [x] add `NoopSessionStore` zero-value stub (returns empty slice, nil error) for nil-safety
+- [x] write tests for `SetSessionStore`/`GetSessionStore` and `NoopSessionStore` in `sdk/session_test.go`
+- [x] run `go test ./sdk/...` — must pass before next task
 
 ### Task 2: Implement SessionStore on JSONL store
 - [ ] add `ListSessions() ([]sdk.SessionInfo, error)` method to `Store` in `extensions/store/jsonl/store.go` — wraps existing `List()` and converts `SessionInfo` → `sdk.SessionInfo`
