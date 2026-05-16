@@ -386,17 +386,13 @@ func TestResolveCWD_SymlinkInside(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chdir(oldWD) })
 	require.NoError(t, os.Chdir(tmpDir))
 
-	// os.Getwd() may resolve symlinks in the path (e.g. /var -> /private/var on macOS).
-	// Construct expected path from the actual working directory.
-	actualWD, err := os.Getwd()
-	require.NoError(t, err)
-
-	expected := filepath.Join(actualWD, "link")
-
 	resolved, err := resolveCWD("link")
 	require.NoError(t, err)
-	// resolveCWD returns the cleaned path (not symlink-resolved).
-	assert.Equal(t, expected, resolved)
+	// resolveCWD returns the symlink-resolved path for safety.
+	// EvalSymlinks on subDir to handle macOS /var -> /private/var.
+	expectedSubDir, err := filepath.EvalSymlinks(subDir)
+	require.NoError(t, err)
+	assert.Equal(t, expectedSubDir, resolved)
 }
 
 func TestResolveCWD_SymlinkEscapes(t *testing.T) {

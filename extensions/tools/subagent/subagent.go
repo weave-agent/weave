@@ -219,7 +219,11 @@ func (t *subagentTool) Execute(ctx context.Context, args map[string]any) (sdk.To
 
 			id := t.mgr.spawn(t.agent, prompt, cwd, subagentID)
 			result := map[string]any{propID: id, "status": statusRunning}
-			jsonBytes, _ := json.Marshal(result)
+
+			jsonBytes, err := json.Marshal(result)
+			if err != nil {
+				return sdk.ToolResult{Content: fmt.Sprintf("marshal result: %v", err), IsError: true}, nil
+			}
 
 			return sdk.ToolResult{Content: string(jsonBytes)}, nil
 		}
@@ -292,7 +296,7 @@ func resolveCWD(cwd string) (string, error) {
 		return "", fmt.Errorf("cwd escapes working directory: %s", resolved)
 	}
 
-	return cwd, nil
+	return resolved, nil
 }
 
 // mode represents which execution mode was requested.

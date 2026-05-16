@@ -290,9 +290,9 @@ func TestAwaitAgent_ContextCancellation(t *testing.T) {
 
 	result, err := tool.Execute(ctx, map[string]any{"id": id})
 	require.NoError(t, err)
-	// When context is canceled, await returns nil agent which we treat as not found.
+	// When context is canceled, await returns a cancellation error.
 	assert.True(t, result.IsError)
-	assert.Contains(t, result.Content, "not found")
+	assert.Contains(t, result.Content, "canceled")
 }
 
 func TestAwaitAgent_NotFound(t *testing.T) {

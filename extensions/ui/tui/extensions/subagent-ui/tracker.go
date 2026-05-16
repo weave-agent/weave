@@ -63,9 +63,13 @@ func (t *AgentTracker) SetOnRemove(fn func(id string)) {
 // agent and any active grace-period timer are cleaned up first).
 func (t *AgentTracker) Start(id, name, mode string) *TrackedAgent {
 	t.mu.Lock()
-	defer t.mu.Unlock()
 
 	// Clean up any existing agent with the same ID to prevent leaks.
+	var (
+		oldID  string
+		hadOld bool
+	)
+
 	if old, ok := t.agents[id]; ok {
 		if timer, hasTimer := t.timers[id]; hasTimer {
 			timer.Stop()
@@ -74,9 +78,8 @@ func (t *AgentTracker) Start(id, name, mode string) *TrackedAgent {
 
 		delete(t.agents, id)
 
-		if t.onRemove != nil {
-			t.onRemove(old.ID)
-		}
+		oldID = old.ID
+		hadOld = true
 	}
 
 	agent := &TrackedAgent{
@@ -88,6 +91,12 @@ func (t *AgentTracker) Start(id, name, mode string) *TrackedAgent {
 		PanelID:   "subagent-" + id,
 	}
 	t.agents[id] = agent
+	onRemove := t.onRemove
+	t.mu.Unlock()
+
+	if hadOld && onRemove != nil {
+		onRemove(oldID)
+	}
 
 	return agent
 }

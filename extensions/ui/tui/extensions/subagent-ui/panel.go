@@ -142,7 +142,11 @@ func (d *agentPanelDrawer) formatResult(result string, maxWidth int) string {
 
 		runes := []rune(l)
 		if len(runes) > maxRunes {
-			b.WriteString(string(runes[:maxRunes-3]) + "...")
+			if maxRunes <= 3 {
+				b.WriteString(strings.Repeat(".", maxRunes))
+			} else {
+				b.WriteString(string(runes[:maxRunes-3]) + "...")
+			}
 		} else {
 			b.WriteString(l)
 		}

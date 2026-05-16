@@ -105,8 +105,6 @@ func (e *SubagentExtension) tickLoop() {
 	defer func() {
 		e.mu.Lock()
 		e.tickStarted = false
-		e.closeOnce = sync.Once{}
-		e.done = make(chan struct{})
 		e.mu.Unlock()
 	}()
 

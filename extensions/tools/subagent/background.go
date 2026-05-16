@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -174,10 +175,10 @@ func (bm *backgroundManager) getSnapshot(id string) (backgroundAgent, bool) {
 	return *ba, true
 }
 
-func (bm *backgroundManager) await(ctx context.Context, id string) (*backgroundAgent, bool) {
+func (bm *backgroundManager) await(ctx context.Context, id string) (*backgroundAgent, error) {
 	ba, ok := bm.getSnapshot(id)
 	if !ok {
-		return nil, false
+		return nil, fmt.Errorf("agent %q not found", id)
 	}
 
 	select {
@@ -185,12 +186,12 @@ func (bm *backgroundManager) await(ctx context.Context, id string) (*backgroundA
 		// Re-fetch to get the final updated state after completion.
 		ba, ok = bm.getSnapshot(id)
 		if !ok {
-			return nil, false
+			return nil, fmt.Errorf("agent %q not found", id)
 		}
 
-		return &ba, true
+		return &ba, nil
 	case <-ctx.Done():
-		return nil, false
+		return nil, fmt.Errorf("await agent: %w", ctx.Err())
 	}
 }
 
@@ -295,9 +296,13 @@ func (t *awaitAgentTool) Execute(ctx context.Context, args map[string]any) (sdk.
 		return sdk.ToolResult{Content: "id must be a non-empty string", IsError: true}, nil
 	}
 
-	ba, ok := t.mgr.await(ctx, id)
-	if !ok {
-		return sdk.ToolResult{Content: fmt.Sprintf("agent %q not found", id), IsError: true}, nil
+	ba, err := t.mgr.await(ctx, id)
+	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return sdk.ToolResult{Content: fmt.Sprintf("await agent %q canceled: %v", id, err), IsError: true}, nil
+		}
+
+		return sdk.ToolResult{Content: err.Error(), IsError: true}, nil
 	}
 
 	result := map[string]any{
