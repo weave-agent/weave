@@ -156,3 +156,17 @@ func TestValidateWithConfigDir_IntegratedWithLoad(t *testing.T) {
 	_, _, _, err := LoadFromDir(dir, nil)
 	assert.NoError(t, err)
 }
+
+func TestValidate_ContinueOnly(t *testing.T) {
+	f := validSettings()
+	f.Continue = true
+	err := Validate(f)
+	assert.NoError(t, err)
+}
+
+func TestValidate_ResumeOnly(t *testing.T) {
+	f := validSettings()
+	f.Resume = "sess-abc123"
+	err := Validate(f)
+	assert.NoError(t, err)
+}

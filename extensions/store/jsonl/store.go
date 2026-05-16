@@ -61,12 +61,13 @@ type Store struct {
 	sessionID string
 	lastEntry string
 	turn      int
+	resumed   bool // true after session.resume until first agent.prompt
 	cancel    context.CancelFunc
 	done      chan struct{}
 }
 
 func init() {
-	sdk.RegisterExtensionWithScope[JSONLOpts]("jsonl", "jsonl", func(_ sdk.Config, _ sdk.PreferenceStore, opts JSONLOpts) (sdk.Extension, error) {
+	sdk.RegisterExtensionWithScope("jsonl", "jsonl", func(_ sdk.Config, _ sdk.PreferenceStore, opts JSONLOpts) (sdk.Extension, error) {
 		return NewStore(opts)
 	})
 }
@@ -95,7 +96,7 @@ func (s *Store) Subscribe(bus sdk.Bus) error {
 		switch ev.Topic {
 		case "agent.prompt", "agent.followup", "agent.steer",
 			"agent.turn_start", "agent.message_end",
-			"agent.tool_result", "agent.end":
+			"agent.tool_result", "agent.end", "session.resume":
 			select {
 			case ch <- ev:
 			case <-ctx.Done():
@@ -156,12 +157,34 @@ func (s *Store) dispatch(ev sdk.Event) {
 		s.handleMsgEnd(ev)
 	case "agent.tool_result":
 		s.handleToolResult(ev)
+	case "session.resume":
+		s.handleSessionResume(ev)
 	case "agent.end":
 		s.cancel()
 	}
 }
 
 func (s *Store) handlePrompt(evt sdk.Event) {
+	s.mu.Lock()
+	sessionID := s.sessionID
+	lastEntry := s.lastEntry
+	turn := s.turn
+	resumed := s.resumed
+	s.mu.Unlock()
+
+	// Session was resumed; treat the first prompt after resume as a follow-up
+	// instead of creating a new session. After that, agent.prompt starts a new
+	// conversation (e.g. /new).
+	if sessionID != "" && resumed {
+		s.appendUserEntry(sessionID, turn+1, lastEntry, evt)
+		s.mu.Lock()
+		s.turn = turn + 1
+		s.resumed = false
+		s.mu.Unlock()
+
+		return
+	}
+
 	cwd, _ := os.Getwd()
 	if cwd == "" {
 		cwd = "/"
@@ -197,14 +220,49 @@ func (s *Store) handlePrompt(evt sdk.Event) {
 	s.mu.Unlock()
 }
 
+func (s *Store) handleSessionResume(evt sdk.Event) {
+	payload, ok := evt.Payload.(sdk.SessionResumePayload)
+	if !ok {
+		logger.Error("jsonl: invalid session.resume payload type")
+		return
+	}
+
+	if payload.SessionID == "" {
+		return
+	}
+
+	var lastEntryID string
+
+	sess, err := s.Load(payload.SessionID)
+	if err != nil {
+		logger.Warn("jsonl: load session for resume failed, continuing with empty state", "session", payload.SessionID, "error", err)
+	} else if len(sess.Entries) > 0 {
+		last := sess.Entries[len(sess.Entries)-1]
+		lastEntryID = last.ID
+	}
+
+	s.mu.Lock()
+	s.sessionID = payload.SessionID
+	s.lastEntry = lastEntryID
+	s.resumed = true
+	s.mu.Unlock()
+}
+
 func (s *Store) handleFollowup(evt sdk.Event) {
 	s.mu.Lock()
 	sessionID := s.sessionID
 	lastEntry := s.lastEntry
 	turn := s.turn + 1
+	resumed := s.resumed
 	s.mu.Unlock()
 
 	s.appendUserEntry(sessionID, turn, lastEntry, evt)
+
+	if resumed {
+		s.mu.Lock()
+		s.resumed = false
+		s.mu.Unlock()
+	}
 }
 
 func (s *Store) handleSteer(evt sdk.Event) {
@@ -285,6 +343,10 @@ func (s *Store) handleMsgEnd(evt sdk.Event) {
 
 		if tc, ok := p["tool_calls"]; ok {
 			payload["tool_calls"] = tc
+		}
+
+		if th, ok := p["thinking"]; ok {
+			payload["thinking"] = th
 		}
 	case string:
 		payload["content"] = p
@@ -572,6 +634,156 @@ func (s *Store) List() ([]SessionInfo, error) {
 	}
 
 	return infos, nil
+}
+
+// ListSessions implements sdk.SessionStore.
+func (s *Store) ListSessions() ([]sdk.SessionInfo, error) {
+	infos, err := s.List()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(infos) == 0 {
+		return []sdk.SessionInfo{}, nil
+	}
+
+	result := make([]sdk.SessionInfo, len(infos))
+	for i, info := range infos {
+		result[i] = sdk.SessionInfo{
+			ID:        info.ID,
+			CWD:       info.CWD,
+			CreatedAt: info.CreatedAt,
+			UpdatedAt: info.UpdatedAt,
+		}
+	}
+
+	return result, nil
+}
+
+// LoadHistory implements sdk.SessionStore.
+func (s *Store) LoadHistory(sessionID string) ([]sdk.Message, error) {
+	path, err := s.sessionPath(sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read session file: %w", err)
+	}
+
+	lines := splitLines(data)
+	if len(lines) == 0 {
+		return nil, fmt.Errorf("empty session file: %s", path)
+	}
+
+	messages := make([]sdk.Message, 0, len(lines)-1)
+	for _, line := range lines[1:] {
+		var entry Entry
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			logger.Warn("jsonl: skip unparseable entry", "session", sessionID, "error", err)
+			continue
+		}
+
+		if entry.Type != EventTypeMessage {
+			continue
+		}
+
+		msg, err := entryToMessage(entry)
+		if err != nil {
+			logger.Warn("jsonl: skip corrupt entry", "session", sessionID, "entry", entry.ID, "error", err)
+			continue
+		}
+
+		messages = append(messages, msg)
+	}
+
+	return messages, nil
+}
+
+type rawMessage struct {
+	Role      string          `json:"role"`
+	Content   any             `json:"content"`
+	ToolCalls json.RawMessage `json:"tool_calls"`
+	Tool      json.RawMessage `json:"tool"`
+	Thinking  string          `json:"thinking"`
+}
+
+func entryToMessage(entry Entry) (sdk.Message, error) {
+	var raw rawMessage
+	if err := json.Unmarshal(entry.Data, &raw); err != nil {
+		return sdk.Message{}, fmt.Errorf("unmarshal entry data: %w", err)
+	}
+
+	msg := sdk.Message{
+		Role:      raw.Role,
+		Content:   raw.Content,
+		Timestamp: entry.Created,
+	}
+
+	switch raw.Role {
+	case sdk.RoleAssistant:
+		if len(raw.ToolCalls) > 0 {
+			var tcs []sdk.ToolCall
+			if err := json.Unmarshal(raw.ToolCalls, &tcs); err != nil {
+				return sdk.Message{}, fmt.Errorf("unmarshal tool_calls: %w", err)
+			}
+
+			msg.ToolCalls = tcs
+		}
+
+		if raw.Thinking != "" {
+			msg.Thinking = []sdk.SignedThinking{{Thinking: raw.Thinking}}
+		}
+	case sdk.RoleToolResult:
+		if err := applyToolResult(&msg, raw.Tool); err != nil {
+			return sdk.Message{}, err
+		}
+	}
+
+	return msg, nil
+}
+
+func applyToolResult(msg *sdk.Message, toolRaw json.RawMessage) error {
+	if len(toolRaw) == 0 {
+		return nil
+	}
+
+	var toolData map[string]any
+	if err := json.Unmarshal(toolRaw, &toolData); err != nil {
+		return fmt.Errorf("unmarshal tool data: %w", err)
+	}
+
+	if id, ok := toolData["id"].(string); ok {
+		msg.ToolCallID = id
+	}
+
+	if name, ok := toolData["tool"].(string); ok {
+		msg.ToolName = name
+	}
+
+	if result, ok := toolData["result"]; ok {
+		applyToolResultContent(msg, result)
+	}
+
+	return nil
+}
+
+func applyToolResultContent(msg *sdk.Message, result any) {
+	r, ok := result.(map[string]any)
+	if !ok {
+		msg.Content = result
+
+		return
+	}
+
+	if content, ok := r["content"]; ok {
+		msg.Content = content
+	}
+
+	if isErr, ok := r["is_error"].(bool); ok {
+		msg.IsError = isErr
+	}
 }
 
 func (s *Store) Compact(sessionID string, keepLast int) error {

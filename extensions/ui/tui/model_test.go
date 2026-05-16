@@ -767,6 +767,13 @@ func TestModel_SessionSelectorSelect(t *testing.T) {
 	err := os.WriteFile(filepath.Join(dir, sessionID+".jsonl"), []byte(content), 0o644)
 	require.NoError(t, err)
 
+	// Register a mock session store so the resume payload includes message history.
+	sdk.SetSessionStore(&testSessionStore{
+		history: []sdk.Message{sdk.NewUserMessage("previous question")},
+	})
+
+	defer sdk.ResetSessionStore()
+
 	// Show selector
 	model, _ := m.Update(SessionListResultMsg{Sessions: sessions})
 	m = model.(Model)
@@ -780,7 +787,7 @@ func TestModel_SessionSelectorSelect(t *testing.T) {
 
 	assert.True(t, m.dialogStack.Empty())
 	assert.Nil(t, m.pendingSessions)
-	assert.False(t, m.prompted)
+	assert.True(t, m.prompted)
 
 	// Verify chat was rebuilt with session history
 	items := m.chat.Items()
@@ -793,10 +800,14 @@ func TestModel_SessionSelectorSelect(t *testing.T) {
 	require.NotNil(t, cmd)
 	cmd()
 
-	// Verify session.resume event was published
+	// Verify session.resume event was published with message history
 	evt := <-ch
 	assert.Equal(t, topicSessionResume, evt.Topic)
-	assert.Equal(t, sessionID, evt.Payload)
+	payload, ok := evt.Payload.(sdk.SessionResumePayload)
+	require.True(t, ok)
+	assert.Equal(t, sessionID, payload.SessionID)
+	require.Len(t, payload.Messages, 1)
+	assert.Equal(t, "previous question", payload.Messages[0].Content)
 }
 
 func TestModel_OverlayInterceptsKeys(t *testing.T) {
@@ -897,6 +908,247 @@ func TestModel_RebuildChatFromSession(t *testing.T) {
 
 	// rebuildChatFromSession should not modify prompted — it stays whatever it was before.
 	assert.True(t, m.prompted)
+}
+
+func TestModel_SessionResumedMsg_RebuildsChat(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("WEAVE_JSONL_DIR", dir)
+
+	sessionID := "aaa11122233344455566677788899900"
+
+	header := sessionHeader{Type: "session", ID: sessionID, Timestamp: time.Now().UTC(), CWD: "/test"}
+	headerJSON, _ := json.Marshal(header)
+
+	e1 := map[string]any{
+		"type": "message",
+		"data": map[string]any{"role": "user", "content": "previous question"},
+	}
+	e2 := map[string]any{
+		"type": "message",
+		"data": map[string]any{"role": "assistant", "content": "previous answer"},
+	}
+
+	e1JSON, _ := json.Marshal(e1)
+	e2JSON, _ := json.Marshal(e2)
+
+	content := string(headerJSON) + "\n" + string(e1JSON) + "\n" + string(e2JSON) + "\n"
+	err := os.WriteFile(filepath.Join(dir, sessionID+".jsonl"), []byte(content), 0o644)
+	require.NoError(t, err)
+
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, 10)
+	m.showLanding = true
+	m.prompted = true
+
+	model, _ := m.Update(SessionResumedMsg{
+		SessionID: sessionID,
+		Messages: []sdk.Message{
+			{Role: sdk.RoleUser, Content: "previous question"},
+			{Role: sdk.RoleAssistant, Content: "previous answer"},
+		},
+	})
+	m = model.(Model)
+
+	// Chat should be rebuilt with session history
+	items := m.chat.Items()
+	require.Len(t, items, 2)
+
+	um, ok := items[0].(*messages.UserMessage)
+	require.True(t, ok)
+	assert.Equal(t, "previous question", um.Content())
+
+	am, ok := items[1].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Equal(t, "previous answer", am.Content())
+
+	// Landing should be hidden
+	assert.False(t, m.showLanding)
+	// Prompted should be true so next submit sends agent.followup
+	assert.True(t, m.prompted)
+}
+
+func TestModel_SessionResumedMsg_EmptySessionID(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.showLanding = true
+	m.prompted = true
+
+	model, _ := m.Update(SessionResumedMsg{SessionID: ""})
+	m = model.(Model)
+
+	// Nothing should change
+	assert.True(t, m.showLanding)
+	assert.True(t, m.prompted)
+	assert.Empty(t, m.chat.Items())
+}
+
+func TestModel_SessionResumedMsg_EmptyMessages(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, 10)
+	m.showLanding = true
+	m.prompted = true
+
+	model, _ := m.Update(SessionResumedMsg{SessionID: "empty-session", Messages: []sdk.Message{}})
+	m = model.(Model)
+
+	// Chat should be cleared (empty session)
+	assert.Empty(t, m.chat.Items())
+
+	// Landing should still be hidden (we attempted a resume)
+	assert.False(t, m.showLanding)
+	// Prompted should be true so next submit sends agent.followup
+	assert.True(t, m.prompted)
+}
+
+func TestParseToolEntry_Valid(t *testing.T) {
+	input := json.RawMessage(`{"id":"tc1","tool":"bash","result":{"content":"output","is_error":false}}`)
+	id, name, content, isError := parseToolEntry(input)
+	assert.Equal(t, "tc1", id)
+	assert.Equal(t, "bash", name)
+	assert.Equal(t, "output", content)
+	assert.False(t, isError)
+}
+
+func TestParseToolEntry_InvalidJSON(t *testing.T) {
+	id, name, content, isError := parseToolEntry(json.RawMessage(`not json`))
+	assert.Empty(t, id)
+	assert.Equal(t, "tool", name)
+	assert.Empty(t, content)
+	assert.False(t, isError)
+}
+
+func TestParseToolEntry_MissingFields(t *testing.T) {
+	id, name, content, isError := parseToolEntry(json.RawMessage(`{}`))
+	assert.Empty(t, id)
+	assert.Equal(t, "tool", name)
+	assert.Empty(t, content)
+	assert.False(t, isError)
+}
+
+func TestParseToolEntry_Empty(t *testing.T) {
+	id, name, content, isError := parseToolEntry(nil)
+	assert.Empty(t, id)
+	assert.Equal(t, "tool", name)
+	assert.Empty(t, content)
+	assert.False(t, isError)
+}
+
+func TestModel_RebuildChatFromSession_WithToolCalls(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("WEAVE_JSONL_DIR", dir)
+
+	sessionID := "aaa11122233344455566677788899900"
+
+	header := sessionHeader{Type: "session", ID: sessionID, Timestamp: time.Now().UTC(), CWD: "/test"}
+	headerJSON, _ := json.Marshal(header)
+
+	e1 := map[string]any{
+		"type": "message",
+		"data": map[string]any{"role": "user", "content": "run command"},
+	}
+	e2 := map[string]any{
+		"type": "message",
+		"data": map[string]any{
+			"role":       "assistant",
+			"content":    "",
+			"tool_calls": []map[string]any{{"id": "tc1", "name": "bash", "arguments": map[string]any{"command": "echo hi"}}},
+		},
+	}
+	e3 := map[string]any{
+		"type": "message",
+		"data": map[string]any{
+			"role":    "tool_result",
+			"content": "hi",
+			"tool":    map[string]any{"id": "tc1", "tool": "bash", "result": map[string]any{"content": "hi", "is_error": false}},
+		},
+	}
+
+	e1JSON, _ := json.Marshal(e1)
+	e2JSON, _ := json.Marshal(e2)
+	e3JSON, _ := json.Marshal(e3)
+
+	content := string(headerJSON) + "\n" + string(e1JSON) + "\n" + string(e2JSON) + "\n" + string(e3JSON) + "\n"
+	err := os.WriteFile(filepath.Join(dir, sessionID+".jsonl"), []byte(content), 0o644)
+	require.NoError(t, err)
+
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, 10)
+
+	m.rebuildChatFromSession(sessionID)
+
+	items := m.chat.Items()
+	require.Len(t, items, 3) // user + assistant + tool_panel
+
+	um, ok := items[0].(*messages.UserMessage)
+	require.True(t, ok)
+	assert.Equal(t, "run command", um.Content())
+
+	am, ok := items[1].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Empty(t, am.Content())
+
+	tp, ok := items[2].(*messages.ToolPanel)
+	require.True(t, ok)
+	assert.Contains(t, tp.View(80), "hi")
+}
+
+func TestModel_RebuildChatFromSession_WithThinking(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("WEAVE_JSONL_DIR", dir)
+
+	sessionID := "aaa11122233344455566677788899900"
+
+	header := sessionHeader{Type: "session", ID: sessionID, Timestamp: time.Now().UTC(), CWD: "/test"}
+	headerJSON, _ := json.Marshal(header)
+
+	e1 := map[string]any{
+		"type": "message",
+		"data": map[string]any{"role": "user", "content": "question"},
+	}
+	e2 := map[string]any{
+		"type": "message",
+		"data": map[string]any{
+			"role":     "assistant",
+			"content":  "answer",
+			"thinking": "Let me think about this...",
+		},
+	}
+
+	e1JSON, _ := json.Marshal(e1)
+	e2JSON, _ := json.Marshal(e2)
+
+	content := string(headerJSON) + "\n" + string(e1JSON) + "\n" + string(e2JSON) + "\n"
+	err := os.WriteFile(filepath.Join(dir, sessionID+".jsonl"), []byte(content), 0o644)
+	require.NoError(t, err)
+
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, 10)
+
+	m.rebuildChatFromSession(sessionID)
+
+	items := m.chat.Items()
+	require.Len(t, items, 3) // user + thinking + assistant
+
+	um, ok := items[0].(*messages.UserMessage)
+	require.True(t, ok)
+	assert.Equal(t, "question", um.Content())
+
+	tb, ok := items[1].(*messages.ThinkingBlock)
+	require.True(t, ok)
+	assert.Equal(t, "Let me think about this...", tb.Content())
+
+	am, ok := items[2].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Equal(t, "answer", am.Content())
 }
 
 func TestModel_ViewShowsOverlayWhenActive(t *testing.T) {
@@ -3715,4 +3967,14 @@ func TestKeybindings_CopySelection_IsRegistered(t *testing.T) {
 	action, ok := bindings.Resolve("ctrl+shift+c")
 	assert.True(t, ok, "ctrl+shift+c should be registered")
 	assert.Equal(t, ActionCopySelection, action)
+}
+
+// testSessionStore is a minimal sdk.SessionStore implementation for tests.
+type testSessionStore struct {
+	history []sdk.Message
+}
+
+func (s *testSessionStore) ListSessions() ([]sdk.SessionInfo, error) { return nil, nil }
+func (s *testSessionStore) LoadHistory(_ string) ([]sdk.Message, error) {
+	return s.history, nil
 }

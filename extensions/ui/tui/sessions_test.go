@@ -36,8 +36,8 @@ func TestListSessions_ReadsHeaders(t *testing.T) {
 
 	now := time.Now().UTC().Truncate(time.Second)
 
-	writeSessionFile(t, dir, "aaa11122233344455566677788899900", "/project/alpha", now)
 	writeSessionFile(t, dir, "bbb11122233344455566677788899900", "/project/beta", now.Add(-time.Hour))
+	writeSessionFile(t, dir, "aaa11122233344455566677788899900", "/project/alpha", now)
 
 	sessions, err := listSessions("")
 	require.NoError(t, err)
@@ -136,6 +136,26 @@ func TestLoadSessionEntries_EmptySession(t *testing.T) {
 	entries, err := loadSessionEntries("", sessionID)
 	require.NoError(t, err)
 	assert.Empty(t, entries)
+}
+
+func TestLoadSessionEntries_PathTraversalRejected(t *testing.T) {
+	tests := []struct {
+		name      string
+		sessionID string
+	}{
+		{"parent traversal", "../etc/passwd"},
+		{"forward slash", "foo/bar"},
+		{"backslash", "foo\\bar"},
+		{"mixed traversal", "..\\..\\secrets"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := loadSessionEntries("", tt.sessionID)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "invalid session ID")
+		})
+	}
 }
 
 func TestShortenCWD(t *testing.T) {

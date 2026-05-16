@@ -610,6 +610,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, nil
 
+	case SessionResumedMsg:
+		if msg.SessionID != "" {
+			m.rebuildChatFromMessages(msg.Messages)
+			m.showLanding = false
+			m.prompted = true
+		}
+
+		return m, nil
+
 	case SessionListResultMsg:
 		return m.onSessionListResult(msg)
 
@@ -1549,7 +1558,7 @@ func (m Model) onSessionListResult(msg SessionListResultMsg) (tea.Model, tea.Cmd
 	for i, s := range msg.Sessions {
 		items[i] = overlays.SelectorItem{
 			Title:    shortenCWD(s.CWD),
-			Subtitle: s.CreatedAt.Format("2006-01-02 15:04"),
+			Subtitle: s.UpdatedAt.Format("2006-01-02 15:04"),
 		}
 	}
 
@@ -1846,12 +1855,29 @@ func (m Model) onSessionDialogDone(result overlays.DialogResult, pendingCmd tea.
 	session := m.pendingSessions[result.Index]
 	m.pendingSessions = nil
 
-	m.rebuildChatFromSession(session.ID)
-	m.showLanding = false
-	m.prompted = false
-
 	if m.bus != nil {
-		return m, tea.Batch(pendingCmd, PublishSessionResume(m.bus, session.ID))
+		payload := sdk.SessionResumePayload{SessionID: session.ID}
+		if store := sdk.GetSessionStore(); store != nil {
+			history, err := store.LoadHistory(session.ID)
+			if err != nil {
+				return m, tea.Batch(
+					pendingCmd,
+					func() tea.Msg {
+						return notifyTypedMsg{message: "Failed to load session: " + err.Error(), level: sdk.NotifyError}
+					},
+				)
+			}
+
+			payload.Messages = history
+			m.rebuildChatFromMessages(history)
+		} else {
+			m.rebuildChatFromSession(session.ID)
+		}
+
+		m.showLanding = false
+		m.prompted = true
+
+		return m, tea.Batch(pendingCmd, PublishSessionResume(m.bus, payload))
 	}
 
 	return m, pendingCmd
@@ -1890,25 +1916,98 @@ func (m *Model) rebuildChatFromSession(sessionID string) {
 		case sdk.RoleUser:
 			m.chat = m.chat.AddItem(messages.NewUserMessage(entry.Content))
 		case sdk.RoleAssistant:
+			if entry.Thinking != "" {
+				m.chat = m.chat.AddItem(messages.NewThinkingBlock(entry.Thinking))
+			}
+
 			am := messages.NewAssistantMessage()
 			am.Finalize(entry.Content)
 			m.chat = m.chat.AddItem(am)
+
+			if len(entry.ToolCalls) > 0 {
+				var tcs []sdk.ToolCall
+				if err := json.Unmarshal(entry.ToolCalls, &tcs); err == nil {
+					for _, tc := range tcs {
+						args, _ := json.Marshal(tc.Arguments)
+						panel := messages.NewToolPanel(tc.ID, tc.Name, string(args))
+						m.toolPanels[tc.ID] = panel
+						m.chat = m.chat.AddItem(panel)
+					}
+				}
+			}
 		case sdk.RoleToolResult:
-			toolName, toolContent, toolIsError := parseToolEntry(entry.Tool)
-			panel := messages.NewToolPanel("", toolName, "")
+			toolID, toolName, toolContent, toolIsError := parseToolEntry(entry.Tool)
+
+			panel, ok := m.toolPanels[toolID]
+			if !ok {
+				panel = messages.NewToolPanel(toolID, toolName, "")
+				m.toolPanels[toolID] = panel
+				m.chat = m.chat.AddItem(panel)
+			}
+
 			panel.SetResult(toolContent, toolIsError)
-			m.chat = m.chat.AddItem(panel)
+			m.chat = m.chat.UpdateItemByID(panel)
 		}
 	}
 }
 
-// parseToolEntry extracts tool name, content, and error flag from a stored tool entry.
-func parseToolEntry(raw json.RawMessage) (name, content string, isError bool) {
+// rebuildChatFromMessages rebuilds the chat display from sdk.Message slices.
+// Used when Messages are available directly from the event payload.
+func (m *Model) rebuildChatFromMessages(msgs []sdk.Message) {
+	m.chat = components.NewChatModel().SetSize(m.width, m.chatHeight(m.height))
+	m.toolPanels = make(map[string]*messages.ToolPanel)
+
+	for _, msg := range msgs {
+		content := ""
+
+		if msg.Content != nil {
+			if s, ok := msg.Content.(string); ok {
+				content = s
+			} else {
+				content = fmt.Sprint(msg.Content)
+			}
+		}
+
+		switch msg.Role {
+		case sdk.RoleUser:
+			m.chat = m.chat.AddItem(messages.NewUserMessage(content))
+		case sdk.RoleAssistant:
+			if len(msg.Thinking) > 0 {
+				m.chat = m.chat.AddItem(messages.NewThinkingBlock(msg.Thinking[0].Thinking))
+			}
+
+			am := messages.NewAssistantMessage()
+			am.Finalize(content)
+			m.chat = m.chat.AddItem(am)
+
+			for _, tc := range msg.ToolCalls {
+				args, _ := json.Marshal(tc.Arguments)
+				panel := messages.NewToolPanel(tc.ID, tc.Name, string(args))
+				m.toolPanels[tc.ID] = panel
+				m.chat = m.chat.AddItem(panel)
+			}
+		case sdk.RoleToolResult:
+			panel, ok := m.toolPanels[msg.ToolCallID]
+			if !ok {
+				panel = messages.NewToolPanel(msg.ToolCallID, msg.ToolName, "")
+				m.toolPanels[msg.ToolCallID] = panel
+				m.chat = m.chat.AddItem(panel)
+			}
+
+			panel.SetResult(content, msg.IsError)
+			m.chat = m.chat.UpdateItemByID(panel)
+		}
+	}
+}
+
+// parseToolEntry extracts tool call ID, name, content, and error flag from a stored tool entry.
+func parseToolEntry(raw json.RawMessage) (id, name, content string, isError bool) {
 	if len(raw) == 0 {
-		return "tool", "", false
+		return "", "tool", "", false
 	}
 
 	var toolData struct {
+		ID     string `json:"id"`
 		Tool   string `json:"tool"`
 		Result struct {
 			Content string `json:"content"`
@@ -1917,15 +2016,17 @@ func parseToolEntry(raw json.RawMessage) (name, content string, isError bool) {
 	}
 
 	if err := json.Unmarshal(raw, &toolData); err != nil {
-		return "tool", "", false
+		return "", "tool", "", false
 	}
+
+	id = toolData.ID
 
 	name = toolData.Tool
 	if name == "" {
 		name = "tool"
 	}
 
-	return name, toolData.Result.Content, toolData.Result.IsError
+	return id, name, toolData.Result.Content, toolData.Result.IsError
 }
 
 // cycleThinkingLevel returns the next distinct thinking level, skipping

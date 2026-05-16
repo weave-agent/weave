@@ -48,61 +48,61 @@ Add `--continue` / `-c` and `--resume` / `-r` CLI flags to weave that restore a 
 ## Implementation Steps
 
 ### Task 1: Add SessionStore interface to SDK
-- [ ] create `sdk/session.go` with `SessionStore` interface, `SessionInfo` struct, and global getter/setter (`SetSessionStore`/`GetSessionStore`) following the `FileTracker`/`FileMuter` pattern in `sdk/extension.go`
-- [ ] define `ListSessions() ([]SessionInfo, error)` and `LoadHistory(sessionID string) ([]Message, error)` methods on the interface
-- [ ] add `NoopSessionStore` zero-value stub (returns empty slice, nil error) for nil-safety
-- [ ] write tests for `SetSessionStore`/`GetSessionStore` and `NoopSessionStore` in `sdk/session_test.go`
-- [ ] run `go test ./sdk/...` — must pass before next task
+- [x] create `sdk/session.go` with `SessionStore` interface, `SessionInfo` struct, and global getter/setter (`SetSessionStore`/`GetSessionStore`) following the `FileTracker`/`FileMuter` pattern in `sdk/extension.go`
+- [x] define `ListSessions() ([]SessionInfo, error)` and `LoadHistory(sessionID string) ([]Message, error)` methods on the interface
+- [x] add `NoopSessionStore` zero-value stub (returns empty slice, nil error) for nil-safety
+- [x] write tests for `SetSessionStore`/`GetSessionStore` and `NoopSessionStore` in `sdk/session_test.go`
+- [x] run `go test ./sdk/...` — must pass before next task
 
 ### Task 2: Implement SessionStore on JSONL store
-- [ ] add `ListSessions() ([]sdk.SessionInfo, error)` method to `Store` in `extensions/store/jsonl/store.go` — wraps existing `List()` and converts `SessionInfo` → `sdk.SessionInfo`
-- [ ] add `LoadHistory(sessionID string) ([]sdk.Message, error)` method — wraps existing `History()`, unmarshals each `Entry.Data` (`json.RawMessage`) into `sdk.Message` structs (user, assistant, tool_result roles), skips entries that fail to unmarshal with a warning log
-- [ ] add message conversion helper: unmarshal `Entry.Data` → intermediate struct `{Role, Content, ToolCalls, ToolCallID, ToolName, IsError}` → `sdk.Message`
-- [ ] write tests for `ListSessions` (conversion, empty dir, corrupted header) in `extensions/store/jsonl/store_test.go`
-- [ ] write tests for `LoadHistory` (full history, partial corruption, empty session, tool results) in `extensions/store/jsonl/store_test.go`
-- [ ] run `cd extensions/store/jsonl && go test ./...` — must pass before next task
+- [x] add `ListSessions() ([]sdk.SessionInfo, error)` method to `Store` in `extensions/store/jsonl/store.go` — wraps existing `List()` and converts `SessionInfo` → `sdk.SessionInfo`
+- [x] add `LoadHistory(sessionID string) ([]sdk.Message, error)` method — wraps existing `History()`, unmarshals each `Entry.Data` (`json.RawMessage`) into `sdk.Message` structs (user, assistant, tool_result roles), skips entries that fail to unmarshal with a warning log
+- [x] add message conversion helper: unmarshal `Entry.Data` → intermediate struct `{Role, Content, ToolCalls, ToolCallID, ToolName, IsError}` → `sdk.Message`
+- [x] write tests for `ListSessions` (conversion, empty dir, corrupted header) in `extensions/store/jsonl/store_test.go`
+- [x] write tests for `LoadHistory` (full history, partial corruption, empty session, tool results) in `extensions/store/jsonl/store_test.go`
+- [x] run `cd extensions/store/jsonl && go test ./...` — must pass before next task
 
 ### Task 3: Add --continue and --resume CLI flags
-- [ ] add `Continue bool`, `Resume string` fields to `flagSet` in `settings/config.go` with appropriate tags (`flag:"continue" short:"c"`, `flag:"resume" short:"r"`)
-- [ ] add validation: `--continue` and `--resume` are mutually exclusive (return error if both set)
-- [ ] store resolved values on `Settings` struct (add `Continue bool` and `Resume string` fields)
-- [ ] write tests for flag parsing in `settings/config_test.go` — both flags, mutual exclusion, short flags
-- [ ] run `go test ./settings/...` — must pass before next task
+- [x] add `Continue bool`, `Resume string` fields to `flagSet` in `settings/config.go` with appropriate tags (`flag:"continue" short:"c"`, `flag:"resume" short:"r"`)
+- [x] add validation: `--continue` and `--resume` are mutually exclusive (return error if both set)
+- [x] store resolved values on `Settings` struct (add `Continue bool` and `Resume string` fields)
+- [x] write tests for flag parsing in `settings/config_test.go` — both flags, mutual exclusion, short flags
+- [x] run `go test ./settings/...` — must pass before next task
 
 ### Task 4: Wire session resolution and store injection
-- [ ] in `internal/wire/wire.go`, after creating the store extension, call `sdk.SetSessionStore(store)` (cast store to `sdk.SessionStore` interface)
-- [ ] in `internal/wire/run.go`, add `resolveSession(cfg)` function that checks `--continue`/`--resume` flags, calls `sdk.GetSessionStore()`, resolves session ID, loads messages
-- [ ] for `--continue`: call `ListSessions()`, pick most recent (sort by `UpdatedAt` desc, or most recent by CWD match if feasible)
-- [ ] for `--resume <id>`: call `LoadHistory(id)` directly
-- [ ] publish `session.resume` event with `SessionResumePayload{SessionID, Messages}` on the bus before `app.started`
-- [ ] when `-p` is used with `--continue`/`--resume`: publish `agent.followup` instead of `agent.prompt` so messages are appended to the restored history
-- [ ] add `SessionResumePayload` struct to `sdk/session.go` with `SessionID string` and `Messages []Message`
-- [ ] write tests for `resolveSession` — no session found, invalid ID, successful continue, successful resume
-- [ ] run `go test ./internal/wire/...` — must pass before next task
+- [x] in `internal/wire/wire.go`, after creating the store extension, call `sdk.SetSessionStore(store)` (cast store to `sdk.SessionStore` interface)
+- [x] in `internal/wire/run.go`, add `resolveSession(cfg)` function that checks `--continue`/`--resume` flags, calls `sdk.GetSessionStore()`, resolves session ID, loads messages
+- [x] for `--continue`: call `ListSessions()`, pick most recent (sort by `UpdatedAt` desc, or most recent by CWD match if feasible)
+- [x] for `--resume <id>`: call `LoadHistory(id)` directly
+- [x] publish `session.resume` event with `SessionResumePayload{SessionID, Messages}` on the bus before `app.started`
+- [x] when `-p` is used with `--continue`/`--resume`: publish `agent.followup` instead of `agent.prompt` so messages are appended to the restored history
+- [x] add `SessionResumePayload` struct to `sdk/session.go` with `SessionID string` and `Messages []Message`
+- [x] write tests for `resolveSession` — no session found, invalid ID, successful continue, successful resume
+- [x] run `go test ./internal/wire/...` — must pass before next task
 
 ### Task 5: Agent loop session resume handler
-- [ ] in `extensions/agent/loop.go`, add `resumed bool` and `sessionID string` fields to the agent struct
-- [ ] subscribe to `session.resume` event in `Subscribe(bus)`: set `messages = payload.Messages`, `sessionID = payload.SessionID`, `resumed = true`
-- [ ] ensure `agent.prompt` handler checks `resumed` flag — if true, treat the prompt as a follow-up (append to messages) rather than resetting; clear `resumed`
-- [ ] write tests for session resume handler in `extensions/agent/loop_test.go` — messages restored, resumed flag set, subsequent prompt appends correctly
-- [ ] run `cd extensions/agent && go test ./...` — must pass before next task
+- [x] in `extensions/agent/loop.go`, add `resumed bool` and `sessionID string` fields to the agent struct
+- [x] subscribe to `session.resume` event in `Subscribe(bus)`: set `messages = payload.Messages`, `sessionID = payload.SessionID`, `resumed = true`
+- [x] ensure `agent.prompt` handler checks `resumed` flag — if true, treat the prompt as a follow-up (append to messages) rather than resetting; clear `resumed`
+- [x] write tests for session resume handler in `extensions/agent/loop_test.go` — messages restored, resumed flag set, subsequent prompt appends correctly
+- [x] run `cd extensions/agent && go test ./...` — must pass before next task
 
 ### Task 6: JSONL store session continuity on resume
-- [ ] in `extensions/store/jsonl/store.go`, add handler for `session.resume` event: set internal `sessionID` to the resumed session ID so subsequent events (`agent.followup`, `agent.message_end`, `agent.tool_result`) append to the existing file instead of creating a new session
-- [ ] write tests verifying that after `session.resume`, subsequent events are stored in the resumed session file
-- [ ] run `cd extensions/store/jsonl && go test ./...` — must pass before next task
+- [x] in `extensions/store/jsonl/store.go`, add handler for `session.resume` event: set internal `sessionID` to the resumed session ID so subsequent events (`agent.followup`, `agent.message_end`, `agent.tool_result`) append to the existing file instead of creating a new session
+- [x] write tests verifying that after `session.resume`, subsequent events are stored in the resumed session file
+- [x] run `cd extensions/store/jsonl && go test ./...` — must pass before next task
 
 ### Task 7: TUI integration for --continue/--resume
-- [ ] in `extensions/ui/tui/bridge.go`, ensure `session.resume` event from wire triggers `rebuildChatFromSession()` (may already work via existing bus listener — verify)
-- [ ] add `/resume` slash command to open interactive session picker (may already exist — verify and extend if needed)
-- [ ] ensure TUI shows restored history on startup when `--continue` is used
-- [ ] write tests for TUI session resume flow if testable via existing patterns in `extensions/ui/tui/`
-- [ ] run `cd extensions/ui/tui && go test ./...` — must pass before next task
+- [x] in `extensions/ui/tui/bridge.go`, ensure `session.resume` event from wire triggers `rebuildChatFromSession()` (may already work via existing bus listener — verify)
+- [x] add `/resume` slash command to open interactive session picker (may already exist — verify and extend if needed)
+- [x] ensure TUI shows restored history on startup when `--continue` is used
+- [x] write tests for TUI session resume flow if testable via existing patterns in `extensions/ui/tui/`
+- [x] run `cd extensions/ui/tui && go test ./...` — must pass before next task
 
 ### Task 8: Update CLAUDE.md documentation
-- [ ] add `--continue` / `-c` and `--resume` / `-r` flags to CLI documentation section
-- [ ] document session-related env vars and bus events (`session.resume`, `SessionResumePayload`)
-- [ ] document `SessionStore` interface in SDK section
+- [x] add `--continue` / `-c` and `--resume` / `-r` flags to CLI documentation section
+- [x] document session-related env vars and bus events (`session.resume`, `SessionResumePayload`)
+- [x] document `SessionStore` interface in SDK section
 
 ## Technical Details
 

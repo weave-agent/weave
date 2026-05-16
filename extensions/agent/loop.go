@@ -29,13 +29,14 @@ const (
 	TopicModelChange       = "model.change"
 	TopicModelChangeFailed = "model.change_failed"
 	TopicThinkingChange    = "thinking.change"
+	TopicSessionResume     = "session.resume"
 )
 
 //nolint:gocyclo // central event loop with multiple channel selects
 func (a *AgentExtension) run(
 	ctx context.Context,
 	bus sdk.Bus,
-	promptCh, steerCh, followupCh, interruptCh, modelChangeCh, thinkingCh <-chan sdk.Event,
+	promptCh, steerCh, followupCh, interruptCh, modelChangeCh, thinkingCh, sessionResumeCh <-chan sdk.Event,
 ) {
 	defer close(a.done)
 
@@ -57,14 +58,86 @@ func (a *AgentExtension) run(
 	// user set an API key via /providers before we try to connect.
 	// Also drain model/thinking changes from the TUI's Init() so the
 	// initial provider matches what the user sees.
+	//
+	// Session resume is checked first (non-blocking, then blocking) to avoid
+	// losing resume events when a prompt arrives concurrently.
 	for {
+		// Non-blocking check for session resume first.
 		select {
+		case evt, ok := <-sessionResumeCh:
+			if !ok {
+				return
+			}
+
+			if payload, ok := evt.Payload.(sdk.SessionResumePayload); ok {
+				messages = payload.Messages
+				a.sessionID = payload.SessionID
+				a.resumed = true
+				a.fileOps = newFileOperations()
+			}
+
+			continue
+		default:
+		}
+
+		select {
+		case evt, ok := <-sessionResumeCh:
+			if !ok {
+				return
+			}
+
+			if payload, ok := evt.Payload.(sdk.SessionResumePayload); ok {
+				messages = payload.Messages
+				a.sessionID = payload.SessionID
+				a.resumed = true
+				a.fileOps = newFileOperations()
+			}
+
+			continue
 		case evt, ok := <-promptCh:
 			if !ok {
 				return
 			}
 
+			// Drain any concurrent session resume before processing the prompt
+			// so that restored history is always loaded first.
+			select {
+			case resumeEvt, resumeOk := <-sessionResumeCh:
+				if resumeOk {
+					if payload, ok := resumeEvt.Payload.(sdk.SessionResumePayload); ok {
+						messages = payload.Messages
+						a.sessionID = payload.SessionID
+						a.resumed = true
+						a.fileOps = newFileOperations()
+					}
+				}
+			default:
+			}
+
 			messages = append(messages, sdk.NewUserMessage(evt.Payload))
+			a.resumed = false
+		case evt, ok := <-followupCh:
+			if !ok {
+				return
+			}
+
+			// Drain any concurrent session resume before processing the followup
+			// so that restored history is always loaded first.
+			select {
+			case resumeEvt, resumeOk := <-sessionResumeCh:
+				if resumeOk {
+					if payload, ok := resumeEvt.Payload.(sdk.SessionResumePayload); ok {
+						messages = payload.Messages
+						a.sessionID = payload.SessionID
+						a.resumed = true
+						a.fileOps = newFileOperations()
+					}
+				}
+			default:
+			}
+
+			messages = append(messages, sdk.NewUserMessage(evt.Payload))
+			a.resumed = false
 		case evt := <-modelChangeCh:
 			if m, ok := evt.Payload.(map[string]string); ok {
 				if p := m["provider"]; p != "" {
@@ -258,9 +331,27 @@ func (a *AgentExtension) run(
 				return
 			}
 
+			// Drain any concurrent session resume before processing the followup
+			// so that resumed history is always loaded first.
+			select {
+			case resumeEvt, resumeOk := <-sessionResumeCh:
+				if resumeOk {
+					if payload, ok := resumeEvt.Payload.(sdk.SessionResumePayload); ok {
+						messages = payload.Messages
+						a.sessionID = payload.SessionID
+						a.resumed = true
+						a.fileOps = newFileOperations()
+					}
+				}
+
+				goto waitForInput
+			default:
+			}
+
 			provider = a.drainChanges(modelChangeCh, thinkingCh, bus, provider)
 
 			messages = append(messages, sdk.NewUserMessage(evt.Payload))
+			a.resumed = false
 		case evt, ok := <-steerCh:
 			if !ok {
 				return
@@ -293,12 +384,48 @@ func (a *AgentExtension) run(
 				return
 			}
 
+			// Drain any concurrent session resume before processing the prompt
+			// so that resumed history is always loaded first.
+			select {
+			case resumeEvt, resumeOk := <-sessionResumeCh:
+				if resumeOk {
+					if payload, ok := resumeEvt.Payload.(sdk.SessionResumePayload); ok {
+						messages = payload.Messages
+						a.sessionID = payload.SessionID
+						a.resumed = true
+						a.fileOps = newFileOperations()
+					}
+				}
+
+				goto waitForInput
+			default:
+			}
+
 			provider = a.drainChanges(modelChangeCh, thinkingCh, bus, provider)
-			messages = []sdk.Message{sdk.NewUserMessage(evt.Payload)}
-			turn = 1
-			a.fileOps = newFileOperations()
-			// Rebuild system prompt on new conversation
-			systemPrompt = a.buildSystemPrompt()
+			if a.resumed {
+				messages = append(messages, sdk.NewUserMessage(evt.Payload))
+				a.resumed = false
+			} else {
+				messages = []sdk.Message{sdk.NewUserMessage(evt.Payload)}
+				turn = 1
+				a.fileOps = newFileOperations()
+				a.sessionID = ""
+				// Rebuild system prompt on new conversation
+				systemPrompt = a.buildSystemPrompt()
+			}
+		case evt, ok := <-sessionResumeCh:
+			if !ok {
+				return
+			}
+
+			if payload, ok := evt.Payload.(sdk.SessionResumePayload); ok {
+				messages = payload.Messages
+				a.sessionID = payload.SessionID
+				a.resumed = true
+				a.fileOps = newFileOperations()
+			}
+
+			goto waitForInput
 		case evt, ok := <-modelChangeCh:
 			if !ok {
 				return

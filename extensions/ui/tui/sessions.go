@@ -20,6 +20,7 @@ type SessionEntry struct {
 	ID        string
 	CWD       string
 	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // sessionDir returns the directory where session JSONL files are stored.
@@ -126,15 +127,21 @@ func listSessions(dirOverride string) ([]SessionEntry, error) {
 			continue
 		}
 
+		fi, err := e.Info()
+		if err != nil {
+			continue
+		}
+
 		sessions = append(sessions, SessionEntry{
 			ID:        header.ID,
 			CWD:       header.CWD,
 			CreatedAt: header.Timestamp,
+			UpdatedAt: fi.ModTime(),
 		})
 	}
 
 	sort.Slice(sessions, func(i, j int) bool {
-		return sessions[i].CreatedAt.After(sessions[j].CreatedAt)
+		return sessions[i].UpdatedAt.After(sessions[j].UpdatedAt)
 	})
 
 	return sessions, nil
@@ -161,9 +168,11 @@ func readSessionHeader(path string) (*sessionHeader, error) {
 
 // sessionEntryData is the JSON payload of a message entry.
 type sessionEntryData struct {
-	Role    string          `json:"role"`
-	Content string          `json:"content"`
-	Tool    json.RawMessage `json:"tool,omitempty"`
+	Role      string          `json:"role"`
+	Content   string          `json:"content"`
+	ToolCalls json.RawMessage `json:"tool_calls,omitempty"`
+	Thinking  string          `json:"thinking,omitempty"`
+	Tool      json.RawMessage `json:"tool,omitempty"`
 }
 
 // loadSessionEntries reads all message entries from a session file.
@@ -179,7 +188,7 @@ func loadSessionEntries(dirOverride, sessionID string) ([]sessionEntryData, erro
 		}
 	}
 
-	if strings.Contains(sessionID, "..") || strings.ContainsAny(sessionID, `/\`) {
+	if !isValidSessionID(sessionID) {
 		return nil, fmt.Errorf("invalid session ID: %s", sessionID)
 	}
 
@@ -238,6 +247,20 @@ func listSessionsCmd(dirOverride string) tea.Cmd {
 		sessions, err := listSessions(dirOverride)
 		return SessionListResultMsg{Sessions: sessions, Err: err}
 	}
+}
+
+func isValidSessionID(id string) bool {
+	if id == "" {
+		return false
+	}
+
+	for _, c := range id {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F') {
+			return false
+		}
+	}
+
+	return true
 }
 
 func splitSessionLines(data []byte) []string {
