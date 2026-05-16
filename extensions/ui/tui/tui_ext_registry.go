@@ -25,7 +25,7 @@ func RegisterTUIExtension[TConfig any](name string, factory func(sdk.Config, sdk
 	wrapper := func(cfg sdk.Config) (TUIExtension, error) {
 		var t TConfig
 
-		if err := cfg.ExtensionConfig("tui_extensions", name, &t); err != nil {
+		if err := cfg.ExtensionConfig("ui_extensions", name, &t); err != nil {
 			return nil, fmt.Errorf("load tui extension config: %w", err)
 		}
 
