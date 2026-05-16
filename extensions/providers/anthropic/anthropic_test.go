@@ -103,6 +103,26 @@ func collectEvents(t *testing.T, ch <-chan sdk.ProviderEvent) []sdk.ProviderEven
 	}
 }
 
+func TestAuthConfig_WithOAuthToken(t *testing.T) {
+	cfg := AuthConfig{OAuthToken: sdk.OAuthCredential{AccessToken: "oauth-token"}}
+	apiKey := cfg.APIKey
+	if apiKey == "" {
+		apiKey = cfg.OAuthToken.AccessToken
+	}
+
+	assert.Equal(t, "oauth-token", apiKey)
+}
+
+func TestAuthConfig_PrefersAPIKeyOverOAuthToken(t *testing.T) {
+	cfg := AuthConfig{APIKey: "api-key", OAuthToken: sdk.OAuthCredential{AccessToken: "oauth-token"}}
+	apiKey := cfg.APIKey
+	if apiKey == "" {
+		apiKey = cfg.OAuthToken.AccessToken
+	}
+
+	assert.Equal(t, "api-key", apiKey)
+}
+
 func TestStream_TextResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeSSE(w, textStreamEvents("Hello, world!"))

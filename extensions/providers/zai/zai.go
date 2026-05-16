@@ -19,7 +19,8 @@ type ZaiConfig struct {
 
 // AuthConfig holds authentication credentials for the Z.ai provider.
 type AuthConfig struct {
-	APIKey string `json:"api_key" env:"ZAI_API_KEY" validate:"required" description:"API key"`
+	APIKey     string              `json:"api_key" env:"ZAI_API_KEY" description:"API key"`
+	OAuthToken sdk.OAuthCredential `json:"oauth_token"`
 }
 
 type provider struct {
@@ -29,15 +30,20 @@ type provider struct {
 
 func init() {
 	sdk.RegisterProvider[ZaiConfig, AuthConfig]("zai", func(cfg sdk.Config, zc ZaiConfig, a AuthConfig) (sdk.Provider, error) {
-		if a.APIKey == "" {
-			return nil, errors.New("zai: API key required (set ZAI_API_KEY or add to ~/.weave/auth.json)")
+		apiKey := a.APIKey
+		if apiKey == "" {
+			apiKey = a.OAuthToken.AccessToken
+		}
+
+		if apiKey == "" {
+			return nil, errors.New("zai: API key or OAuth token required (set ZAI_API_KEY, use /login, or add to ~/.weave/auth.json)")
 		}
 
 		return &provider{
 			client: &http.Client{},
 			config: openaicompat.ProviderConfig{
 				BaseURL: zc.BaseURL,
-				APIKey:  a.APIKey,
+				APIKey:  apiKey,
 				Model:   zc.Model,
 				ExtraBody: map[string]any{
 					"tool_stream": true,

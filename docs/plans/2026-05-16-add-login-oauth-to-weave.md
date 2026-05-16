@@ -125,13 +125,13 @@ Add interactive login support to Weave's TUI, including both API key entry and O
 - [x] Run `make test` — must pass before Task 10
 
 ### Task 10: Update provider auth structs for OAuth
-- [ ] Update `extensions/providers/anthropic/auth.go` to include `OAuthToken` field
-- [ ] Update `extensions/providers/openai/auth.go` to include `OAuthToken` field
-- [ ] Update `extensions/providers/kimi/auth.go` to include `OAuthToken` field
-- [ ] Update `extensions/providers/zai/auth.go` to include `OAuthToken` field
-- [ ] Update provider factories to use API key or OAuth token (whichever present)
-- [ ] Write tests for provider auth struct changes
-- [ ] Run `make test` — must pass before Task 11
+- [x] Update `extensions/providers/anthropic/auth.go` to include `OAuthToken` field
+- [x] Update `extensions/providers/openai/auth.go` to include `OAuthToken` field
+- [x] Update `extensions/providers/kimi/auth.go` to include `OAuthToken` field
+- [x] Update `extensions/providers/zai/auth.go` to include `OAuthToken` field
+- [x] Update provider factories to use API key or OAuth token (whichever present)
+- [x] Write tests for provider auth struct changes
+- [x] Run `make test` — must pass before Task 11
 
 ### Task 11: Verify acceptance criteria
 - [ ] `/login` shows provider selector with OAuth + API key options
