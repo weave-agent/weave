@@ -76,11 +76,17 @@ type ProviderConfig struct {
 
 // ChatRequest is the request body sent to the chat completions endpoint.
 type ChatRequest struct {
-	Model     string        `json:"model"`
-	Messages  []ChatMessage `json:"messages"`
-	Stream    bool          `json:"stream"`
-	MaxTokens int           `json:"max_tokens,omitempty"`
-	Tools     []Tool        `json:"tools,omitempty"`
+	Model          string        `json:"model"`
+	Messages       []ChatMessage `json:"messages"`
+	Stream         bool          `json:"stream"`
+	MaxTokens      int           `json:"max_tokens,omitempty"`
+	Tools          []Tool        `json:"tools,omitempty"`
+	StreamOptions  *StreamOptions `json:"stream_options,omitempty"`
+}
+
+// StreamOptions configures streaming behavior.
+type StreamOptions struct {
+	IncludeUsage bool `json:"include_usage"`
 }
 
 // ChatMessage represents a single message in the OpenAI chat format.
@@ -112,6 +118,13 @@ type StreamChunk struct {
 		Delta        ChunkDelta `json:"delta"`
 		FinishReason *string    `json:"finish_reason"`
 	} `json:"choices"`
+	Usage *Usage `json:"usage,omitempty"`
+}
+
+// Usage holds token usage information from a streaming response.
+type Usage struct {
+	InputTokens  int `json:"prompt_tokens"`
+	OutputTokens int `json:"completion_tokens"`
 }
 
 // ChunkDelta represents the delta content in a streaming chunk.
@@ -166,10 +179,11 @@ func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sd
 	}
 
 	chatReq := ChatRequest{
-		Model:    mdl,
-		Messages: ConvertMessages(req.Messages),
-		Stream:   true,
-		Tools:    ConvertTools(req.Tools),
+		Model:         mdl,
+		Messages:      ConvertMessages(req.Messages),
+		Stream:        true,
+		Tools:         ConvertTools(req.Tools),
+		StreamOptions: &StreamOptions{IncludeUsage: true},
 	}
 
 	if so.MaxTokens > 0 {
@@ -452,6 +466,17 @@ func parseSSE(ctx context.Context, reader io.Reader, ch chan<- sdk.ProviderEvent
 			})
 
 			return
+		}
+
+		// Emit usage event from chunks that carry usage data (typically the final chunk).
+		if chunk.Usage != nil && (chunk.Usage.InputTokens > 0 || chunk.Usage.OutputTokens > 0) {
+			send(sdk.ProviderEvent{
+				Type: sdk.ProviderEventUsage,
+				Content: sdk.ProviderUsage{
+					InputTokens:  chunk.Usage.InputTokens,
+					OutputTokens: chunk.Usage.OutputTokens,
+				},
+			})
 		}
 
 		for _, choice := range chunk.Choices {

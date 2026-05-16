@@ -92,13 +92,13 @@ Fix 17 gaps identified by the agents-best-practices audit of the Weave agent fra
 - [x] run `cd extensions/agent && go test ./...` — must pass before task 8
 
 ### Task 8: Surface provider token usage to UI
-- [ ] add `ProviderEventUsage` event type to `sdk/provider.go` with `InputTokens`, `OutputTokens`, `CacheCreationTokens`, `CacheReadTokens` fields
-- [ ] in Anthropic provider `extensions/providers/anthropic/anthropic.go`, extract `Usage` from accumulated message and emit a `ProviderEventUsage` event at end of stream
-- [ ] in OpenAI-compatible providers, extract usage from the final SSE event and emit `ProviderEventUsage`
-- [ ] in bridge `extensions/ui/tui/bridge.go`, handle usage events and call footer's `SetTokenUsage()`
-- [ ] write tests: TestAnthropic_UsageEventEmitted in `extensions/providers/anthropic/anthropic_test.go`
-- [ ] write tests: TestBridge_UsageEvent in `extensions/ui/tui/bridge_test.go` (if exists) or `model_test.go`
-- [ ] run `cd extensions/providers/anthropic && go test ./...` and `cd extensions/ui/tui && go test ./...` — must pass before task 9
+- [x] add `ProviderEventUsage` event type to `sdk/provider.go` with `InputTokens`, `OutputTokens`, `CacheCreationTokens`, `CacheReadTokens` fields
+- [x] in Anthropic provider `extensions/providers/anthropic/anthropic.go`, extract `Usage` from accumulated message and emit a `ProviderEventUsage` event at end of stream
+- [x] in OpenAI-compatible providers, extract usage from the final SSE event and emit `ProviderEventUsage`
+- [x] in bridge `extensions/ui/tui/bridge.go`, handle usage events and call footer's `SetTokenUsage()`
+- [x] write tests: TestAnthropic_UsageEventEmitted in `extensions/providers/anthropic/anthropic_test.go`
+- [x] write tests: TestBridge_UsageEvent in `extensions/ui/tui/bridge_test.go` (if exists) or `model_test.go`
+- [x] run `cd extensions/providers/anthropic && go test ./...` and `cd extensions/ui/tui && go test ./...` — must pass before task 9
 
 ### Task 9: Filter compacted entries on session resume
 - [ ] in `extensions/store/jsonl/store.go:LoadHistory()`, after loading all messages, scan for compaction summary messages (those starting with `[Compaction Summary]\n`) and remove all earlier messages that the summary covers

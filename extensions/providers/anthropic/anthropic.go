@@ -176,6 +176,7 @@ func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest, opts ...
 			success = true
 
 			emitContentBlocksWithAccumulator(message.Content, acc, send)
+			emitUsageEvent(message, send)
 
 			break
 		}
@@ -287,6 +288,20 @@ func (a *streamAccumulator) emitToolCall(tc sdk.ToolCall, send func(sdk.Provider
 	a.seenToolCalls[tc.ID] = true
 
 	return send(sdk.ProviderEvent{Type: sdk.ProviderEventToolCall, Content: tc})
+}
+
+func emitUsageEvent(message anthropic.Message, send func(sdk.ProviderEvent) bool) {
+	if message.Usage.InputTokens > 0 || message.Usage.OutputTokens > 0 {
+		send(sdk.ProviderEvent{
+			Type: sdk.ProviderEventUsage,
+			Content: sdk.ProviderUsage{
+				InputTokens:         int(message.Usage.InputTokens),
+				OutputTokens:        int(message.Usage.OutputTokens),
+				CacheCreationTokens: int(message.Usage.CacheCreationInputTokens),
+				CacheReadTokens:     int(message.Usage.CacheReadInputTokens),
+			},
+		})
+	}
 }
 
 func emitContentBlocksWithAccumulator(blocks []anthropic.ContentBlockUnion, acc *streamAccumulator, send func(sdk.ProviderEvent) bool) {

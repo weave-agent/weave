@@ -624,3 +624,74 @@ func TestStream_ThinkingContentEmitted(t *testing.T) {
 	assert.Equal(t, []string{"let me think"}, thinkingDeltas)
 	assert.Equal(t, []string{"answer"}, textDeltas)
 }
+
+func TestStream_UsageEventEmitted(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeSSE(w, textStreamEvents("Hello, world!"))
+	}))
+	defer server.Close()
+
+	p := newTestProvider(server)
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
+		Messages: []sdk.Message{
+			sdk.NewUserMessage("Say hello"),
+		},
+	})
+	require.NoError(t, err)
+
+	events := collectEvents(t, ch)
+
+	var usageEvents []sdk.ProviderUsage
+
+	for _, evt := range events {
+		if evt.Type == sdk.ProviderEventUsage {
+			usageEvents = append(usageEvents, evt.Content.(sdk.ProviderUsage))
+		}
+	}
+
+	require.Len(t, usageEvents, 1)
+	assert.Equal(t, 10, usageEvents[0].InputTokens)
+	assert.Equal(t, 5, usageEvents[0].OutputTokens)
+	assert.Equal(t, 0, usageEvents[0].CacheCreationTokens)
+	assert.Equal(t, 0, usageEvents[0].CacheReadTokens)
+}
+
+func TestStream_UsageEventWithCacheTokens(t *testing.T) {
+	events := []sseEvent{
+		{EventType: "message_start", Data: `{"type":"message_start","message":{"id":"msg_test","type":"message","role":"assistant","content":[],"model":"claude-sonnet-4","stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":100,"output_tokens":1,"cache_creation_input_tokens":50,"cache_read_input_tokens":200}}}`},
+		{EventType: "content_block_start", Data: `{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`},
+		{EventType: "content_block_delta", Data: `{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"cached response"}}`},
+		{EventType: "content_block_stop", Data: `{"type":"content_block_stop","index":0}`},
+		{EventType: "message_delta", Data: `{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":10}}`},
+		{EventType: "message_stop", Data: `{"type":"message_stop"}`},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeSSE(w, events)
+	}))
+	defer server.Close()
+
+	p := newTestProvider(server)
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
+		Messages: []sdk.Message{
+			sdk.NewUserMessage("Say hello"),
+		},
+	})
+	require.NoError(t, err)
+
+	collected := collectEvents(t, ch)
+
+	var usageEvents []sdk.ProviderUsage
+
+	for _, evt := range collected {
+		if evt.Type == sdk.ProviderEventUsage {
+			usageEvents = append(usageEvents, evt.Content.(sdk.ProviderUsage))
+		}
+	}
+
+	require.Len(t, usageEvents, 1)
+	assert.Equal(t, 100, usageEvents[0].InputTokens)
+	assert.Equal(t, 10, usageEvents[0].OutputTokens)
+	assert.Equal(t, 50, usageEvents[0].CacheCreationTokens)
+	assert.Equal(t, 200, usageEvents[0].CacheReadTokens)
+}

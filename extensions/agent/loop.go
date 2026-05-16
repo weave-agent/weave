@@ -28,6 +28,7 @@ const (
 	TopicToolResult        = "agent.tool_result"
 	TopicEnd               = "agent.end"
 	TopicCompacted         = "agent.compacted"
+	TopicUsage             = "agent.usage"
 	TopicModelChange       = "model.change"
 	TopicModelChangeFailed = "model.change_failed"
 	TopicThinkingChange    = "thinking.change"
@@ -708,6 +709,15 @@ func streamTurn(ctx context.Context, bus sdk.Bus, provider sdk.Provider, message
 		case sdk.ProviderEventToolCall:
 			if tc, ok := evt.Content.(sdk.ToolCall); ok {
 				toolCalls = append(toolCalls, tc)
+			}
+		case sdk.ProviderEventUsage:
+			if u, ok := evt.Content.(sdk.ProviderUsage); ok {
+				bus.Publish(sdk.NewEvent(TopicUsage, map[string]any{
+					"input_tokens":          u.InputTokens,
+					"output_tokens":         u.OutputTokens,
+					"cache_creation_tokens": u.CacheCreationTokens,
+					"cache_read_tokens":     u.CacheReadTokens,
+				}))
 			}
 		case sdk.ProviderEventError:
 			bus.Publish(sdk.NewEvent(TopicMsgEnd, map[string]any{"content": content.String(), "tool_calls": toolCalls}))

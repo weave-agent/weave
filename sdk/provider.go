@@ -26,7 +26,16 @@ const (
 	ProviderEventThinking             = "thinking_delta"
 	ProviderEventThinkingDone         = "thinking_done"
 	ProviderEventRedactedThinkingDone = "redacted_thinking_done"
+	ProviderEventUsage                = "usage"
 )
+
+// ProviderUsage holds token usage information from a provider response.
+type ProviderUsage struct {
+	InputTokens         int
+	OutputTokens        int
+	CacheCreationTokens int
+	CacheReadTokens     int
+}
 
 // SignedThinking holds a signed thinking block from a provider response.
 type SignedThinking struct {
