@@ -1294,6 +1294,7 @@ func TestModel_EscapeInterruptsAwaitAgent(t *testing.T) {
 
 	model, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	m = model.(Model)
+
 	require.NotNil(t, cmd)
 
 	executeBatchCmd(t, cmd)
@@ -1327,6 +1328,7 @@ func TestModel_EscapeInterruptsActiveSubagent(t *testing.T) {
 
 	model, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	m = model.(Model)
+
 	require.NotNil(t, cmd)
 
 	executeBatchCmd(t, cmd)
@@ -1367,6 +1369,7 @@ func TestModel_EscapeInterruptsAwaitAgentAfterSubagentCompletes(t *testing.T) {
 
 	model, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	m = model.(Model)
+
 	require.NotNil(t, cmd)
 
 	executeBatchCmd(t, cmd)
@@ -3620,6 +3623,7 @@ func TestModel_PanelChanged_TrayOnlyResizesChatViewport(t *testing.T) {
 	for i := range 20 {
 		m.AddUserMessage(fmt.Sprintf("message %02d", i))
 	}
+
 	require.True(t, m.chat.AutoScroll())
 	beforeHeight := m.chat.Height()
 	beforeScroll := m.chat.ScrollOffset()
@@ -4580,4 +4584,170 @@ func TestModel_HandleDialogForceCancel_LoginLogout(t *testing.T) {
 	model, _ = m2.handleDialogForceCancel(logoutDlg)
 	m3 := model.(Model)
 	assert.Nil(t, m3.pendingLogoutProviders)
+}
+
+func TestModel_OnLoginDialogDone_RegularProvider_Masked(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+
+	m.pendingLoginProviders = []LoginProviderEntry{
+		{Name: "Anthropic", ID: "anthropic", IsOAuth: false},
+	}
+
+	result := overlays.DialogResult{Index: 0}
+	model, _ := m.onLoginDialogDone(result, nil)
+	m2 := model.(Model)
+
+	assert.Nil(t, m2.pendingLoginProviders)
+	assert.Equal(t, "anthropic", m2.providerTarget)
+	assert.False(t, m2.dialogStack.Empty())
+
+	dlg := m2.dialogStack.Peek()
+	require.NotNil(t, dlg)
+	inputDlg, ok := dlg.(*overlays.InputDialog)
+	require.True(t, ok)
+	assert.Equal(t, '*', inputDlg.Model().Mask())
+}
+
+func TestModel_OnProviderDialogDone_Masked(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+
+	m.pendingProviders = []ProviderEntry{
+		{Name: "Anthropic", HasKey: false},
+	}
+
+	result := overlays.DialogResult{Index: 0}
+	model, _ := m.onProviderDialogDone(result, nil)
+	m2 := model.(Model)
+
+	assert.Equal(t, "Anthropic", m2.providerTarget)
+	assert.False(t, m2.dialogStack.Empty())
+
+	dlg := m2.dialogStack.Peek()
+	require.NotNil(t, dlg)
+	inputDlg, ok := dlg.(*overlays.InputDialog)
+	require.True(t, ok)
+	assert.Equal(t, '*', inputDlg.Model().Mask())
+}
+
+// trackingPS records SaveProviderKey calls for testing.
+type trackingPS struct {
+	*mockConfig
+	savedProvider string
+	savedKey      string
+	saveErr       error
+}
+
+func (t *trackingPS) SaveProviderKey(provider, key string) error {
+	t.savedProvider = provider
+	t.savedKey = key
+
+	return t.saveErr
+}
+
+func TestModel_OnKeyInputDialogDone_SavesKeyAndUpdatesAuth(t *testing.T) {
+	sdkmodel.ResetAuthRegistry()
+	defer sdkmodel.ResetAuthRegistry()
+
+	ps := &trackingPS{mockConfig: &mockConfig{}}
+	m := newModel(nil, ps, ps, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+	m.providerTarget = "anthropic"
+
+	result := overlays.DialogResult{Value: "sk-test-key-123"}
+	model, _ := m.onKeyInputDialogDone(result, nil)
+	m2 := model.(Model)
+
+	assert.Empty(t, m2.providerTarget)
+	assert.Equal(t, "anthropic", ps.savedProvider)
+	assert.Equal(t, "sk-test-key-123", ps.savedKey)
+	assert.True(t, sdkmodel.ProviderHasAuth("anthropic"))
+
+	items := m2.chat.Items()
+	require.Len(t, items, 1)
+	am, ok := items[0].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Contains(t, am.Content(), "API key saved")
+}
+
+func TestModel_OnKeyInputDialogDone_PublishesLoginSuccess(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	ch := subscribeToChan(b, topicAuthLoginSuccess)
+
+	ps := &trackingPS{mockConfig: &mockConfig{}}
+	m := newModel(b, ps, ps, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+	m.providerTarget = "openai"
+
+	result := overlays.DialogResult{Value: "sk-openai-key"}
+	model, cmd := m.onKeyInputDialogDone(result, nil)
+	_ = model.(Model)
+
+	require.NotNil(t, cmd)
+	executeBatchCmd(t, cmd)
+
+	evt := <-ch
+	assert.Equal(t, topicAuthLoginSuccess, evt.Topic)
+
+	payload, ok := evt.Payload.(map[string]string)
+	require.True(t, ok)
+	assert.Equal(t, "openai", payload["provider"])
+}
+
+func TestModel_OnKeyInputDialogDone_EmptyKey(t *testing.T) {
+	ps := &trackingPS{mockConfig: &mockConfig{}}
+	m := newModel(nil, ps, ps, nil)
+	m.providerTarget = "anthropic"
+
+	result := overlays.DialogResult{Value: "   "}
+	model, _ := m.onKeyInputDialogDone(result, nil)
+	m2 := model.(Model)
+
+	assert.Empty(t, ps.savedProvider)
+	assert.Empty(t, m2.chat.Items())
+}
+
+func TestModel_OnKeyInputDialogDone_NoConfig(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+	m.providerTarget = "anthropic"
+
+	result := overlays.DialogResult{Value: "sk-test-key"}
+	model, _ := m.onKeyInputDialogDone(result, nil)
+	m2 := model.(Model)
+
+	items := m2.chat.Items()
+	require.Len(t, items, 1)
+	am, ok := items[0].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Contains(t, am.Content(), "No config available")
+}
+
+func TestModel_OnKeyInputDialogDone_NoPS(t *testing.T) {
+	m := newModel(nil, &mockConfig{}, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+	m.providerTarget = "anthropic"
+
+	result := overlays.DialogResult{Value: "sk-test-key"}
+	model, _ := m.onKeyInputDialogDone(result, nil)
+	m2 := model.(Model)
+
+	items := m2.chat.Items()
+	require.Len(t, items, 1)
+	am, ok := items[0].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Contains(t, am.Content(), "No preference store available")
 }

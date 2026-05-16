@@ -83,12 +83,12 @@ Add interactive login support to Weave's TUI, including both API key entry and O
 - [x] Run `make test` — must pass before Task 5
 
 ### Task 5: Implement API key login flow
-- [ ] API key selection from auth selector triggers `InputDialog` with password masking
-- [ ] On submit: call `auth.SetProviderKey(provider, key)`
-- [ ] Update `model.SetProviderAuth(provider, true)`
-- [ ] Show success notification via `SetNotify`
-- [ ] Write tests for API key flow
-- [ ] Run `make test` — must pass before Task 6
+- [x] API key selection from auth selector triggers `InputDialog` with password masking
+- [x] On submit: call `auth.SetProviderKey(provider, key)`
+- [x] Update `model.SetProviderAuth(provider, true)`
+- [x] Show success notification via `SetNotify`
+- [x] Write tests for API key flow
+- [x] Run `make test` — must pass before Task 6
 
 ### Task 6: Implement OAuth callback server
 - [ ] Create `internal/auth/callback_server.go` — temporary HTTP server on localhost random port

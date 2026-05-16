@@ -1218,6 +1218,7 @@ func (m Model) handleEscape() (tea.Model, tea.Cmd) {
 	m.escapePressed = true
 
 	var cmd tea.Cmd
+
 	activeTool := m.activeToolName()
 
 	if activeTool == "await_agent" || strings.HasPrefix(activeTool, "subagent_") {
@@ -1227,6 +1228,7 @@ func (m Model) handleEscape() (tea.Model, tea.Cmd) {
 	} else {
 		// First press — interrupt streaming if active, start timeout.
 		var model tea.Model
+
 		model, cmd = m.interruptStreaming()
 		m = model.(Model)
 	}
@@ -2019,7 +2021,7 @@ func (m Model) onProviderDialogDone(result overlays.DialogResult, pendingCmd tea
 
 	// Push key input dialog for entering the API key.
 	input := overlays.NewInputModel("Enter API key for " + selected.Name)
-	input = input.SetSize(m.width, m.height).Show()
+	input = input.SetMask('*').SetSize(m.width, m.height).Show()
 	m.dialogStack = m.dialogStack.Push(overlays.NewInputDialog(dialogKeyInput, input))
 
 	return m, pendingCmd
@@ -2111,7 +2113,7 @@ func (m Model) onLoginDialogDone(result overlays.DialogResult, pendingCmd tea.Cm
 	// API key flow: reuse the existing key input dialog.
 	m.providerTarget = selected.ID
 	input := overlays.NewInputModel("Enter API key for " + selected.Name)
-	input = input.SetSize(m.width, m.height).Show()
+	input = input.SetMask('*').SetSize(m.width, m.height).Show()
 	m.dialogStack = m.dialogStack.Push(overlays.NewInputDialog(dialogKeyInput, input))
 
 	return m, pendingCmd
@@ -2578,6 +2580,7 @@ func (m *Model) syncChatViewport() {
 	}
 
 	autoScroll := m.chat.AutoScroll()
+
 	m.chat = m.chat.SetSize(m.width, m.chatHeight(m.height))
 	if autoScroll {
 		m.chat = m.chat.JumpToBottom()
@@ -3072,6 +3075,7 @@ func (m Model) drawPanelOverlay(scr uv.Screen, area uv.Rectangle, panelID string
 
 	x := area.Min.X + (area.Dx()-width)/2
 	y := area.Min.Y + (area.Dy()-height)/2
+
 	overlayArea := uv.Rect(x, y, width, height)
 	if !framed {
 		m.panelManager.DrawPanel(panelID, scr, overlayArea)
@@ -3084,6 +3088,7 @@ func (m Model) drawPanelOverlay(scr uv.Screen, area uv.Rectangle, panelID string
 		BorderForeground(lipgloss.Color(m.theme.BorderFocused)).
 		Foreground(lipgloss.Color(m.theme.Foreground)).
 		Background(lipgloss.Color(m.theme.Background))
+
 	title := entry.Config.Title
 	if title == "" {
 		title = entry.Config.ID

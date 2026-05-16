@@ -22,6 +22,7 @@ func (m *mockPanelDrawer) Draw(_ uv.Screen, area uv.Rectangle) {
 	m.drawCount++
 	m.lastArea = area
 }
+
 func (m *mockPanelDrawer) Update(msg tea.Msg) (PanelDrawer, tea.Cmd) {
 	m.updateCount++
 	m.lastMsg = msg

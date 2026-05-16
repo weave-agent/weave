@@ -1159,6 +1159,7 @@ func TestTUIImpl_SetOrder_SendsPanelChangedMsg(t *testing.T) {
 
 	ui.ShowPanel(PanelConfig{ID: "p1"}, &mockPanelDrawer{})
 	ui.ShowPanel(PanelConfig{ID: "p2"}, &mockPanelDrawer{})
+
 	sender.msgs = nil
 
 	ui.SetOrder([]string{"p2", "p1"})
