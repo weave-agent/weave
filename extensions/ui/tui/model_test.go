@@ -942,7 +942,13 @@ func TestModel_SessionResumedMsg_RebuildsChat(t *testing.T) {
 	m.showLanding = true
 	m.prompted = true
 
-	model, _ := m.Update(SessionResumedMsg{SessionID: sessionID})
+	model, _ := m.Update(SessionResumedMsg{
+		SessionID: sessionID,
+		Messages: []sdk.Message{
+			{Role: sdk.RoleUser, Content: "previous question"},
+			{Role: sdk.RoleAssistant, Content: "previous answer"},
+		},
+	})
 	m = model.(Model)
 
 	// Chat should be rebuilt with session history
@@ -979,7 +985,7 @@ func TestModel_SessionResumedMsg_EmptySessionID(t *testing.T) {
 	assert.Empty(t, m.chat.Items())
 }
 
-func TestModel_SessionResumedMsg_HandlesMissingSession(t *testing.T) {
+func TestModel_SessionResumedMsg_EmptyMessages(t *testing.T) {
 	m := newModel(nil, nil, nil, nil)
 	m.width = 80
 	m.height = 24
@@ -987,16 +993,11 @@ func TestModel_SessionResumedMsg_HandlesMissingSession(t *testing.T) {
 	m.showLanding = true
 	m.prompted = true
 
-	model, _ := m.Update(SessionResumedMsg{SessionID: "nonexistent-session"})
+	model, _ := m.Update(SessionResumedMsg{SessionID: "empty-session", Messages: []sdk.Message{}})
 	m = model.(Model)
 
-	// Should show error message in chat
-	items := m.chat.Items()
-	require.Len(t, items, 1)
-
-	am, ok := items[0].(*messages.AssistantMessage)
-	require.True(t, ok)
-	assert.Contains(t, am.Content(), "Error loading session")
+	// Chat should be cleared (empty session)
+	assert.Empty(t, m.chat.Items())
 
 	// Landing should still be hidden (we attempted a resume)
 	assert.False(t, m.showLanding)

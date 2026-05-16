@@ -612,12 +612,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case SessionResumedMsg:
 		if msg.SessionID != "" {
-			if len(msg.Messages) > 0 {
-				m.rebuildChatFromMessages(msg.Messages)
-			} else {
-				m.rebuildChatFromSession(msg.SessionID)
-			}
-
+			m.rebuildChatFromMessages(msg.Messages)
 			m.showLanding = false
 			m.prompted = true
 		}
@@ -1860,10 +1855,6 @@ func (m Model) onSessionDialogDone(result overlays.DialogResult, pendingCmd tea.
 	session := m.pendingSessions[result.Index]
 	m.pendingSessions = nil
 
-	m.rebuildChatFromSession(session.ID)
-	m.showLanding = false
-	m.prompted = true
-
 	if m.bus != nil {
 		payload := sdk.SessionResumePayload{SessionID: session.ID}
 		if store := sdk.GetSessionStore(); store != nil {
@@ -1878,7 +1869,13 @@ func (m Model) onSessionDialogDone(result overlays.DialogResult, pendingCmd tea.
 			}
 
 			payload.Messages = history
+			m.rebuildChatFromMessages(history)
+		} else {
+			m.rebuildChatFromSession(session.ID)
 		}
+
+		m.showLanding = false
+		m.prompted = true
 
 		return m, tea.Batch(pendingCmd, PublishSessionResume(m.bus, payload))
 	}
