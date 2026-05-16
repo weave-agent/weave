@@ -2569,9 +2569,12 @@ func TestModel_ThemeUsedInRendering(t *testing.T) {
 	canvas := uv.NewScreenBuffer(m.width, m.height)
 	m.Draw(canvas, canvas.Bounds())
 
-	// Should render without panic
 	rendered := canvas.Render()
 	assert.Contains(t, rendered, "ctrl+p model")
+	// Verify custom theme colors are actually used in rendering
+	assert.Contains(t, rendered, "111", "custom Muted color should appear in rendered output")
+	assert.Contains(t, rendered, "222", "custom BackgroundTint color should appear in rendered output")
+	assert.Contains(t, rendered, "333", "custom Foreground color should appear in rendered output")
 }
 
 func TestModel_ThemeUsedInBackdropDimming(t *testing.T) {
