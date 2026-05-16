@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -45,7 +46,8 @@ func NewToolResultMessage(toolCallID, toolName string, content any, isError bool
 
 	switch c := content.(type) {
 	case string:
-		wrapped = fmt.Sprintf("<tool_output name=%q>\n%s\n</tool_output>", toolName, c)
+		escaped := strings.ReplaceAll(c, "</tool_output>", "<\\/tool_output>")
+		wrapped = fmt.Sprintf("<tool_output name=%q>\n%s\n</tool_output>", toolName, escaped)
 	default:
 		wrapped = fmt.Sprintf("<tool_output name=%q>\n%v\n</tool_output>", toolName, c)
 	}

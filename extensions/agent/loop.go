@@ -319,13 +319,13 @@ func (a *AgentExtension) run(
 
 		drainInterrupts(interruptCh)
 
+		a.mu.Lock()
 		if a.skillFilterActive {
-			a.mu.Lock()
 			sdk.SetToolFilter(a.savedToolFilter)
 			a.skillFilterActive = false
 			a.savedToolFilter = nil
-			a.mu.Unlock()
 		}
+		a.mu.Unlock()
 
 		turn++
 
@@ -733,7 +733,7 @@ func executeTool(ctx context.Context, bus sdk.Bus, cfg sdk.Config, tc sdk.ToolCa
 	defer func() {
 		if r := recover(); r != nil {
 			stack := debug.Stack()
-			sdk.Logger("agent").Error("tool panicked", "tool", tc.Name, "panic", r, "stack", string(stack))
+			sdk.Logger("agent").Error("tool panicked", "tool", tc.Name, "id", tc.ID, "panic", r, "stack", string(stack))
 
 			result = sdk.ToolResult{}
 			err = fmt.Errorf("tool panicked: %v", r)
@@ -845,6 +845,7 @@ func collectToolDefs(cfg sdk.Config) []sdk.ToolDef {
 	for _, name := range names {
 		tool, err := sdk.GetTool(name, cfg)
 		if err != nil {
+			sdk.Logger("agent").Warn("tool not available, skipping", "tool", name, "error", err)
 			continue
 		}
 
