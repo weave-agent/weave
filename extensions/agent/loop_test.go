@@ -2309,3 +2309,254 @@ func TestExecuteTool_UnknownField(t *testing.T) {
 	// Tool Execute should NOT have been called
 	assert.Empty(t, mt.ExecuteCalls())
 }
+
+type toolExecRecord struct {
+	name  string
+	start time.Time
+	end   time.Time
+}
+
+func newRecordingTool(name string, sleep time.Duration, log *[]toolExecRecord, mu *sync.Mutex) *ToolMock {
+	return newMockTool(name, sdk.ToolDef{Name: name}, func(ctx context.Context, args map[string]any) (sdk.ToolResult, error) {
+		start := time.Now()
+
+		time.Sleep(sleep)
+
+		end := time.Now()
+
+		mu.Lock()
+
+		*log = append(*log, toolExecRecord{name: name, start: start, end: end})
+		mu.Unlock()
+
+		return sdk.ToolResult{Content: name + " done"}, nil
+	})
+}
+
+func TestExecuteTools_ParallelReads(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	var (
+		mu      sync.Mutex
+		records []toolExecRecord
+	)
+
+	read1 := newRecordingTool("read", 100*time.Millisecond, &records, &mu)
+	read2 := newRecordingTool("grep", 100*time.Millisecond, &records, &mu)
+
+	registerMockTool(read1)
+	registerMockTool(read2)
+
+	mp := newMockProvider([]providerResponse{
+		{
+			toolCalls: []sdk.ToolCall{
+				{ID: "tc1", Name: "read", Arguments: map[string]any{"path": "a.go"}},
+				{ID: "tc2", Name: "grep", Arguments: map[string]any{"pattern": "foo"}},
+			},
+		},
+		{textDeltas: []string{"done"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	start := time.Now()
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "parallel reads"))
+
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 5*time.Second)
+	require.True(t, ok, "timeout waiting for turn_end")
+
+	duration := time.Since(start)
+
+	require.NoError(t, a.Close())
+
+	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
+
+	mu.Lock()
+	require.Len(t, records, 2)
+	r1, r2 := records[0], records[1]
+	mu.Unlock()
+
+	// Both read tools should have started close together (within 30ms).
+	startDelta := r1.start.Sub(r2.start)
+	if startDelta < 0 {
+		startDelta = -startDelta
+	}
+
+	assert.Less(t, startDelta, 30*time.Millisecond, "read tools should start concurrently")
+
+	// Total duration should be less than 180ms (parallel, not sequential).
+	assert.Less(t, duration, 180*time.Millisecond, "parallel reads should finish faster than sequential")
+
+	// Messages should be in original order.
+	calls := mp.StreamCalls()
+	require.Len(t, calls, 2)
+	require.Len(t, calls[1].Req.Messages, 4) // user prompt + assistant with tool_calls + 2 tool results
+	assert.Equal(t, sdk.RoleToolResult, calls[1].Req.Messages[2].Role)
+	assert.Equal(t, "tc1", calls[1].Req.Messages[2].ToolCallID)
+	assert.Equal(t, sdk.RoleToolResult, calls[1].Req.Messages[3].Role)
+	assert.Equal(t, "tc2", calls[1].Req.Messages[3].ToolCallID)
+}
+
+func TestExecuteTools_WritesSequential(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	var (
+		mu      sync.Mutex
+		records []toolExecRecord
+	)
+
+	editTool := newRecordingTool("edit", 80*time.Millisecond, &records, &mu)
+	writeTool := newRecordingTool("write", 80*time.Millisecond, &records, &mu)
+
+	registerMockTool(editTool)
+	registerMockTool(writeTool)
+
+	mp := newMockProvider([]providerResponse{
+		{
+			toolCalls: []sdk.ToolCall{
+				{ID: "tc1", Name: "edit", Arguments: map[string]any{"path": "a.go", "old_string": "x", "new_string": "y"}},
+				{ID: "tc2", Name: "write", Arguments: map[string]any{"path": "b.go", "content": "hello"}},
+			},
+		},
+		{textDeltas: []string{"done"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	start := time.Now()
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "sequential writes"))
+
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 5*time.Second)
+	require.True(t, ok, "timeout waiting for turn_end")
+
+	duration := time.Since(start)
+
+	require.NoError(t, a.Close())
+
+	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
+
+	mu.Lock()
+	require.Len(t, records, 2)
+	r1, r2 := records[0], records[1]
+	mu.Unlock()
+
+	// Second write should start after first ends (sequential).
+	assert.True(t, r2.start.Equal(r1.end) || r2.start.After(r1.end),
+		"second write should start after first ends: r1.end=%v r2.start=%v", r1.end, r2.start)
+
+	// Total duration should be at least 140ms (sequential, not parallel).
+	assert.GreaterOrEqual(t, duration, 140*time.Millisecond, "sequential writes should take longer than a single write")
+}
+
+func TestExecuteTools_MixedParallelAndSequential(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	var (
+		mu      sync.Mutex
+		records []toolExecRecord
+	)
+
+	read1 := newRecordingTool("read", 80*time.Millisecond, &records, &mu)
+	editTool := newRecordingTool("edit", 50*time.Millisecond, &records, &mu)
+	read2 := newRecordingTool("find", 80*time.Millisecond, &records, &mu)
+
+	registerMockTool(read1)
+	registerMockTool(editTool)
+	registerMockTool(read2)
+
+	mp := newMockProvider([]providerResponse{
+		{
+			toolCalls: []sdk.ToolCall{
+				{ID: "tc1", Name: "read", Arguments: map[string]any{"path": "a.go"}},
+				{ID: "tc2", Name: "edit", Arguments: map[string]any{"path": "a.go", "old_string": "x", "new_string": "y"}},
+				{ID: "tc3", Name: "find", Arguments: map[string]any{"pattern": "*.go"}},
+			},
+		},
+		{textDeltas: []string{"done"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	start := time.Now()
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "mixed parallel and sequential"))
+
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 5*time.Second)
+	require.True(t, ok, "timeout waiting for turn_end")
+
+	duration := time.Since(start)
+
+	require.NoError(t, a.Close())
+
+	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
+
+	mu.Lock()
+	require.Len(t, records, 3)
+
+	// Find the record for each tool by name.
+	var rRead, rEdit, rFind toolExecRecord
+
+	for _, r := range records {
+		switch r.name {
+		case "read":
+			rRead = r
+		case "edit":
+			rEdit = r
+		case "find":
+			rFind = r
+		}
+	}
+	mu.Unlock()
+
+	// Both reads should have started close together (concurrent).
+	readStartDelta := rRead.start.Sub(rFind.start)
+	if readStartDelta < 0 {
+		readStartDelta = -readStartDelta
+	}
+
+	assert.Less(t, readStartDelta, 30*time.Millisecond, "read and find should start concurrently")
+
+	// Edit should start after both reads complete.
+	latestReadEnd := rRead.end
+	if rFind.end.After(latestReadEnd) {
+		latestReadEnd = rFind.end
+	}
+
+	assert.True(t, rEdit.start.Equal(latestReadEnd) || rEdit.start.After(latestReadEnd),
+		"edit should start after both reads complete")
+
+	// Total should be less than 250ms (reads parallel ~80ms + edit ~50ms = ~130ms,
+	// not sequential ~210ms).
+	assert.Less(t, duration, 250*time.Millisecond, "mixed execution should be faster than fully sequential")
+
+	// Verify messages are in original tool call order in the next stream request.
+	calls := mp.StreamCalls()
+	require.Len(t, calls, 2)
+	require.Len(t, calls[1].Req.Messages, 5) // user prompt + assistant with tool_calls + 3 tool results
+	assert.Equal(t, "tc1", calls[1].Req.Messages[2].ToolCallID)
+	assert.Equal(t, "tc2", calls[1].Req.Messages[3].ToolCallID)
+	assert.Equal(t, "tc3", calls[1].Req.Messages[4].ToolCallID)
+}

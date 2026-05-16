@@ -151,11 +151,11 @@ Fix 17 gaps identified by the agents-best-practices audit of the Weave agent fra
 - [x] run `go test ./cmd/weave/...` — must pass before task 17
 
 ### Task 17: Parallelize read-only tool execution
-- [ ] in `extensions/agent/loop.go`, classify tool calls as read-only (read, grep, find, ls) vs write (edit, write, bash, subagent) based on tool name
-- [ ] when multiple tool calls are present, execute read-only calls concurrently via goroutines with a sync.WaitGroup; execute write calls sequentially after all reads complete
-- [ ] preserve message ordering — collect results in original tool call order
-- [ ] write tests: TestExecuteTools_ParallelReads, TestExecuteTools_WritesSequential, TestExecuteTools_MixedParallelAndSequential in `extensions/agent/loop_test.go`
-- [ ] run `cd extensions/agent && go test ./...` — must pass before task 18
+- [x] in `extensions/agent/loop.go`, classify tool calls as read-only (read, grep, find, ls) vs write (edit, write, bash, subagent) based on tool name
+- [x] when multiple tool calls are present, execute read-only calls concurrently via goroutines with a sync.WaitGroup; execute write calls sequentially after all reads complete
+- [x] preserve message ordering — collect results in original tool call order
+- [x] write tests: TestExecuteTools_ParallelReads, TestExecuteTools_WritesSequential, TestExecuteTools_MixedParallelAndSequential in `extensions/agent/loop_test.go`
+- [x] run `cd extensions/agent && go test ./...` — must pass before task 18
 
 ### Task 18: Add explicit sections to compact prompt template
 - [ ] in `extensions/agent/default-compact-prompt.md`, add explicit `## Active Constraints` and `## Current Plan (step X of Y)` sections to the requested output format

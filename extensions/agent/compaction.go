@@ -18,6 +18,9 @@ const (
 	toolNameRead  = "read"
 	toolNameEdit  = "edit"
 	toolNameWrite = "write"
+	toolNameGrep  = "grep"
+	toolNameFind  = "find"
+	toolNameLs    = "ls"
 )
 
 // estimateTokens returns a rough token count for the given messages using

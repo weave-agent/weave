@@ -170,6 +170,7 @@ func TestInstall_PrintsAccessWarning(t *testing.T) {
 	oldStderr := os.Stderr
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
+
 	os.Stderr = w
 
 	code := RunInstall([]string{extDir})

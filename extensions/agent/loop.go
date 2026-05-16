@@ -6,6 +6,7 @@ import (
 	"runtime/debug"
 	"slices"
 	"strings"
+	"sync"
 
 	"weave/sdk"
 	"weave/sdk/model"
@@ -278,25 +279,9 @@ func (a *AgentExtension) run(
 
 			messages = append(messages, resp)
 
-			for _, tc := range toolCalls {
-				bus.Publish(sdk.NewEvent(TopicToolCall, map[string]any{
-					"id":   tc.ID,
-					"tool": tc.Name,
-					"args": tc.Arguments,
-				}))
-
-				result, err := executeTool(turnCtx, bus, a.cfg, tc)
-				if err != nil {
-					result = sdk.ToolResult{Content: err.Error(), IsError: true}
-				}
-
-				bus.Publish(sdk.NewEvent(TopicToolResult, map[string]any{
-					"id":     tc.ID,
-					"tool":   tc.Name,
-					"result": result,
-				}))
-
-				messages = append(messages, sdk.NewToolResultMessage(tc.ID, tc.Name, result.Content, result.IsError))
+			results := executeTools(turnCtx, bus, a.cfg, toolCalls)
+			for _, entry := range results {
+				messages = append(messages, sdk.NewToolResultMessage(entry.call.ID, entry.call.Name, entry.result.Content, entry.result.IsError))
 			}
 
 			if len(toolCalls) > 0 {
@@ -771,6 +756,82 @@ func executeTool(ctx context.Context, bus sdk.Bus, cfg sdk.Config, tc sdk.ToolCa
 	}
 
 	return result, nil
+}
+
+type toolExecutionResult struct {
+	call   sdk.ToolCall
+	result sdk.ToolResult
+}
+
+// isReadOnlyTool returns true for tools that only read from the filesystem
+// and do not mutate state. Read-only tools are executed concurrently.
+func isReadOnlyTool(name string) bool {
+	switch name {
+	case toolNameRead, toolNameGrep, toolNameFind, toolNameLs:
+		return true
+	default:
+		return false
+	}
+}
+
+// executeTools runs all tool calls, executing read-only tools concurrently
+// and write tools sequentially. Results are returned in the original tool
+// call order so message ordering is preserved.
+func executeTools(ctx context.Context, bus sdk.Bus, cfg sdk.Config, toolCalls []sdk.ToolCall) []toolExecutionResult {
+	// Publish tool_call events first, preserving order.
+	for _, tc := range toolCalls {
+		bus.Publish(sdk.NewEvent(TopicToolCall, map[string]any{
+			"id":   tc.ID,
+			"tool": tc.Name,
+			"args": tc.Arguments,
+		}))
+	}
+
+	results := make([]toolExecutionResult, len(toolCalls))
+
+	// Execute read-only tools concurrently.
+	var wg sync.WaitGroup
+
+	for i, tc := range toolCalls {
+		if isReadOnlyTool(tc.Name) {
+			wg.Add(1)
+			go func(idx int, call sdk.ToolCall) {
+				defer wg.Done()
+
+				result, err := executeTool(ctx, bus, cfg, call)
+				if err != nil {
+					result = sdk.ToolResult{Content: err.Error(), IsError: true}
+				}
+
+				results[idx] = toolExecutionResult{call: call, result: result}
+			}(i, tc)
+		}
+	}
+
+	wg.Wait()
+
+	// Execute write tools sequentially after all reads complete.
+	for i, tc := range toolCalls {
+		if !isReadOnlyTool(tc.Name) {
+			result, err := executeTool(ctx, bus, cfg, tc)
+			if err != nil {
+				result = sdk.ToolResult{Content: err.Error(), IsError: true}
+			}
+
+			results[i] = toolExecutionResult{call: tc, result: result}
+		}
+	}
+
+	// Publish tool_result events in original order.
+	for _, entry := range results {
+		bus.Publish(sdk.NewEvent(TopicToolResult, map[string]any{
+			"id":     entry.call.ID,
+			"tool":   entry.call.Name,
+			"result": entry.result,
+		}))
+	}
+
+	return results
 }
 
 func collectToolDefs(cfg sdk.Config) []sdk.ToolDef {
