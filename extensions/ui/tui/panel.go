@@ -111,7 +111,7 @@ func (pm *PanelManager) Hide(id string) {
 	entry.Visible = false
 
 	if pm.active == id {
-		pm.active = ""
+		pm.active = pm.nextVisibleAfterLocked(id, pm.order)
 	}
 }
 
@@ -119,6 +119,8 @@ func (pm *PanelManager) Hide(id string) {
 func (pm *PanelManager) Remove(id string) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
+
+	oldOrder := append([]string(nil), pm.order...)
 
 	delete(pm.panels, id)
 
@@ -132,7 +134,7 @@ func (pm *PanelManager) Remove(id string) {
 	pm.order = newOrder
 
 	if pm.active == id {
-		pm.active = ""
+		pm.active = pm.nextVisibleAfterLocked(id, oldOrder)
 	}
 }
 
@@ -299,12 +301,43 @@ func (pm *PanelManager) ActivePanelHeight() int {
 	return 10 // default panel height
 }
 
-// SetOrder updates the tab order of visible panels.
+// SetOrder updates the tab order. Unknown IDs are ignored; registered panels
+// omitted by ids are preserved after the requested IDs in their previous order.
 func (pm *PanelManager) SetOrder(ids []string) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
-	pm.order = ids
+	seen := make(map[string]bool, len(ids))
+	newOrder := make([]string, 0, len(pm.order))
+
+	for _, id := range ids {
+		if seen[id] {
+			continue
+		}
+
+		if _, ok := pm.panels[id]; !ok {
+			continue
+		}
+
+		seen[id] = true
+		newOrder = append(newOrder, id)
+	}
+
+	for _, id := range pm.order {
+		if seen[id] {
+			continue
+		}
+
+		if _, ok := pm.panels[id]; !ok {
+			continue
+		}
+
+		seen[id] = true
+		newOrder = append(newOrder, id)
+	}
+
+	pm.order = newOrder
+	pm.ensureActiveLocked()
 }
 
 // GetOrder returns a copy of the current tab order.
@@ -333,4 +366,40 @@ func (pm *PanelManager) ActivePanelPlacement() PanelPlacement {
 	}
 
 	return entry.Config.Placement
+}
+
+func (pm *PanelManager) ensureActiveLocked() {
+	if pm.active != "" {
+		if entry, ok := pm.panels[pm.active]; ok && entry.Visible {
+			return
+		}
+	}
+
+	pm.active = pm.firstVisibleLocked()
+}
+
+func (pm *PanelManager) firstVisibleLocked() string {
+	for _, id := range pm.order {
+		if entry, ok := pm.panels[id]; ok && entry.Visible {
+			return id
+		}
+	}
+
+	return ""
+}
+
+func (pm *PanelManager) nextVisibleAfterLocked(id string, order []string) string {
+	if len(order) == 0 {
+		return ""
+	}
+
+	idx := slices.Index(order, id)
+	for offset := 1; offset <= len(order); offset++ {
+		candidate := order[(idx+offset+len(order))%len(order)]
+		if entry, ok := pm.panels[candidate]; ok && entry.Visible {
+			return candidate
+		}
+	}
+
+	return ""
 }

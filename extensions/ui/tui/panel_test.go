@@ -13,10 +13,15 @@ import (
 type mockPanelDrawer struct {
 	id          string
 	updateCount int
+	drawCount   int
+	lastArea    uv.Rectangle
 	lastMsg     tea.Msg
 }
 
-func (m *mockPanelDrawer) Draw(_ uv.Screen, _ uv.Rectangle) {}
+func (m *mockPanelDrawer) Draw(_ uv.Screen, area uv.Rectangle) {
+	m.drawCount++
+	m.lastArea = area
+}
 func (m *mockPanelDrawer) Update(msg tea.Msg) (PanelDrawer, tea.Cmd) {
 	m.updateCount++
 	m.lastMsg = msg
@@ -88,7 +93,7 @@ func TestPanelManager_Hide(t *testing.T) {
 	assert.Empty(t, pm.Active())
 }
 
-func TestPanelManager_Hide_ActiveCleared(t *testing.T) {
+func TestPanelManager_Hide_ActiveSelectsNextVisible(t *testing.T) {
 	pm := NewPanelManager()
 	pm.Register(PanelConfig{ID: "p1"}, &mockPanelDrawer{})
 	pm.Register(PanelConfig{ID: "p2"}, &mockPanelDrawer{})
@@ -98,6 +103,15 @@ func TestPanelManager_Hide_ActiveCleared(t *testing.T) {
 	assert.Equal(t, "p2", pm.Active())
 
 	pm.Hide("p2")
+	assert.Equal(t, "p1", pm.Active())
+}
+
+func TestPanelManager_Hide_LastVisibleClearsActive(t *testing.T) {
+	pm := NewPanelManager()
+	pm.Register(PanelConfig{ID: "p1"}, &mockPanelDrawer{})
+	pm.Show("p1")
+
+	pm.Hide("p1")
 	assert.Empty(t, pm.Active())
 }
 
@@ -111,6 +125,29 @@ func TestPanelManager_Remove(t *testing.T) {
 	assert.False(t, pm.IsRegistered("p1"))
 	assert.Empty(t, pm.Active())
 	assert.Equal(t, []string{"p2"}, pm.AllPanels())
+}
+
+func TestPanelManager_Remove_ActiveSelectsNextVisible(t *testing.T) {
+	pm := NewPanelManager()
+	pm.Register(PanelConfig{ID: "p1"}, &mockPanelDrawer{})
+	pm.Register(PanelConfig{ID: "p2"}, &mockPanelDrawer{})
+	pm.Register(PanelConfig{ID: "p3"}, &mockPanelDrawer{})
+	pm.Show("p1")
+	pm.Show("p2")
+	pm.Show("p3")
+	pm.Show("p2")
+
+	pm.Remove("p2")
+	assert.Equal(t, "p3", pm.Active())
+}
+
+func TestPanelManager_Remove_LastVisibleClearsActive(t *testing.T) {
+	pm := NewPanelManager()
+	pm.Register(PanelConfig{ID: "p1"}, &mockPanelDrawer{})
+	pm.Show("p1")
+
+	pm.Remove("p1")
+	assert.Empty(t, pm.Active())
 }
 
 func TestPanelManager_Remove_Unknown(t *testing.T) {
@@ -133,6 +170,22 @@ func TestPanelManager_VisiblePanels(t *testing.T) {
 func TestPanelManager_VisiblePanels_Empty(t *testing.T) {
 	pm := NewPanelManager()
 	assert.Empty(t, pm.VisiblePanels())
+}
+
+func TestPanelManager_SetOrder_FiltersUnknownAndPreservesOmitted(t *testing.T) {
+	pm := NewPanelManager()
+	pm.Register(PanelConfig{ID: "p1"}, &mockPanelDrawer{})
+	pm.Register(PanelConfig{ID: "p2"}, &mockPanelDrawer{})
+	pm.Register(PanelConfig{ID: "p3"}, &mockPanelDrawer{})
+	pm.Show("p1")
+	pm.Show("p2")
+	pm.Show("p3")
+
+	pm.SetOrder([]string{"p3", "missing", "p3"})
+
+	assert.Equal(t, []string{"p3", "p1", "p2"}, pm.GetOrder())
+	assert.Equal(t, []string{"p3", "p1", "p2"}, pm.VisiblePanels())
+	assert.Equal(t, "p3", pm.Active())
 }
 
 func TestPanelManager_Get(t *testing.T) {

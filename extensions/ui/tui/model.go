@@ -58,7 +58,7 @@ const (
 )
 
 func isEnterKey(code rune) bool {
-	return code == tea.KeyEnter || code == tea.KeyKpEnter
+	return code == tea.KeyEnter || code == tea.KeyReturn || code == tea.KeyKpEnter
 }
 
 // Model is the root Bubble Tea model for the TUI.
@@ -482,31 +482,56 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		// Try keybinding resolver
-		if action, ok := m.bindings.Resolve(keyString(msg)); ok {
-			return m.dispatchBinding(action)
-		}
-
 		// Tray key navigation when focused
 		if m.focus == FocusTray {
-			switch msg.Code {
-			case tea.KeyRight:
+			if msg.Code == tea.KeyRight {
 				m.panelTray = m.panelTray.Next()
-				m.panelManager.Show(m.panelTray.ActiveID())
+				if activeID := m.panelTray.ActiveID(); activeID != "" {
+					m.panelManager.Show(activeID)
+					m.syncPanelTray()
+				}
 
 				return m, nil
-			case tea.KeyLeft:
+			}
+
+			if msg.Code == tea.KeyLeft {
 				m.panelTray = m.panelTray.Prev()
-				m.panelManager.Show(m.panelTray.ActiveID())
+				if activeID := m.panelTray.ActiveID(); activeID != "" {
+					m.panelManager.Show(activeID)
+					m.syncPanelTray()
+				}
 
 				return m, nil
-			case tea.KeyEnter, tea.KeyKpEnter:
-				m.panelManager.Show(m.panelTray.ActiveID())
+			}
+
+			if isEnterKey(msg.Code) {
+				activeID := m.panelTray.ActiveID()
+				if activeID == "" {
+					visible := m.panelManager.VisiblePanels()
+					if len(visible) > 0 {
+						activeID = visible[0]
+					}
+				}
+
+				if activeID == "" {
+					m.focus = FocusEditor
+					m.panelTray = m.panelTray.SetFocused(false)
+
+					return m, nil
+				}
+
+				m.panelManager.Show(activeID)
+				m.syncPanelTray()
 				m.focus = FocusPanel
 				m.panelTray = m.panelTray.SetFocused(false)
 
 				return m, nil
 			}
+		}
+
+		// Try keybinding resolver
+		if action, ok := m.bindings.Resolve(keyString(msg)); ok {
+			return m.dispatchBinding(action)
 		}
 
 		// Forward keys to active panel when focused
@@ -822,8 +847,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case panelChangedMsg:
 		m.syncPanelTray()
 
-		if m.focus == FocusPanel && m.panelManager.Active() == "" {
+		if m.panelTray.Len() == 0 && (m.focus == FocusTray || m.focus == FocusPanel) {
 			m.focus = FocusEditor
+			m.panelTray = m.panelTray.SetFocused(false)
+		} else if m.focus == FocusPanel && m.panelManager.Active() == "" {
+			m.focus = FocusEditor
+			m.panelTray = m.panelTray.SetFocused(false)
 		}
 
 		return m, nil
@@ -2443,8 +2472,11 @@ func (m Model) cycleFocus(reverse bool) (tea.Model, tea.Cmd) {
 	if reverse {
 		switch m.focus {
 		case FocusEditor:
-			m.focus = FocusPanel
-			m.panelTray = m.panelTray.SetFocused(false)
+			if activeID := m.panelTray.ActiveID(); activeID != "" {
+				m.panelManager.Show(activeID)
+				m.focus = FocusPanel
+				m.panelTray = m.panelTray.SetFocused(false)
+			}
 		case FocusTray:
 			m.focus = FocusEditor
 			m.panelTray = m.panelTray.SetFocused(false)
@@ -2458,8 +2490,11 @@ func (m Model) cycleFocus(reverse bool) (tea.Model, tea.Cmd) {
 			m.focus = FocusTray
 			m.panelTray = m.panelTray.SetFocused(true)
 		case FocusTray:
-			m.focus = FocusPanel
-			m.panelTray = m.panelTray.SetFocused(false)
+			if activeID := m.panelTray.ActiveID(); activeID != "" {
+				m.panelManager.Show(activeID)
+				m.focus = FocusPanel
+				m.panelTray = m.panelTray.SetFocused(false)
+			}
 		case FocusPanel:
 			m.focus = FocusEditor
 			m.panelTray = m.panelTray.SetFocused(false)
@@ -2785,10 +2820,6 @@ func (m *Model) syncPanelTray() {
 		}
 	}
 
-	if activeIdx == -1 && len(tabs) > 0 {
-		activeIdx = 0
-	}
-
 	m.panelTray = m.panelTray.SetTabs(tabs, activeIdx)
 }
 
@@ -2851,6 +2882,7 @@ func (m Model) drawNormalUI(scr uv.Screen, area uv.Rectangle, dockedRows int) La
 	m.drawCompletionPopupIfActive(scr, editorArea)
 	m.drawActivePanel(scr, lt.BelowPanel)
 	m.drawFooter(scr, lt.Footer)
+	m.drawOverlayPanel(scr, area)
 
 	return lt
 }
@@ -2926,6 +2958,33 @@ func (m Model) drawActivePanel(scr uv.Screen, area uv.Rectangle) {
 	if activeID := m.panelManager.Active(); activeID != "" {
 		m.panelManager.DrawPanel(activeID, scr, area)
 	}
+}
+
+func (m Model) drawOverlayPanel(scr uv.Screen, area uv.Rectangle) {
+	activeID := m.panelManager.Active()
+	if activeID == "" || m.panelManager.ActivePanelPlacement() != AsOverlay {
+		return
+	}
+
+	entry, ok := m.panelManager.Get(activeID)
+	if !ok || !entry.Visible {
+		return
+	}
+
+	width := entry.Config.Width
+	if width <= 0 || width > area.Dx() {
+		width = area.Dx()
+	}
+
+	height := entry.Config.Height
+	if height <= 0 || height > area.Dy() {
+		height = area.Dy()
+	}
+
+	x := area.Min.X + (area.Dx()-width)/2
+	y := area.Min.Y + (area.Dy()-height)/2
+	overlayArea := uv.Rect(x, y, width, height)
+	m.panelManager.DrawPanel(activeID, scr, overlayArea)
 }
 
 func (m Model) drawPills(scr uv.Screen, area uv.Rectangle) {

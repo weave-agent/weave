@@ -549,13 +549,18 @@ func (u *TUIImpl) PanelTray() PanelTrayAPI {
 // SetOrder implements PanelTrayAPI.
 func (u *TUIImpl) SetOrder(ids []string) {
 	u.mu.Lock()
-	defer u.mu.Unlock()
-
 	if u.panelManager == nil {
+		u.mu.Unlock()
 		return
 	}
 
 	u.panelManager.SetOrder(ids)
+	p := u.program
+	u.mu.Unlock()
+
+	if p != nil {
+		p.Send(panelChangedMsg{})
+	}
 }
 
 // GetOrder implements PanelTrayAPI.

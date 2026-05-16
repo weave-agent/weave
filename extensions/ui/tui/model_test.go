@@ -3082,6 +3082,26 @@ func TestModel_PanelFocusChain_NoPanels_TabIgnored(t *testing.T) {
 	assert.Equal(t, FocusEditor, m.focus)
 }
 
+func TestModel_PanelChanged_LastPanelRemovedClearsTrayFocus(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	m.panelManager.Register(PanelConfig{ID: "p1", Title: "Test"}, &mockPanelDrawer{})
+	m.panelManager.Show("p1")
+	m.syncPanelTray()
+	m.focus = FocusTray
+	m.panelTray = m.panelTray.SetFocused(true)
+
+	m.panelManager.Remove("p1")
+	model, _ := m.Update(panelChangedMsg{})
+	m = model.(Model)
+
+	assert.Equal(t, FocusEditor, m.focus)
+	assert.False(t, m.panelTray.IsFocused())
+	assert.Equal(t, 0, m.panelTray.Len())
+}
+
 func TestModel_PanelFocusChain_CompletionActive_TabIgnored(t *testing.T) {
 	m := newModel(nil, nil, nil, nil)
 	m.width = 80
@@ -3173,6 +3193,29 @@ func TestModel_TrayNavigation_EnterShowsSelectedSubagentPanel(t *testing.T) {
 	assert.Equal(t, FocusPanel, m.focus)
 	assert.False(t, m.panelTray.IsFocused())
 	assert.Equal(t, 0, drawer.updateCount)
+}
+
+func TestModel_TrayNavigation_ReturnShowsSelectedSubagentPanel(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	drawer := &mockPanelDrawer{}
+	m.panelManager.Register(PanelConfig{ID: "subagent-agent-1", Title: "agent", Placement: BelowEditor, Height: 6}, drawer)
+	m.panelManager.Show("subagent-agent-1")
+	m.focus = FocusTray
+
+	model, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyReturn})
+	m = model.(Model)
+
+	assert.Equal(t, "subagent-agent-1", m.panelManager.Active())
+	assert.Equal(t, FocusPanel, m.focus)
+	assert.False(t, m.panelTray.IsFocused())
+
+	tray, above, below := m.panelRows()
+	assert.Equal(t, 1, tray)
+	assert.Equal(t, 0, above)
+	assert.Equal(t, 6, below)
 }
 
 func TestModel_TrayNavigation_EnterShowsVisiblePanelWhenNoPanelActive(t *testing.T) {
@@ -3285,6 +3328,24 @@ func TestModel_Draw_WithPanelBelowEditor(t *testing.T) {
 	assert.NotEmpty(t, rendered)
 }
 
+func TestModel_Draw_WithOverlayPanel(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+
+	drawer := &mockPanelDrawer{}
+	m.panelManager.Register(PanelConfig{ID: "p1", Title: "Overlay", Placement: AsOverlay, Width: 20, Height: 5}, drawer)
+	m.panelManager.Show("p1")
+
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvas, canvas.Bounds())
+
+	assert.Equal(t, 1, drawer.drawCount)
+	assert.Equal(t, 20, drawer.lastArea.Dx())
+	assert.Equal(t, 5, drawer.lastArea.Dy())
+}
+
 func TestModel_Layout_WithPanel_ShrinksMain(t *testing.T) {
 	m := newModel(nil, nil, nil, nil)
 	m.width = 120
@@ -3382,6 +3443,18 @@ func TestModel_SyncPanelTray_NoTitleFallsBackToID(t *testing.T) {
 	m.syncPanelTray()
 
 	assert.Equal(t, "my-panel", m.panelTray.ActiveID())
+}
+
+func TestModel_SyncPanelTray_NoVisualFallbackWhenNoActivePanel(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+
+	m.panelManager.Register(PanelConfig{ID: "my-panel"}, &mockPanelDrawer{})
+	m.panelManager.panels["my-panel"].Visible = true
+
+	m.syncPanelTray()
+
+	assert.Equal(t, 1, m.panelTray.Len())
+	assert.Empty(t, m.panelTray.ActiveID())
 }
 
 func TestModel_PanelRows_NoPanels(t *testing.T) {

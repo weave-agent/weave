@@ -1152,6 +1152,36 @@ func TestTUIImpl_RegisterTheme(t *testing.T) {
 	assert.Equal(t, "15", info.Foreground)
 }
 
+func TestTUIImpl_SetOrder_SendsPanelChangedMsg(t *testing.T) {
+	sender := &mockSender{}
+	ui := NewTUIImpl(nil, nil)
+	ui.SetProgram(sender)
+
+	ui.ShowPanel(PanelConfig{ID: "p1"}, &mockPanelDrawer{})
+	ui.ShowPanel(PanelConfig{ID: "p2"}, &mockPanelDrawer{})
+	sender.msgs = nil
+
+	ui.SetOrder([]string{"p2", "p1"})
+
+	require.Len(t, sender.msgs, 1)
+	_, ok := sender.msgs[0].(panelChangedMsg)
+	assert.True(t, ok)
+	assert.Equal(t, []string{"p2", "p1"}, ui.GetOrder())
+}
+
+func TestTUIImpl_SetOrder_PreservesOmittedPanels(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+
+	ui.ShowPanel(PanelConfig{ID: "p1"}, &mockPanelDrawer{})
+	ui.ShowPanel(PanelConfig{ID: "p2"}, &mockPanelDrawer{})
+	ui.ShowPanel(PanelConfig{ID: "p3"}, &mockPanelDrawer{})
+
+	ui.SetOrder([]string{"p3", "missing"})
+
+	assert.Equal(t, []string{"p3", "p1", "p2"}, ui.GetOrder())
+	assert.Equal(t, []string{"p3", "p1", "p2"}, ui.panelManager.VisiblePanels())
+}
+
 func TestTUIImpl_RegisterTheme_EmptyName(t *testing.T) {
 	ui := NewTUIImpl(nil, nil)
 
