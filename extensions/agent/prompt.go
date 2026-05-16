@@ -35,11 +35,11 @@ func newPromptBuilder(cfg sdk.Config) *promptBuilder {
 // Build assembles the full system prompt from all layers.
 // Layers (top to bottom):
 //  1. Default prompt OR SYSTEM.md (if found)
-//  2. Date + CWD (always injected)
-//  3. Available tools (dynamic)
-//  4. Skills XML + usage instructions
-//  5. Context files (CLAUDE.md/AGENTS.md)
-//  6. APPEND_SYSTEM.md
+//  2. Available tools (dynamic)
+//  3. Skills XML + usage instructions
+//  4. Context files (CLAUDE.md/AGENTS.md)
+//  5. APPEND_SYSTEM.md
+//  6. Date + CWD (always injected — placed last for cache friendliness)
 func (pb *promptBuilder) Build(input buildInput) string {
 	var b strings.Builder
 
@@ -52,18 +52,14 @@ func (pb *promptBuilder) Build(input buildInput) string {
 	b.WriteString(strings.TrimSpace(base))
 	b.WriteString("\n\n")
 
-	// Layer 2: date + CWD
-	b.WriteString(pb.buildInjectedSection())
-	b.WriteString("\n\n")
-
-	// Layer 3: available tools
+	// Layer 2: available tools
 	toolsSection := pb.buildToolDescriptions()
 	if toolsSection != "" {
 		b.WriteString(toolsSection)
 		b.WriteString("\n\n")
 	}
 
-	// Layer 4: skills XML + usage instructions
+	// Layer 3: skills XML + usage instructions
 	skillsSection := formatSkillsPrompt(input.skills)
 	if skillsSection != "" {
 		b.WriteString(skillsSection)
@@ -72,19 +68,23 @@ func (pb *promptBuilder) Build(input buildInput) string {
 		b.WriteString("\n\n")
 	}
 
-	// Layer 5: context files
+	// Layer 4: context files
 	contextSection := pb.buildContextSection(input.contextFiles)
 	if contextSection != "" {
 		b.WriteString(contextSection)
 		b.WriteString("\n\n")
 	}
 
-	// Layer 6: APPEND_SYSTEM.md
+	// Layer 5: APPEND_SYSTEM.md
 	if input.systemAppend != "" {
 		b.WriteString("<user_appended_context>\n")
 		b.WriteString(strings.TrimSpace(input.systemAppend))
 		b.WriteString("\n</user_appended_context>")
+		b.WriteString("\n\n")
 	}
+
+	// Layer 6: date + CWD (last for cache friendliness)
+	b.WriteString(pb.buildInjectedSection())
 
 	return strings.TrimSpace(b.String())
 }

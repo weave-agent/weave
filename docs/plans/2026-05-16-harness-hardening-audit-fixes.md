@@ -107,10 +107,10 @@ Fix 17 gaps identified by the agents-best-practices audit of the Weave agent fra
 - [x] run `cd extensions/store/jsonl && go test ./...` — must pass before task 10
 
 ### Task 10: Reorder system prompt for cache friendliness
-- [ ] in `extensions/agent/prompt.go:Build()`, move date+CWD injection from layer 2 to the last layer (after APPEND_SYSTEM.md)
-- [ ] update any tests that assert on prompt ordering
-- [ ] write tests: TestBuild_DateCWDAtEnd in `extensions/agent/prompt_test.go`
-- [ ] run `cd extensions/agent && go test ./...` — must pass before task 11
+- [x] in `extensions/agent/prompt.go:Build()`, move date+CWD injection from layer 2 to the last layer (after APPEND_SYSTEM.md)
+- [x] update any tests that assert on prompt ordering
+- [x] write tests: TestBuild_DateCWDAtEnd in `extensions/agent/prompt_test.go`
+- [x] run `cd extensions/agent && go test ./...` — must pass before task 11
 
 ### Task 11: Add Anthropic cache_control breakpoints
 - [ ] in `extensions/providers/anthropic/anthropic.go`, add `cache_control: {type: "ephemeral"}` to the system prompt content block(s)

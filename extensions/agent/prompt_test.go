@@ -229,12 +229,36 @@ func TestBuild_LayerOrdering(t *testing.T) {
 	ctxIdx := assertHasSubstring(t, result, "# Project Context")
 	appendIdx := assertHasSubstring(t, result, "APPEND")
 
-	assert.Less(t, baseIdx, dateIdx, "base should come before date")
-	assert.Less(t, dateIdx, toolsIdx, "date should come before tools")
+	assert.Less(t, baseIdx, toolsIdx, "base should come before tools")
 	assert.Less(t, toolsIdx, skillsIdx, "tools should come before skills")
 	assert.Less(t, skillsIdx, usageIdx, "skills should come before usage")
 	assert.Less(t, usageIdx, ctxIdx, "usage should come before context")
 	assert.Less(t, ctxIdx, appendIdx, "context should come before append")
+	assert.Less(t, appendIdx, dateIdx, "append should come before date (date is last)")
+}
+
+func TestBuild_DateCWDAtEnd(t *testing.T) {
+	sdk.ResetToolRegistry()
+	defer sdk.ResetToolRegistry()
+
+	sdk.RegisterTool("bash", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+		return &mockTool{name: "bash", description: "Run commands"}, nil
+	})
+
+	pb := newPromptBuilder(sdk.FilePathConfig(""))
+	result := pb.Build(buildInput{
+		systemBase:   "CUSTOM_BASE",
+		systemAppend: "APPEND",
+	})
+
+	baseIdx := assertHasSubstring(t, result, "CUSTOM_BASE")
+	appendIdx := assertHasSubstring(t, result, "APPEND")
+	dateIdx := assertHasSubstring(t, result, "Current date:")
+	cwdIdx := assertHasSubstring(t, result, "Current working directory:")
+
+	assert.Less(t, baseIdx, appendIdx, "base should come before append")
+	assert.Less(t, appendIdx, dateIdx, "append should come before date")
+	assert.Less(t, dateIdx, cwdIdx, "date should come before cwd")
 }
 
 func TestBuild_DefaultBaseWhenNoSystemMD(t *testing.T) {
