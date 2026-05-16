@@ -3,22 +3,20 @@ package palette
 import "weave/sdk/model"
 
 // ThinkingBorderColor returns the ANSI 256-color code for a thinking level.
-// Uses the primary color family with brightness mapped to intensity.
+// Uses grayscale temperature mapping for intensity.
 func ThinkingBorderColor(level model.ThinkingLevel) string {
-	theme := DefaultTheme()
-
 	switch level {
 	case model.ThinkingMinimal:
-		return theme.PrimaryDim
+		return "242"
 	case model.ThinkingLow:
-		return theme.Primary
+		return "244"
 	case model.ThinkingMedium:
-		return theme.PrimaryBright
+		return "246"
 	case model.ThinkingHigh:
-		return "141"
+		return "248"
 	case model.ThinkingXHigh:
-		return "177"
+		return "250"
 	default:
-		return theme.Border
+		return "240"
 	}
 }

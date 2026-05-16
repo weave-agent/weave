@@ -59,12 +59,12 @@ A complete visual redesign of the weave terminal UI, moving from a generic purpl
 
 ### Task 1: Rebuild theme system with state-aware accent
 
-- [ ] Update `palette/theme.go`: redefine Theme struct with grayscale base + Accent/AccentDim/AccentBright fields, remove Primary/PrimaryDim/PrimaryBright
-- [ ] Create `palette/state.go`: State enum (Idle, Streaming, ToolRunning, Error), AccentForState() helper
-- [ ] Update `palette/thinking.go`: grayscale thinking border mapping (240-250 range), remove hardcoded "141"/"177"
-- [ ] Update `palette/theme_test.go`: test new default color values
-- [ ] Update `palette/thinking_test.go`: test grayscale thinking border colors
-- [ ] Run tests: `cd extensions/ui/tui && go test ./palette/...` — must pass
+- [x] Update `palette/theme.go`: redefine Theme struct with grayscale base + Accent/AccentDim/AccentBright fields, remove Primary/PrimaryDim/PrimaryBright
+- [x] Create `palette/state.go`: State enum (Idle, Streaming, ToolRunning, Error), AccentForState() helper
+- [x] Update `palette/thinking.go`: grayscale thinking border mapping (240-250 range), remove hardcoded "141"/"177"
+- [x] Update `palette/theme_test.go`: test new default color values
+- [x] Update `palette/thinking_test.go`: test grayscale thinking border colors
+- [x] Run tests: `cd extensions/ui/tui && go test ./palette/...` — must pass
 
 ### Task 2: Restyle message renderers
 
