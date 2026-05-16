@@ -146,9 +146,9 @@ Fix 17 gaps identified by the agents-best-practices audit of the Weave agent fra
 - [x] run `make test` — must pass before task 16
 
 ### Task 16: Add install-time warning for extensions
-- [ ] in `internal/extmanage/install.go`, after validating `.go` files and `go.mod`, print a warning to stderr: "Extension '<name>' will be compiled with full access to filesystem, network, and provider credentials. Only install extensions from trusted sources."
-- [ ] write tests: TestInstall_PrintsAccessWarning in `cmd/weave/extmanage/install_test.go` (or relevant test file)
-- [ ] run `go test ./cmd/weave/...` — must pass before task 17
+- [x] in `internal/extmanage/install.go`, after validating `.go` files and `go.mod`, print a warning to stderr: "Extension '<name>' will be compiled with full access to filesystem, network, and provider credentials. Only install extensions from trusted sources."
+- [x] write tests: TestInstall_PrintsAccessWarning in `cmd/weave/extmanage/install_test.go` (or relevant test file)
+- [x] run `go test ./cmd/weave/...` — must pass before task 17
 
 ### Task 17: Parallelize read-only tool execution
 - [ ] in `extensions/agent/loop.go`, classify tool calls as read-only (read, grep, find, ls) vs write (edit, write, bash, subagent) based on tool name
