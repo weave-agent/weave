@@ -33,7 +33,8 @@ func (r *subagentRenderer) Render(content string, theme sdk.ThemeInfo, width int
 		ID     string `json:"id"`
 		Status string `json:"status"`
 	}
-	if json.Unmarshal([]byte(content), &bgResp) == nil && bgResp.ID != "" {
+	if json.Unmarshal([]byte(content), &bgResp) == nil && bgResp.ID != "" &&
+		strings.HasPrefix(bgResp.ID, "subagent_") {
 		// Only treat as background if status is a known background value.
 		switch bgResp.Status {
 		case statusRunning, statusCompleted, statusFailed:

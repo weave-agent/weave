@@ -544,8 +544,11 @@ func TestSubagentExtension_AgentEnd_TriggersCleanup(t *testing.T) {
 	assert.Empty(t, ext.tracker.List())
 	assert.Nil(t, ext.api)
 
-	// Grace-period timers were canceled — no panels should be removed.
-	assert.Empty(t, api.getPanelsRemoved())
+	// Both panels should have been removed immediately by Close.
+	removed := api.getPanelsRemoved()
+	assert.Len(t, removed, 2)
+	assert.Contains(t, removed, "subagent-agent-a")
+	assert.Contains(t, removed, "subagent-agent-b")
 }
 
 func TestSubagentExtension_NoPanelLeak_OnDone(t *testing.T) {

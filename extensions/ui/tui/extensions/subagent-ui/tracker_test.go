@@ -74,12 +74,12 @@ func TestAgentTracker_Start_OverwriteExisting(t *testing.T) {
 
 	assert.Equal(t, "replacement", tracker.Get("agent-1").Name)
 
-	// Old grace-period timer was stopped by overwrite — callback should not fire.
-	assert.Equal(t, int32(0), removed.Load())
+	// Old agent was removed immediately by overwrite — callback should have fired once.
+	assert.Equal(t, int32(1), removed.Load())
 }
 
 func TestAgentTracker_Start_OverwriteRunning(t *testing.T) {
-	removedCh := make(chan string, 1)
+	removedCh := make(chan string, 2)
 
 	tracker := NewAgentTracker(50*time.Millisecond, func(id string) {
 		removedCh <- id
@@ -89,16 +89,27 @@ func TestAgentTracker_Start_OverwriteRunning(t *testing.T) {
 	tracker.Start("agent-1", "original", "background")
 
 	// Overwrite with a new agent before calling Done.
+	// This triggers onRemove for the old agent immediately.
 	tracker.Start("agent-1", "replacement", "background")
 
 	assert.Equal(t, "replacement", tracker.Get("agent-1").Name)
 	assert.Equal(t, AgentRunning, tracker.Get("agent-1").Status)
 
-	// Completing the replacement should trigger the callback once.
+	// Completing the replacement should trigger the callback once more after grace period.
 	tracker.Done("agent-1", "completed", "done")
 
+	// First callback: immediate removal of overwritten agent.
 	select {
-	case <-removedCh:
+	case id := <-removedCh:
+		assert.Equal(t, "agent-1", id)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for overwrite callback")
+	}
+
+	// Second callback: grace-period removal after Done.
+	select {
+	case id := <-removedCh:
+		assert.Equal(t, "agent-1", id)
 	case <-time.After(2 * time.Second):
 		t.Fatal("timeout waiting for grace-period callback")
 	}
@@ -294,8 +305,8 @@ func TestAgentTracker_Close(t *testing.T) {
 	assert.Nil(t, tracker.Get("agent-1"))
 	assert.Nil(t, tracker.Get("agent-2"))
 
-	// Grace-period timer should have been canceled — callback must not fire.
-	assert.Equal(t, int32(0), removed.Load())
+	// Both agents removed immediately by Close — callback should fire twice.
+	assert.Equal(t, int32(2), removed.Load())
 }
 
 func TestAgentTracker_Close_Idempotent(t *testing.T) {

@@ -60,6 +60,10 @@ func (bm *backgroundManager) setBus(bus sdk.Bus) {
 }
 
 func (bm *backgroundManager) spawn(agent *AgentDef, prompt, cwd, subagentID string) string {
+	if bm.ctx.Err() != nil {
+		return ""
+	}
+
 	if subagentID == "" {
 		subagentID = generateAgentID(agent.Name)
 	}

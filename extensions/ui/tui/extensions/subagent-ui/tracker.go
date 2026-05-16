@@ -74,7 +74,9 @@ func (t *AgentTracker) Start(id, name, mode string) *TrackedAgent {
 
 		delete(t.agents, id)
 
-		_ = old // explicitly acknowledge we're dropping the old agent
+		if t.onRemove != nil {
+			t.onRemove(old.ID)
+		}
 	}
 
 	agent := &TrackedAgent{
@@ -187,7 +189,12 @@ func (t *AgentTracker) Close() {
 		delete(t.timers, id)
 	}
 
+	onRemove := t.onRemove
 	for id := range t.agents {
 		delete(t.agents, id)
+
+		if onRemove != nil {
+			onRemove(id)
+		}
 	}
 }

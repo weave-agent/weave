@@ -82,8 +82,17 @@ func (e *SubagentExtension) Close() {
 	})
 
 	e.mu.Lock()
+	api := e.api
 	e.api = nil
 	e.mu.Unlock()
+
+	// Remove all panels while API is still available.
+	if api != nil {
+		for _, agent := range e.tracker.List() {
+			api.RemovePanel(agent.PanelID)
+		}
+	}
+
 	e.tracker.Close()
 }
 
