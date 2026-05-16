@@ -1672,8 +1672,9 @@ func TestDefaultCompactPrompt_ConstraintsInstructionsAreVerbatim(t *testing.T) {
 	// Verify the instruction to preserve constraints verbatim appears before the Rules section
 	constraintsIdx := strings.Index(defaultCompactPrompt, "Preserve ALL user-stated constraints verbatim")
 	rulesIdx := strings.Index(defaultCompactPrompt, "Rules:")
-	assert.Greater(t, constraintsIdx, 0, "constraints instruction should be present")
-	assert.Greater(t, rulesIdx, 0, "rules section should be present")
+
+	assert.Positive(t, constraintsIdx, "constraints instruction should be present")
+	assert.Positive(t, rulesIdx, "rules section should be present")
 	assert.Less(t, constraintsIdx, rulesIdx, "constraints instruction should appear before Rules")
 }
 

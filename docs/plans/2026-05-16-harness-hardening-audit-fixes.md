@@ -165,11 +165,11 @@ Fix 17 gaps identified by the agents-best-practices audit of the Weave agent fra
 - [x] run `cd extensions/agent && go test ./...` — must pass before task 19
 
 ### Task 19: Final verification
-- [ ] run full test suite: `make test`
-- [ ] run linter: `make lint`
-- [ ] verify all design decisions from brainstorm are implemented
-- [ ] update CLAUDE.md if any new config fields or interfaces were added
-- [ ] verify all trust labels are consistent (context files, tool output, skill body)
+- [x] run full test suite: `make test`
+- [x] run linter: `make lint`
+- [x] verify all design decisions from brainstorm are implemented (verified against Technical Details section — all 17 gaps addressed)
+- [x] update CLAUDE.md if any new config fields or interfaces were added
+- [x] verify all trust labels are consistent (context files, tool output, skill body)
 
 ## Technical Details
 
