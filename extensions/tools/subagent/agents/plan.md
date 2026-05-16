@@ -2,7 +2,6 @@
 name: plan
 description: Implementation planning agent. Read-only analysis and design.
 tools: read, grep, find, ls
-model: claude-sonnet-4-6
 sandbox: readonly
 messaging: false
 system: |

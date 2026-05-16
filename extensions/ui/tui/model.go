@@ -75,10 +75,14 @@ type Model struct {
 	spinner    components.SpinnerModel
 	prompted   bool
 	toolPanels map[string]*messages.ToolPanel // track pending tool panels by ID
-	commands   *CommandRegistry
-	bindings   *BindingRegistry
-	ui         *TUIImpl
-	layout     LayoutEngine
+	// pendingToolCalls tracks unresolved tool calls in provider order so the
+	// UI can distinguish the currently-running tool from queued calls.
+	pendingToolCalls map[string]string
+	pendingToolOrder []string
+	commands         *CommandRegistry
+	bindings         *BindingRegistry
+	ui               *TUIImpl
+	layout           LayoutEngine
 
 	pendingSessions        []SessionEntry
 	pendingModels          []ModelEntry
@@ -217,33 +221,34 @@ func newModelWithConfig(bus sdk.Bus, cfg sdk.Config, ps sdk.PreferenceStore, ui 
 	messages.GetThemeInfo = ui.Theme
 
 	m := Model{
-		width:         80,
-		height:        24,
-		bus:           bus,
-		cfg:           cfg,
-		ps:            ps,
-		chat:          components.NewChatModel(),
-		editor:        editor,
-		footer:        components.NewFooterModel(),
-		spinner:       components.NewSpinnerModel(palette.DefaultTheme()),
-		toolPanels:    make(map[string]*messages.ToolPanel),
-		commands:      commands,
-		bindings:      bindings,
-		ui:            ui,
-		layout:        NewLayoutEngine(),
-		currentModel:  cur,
-		sessionDir:    sdir,
-		thinkingLevel: initialThinkingLevel(ps),
-		noConfigured:  len(models) == 0,
-		showHints:     true,
-		showLanding:   true,
-		landing:       NewLandingModel(cur.Model, cur.Provider, listLoadedComponents()),
-		dialogStack:   overlays.NewDialogStack(),
-		popupChans:    make(map[string]chan overlayResponse),
-		theme:         palette.DefaultTheme(),
-		panelManager:  ui.panelManager,
-		panelTray:     NewPanelTray(),
-		focus:         FocusEditor,
+		width:            80,
+		height:           24,
+		bus:              bus,
+		cfg:              cfg,
+		ps:               ps,
+		chat:             components.NewChatModel(),
+		editor:           editor,
+		footer:           components.NewFooterModel(),
+		spinner:          components.NewSpinnerModel(palette.DefaultTheme()),
+		toolPanels:       make(map[string]*messages.ToolPanel),
+		pendingToolCalls: make(map[string]string),
+		commands:         commands,
+		bindings:         bindings,
+		ui:               ui,
+		layout:           NewLayoutEngine(),
+		currentModel:     cur,
+		sessionDir:       sdir,
+		thinkingLevel:    initialThinkingLevel(ps),
+		noConfigured:     len(models) == 0,
+		showHints:        true,
+		showLanding:      true,
+		landing:          NewLandingModel(cur.Model, cur.Provider, listLoadedComponents()),
+		dialogStack:      overlays.NewDialogStack(),
+		popupChans:       make(map[string]chan overlayResponse),
+		theme:            palette.DefaultTheme(),
+		panelManager:     ui.panelManager,
+		panelTray:        NewPanelTray(),
+		focus:            FocusEditor,
 	}
 	m.footer = m.footer.SetModel(cur.Model, cur.Provider)
 	m.footer = m.footer.SetReasoning(modelReasoning(cur.Model))
@@ -496,9 +501,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				return m, nil
 			case tea.KeyEnter, tea.KeyKpEnter:
+				m.panelManager.Show(m.panelTray.ActiveID())
 				m.focus = FocusPanel
 				m.panelTray = m.panelTray.SetFocused(false)
-				m.panelManager.Show(m.panelTray.ActiveID())
 
 				return m, nil
 			}
@@ -638,6 +643,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case AgentEndMsg:
 		m.spinner = m.spinner.Hide()
 		m.footer = m.footer.SetTokenRate(0)
+		m.pendingToolCalls = make(map[string]string)
+		m.pendingToolOrder = nil
 
 		if msg.Payload != nil {
 			if errStr, ok := msg.Payload.(string); ok && errStr != "" {
@@ -1160,10 +1167,24 @@ func (m Model) handleEscape() (tea.Model, tea.Cmd) {
 	m.doublePressGen++
 	m.escapePressed = true
 
-	// First press — interrupt streaming if active, start timeout
-	model, cmd := m.interruptStreaming()
+	var cmd tea.Cmd
+	activeTool := m.activeToolName()
 
-	return model, tea.Batch(cmd, tea.Tick(doublePressWindow, func(_ time.Time) tea.Msg {
+	switch activeTool {
+	case "await_agent":
+		if m.bus != nil {
+			cmd = PublishInterrupt(m.bus)
+		}
+	default:
+		if !strings.HasPrefix(activeTool, "subagent_") {
+			// First press — interrupt streaming if active, start timeout.
+			var model tea.Model
+			model, cmd = m.interruptStreaming()
+			m = model.(Model)
+		}
+	}
+
+	return m, tea.Batch(cmd, tea.Tick(doublePressWindow, func(_ time.Time) tea.Msg {
 		return doublePressTimeoutMsg{kind: doublePressEscape, gen: m.doublePressGen}
 	}))
 }
@@ -1250,6 +1271,8 @@ func (m Model) dispatchBinding(action BindingAction) (tea.Model, tea.Cmd) {
 	case ActionNewSession:
 		m.chat = components.NewChatModel().SetSize(m.width, m.chatHeight(m.height))
 		m.toolPanels = make(map[string]*messages.ToolPanel)
+		m.pendingToolCalls = make(map[string]string)
+		m.pendingToolOrder = nil
 		m.prompted = false
 		m.showLanding = true
 		m.attach = m.attach.Clear()
@@ -1458,6 +1481,10 @@ func (m *Model) onMessageUpdate(msg MessageUpdateMsg) {
 func (m *Model) onMessageEnd(msg MessageEndMsg) {
 	m.footer = m.footer.SetTokenRate(0)
 
+	for _, tc := range msg.ToolCalls {
+		m.trackPendingToolCall(tc)
+	}
+
 	am, idx := m.findStreamingAssistant()
 	if am == nil {
 		return
@@ -1499,6 +1526,8 @@ func (m *Model) onMessageEnd(msg MessageEndMsg) {
 
 // onToolResult updates the tool panel with the result.
 func (m *Model) onToolResult(msg ToolResultMsg) {
+	m.clearPendingToolCall(msg.ToolID)
+
 	panel, ok := m.toolPanels[msg.ToolID]
 	if !ok {
 		panel = messages.NewToolPanel(msg.ToolID, msg.Tool, "")
@@ -1508,6 +1537,52 @@ func (m *Model) onToolResult(msg ToolResultMsg) {
 
 	panel.SetResult(msg.Result.Content, msg.Result.IsError)
 	m.chat = m.chat.UpdateItemByID(panel)
+}
+
+func (m *Model) trackPendingToolCall(tc sdk.ToolCall) {
+	if tc.ID == "" {
+		return
+	}
+
+	if m.pendingToolCalls == nil {
+		m.pendingToolCalls = make(map[string]string)
+	}
+
+	if _, exists := m.pendingToolCalls[tc.ID]; !exists {
+		m.pendingToolOrder = append(m.pendingToolOrder, tc.ID)
+	}
+
+	m.pendingToolCalls[tc.ID] = tc.Name
+}
+
+func (m *Model) clearPendingToolCall(id string) {
+	if id == "" || m.pendingToolCalls == nil {
+		return
+	}
+
+	if _, exists := m.pendingToolCalls[id]; !exists {
+		return
+	}
+
+	delete(m.pendingToolCalls, id)
+
+	for len(m.pendingToolOrder) > 0 {
+		if _, ok := m.pendingToolCalls[m.pendingToolOrder[0]]; ok {
+			return
+		}
+
+		m.pendingToolOrder = m.pendingToolOrder[1:]
+	}
+}
+
+func (m Model) activeToolName() string {
+	for _, id := range m.pendingToolOrder {
+		if name, ok := m.pendingToolCalls[id]; ok {
+			return name
+		}
+	}
+
+	return ""
 }
 
 // interruptStreaming finalizes the current streaming assistant message with
@@ -2708,6 +2783,10 @@ func (m *Model) syncPanelTray() {
 				activeIdx = i
 			}
 		}
+	}
+
+	if activeIdx == -1 && len(tabs) > 0 {
+		activeIdx = 0
 	}
 
 	m.panelTray = m.panelTray.SetTabs(tabs, activeIdx)

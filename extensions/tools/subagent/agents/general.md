@@ -2,7 +2,6 @@
 name: general
 description: General-purpose agent for any task. Has access to all standard tools.
 tools: bash, read, edit, write, grep, find, ls
-model: claude-sonnet-4-6
 sandbox: auto
 messaging: true
 system: |

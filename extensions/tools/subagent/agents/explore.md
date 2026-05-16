@@ -2,7 +2,6 @@
 name: explore
 description: Fast codebase exploration for research and context gathering
 tools: read, grep, find, ls
-model: claude-haiku-4-5
 sandbox: readonly
 messaging: false
 system: |
