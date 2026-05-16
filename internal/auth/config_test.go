@@ -305,3 +305,138 @@ func TestLoadProviderAuth_UnsupportedFieldKind(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported field kind")
 }
+
+func TestLoadProviderAuth_WithOAuthCredential(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	type oauthAuth struct {
+		APIKey     string          `json:"api_key"`
+		OAuthToken OAuthCredential `json:"oauth_token"`
+		BaseURL    string          `json:"base_url"`
+	}
+
+	auth := &File{
+		Providers: map[string]json.RawMessage{
+			"openai": json.RawMessage(`{"api_key":"sk-key","base_url":"https://api.example.com","access_token":"at-oauth","refresh_token":"rt-oauth","token_type":"bearer"}`),
+		},
+	}
+	require.NoError(t, Save(auth))
+
+	var target oauthAuth
+	require.NoError(t, LoadProviderAuth("openai", &target))
+	assert.Equal(t, "sk-key", target.APIKey)
+	assert.Equal(t, "https://api.example.com", target.BaseURL)
+	assert.Equal(t, "at-oauth", target.OAuthToken.AccessToken)
+	assert.Equal(t, "rt-oauth", target.OAuthToken.RefreshToken)
+	assert.Equal(t, "bearer", target.OAuthToken.TokenType)
+}
+
+func TestLoadProviderAuth_OAuthCredentialOnly(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	type oauthOnly struct {
+		OAuthToken OAuthCredential `json:"oauth_token"`
+	}
+
+	auth := &File{
+		Providers: map[string]json.RawMessage{
+			"copilot": json.RawMessage(`{"access_token":"ghu_123","refresh_token":"ghr_456"}`),
+		},
+	}
+	require.NoError(t, Save(auth))
+
+	var target oauthOnly
+	require.NoError(t, LoadProviderAuth("copilot", &target))
+	assert.Equal(t, "ghu_123", target.OAuthToken.AccessToken)
+	assert.Equal(t, "ghr_456", target.OAuthToken.RefreshToken)
+}
+
+func TestLoadProviderAuth_OAuthWithExpiresAt(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	type oauthAuth struct {
+		OAuthToken OAuthCredential `json:"oauth_token"`
+	}
+
+	auth := &File{
+		Providers: map[string]json.RawMessage{
+			"openai": json.RawMessage(`{"access_token":"at","expires_at":"2026-05-16T12:00:00Z"}`),
+		},
+	}
+	require.NoError(t, Save(auth))
+
+	var target oauthAuth
+	require.NoError(t, LoadProviderAuth("openai", &target))
+	assert.Equal(t, "at", target.OAuthToken.AccessToken)
+	assert.False(t, target.OAuthToken.ExpiresAt.IsZero())
+}
+
+func TestLoadProviderAuth_NoOAuthCredentialField(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	// Auth file has OAuth fields but target struct doesn't have OAuthCredential.
+	// This should not error — the extra fields are simply ignored.
+	type simpleAuth struct {
+		APIKey string `json:"api_key"`
+	}
+
+	auth := &File{
+		Providers: map[string]json.RawMessage{
+			"openai": json.RawMessage(`{"api_key":"sk-key","access_token":"at-extra"}`),
+		},
+	}
+	require.NoError(t, Save(auth))
+
+	var target simpleAuth
+	require.NoError(t, LoadProviderAuth("openai", &target))
+	assert.Equal(t, "sk-key", target.APIKey)
+}
+
+func TestLoadProviderAuth_EnvOverridesOAuth(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	type oauthAuth struct {
+		APIKey     string          `json:"api_key" env:"OAUTH_TEST_API_KEY"`
+		OAuthToken OAuthCredential `json:"oauth_token"`
+	}
+
+	auth := &File{
+		Providers: map[string]json.RawMessage{
+			"testprovider": json.RawMessage(`{"api_key":"sk-file","access_token":"at-file"}`),
+		},
+	}
+	require.NoError(t, Save(auth))
+
+	t.Setenv("OAUTH_TEST_API_KEY", "sk-env")
+
+	var target oauthAuth
+	require.NoError(t, LoadProviderAuth("testprovider", &target))
+	assert.Equal(t, "sk-env", target.APIKey)
+	assert.Equal(t, "at-file", target.OAuthToken.AccessToken)
+}
+
+func TestLoadProviderAuth_BackwardCompatibility_NoOAuthFields(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	// Old-style auth file without any OAuth fields.
+	type legacyAuth struct {
+		APIKey string `json:"api_key"`
+	}
+
+	auth := &File{
+		Providers: map[string]json.RawMessage{
+			"anthropic": json.RawMessage(`{"api_key":"sk-ant"}`),
+		},
+	}
+	require.NoError(t, Save(auth))
+
+	var target legacyAuth
+	require.NoError(t, LoadProviderAuth("anthropic", &target))
+	assert.Equal(t, "sk-ant", target.APIKey)
+}

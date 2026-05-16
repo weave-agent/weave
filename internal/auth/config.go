@@ -35,11 +35,53 @@ func LoadProviderAuth(providerName string, target any) error {
 	// Apply data from auth file (raw JSON unmarshaled directly into target).
 	if raw, ok := authFile.Providers[providerName]; ok && len(raw) > 0 {
 		_ = json.Unmarshal(raw, target)
+
+		// If the target struct has an OAuthCredential field, populate it from
+		// the flat access_token/refresh_token/expires_at/token_type fields in
+		// the auth file. This bridges the flat auth.json format to nested
+		// provider auth structs.
+		_ = applyOAuthCredentialFromRaw(raw, target)
 	}
 
 	// Apply env vars (no prefix — env tags resolve directly).
 	if err := applyEnvToStruct(target); err != nil {
 		return fmt.Errorf("apply env vars: %w", err)
+	}
+
+	return nil
+}
+
+// applyOAuthCredentialFromRaw attempts to populate any OAuthCredential field in the
+// target struct from the flat JSON fields (access_token, refresh_token, etc.).
+func applyOAuthCredentialFromRaw(raw json.RawMessage, target any) error {
+	v := reflect.ValueOf(target)
+	if v.Kind() != reflect.Pointer || v.IsNil() {
+		return errors.New("target must be a non-nil pointer")
+	}
+
+	v = v.Elem()
+	if v.Kind() != reflect.Struct {
+		return errors.New("target must point to a struct")
+	}
+
+	t := v.Type()
+	for i := range v.NumField() {
+		field := v.Field(i)
+		if !field.CanSet() {
+			continue
+		}
+
+		ft := t.Field(i)
+		if field.Kind() == reflect.Struct && ft.Type == reflect.TypeFor[OAuthCredential]() {
+			var cred OAuthCredential
+			if err := json.Unmarshal(raw, &cred); err != nil {
+				return fmt.Errorf("unmarshal oauth credential: %w", err)
+			}
+
+			field.Set(reflect.ValueOf(cred))
+
+			return nil
+		}
 	}
 
 	return nil

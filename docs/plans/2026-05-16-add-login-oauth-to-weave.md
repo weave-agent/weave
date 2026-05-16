@@ -45,13 +45,13 @@ Add interactive login support to Weave's TUI, including both API key entry and O
 ## Implementation Steps
 
 ### Task 1: Extend auth storage for OAuth credentials
-- [ ] Add `OAuthCredential` struct and helpers to `internal/auth/auth.go`
-- [ ] Add `GetOAuthCredential`, `SetOAuthCredential`, `ClearProviderAuth` methods to `File`
-- [ ] Update `LoadProviderAuth` in `config.go` to handle OAuth token fields in provider auth structs
-- [ ] Ensure auth file backward compatibility (old files without OAuth fields still work)
-- [ ] Write tests for OAuth credential storage (success + error cases)
-- [ ] Write tests for `ClearProviderAuth` and backward compatibility
-- [ ] Run `make test` — must pass before Task 2
+- [x] Add `OAuthCredential` struct and helpers to `internal/auth/auth.go`
+- [x] Add `GetOAuthCredential`, `SetOAuthCredential`, `ClearProviderAuth` methods to `File`
+- [x] Update `LoadProviderAuth` in `config.go` to handle OAuth token fields in provider auth structs
+- [x] Ensure auth file backward compatibility (old files without OAuth fields still work)
+- [x] Write tests for OAuth credential storage (success + error cases)
+- [x] Write tests for `ClearProviderAuth` and backward compatibility
+- [x] Run `make test` — must pass before Task 2
 
 ### Task 2: Add OAuth provider registry to SDK
 - [ ] Define `OAuthProvider` struct (`AuthURL`, `TokenURL`, `DeviceCodeURL`, `Scopes`, `ClientID`, `FlowType`)

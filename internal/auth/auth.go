@@ -5,7 +5,25 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 )
+
+// OAuthCredential stores OAuth tokens for a provider.
+type OAuthCredential struct {
+	AccessToken  string    `json:"access_token"`
+	RefreshToken string    `json:"refresh_token"`
+	ExpiresAt    time.Time `json:"expires_at,omitzero"`
+	TokenType    string    `json:"token_type,omitempty"`
+}
+
+// IsExpired returns true if the credential has an expiry time that has passed.
+func (o OAuthCredential) IsExpired() bool {
+	if o.ExpiresAt.IsZero() {
+		return false
+	}
+
+	return time.Now().After(o.ExpiresAt)
+}
 
 // File represents ~/.weave/auth.json.
 // Provider auth is stored as raw JSON so that arbitrary provider-specific
@@ -93,6 +111,42 @@ func (a *File) GetProviderKey(providerName string) string {
 	return p.APIKey
 }
 
+// GetOAuthCredential returns the stored OAuth credential for a provider, or
+// an empty OAuthCredential if not set.
+func (a *File) GetOAuthCredential(providerName string) OAuthCredential {
+	raw, ok := a.Providers[providerName]
+	if !ok {
+		return OAuthCredential{}
+	}
+
+	var cred OAuthCredential
+	if err := json.Unmarshal(raw, &cred); err != nil {
+		return OAuthCredential{}
+	}
+
+	return cred
+}
+
+// HasProviderAuth returns true if the provider has either an API key or OAuth
+// credentials stored.
+func (a *File) HasProviderAuth(providerName string) bool {
+	raw, ok := a.Providers[providerName]
+	if !ok || len(raw) == 0 {
+		return false
+	}
+
+	var p struct {
+		APIKey       string `json:"api_key"`
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+	}
+	if err := json.Unmarshal(raw, &p); err != nil {
+		return false
+	}
+
+	return p.APIKey != "" || p.AccessToken != "" || p.RefreshToken != ""
+}
+
 // SetProviderKey updates or adds a provider key in the auth file and saves.
 // Preserves any other fields already present for the provider.
 func SetProviderKey(providerName, apiKey string) error {
@@ -119,6 +173,62 @@ func SetProviderKey(providerName, apiKey string) error {
 	}
 
 	auth.Providers[providerName] = data
+
+	return Save(auth)
+}
+
+// SetOAuthCredential updates or adds OAuth credentials for a provider in the
+// auth file and saves. Preserves any other fields already present for the
+// provider (e.g., api_key).
+func SetOAuthCredential(providerName string, cred OAuthCredential) error {
+	auth, err := Load()
+	if err != nil {
+		return err
+	}
+
+	// Preserve existing fields by unmarshaling into a map.
+	var providerMap map[string]any
+	if raw, ok := auth.Providers[providerName]; ok && len(raw) > 0 {
+		_ = json.Unmarshal(raw, &providerMap)
+	}
+
+	if providerMap == nil {
+		providerMap = make(map[string]any)
+	}
+
+	providerMap["access_token"] = cred.AccessToken
+
+	if cred.RefreshToken != "" {
+		providerMap["refresh_token"] = cred.RefreshToken
+	}
+
+	if !cred.ExpiresAt.IsZero() {
+		providerMap["expires_at"] = cred.ExpiresAt.Format(time.RFC3339)
+	}
+
+	if cred.TokenType != "" {
+		providerMap["token_type"] = cred.TokenType
+	}
+
+	data, err := json.Marshal(providerMap)
+	if err != nil {
+		return fmt.Errorf("marshal provider oauth: %w", err)
+	}
+
+	auth.Providers[providerName] = data
+
+	return Save(auth)
+}
+
+// ClearProviderAuth removes all authentication data for a provider from the
+// auth file and saves.
+func ClearProviderAuth(providerName string) error {
+	auth, err := Load()
+	if err != nil {
+		return err
+	}
+
+	delete(auth.Providers, providerName)
 
 	return Save(auth)
 }
