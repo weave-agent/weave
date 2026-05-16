@@ -60,7 +60,19 @@ func makeAuthChecker[TAuth any](name string) func() (bool, error) {
 			return false, fmt.Errorf("load provider auth: %w", err)
 		}
 
-		return hasAuthFieldSet(reflect.ValueOf(ta)), nil
+		if hasAuthFieldSet(reflect.ValueOf(ta)) {
+			return true, nil
+		}
+
+		// Fallback: check auth file for OAuth or other credentials that may
+		// not be captured by the provider's static auth struct yet (e.g. when
+		// the struct does not yet declare an OAuthToken field).
+		authFile, err := auth.Load()
+		if err != nil {
+			return false, fmt.Errorf("load auth file for oauth fallback: %w", err)
+		}
+
+		return authFile.HasProviderAuth(name), nil
 	}
 }
 

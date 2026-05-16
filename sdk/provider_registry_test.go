@@ -379,3 +379,100 @@ func TestCheckProviderAuth_AuthFile(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, hasAuth, "auth loaded from file should count as authenticated")
 }
+
+func TestCheckProviderAuth_OAuthFallback(t *testing.T) {
+	ResetProviderRegistry()
+
+	type SimpleAuth struct {
+		APIKey string `json:"api_key" env:"TEST_OAUTH_FB_API_KEY" validate:"required"`
+	}
+
+	RegisterProvider[struct{}, SimpleAuth]("oauth-fb-provider", func(Config, struct{}, SimpleAuth) (Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".weave"), 0o750))
+
+	// Auth file has OAuth tokens but no API key. The provider's auth struct
+	// only has APIKey (required), so the struct check would fail. The
+	// fallback to auth.File.HasProviderAuth should detect the access_token.
+	authFile := []byte(`{"providers":{"oauth-fb-provider":{"access_token":"sk-oauth","refresh_token":"rt-123"}}}`)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".weave", "auth.json"), authFile, 0o600))
+
+	hasAuth, err := CheckProviderAuth("oauth-fb-provider")
+	require.NoError(t, err)
+	assert.True(t, hasAuth, "OAuth token in auth file should count as authenticated via fallback")
+}
+
+func TestCheckProviderAuth_OAuthFallback_RefreshTokenOnly(t *testing.T) {
+	ResetProviderRegistry()
+
+	type SimpleAuth struct {
+		APIKey string `json:"api_key" env:"TEST_OAUTH_FB2_API_KEY" validate:"required"`
+	}
+
+	RegisterProvider[struct{}, SimpleAuth]("oauth-fb2-provider", func(Config, struct{}, SimpleAuth) (Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".weave"), 0o750))
+
+	// Auth file has only refresh token (no access token).
+	authFile := []byte(`{"providers":{"oauth-fb2-provider":{"refresh_token":"rt-only"}}}`)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".weave", "auth.json"), authFile, 0o600))
+
+	hasAuth, err := CheckProviderAuth("oauth-fb2-provider")
+	require.NoError(t, err)
+	assert.True(t, hasAuth, "Refresh token only should count as authenticated via fallback")
+}
+
+func TestCheckProviderAuth_OAuthFallback_NoCredentials(t *testing.T) {
+	ResetProviderRegistry()
+
+	type SimpleAuth struct {
+		APIKey string `json:"api_key" env:"TEST_OAUTH_FB3_API_KEY"`
+	}
+
+	RegisterProvider[struct{}, SimpleAuth]("oauth-fb3-provider", func(Config, struct{}, SimpleAuth) (Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".weave"), 0o750))
+
+	// Auth file exists but is empty for this provider.
+	authFile := []byte(`{"providers":{"oauth-fb3-provider":{}}}`)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".weave", "auth.json"), authFile, 0o600))
+
+	hasAuth, err := CheckProviderAuth("oauth-fb3-provider")
+	require.NoError(t, err)
+	assert.False(t, hasAuth, "Empty provider entry should not count as authenticated")
+}
+
+func TestCheckProviderAuth_OAuthFallback_MissingAuthFile(t *testing.T) {
+	ResetProviderRegistry()
+
+	type SimpleAuth struct {
+		APIKey string `json:"api_key" env:"TEST_OAUTH_FB4_API_KEY"`
+	}
+
+	RegisterProvider[struct{}, SimpleAuth]("oauth-fb4-provider", func(Config, struct{}, SimpleAuth) (Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	// No auth file at all.
+	hasAuth, err := CheckProviderAuth("oauth-fb4-provider")
+	require.NoError(t, err)
+	assert.False(t, hasAuth, "Missing auth file should not count as authenticated")
+}

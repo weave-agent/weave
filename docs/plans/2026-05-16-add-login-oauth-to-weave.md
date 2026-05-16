@@ -54,15 +54,15 @@ Add interactive login support to Weave's TUI, including both API key entry and O
 - [x] Run `make test` — must pass before Task 2
 
 ### Task 2: Add OAuth provider registry to SDK
-- [ ] Define `OAuthProvider` struct (`AuthURL`, `TokenURL`, `DeviceCodeURL`, `Scopes`, `ClientID`, `FlowType`)
-- [ ] Add `RegisterOAuthProvider` / `GetOAuthProvider` / `ListOAuthProviders` to `sdk/`
-- [ ] Define OAuth flow types: `AuthorizationCode`, `DeviceCode`
-- [ ] Register GitHub Copilot (`DeviceCode` flow)
-- [ ] Register OpenAI (`AuthorizationCode` flow)
-- [ ] Update `model.SetProviderAuth` / `CheckProviderAuth` to consider OAuth tokens as valid auth
-- [ ] Write tests for OAuth provider registry
-- [ ] Write tests for auth status with OAuth credentials
-- [ ] Run `make test` — must pass before Task 3
+- [x] Define `OAuthProvider` struct (`AuthURL`, `TokenURL`, `DeviceCodeURL`, `Scopes`, `ClientID`, `FlowType`)
+- [x] Add `RegisterOAuthProvider` / `GetOAuthProvider` / `ListOAuthProviders` to `sdk/`
+- [x] Define OAuth flow types: `AuthorizationCode`, `DeviceCode`
+- [x] Register GitHub Copilot (`DeviceCode` flow)
+- [x] Register OpenAI (`AuthorizationCode` flow)
+- [x] Update `model.SetProviderAuth` / `CheckProviderAuth` to consider OAuth tokens as valid auth
+- [x] Write tests for OAuth provider registry
+- [x] Write tests for auth status with OAuth credentials
+- [x] Run `make test` — must pass before Task 3
 
 ### Task 3: Add password masking to TUI input dialog
 - [ ] Add `WithMask` or `mask` field to `InputModel` in `components/overlays/input.go`
