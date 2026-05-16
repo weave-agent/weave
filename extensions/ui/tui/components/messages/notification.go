@@ -78,6 +78,6 @@ func colorsForLevel(level sdk.NotifyLevel, theme *palette.Theme) (borderColor, t
 	case sdk.NotifySuccess:
 		return theme.Success, theme.Success
 	default:
-		return theme.Primary, theme.Foreground
+		return theme.Accent, theme.Foreground
 	}
 }

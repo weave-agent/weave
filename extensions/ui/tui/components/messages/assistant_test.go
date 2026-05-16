@@ -333,8 +333,8 @@ func TestAssistantMessage_RoleIndicator_MutedColor(t *testing.T) {
 	m.Finalize("content")
 
 	view := m.View(80)
-	// The role indicator uses muted color (245)
-	assert.Contains(t, view, "245")
+	// The role indicator uses muted color (240)
+	assert.Contains(t, view, palette.DefaultTheme().Muted)
 }
 
 func TestAssistantMessage_RoleIndicator_NotInContent(t *testing.T) {
@@ -355,15 +355,15 @@ func TestAssistantMessage_CreatedAt_IsSet(t *testing.T) {
 
 func TestAssistantMessage_FadeColor_NewMessage_IsDim(t *testing.T) {
 	m := NewAssistantMessage()
-	// A brand-new message should start with dim color (240)
-	assert.Equal(t, "240", m.fadeColor())
+	// A brand-new message should start with ForegroundDim (245)
+	assert.Equal(t, palette.DefaultTheme().ForegroundDim, m.fadeColor())
 }
 
 func TestAssistantMessage_FadeColor_Progresses(t *testing.T) {
 	m := NewAssistantMessage()
 	m.createdAt = time.Now().Add(-60 * time.Millisecond)
-	// After 60ms, should be at intermediate brightness (252)
-	assert.Equal(t, "252", m.fadeColor())
+	// After 60ms, should be at MutedBright (248)
+	assert.Equal(t, palette.DefaultTheme().MutedBright, m.fadeColor())
 }
 
 func TestAssistantMessage_FadeColor_After150ms_IsFull(t *testing.T) {
@@ -384,19 +384,19 @@ func TestAssistantMessage_FadeColor_FinalizedMessage(t *testing.T) {
 func TestAssistantMessage_View_HasFadeColor(t *testing.T) {
 	m := NewAssistantMessage()
 	m.Append("hello")
-	// Force createdAt to the future so fade color is always dim (240)
+	// Force createdAt to the future so fade color is always ForegroundDim
 	m.createdAt = time.Now().Add(time.Hour)
 	view := m.View(80)
-	// The fade style should wrap the content with color 240
-	assert.Contains(t, view, "240")
+	// The fade style should wrap the content with ForegroundDim color
+	assert.Contains(t, view, palette.DefaultTheme().ForegroundDim)
 }
 
 func TestAssistantMessage_View_Finalized_NoFadeColor(t *testing.T) {
 	m := NewAssistantMessage()
 	m.Finalize("final content")
-	// Force createdAt to the future so fade color would be dim (240) if applied
+	// Force createdAt to the future so fade color would be ForegroundDim if applied
 	m.createdAt = time.Now().Add(time.Hour)
 	view := m.View(80)
 	// Finalized messages should NOT have fade styling — they render at full brightness
-	assert.NotContains(t, view, "240")
+	assert.NotContains(t, view, palette.DefaultTheme().ForegroundDim)
 }

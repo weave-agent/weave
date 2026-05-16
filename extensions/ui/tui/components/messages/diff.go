@@ -115,8 +115,8 @@ func NewDiffRenderer() *DiffRenderer {
 		addedStyle:   lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Success)),
 		removedStyle: lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Error)),
 		contextStyle: lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Muted)),
-		headerStyle:  lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Primary)),
-		hunkStyle:    lipgloss.NewStyle().Foreground(lipgloss.Color(theme.PrimaryBright)),
+		headerStyle:  lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Accent)),
+		hunkStyle:    lipgloss.NewStyle().Foreground(lipgloss.Color(theme.AccentBright)),
 	}
 }
 

@@ -91,24 +91,19 @@ func (m *AssistantMessage) Interrupted() bool {
 }
 
 // fadeColor returns a progressively brighter foreground color based on elapsed
-// time since creation. For the first 150ms the color transitions from dim
-// (240) through light (252) to full brightness (15), creating a subtle
-// materializing effect.
+// time since creation. Uses the grayscale palette: ForegroundDim -> ForegroundBright.
 func (m *AssistantMessage) fadeColor() string {
+	theme := palette.DefaultTheme()
 	elapsed := time.Since(m.createdAt)
 	if elapsed >= 150*time.Millisecond {
-		return palette.DefaultTheme().Foreground
+		return theme.Foreground
 	}
 
 	if elapsed < 50*time.Millisecond {
-		return "240"
+		return theme.ForegroundDim
 	}
 
-	if elapsed < 100*time.Millisecond {
-		return "252"
-	}
-
-	return "15"
+	return theme.MutedBright
 }
 
 // SetMessageType sets the message type for custom renderer lookup.

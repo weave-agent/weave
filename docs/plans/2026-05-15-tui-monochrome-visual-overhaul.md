@@ -68,14 +68,14 @@ A complete visual redesign of the weave terminal UI, moving from a generic purpl
 
 ### Task 2: Restyle message renderers
 
-- [ ] Update `messages/tool.go`: replace full-line BackgroundTint fills with bordered card style (rounded corners, accent-colored top-left), add flash timer for state transitions
-- [ ] Update `messages/assistant.go`: remove purple fade-in, use ForegroundDim -> Foreground, keep role indicator
-- [ ] Update `messages/user.go`: replace `❯` prefix with left-edge bar (`▐` in AccentDim), content after 1-space gap
-- [ ] Update `messages/thinking.go`: left border bar (`░` in Muted), content in ForegroundDim
-- [ ] Update `messages/diff.go`: update color references to new theme fields
-- [ ] Update `messages/notification.go`: update color references to new theme fields
-- [ ] Write/update tests for all message renderers
-- [ ] Run tests: `cd extensions/ui/tui && go test ./components/messages/...` — must pass
+- [x] Update `messages/tool.go`: replace full-line BackgroundTint fills with bordered card style (rounded corners, accent-colored top-left), add flash timer for state transitions
+- [x] Update `messages/assistant.go`: remove purple fade-in, use ForegroundDim -> Foreground, keep role indicator
+- [x] Update `messages/user.go`: replace `❯` prefix with left-edge bar (`▐` in AccentDim), content after 1-space gap
+- [x] Update `messages/thinking.go`: left border bar (`░` in Muted), content in ForegroundDim
+- [x] Update `messages/diff.go`: update color references to new theme fields
+- [x] Update `messages/notification.go`: update color references to new theme fields
+- [x] Write/update tests for all message renderers
+- [x] Run tests: `cd extensions/ui/tui && go test ./components/messages/...` — must pass
 
 ### Task 3: Restyle chat chrome and overlays
 

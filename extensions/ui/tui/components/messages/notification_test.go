@@ -24,8 +24,8 @@ func TestNotificationMessage_View_InfoLevel(t *testing.T) {
 	assert.Contains(t, view, "info message")
 	assert.Contains(t, view, "│")
 	assert.Contains(t, view, "◆ ")
-	// Info uses primary color for border
-	assert.Contains(t, view, theme.Primary)
+	// Info uses accent color for border
+	assert.Contains(t, view, theme.Accent)
 }
 
 func TestNotificationMessage_View_WarningLevel(t *testing.T) {
@@ -80,7 +80,7 @@ func TestColorsForLevel(t *testing.T) {
 	theme := palette.DefaultTheme()
 
 	border, text := colorsForLevel(sdk.NotifyInfo, theme)
-	assert.Equal(t, theme.Primary, border)
+	assert.Equal(t, theme.Accent, border)
 	assert.Equal(t, theme.Foreground, text)
 
 	border, text = colorsForLevel(sdk.NotifyWarning, theme)

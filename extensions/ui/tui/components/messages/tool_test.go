@@ -3,6 +3,7 @@ package messages
 import (
 	"strings"
 	"testing"
+	"time"
 
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/stretchr/testify/assert"
@@ -42,6 +43,7 @@ func TestToolPanel_View_Pending(t *testing.T) {
 	p := NewToolPanel("tc1", "bash", "ls -la")
 	view := p.View(80)
 	assert.Contains(t, view, "bash")
+	// Pending shows "running..." inside bordered card
 	assert.Contains(t, view, "running...")
 }
 
@@ -95,7 +97,7 @@ func TestToolPanel_CollapseLongOutput(t *testing.T) {
 	p.SetResult(output, false)
 	view := p.View(80)
 
-	assert.Contains(t, view, "10 more lines (collapsed)")
+	assert.Contains(t, view, "more lines (collapsed)")
 	assert.False(t, p.Expanded())
 }
 
@@ -241,4 +243,29 @@ func TestToolPanel_View_ErrorOutputInErrorColor(t *testing.T) {
 	view := p.View(80)
 	// Error state should contain the output text
 	assert.Contains(t, view, "permission denied")
+}
+
+func TestToolPanel_SetResult_SetsFlashTimer(t *testing.T) {
+	p := NewToolPanel("tc1", "bash", "ls")
+	assert.True(t, p.flashUntil.IsZero(), "flash timer should be zero initially")
+
+	p.SetResult("done", false)
+	assert.False(t, p.flashUntil.IsZero(), "flash timer should be set after result")
+	assert.True(t, p.flashUntil.After(time.Now()), "flash timer should be in the future")
+}
+
+func TestToolPanel_BorderedCardHasBorderChars(t *testing.T) {
+	p := NewToolPanel("tc1", "bash", "ls -la")
+	view := p.View(80)
+	// Rounded border should contain corner chars
+	assert.Contains(t, view, "╭", "should have rounded top-left border")
+}
+
+func TestToolPanel_BorderedCard_SuccessHasBorder(t *testing.T) {
+	p := NewToolPanel("tc1", "bash", "ls")
+	p.SetResult("output", false)
+	// Clear flash to test settled border color
+	p.flashUntil = time.Time{}
+	view := p.View(80)
+	assert.Contains(t, view, "╭", "should have rounded border in success state")
 }

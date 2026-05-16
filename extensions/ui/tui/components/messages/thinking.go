@@ -25,7 +25,7 @@ func (b *ThinkingBlock) Content() string {
 	return b.content
 }
 
-// View renders the thinking block.
+// View renders the thinking block with left border bar.
 func (b *ThinkingBlock) View(width int) string {
 	if width <= 0 {
 		width = 80
@@ -33,24 +33,26 @@ func (b *ThinkingBlock) View(width int) string {
 
 	theme := palette.DefaultTheme()
 
+	barStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Muted))
 	headerStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.Muted)).
-		Width(width)
+		Foreground(lipgloss.Color(theme.ForegroundDim)).
+		Width(width - 2)
+
+	bar := barStyle.Render("░")
 
 	lines := strings.Split(b.content, "\n")
 
 	var bldr strings.Builder
-	bldr.WriteString(headerStyle.Render("∴ Thinking…"))
+	bldr.WriteString(bar + " " + headerStyle.Render("∴ Thinking…"))
 	bldr.WriteString("\n")
 
-	// Content: simple 2-space indent, muted color
 	contentStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.Muted)).
-		Width(width - 2)
+		Foreground(lipgloss.Color(theme.ForegroundDim)).
+		Width(width - 4)
 
 	for _, line := range lines {
 		styledLine := contentStyle.Render(line)
-		bldr.WriteString("  " + styledLine)
+		bldr.WriteString("  " + bar + " " + styledLine)
 		bldr.WriteString("\n")
 	}
 

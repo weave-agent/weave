@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"weave/ext/ui/tui/palette"
+
 	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -186,12 +188,12 @@ func TestDiffRenderer_LargeDiff(t *testing.T) {
 
 func TestDiffRenderer_UsesThemeColors(t *testing.T) {
 	r := NewDiffRenderer()
+	theme := palette.DefaultTheme()
 
-	// Verify the renderer uses theme-aligned colors by checking
-	// that styles are set to the expected theme color values.
-	assert.Equal(t, lipgloss.Color("84"), r.addedStyle.GetForeground())
-	assert.Equal(t, lipgloss.Color("204"), r.removedStyle.GetForeground())
-	assert.Equal(t, lipgloss.Color("245"), r.contextStyle.GetForeground())
-	assert.Equal(t, lipgloss.Color("63"), r.headerStyle.GetForeground())
-	assert.Equal(t, lipgloss.Color("69"), r.hunkStyle.GetForeground())
+	// Verify the renderer uses theme-aligned colors.
+	assert.Equal(t, lipgloss.Color(theme.Success), r.addedStyle.GetForeground())
+	assert.Equal(t, lipgloss.Color(theme.Error), r.removedStyle.GetForeground())
+	assert.Equal(t, lipgloss.Color(theme.Muted), r.contextStyle.GetForeground())
+	assert.Equal(t, lipgloss.Color(theme.Accent), r.headerStyle.GetForeground())
+	assert.Equal(t, lipgloss.Color(theme.AccentBright), r.hunkStyle.GetForeground())
 }

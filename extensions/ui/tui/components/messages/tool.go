@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"weave/ext/ui/tui/palette"
@@ -35,6 +36,7 @@ type ToolPanel struct {
 	expanded       bool
 	diffRenderer   *DiffRenderer
 	customRenderer sdk.ToolRenderer
+	flashUntil     time.Time
 }
 
 // NewToolPanel creates a new tool panel in pending state.
@@ -76,6 +78,7 @@ func (p *ToolPanel) SetResult(output string, isError bool) {
 	} else {
 		p.state = ToolSuccess
 	}
+	p.flashUntil = time.Now().Add(800 * time.Millisecond)
 }
 
 // ToggleExpanded flips the expand/collapse state.
@@ -99,14 +102,23 @@ func (p *ToolPanel) View(width int) string {
 		width = 80
 	}
 
-	borderStyle := borderStyleForState(p.state, width)
+	theme := palette.DefaultTheme()
+	borderColor := borderColorForState(p.state, p.flashUntil, theme)
+
+	borderStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color(borderColor)).
+		Width(width - 2) // account for border chars
+
 	header := p.renderHeader()
-	body := p.renderBody(width)
+	body := p.renderBody(width - 4) // account for border + padding
 
 	var b strings.Builder
 	b.WriteString(borderStyle.Render(header))
-	b.WriteString("\n")
-	b.WriteString(body)
+	if body != "" {
+		b.WriteString("\n")
+		b.WriteString(padLeft(body))
+	}
 
 	return b.String()
 }
@@ -134,20 +146,20 @@ func (p *ToolPanel) renderBody(width int) string {
 	if p.output == "" {
 		dim := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Muted))
 		if p.state == ToolPending {
-			return dim.Render("    running...")
+			return dim.Render("running...")
 		}
 
-		return dim.Render("    (no output)")
+		return dim.Render("(no output)")
 	}
 
 	// Use custom renderer if registered.
 	if p.customRenderer != nil {
-		return padLeft(p.customRenderer.Render(p.output, width))
+		return p.customRenderer.Render(p.output, width)
 	}
 
 	// Auto-detect diff content and use diff renderer.
 	if p.diffRenderer != nil && IsDiffContent(p.output) {
-		return padLeft(p.diffRenderer.Render(p.output, width))
+		return p.diffRenderer.Render(p.output, width)
 	}
 
 	lines := strings.Split(p.output, "\n")
@@ -156,15 +168,15 @@ func (p *ToolPanel) renderBody(width int) string {
 		visible := lines[:maxCollapsedLines]
 		hidden := len(lines) - maxCollapsedLines
 
-		body := padLeft(strings.Join(visible, "\n"))
+		body := strings.Join(visible, "\n")
 		if p.state == ToolError {
 			body = lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Error)).Render(body)
 		}
 
-		return body + fmt.Sprintf("\n    ... %d more lines (collapsed)", hidden)
+		return body + fmt.Sprintf("\n... %d more lines (collapsed)", hidden)
 	}
 
-	body := padLeft(strings.Join(lines, "\n"))
+	body := strings.Join(lines, "\n")
 	if p.state == ToolError {
 		body = lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Error)).Render(body)
 	}
@@ -172,25 +184,25 @@ func (p *ToolPanel) renderBody(width int) string {
 	return body
 }
 
-func borderStyleForState(state ToolState, width int) lipgloss.Style {
-	theme := palette.DefaultTheme()
+func borderColorForState(state ToolState, flashUntil time.Time, theme *palette.Theme) string {
+	if time.Now().Before(flashUntil) {
+		switch state {
+		case ToolSuccess:
+			return theme.Success
+		case ToolError:
+			return theme.Error
+		}
+	}
 
 	switch state {
 	case ToolPending:
-		return lipgloss.NewStyle().
-			Width(width).
-			Background(lipgloss.Color(theme.BackgroundTintPending))
+		return theme.AccentDim
 	case ToolSuccess:
-		return lipgloss.NewStyle().
-			Width(width).
-			Background(lipgloss.Color(theme.BackgroundTintSuccess))
+		return theme.Border
 	case ToolError:
-		return lipgloss.NewStyle().
-			Width(width).
-			Background(lipgloss.Color(theme.BackgroundTintError))
+		return theme.Error
 	default:
-		return lipgloss.NewStyle().
-			Width(width)
+		return theme.Border
 	}
 }
 
@@ -267,7 +279,7 @@ func formatArgs(argsJSON string) string {
 }
 
 func padLeft(text string) string {
-	const spaces = 4
+	const spaces = 2
 
 	prefix := strings.Repeat(" ", spaces)
 

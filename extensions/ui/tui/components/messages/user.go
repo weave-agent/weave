@@ -64,7 +64,7 @@ func (m *UserMessage) IsSkillInvocation() bool {
 	return ok
 }
 
-// View renders the user message with styled prefix.
+// View renders the user message with left-edge bar.
 func (m *UserMessage) View(width int) string {
 	if width <= 0 {
 		width = 80
@@ -72,17 +72,16 @@ func (m *UserMessage) View(width int) string {
 
 	theme := palette.DefaultTheme()
 
-	prefixStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Primary))
-	contentStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Muted))
+	barStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.AccentDim))
+	contentStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Foreground))
 
-	prefix := prefixStyle.Render("❯ ")
+	bar := barStyle.Render("▐")
 
-	// Content width accounts for prefix
 	contentWidth := max(1, width-2)
 
 	block, ok := parseSkillXML(m.content)
 	if !ok {
-		return styleUserContent(m.content, prefix, contentStyle, contentWidth)
+		return styleUserContent(m.content, bar, contentStyle, contentWidth)
 	}
 
 	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Muted)).Width(contentWidth)
@@ -93,13 +92,13 @@ func (m *UserMessage) View(width int) string {
 			label += " " + block.trailing
 		}
 
-		return prefix + dimStyle.Render(label)
+		return bar + " " + dimStyle.Render(label)
 	}
 
 	var bldr strings.Builder
 
 	header := fmt.Sprintf("[skill %s] ▼", block.name)
-	bldr.WriteString(prefix + dimStyle.Render(header))
+	bldr.WriteString(bar + " " + dimStyle.Render(header))
 	bldr.WriteString("\n")
 
 	if block.body != "" {
@@ -121,16 +120,16 @@ func (m *UserMessage) View(width int) string {
 	return strings.TrimRight(bldr.String(), "\n")
 }
 
-// styleUserContent prefixes each line with the symbol,
+// styleUserContent prefixes each line with the bar and a gap,
 // applying the content style to the text.
-func styleUserContent(content, prefix string, contentStyle lipgloss.Style, width int) string {
+func styleUserContent(content, bar string, contentStyle lipgloss.Style, width int) string {
 	lines := strings.Split(content, "\n")
 
 	var bldr strings.Builder
 
 	for i, line := range lines {
 		styledLine := contentStyle.Width(width).Render(line)
-		bldr.WriteString(prefix + styledLine)
+		bldr.WriteString(bar + " " + styledLine)
 
 		if i < len(lines)-1 {
 			bldr.WriteString("\n")
