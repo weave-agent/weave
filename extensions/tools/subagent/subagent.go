@@ -217,7 +217,12 @@ func (t *subagentTool) Execute(ctx context.Context, args map[string]any) (sdk.To
 				return sdk.ToolResult{Content: "background manager not available", IsError: true}, nil
 			}
 
-			id := t.mgr.spawn(t.agent, prompt, cwd, subagentID)
+			id, err := t.mgr.spawn(t.agent, prompt, cwd, subagentID)
+			if err != nil {
+				//nolint:nilerr // tool protocol: errors in Content, not return
+				return sdk.ToolResult{Content: err.Error(), IsError: true}, nil
+			}
+
 			result := map[string]any{propID: id, "status": statusRunning}
 
 			jsonBytes, err := json.Marshal(result)

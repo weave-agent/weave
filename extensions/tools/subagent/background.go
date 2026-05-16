@@ -60,9 +60,9 @@ func (bm *backgroundManager) setBus(bus sdk.Bus) {
 	bm.bus = bus
 }
 
-func (bm *backgroundManager) spawn(agent *AgentDef, prompt, cwd, subagentID string) string {
+func (bm *backgroundManager) spawn(agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
 	if bm.ctx.Err() != nil {
-		return ""
+		return "", errors.New("background manager is shutting down")
 	}
 
 	if subagentID == "" {
@@ -113,7 +113,7 @@ func (bm *backgroundManager) spawn(agent *AgentDef, prompt, cwd, subagentID stri
 		bm.notifyDone(ba)
 	}()
 
-	return subagentID
+	return subagentID, nil
 }
 
 func (bm *backgroundManager) notifyStarted(ba *backgroundAgent) {

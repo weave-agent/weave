@@ -134,7 +134,8 @@ func TestCheckAgent_Pending(t *testing.T) {
 	}
 
 	mgr := newBackgroundManager(nil, "", "")
-	id := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	id, err := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	require.NoError(t, err)
 
 	t.Cleanup(func() {
 		mgr.cancel()
@@ -167,7 +168,8 @@ func TestCheckAgent_Completed(t *testing.T) {
 	}
 
 	mgr := newBackgroundManager(nil, "", "")
-	id := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	id, err := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	require.NoError(t, err)
 
 	t.Cleanup(func() {
 		mgr.cancel()
@@ -232,7 +234,8 @@ func TestAwaitAgent_BlocksUntilDone(t *testing.T) {
 	}
 
 	mgr := newBackgroundManager(nil, "", "")
-	id := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	id, err := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	require.NoError(t, err)
 
 	t.Cleanup(func() {
 		mgr.cancel()
@@ -270,7 +273,8 @@ func TestAwaitAgent_ContextCancellation(t *testing.T) {
 	}
 
 	mgr := newBackgroundManager(nil, "", "")
-	id := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	id, err := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	require.NoError(t, err)
 
 	t.Cleanup(func() {
 		mgr.cancel()
@@ -332,7 +336,8 @@ func TestBackgroundManager_NotifyDone(t *testing.T) {
 		testRunSubagent = original
 	})
 
-	mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	_, err := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	require.NoError(t, err)
 
 	// Wait for completion.
 	time.Sleep(50 * time.Millisecond)
@@ -373,7 +378,8 @@ func TestBackgroundManager_NotifyDoneWithError(t *testing.T) {
 		testRunSubagent = original
 	})
 
-	mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	_, err := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	require.NoError(t, err)
 
 	time.Sleep(50 * time.Millisecond)
 
@@ -403,7 +409,8 @@ func TestBackgroundManager_NotifyDoneNoBus(t *testing.T) {
 	})
 
 	// Should not panic.
-	id := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	id, err := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	require.NoError(t, err)
 
 	time.Sleep(50 * time.Millisecond)
 
@@ -514,7 +521,10 @@ func TestBackgroundManager_NotifyStarted(t *testing.T) {
 		testRunSubagent = original
 	})
 
-	id = mgr.spawn(&AgentDef{Name: "researcher"}, "find stuff", "", "")
+	var err error
+
+	id, err = mgr.spawn(&AgentDef{Name: "researcher"}, "find stuff", "", "")
+	require.NoError(t, err)
 
 	// The started event should be published synchronously by spawn.
 	events := bus.getEvents()
@@ -551,7 +561,10 @@ func TestBackgroundManager_NotifyStartedNoBus(t *testing.T) {
 		testRunSubagent = original
 	})
 
-	id = mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	var err error
+
+	id, err = mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	require.NoError(t, err)
 	assert.NotEmpty(t, id)
 }
 
@@ -580,7 +593,10 @@ func TestBackgroundManager_NotifyStartedWithCustomID(t *testing.T) {
 		testRunSubagent = original
 	})
 
-	id = mgr.spawn(&AgentDef{Name: "explore"}, "prompt", "", "custom_id_123")
+	var err error
+
+	id, err = mgr.spawn(&AgentDef{Name: "explore"}, "prompt", "", "custom_id_123")
+	require.NoError(t, err)
 
 	events := bus.getEvents()
 	require.Len(t, events, 1)
@@ -618,8 +634,10 @@ func TestBackgroundManager_Spawn_IDCollision(t *testing.T) {
 	})
 
 	// Spawn two agents with the same explicit ID — second should get a different ID.
-	id1 := mgr.spawn(&AgentDef{Name: "test"}, "prompt1", "", "same-id")
-	id2 := mgr.spawn(&AgentDef{Name: "test"}, "prompt2", "", "same-id")
+	id1, err := mgr.spawn(&AgentDef{Name: "test"}, "prompt1", "", "same-id")
+	require.NoError(t, err)
+	id2, err := mgr.spawn(&AgentDef{Name: "test"}, "prompt2", "", "same-id")
+	require.NoError(t, err)
 
 	assert.Equal(t, "same-id", id1)
 	assert.NotEqual(t, id1, id2, "collision should regenerate ID")
