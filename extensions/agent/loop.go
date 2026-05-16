@@ -116,6 +116,28 @@ func (a *AgentExtension) run(
 
 			messages = append(messages, sdk.NewUserMessage(evt.Payload))
 			a.resumed = false
+		case evt, ok := <-followupCh:
+			if !ok {
+				return
+			}
+
+			// Drain any concurrent session resume before processing the followup
+			// so that restored history is always loaded first.
+			select {
+			case resumeEvt, resumeOk := <-sessionResumeCh:
+				if resumeOk {
+					if payload, ok := resumeEvt.Payload.(sdk.SessionResumePayload); ok {
+						messages = payload.Messages
+						a.sessionID = payload.SessionID
+						a.resumed = true
+						a.fileOps = newFileOperations()
+					}
+				}
+			default:
+			}
+
+			messages = append(messages, sdk.NewUserMessage(evt.Payload))
+			a.resumed = false
 		case evt := <-modelChangeCh:
 			if m, ok := evt.Payload.(map[string]string); ok {
 				if p := m["provider"]; p != "" {

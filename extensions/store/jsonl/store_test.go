@@ -813,6 +813,69 @@ func TestSubscribe_ResumesSession_Followup(t *testing.T) {
 	assert.Equal(t, id1, loaded.Entries[1].ParentID)
 }
 
+func TestSubscribe_ResumesSession_FollowupThenNewPrompt(t *testing.T) {
+	s := newTestStore(t)
+	b := eventbus.New()
+
+	require.NoError(t, s.Subscribe(b))
+	defer s.Close()
+
+	sess, err := s.Create("/tmp/project")
+	require.NoError(t, err)
+
+	entry1 := Entry{Type: "message", Turn: 1, Data: json.RawMessage(`{"role":"user","content":"hello"}`)}
+	_, err = s.Append(sess.Header.ID, entry1)
+	require.NoError(t, err)
+
+	b.Publish(sdk.NewEvent("session.resume", sdk.SessionResumePayload{
+		SessionID: sess.Header.ID,
+		Messages:  []sdk.Message{},
+	}))
+	time.Sleep(50 * time.Millisecond)
+
+	// First input after resume is a followup — should append to resumed session
+	b.Publish(sdk.NewEvent("agent.followup", "follow up"))
+	time.Sleep(50 * time.Millisecond)
+
+	// Verify resumed flag is cleared after the first followup
+	s.mu.Lock()
+	assert.False(t, s.resumed, "resumed should be cleared after first followup")
+	s.mu.Unlock()
+
+	loaded, err := s.Load(sess.Header.ID)
+	require.NoError(t, err)
+	require.Len(t, loaded.Entries, 2)
+
+	// Now a prompt (e.g. /new) should create a new session, not append to the old one
+	b.Publish(sdk.NewEvent("agent.prompt", "new conversation"))
+	time.Sleep(50 * time.Millisecond)
+
+	infos, err := s.List()
+	require.NoError(t, err)
+	require.Len(t, infos, 2, "expected a new session to be created")
+
+	// Find the new session (the one with 1 entry)
+	var newSessID string
+
+	for _, info := range infos {
+		if info.EntryCount == 1 {
+			newSessID = info.ID
+			break
+		}
+	}
+
+	require.NotEmpty(t, newSessID, "expected one session with a single entry")
+
+	newSess, err := s.Load(newSessID)
+	require.NoError(t, err)
+	require.Len(t, newSess.Entries, 1)
+
+	var data map[string]any
+	require.NoError(t, json.Unmarshal(newSess.Entries[0].Data, &data))
+	assert.Equal(t, "user", data["role"])
+	assert.Equal(t, "new conversation", data["content"])
+}
+
 func TestSubscribe_ResumesSession_MsgEndAndToolResult(t *testing.T) {
 	s := newTestStore(t)
 	b := eventbus.New()

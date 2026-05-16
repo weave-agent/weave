@@ -61,12 +61,13 @@ type Store struct {
 	sessionID string
 	lastEntry string
 	turn      int
+	resumed   bool // true after session.resume until first agent.prompt
 	cancel    context.CancelFunc
 	done      chan struct{}
 }
 
 func init() {
-	sdk.RegisterExtensionWithScope[JSONLOpts]("jsonl", "jsonl", func(_ sdk.Config, _ sdk.PreferenceStore, opts JSONLOpts) (sdk.Extension, error) {
+	sdk.RegisterExtensionWithScope("jsonl", "jsonl", func(_ sdk.Config, _ sdk.PreferenceStore, opts JSONLOpts) (sdk.Extension, error) {
 		return NewStore(opts)
 	})
 }
@@ -168,13 +169,17 @@ func (s *Store) handlePrompt(evt sdk.Event) {
 	sessionID := s.sessionID
 	lastEntry := s.lastEntry
 	turn := s.turn
+	resumed := s.resumed
 	s.mu.Unlock()
 
-	// Session was resumed; treat prompt as a follow-up instead of creating a new session.
-	if sessionID != "" {
+	// Session was resumed; treat the first prompt after resume as a follow-up
+	// instead of creating a new session. After that, agent.prompt starts a new
+	// conversation (e.g. /new).
+	if sessionID != "" && resumed {
 		s.appendUserEntry(sessionID, turn+1, lastEntry, evt)
 		s.mu.Lock()
 		s.turn = turn + 1
+		s.resumed = false
 		s.mu.Unlock()
 
 		return
@@ -231,9 +236,7 @@ func (s *Store) handleSessionResume(evt sdk.Event) {
 	sess, err := s.Load(payload.SessionID)
 	if err != nil {
 		logger.Warn("jsonl: load session for resume failed, continuing with empty state", "session", payload.SessionID, "error", err)
-	}
-
-	if len(sess.Entries) > 0 {
+	} else if len(sess.Entries) > 0 {
 		last := sess.Entries[len(sess.Entries)-1]
 		lastEntryID = last.ID
 	}
@@ -241,6 +244,7 @@ func (s *Store) handleSessionResume(evt sdk.Event) {
 	s.mu.Lock()
 	s.sessionID = payload.SessionID
 	s.lastEntry = lastEntryID
+	s.resumed = true
 	s.mu.Unlock()
 }
 
@@ -249,9 +253,16 @@ func (s *Store) handleFollowup(evt sdk.Event) {
 	sessionID := s.sessionID
 	lastEntry := s.lastEntry
 	turn := s.turn + 1
+	resumed := s.resumed
 	s.mu.Unlock()
 
 	s.appendUserEntry(sessionID, turn, lastEntry, evt)
+
+	if resumed {
+		s.mu.Lock()
+		s.resumed = false
+		s.mu.Unlock()
+	}
 }
 
 func (s *Store) handleSteer(evt sdk.Event) {
