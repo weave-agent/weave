@@ -138,9 +138,10 @@ type Model struct {
 	pulseGen int
 
 	// panel system
-	panelManager *PanelManager
-	panelTray    PanelTray
-	focus        FocusTarget
+	panelManager    *PanelManager
+	panelTray       PanelTray
+	focus           FocusTarget
+	expandedPanelID string
 
 	// custom components set via TUIExtAPI
 	customFooter TUIComponent
@@ -449,6 +450,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Handle escape with double-press: first interrupts, second clears editor
 		if msg.Code == tea.KeyEsc {
+			if m.expandedPanelID != "" {
+				m.expandedPanelID = ""
+				m.focus = FocusTray
+				m.panelTray = m.panelTray.SetFocused(true)
+
+				return m, nil
+			}
+
 			// If focus is not on editor, return focus to editor first
 			if m.focus != FocusEditor {
 				m.focus = FocusEditor
@@ -489,6 +498,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if activeID := m.panelTray.ActiveID(); activeID != "" {
 					m.panelManager.Show(activeID)
 					m.syncPanelTray()
+					m.syncChatViewport()
 				}
 
 				return m, nil
@@ -499,6 +509,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if activeID := m.panelTray.ActiveID(); activeID != "" {
 					m.panelManager.Show(activeID)
 					m.syncPanelTray()
+					m.syncChatViewport()
 				}
 
 				return m, nil
@@ -516,14 +527,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if activeID == "" {
 					m.focus = FocusEditor
 					m.panelTray = m.panelTray.SetFocused(false)
+					m.expandedPanelID = ""
 
 					return m, nil
 				}
 
 				m.panelManager.Show(activeID)
 				m.syncPanelTray()
-				m.focus = FocusPanel
-				m.panelTray = m.panelTray.SetFocused(false)
+				m.syncChatViewport()
+				m.activateSelectedPanel(activeID, true)
 
 				return m, nil
 			}
@@ -587,6 +599,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.statusMsg = "Editor error: " + msg.err.Error()
 			m.statusGen++
+			m.syncChatViewport()
 			gen := m.statusGen
 			m.statusTimer = tea.Tick(statusMessageTimeout, func(_ time.Time) tea.Msg {
 				return statusTimeoutMsg{gen: gen}
@@ -608,11 +621,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 
 		m.spinner, cmd = m.spinner.SpinnerUpdate(msg)
+		m.syncChatViewport()
 
 		return m, cmd
 
 	case components.SpinnerHideMsg:
 		m.spinner, _ = m.spinner.SpinnerUpdate(msg)
+		m.syncChatViewport()
 
 		return m, nil
 
@@ -620,6 +635,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 
 		m.spinner, cmd = m.spinner.SpinnerUpdate(components.SpinnerShowMsg{})
+		m.syncChatViewport()
 
 		return m, cmd
 
@@ -658,6 +674,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case TurnEndMsg:
 		m.spinner = m.spinner.Hide()
+		m.syncChatViewport()
 
 		if !m.chat.AtBottom() {
 			m.chat = m.chat.SetTurnEndPending(true)
@@ -667,6 +684,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case AgentEndMsg:
 		m.spinner = m.spinner.Hide()
+		m.syncChatViewport()
 		m.footer = m.footer.SetTokenRate(0)
 		m.pendingToolCalls = make(map[string]string)
 		m.pendingToolOrder = nil
@@ -759,6 +777,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.gen == m.statusGen {
 			m.statusMsg = ""
 			m.statusTimer = nil
+			m.syncChatViewport()
 		}
 
 		return m, nil
@@ -846,6 +865,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case panelChangedMsg:
 		m.syncPanelTray()
+		m.clearInvalidExpandedPanel()
+		m.syncChatViewport()
 
 		if m.panelTray.Len() == 0 && (m.focus == FocusTray || m.focus == FocusPanel) {
 			m.focus = FocusEditor
@@ -1622,6 +1643,7 @@ func (m Model) interruptStreaming() (tea.Model, tea.Cmd) {
 	am.Interrupt()
 	m.chat = m.chat.UpdateItemAt(idx, am)
 	m.spinner = m.spinner.Hide()
+	m.syncChatViewport()
 	m.footer = m.footer.SetTokenRate(0)
 
 	var cmds []tea.Cmd
@@ -1735,6 +1757,7 @@ func (m Model) onSubmit(text string) (tea.Model, tea.Cmd) {
 			var tickCmd tea.Cmd
 
 			m.spinner, tickCmd = m.spinner.SpinnerUpdate(components.SpinnerShowMsg{})
+			m.syncChatViewport()
 
 			return m, tickCmd
 		}
@@ -1750,6 +1773,7 @@ func (m Model) onSubmit(text string) (tea.Model, tea.Cmd) {
 		var tickCmd tea.Cmd
 
 		m.spinner, tickCmd = m.spinner.SpinnerUpdate(components.SpinnerShowMsg{})
+		m.syncChatViewport()
 
 		return m, tickCmd
 	}
@@ -2471,34 +2495,93 @@ func (m Model) cycleFocus(reverse bool) (tea.Model, tea.Cmd) {
 		case FocusEditor:
 			if activeID := m.panelTray.ActiveID(); activeID != "" {
 				m.panelManager.Show(activeID)
-				m.focus = FocusPanel
-				m.panelTray = m.panelTray.SetFocused(false)
+				m.syncChatViewport()
+				m.focusSelectedPanel(activeID, true)
 			}
 		case FocusTray:
 			m.focus = FocusEditor
 			m.panelTray = m.panelTray.SetFocused(false)
+			m.expandedPanelID = ""
 		case FocusPanel:
 			m.focus = FocusTray
 			m.panelTray = m.panelTray.SetFocused(true)
+			m.expandedPanelID = ""
 		}
 	} else {
 		switch m.focus {
 		case FocusEditor:
 			m.focus = FocusTray
 			m.panelTray = m.panelTray.SetFocused(true)
+			m.expandedPanelID = ""
 		case FocusTray:
 			if activeID := m.panelTray.ActiveID(); activeID != "" {
 				m.panelManager.Show(activeID)
-				m.focus = FocusPanel
-				m.panelTray = m.panelTray.SetFocused(false)
+				m.syncChatViewport()
+				m.focusSelectedPanel(activeID, false)
 			}
 		case FocusPanel:
 			m.focus = FocusEditor
 			m.panelTray = m.panelTray.SetFocused(false)
+			m.expandedPanelID = ""
 		}
 	}
 
 	return m, nil
+}
+
+func (m *Model) activateSelectedPanel(panelID string, expandTrayOnly bool) {
+	m.expandedPanelID = ""
+	if entry, ok := m.panelManager.Get(panelID); ok && entry.Config.Placement == TrayOnly && expandTrayOnly {
+		m.expandedPanelID = panelID
+	}
+
+	m.focus = FocusPanel
+	m.panelTray = m.panelTray.SetFocused(false)
+}
+
+func (m *Model) focusSelectedPanel(panelID string, reverse bool) {
+	if entry, ok := m.panelManager.Get(panelID); ok && entry.Config.Placement == TrayOnly {
+		m.expandedPanelID = ""
+		if reverse {
+			m.focus = FocusTray
+			m.panelTray = m.panelTray.SetFocused(true)
+
+			return
+		}
+
+		m.focus = FocusEditor
+		m.panelTray = m.panelTray.SetFocused(false)
+
+		return
+	}
+
+	m.activateSelectedPanel(panelID, false)
+}
+
+func (m *Model) clearInvalidExpandedPanel() {
+	if m.expandedPanelID == "" {
+		return
+	}
+
+	if !m.panelManager.PanelVisible(m.expandedPanelID) {
+		m.expandedPanelID = ""
+		if m.focus == FocusPanel {
+			m.focus = FocusEditor
+			m.panelTray = m.panelTray.SetFocused(false)
+		}
+	}
+}
+
+func (m *Model) syncChatViewport() {
+	if m.width <= 0 || m.height <= 0 {
+		return
+	}
+
+	autoScroll := m.chat.AutoScroll()
+	m.chat = m.chat.SetSize(m.width, m.chatHeight(m.height))
+	if autoScroll {
+		m.chat = m.chat.JumpToBottom()
+	}
 }
 
 // showStatus sets a transient status message that clears after a timeout.
@@ -2506,6 +2589,7 @@ func (m *Model) showStatus(msg string) {
 	m.statusMsg = msg
 	m.statusNew = true
 	m.statusGen++
+	m.syncChatViewport()
 	gen := m.statusGen
 	m.statusTimer = tea.Tick(statusMessageTimeout, func(_ time.Time) tea.Msg {
 		return statusTimeoutMsg{gen: gen}
@@ -2744,19 +2828,7 @@ func isWhitespace(c byte) bool {
 
 // chatHeight returns the height allocated to the chat area.
 func (m Model) chatHeight(totalHeight int) int {
-	headerRows := 0
-	if !m.showLanding && m.showHints && !m.prompted && len(m.chat.Items()) == 0 {
-		headerRows = 1
-	}
-
-	pillRows := 0
-	if m.spinner.Visible() {
-		pillRows++
-	}
-
-	if m.statusMsg != "" {
-		pillRows++
-	}
+	headerRows, pillRows := m.countLayoutRows()
 
 	editorH := m.editor.Height() + m.attach.Height()
 	trayRows, abovePanelRows, belowPanelRows := m.panelRows()
@@ -2787,6 +2859,8 @@ func (m Model) panelRows() (trayRows, abovePanelRows, belowPanelRows int) {
 			belowPanelRows = height
 		case AsOverlay:
 			// overlay panels don't allocate fixed rows
+		case TrayOnly:
+			// tray-only panels are selected from the tray and rendered on demand
 		}
 	}
 
@@ -2872,9 +2946,9 @@ func (m Model) drawNormalUI(scr uv.Screen, area uv.Rectangle, dockedRows int) La
 
 	m.drawHeader(scr, lt.Header)
 	m.drawMainContent(scr, lt.Main)
+	m.drawPills(scr, lt.Pills)
 	m.drawPanelTray(scr, lt.PanelTray)
 	m.drawActivePanel(scr, lt.AbovePanel)
-	m.drawPills(scr, lt.Pills)
 	editorArea := m.drawEditorWithAttachments(scr, lt.Editor)
 	m.drawCompletionPopupIfActive(scr, editorArea)
 	m.drawActivePanel(scr, lt.BelowPanel)
@@ -2894,6 +2968,10 @@ func (m Model) countLayoutRows() (headerRows, pillRows int) {
 	}
 
 	if m.statusMsg != "" {
+		pillRows++
+	}
+
+	if pillRows > 0 {
 		pillRows++
 	}
 
@@ -2959,29 +3037,75 @@ func (m Model) drawActivePanel(scr uv.Screen, area uv.Rectangle) {
 
 func (m Model) drawOverlayPanel(scr uv.Screen, area uv.Rectangle) {
 	activeID := m.panelManager.Active()
+	if m.expandedPanelID != "" {
+		m.drawPanelOverlay(scr, area, m.expandedPanelID, true)
+
+		return
+	}
+
 	if activeID == "" || m.panelManager.ActivePanelPlacement() != AsOverlay {
 		return
 	}
 
-	entry, ok := m.panelManager.Get(activeID)
+	m.drawPanelOverlay(scr, area, activeID, false)
+}
+
+func (m Model) drawPanelOverlay(scr uv.Screen, area uv.Rectangle, panelID string, framed bool) {
+	entry, ok := m.panelManager.Get(panelID)
 	if !ok || !entry.Visible {
 		return
 	}
 
 	width := entry.Config.Width
-	if width <= 0 || width > area.Dx() {
+	if framed && width <= 0 {
+		width = min(max(64, area.Dx()*4/5), area.Dx())
+	} else if width <= 0 || width > area.Dx() {
 		width = area.Dx()
 	}
 
 	height := entry.Config.Height
-	if height <= 0 || height > area.Dy() {
+	if framed && height <= 0 {
+		height = min(max(12, area.Dy()*3/4), area.Dy())
+	} else if height <= 0 || height > area.Dy() {
 		height = area.Dy()
 	}
 
 	x := area.Min.X + (area.Dx()-width)/2
 	y := area.Min.Y + (area.Dy()-height)/2
 	overlayArea := uv.Rect(x, y, width, height)
-	m.panelManager.DrawPanel(activeID, scr, overlayArea)
+	if !framed {
+		m.panelManager.DrawPanel(panelID, scr, overlayArea)
+
+		return
+	}
+
+	boxStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color(m.theme.BorderFocused)).
+		Foreground(lipgloss.Color(m.theme.Foreground)).
+		Background(lipgloss.Color(m.theme.Background))
+	title := entry.Config.Title
+	if title == "" {
+		title = entry.Config.ID
+	}
+
+	boxLines := make([]string, max(height-2, 1))
+	for i := range boxLines {
+		boxLines[i] = strings.Repeat(" ", max(width-2, 0))
+	}
+
+	box := boxStyle.Render(strings.Join(boxLines, "\n"))
+	uv.NewStyledString(box).Draw(scr, overlayArea)
+
+	titleStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(m.theme.AccentBright)).
+		Background(lipgloss.Color(m.theme.Background)).
+		Bold(true)
+	titleArea := uv.Rect(overlayArea.Min.X+2, overlayArea.Min.Y, max(overlayArea.Dx()-4, 0), 1)
+	uv.NewStyledString(titleStyle.Render(" "+title+" ")).Draw(scr, titleArea)
+
+	contentArea := uv.Rect(overlayArea.Min.X+2, overlayArea.Min.Y+1, max(overlayArea.Dx()-4, 0), max(overlayArea.Dy()-2, 0))
+	m.panelManager.DrawPanel(panelID, scr, contentArea)
 }
 
 func (m Model) drawPills(scr uv.Screen, area uv.Rectangle) {
@@ -2992,7 +3116,7 @@ func (m Model) drawPills(scr uv.Screen, area uv.Rectangle) {
 	y := area.Min.Y
 
 	if m.spinner.Visible() {
-		spArea := uv.Rect(area.Min.X, y, area.Dx(), 1)
+		spArea := uv.Rect(area.Min.X+1, y, max(area.Dx()-1, 0), 1)
 		m.spinner.Draw(scr, spArea)
 
 		y++
@@ -3005,7 +3129,7 @@ func (m Model) drawPills(scr uv.Screen, area uv.Rectangle) {
 		}
 
 		statusStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(statusColor))
-		stArea := uv.Rect(area.Min.X, y, area.Dx(), 1)
+		stArea := uv.Rect(area.Min.X+1, y, max(area.Dx()-1, 0), 1)
 		uv.NewStyledString(statusStyle.Render(m.statusMsg)).Draw(scr, stArea)
 	}
 }

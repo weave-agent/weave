@@ -3214,9 +3214,97 @@ func TestModel_TrayNavigation_ReturnShowsSelectedSubagentPanel(t *testing.T) {
 	assert.False(t, m.panelTray.IsFocused())
 
 	tray, above, below := m.panelRows()
-	assert.Equal(t, 1, tray)
+	assert.Equal(t, 2, tray)
 	assert.Equal(t, 0, above)
 	assert.Equal(t, 6, below)
+}
+
+func TestModel_TrayNavigation_EnterOpensTrayOnlyPanelOverlay(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	drawer := &mockPanelDrawer{}
+	m.panelManager.Register(PanelConfig{ID: "subagent-agent-1", Title: "agent", Placement: TrayOnly, Width: 40, Height: 10}, drawer)
+	m.panelManager.Show("subagent-agent-1")
+	m.focus = FocusTray
+
+	model, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = model.(Model)
+
+	assert.Equal(t, "subagent-agent-1", m.panelManager.Active())
+	assert.Equal(t, "subagent-agent-1", m.expandedPanelID)
+	assert.Equal(t, FocusPanel, m.focus)
+	assert.False(t, m.panelTray.IsFocused())
+
+	tray, above, below := m.panelRows()
+	assert.Equal(t, 2, tray)
+	assert.Equal(t, 0, above)
+	assert.Equal(t, 0, below)
+
+	canvas := uv.NewScreenBuffer(m.width, m.height)
+	m.Draw(canvas, canvas.Bounds())
+	assert.Equal(t, 1, drawer.drawCount)
+	assert.Equal(t, 36, drawer.lastArea.Dx())
+	assert.Equal(t, 8, drawer.lastArea.Dy())
+}
+
+func TestModel_TrayNavigation_EscClosesTrayOnlyPanelOverlay(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	m.panelManager.Register(PanelConfig{ID: "subagent-agent-1", Title: "agent", Placement: TrayOnly}, &mockPanelDrawer{})
+	m.panelManager.Show("subagent-agent-1")
+	m.focus = FocusTray
+
+	model, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = model.(Model)
+	require.Equal(t, "subagent-agent-1", m.expandedPanelID)
+
+	model, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	m = model.(Model)
+
+	assert.Empty(t, m.expandedPanelID)
+	assert.Equal(t, FocusTray, m.focus)
+	assert.True(t, m.panelTray.IsFocused())
+}
+
+func TestModel_PanelFocusChain_TabDoesNotOpenTrayOnlyPanelOverlay(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	m.panelManager.Register(PanelConfig{ID: "subagent-agent-1", Title: "agent", Placement: TrayOnly}, &mockPanelDrawer{})
+	m.panelManager.Show("subagent-agent-1")
+
+	model, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	m = model.(Model)
+	require.Equal(t, FocusTray, m.focus)
+	assert.Empty(t, m.expandedPanelID)
+
+	model, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	m = model.(Model)
+
+	assert.Equal(t, FocusEditor, m.focus)
+	assert.Empty(t, m.expandedPanelID)
+	assert.False(t, m.panelTray.IsFocused())
+}
+
+func TestModel_PanelFocusChain_ShiftTabDoesNotOpenTrayOnlyPanelOverlay(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	m.panelManager.Register(PanelConfig{ID: "subagent-agent-1", Title: "agent", Placement: TrayOnly}, &mockPanelDrawer{})
+	m.panelManager.Show("subagent-agent-1")
+
+	model, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+	m = model.(Model)
+
+	assert.Equal(t, FocusTray, m.focus)
+	assert.Empty(t, m.expandedPanelID)
+	assert.True(t, m.panelTray.IsFocused())
 }
 
 func TestModel_TrayNavigation_EnterShowsVisiblePanelWhenNoPanelActive(t *testing.T) {
@@ -3475,7 +3563,7 @@ func TestModel_PanelRows_WithPanels(t *testing.T) {
 
 	tray, above, below := m.panelRows()
 
-	assert.Equal(t, 1, tray)
+	assert.Equal(t, 2, tray)
 	assert.Equal(t, 6, above)
 	assert.Equal(t, 0, below)
 }
@@ -3488,9 +3576,93 @@ func TestModel_PanelRows_BelowEditor(t *testing.T) {
 
 	tray, above, below := m.panelRows()
 
-	assert.Equal(t, 1, tray)
+	assert.Equal(t, 2, tray)
 	assert.Equal(t, 0, above)
 	assert.Equal(t, 4, below)
+}
+
+func TestModel_PanelRows_TrayOnly(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+
+	m.panelManager.Register(PanelConfig{ID: "p1", Title: "Test", Placement: TrayOnly, Height: 6}, &mockPanelDrawer{})
+	m.panelManager.Show("p1")
+
+	tray, above, below := m.panelRows()
+
+	assert.Equal(t, 2, tray)
+	assert.Equal(t, 0, above)
+	assert.Equal(t, 0, below)
+}
+
+func TestModel_PanelChanged_RemovedPanelClearsExpandedOverlay(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+
+	m.panelManager.Register(PanelConfig{ID: "p1", Title: "Test", Placement: TrayOnly}, &mockPanelDrawer{})
+	m.panelManager.Show("p1")
+	m.expandedPanelID = "p1"
+	m.focus = FocusPanel
+	m.panelManager.Remove("p1")
+
+	model, _ := m.Update(panelChangedMsg{})
+	m = model.(Model)
+
+	assert.Empty(t, m.expandedPanelID)
+	assert.Equal(t, FocusEditor, m.focus)
+}
+
+func TestModel_PanelChanged_TrayOnlyResizesChatViewport(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 40
+	m.height = 24
+	m.showHints = false
+	m.chat = m.chat.SetSize(40, m.chatHeight(24))
+
+	for i := range 20 {
+		m.AddUserMessage(fmt.Sprintf("message %02d", i))
+	}
+	require.True(t, m.chat.AutoScroll())
+	beforeHeight := m.chat.Height()
+	beforeScroll := m.chat.ScrollOffset()
+
+	m.panelManager.Register(PanelConfig{ID: "subagent-agent-1", Title: "agent", Placement: TrayOnly}, &mockPanelDrawer{})
+	m.panelManager.Show("subagent-agent-1")
+	model, _ := m.Update(panelChangedMsg{})
+	m = model.(Model)
+
+	assert.Equal(t, beforeHeight-2, m.chat.Height())
+	assert.Greater(t, m.chat.ScrollOffset(), beforeScroll)
+	assert.Equal(t, m.chatHeight(m.height), m.chat.Height())
+}
+
+func TestModel_SpinnerWithTrayResizesChatViewport(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 40
+	m.height = 24
+	m.showHints = false
+	m.chat = m.chat.SetSize(40, m.chatHeight(24))
+
+	for i := range 20 {
+		m.AddUserMessage(fmt.Sprintf("message %02d", i))
+	}
+
+	m.panelManager.Register(PanelConfig{ID: "subagent-agent-1", Title: "agent", Placement: TrayOnly}, &mockPanelDrawer{})
+	m.panelManager.Show("subagent-agent-1")
+	model, _ := m.Update(panelChangedMsg{})
+	m = model.(Model)
+	trayHeight := m.chat.Height()
+	trayScroll := m.chat.ScrollOffset()
+
+	model, _ = m.Update(components.SpinnerShowMsg{})
+	m = model.(Model)
+
+	assert.Equal(t, trayHeight-2, m.chat.Height())
+	assert.Greater(t, m.chat.ScrollOffset(), trayScroll)
+	assert.Equal(t, m.chatHeight(m.height), m.chat.Height())
+
+	headerRows, pillRows := m.countLayoutRows()
+	trayRows, aboveRows, belowRows := m.panelRows()
+	lt := m.layout.ComputeWithPanels(m.width, m.height, m.editor.Height()+m.attach.Height(), headerRows, pillRows, m.dockedRows(), trayRows, aboveRows, belowRows)
+	assert.Equal(t, lt.Pills.Max.Y, lt.PanelTray.Min.Y)
 }
 
 // --- Task 9: TUIExtAPI model-level integration tests ---

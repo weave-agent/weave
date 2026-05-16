@@ -96,6 +96,10 @@ func (pt PanelTray) Draw(scr uv.Screen, area uv.Rectangle, theme *palette.Theme)
 		return
 	}
 
+	rowStyle := lipgloss.NewStyle().
+		Background(lipgloss.Color(theme.BackgroundTint))
+	uv.NewStyledString(rowStyle.Render(strings.Repeat(" ", area.Dx()))).Draw(scr, area)
+
 	var parts []string
 
 	for i, tab := range pt.tabs {
@@ -114,18 +118,20 @@ func (pt PanelTray) Draw(scr uv.Screen, area uv.Rectangle, theme *palette.Theme)
 			} else {
 				parts = append(parts, lipgloss.NewStyle().
 					Foreground(lipgloss.Color(theme.Accent)).
+					Background(lipgloss.Color(theme.BackgroundTint)).
 					Padding(0, 1).
 					Render(title))
 			}
 		} else {
 			parts = append(parts, lipgloss.NewStyle().
 				Foreground(lipgloss.Color(theme.Muted)).
+				Background(lipgloss.Color(theme.BackgroundTint)).
 				Padding(0, 1).
 				Render(title))
 		}
 	}
 
-	line := strings.Join(parts, " ")
+	line := " " + strings.Join(parts, " ")
 	line = truncateDisplayWidth(line, area.Dx())
 
 	uv.NewStyledString(line).Draw(scr, area)

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"strings"
 	"testing"
 
 	"weave/ext/ui/tui/palette"
@@ -141,6 +142,22 @@ func TestPanelTray_Draw_WithTabs(t *testing.T) {
 	rendered := canvas.Render()
 	assert.Contains(t, rendered, "Files")
 	assert.Contains(t, rendered, "Git")
+	assert.True(t, strings.HasPrefix(rendered, " "))
+}
+
+func TestPanelTray_Draw_ClearsFullRow(t *testing.T) {
+	pt := NewPanelTray()
+	pt = pt.SetTabs([]PanelTab{{ID: "p1", Title: "Files"}}, 0)
+
+	canvas := uv.NewScreenBuffer(20, 1)
+	area := uv.Rect(0, 0, 20, 1)
+	uv.NewStyledString(strings.Repeat("x", 20)).Draw(canvas, area)
+
+	pt.Draw(canvas, area, palette.DefaultTheme())
+
+	rendered := canvas.Render()
+	assert.Contains(t, rendered, "Files")
+	assert.NotContains(t, rendered, "xxxxx")
 }
 
 func TestPanelTray_Draw_ActiveTabHighlighted(t *testing.T) {

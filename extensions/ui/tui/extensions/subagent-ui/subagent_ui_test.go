@@ -219,8 +219,8 @@ func TestSubagentExtension_Subscribe_ShowsPanelOnStarted(t *testing.T) {
 	require.Len(t, api.panelsShown, 1)
 	assert.Equal(t, "subagent-agent-123", api.panelsShown[0].ID)
 	assert.Equal(t, "researcher", api.panelsShown[0].Title)
-	assert.Equal(t, tui.BelowEditor, api.panelsShown[0].Placement)
-	assert.Equal(t, 6, api.panelsShown[0].Height)
+	assert.Equal(t, tui.TrayOnly, api.panelsShown[0].Placement)
+	assert.Equal(t, 18, api.panelsShown[0].Height)
 	assert.NotNil(t, api.panelDrawers[0], "panel drawer should be non-nil")
 
 	// Agent should be tracked

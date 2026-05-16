@@ -15,6 +15,7 @@ const (
 	AsOverlay PanelPlacement = iota
 	AboveEditor
 	BelowEditor
+	TrayOnly
 )
 
 // PanelConfig configures a panel.

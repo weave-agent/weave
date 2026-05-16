@@ -16,13 +16,13 @@ const footerRows = 2
 //	│  Main (flex)                    │  chat viewport or landing
 //	│                                 │
 //	├─────────────────────────────────┤
+//	│  Pills (0-1 rows)               │  spinner, status, tool progress
+//	├─────────────────────────────────┤
 //	│  PanelTray (0-1 rows)           │  tab strip for visible panels
 //	├─────────────────────────────────┤
 //	│  AbovePanel (0-N rows)          │  active panel above editor
 //	├─────────────────────────────────┤
 //	│  Docked (0-N rows)              │  docked overlay dialog
-//	├─────────────────────────────────┤
-//	│  Pills (0-1 rows)               │  spinner, status, tool progress
 //	├─────────────────────────────────┤
 //	│  Editor (3-15 rows, dynamic)    │  textarea with border
 //	├─────────────────────────────────┤
@@ -99,6 +99,11 @@ func (e LayoutEngine) ComputeWithPanels(width, height, editorLines, headerRows, 
 	constraints = append(constraints, layout.Fill(1))
 	targets = append(targets, &main)
 
+	if pillRows > 0 {
+		constraints = append(constraints, layout.Len(pillRows))
+		targets = append(targets, &pills)
+	}
+
 	if trayRows > 0 {
 		constraints = append(constraints, layout.Len(trayRows))
 		targets = append(targets, &tray)
@@ -112,11 +117,6 @@ func (e LayoutEngine) ComputeWithPanels(width, height, editorLines, headerRows, 
 	if dockedRows > 0 {
 		constraints = append(constraints, layout.Len(dockedRows))
 		targets = append(targets, &docked)
-	}
-
-	if pillRows > 0 {
-		constraints = append(constraints, layout.Len(pillRows))
-		targets = append(targets, &pills)
 	}
 
 	constraints = append(constraints, layout.Len(editorRows))

@@ -164,8 +164,7 @@ func TestAgentPanelDrawer_Draw_MultilineResult(t *testing.T) {
 	assert.Contains(t, rendered, "line 1")
 	assert.Contains(t, rendered, "line 2")
 	assert.Contains(t, rendered, "line 3")
-	// Only 3 result lines max
-	assert.NotContains(t, rendered, "line 5")
+	assert.Contains(t, rendered, "line 5")
 }
 
 func TestAgentPanelDrawer_Handles_AlwaysFalse(t *testing.T) {
@@ -243,7 +242,7 @@ func TestAgentPanelDrawer_FormatResult_Empty(t *testing.T) {
 	theme := testTheme()
 	drawer := newAgentPanelDrawer("x", nil, theme)
 
-	result := drawer.formatResult("", 80)
+	result := drawer.formatResult("", 80, 3)
 	assert.Empty(t, result)
 }
 
@@ -253,7 +252,7 @@ func TestAgentPanelDrawer_FormatResult_SmallMaxWidth(t *testing.T) {
 
 	// maxWidth=5 should be clamped to 10 runes minimum.
 	longLine := strings.Repeat("a", 50)
-	result := drawer.formatResult(longLine, 5)
+	result := drawer.formatResult(longLine, 5, 3)
 	assert.Contains(t, result, "...")
 }
 
@@ -262,20 +261,23 @@ func TestAgentPanelDrawer_FormatResult(t *testing.T) {
 	drawer := newAgentPanelDrawer("x", nil, theme)
 
 	// Short result
-	result := drawer.formatResult("hello", 80)
+	result := drawer.formatResult("hello", 80, 3)
 	assert.Equal(t, "hello", result)
 
 	// Long result truncated
 	longLine := strings.Repeat("a", 200)
-	result = drawer.formatResult(longLine, 40)
+	result = drawer.formatResult(longLine, 40, 3)
 	assert.Contains(t, result, "...")
 	assert.Less(t, len(result), 200)
 
-	// Multi-line result limited to 3 lines
+	// Multi-line result limited by available height
 	multi := "line1\nline2\nline3\nline4\nline5"
-	result = drawer.formatResult(multi, 80)
+	result = drawer.formatResult(multi, 80, 4)
 	lines := strings.Split(result, "\n")
-	assert.Len(t, lines, 3)
+	assert.Len(t, lines, 4)
+
+	result = drawer.formatResult(multi, 80, 0)
+	assert.Empty(t, result)
 }
 
 func TestAgentPanelDrawer_Integration_WithTracker(t *testing.T) {

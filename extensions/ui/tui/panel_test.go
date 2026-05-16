@@ -246,6 +246,7 @@ func TestPanelPlacement_Constants(t *testing.T) {
 	assert.Equal(t, AsOverlay, PanelPlacement(0))
 	assert.Equal(t, AboveEditor, PanelPlacement(1))
 	assert.Equal(t, BelowEditor, PanelPlacement(2))
+	assert.Equal(t, TrayOnly, PanelPlacement(3))
 }
 
 func TestPanelConfig_ZeroValues(t *testing.T) {

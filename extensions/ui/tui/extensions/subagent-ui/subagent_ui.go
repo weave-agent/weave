@@ -167,9 +167,10 @@ func (e *SubagentExtension) handleStarted(ev sdk.Event) error {
 		drawer := newAgentPanelDrawer(agent.ID, e.tracker, api.Theme())
 		api.ShowPanel(tui.PanelConfig{
 			ID:        agent.PanelID,
-			Placement: tui.BelowEditor,
+			Placement: tui.TrayOnly,
 			Title:     name,
-			Height:    6,
+			Width:     96,
+			Height:    18,
 		}, drawer)
 	}
 

@@ -62,7 +62,7 @@ func (d *agentPanelDrawer) Draw(scr uv.Screen, area uv.Rectangle) {
 
 	// Remaining lines: result preview
 	if agent.Result != "" && line < area.Dy() {
-		result := d.formatResult(agent.Result, area.Dx())
+		result := d.formatResult(agent.Result, area.Dx(), area.Dy()-line)
 		resultStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Muted))
 
 		for rLine := range strings.SplitSeq(result, "\n") {
@@ -123,10 +123,12 @@ func (d *agentPanelDrawer) formatElapsed(agent *TrackedAgent) string {
 }
 
 // formatResult truncates and formats the result for display in the panel.
-func (d *agentPanelDrawer) formatResult(result string, maxWidth int) string {
-	maxLines := 3
-
+func (d *agentPanelDrawer) formatResult(result string, maxWidth, maxLines int) string {
 	lines := strings.Split(strings.TrimSpace(result), "\n")
+	if maxLines <= 0 {
+		return ""
+	}
+
 	if len(lines) > maxLines {
 		lines = lines[:maxLines]
 	}

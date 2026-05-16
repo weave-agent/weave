@@ -232,7 +232,7 @@ func TestLayoutEngine_Compute_DockedRowsWithHeaderAndPills(t *testing.T) {
 
 	lt := e.ComputeFull(120, 50, 3, 1, 1, 10)
 
-	// All sections should stack: header(1) + main + docked(10) + pills(1) + editor(5) + footer(2) = 50
+	// All sections should stack: header(1) + main + pills(1) + docked(10) + editor(5) + footer(2) = 50
 	assert.Equal(t, 1, lt.Header.Dy())
 	assert.Equal(t, 10, lt.Docked.Dy())
 	assert.Equal(t, 1, lt.Pills.Dy())
@@ -244,9 +244,9 @@ func TestLayoutEngine_Compute_DockedRowsWithHeaderAndPills(t *testing.T) {
 
 	// Verify stacking order
 	assert.Equal(t, lt.Header.Max.Y, lt.Main.Min.Y)
-	assert.Equal(t, lt.Main.Max.Y, lt.Docked.Min.Y)
-	assert.Equal(t, lt.Docked.Max.Y, lt.Pills.Min.Y)
-	assert.Equal(t, lt.Pills.Max.Y, lt.Editor.Min.Y)
+	assert.Equal(t, lt.Main.Max.Y, lt.Pills.Min.Y)
+	assert.Equal(t, lt.Pills.Max.Y, lt.Docked.Min.Y)
+	assert.Equal(t, lt.Docked.Max.Y, lt.Editor.Min.Y)
 	assert.Equal(t, lt.Editor.Max.Y, lt.Footer.Min.Y)
 }
 
@@ -333,10 +333,10 @@ func TestLayoutEngine_ComputeWithPanels_StackingOrder(t *testing.T) {
 	// Verify vertical stacking order
 	assert.Equal(t, 0, lt.Header.Min.Y)
 	assert.Equal(t, lt.Header.Max.Y, lt.Main.Min.Y)
-	assert.Equal(t, lt.Main.Max.Y, lt.PanelTray.Min.Y)
+	assert.Equal(t, lt.Main.Max.Y, lt.Pills.Min.Y)
+	assert.Equal(t, lt.Pills.Max.Y, lt.PanelTray.Min.Y)
 	assert.Equal(t, lt.PanelTray.Max.Y, lt.AbovePanel.Min.Y)
-	assert.Equal(t, lt.AbovePanel.Max.Y, lt.Pills.Min.Y)
-	assert.Equal(t, lt.Pills.Max.Y, lt.Editor.Min.Y)
+	assert.Equal(t, lt.AbovePanel.Max.Y, lt.Editor.Min.Y)
 	assert.Equal(t, lt.Editor.Max.Y, lt.BelowPanel.Min.Y)
 	assert.Equal(t, lt.BelowPanel.Max.Y, lt.Footer.Min.Y)
 	assert.Equal(t, 50, lt.Footer.Max.Y)
