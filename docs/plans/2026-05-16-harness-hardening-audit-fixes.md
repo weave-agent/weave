@@ -63,13 +63,13 @@ Fix 17 gaps identified by the agents-best-practices audit of the Weave agent fra
 - [x] run `cd extensions/agent && go test ./...` — must pass before task 4
 
 ### Task 4: Add provider retry logic
-- [ ] create a shared retry helper in `sdk/retry/retry.go` with configurable max retries (default 10), exponential backoff (1s base, 2x multiplier, 30s cap), and a predicate function to classify retriable vs non-retriable errors
-- [ ] integrate retry into Anthropic provider `extensions/providers/anthropic/anthropic.go` — wrap the initial `client.Messages.New()` call and add mid-stream reconnection support (save accumulated content, retry from last checkpoint)
-- [ ] integrate retry into OpenAI-compatible providers via `utils/openaicompat/openai_compat.go` — retry on 429/5xx/network using the existing `openaicompat.Error` classification
-- [ ] add `IsRetriable()` method to `openaicompat.Error` that returns true for rate_limit, server, and network categories
-- [ ] write tests: TestRetry_RetriableErrors, TestRetry_NonRetriableErrors, TestRetry_MaxRetries in `sdk/retry/retry_test.go`
-- [ ] write tests: TestAnthropicProvider_RetryOn429 in `extensions/providers/anthropic/anthropic_test.go`
-- [ ] run `cd extensions/providers/anthropic && go test ./...` and `cd sdk && go test ./...` — must pass before task 5
+- [x] create a shared retry helper in `sdk/retry/retry.go` with configurable max retries (default 10), exponential backoff (1s base, 2x multiplier, 30s cap), and a predicate function to classify retriable vs non-retriable errors
+- [x] integrate retry into Anthropic provider `extensions/providers/anthropic/anthropic.go` — wrap the initial `client.Messages.New()` call and add mid-stream reconnection support (save accumulated content, retry from last checkpoint)
+- [x] integrate retry into OpenAI-compatible providers via `utils/openaicompat/openai_compat.go` — retry on 429/5xx/network using the existing `openaicompat.Error` classification
+- [x] add `IsRetriable()` method to `openaicompat.Error` that returns true for rate_limit, server, and network categories
+- [x] write tests: TestRetry_RetriableErrors, TestRetry_NonRetriableErrors, TestRetry_MaxRetries in `sdk/retry/retry_test.go`
+- [x] write tests: TestAnthropicProvider_RetryOn429 in `extensions/providers/anthropic/anthropic_test.go`
+- [x] run `cd extensions/providers/anthropic && go test ./...` and `cd sdk && go test ./...` — must pass before task 5
 
 ### Task 5: Enforce skill AllowedTools
 - [ ] in `extensions/agent/skills.go:makeSkillHandler()`, before publishing the skill body via `agent.prompt`, call `sdk.SetToolFilter(skill.AllowedTools)` if `AllowedTools` is non-empty

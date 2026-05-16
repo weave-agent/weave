@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -15,7 +16,19 @@ import (
 
 	"weave/sdk"
 	"weave/sdk/model"
+	"weave/sdk/retry"
 )
+
+func TestMain(m *testing.M) {
+	retryConfig = retry.Config{
+		MaxRetries: 2,
+		BaseDelay:  1 * time.Millisecond,
+		MaxDelay:   10 * time.Millisecond,
+		Multiplier: 2,
+	}
+
+	os.Exit(m.Run())
+}
 
 type sseEvent struct {
 	EventType string
@@ -451,6 +464,42 @@ func TestStream_SplitToolInputJSON(t *testing.T) {
 	require.Len(t, toolCalls, 1)
 	assert.Equal(t, "bash", toolCalls[0].Name)
 	assert.Equal(t, map[string]any{"command": "ls"}, toolCalls[0].Arguments)
+}
+
+func TestStream_RetryOn429(t *testing.T) {
+	attemptCount := 0
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attemptCount++
+		if attemptCount < 3 {
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = fmt.Fprint(w, `{"type":"error","error":{"type":"rate_limit_error","message":"Rate limit exceeded"}}`)
+
+			return
+		}
+
+		writeSSE(w, textStreamEvents("Hello after retry!"))
+	}))
+	defer server.Close()
+
+	p := newTestProvider(server)
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("Say hello")},
+	})
+	require.NoError(t, err)
+
+	events := collectEvents(t, ch)
+
+	var textDeltas []string
+
+	for _, evt := range events {
+		if evt.Type == sdk.ProviderEventTextDelta {
+			textDeltas = append(textDeltas, evt.Content.(string))
+		}
+	}
+
+	assert.Equal(t, []string{"Hello after retry!"}, textDeltas)
+	assert.Equal(t, 3, attemptCount, "expected 3 attempts (2 failures + 1 success)")
 }
 
 func TestRegister(t *testing.T) {

@@ -6,16 +6,28 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"weave/sdk"
 	"weave/sdk/model"
+	"weave/sdk/retry"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestMain(m *testing.M) {
+	retryConfig = retry.Config{
+		MaxRetries: 2,
+		BaseDelay:  1 * time.Millisecond,
+		MaxDelay:   10 * time.Millisecond,
+		Multiplier: 2,
+	}
+	os.Exit(m.Run())
+}
 
 func TestConvertMessages(t *testing.T) {
 	tests := []struct {
@@ -707,6 +719,27 @@ func TestError_ErrorMethod(t *testing.T) {
 	assert.Equal(t, "openai-compat: auth: bad key", err.Error())
 }
 
+func TestError_IsRetriable(t *testing.T) {
+	tests := []struct {
+		name string
+		err  *Error
+		want bool
+	}{
+		{"rate_limit", &Error{Type: ErrorTypeRateLimit}, true},
+		{"server", &Error{Type: ErrorTypeServer}, true},
+		{"transport", &Error{Type: ErrorTypeTransport}, true},
+		{"auth", &Error{Type: ErrorTypeAuth}, false},
+		{"client", &Error{Type: ErrorTypeClient}, false},
+		{"parse", &Error{Type: ErrorTypeParse}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.err.IsRetriable())
+		})
+	}
+}
+
 func TestError_Classification(t *testing.T) {
 	tests := []struct {
 		code int
@@ -826,6 +859,39 @@ func TestStream_ExtraBody_NoOverrideCoreFields(t *testing.T) {
 	collectEvents(ch)
 
 	assert.Equal(t, "gpt-5.5", receivedBody["model"])
+}
+
+func TestStream_RetryOn429(t *testing.T) {
+	attemptCount := 0
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attemptCount++
+		if attemptCount < 3 {
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = fmt.Fprint(w, `{"error":{"message":"Rate limit exceeded","type":"rate_limit_error"}}`)
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = fmt.Fprint(w, sseStream(
+			sseChunk(ChunkDelta{Content: "ok"}, nil),
+			sseChunk(ChunkDelta{}, new("stop")),
+			sseDone(),
+		))
+	}))
+	defer server.Close()
+
+	ch, err := Stream(context.Background(), server.Client(), ProviderConfig{
+		BaseURL: server.URL,
+		APIKey:  "test-key",
+	}, sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("hi")},
+	})
+	require.NoError(t, err)
+
+	events := collectEvents(ch)
+	require.NotEmpty(t, events)
+	assert.Equal(t, 3, attemptCount, "expected 3 attempts (2 failures + 1 success)")
 }
 
 func TestStream_RateLimitError(t *testing.T) {
