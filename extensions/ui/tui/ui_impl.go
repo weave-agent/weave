@@ -598,10 +598,8 @@ func (u *TUIImpl) EditorText() string {
 	case text := <-resp:
 		return text
 	case <-u.done:
-		go func() { <-resp }() // drain to prevent blocking sender
 		return ""
 	case <-time.After(5 * time.Second):
-		go func() { <-resp }() // drain to prevent blocking sender
 		return ""
 	}
 }

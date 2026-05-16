@@ -28,15 +28,16 @@ const (
 
 // ToolPanel renders a tool call with its output in a panel.
 type ToolPanel struct {
-	toolID         string
-	toolName       string
-	args           string
-	output         string
-	state          ToolState
-	expanded       bool
-	diffRenderer   *DiffRenderer
-	customRenderer sdk.ToolRenderer
-	flashUntil     time.Time
+	toolID               string
+	toolName             string
+	args                 string
+	output               string
+	state                ToolState
+	expanded             bool
+	diffRenderer         *DiffRenderer
+	customRenderer       sdk.ToolRenderer
+	flashUntil           time.Time
+	needsPostFlashRender bool
 }
 
 // NewToolPanel creates a new tool panel in pending state.
@@ -80,6 +81,17 @@ func (p *ToolPanel) SetResult(output string, isError bool) {
 	}
 
 	p.flashUntil = time.Now().Add(800 * time.Millisecond)
+	p.needsPostFlashRender = true
+}
+
+// NeedsRender returns true while the flash animation is active, and for one
+// additional render after it expires so the cache captures the settled color.
+func (p *ToolPanel) NeedsRender() bool {
+	if time.Now().Before(p.flashUntil) {
+		return true
+	}
+
+	return p.needsPostFlashRender
 }
 
 // ToggleExpanded flips the expand/collapse state.
@@ -103,6 +115,12 @@ func (p *ToolPanel) View(width int) string {
 		width = 80
 	}
 
+	// Once the flash has expired, clear the flag so the next render captures
+	// the settled border color in the cache.
+	if p.needsPostFlashRender && time.Now().After(p.flashUntil) {
+		p.needsPostFlashRender = false
+	}
+
 	theme := palette.DefaultTheme()
 	borderColor := borderColorForState(p.state, p.flashUntil, theme)
 
@@ -114,15 +132,15 @@ func (p *ToolPanel) View(width int) string {
 	header := p.renderHeader()
 	body := p.renderBody(width - 4) // account for border + padding
 
-	var b strings.Builder
-	b.WriteString(borderStyle.Render(header))
+	var content strings.Builder
+	content.WriteString(header)
 
 	if body != "" {
-		b.WriteString("\n")
-		b.WriteString(padLeft(body))
+		content.WriteString("\n")
+		content.WriteString(body)
 	}
 
-	return b.String()
+	return borderStyle.Render(content.String())
 }
 
 // Draw renders the tool panel into a screen buffer region.
@@ -280,18 +298,4 @@ func formatArgs(argsJSON string) string {
 	}
 
 	return strings.Join(parts, ", ")
-}
-
-func padLeft(text string) string {
-	const spaces = 2
-
-	prefix := strings.Repeat(" ", spaces)
-
-	lines := strings.Split(text, "\n")
-
-	for i := range lines {
-		lines[i] = prefix + lines[i]
-	}
-
-	return strings.Join(lines, "\n")
 }
