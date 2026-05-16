@@ -335,6 +335,29 @@ func TestModel_HandlePopupPending_Input(t *testing.T) {
 	assert.True(t, ok, "expected InputDialog on stack")
 }
 
+func TestModel_HandlePopupPending_InputWithMask(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.ui = ui
+
+	req := &overlayRequest{
+		kind:    requestInput,
+		message: "Password:",
+		mask:    '*',
+		result:  make(chan overlayResponse, 1),
+	}
+
+	m = activatePopup(m, ui, req)
+	assert.False(t, m.dialogStack.Empty())
+	top := m.dialogStack.Peek()
+	require.NotNil(t, top)
+	dialog, ok := top.(*overlays.InputDialog)
+	require.True(t, ok, "expected InputDialog on stack")
+	assert.Equal(t, rune('*'), dialog.Model().Mask())
+}
+
 func TestModel_HandlePopupPending_NilUI(t *testing.T) {
 	m := newModel(nil, nil, nil, nil)
 	m.ui = nil
@@ -1223,6 +1246,24 @@ func TestTUIImpl_Input_WithKeepContent(t *testing.T) {
 	dequeued := ui.dequeue()
 	require.NotNil(t, dequeued)
 	assert.True(t, dequeued.keepContent)
+}
+
+func TestTUIImpl_Input_WithMask(t *testing.T) {
+	sender := &mockSender{}
+	ui := NewTUIImpl(nil, nil)
+	ui.SetProgram(sender)
+
+	req := &overlayRequest{
+		kind:    requestInput,
+		message: "Password:",
+		mask:    '*',
+		result:  make(chan overlayResponse, 1),
+	}
+	require.NoError(t, ui.enqueue(req))
+
+	dequeued := ui.dequeue()
+	require.NotNil(t, dequeued)
+	assert.Equal(t, rune('*'), dequeued.mask)
 }
 
 func TestTUIImpl_Editor_WithKeepContent(t *testing.T) {

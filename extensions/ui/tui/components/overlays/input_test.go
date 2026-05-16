@@ -199,3 +199,51 @@ func TestInputView_StyledWithRoundedBorder(t *testing.T) {
 	// Rounded border should be present
 	assert.Contains(t, view, "╭")
 }
+
+func TestInputSetMask(t *testing.T) {
+	m := NewInputModel("Password:").SetMask('*')
+	assert.Equal(t, rune('*'), m.mask)
+}
+
+func TestInputTypingWithMask(t *testing.T) {
+	m := NewInputModel("Password:").Show().SetMask('*')
+	m, _ = m.Update(tea.KeyPressMsg{Text: "secret", Code: tea.KeyExtended})
+	assert.Equal(t, "secret", m.Value())
+	assert.Equal(t, 6, m.Cursor())
+}
+
+func TestInputViewMasked(t *testing.T) {
+	m := NewInputModel("Password:").Show().SetSize(60, 20).SetMask('*')
+	m, _ = m.Update(tea.KeyPressMsg{Text: "secret", Code: tea.KeyExtended})
+	view := m.View()
+	assert.Contains(t, view, "Password:")
+	assert.Contains(t, view, "******")
+	assert.NotContains(t, view, "secret")
+}
+
+func TestInputViewMaskedCursor(t *testing.T) {
+	m := NewInputModel("Password:").Show().SetSize(60, 20).SetMask('*')
+	m, _ = m.Update(tea.KeyPressMsg{Text: "ab", Code: tea.KeyExtended})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
+	view := m.View()
+	assert.Contains(t, view, "*▎*")
+	assert.NotContains(t, view, "ab")
+}
+
+func TestInputDraw_Masked(t *testing.T) {
+	m := NewInputModel("Password:").Show().SetSize(60, 20).SetMask('*')
+	m, _ = m.Update(tea.KeyPressMsg{Text: "hello", Code: tea.KeyExtended})
+	canvas := uv.NewScreenBuffer(60, 20)
+	m.Draw(canvas, canvas.Bounds())
+	output := uv.TrimSpace(canvas.Render())
+	assert.Contains(t, output, "*****")
+	assert.NotContains(t, output, "hello")
+}
+
+func TestInputMaskZeroMeansNoMasking(t *testing.T) {
+	m := NewInputModel("Name:").Show().SetSize(60, 20)
+	m, _ = m.Update(tea.KeyPressMsg{Text: "hello", Code: tea.KeyExtended})
+	view := m.View()
+	assert.Contains(t, view, "hello")
+	assert.NotContains(t, view, "*****")
+}

@@ -25,6 +25,7 @@ type ConfirmConfig struct {
 // InputConfig holds options for Input overlay calls.
 type InputConfig struct {
 	KeepContent bool
+	Mask        rune
 }
 
 // EditorConfig holds options for Editor overlay calls.
@@ -58,6 +59,11 @@ func WithKeepContentConfirm() ConfirmOption {
 // WithKeepContentInput docks the input overlay at the bottom.
 func WithKeepContentInput() InputOption {
 	return func(c *InputConfig) { c.KeepContent = true }
+}
+
+// WithMask sets a mask character for the input overlay (e.g. '*' for passwords).
+func WithMask(mask rune) InputOption {
+	return func(c *InputConfig) { c.Mask = mask }
 }
 
 // WithKeepContentEditor docks the editor overlay at the bottom.

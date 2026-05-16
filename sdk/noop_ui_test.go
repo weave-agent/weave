@@ -79,6 +79,14 @@ func TestNoopUI_InputWithOptions(t *testing.T) {
 	assert.Empty(t, result)
 }
 
+func TestNoopUI_InputWithMask(t *testing.T) {
+	ui := NoopUI{}
+
+	result, err := ui.Input("enter password", WithMask('*'))
+	require.NoError(t, err)
+	assert.Empty(t, result)
+}
+
 func TestNoopUI_EditorWithOptions(t *testing.T) {
 	ui := NoopUI{}
 

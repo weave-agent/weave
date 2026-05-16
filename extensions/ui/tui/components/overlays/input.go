@@ -22,6 +22,7 @@ type InputModel struct {
 	prompt  string
 	value   []rune
 	cursor  int
+	mask    rune
 	width   int
 	height  int
 	visible bool
@@ -68,6 +69,15 @@ func (m InputModel) Height() int { return m.height }
 
 // Cursor returns the current cursor position.
 func (m InputModel) Cursor() int { return m.cursor }
+
+// SetMask sets the mask character for the input (0 means no masking).
+func (m InputModel) SetMask(mask rune) InputModel {
+	m.mask = mask
+	return m
+}
+
+// Mask returns the current mask character (0 means no masking).
+func (m InputModel) Mask() rune { return m.mask }
 
 // Value returns the current input value.
 func (m InputModel) Value() string { return string(m.value) }
@@ -138,6 +148,41 @@ func (m InputModel) handleKey(msg tea.KeyPressMsg) (InputModel, tea.Cmd) {
 	return m, nil
 }
 
+// renderCursor returns the cursor line with the block cursor character
+// inserted at the current cursor position, applying masking if enabled.
+func (m InputModel) renderCursor() string {
+	if m.cursor > len(m.value) {
+		var displayValue string
+		if m.mask != 0 {
+			displayValue = strings.Repeat(string(m.mask), len(m.value))
+		} else {
+			displayValue = string(m.value)
+		}
+
+		return displayValue + "▎"
+	}
+
+	var before, after string
+
+	if m.cursor > 0 {
+		if m.mask != 0 {
+			before = strings.Repeat(string(m.mask), m.cursor)
+		} else {
+			before = string(m.value[:m.cursor])
+		}
+	}
+
+	if m.cursor < len(m.value) {
+		if m.mask != 0 {
+			after = strings.Repeat(string(m.mask), len(m.value)-m.cursor)
+		} else {
+			after = string(m.value[m.cursor:])
+		}
+	}
+
+	return fmt.Sprintf("%s▎%s", before, after)
+}
+
 // View renders the input modal overlay.
 func (m InputModel) View() string {
 	if !m.visible || m.width < 4 {
@@ -162,25 +207,7 @@ func (m InputModel) View() string {
 	hintStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(theme.Muted))
 
-	text := string(m.value)
-
-	var cursor string
-	if m.cursor <= len(m.value) {
-		before := ""
-		after := ""
-
-		if m.cursor > 0 {
-			before = string(m.value[:m.cursor])
-		}
-
-		if m.cursor < len(m.value) {
-			after = string(m.value[m.cursor:])
-		}
-
-		cursor = fmt.Sprintf("%s▎%s", before, after)
-	} else {
-		cursor = text + "▎"
-	}
+	cursor := m.renderCursor()
 
 	content := promptStyle.Render(m.prompt) + "\n" + inputStyle.Render(cursor) + "\n" + hintStyle.Render("Enter to confirm · Esc to cancel")
 	box := borderStyle.Render(content)

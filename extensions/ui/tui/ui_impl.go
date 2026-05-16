@@ -175,6 +175,7 @@ func (u *TUIImpl) Input(prompt string, opts ...sdk.InputOption) (string, error) 
 		kind:        requestInput,
 		message:     prompt,
 		keepContent: config.KeepContent,
+		mask:        config.Mask,
 		result:      make(chan overlayResponse, 1),
 	}
 	if err := u.enqueue(req); err != nil {

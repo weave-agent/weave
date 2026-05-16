@@ -65,12 +65,12 @@ Add interactive login support to Weave's TUI, including both API key entry and O
 - [x] Run `make test` — must pass before Task 3
 
 ### Task 3: Add password masking to TUI input dialog
-- [ ] Add `WithMask` or `mask` field to `InputModel` in `components/overlays/input.go`
-- [ ] Render masked characters (`*`) when mask is enabled
-- [ ] Update `sdk.UI` interface `InputOption` to support password masking
-- [ ] Update `NoopUI` stub
-- [ ] Write tests for input masking
-- [ ] Run `make test` — must pass before Task 4
+- [x] Add `WithMask` or `mask` field to `InputModel` in `components/overlays/input.go`
+- [x] Render masked characters (`*`) when mask is enabled
+- [x] Update `sdk.UI` interface `InputOption` to support password masking
+- [x] Update `NoopUI` stub
+- [x] Write tests for input masking
+- [x] Run `make test` — must pass before Task 4
 
 ### Task 4: Add `/login` and `/logout` slash commands
 - [ ] Register `/login` command in `commands.go` — shows OAuth + API key provider selector

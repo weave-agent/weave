@@ -40,6 +40,7 @@ type overlayRequest struct {
 	initial     string
 	defaults    []bool
 	keepContent bool
+	mask        rune
 	result      chan overlayResponse
 }
 
@@ -155,6 +156,7 @@ func pushPopupDialog(m Model, req *overlayRequest) (Model, tea.Cmd) {
 	case requestInput:
 		input := overlays.NewInputModel(req.message)
 		input = input.SetSize(dialogWidth, dialogHeight)
+		input = input.SetMask(req.mask)
 		input = input.Show()
 
 		m.dialogStack = m.dialogStack.Push(overlays.NewInputDialog(id, input))
