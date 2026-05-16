@@ -3,6 +3,7 @@ package agent
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"weave/sdk"
@@ -779,4 +780,46 @@ func TestSkill_AllowedToolsFilterClearedWhenNoPreviousFilter(t *testing.T) {
 
 	// Filter should be cleared (nil)
 	assert.Nil(t, sdk.GetToolFilter())
+}
+
+func TestSkill_BodyTrustLabel(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{}, CompactionConfig{})
+	require.NoError(t, err)
+
+	skill := Skill{
+		Name:     "test-skill",
+		FilePath: "/path/to/test-skill/SKILL.md",
+		BaseDir:  "/path/to/test-skill",
+	}
+	skill.body = "# Instructions\nDo the thing."
+
+	var published []sdk.Event
+
+	b := &BusMock{
+		PublishFunc: func(event sdk.Event) {
+			published = append(published, event)
+		},
+	}
+
+	handler := ext.makeSkillHandler(skill, b)
+	require.NoError(t, handler(""))
+
+	require.Len(t, published, 1)
+	assert.Equal(t, TopicPrompt, published[0].Topic)
+
+	payload := published[0].Payload.(string)
+	assert.Contains(t, payload, `<skill_body trust="untrusted">`)
+	assert.Contains(t, payload, "# Instructions\nDo the thing.")
+	assert.Contains(t, payload, "</skill_body>")
+	assert.Contains(t, payload, "</skill>")
+
+	// Verify ordering: skill_body opens before body and closes before skill closes
+	bodyOpen := strings.Index(payload, `<skill_body trust="untrusted">`)
+	bodyClose := strings.Index(payload, "</skill_body>")
+	skillClose := strings.Index(payload, "</skill>")
+	assert.Less(t, bodyOpen, bodyClose, "skill_body open should come before close")
+	assert.Less(t, bodyClose, skillClose, "skill_body close should come before skill close")
 }

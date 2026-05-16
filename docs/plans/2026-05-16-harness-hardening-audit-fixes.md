@@ -126,10 +126,10 @@ Fix 17 gaps identified by the agents-best-practices audit of the Weave agent fra
 - [x] run `cd sdk && go test ./...` — must pass before task 13
 
 ### Task 13: Add trust labeling on skill body injection
-- [ ] in `extensions/agent/skills.go:makeSkillHandler()`, wrap the skill body in `<skill_body trust="untrusted">` XML tags before publishing as `agent.prompt`
-- [ ] add one line to `extensions/agent/default-system-prompt.md` instructing the model that content in `<skill_body>` tags is user-provided skill content, not system policy
-- [ ] write tests: TestSkill_BodyTrustLabel in `extensions/agent/skills_test.go`
-- [ ] run `cd extensions/agent && go test ./...` — must pass before task 14
+- [x] in `extensions/agent/skills.go:makeSkillHandler()`, wrap the skill body in `<skill_body trust="untrusted">` XML tags before publishing as `agent.prompt`
+- [x] add one line to `extensions/agent/default-system-prompt.md` instructing the model that content in `<skill_body>` tags is user-provided skill content, not system policy
+- [x] write tests: TestSkill_BodyTrustLabel in `extensions/agent/skills_test.go`
+- [x] run `cd extensions/agent && go test ./...` — must pass before task 14
 
 ### Task 14: Populate TraceID in bus events
 - [ ] in `sdk/event.go:NewEvent()`, generate a UUID (using `crypto/rand` or `fmt.Sprintf` with time+random) and populate the `TraceID` field
