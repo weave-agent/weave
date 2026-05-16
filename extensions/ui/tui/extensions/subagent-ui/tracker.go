@@ -124,11 +124,12 @@ func (t *AgentTracker) Done(id, status, result string) {
 
 	timer := time.AfterFunc(t.gracePeriod, func() {
 		t.mu.Lock()
+		_, hadAgent := t.agents[id]
 		delete(t.agents, id)
 		delete(t.timers, id)
 		t.mu.Unlock()
 
-		if onRemove != nil {
+		if onRemove != nil && hadAgent {
 			onRemove(id)
 		}
 	})

@@ -309,6 +309,26 @@ func TestAgentTracker_Close(t *testing.T) {
 	assert.Equal(t, int32(2), removed.Load())
 }
 
+func TestAgentTracker_Close_DuringGracePeriod(t *testing.T) {
+	var removed atomic.Int32
+
+	tracker := NewAgentTracker(2*time.Second, func(id string) {
+		removed.Add(1)
+	})
+
+	tracker.Start("agent-1", "researcher", "background")
+	tracker.Done("agent-1", "completed", "done")
+
+	// Agent is still in tracker during grace period
+	assert.NotNil(t, tracker.Get("agent-1"))
+
+	// Close before grace period expires — should call onRemove exactly once
+	tracker.Close()
+
+	assert.Nil(t, tracker.Get("agent-1"))
+	assert.Equal(t, int32(1), removed.Load())
+}
+
 func TestAgentTracker_Close_Idempotent(t *testing.T) {
 	tracker := NewAgentTracker(0, nil)
 	tracker.Start("agent-1", "test", "background")

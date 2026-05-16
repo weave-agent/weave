@@ -14,13 +14,13 @@ const gracePeriod = 3 * time.Second
 // SubagentExtension is a TUI extension that visualizes running subagents
 // as per-agent panels in the panel tray.
 type SubagentExtension struct {
-	mu        sync.Mutex
-	api       tui.TUIExtAPI
-	tracker   *AgentTracker
-	renderer  *subagentRenderer
-	done      chan struct{}
-	closeOnce sync.Once
-	tickOnce  sync.Once
+	mu          sync.Mutex
+	api         tui.TUIExtAPI
+	tracker     *AgentTracker
+	renderer    *subagentRenderer
+	done        chan struct{}
+	closeOnce   sync.Once
+	tickStarted bool
 }
 
 func init() {
@@ -66,10 +66,11 @@ func (e *SubagentExtension) RegisterTUI(api tui.TUIExtAPI) {
 		}
 	}
 
-	// Start background ticker once to update elapsed time in panels.
-	e.tickOnce.Do(func() {
+	// Start background ticker to update elapsed time in panels.
+	if !e.tickStarted {
+		e.tickStarted = true
 		go e.tickLoop()
-	})
+	}
 }
 
 // Close stops all grace-period timers and releases resources. Safe to call
@@ -101,6 +102,13 @@ func (e *SubagentExtension) Close() {
 func (e *SubagentExtension) tickLoop() {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
+	defer func() {
+		e.mu.Lock()
+		e.tickStarted = false
+		e.closeOnce = sync.Once{}
+		e.done = make(chan struct{})
+		e.mu.Unlock()
+	}()
 
 	for {
 		select {
