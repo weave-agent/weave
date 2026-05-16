@@ -1276,6 +1276,108 @@ func TestModel_InterruptNoStreamingMessage(t *testing.T) {
 	assert.Empty(t, m.chat.Items())
 }
 
+func TestModel_EscapeInterruptsAwaitAgent(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	ch := subscribeToChan(b, topicInterrupt)
+
+	m := newModel(b, nil, nil, nil)
+	m.width = 80
+	m.height = 20
+	m.chat = m.chat.SetSize(80, 20)
+
+	model, _ := m.Update(MessageEndMsg{
+		ToolCalls: []sdk.ToolCall{{ID: "tool-1", Name: "await_agent"}},
+	})
+	m = model.(Model)
+
+	model, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	m = model.(Model)
+	require.NotNil(t, cmd)
+
+	executeBatchCmd(t, cmd)
+
+	select {
+	case evt := <-ch:
+		assert.Equal(t, topicInterrupt, evt.Topic)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for interrupt event")
+	}
+}
+
+func TestModel_EscapeDoesNotInterruptActiveSubagent(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	ch := subscribeToChan(b, topicInterrupt)
+
+	m := newModel(b, nil, nil, nil)
+	m.width = 80
+	m.height = 20
+	m.chat = m.chat.SetSize(80, 20)
+
+	model, _ := m.Update(MessageEndMsg{
+		ToolCalls: []sdk.ToolCall{
+			{ID: "tool-1", Name: "subagent_explore"},
+			{ID: "tool-2", Name: "await_agent"},
+		},
+	})
+	m = model.(Model)
+
+	model, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	m = model.(Model)
+	require.NotNil(t, cmd)
+
+	executeBatchCmd(t, cmd)
+
+	select {
+	case evt := <-ch:
+		t.Fatalf("unexpected interrupt event: %#v", evt)
+	default:
+	}
+}
+
+func TestModel_EscapeInterruptsAwaitAgentAfterSubagentCompletes(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	ch := subscribeToChan(b, topicInterrupt)
+
+	m := newModel(b, nil, nil, nil)
+	m.width = 80
+	m.height = 20
+	m.chat = m.chat.SetSize(80, 20)
+
+	model, _ := m.Update(MessageEndMsg{
+		ToolCalls: []sdk.ToolCall{
+			{ID: "tool-1", Name: "subagent_explore"},
+			{ID: "tool-2", Name: "await_agent"},
+		},
+	})
+	m = model.(Model)
+
+	model, _ = m.Update(ToolResultMsg{
+		ToolID: "tool-1",
+		Tool:   "subagent_explore",
+		Result: sdk.ToolResult{Content: "done"},
+	})
+	m = model.(Model)
+
+	model, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	m = model.(Model)
+	require.NotNil(t, cmd)
+
+	executeBatchCmd(t, cmd)
+
+	select {
+	case evt := <-ch:
+		assert.Equal(t, topicInterrupt, evt.Topic)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for interrupt event")
+	}
+}
+
 func TestModel_AgentEndMsg_WithError(t *testing.T) {
 	m := newModel(nil, nil, nil, nil)
 	m.width = 80
@@ -3052,6 +3154,43 @@ func TestModel_TrayNavigation_EnterFocusesPanel(t *testing.T) {
 
 	assert.Equal(t, FocusPanel, m.focus)
 	assert.False(t, m.panelTray.IsFocused())
+}
+
+func TestModel_TrayNavigation_EnterShowsSelectedSubagentPanel(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	drawer := &mockPanelDrawer{}
+	m.panelManager.Register(PanelConfig{ID: "subagent-agent-1", Title: "agent"}, drawer)
+	m.panelManager.Show("subagent-agent-1")
+	m.focus = FocusTray
+
+	model, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = model.(Model)
+
+	assert.Equal(t, "subagent-agent-1", m.panelManager.Active())
+	assert.Equal(t, FocusPanel, m.focus)
+	assert.False(t, m.panelTray.IsFocused())
+	assert.Equal(t, 0, drawer.updateCount)
+}
+
+func TestModel_TrayNavigation_EnterShowsVisiblePanelWhenNoPanelActive(t *testing.T) {
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+
+	drawer := &mockPanelDrawer{}
+	m.panelManager.Register(PanelConfig{ID: "subagent-agent-1", Title: "agent"}, drawer)
+	m.panelManager.panels["subagent-agent-1"].Visible = true
+	m.focus = FocusTray
+
+	model, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = model.(Model)
+
+	assert.Equal(t, "subagent-agent-1", m.panelManager.Active())
+	assert.Equal(t, FocusPanel, m.focus)
+	assert.Equal(t, 0, drawer.updateCount)
 }
 
 func TestModel_PanelKeyForwarding(t *testing.T) {
