@@ -17,6 +17,7 @@ type LoginFlowResultMsg struct {
 	Provider   string
 	Credential sdk.OAuthCredential
 	Error      error
+	Gen        int // generation counter to detect stale results from canceled flows
 }
 
 // runOAuthFlowCmd returns a tea.Cmd that executes the OAuth flow for the given
@@ -24,7 +25,7 @@ type LoginFlowResultMsg struct {
 // starts a callback server and opens the browser. For device code flow, the
 // caller must have already requested the device code and should use
 // pollDeviceCodeCmd for polling.
-func runOAuthFlowCmd(parentCtx context.Context, provider sdk.OAuthProvider) tea.Cmd {
+func runOAuthFlowCmd(parentCtx context.Context, provider sdk.OAuthProvider, gen int) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(parentCtx, 2*time.Minute)
 		defer cancel()
@@ -35,13 +36,14 @@ func runOAuthFlowCmd(parentCtx context.Context, provider sdk.OAuthProvider) tea.
 			Provider:   provider.ID,
 			Credential: cred,
 			Error:      err,
+			Gen:        gen,
 		}
 	}
 }
 
 // pollDeviceCodeCmd returns a tea.Cmd that polls the token endpoint for a
 // device code flow and returns a LoginFlowResultMsg.
-func pollDeviceCodeCmd(parentCtx context.Context, providerID, deviceCode string, intervalSecs int, tokenURL, clientID string) tea.Cmd {
+func pollDeviceCodeCmd(parentCtx context.Context, providerID, deviceCode string, intervalSecs int, tokenURL, clientID string, gen int) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(parentCtx, 2*time.Minute)
 		defer cancel()
@@ -51,6 +53,7 @@ func pollDeviceCodeCmd(parentCtx context.Context, providerID, deviceCode string,
 			return LoginFlowResultMsg{
 				Provider: providerID,
 				Error:    err,
+				Gen:      gen,
 			}
 		}
 
@@ -67,6 +70,7 @@ func pollDeviceCodeCmd(parentCtx context.Context, providerID, deviceCode string,
 		return LoginFlowResultMsg{
 			Provider:   providerID,
 			Credential: cred,
+			Gen:        gen,
 		}
 	}
 }

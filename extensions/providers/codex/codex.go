@@ -12,7 +12,9 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
+	"time"
 
 	"weave/sdk"
 	"weave/sdk/model"
@@ -39,6 +41,7 @@ type provider struct {
 	model      string
 	baseURL    string
 	tokenURL   string
+	mu         sync.Mutex
 	oauthToken sdk.OAuthCredential
 }
 
@@ -64,7 +67,7 @@ func init() {
 		}
 
 		return &provider{
-			client:     &http.Client{},
+			client:     &http.Client{Timeout: 120 * time.Second},
 			model:      cc.Model,
 			baseURL:    cc.BaseURL,
 			tokenURL:   codexTokenURL,
@@ -128,6 +131,9 @@ func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest, opts ...
 }
 
 func (p *provider) refreshToken(ctx context.Context) (string, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	if p.oauthToken.AccessToken == "" {
 		return "", errors.New("OAuth token required (use /login codex)")
 	}

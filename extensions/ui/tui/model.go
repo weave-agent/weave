@@ -117,6 +117,10 @@ type Model struct {
 	// the login dialog. Nil when no OAuth flow is active.
 	oauthCancel context.CancelFunc
 
+	// oauthGen increments on each new OAuth flow start. Used to reject stale
+	// LoginFlowResultMsg from previously canceled flows.
+	oauthGen int
+
 	// startup hints banner
 	showHints bool
 
@@ -342,8 +346,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Login flow completion must be handled even when the login dialog is open.
 	if loginResult, ok := msg.(LoginFlowResultMsg); ok {
-		if m.oauthCancel == nil {
-			// Flow was canceled by the user; ignore stale result.
+		if m.oauthCancel == nil || loginResult.Gen != m.oauthGen {
+			// Flow was canceled by the user or the result is from a previous flow;
+			// ignore stale result.
 			return m, nil
 		}
 
@@ -2163,6 +2168,7 @@ func (m Model) startOAuthLogin(selected LoginProviderEntry, pendingCmd tea.Cmd) 
 
 	// Create a cancellable context for the OAuth flow so force-canceling the
 	// dialog can stop the background callback server / polling.
+	m.oauthGen++
 	ctx, cancel := context.WithCancel(context.Background())
 	m.oauthCancel = cancel
 
@@ -2194,7 +2200,7 @@ func (m Model) startOAuthLogin(selected LoginProviderEntry, pendingCmd tea.Cmd) 
 			interval = 5
 		}
 
-		return m, tea.Batch(pendingCmd, pollDeviceCodeCmd(ctx, selected.ID, resp.DeviceCode, interval, oauthProvider.TokenURL, oauthProvider.ClientID))
+		return m, tea.Batch(pendingCmd, pollDeviceCodeCmd(ctx, selected.ID, resp.DeviceCode, interval, oauthProvider.TokenURL, oauthProvider.ClientID, m.oauthGen))
 	}
 
 	// Authorization code flow: show dialog and run callback + browser flow.
@@ -2202,7 +2208,7 @@ func (m Model) startOAuthLogin(selected LoginProviderEntry, pendingCmd tea.Cmd) 
 	loginDlg = loginDlg.SetSize(m.width, m.height).Show()
 	m.dialogStack = m.dialogStack.Push(overlays.NewLoginDialog(dialogLoginOAuth, loginDlg))
 
-	return m, tea.Batch(pendingCmd, runOAuthFlowCmd(ctx, oauthProvider))
+	return m, tea.Batch(pendingCmd, runOAuthFlowCmd(ctx, oauthProvider, m.oauthGen))
 }
 
 func (m Model) onLogoutDialogDone(result overlays.DialogResult, pendingCmd tea.Cmd) (tea.Model, tea.Cmd) {
@@ -2238,6 +2244,9 @@ func (m Model) onLogoutDialogDone(result overlays.DialogResult, pendingCmd tea.C
 	}
 
 	// Re-evaluate noConfigured state and switch to the next available provider.
+	oldModel := m.currentModel
+	oldNoConfigured := m.noConfigured
+
 	models := listModels()
 	if len(models) == 0 {
 		m.noConfigured = true
@@ -2249,7 +2258,7 @@ func (m Model) onLogoutDialogDone(result overlays.DialogResult, pendingCmd tea.C
 		m.footer = m.footer.SetReasoning(modelReasoning(cur.Model))
 	}
 
-	if m.bus != nil {
+	if m.bus != nil && (m.noConfigured != oldNoConfigured || m.currentModel != oldModel) {
 		cmds = append(cmds, PublishModelChange(m.bus, m.currentModel))
 	}
 
@@ -2277,6 +2286,11 @@ func (m Model) handleDialogDone(d overlays.Dialog, pendingCmd tea.Cmd) (tea.Mode
 	case dialogLoginOAuth:
 		// Login OAuth dialog was dismissed (user canceled or flow completed).
 		// The actual flow result is handled by LoginFlowResultMsg.
+		if m.oauthCancel != nil {
+			m.oauthCancel()
+			m.oauthCancel = nil
+		}
+
 		return m, pendingCmd
 	default:
 		// Popup dialogs: send result on channel.

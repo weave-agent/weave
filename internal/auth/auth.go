@@ -249,12 +249,12 @@ func RefreshOAuthToken(ctx context.Context, providerName, tokenURL, clientID str
 
 	cred := auth.GetOAuthCredential(providerName)
 	if cred.RefreshToken == "" {
-		return OAuthCredential{}, fmt.Errorf("%s auth expired: refresh token missing", providerName)
+		return cred, fmt.Errorf("%s auth expired: refresh token missing", providerName)
 	}
 
 	tokenResp, err := RefreshToken(ctx, tokenURL, clientID, cred.RefreshToken)
 	if err != nil {
-		return OAuthCredential{}, fmt.Errorf("%s auth expired: %w", providerName, err)
+		return cred, fmt.Errorf("%s auth expired: %w", providerName, err)
 	}
 
 	refreshed := OAuthCredential{

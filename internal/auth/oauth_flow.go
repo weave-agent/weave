@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os/exec"
@@ -377,12 +378,16 @@ func RunAuthorizationCodeFlow(ctx context.Context, authURL, tokenURL, clientID, 
 	if err != nil {
 		return OAuthCredential{}, fmt.Errorf("start callback server: %w", err)
 	}
+	defer cs.shutdown()
 
 	resolvedRedirect := cs.RedirectURI()
 	authCodeURL := AuthorizationCodeURL(authURL, clientID, resolvedRedirect, state, pkce, scopes, extraParams)
 
 	if openErr := OpenBrowser(authCodeURL); openErr != nil {
-		return OAuthCredential{}, fmt.Errorf("open browser: %w", openErr)
+		// Browser open failed (e.g., headless system), but the user can still
+		// navigate manually. Log the issue and continue waiting for callback.
+		//nolint:sloglint // logging before continuing
+		slog.Warn("failed to open browser, please navigate manually", "url", authCodeURL, "error", openErr)
 	}
 
 	// Wait for callback result

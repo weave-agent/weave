@@ -25,12 +25,13 @@ func TestPollDeviceCodeCmd_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	cmd := pollDeviceCodeCmd(context.Background(), "test-provider", "dc-123", 1, server.URL, "client-id")
+	cmd := pollDeviceCodeCmd(context.Background(), "test-provider", "dc-123", 1, server.URL, "client-id", 1)
 	msg := cmd()
 
 	result, ok := msg.(LoginFlowResultMsg)
 	require.True(t, ok)
 	assert.Equal(t, "test-provider", result.Provider)
+	assert.Equal(t, 1, result.Gen)
 	require.NoError(t, result.Error)
 	assert.Equal(t, "at-test", result.Credential.AccessToken)
 	assert.Equal(t, "rt-test", result.Credential.RefreshToken)
@@ -47,12 +48,13 @@ func TestPollDeviceCodeCmd_Error(t *testing.T) {
 	}))
 	defer server.Close()
 
-	cmd := pollDeviceCodeCmd(context.Background(), "test-provider", "dc-123", 1, server.URL, "client-id")
+	cmd := pollDeviceCodeCmd(context.Background(), "test-provider", "dc-123", 1, server.URL, "client-id", 2)
 	msg := cmd()
 
 	result, ok := msg.(LoginFlowResultMsg)
 	require.True(t, ok)
 	assert.Equal(t, "test-provider", result.Provider)
+	assert.Equal(t, 2, result.Gen)
 	require.Error(t, result.Error)
 	assert.Contains(t, result.Error.Error(), "access_denied")
 }
