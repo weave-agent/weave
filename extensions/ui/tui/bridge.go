@@ -87,6 +87,7 @@ type SessionListResultMsg struct {
 // SessionResumedMsg is sent when a session resume event arrives from the bus.
 type SessionResumedMsg struct {
 	SessionID string
+	Messages  []sdk.Message
 }
 
 // ModelListResultMsg carries the result of listing available models.
@@ -149,14 +150,11 @@ func translateEvent(evt sdk.Event) tea.Msg {
 	case topicEnd:
 		return AgentEndMsg{Payload: evt.Payload}
 	case topicSessionResume:
-		switch p := evt.Payload.(type) {
-		case string:
-			return SessionResumedMsg{SessionID: p}
-		case sdk.SessionResumePayload:
-			return SessionResumedMsg{SessionID: p.SessionID}
-		default:
-			return SessionResumedMsg{}
+		if p, ok := evt.Payload.(sdk.SessionResumePayload); ok {
+			return SessionResumedMsg{SessionID: p.SessionID, Messages: p.Messages}
 		}
+
+		return SessionResumedMsg{}
 	case topicModelChangeFailed:
 		return translateModelChangeFailed(evt.Payload)
 	case topicExtOutdated:

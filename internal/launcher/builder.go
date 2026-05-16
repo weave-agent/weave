@@ -607,6 +607,8 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 	b.WriteString("\tif continueFlag != \"\" {\n")
 	b.WriteString("\t\tif parsed, err := strconv.ParseBool(continueFlag); err == nil {\n")
 	b.WriteString("\t\t\tcore.Continue = parsed\n")
+	b.WriteString("\t\t} else {\n")
+	b.WriteString("\t\t\tfmt.Fprintf(os.Stderr, \"weave: invalid --weave-continue value %q\\n\", continueFlag)\n")
 	b.WriteString("\t\t}\n")
 	b.WriteString("\t}\n")
 	b.WriteString("\tif resumeID != \"\" {\n")

@@ -188,7 +188,7 @@ func loadSessionEntries(dirOverride, sessionID string) ([]sessionEntryData, erro
 		}
 	}
 
-	if strings.Contains(sessionID, "..") || strings.ContainsAny(sessionID, `/\`) {
+	if !isValidSessionID(sessionID) {
 		return nil, fmt.Errorf("invalid session ID: %s", sessionID)
 	}
 
@@ -247,6 +247,20 @@ func listSessionsCmd(dirOverride string) tea.Cmd {
 		sessions, err := listSessions(dirOverride)
 		return SessionListResultMsg{Sessions: sessions, Err: err}
 	}
+}
+
+func isValidSessionID(id string) bool {
+	if id == "" {
+		return false
+	}
+
+	for _, c := range id {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+
+	return true
 }
 
 func splitSessionLines(data []byte) []string {

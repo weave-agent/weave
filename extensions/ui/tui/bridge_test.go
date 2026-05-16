@@ -135,7 +135,7 @@ func TestTranslateEvent_SessionResume_StringPayload(t *testing.T) {
 	msg := translateEvent(sdk.NewEvent(topicSessionResume, "sess-123"))
 	sr, ok := msg.(SessionResumedMsg)
 	require.True(t, ok)
-	assert.Equal(t, "sess-123", sr.SessionID)
+	assert.Empty(t, sr.SessionID)
 }
 
 func TestTranslateEvent_SessionResume_PayloadStruct(t *testing.T) {
@@ -146,6 +146,9 @@ func TestTranslateEvent_SessionResume_PayloadStruct(t *testing.T) {
 	sr, ok := msg.(SessionResumedMsg)
 	require.True(t, ok)
 	assert.Equal(t, "sess-456", sr.SessionID)
+	require.Len(t, sr.Messages, 1)
+	assert.Equal(t, sdk.RoleUser, sr.Messages[0].Role)
+	assert.Equal(t, "hello", sr.Messages[0].Content)
 }
 
 func TestTranslateEvent_SessionResume_UnknownPayload(t *testing.T) {

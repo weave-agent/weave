@@ -226,10 +226,7 @@ func (s *Store) handleSessionResume(evt sdk.Event) {
 		return
 	}
 
-	var (
-		lastEntryID string
-		maxTurn     int
-	)
+	var lastEntryID string
 
 	sess, err := s.Load(payload.SessionID)
 	if err != nil {
@@ -239,13 +236,11 @@ func (s *Store) handleSessionResume(evt sdk.Event) {
 	if len(sess.Entries) > 0 {
 		last := sess.Entries[len(sess.Entries)-1]
 		lastEntryID = last.ID
-		maxTurn = last.Turn
 	}
 
 	s.mu.Lock()
 	s.sessionID = payload.SessionID
 	s.lastEntry = lastEntryID
-	s.turn = maxTurn
 	s.mu.Unlock()
 }
 
@@ -700,6 +695,7 @@ type rawMessage struct {
 	Content   any             `json:"content"`
 	ToolCalls json.RawMessage `json:"tool_calls"`
 	Tool      json.RawMessage `json:"tool"`
+	Thinking  string          `json:"thinking"`
 }
 
 func entryToMessage(entry Entry) (sdk.Message, error) {
@@ -723,6 +719,10 @@ func entryToMessage(entry Entry) (sdk.Message, error) {
 			}
 
 			msg.ToolCalls = tcs
+		}
+
+		if raw.Thinking != "" {
+			msg.Thinking = []sdk.SignedThinking{{Thinking: raw.Thinking}}
 		}
 	case sdk.RoleToolResult:
 		if err := applyToolResult(&msg, raw.Tool); err != nil {

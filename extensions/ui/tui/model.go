@@ -612,7 +612,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case SessionResumedMsg:
 		if msg.SessionID != "" {
-			m.rebuildChatFromSession(msg.SessionID)
+			if len(msg.Messages) > 0 {
+				m.rebuildChatFromMessages(msg.Messages)
+			} else {
+				m.rebuildChatFromSession(msg.SessionID)
+			}
+
 			m.showLanding = false
 			m.prompted = true
 		}
@@ -1944,6 +1949,55 @@ func (m *Model) rebuildChatFromSession(sessionID string) {
 			}
 
 			panel.SetResult(toolContent, toolIsError)
+			m.chat = m.chat.UpdateItemByID(panel)
+		}
+	}
+}
+
+// rebuildChatFromMessages rebuilds the chat display from sdk.Message slices.
+// Used when Messages are available directly from the event payload.
+func (m *Model) rebuildChatFromMessages(msgs []sdk.Message) {
+	m.chat = components.NewChatModel().SetSize(m.width, m.chatHeight(m.height))
+	m.toolPanels = make(map[string]*messages.ToolPanel)
+
+	for _, msg := range msgs {
+		content := ""
+
+		if msg.Content != nil {
+			if s, ok := msg.Content.(string); ok {
+				content = s
+			} else {
+				content = fmt.Sprint(msg.Content)
+			}
+		}
+
+		switch msg.Role {
+		case sdk.RoleUser:
+			m.chat = m.chat.AddItem(messages.NewUserMessage(content))
+		case sdk.RoleAssistant:
+			if len(msg.Thinking) > 0 {
+				m.chat = m.chat.AddItem(messages.NewThinkingBlock(msg.Thinking[0].Thinking))
+			}
+
+			am := messages.NewAssistantMessage()
+			am.Finalize(content)
+			m.chat = m.chat.AddItem(am)
+
+			for _, tc := range msg.ToolCalls {
+				args, _ := json.Marshal(tc.Arguments)
+				panel := messages.NewToolPanel(tc.ID, tc.Name, string(args))
+				m.toolPanels[tc.ID] = panel
+				m.chat = m.chat.AddItem(panel)
+			}
+		case sdk.RoleToolResult:
+			panel, ok := m.toolPanels[msg.ToolCallID]
+			if !ok {
+				panel = messages.NewToolPanel(msg.ToolCallID, msg.ToolName, "")
+				m.toolPanels[msg.ToolCallID] = panel
+				m.chat = m.chat.AddItem(panel)
+			}
+
+			panel.SetResult(content, msg.IsError)
 			m.chat = m.chat.UpdateItemByID(panel)
 		}
 	}

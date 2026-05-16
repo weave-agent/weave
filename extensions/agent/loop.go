@@ -309,6 +309,23 @@ func (a *AgentExtension) run(
 				return
 			}
 
+			// Drain any concurrent session resume before processing the followup
+			// so that resumed history is always loaded first.
+			select {
+			case resumeEvt, resumeOk := <-sessionResumeCh:
+				if resumeOk {
+					if payload, ok := resumeEvt.Payload.(sdk.SessionResumePayload); ok {
+						messages = payload.Messages
+						a.sessionID = payload.SessionID
+						a.resumed = true
+						a.fileOps = newFileOperations()
+					}
+				}
+
+				goto waitForInput
+			default:
+			}
+
 			provider = a.drainChanges(modelChangeCh, thinkingCh, bus, provider)
 
 			messages = append(messages, sdk.NewUserMessage(evt.Payload))
@@ -343,6 +360,23 @@ func (a *AgentExtension) run(
 		case evt, ok := <-promptCh:
 			if !ok {
 				return
+			}
+
+			// Drain any concurrent session resume before processing the prompt
+			// so that resumed history is always loaded first.
+			select {
+			case resumeEvt, resumeOk := <-sessionResumeCh:
+				if resumeOk {
+					if payload, ok := resumeEvt.Payload.(sdk.SessionResumePayload); ok {
+						messages = payload.Messages
+						a.sessionID = payload.SessionID
+						a.resumed = true
+						a.fileOps = newFileOperations()
+					}
+				}
+
+				goto waitForInput
+			default:
 			}
 
 			provider = a.drainChanges(modelChangeCh, thinkingCh, bus, provider)

@@ -746,11 +746,12 @@ func TestSubscribe_ResumesSession(t *testing.T) {
 	}))
 	time.Sleep(50 * time.Millisecond)
 
-	// Verify internal state
+	// Verify internal state — turn is NOT advanced to maxTurn; it stays at 0
+	// so the first prompt after resume appends at turn 1, matching the agent loop.
 	s.mu.Lock()
 	assert.Equal(t, sess.Header.ID, s.sessionID)
 	assert.Equal(t, id2, s.lastEntry)
-	assert.Equal(t, 2, s.turn)
+	assert.Equal(t, 0, s.turn)
 	s.mu.Unlock()
 
 	// Now publish agent.prompt - should append to resumed session, not create new
@@ -762,7 +763,7 @@ func TestSubscribe_ResumesSession(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, loaded.Entries, 3)
 
-	assert.Equal(t, 3, loaded.Entries[2].Turn)
+	assert.Equal(t, 1, loaded.Entries[2].Turn)
 
 	var data map[string]any
 	require.NoError(t, json.Unmarshal(loaded.Entries[2].Data, &data))
@@ -803,7 +804,7 @@ func TestSubscribe_ResumesSession_Followup(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, loaded.Entries, 2)
 
-	assert.Equal(t, 2, loaded.Entries[1].Turn)
+	assert.Equal(t, 1, loaded.Entries[1].Turn)
 
 	var data map[string]any
 	require.NoError(t, json.Unmarshal(loaded.Entries[1].Data, &data))
@@ -835,7 +836,7 @@ func TestSubscribe_ResumesSession_MsgEndAndToolResult(t *testing.T) {
 	b.Publish(sdk.NewEvent("agent.prompt", "show me"))
 	time.Sleep(50 * time.Millisecond)
 
-	b.Publish(sdk.NewEvent("agent.turn_start", 2))
+	b.Publish(sdk.NewEvent("agent.turn_start", 1))
 	b.Publish(sdk.NewEvent("agent.message_end", "here are the files"))
 	time.Sleep(50 * time.Millisecond)
 
@@ -855,9 +856,9 @@ func TestSubscribe_ResumesSession_MsgEndAndToolResult(t *testing.T) {
 	// Entry 3: assistant message "here are the files"
 	// Entry 4: tool result
 
-	assert.Equal(t, 2, loaded.Entries[1].Turn)
-	assert.Equal(t, 2, loaded.Entries[2].Turn)
-	assert.Equal(t, 2, loaded.Entries[3].Turn)
+	assert.Equal(t, 1, loaded.Entries[1].Turn)
+	assert.Equal(t, 1, loaded.Entries[2].Turn)
+	assert.Equal(t, 1, loaded.Entries[3].Turn)
 
 	var data3 map[string]any
 	require.NoError(t, json.Unmarshal(loaded.Entries[2].Data, &data3))
