@@ -114,6 +114,9 @@ type Model struct {
 	// theme is the active color theme for rendering.
 	theme *palette.Theme
 
+	// agentState tracks current agent activity for accent color and pulse.
+	agentState palette.State
+
 	// panel system
 	panelManager *PanelManager
 	panelTray    PanelTray
@@ -685,6 +688,38 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ThinkingLevelSetMsg:
 		return m.applyThinkingLevel(msg.Level)
+
+	case AgentStateChangeMsg:
+		m.agentState = msg.State
+		accent, accentDim, accentBright := palette.AccentForState(msg.State)
+		m.theme = &palette.Theme{
+			Foreground:            m.theme.Foreground,
+			ForegroundDim:         m.theme.ForegroundDim,
+			ForegroundBright:      m.theme.ForegroundBright,
+			Muted:                 m.theme.Muted,
+			MutedBright:           m.theme.MutedBright,
+			Background:            m.theme.Background,
+			BackgroundTint:        m.theme.BackgroundTint,
+			BackgroundTint2:       m.theme.BackgroundTint2,
+			Border:                m.theme.Border,
+			BorderFocused:         m.theme.BorderFocused,
+			Success:               m.theme.Success,
+			Error:                 m.theme.Error,
+			Warning:               m.theme.Warning,
+			BackgroundTintPending: m.theme.BackgroundTintPending,
+			BackgroundTintSuccess: m.theme.BackgroundTintSuccess,
+			BackgroundTintError:   m.theme.BackgroundTintError,
+			Accent:                accent,
+			AccentDim:             accentDim,
+			AccentBright:          accentBright,
+		}
+		m.editor = m.editor.SetBorderColor(accent)
+
+		// Enable/disable pulse animation based on active state
+		active := msg.State == palette.StateStreaming || msg.State == palette.StateToolRunning
+		m.editor = m.editor.SetPulseActive(active)
+
+		return m, nil
 
 	case OutdatedNotificationMsg:
 		return m.onOutdatedExtensions(msg)
@@ -2002,8 +2037,10 @@ func (m *Model) rebuildChatFromMessages(msgs []sdk.Message) {
 
 // parseToolEntry extracts tool call ID, name, content, and error flag from a stored tool entry.
 func parseToolEntry(raw json.RawMessage) (id, name, content string, isError bool) {
+	const defaultTool = "tool"
+
 	if len(raw) == 0 {
-		return "", "tool", "", false
+		return "", defaultTool, "", false
 	}
 
 	var toolData struct {
@@ -2016,14 +2053,14 @@ func parseToolEntry(raw json.RawMessage) (id, name, content string, isError bool
 	}
 
 	if err := json.Unmarshal(raw, &toolData); err != nil {
-		return "", "tool", "", false
+		return "", defaultTool, "", false
 	}
 
 	id = toolData.ID
 
 	name = toolData.Tool
 	if name == "" {
-		name = "tool"
+		name = defaultTool
 	}
 
 	return id, name, toolData.Result.Content, toolData.Result.IsError

@@ -5,6 +5,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"weave/ext/ui/tui/palette"
 	"weave/sdk"
 	sdkmodel "weave/sdk/model"
 
@@ -122,6 +123,67 @@ type CompactedMsg struct {
 	TokensBefore int
 	TokensAfter  int
 	Error        string
+}
+
+// AgentStateChangeMsg is sent when the agent activity state changes.
+// The UI updates accent colors and editor pulse animation based on this.
+type AgentStateChangeMsg struct {
+	State palette.State
+}
+
+// agentStateTracker tracks agent activity state from bus events.
+// It lives in the Bridge goroutine and sends state changes to the program.
+type agentStateTracker struct {
+	state     palette.State
+	toolCount int // pending tool calls awaiting results
+}
+
+func newAgentStateTracker() *agentStateTracker {
+	return &agentStateTracker{state: palette.StateIdle}
+}
+
+// update computes the new state based on an incoming event message.
+// Returns the new state and whether it changed.
+func (t *agentStateTracker) update(msg tea.Msg) (palette.State, bool) {
+	prev := t.state
+
+	switch msg := msg.(type) {
+	case TurnStartMsg:
+		t.state = palette.StateStreaming
+		t.toolCount = 0
+	case MessageStartMsg:
+		if t.state == palette.StateStreaming || t.state == palette.StateToolRunning {
+			t.state = palette.StateStreaming
+		}
+	case ToolResultMsg:
+		if t.toolCount > 0 {
+			t.toolCount--
+		}
+
+		if t.toolCount > 0 {
+			t.state = palette.StateToolRunning
+		} else if t.state == palette.StateToolRunning {
+			t.state = palette.StateStreaming
+		}
+	case MessageEndMsg:
+		if len(msg.ToolCalls) > 0 {
+			t.toolCount += len(msg.ToolCalls)
+			t.state = palette.StateToolRunning
+		}
+	case TurnEndMsg:
+		t.state = palette.StateIdle
+		t.toolCount = 0
+	case AgentEndMsg:
+		if errStr, ok := msg.Payload.(string); ok && errStr != "" {
+			t.state = palette.StateError
+		} else {
+			t.state = palette.StateIdle
+		}
+
+		t.toolCount = 0
+	}
+
+	return t.state, t.state != prev
 }
 
 // ProviderListResultMsg carries the result of listing providers with key status.
@@ -249,14 +311,20 @@ func translateCompacted(payload any) CompactedMsg {
 // Blocks until the event channel is closed.
 func Bridge(sender Sender, events <-chan sdk.Event) {
 	var (
-		streamStart time.Time
-		streamRunes int
+		streamStart  time.Time
+		streamRunes  int
+		stateTracker = newAgentStateTracker()
 	)
 
 	for evt := range events {
 		msg := translateEvent(evt)
 		if msg == nil {
 			continue
+		}
+
+		// Track agent state changes
+		if newState, changed := stateTracker.update(msg); changed {
+			sender.Send(AgentStateChangeMsg{State: newState})
 		}
 
 		// Reset rate tracking at message boundaries
@@ -310,6 +378,11 @@ func Bridge(sender Sender, events <-chan sdk.Event) {
 								TokenRate: calcTokenRate(streamStart, streamRunes),
 							})
 							batch.Reset()
+						}
+
+						// Track state for non-delta messages found during drain
+						if newState, changed := stateTracker.update(nextMsg); changed {
+							sender.Send(AgentStateChangeMsg{State: newState})
 						}
 
 						// Reset rate at message boundaries found during drain

@@ -305,19 +305,21 @@ func TestBridge_IntegrationWithRealBus(t *testing.T) {
 
 	<-done
 
-	require.Len(t, sender.msgs, 7) // 6 events + shutdown
+	require.Len(t, sender.msgs, 9) // 6 events + 2 state changes + shutdown
 
-	assert.IsType(t, TurnStartMsg{}, sender.msgs[0])
-	assert.IsType(t, MessageStartMsg{}, sender.msgs[1])
+	assert.IsType(t, AgentStateChangeMsg{}, sender.msgs[0]) // Idle→Streaming
+	assert.IsType(t, TurnStartMsg{}, sender.msgs[1])
+	assert.IsType(t, MessageStartMsg{}, sender.msgs[2])
 
-	mu, ok := sender.msgs[2].(MessageUpdateMsg)
+	mu, ok := sender.msgs[3].(MessageUpdateMsg)
 	require.True(t, ok)
 	assert.Equal(t, "hi", mu.Content)
 
-	assert.IsType(t, MessageEndMsg{}, sender.msgs[3])
-	assert.IsType(t, TurnEndMsg{}, sender.msgs[4])
-	assert.IsType(t, AgentEndMsg{}, sender.msgs[5])
-	assert.IsType(t, ShutdownMsg{}, sender.msgs[6])
+	assert.IsType(t, MessageEndMsg{}, sender.msgs[4])
+	assert.IsType(t, AgentStateChangeMsg{}, sender.msgs[5]) // Streaming→Idle
+	assert.IsType(t, TurnEndMsg{}, sender.msgs[6])
+	assert.IsType(t, AgentEndMsg{}, sender.msgs[7])
+	assert.IsType(t, ShutdownMsg{}, sender.msgs[8])
 }
 
 func TestPublishPrompt(t *testing.T) {

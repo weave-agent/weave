@@ -657,3 +657,85 @@ func TestEditorPlaceholderStyleIsMuted(t *testing.T) {
 	placeholderFg := styles.Focused.Placeholder.GetForeground()
 	assert.Equal(t, lipgloss.Color(palette.DefaultTheme().Muted), placeholderFg)
 }
+
+// --- Pulse animation tests ---
+
+func TestEditorSetPulseActive(t *testing.T) {
+	m := NewEditorModel()
+	assert.False(t, m.PulseActive)
+
+	m = m.SetPulseActive(true)
+	assert.True(t, m.PulseActive)
+
+	m = m.SetPulseActive(false)
+	assert.False(t, m.PulseActive)
+	assert.Equal(t, 0, m.PulsePos) // deactivated resets position
+}
+
+func TestEditorSetPulsePos(t *testing.T) {
+	m := NewEditorModel()
+	m = m.SetPulseActive(true)
+
+	m = m.SetPulsePos(3)
+	assert.Equal(t, 3, m.PulsePos)
+
+	// Wraps around at 8
+	m = m.SetPulsePos(10)
+	assert.Equal(t, 2, m.PulsePos) // 10 % 8 = 2
+}
+
+func TestEditorDraw_PulseNotActiveNoOverlay(t *testing.T) {
+	m := NewEditorModel().SetSize(40, 3)
+	m = m.SetValue("test")
+
+	scr := uv.NewScreenBuffer(40, 5)
+	m.Draw(scr, uv.Rect(0, 0, 40, 5))
+	rendered := scr.Render()
+
+	// No pulse active — should just render normally
+	assert.Contains(t, rendered, "test")
+}
+
+func TestEditorDraw_PulseActiveOverlaysCornerColor(t *testing.T) {
+	m := NewEditorModel().SetSize(40, 3)
+	m = m.SetValue("test")
+	m = m.SetPulseActive(true)
+	m = m.SetPulsePos(0) // TL corner
+
+	scr := uv.NewScreenBuffer(40, 5)
+	m.Draw(scr, uv.Rect(0, 0, 40, 5))
+
+	// Verify the pulse didn't crash and the editor still renders
+	rendered := scr.Render()
+	assert.Contains(t, rendered, "test")
+}
+
+func TestEditorDraw_PulseTrailingPosition(t *testing.T) {
+	m := NewEditorModel().SetSize(40, 3)
+	m = m.SetValue("test")
+	m = m.SetPulseActive(true)
+	m = m.SetPulsePos(1) // position 1, trailing is position 0
+
+	scr := uv.NewScreenBuffer(40, 5)
+	m.Draw(scr, uv.Rect(0, 0, 40, 5))
+
+	// Verify no crash and content renders
+	rendered := scr.Render()
+	assert.Contains(t, rendered, "test")
+}
+
+func TestEditorDraw_PulseCyclesThroughPositions(t *testing.T) {
+	m := NewEditorModel().SetSize(40, 3)
+	m = m.SetValue("test")
+	m = m.SetPulseActive(true)
+
+	scr := uv.NewScreenBuffer(40, 5)
+
+	for pos := range 8 {
+		m = m.SetPulsePos(pos)
+		m.Draw(scr, uv.Rect(0, 0, 40, 5))
+	}
+
+	rendered := scr.Render()
+	assert.Contains(t, rendered, "test")
+}

@@ -91,13 +91,13 @@ A complete visual redesign of the weave terminal UI, moving from a generic purpl
 
 ### Task 4: Wire up activity state and agent pulse
 
-- [ ] Update `bridge.go`: publish `AgentStateChangeMsg` events based on bus events (turn_start -> Streaming, tool_result while pending -> ToolRunning, turn_end -> Idle, agent.end error -> Error)
-- [ ] Update `model.go`: handle `AgentStateChangeMsg`, update `m.theme.Accent`, trigger redraw; update `drawPills` to use accent; update header/status rendering
-- [ ] Update `components/editor.go`: implement pulse animation in Draw() based on pulse position and accent state
-- [ ] Update `tui_ext_api.go`: update `ThemeDef` and `toPaletteTheme()` to include new accent fields; update `Theme()` to return accent values
-- [ ] Update `sdk/ui.go`: update `ThemeInfo` struct with new accent fields
-- [ ] Write/update tests for state wiring and pulse animation
-- [ ] Run tests: `cd extensions/ui/tui && go test ./...` — must pass
+- [x] Update `bridge.go`: publish `AgentStateChangeMsg` events based on bus events (turn_start -> Streaming, tool_result while pending -> ToolRunning, turn_end -> Idle, agent.end error -> Error)
+- [x] Update `model.go`: handle `AgentStateChangeMsg`, update `m.theme.Accent`, trigger redraw; update `drawPills` to use accent; update header/status rendering
+- [x] Update `components/editor.go`: implement pulse animation in Draw() based on pulse position and accent state
+- [x] Update `tui_ext_api.go`: update `ThemeDef` and `toPaletteTheme()` to include new accent fields; update `Theme()` to return accent values
+- [x] Update `sdk/ui.go`: update `ThemeInfo` struct with new accent fields
+- [x] Write/update tests for state wiring and pulse animation
+- [x] Run tests: `cd extensions/ui/tui && go test ./...` — must pass
 
 ### Task 5: Cross-module updates and root tests
 

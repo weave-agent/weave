@@ -25,6 +25,10 @@ type EditorModel struct {
 	// BorderColor is the current border color (ANSI color code or name).
 	BorderColor string
 
+	// Pulse animation state
+	PulsePos    int  // 0-7 position for pulse animation (0 = inactive)
+	PulseActive bool // true when agent is actively working
+
 	// history
 	history    []string
 	histIdx    int
@@ -162,6 +166,23 @@ func (m EditorModel) SetBorderColor(color string) EditorModel {
 	styles.Focused.Base = borderStyle(color)
 	styles.Blurred.Base = borderStyle(palette.DefaultTheme().Border)
 	m.ta.SetStyles(styles)
+
+	return m
+}
+
+// SetPulseActive enables or disables the pulse animation on the editor border.
+func (m EditorModel) SetPulseActive(active bool) EditorModel {
+	m.PulseActive = active
+	if !active {
+		m.PulsePos = 0
+	}
+
+	return m
+}
+
+// SetPulsePos updates the pulse animation position (0-7).
+func (m EditorModel) SetPulsePos(pos int) EditorModel {
+	m.PulsePos = pos % 8
 
 	return m
 }
@@ -751,6 +772,59 @@ func (m EditorModel) Draw(scr uv.Screen, area uv.Rectangle) {
 
 	uv.NewStyledString(m.View()).Draw(scr, area)
 	m.drawSelectionHighlight(scr, area)
+
+	if m.PulseActive && m.PulsePos > 0 {
+		m.drawPulse(scr, area)
+	}
+}
+
+// drawPulse overlays colored border cells for the pulse animation.
+// Positions 0-3 are corners (TL, TR, BR, BL), positions 4-7 are edges (top, right, bottom, left).
+func (m EditorModel) drawPulse(scr uv.Screen, area uv.Rectangle) {
+	theme := palette.DefaultTheme()
+
+	type segment struct {
+		x, y int
+	}
+
+	w := area.Dx()
+	h := area.Dy()
+
+	// Build 8 segments: 4 corners + 4 edge midpoints
+	segments := [8]segment{
+		{area.Min.X, area.Min.Y},           // 0: TL
+		{area.Max.X - 1, area.Min.Y},       // 1: TR
+		{area.Max.X - 1, area.Max.Y - 1},   // 2: BR
+		{area.Min.X, area.Max.Y - 1},       // 3: BL
+		{area.Min.X + w/2, area.Min.Y},     // 4: top edge
+		{area.Max.X - 1, area.Min.Y + h/2}, // 5: right edge
+		{area.Min.X + w/2, area.Max.Y - 1}, // 6: bottom edge
+		{area.Min.X, area.Min.Y + h/2},     // 7: left edge
+	}
+
+	// Compute colors: AccentBright at current position, Accent at trailing, BorderFocused for rest
+	pos := m.PulsePos % 8
+	trailing := (pos - 1 + 8) % 8
+
+	for i, seg := range segments {
+		var color string
+
+		switch i {
+		case pos:
+			color = theme.AccentBright
+		case trailing:
+			color = theme.Accent
+		default:
+			continue // don't override other border cells
+		}
+
+		cell := scr.CellAt(seg.x, seg.y)
+		if cell != nil && !cell.IsZero() {
+			newCell := cell.Clone()
+			newCell.Style.Fg = lipgloss.Color(color)
+			scr.SetCell(seg.x, seg.y, newCell)
+		}
+	}
 }
 
 func (m EditorModel) drawSelectionHighlight(scr uv.Screen, area uv.Rectangle) {
