@@ -773,7 +773,7 @@ func (m EditorModel) Draw(scr uv.Screen, area uv.Rectangle) {
 	uv.NewStyledString(m.View()).Draw(scr, area)
 	m.drawSelectionHighlight(scr, area)
 
-	if m.PulseActive && m.PulsePos > 0 {
+	if m.PulseActive {
 		m.drawPulse(scr, area)
 	}
 }

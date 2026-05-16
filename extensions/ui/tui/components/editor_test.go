@@ -752,14 +752,14 @@ func TestEditorDraw_PulseCyclesThroughPositions(t *testing.T) {
 
 		// Verify current position has AccentBright, trailing has Accent
 		segments := [8]struct{ x, y int }{
-			{0, 0},      // 0: TL
-			{39, 0},     // 1: TR
-			{39, 4},     // 2: BR
-			{0, 4},      // 3: BL
-			{20, 0},     // 4: top edge
-			{39, 2},     // 5: right edge
-			{20, 4},     // 6: bottom edge
-			{0, 2},      // 7: left edge
+			{0, 0},  // 0: TL
+			{39, 0}, // 1: TR
+			{39, 4}, // 2: BR
+			{0, 4},  // 3: BL
+			{20, 0}, // 4: top edge
+			{39, 2}, // 5: right edge
+			{20, 4}, // 6: bottom edge
+			{0, 2},  // 7: left edge
 		}
 
 		trailing := (pos - 1 + 8) % 8
@@ -769,6 +769,7 @@ func TestEditorDraw_PulseCyclesThroughPositions(t *testing.T) {
 			if cell == nil || cell.IsZero() {
 				continue
 			}
+
 			switch i {
 			case pos:
 				assert.Equal(t, lipgloss.Color(palette.DefaultTheme().AccentBright), cell.Style.Fg,

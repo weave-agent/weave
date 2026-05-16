@@ -113,6 +113,38 @@ func TestFooterView_ContextPctRed(t *testing.T) {
 	assert.Contains(t, view, "ctx:95%")
 }
 
+func TestFooterView_ContextPctAt70_IsSuccess(t *testing.T) {
+	f := NewFooterModel().SetSize(80).SetContextPct(70)
+	view := f.View()
+	assert.Contains(t, view, "ctx:70%")
+	// 70% should use Success color (114), not Warning (172)
+	assert.Contains(t, view, "114")
+}
+
+func TestFooterView_ContextPctAt71_IsWarning(t *testing.T) {
+	f := NewFooterModel().SetSize(80).SetContextPct(71)
+	view := f.View()
+	assert.Contains(t, view, "ctx:71%")
+	// 71% should use Warning color (172), not Success (114)
+	assert.Contains(t, view, "172")
+}
+
+func TestFooterView_ContextPctAt90_IsWarning(t *testing.T) {
+	f := NewFooterModel().SetSize(80).SetContextPct(90)
+	view := f.View()
+	assert.Contains(t, view, "ctx:90%")
+	// 90% should use Warning color (172), not Error (167)
+	assert.Contains(t, view, "172")
+}
+
+func TestFooterView_ContextPctAt91_IsError(t *testing.T) {
+	f := NewFooterModel().SetSize(80).SetContextPct(91)
+	view := f.View()
+	assert.Contains(t, view, "ctx:91%")
+	// 91% should use Error color (167)
+	assert.Contains(t, view, "167")
+}
+
 func TestFooterView_EmptyState(t *testing.T) {
 	f := NewFooterModel().SetSize(80)
 	view := f.View()

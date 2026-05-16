@@ -210,21 +210,21 @@ func TestWrapList(t *testing.T) {
 	items := []string{"agent", "tui", "bash", "read", "edit", "write"}
 
 	// Wide enough for all items on one line
-	lines := wrapList("    ", items, 80)
+	lines := wrapList(items, 80)
 	require.Len(t, lines, 1)
 	assert.Equal(t, "    agent, tui, bash, read, edit, write", lines[0])
 
 	// Narrow width forces wrapping
-	lines = wrapList("    ", items, 30)
+	lines = wrapList(items, 30)
 	require.GreaterOrEqual(t, len(lines), 2)
 	assert.True(t, strings.HasPrefix(lines[0], "    "))
 	assert.Contains(t, lines[0], "agent")
 
 	// Empty list returns nil
-	assert.Nil(t, wrapList("    ", nil, 80))
+	assert.Nil(t, wrapList(nil, 80))
 
 	// Zero width falls back to single line
-	lines = wrapList("    ", items, 0)
+	lines = wrapList(items, 0)
 	require.Len(t, lines, 1)
 	assert.Equal(t, "    agent, tui, bash, read, edit, write", lines[0])
 }

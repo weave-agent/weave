@@ -164,6 +164,7 @@ func TestSpinnerModel_ColorPulse_Alternates(t *testing.T) {
 
 	canvas = uv.NewScreenBuffer(80, 1)
 	s.Draw(canvas, canvas.Bounds())
+
 	cell = canvas.CellAt(0, 0)
 	if cell != nil && !cell.IsZero() {
 		assert.Equal(t, lipgloss.Color(palette.DefaultTheme().AccentBright), cell.Style.Fg)
@@ -180,6 +181,7 @@ func TestSpinnerModel_ColorPulse_CyclesBack(t *testing.T) {
 	// After a full cycle, back to Accent
 	canvas := uv.NewScreenBuffer(80, 1)
 	s.Draw(canvas, canvas.Bounds())
+
 	cell := canvas.CellAt(0, 0)
 	if cell != nil && !cell.IsZero() {
 		assert.Equal(t, lipgloss.Color(palette.DefaultTheme().Accent), cell.Style.Fg)

@@ -99,9 +99,8 @@ func (m LandingModel) buildLines() []string {
 	}
 
 	if len(m.extensions) > 0 {
-		lines = append(lines, "", "rule:")
-		lines = append(lines, "label:  extensions")
-		for _, extLine := range wrapList("    ", m.extensions, m.width) {
+		lines = append(lines, "", "rule:", "label:  extensions")
+		for _, extLine := range wrapList(m.extensions, m.width) {
 			lines = append(lines, "muted:"+extLine)
 		}
 	}
@@ -117,30 +116,35 @@ func (m LandingModel) buildLines() []string {
 }
 
 // wrapList formats a list of items as comma-separated strings, wrapping when
-// the line exceeds the available width. Each continuation line is prefixed.
-func wrapList(prefix string, items []string, width int) []string {
+// the line exceeds the available width. Each continuation line is prefixed with 4 spaces.
+func wrapList(items []string, width int) []string {
 	if len(items) == 0 {
 		return nil
 	}
+
+	const prefix = "    "
 
 	if width <= 0 {
 		return []string{prefix + strings.Join(items, ", ")}
 	}
 
-	var lines []string
-	var b strings.Builder
+	var (
+		lines []string
+		b     strings.Builder
+	)
 
 	for i, item := range items {
 		if i > 0 {
 			b.WriteString(", ")
 		}
+
 		b.WriteString(item)
 	}
 
 	text := b.String()
 	maxLine := max(width-len(prefix), 10)
 
-	for len(text) > 0 {
+	for text != "" {
 		if len(text) <= maxLine {
 			lines = append(lines, prefix+text)
 			break
@@ -150,6 +154,7 @@ func wrapList(prefix string, items []string, width int) []string {
 		for cut > 0 && text[cut] != ' ' && text[cut] != ',' {
 			cut--
 		}
+
 		if cut == 0 {
 			cut = maxLine
 		}

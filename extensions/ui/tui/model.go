@@ -246,6 +246,7 @@ func newModelWithConfig(bus sdk.Bus, cfg sdk.Config, ps sdk.PreferenceStore, ui 
 // extension registries.
 func listLoadedComponents() []string {
 	seen := make(map[string]bool)
+
 	var names []string
 
 	add := func(list []string) {

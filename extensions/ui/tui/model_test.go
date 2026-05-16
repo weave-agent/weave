@@ -2555,16 +2555,18 @@ func TestModel_ThemeUsedInRendering(t *testing.T) {
 	m.height = 24
 	m.chat = m.chat.SetSize(80, m.chatHeight(24))
 
-	// Set a custom theme with recognizable colors
+	// Set a custom theme with recognizable colors (valid ANSI 256 range: 0-255)
 	m.theme = &palette.Theme{
 		Muted:          "111",
 		BackgroundTint: "222",
-		Foreground:     "333",
+		Foreground:     "201",
 	}
 
 	m.showHints = true
 	m.showLanding = false
 	m.prompted = false
+	m.statusNew = false // Ensure status uses Foreground, not Muted
+	m.editor = m.editor.SetValue("test input")
 
 	canvas := uv.NewScreenBuffer(m.width, m.height)
 	m.Draw(canvas, canvas.Bounds())
@@ -2574,7 +2576,7 @@ func TestModel_ThemeUsedInRendering(t *testing.T) {
 	// Verify custom theme colors are actually used in rendering
 	assert.Contains(t, rendered, "111", "custom Muted color should appear in rendered output")
 	assert.Contains(t, rendered, "222", "custom BackgroundTint color should appear in rendered output")
-	assert.Contains(t, rendered, "333", "custom Foreground color should appear in rendered output")
+	assert.Contains(t, rendered, "201", "custom Foreground color should appear in rendered output")
 }
 
 func TestModel_ThemeUsedInBackdropDimming(t *testing.T) {
