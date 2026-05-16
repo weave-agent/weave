@@ -813,10 +813,10 @@ func TestChatModel_BlankLineBetweenItems(t *testing.T) {
 	view := m.View()
 	lines := splitLines(view)
 
-	// Should have "first", blank line, "second", and padding
+	// Should have "first", dot divider, "second", and padding
 	require.Len(t, lines, 10)
 	assert.Equal(t, "first", lines[0])
-	assert.Empty(t, lines[1])
+	assert.Contains(t, lines[1], "·")
 	assert.Equal(t, "second", lines[2])
 }
 
@@ -1279,13 +1279,13 @@ func TestChatModel_ExtractSelection_AcrossMultipleItems(t *testing.T) {
 	m = m.AddItem(stubItem{text: "second item line1\nsecond item line2"})
 
 	// Select from line 1 of first item through line 1 of second item
-	// Global lines: 0=first line1, 1=first line2, 2=blank sep, 3=second line1, 4=second line2
+	// Global lines: 0=first line1, 1=first line2, 2=dot divider sep, 3=second line1, 4=second line2
 	m = m.StartSelection(1, 6)
 	m = m.ExtendSelection(3, 7)
 	m = m.EndSelection()
 
 	result := m.ExtractSelection()
-	assert.Equal(t, "item line2\n\nsecond", result)
+	assert.Equal(t, "item line2\n·\nsecond", result)
 }
 
 func TestChatModel_ExtractSelection_PartiallyBeyondContent(t *testing.T) {

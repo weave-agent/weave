@@ -1366,7 +1366,7 @@ func TestModel_CycleThinkingLevel(t *testing.T) {
 	m = model.(Model)
 	assert.Equal(t, sdkmodel.ThinkingHigh, m.thinkingLevel)
 	assert.Equal(t, "high", m.footer.ThinkingLevel())
-	assert.Equal(t, "141", m.editor.BorderColor)
+	assert.Equal(t, "248", m.editor.BorderColor)
 
 	// Second press skips xhigh (clamped for Sonnet) and goes to off
 	model, _ = m.dispatchBinding(ActionThinkingCycle)
@@ -1379,7 +1379,7 @@ func TestModel_CycleThinkingLevelWraps(t *testing.T) {
 	m.width = 80
 	m.height = 24
 	m.thinkingLevel = sdkmodel.ThinkingXHigh
-	m.editor = m.editor.SetBorderColor("177")
+	m.editor = m.editor.SetBorderColor("250")
 
 	// Register models so xhigh clamping works
 	sdkmodel.ResetModelRegistry()
@@ -1481,7 +1481,7 @@ func TestModel_CycleThinkingPublishesEvent(t *testing.T) {
 
 func TestModel_EditorBorderMatchesThinkingLevel(t *testing.T) {
 	m := newModel(nil, nil, nil, nil)
-	assert.Equal(t, "69", m.editor.BorderColor) // medium = "69"
+	assert.Equal(t, "246", m.editor.BorderColor) // medium = "246"
 }
 
 func TestModel_ThinkingLevelUpdatesEditorBorder(t *testing.T) {
@@ -1499,13 +1499,13 @@ func TestModel_ThinkingLevelUpdatesEditorBorder(t *testing.T) {
 	model, _ := m.dispatchBinding(ActionThinkingCycle)
 	m = model.(Model)
 	assert.Equal(t, sdkmodel.ThinkingHigh, m.thinkingLevel)
-	assert.Equal(t, "141", m.editor.BorderColor) // high = "139"
+	assert.Equal(t, "248", m.editor.BorderColor) // high = "248"
 
 	// high -> xhigh
 	model, _ = m.dispatchBinding(ActionThinkingCycle)
 	m = model.(Model)
 	assert.Equal(t, sdkmodel.ThinkingXHigh, m.thinkingLevel)
-	assert.Equal(t, "177", m.editor.BorderColor) // xhigh = "177"
+	assert.Equal(t, "250", m.editor.BorderColor) // xhigh = "250"
 }
 
 func TestModel_ThinkingCommand(t *testing.T) {
@@ -1544,7 +1544,7 @@ func TestModel_ThinkingCommand(t *testing.T) {
 
 	assert.Equal(t, sdkmodel.ThinkingHigh, m.thinkingLevel)
 	assert.Equal(t, "high", m.footer.ThinkingLevel())
-	assert.Equal(t, "141", m.editor.BorderColor)
+	assert.Equal(t, "248", m.editor.BorderColor)
 
 	// Execute the batch cmd to trigger bus publish
 	require.NotNil(t, updateCmd)
@@ -1619,7 +1619,7 @@ func TestModel_ThinkingCommandXHighClamped(t *testing.T) {
 
 	// xhigh should be clamped to high for Sonnet
 	assert.Equal(t, sdkmodel.ThinkingHigh, m.thinkingLevel)
-	assert.Equal(t, "141", m.editor.BorderColor)
+	assert.Equal(t, "248", m.editor.BorderColor)
 }
 
 func TestModel_ThinkingCommandAllLevels(t *testing.T) {
@@ -2524,17 +2524,17 @@ func TestModel_ThemeChangedMsg(t *testing.T) {
 
 	// Default theme should be set
 	require.NotNil(t, m.theme)
-	assert.Equal(t, palette.DefaultTheme().Primary, m.theme.Primary)
+	assert.Equal(t, palette.DefaultTheme().Accent, m.theme.Accent)
 
 	// Switch to a custom theme
 	customTheme := &palette.Theme{
-		Primary:    "123",
+		Accent:     "123",
 		Foreground: "255",
 	}
 	updated, _ := m.Update(themeChangedMsg{theme: customTheme})
 	m = updated.(Model)
 
-	assert.Equal(t, "123", m.theme.Primary)
+	assert.Equal(t, "123", m.theme.Accent)
 	assert.Equal(t, "255", m.theme.Foreground)
 }
 

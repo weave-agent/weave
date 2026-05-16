@@ -29,7 +29,7 @@ func NewSpinnerModel() SpinnerModel {
 			Frames: []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"},
 			FPS:    time.Second / 10,
 		}),
-		spinner.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Primary))),
+		spinner.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Accent))),
 	)
 
 	return SpinnerModel{
@@ -76,7 +76,7 @@ func (m SpinnerModel) SetCustomFrames(frames []string, interval time.Duration) S
 			Frames: frames,
 			FPS:    interval,
 		}),
-		spinner.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Primary))),
+		spinner.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Accent))),
 	)
 
 	return m
@@ -92,13 +92,13 @@ func (m SpinnerModel) Update(msg tea.Msg) (SpinnerModel, tea.Cmd) {
 
 	m.sp, cmd = m.sp.Update(msg)
 
-	// Color pulse: alternate between Primary and PrimaryBright every 3 ticks
+	// Color pulse: alternate between Accent and AccentBright every 3 ticks
 	if _, ok := msg.(spinner.TickMsg); ok {
 		m.tickCount++
 		if m.tickCount%6 < 3 {
-			m.sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Primary))
+			m.sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Accent))
 		} else {
-			m.sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().PrimaryBright))
+			m.sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().AccentBright))
 		}
 	}
 

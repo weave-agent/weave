@@ -452,9 +452,9 @@ func (u *TUIImpl) Theme() sdk.ThemeInfo {
 
 	info := sdk.ThemeInfo{
 		Name:                  name,
-		Primary:               t.Primary,
-		PrimaryDim:            t.PrimaryDim,
-		PrimaryBright:         t.PrimaryBright,
+		Accent:                t.Accent,
+		AccentDim:             t.AccentDim,
+		AccentBright:          t.AccentBright,
 		Success:               t.Success,
 		Error:                 t.Error,
 		Warning:               t.Warning,

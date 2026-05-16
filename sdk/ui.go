@@ -110,9 +110,9 @@ type Keybinding struct {
 // ThemeInfo provides read-only theme information for extensions.
 type ThemeInfo struct {
 	Name                  string
-	Primary               string
-	PrimaryDim            string
-	PrimaryBright         string
+	Accent                string
+	AccentDim             string
+	AccentBright          string
 	Success               string
 	Error                 string
 	Warning               string

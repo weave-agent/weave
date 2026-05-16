@@ -102,9 +102,9 @@ type AutocompleteSuggestion struct {
 
 // ThemeDef defines a custom theme for registration.
 type ThemeDef struct {
-	Primary               string
-	PrimaryDim            string
-	PrimaryBright         string
+	Accent                string
+	AccentDim             string
+	AccentBright          string
 	Success               string
 	Error                 string
 	Warning               string
@@ -123,9 +123,9 @@ type ThemeDef struct {
 // toPaletteTheme converts a ThemeDef to a palette.Theme.
 func (td ThemeDef) toPaletteTheme() *palette.Theme {
 	return &palette.Theme{
-		Primary:               td.Primary,
-		PrimaryDim:            td.PrimaryDim,
-		PrimaryBright:         td.PrimaryBright,
+		Accent:                td.Accent,
+		AccentDim:             td.AccentDim,
+		AccentBright:          td.AccentBright,
 		Success:               td.Success,
 		Error:                 td.Error,
 		Warning:               td.Warning,

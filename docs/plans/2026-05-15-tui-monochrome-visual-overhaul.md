@@ -79,15 +79,15 @@ A complete visual redesign of the weave terminal UI, moving from a generic purpl
 
 ### Task 3: Restyle chat chrome and overlays
 
-- [ ] Update `components/chat.go`: replace blank separator lines with dot divider row (`·` in BackgroundTint2)
-- [ ] Update `components/footer.go`: rebalance layout (CWD left, model name left with accent, stats right), hide zero values, replace `│` with `·`
-- [ ] Update `components/spinner.go`: use Accent instead of Primary for spinner color pulse
-- [ ] Update `components/editor.go`: support runtime border color rebuild, add pulse position tracking
-- [ ] Update `landing.go`: left-align logo and hints, model info on right side
-- [ ] Update `panel_tray.go`: update color references to new theme fields
-- [ ] Update overlay components (`components/overlays/*.go`): update color references
-- [ ] Write/update tests for all chrome components
-- [ ] Run tests: `cd extensions/ui/tui && go test ./components/...` — must pass
+- [x] Update `components/chat.go`: replace blank separator lines with dot divider row (`·` in Muted)
+- [x] Update `components/footer.go`: rebalance layout (CWD left, model name left with accent, stats right), hide zero values, replace `│` with `·`
+- [x] Update `components/spinner.go`: use Accent instead of Primary for spinner color pulse
+- [x] Update `components/editor.go`: update default border color to Accent, update tests
+- [x] Update `landing.go`: use Accent for name style
+- [x] Update `panel_tray.go`: update color references to new Accent theme fields
+- [x] Update overlay components (`components/overlays/*.go`): update color references to Accent
+- [x] Write/update tests for all chrome components
+- [x] Run tests: `cd extensions/ui/tui && go test ./components/...` — must pass
 
 ### Task 4: Wire up activity state and agent pulse
 

@@ -85,11 +85,11 @@ func TestRichDiffRenderer_Render(t *testing.T) {
 `
 
 	theme := sdk.ThemeInfo{
-		Primary:       "63",
-		PrimaryBright: "69",
-		Success:       "84",
-		Error:         "204",
-		Muted:         "245",
+		Accent:       "63",
+		AccentBright: "69",
+		Success:      "84",
+		Error:        "204",
+		Muted:        "245",
 	}
 
 	result := r.Render(input, theme, 80)
@@ -123,11 +123,11 @@ func TestRichDiffRenderer_UsesThemeColors(t *testing.T) {
 	r := &richDiffRenderer{}
 
 	theme := sdk.ThemeInfo{
-		Primary:       "99",
-		PrimaryBright: "135",
-		Success:       "120",
-		Error:         "198",
-		Muted:         "240",
+		Accent:       "99",
+		AccentBright: "135",
+		Success:      "120",
+		Error:        "198",
+		Muted:        "240",
 	}
 
 	input := `--- a/file.go

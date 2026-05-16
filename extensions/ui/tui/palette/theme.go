@@ -14,11 +14,11 @@ type Theme struct {
 	BackgroundTint2  string // elevated surfaces, selected items
 
 	// Structural colors
-	Border           string // unfocused borders
-	BorderFocused    string // focused borders (idle state)
-	Success          string // muted green for success text
-	Error            string // muted red for error text
-	Warning          string // amber for warnings
+	Border        string // unfocused borders
+	BorderFocused string // focused borders (idle state)
+	Success       string // muted green for success text
+	Error         string // muted red for error text
+	Warning       string // amber for warnings
 
 	// State-specific backgrounds
 	BackgroundTintPending string
@@ -26,8 +26,8 @@ type Theme struct {
 	BackgroundTintError   string
 
 	// Dynamic accent (changes with agent state)
-	Accent      string // main accent
-	AccentDim   string // subdued accent
+	Accent       string // main accent
+	AccentDim    string // subdued accent
 	AccentBright string // bright accent
 }
 

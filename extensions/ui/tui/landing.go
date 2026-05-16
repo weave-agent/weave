@@ -51,7 +51,7 @@ func (m LandingModel) Draw(scr uv.Screen, area uv.Rectangle) {
 		y = area.Min.Y + (area.Dy()-len(lines))/2
 	}
 
-	nameStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Primary)).Bold(true)
+	nameStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Accent)).Bold(true)
 	hintStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Border))
 	ruleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Border))
 

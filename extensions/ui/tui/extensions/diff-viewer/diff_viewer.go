@@ -38,8 +38,8 @@ func (r *richDiffRenderer) Render(content string, theme sdk.ThemeInfo, width int
 		return ""
 	}
 
-	headerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Primary))
-	hunkStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.PrimaryBright))
+	headerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Accent))
+	hunkStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.AccentBright))
 	addStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Success))
 	removeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Error))
 	contextStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Muted))

@@ -78,6 +78,7 @@ func (p *ToolPanel) SetResult(output string, isError bool) {
 	} else {
 		p.state = ToolSuccess
 	}
+
 	p.flashUntil = time.Now().Add(800 * time.Millisecond)
 }
 
@@ -115,6 +116,7 @@ func (p *ToolPanel) View(width int) string {
 
 	var b strings.Builder
 	b.WriteString(borderStyle.Render(header))
+
 	if body != "" {
 		b.WriteString("\n")
 		b.WriteString(padLeft(body))
@@ -187,6 +189,8 @@ func (p *ToolPanel) renderBody(width int) string {
 func borderColorForState(state ToolState, flashUntil time.Time, theme *palette.Theme) string {
 	if time.Now().Before(flashUntil) {
 		switch state {
+		case ToolPending:
+			return theme.AccentDim
 		case ToolSuccess:
 			return theme.Success
 		case ToolError:

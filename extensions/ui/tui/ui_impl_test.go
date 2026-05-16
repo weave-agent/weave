@@ -1093,7 +1093,7 @@ func TestTUIImpl_SetTheme_SwitchesActiveTheme(t *testing.T) {
 	ui.SetProgram(sender)
 
 	// Register a custom theme
-	err := ui.RegisterTheme("custom", ThemeDef{Primary: "123", Foreground: "255"})
+	err := ui.RegisterTheme("custom", ThemeDef{Accent: "123", Foreground: "255"})
 	require.NoError(t, err)
 
 	// Switch to it
@@ -1104,7 +1104,7 @@ func TestTUIImpl_SetTheme_SwitchesActiveTheme(t *testing.T) {
 	require.Len(t, sender.msgs, 1)
 	msg, ok := sender.msgs[0].(themeChangedMsg)
 	require.True(t, ok)
-	assert.Equal(t, "123", msg.theme.Primary)
+	assert.Equal(t, "123", msg.theme.Accent)
 	assert.Equal(t, "255", msg.theme.Foreground)
 }
 
@@ -1120,7 +1120,7 @@ func TestTUIImpl_SetTheme_NoProgram(t *testing.T) {
 	ui := NewTUIImpl(nil, nil)
 	// No program set
 
-	err := ui.RegisterTheme("dark", ThemeDef{Primary: "60"})
+	err := ui.RegisterTheme("dark", ThemeDef{Accent: "60"})
 	require.NoError(t, err)
 
 	// Should not panic and should succeed
@@ -1155,7 +1155,7 @@ func TestTUIImpl_RegisterTheme(t *testing.T) {
 	ui := NewTUIImpl(nil, nil)
 
 	err := ui.RegisterTheme("ocean", ThemeDef{
-		Primary:    "33",
+		Accent:     "33",
 		Foreground: "15",
 	})
 	require.NoError(t, err)
@@ -1170,7 +1170,7 @@ func TestTUIImpl_RegisterTheme(t *testing.T) {
 
 	info := ui.Theme()
 	assert.Equal(t, "ocean", info.Name)
-	assert.Equal(t, "33", info.Primary)
+	assert.Equal(t, "33", info.Accent)
 	assert.Equal(t, "15", info.Foreground)
 }
 
@@ -1195,20 +1195,20 @@ func TestTUIImpl_Theme_ReturnsActiveTheme(t *testing.T) {
 
 	info := ui.Theme()
 	assert.Equal(t, "default", info.Name)
-	assert.NotEmpty(t, info.Primary)
+	assert.NotEmpty(t, info.Accent)
 }
 
 func TestTUIImpl_Theme_AfterSwitch(t *testing.T) {
 	ui := NewTUIImpl(nil, nil)
 
-	err := ui.RegisterTheme("red", ThemeDef{Primary: "196", Error: "196"})
+	err := ui.RegisterTheme("red", ThemeDef{Accent: "196", Error: "196"})
 	require.NoError(t, err)
 
 	_ = ui.SetTheme("red")
 
 	info := ui.Theme()
 	assert.Equal(t, "red", info.Name)
-	assert.Equal(t, "196", info.Primary)
+	assert.Equal(t, "196", info.Accent)
 	assert.Equal(t, "196", info.Error)
 }
 

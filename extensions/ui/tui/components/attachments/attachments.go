@@ -180,7 +180,7 @@ func (m Model) Draw(scr uv.Screen, area uv.Rectangle) {
 
 	pillStyle := lipgloss.NewStyle().
 		Background(lipgloss.Color(theme.BackgroundTint)).
-		Foreground(lipgloss.Color(theme.Primary)).
+		Foreground(lipgloss.Color(theme.Accent)).
 		Padding(0, 1)
 
 	deletePillStyle := lipgloss.NewStyle().

@@ -216,7 +216,7 @@ func (m FooterModel) renderLine1() string {
 
 	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Muted))
 
-	return dimStyle.Render(strings.Join(parts, " │ "))
+	return dimStyle.Render(strings.Join(parts, " · "))
 }
 
 func (m FooterModel) renderLine2() string {
@@ -255,7 +255,7 @@ func (m FooterModel) renderLine2() string {
 	rightParts := []string{}
 
 	if m.modelName != "" {
-		modelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Primary)).Bold(true)
+		modelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Accent)).Bold(true)
 		modelDisplay := m.modelName
 
 		if m.providerName != "" {

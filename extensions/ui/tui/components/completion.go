@@ -213,7 +213,7 @@ func (m CompletionModel) renderLine(item CompletionItem, selected bool, width in
 
 		style := lipgloss.NewStyle().
 			Bold(true).
-			Background(lipgloss.Color(theme.Primary)).
+			Background(lipgloss.Color(theme.Accent)).
 			Foreground(lipgloss.Color(theme.Foreground)).
 			Width(width)
 

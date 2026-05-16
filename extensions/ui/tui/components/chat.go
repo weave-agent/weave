@@ -283,14 +283,14 @@ func (m *ChatModel) scrollToBottom() {
 }
 
 // totalLines counts the total rendered lines across all items, using cache where possible.
-// Includes blank separator lines between items.
+// Includes dot divider lines between items.
 func (m *ChatModel) totalLines() int {
 	m.ensureCache()
 
 	total := 0
 	for i := range m.items {
 		total += len((*m.cache)[i].lines)
-		// Blank separator line between items (not after the last one)
+		// Dot divider line between items (not after the last one)
 		if i < len(m.items)-1 {
 			total++
 		}
@@ -576,9 +576,10 @@ func (m *ChatModel) allContentLines() []string {
 
 	for i := range m.items {
 		lines = append(lines, (*m.cache)[i].lines...)
-		// Add blank line between items (not after the last one)
+		// Dot divider between items (not after the last one)
 		if i < len(m.items)-1 {
-			lines = append(lines, "")
+			dotStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Muted))
+			lines = append(lines, dotStyle.Render("·"))
 		}
 	}
 

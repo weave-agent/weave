@@ -92,7 +92,7 @@ func (d *agentPanelDrawer) Handles(msg tea.Msg) bool {
 func (d *agentPanelDrawer) statusIndicator(status AgentStatus) (string, string) {
 	switch status {
 	case AgentRunning:
-		return "●", d.theme.Primary // ●
+		return "●", d.theme.Accent // ●
 	case AgentCompleted:
 		return "✓", d.theme.Success // ✓
 	case AgentFailed:

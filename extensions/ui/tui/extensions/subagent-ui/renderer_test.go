@@ -30,9 +30,9 @@ func TestSubagentRenderer_RenderEmpty(t *testing.T) {
 func TestSubagentRenderer_RenderBackgroundResponse(t *testing.T) {
 	r := &subagentRenderer{}
 	theme := sdk.ThemeInfo{
-		Primary:       "63",
-		PrimaryBright: "69",
-		MutedBright:   "252",
+		Accent:       "63",
+		AccentBright: "69",
+		MutedBright:  "252",
 	}
 
 	content, _ := json.Marshal(map[string]string{
@@ -122,10 +122,10 @@ func TestSubagentRenderer_RenderNonJSON(t *testing.T) {
 func TestSubagentRenderer_RenderBackgroundResponse_Failed(t *testing.T) {
 	r := &subagentRenderer{}
 	theme := sdk.ThemeInfo{
-		Primary:       "63",
-		PrimaryBright: "69",
-		MutedBright:   "252",
-		Error:         "203",
+		Accent:       "63",
+		AccentBright: "69",
+		MutedBright:  "252",
+		Error:        "203",
 	}
 
 	content, _ := json.Marshal(map[string]string{
@@ -209,9 +209,9 @@ func TestSubagentRenderer_RegisterTUI_NoDynamicRegistrationOnStart(t *testing.T)
 func TestSubagentRenderer_RendBackgroundResponse_ContainsIcon(t *testing.T) {
 	r := &subagentRenderer{}
 	theme := sdk.ThemeInfo{
-		Primary:       "63",
-		PrimaryBright: "69",
-		MutedBright:   "252",
+		Accent:       "63",
+		AccentBright: "69",
+		MutedBright:  "252",
 	}
 
 	content, _ := json.Marshal(map[string]string{

@@ -219,7 +219,7 @@ func (m SelectorModel) View() string {
 
 	borderStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(theme.Primary)).
+		BorderForeground(lipgloss.Color(theme.Accent)).
 		Width(boxWidth-2).
 		Padding(0, 1)
 
@@ -234,7 +234,7 @@ func (m SelectorModel) View() string {
 		Bold(true)
 
 	filterStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.PrimaryBright))
+		Foreground(lipgloss.Color(theme.AccentBright))
 
 	var headerRendered string
 
@@ -247,7 +247,7 @@ func (m SelectorModel) View() string {
 
 	selectedStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(theme.Foreground)).
-		Background(lipgloss.Color(theme.Primary))
+		Background(lipgloss.Color(theme.Accent))
 
 	normalStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(theme.MutedBright))

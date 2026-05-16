@@ -17,7 +17,7 @@ import (
 // TestLipglossV2_NewStyleRendering verifies that basic lipgloss v2 style
 // creation and rendering produces non-empty output.
 func TestLipglossV2_NewStyleRendering(t *testing.T) {
-	style := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Primary)).Bold(true)
+	style := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Accent)).Bold(true)
 	rendered := style.Render("hello")
 	assert.NotEmpty(t, rendered)
 	assert.Contains(t, rendered, "hello")
@@ -28,7 +28,7 @@ func TestLipglossV2_NewStyleRendering(t *testing.T) {
 func TestLipglossV2_StyleChaining(t *testing.T) {
 	style := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(palette.DefaultTheme().Foreground)).
-		Background(lipgloss.Color(palette.DefaultTheme().Primary)).
+		Background(lipgloss.Color(palette.DefaultTheme().Accent)).
 		Bold(true)
 
 	rendered := style.Render("test")
@@ -53,7 +53,7 @@ func TestLipglossV2_WidthConstraint(t *testing.T) {
 func TestLipglossV2_BorderRendering(t *testing.T) {
 	style := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(palette.DefaultTheme().Primary)).
+		BorderForeground(lipgloss.Color(palette.DefaultTheme().Accent)).
 		Width(20).
 		Padding(0, 1)
 
@@ -117,7 +117,7 @@ func TestLipglossV2_WidthMeasurement(t *testing.T) {
 
 // TestLipglossV2_ColorFunction verifies lipgloss.Color creates valid color values.
 func TestLipglossV2_ColorFunction(t *testing.T) {
-	c := lipgloss.Color(palette.DefaultTheme().Primary)
+	c := lipgloss.Color(palette.DefaultTheme().Accent)
 	assert.NotNil(t, c)
 
 	style := lipgloss.NewStyle().Foreground(c)
@@ -145,7 +145,7 @@ func TestLipglossV2_StyleComposition(t *testing.T) {
 // TestScreenBuffer_StyleRendering verifies that styled strings render
 // correctly through ultraviolet screen buffers (the TUI rendering path).
 func TestScreenBuffer_StyleRendering(t *testing.T) {
-	style := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Primary)).Bold(true)
+	style := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Accent)).Bold(true)
 	styled := style.Render("styled text")
 
 	canvas := uv.NewScreenBuffer(40, 1)

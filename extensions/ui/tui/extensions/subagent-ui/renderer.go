@@ -48,9 +48,9 @@ func (r *subagentRenderer) Render(content string, theme sdk.ThemeInfo, width int
 
 // renderBackgroundResponse renders a compact card for a background agent launch.
 func (r *subagentRenderer) renderBackgroundResponse(id, status string, theme sdk.ThemeInfo) string {
-	iconStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Primary))
+	iconStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Accent))
 	idStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.MutedBright))
-	statusStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.PrimaryBright))
+	statusStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.AccentBright))
 
 	return fmt.Sprintf("%s Agent %s %s",
 		iconStyle.Render("↗"),

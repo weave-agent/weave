@@ -15,9 +15,9 @@ import (
 
 func testTheme() sdk.ThemeInfo {
 	return sdk.ThemeInfo{
-		Primary:          "63",
-		PrimaryDim:       "60",
-		PrimaryBright:    "69",
+		Accent:           "63",
+		AccentDim:        "60",
+		AccentBright:     "69",
 		Success:          "82",
 		Error:            "203",
 		Warning:          "215",
@@ -201,7 +201,7 @@ func TestAgentPanelDrawer_StatusIndicator(t *testing.T) {
 
 	icon, color := drawer.statusIndicator(AgentRunning)
 	assert.Equal(t, "●", icon)
-	assert.Equal(t, theme.Primary, color)
+	assert.Equal(t, theme.Accent, color)
 
 	icon, color = drawer.statusIndicator(AgentCompleted)
 	assert.Equal(t, "✓", icon)

@@ -190,7 +190,10 @@ func TestFooterView_ThinkingLevelEmpty(t *testing.T) {
 	f := NewFooterModel().SetSize(80).SetModel("claude-sonnet-4", "anthropic")
 	view := f.View()
 	assert.Contains(t, view, "anthropic/claude-sonnet-4")
-	assert.NotContains(t, view, " · ")
+	// No thinking level text on line 2
+	lines := strings.Split(view, "\n")
+	require.Len(t, lines, 2)
+	assert.NotContains(t, lines[1], "medium")
 }
 
 func TestFooterView_ThinkingLevelOff(t *testing.T) {
@@ -315,11 +318,11 @@ func TestFooterView_StatsMuted(t *testing.T) {
 	view := f.View()
 	lines := strings.Split(view, "\n")
 	require.Len(t, lines, 2)
-	// Token counts should appear with muted color (ANSI 245)
+	// Token counts should appear with muted color
 	assert.Contains(t, lines[1], "in:100")
 	assert.Contains(t, lines[1], "out:50")
 	// Verify muted color code is applied
-	assert.Contains(t, lines[1], "38;5;245", "stats should render with muted color")
+	assert.Contains(t, lines[1], "38;5;240", "stats should render with muted color")
 }
 
 func TestFooterView_ModelAndStatsBothPresent(t *testing.T) {

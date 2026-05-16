@@ -107,13 +107,13 @@ func (pt PanelTray) Draw(scr uv.Screen, area uv.Rectangle, theme *palette.Theme)
 		if i == pt.activeIdx {
 			if pt.focused {
 				parts = append(parts, lipgloss.NewStyle().
-					Foreground(lipgloss.Color(theme.PrimaryBright)).
+					Foreground(lipgloss.Color(theme.AccentBright)).
 					Background(lipgloss.Color(theme.BackgroundTint)).
 					Padding(0, 1).
 					Render("["+title+"]"))
 			} else {
 				parts = append(parts, lipgloss.NewStyle().
-					Foreground(lipgloss.Color(theme.Primary)).
+					Foreground(lipgloss.Color(theme.Accent)).
 					Padding(0, 1).
 					Render(title))
 			}

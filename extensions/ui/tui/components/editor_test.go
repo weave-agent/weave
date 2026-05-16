@@ -196,7 +196,7 @@ func TestEditorViewEmptyWidth(t *testing.T) {
 
 func TestEditorDefaultBorderColor(t *testing.T) {
 	m := NewEditorModel()
-	assert.Equal(t, "63", m.BorderColor)
+	assert.Equal(t, "245", m.BorderColor)
 }
 
 func TestEditorSetBorderColor(t *testing.T) {
@@ -629,9 +629,9 @@ func TestEditorSetMaxHeight_IgnoresNegative(t *testing.T) {
 
 func TestEditorBlurredBorderUsesThemeBorder(t *testing.T) {
 	m := NewEditorModel()
-	// Initially focused uses BorderFocused
+	// Initially focused uses Accent
 	focusedBorder := m.ta.Styles().Focused.Base.GetBorderTopForeground()
-	assert.Equal(t, lipgloss.Color(palette.DefaultTheme().BorderFocused), focusedBorder)
+	assert.Equal(t, lipgloss.Color(palette.DefaultTheme().Accent), focusedBorder)
 
 	// Blurred uses Border
 	blurredBorder := m.ta.Styles().Blurred.Base.GetBorderTopForeground()

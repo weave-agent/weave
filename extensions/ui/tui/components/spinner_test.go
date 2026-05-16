@@ -151,33 +151,33 @@ func TestSpinnerModel_Draw_ZeroArea(t *testing.T) {
 func TestSpinnerModel_ColorPulse_Alternates(t *testing.T) {
 	s := NewSpinnerModel().Show()
 
-	// First 2 ticks should use Primary color (63)
+	// First 2 ticks should use Accent color (245)
 	for range 2 {
 		s, _ = s.Update(spinner.TickMsg{Time: time.Now()})
 	}
 
 	view := s.View()
-	assert.Contains(t, view, "63")
+	assert.Contains(t, view, "245")
 
-	// Next 3 ticks should use PrimaryBright color (69)
+	// Next 3 ticks should use AccentBright color (248)
 	for range 3 {
 		s, _ = s.Update(spinner.TickMsg{Time: time.Now()})
 	}
 
 	view = s.View()
-	assert.Contains(t, view, "69")
+	assert.Contains(t, view, "248")
 }
 
 func TestSpinnerModel_ColorPulse_CyclesBack(t *testing.T) {
 	s := NewSpinnerModel().Show()
 
-	// 6 ticks complete one full cycle (3 Primary + 3 PrimaryBright)
+	// 6 ticks complete one full cycle (3 Accent + 3 AccentBright)
 	for range 6 {
 		s, _ = s.Update(spinner.TickMsg{Time: time.Now()})
 	}
-	// After a full cycle, back to Primary (63)
+	// After a full cycle, back to Accent (245)
 	view := s.View()
-	assert.Contains(t, view, "63")
+	assert.Contains(t, view, "245")
 }
 
 func TestSpinnerModel_TickCount_Increments(t *testing.T) {

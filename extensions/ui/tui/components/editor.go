@@ -69,7 +69,7 @@ func NewEditorModel() EditorModel {
 	ta.Focus()
 
 	styles := textarea.DefaultStyles(false)
-	styles.Focused.Base = borderStyle(palette.DefaultTheme().BorderFocused)
+	styles.Focused.Base = borderStyle(palette.DefaultTheme().Accent)
 	styles.Blurred.Base = borderStyle(palette.DefaultTheme().Border)
 	styles.Focused.Text = lipgloss.NewStyle()
 	styles.Blurred.Text = lipgloss.NewStyle()
@@ -92,7 +92,7 @@ func NewEditorModel() EditorModel {
 	return EditorModel{
 		ta:          ta,
 		focused:     true,
-		BorderColor: palette.DefaultTheme().BorderFocused,
+		BorderColor: palette.DefaultTheme().Accent,
 		completion:  NewCompletionModel(),
 	}
 }
