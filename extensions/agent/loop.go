@@ -274,6 +274,8 @@ func (a *AgentExtension) run(
 				turnCancel()
 				<-turnDone
 
+				a.restoreSkillFilter()
+
 				return
 			}
 
@@ -319,13 +321,7 @@ func (a *AgentExtension) run(
 
 		drainInterrupts(interruptCh)
 
-		a.mu.Lock()
-		if a.skillFilterActive {
-			sdk.SetToolFilter(a.savedToolFilter)
-			a.skillFilterActive = false
-			a.savedToolFilter = nil
-		}
-		a.mu.Unlock()
+		a.restoreSkillFilter()
 
 		turn++
 
@@ -459,6 +455,19 @@ func (a *AgentExtension) run(
 			return
 		}
 	}
+}
+
+// restoreSkillFilter restores the tool filter if a skill had temporarily
+// restricted it. Safe to call multiple times; does nothing if no skill filter
+// is active.
+func (a *AgentExtension) restoreSkillFilter() {
+	a.mu.Lock()
+	if a.skillFilterActive {
+		sdk.SetToolFilter(a.savedToolFilter)
+		a.skillFilterActive = false
+		a.savedToolFilter = nil
+	}
+	a.mu.Unlock()
 }
 
 // buildSystemPrompt discovers context files, skills, and system prompts from disk
@@ -812,11 +821,26 @@ func executeTools(ctx context.Context, bus sdk.Bus, cfg sdk.Config, toolCalls []
 		}
 	}
 
-	wg.Wait()
+	done := make(chan struct{})
+
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-ctx.Done():
+	}
 
 	// Execute write tools sequentially after all reads complete.
 	for i, tc := range toolCalls {
 		if !isReadOnlyTool(tc.Name) {
+			if ctx.Err() != nil {
+				results[i] = toolExecutionResult{call: tc, result: sdk.ToolResult{Content: "interrupted", IsError: true}}
+				continue
+			}
+
 			result, err := executeTool(ctx, bus, cfg, tc)
 			if err != nil {
 				result = sdk.ToolResult{Content: err.Error(), IsError: true}

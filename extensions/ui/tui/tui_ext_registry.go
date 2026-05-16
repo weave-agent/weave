@@ -23,7 +23,7 @@ var tuiExtReg = registry.New[tuiExtEntry](
 // and CLI flags before calling the factory.
 func RegisterTUIExtension[TConfig any](name string, factory func(sdk.Config, sdk.PreferenceReader, TConfig) (TUIExtension, error)) {
 	var zero TConfig
-	sdk.RegisterExtensionSchema("tui_extensions", name, zero)
+	sdk.RegisterExtensionSchema("ui_extensions", name, zero)
 
 	wrapper := func(cfg sdk.Config) (TUIExtension, error) {
 		var t TConfig

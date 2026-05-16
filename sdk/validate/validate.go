@@ -27,7 +27,7 @@ func Args(args, schema map[string]any) error {
 	properties, _ := schema["properties"].(map[string]any)
 	required, _ := schema["required"].([]any)
 	additionalPropertiesVal, hasAdditionalProperties := schema["additionalProperties"]
-	additionalProperties, _ := additionalPropertiesVal.(bool)
+	additionalProperties, isBool := additionalPropertiesVal.(bool)
 
 	// Also handle []string for required arrays (common in programmatic schemas).
 	if required == nil {
@@ -52,7 +52,7 @@ func Args(args, schema map[string]any) error {
 	}
 
 	// Check for unknown properties when additionalProperties is explicitly false
-	if hasAdditionalProperties && !additionalProperties && properties != nil {
+	if hasAdditionalProperties && isBool && !additionalProperties && properties != nil {
 		for key := range args {
 			if _, known := properties[key]; !known {
 				return fmt.Errorf("unknown field: %q", key)

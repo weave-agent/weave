@@ -112,8 +112,8 @@ func pathMatches(path, pattern, cwd string) bool {
 		}
 	}
 
-	if strings.HasSuffix(expanded, "/") {
-		return strings.HasPrefix(path, expanded)
+	if trimmed, ok := strings.CutSuffix(expanded, "/"); ok {
+		return path == trimmed || strings.HasPrefix(path, expanded)
 	}
 
 	return path == expanded || strings.HasPrefix(path, expanded+"/")

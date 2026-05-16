@@ -46,7 +46,8 @@ func NewToolResultMessage(toolCallID, toolName string, content any, isError bool
 
 	switch c := content.(type) {
 	case string:
-		escaped := strings.ReplaceAll(c, "</tool_output>", "<\\/tool_output>")
+		escaped := strings.ReplaceAll(c, "<tool_output", "<\\tool_output")
+		escaped = strings.ReplaceAll(escaped, "</tool_output>", "<\\/tool_output>")
 		wrapped = fmt.Sprintf("<tool_output name=%q>\n%s\n</tool_output>", toolName, escaped)
 	default:
 		wrapped = fmt.Sprintf("<tool_output name=%q>\n%v\n</tool_output>", toolName, c)
