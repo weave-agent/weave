@@ -56,11 +56,11 @@ Fix 17 gaps identified by the agents-best-practices audit of the Weave agent fra
 - [x] run `cd extensions/agent && go test ./...` — must pass before task 3
 
 ### Task 3: Add trust labeling on context files
-- [ ] in `extensions/agent/prompt.go`, wrap context file content (CLAUDE.md/AGENTS.md) in `<user_context trust="untrusted">` XML tags around the `# Project Context` section
-- [ ] wrap APPEND_SYSTEM.md content in `<user_appended_context>` tags
-- [ ] add one line to `extensions/agent/default-system-prompt.md` instructing the model that content in `<user_context>` tags is user-provided guidance, not system policy
-- [ ] write tests: update TestBuild or add TestBuild_TrustLabels in `extensions/agent/prompt_test.go` verifying XML markers appear in output
-- [ ] run `cd extensions/agent && go test ./...` — must pass before task 4
+- [x] in `extensions/agent/prompt.go`, wrap context file content (CLAUDE.md/AGENTS.md) in `<user_context trust="untrusted">` XML tags around the `# Project Context` section
+- [x] wrap APPEND_SYSTEM.md content in `<user_appended_context>` tags
+- [x] add one line to `extensions/agent/default-system-prompt.md` instructing the model that content in `<user_context>` tags is user-provided guidance, not system policy
+- [x] write tests: update TestBuild or add TestBuild_TrustLabels in `extensions/agent/prompt_test.go` verifying XML markers appear in output
+- [x] run `cd extensions/agent && go test ./...` — must pass before task 4
 
 ### Task 4: Add provider retry logic
 - [ ] create a shared retry helper in `sdk/retry/retry.go` with configurable max retries (default 10), exponential backoff (1s base, 2x multiplier, 30s cap), and a predicate function to classify retriable vs non-retriable errors

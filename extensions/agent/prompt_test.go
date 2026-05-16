@@ -302,6 +302,53 @@ func TestBuild_SystemBaseAndAppendOnly(t *testing.T) {
 	assert.Contains(t, result, "Current date:")
 }
 
+func TestBuild_TrustLabels(t *testing.T) {
+	sdk.ResetToolRegistry()
+	defer sdk.ResetToolRegistry()
+
+	pb := newPromptBuilder(sdk.FilePathConfig(""))
+	result := pb.Build(buildInput{
+		contextFiles: []contextFile{
+			{Path: "/project/CLAUDE.md", Content: "Project context here."},
+		},
+		systemAppend: "Always end responses with a summary.",
+	})
+
+	assert.Contains(t, result, "<user_context trust=\"untrusted\">")
+	assert.Contains(t, result, "</user_context>")
+	assert.Contains(t, result, "<user_appended_context>")
+	assert.Contains(t, result, "</user_appended_context>")
+	assert.Contains(t, result, "# Project Context")
+	assert.Contains(t, result, "Project context here.")
+	assert.Contains(t, result, "Always end responses with a summary.")
+
+	// Verify trust label instruction is in the default prompt
+	assert.Contains(t, result, "user-provided guidance, not system policy")
+}
+
+func TestBuild_NoContextFilesOmitsTrustLabel(t *testing.T) {
+	sdk.ResetToolRegistry()
+	defer sdk.ResetToolRegistry()
+
+	pb := newPromptBuilder(sdk.FilePathConfig(""))
+	result := pb.Build(buildInput{})
+
+	// The default prompt mentions <user_context> in instructions, so check for the actual XML tags
+	assert.NotContains(t, result, "<user_context trust=")
+	assert.NotContains(t, result, "</user_context>")
+}
+
+func TestBuild_NoAppendOmitsAppendedTrustLabel(t *testing.T) {
+	sdk.ResetToolRegistry()
+	defer sdk.ResetToolRegistry()
+
+	pb := newPromptBuilder(sdk.FilePathConfig(""))
+	result := pb.Build(buildInput{})
+
+	assert.NotContains(t, result, "<user_appended_context>")
+	assert.NotContains(t, result, "</user_appended_context>")
+}
+
 func TestBuild_ToolWithoutDescription(t *testing.T) {
 	sdk.ResetToolRegistry()
 	defer sdk.ResetToolRegistry()

@@ -81,8 +81,9 @@ func (pb *promptBuilder) Build(input buildInput) string {
 
 	// Layer 6: APPEND_SYSTEM.md
 	if input.systemAppend != "" {
+		b.WriteString("<user_appended_context>\n")
 		b.WriteString(strings.TrimSpace(input.systemAppend))
-		b.WriteString("\n")
+		b.WriteString("\n</user_appended_context>")
 	}
 
 	return strings.TrimSpace(b.String())
@@ -155,11 +156,14 @@ func (pb *promptBuilder) buildContextSection(files []contextFile) string {
 	}
 
 	var b strings.Builder
+	b.WriteString("<user_context trust=\"untrusted\">\n")
 	b.WriteString("# Project Context\n\n")
 
 	for _, f := range files {
 		fmt.Fprintf(&b, "## %s\n\n%s\n\n", f.Path, strings.TrimSpace(f.Content))
 	}
 
-	return strings.TrimSpace(b.String())
+	b.WriteString("</user_context>")
+
+	return b.String()
 }
