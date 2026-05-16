@@ -51,9 +51,9 @@ Fix 17 gaps identified by the agents-best-practices audit of the Weave agent fra
 - [x] run `cd extensions/agent && go test ./...` — must pass before task 2
 
 ### Task 2: Add tool execution panic recovery
-- [ ] wrap `executeTool()` body at `extensions/agent/loop.go:708-722` with `defer func() { if r := recover(); r != nil { ... } }()` that returns `ToolResult{Content: fmt.Sprintf("tool panicked: %v", r), IsError: true}` and logs stack trace via `sdk.Logger`
-- [ ] write tests: TestExecuteTool_PanicRecovery in `extensions/agent/loop_test.go` using a mock tool that panics
-- [ ] run `cd extensions/agent && go test ./...` — must pass before task 3
+- [x] wrap `executeTool()` body at `extensions/agent/loop.go:708-722` with `defer func() { if r := recover(); r != nil { ... } }()` that returns `ToolResult{Content: fmt.Sprintf("tool panicked: %v", r), IsError: true}` and logs stack trace via `sdk.Logger`
+- [x] write tests: TestExecuteTool_PanicRecovery in `extensions/agent/loop_test.go` using a mock tool that panics
+- [x] run `cd extensions/agent && go test ./...` — must pass before task 3
 
 ### Task 3: Add trust labeling on context files
 - [ ] in `extensions/agent/prompt.go`, wrap context file content (CLAUDE.md/AGENTS.md) in `<user_context trust="untrusted">` XML tags around the `# Project Context` section

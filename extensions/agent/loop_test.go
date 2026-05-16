@@ -89,7 +89,6 @@ func newMockProvider(responses []providerResponse) *ProviderMock {
 	}
 }
 
-//nolint:unparam // executeFunc is for tests that need custom tool behavior
 func newMockTool(name string, def sdk.ToolDef, executeFunc func(ctx context.Context, args map[string]any) (sdk.ToolResult, error)) *ToolMock {
 	mt := &ToolMock{
 		NameFunc:       func() string { return name },
@@ -1084,6 +1083,7 @@ func TestAgent_InnerLoopStepLimit(t *testing.T) {
 
 	// Wait for the step-limit exceeded event.
 	var compactedEvt sdk.Event
+
 	found := false
 	deadline := time.After(5 * time.Second)
 
@@ -1091,10 +1091,12 @@ func TestAgent_InnerLoopStepLimit(t *testing.T) {
 		select {
 		case evt, ok := <-allCh:
 			require.True(t, ok, "event channel closed")
+
 			if evt.Topic == TopicCompacted {
 				compactedEvt = evt
 				found = true
 			}
+
 			if evt.Topic == TopicEnd {
 				t.Fatal("got TopicEnd before step-limit exceeded event")
 			}
@@ -1151,6 +1153,7 @@ func TestAgent_StepLimitConfigurable(t *testing.T) {
 	b.Publish(sdk.NewEvent(TopicPrompt, "configurable limit test"))
 
 	var compactedEvt sdk.Event
+
 	found := false
 	deadline := time.After(5 * time.Second)
 
@@ -1158,10 +1161,12 @@ func TestAgent_StepLimitConfigurable(t *testing.T) {
 		select {
 		case evt, ok := <-allCh:
 			require.True(t, ok, "event channel closed")
+
 			if evt.Topic == TopicCompacted {
 				compactedEvt = evt
 				found = true
 			}
+
 			if evt.Topic == TopicEnd {
 				t.Fatal("got TopicEnd before step-limit exceeded event")
 			}
@@ -1183,6 +1188,49 @@ func TestAgent_StepLimitConfigurable(t *testing.T) {
 
 	// Should have executed 5 tool calls before hitting the limit.
 	assert.Len(t, mt.ExecuteCalls(), 5)
+}
+
+func TestExecuteTool_PanicRecovery(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	panicTool := newMockTool("panic-tool", sdk.ToolDef{Name: "panic-tool", Description: "panics"}, func(ctx context.Context, args map[string]any) (sdk.ToolResult, error) {
+		panic("intentional test panic")
+	})
+	registerMockTool(panicTool)
+
+	mp := newMockProvider([]providerResponse{
+		{
+			toolCalls: []sdk.ToolCall{
+				{ID: "tc1", Name: "panic-tool", Arguments: map[string]any{"x": 1}},
+			},
+		},
+		{textDeltas: []string{"recovered"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "trigger panic"))
+
+	toolResultEvt, ok := waitForTopic(allCh, TopicToolResult, 2*time.Second)
+	require.True(t, ok, "timeout waiting for tool_result")
+
+	payload := toolResultEvt.Payload.(map[string]any)
+	result := payload["result"].(sdk.ToolResult)
+	assert.True(t, result.IsError)
+	assert.Contains(t, result.Content, "tool panicked:")
+	assert.Contains(t, result.Content, "intentional test panic")
+
+	msgEnd, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for second msg_end")
+	msgEndPayload, ok := msgEnd.Payload.(map[string]any)
+	require.True(t, ok, "msg_end payload type = %T", msgEnd.Payload)
+	assert.Equal(t, "recovered", msgEndPayload["content"])
 }
 
 func TestAgent_InvalidThinkingLevelIgnored(t *testing.T) {

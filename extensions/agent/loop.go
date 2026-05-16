@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 	"slices"
 	"strings"
 
@@ -209,6 +210,7 @@ func (a *AgentExtension) run(
 		// tool calls that need execution.
 		continueLoop := true
 		step := 0
+
 		maxSteps := a.compactionCfg.MaxSteps
 		if maxSteps <= 0 {
 			maxSteps = 50
@@ -220,7 +222,6 @@ func (a *AgentExtension) run(
 				bus.Publish(sdk.NewEvent(TopicCompacted, map[string]any{
 					"error": fmt.Sprintf("inner loop step limit exceeded (%d); breaking to prevent runaway tool-calling", maxSteps),
 				}))
-				continueLoop = false
 
 				break
 			}
@@ -720,15 +721,25 @@ func streamTurn(ctx context.Context, bus sdk.Bus, provider sdk.Provider, message
 	return resp, toolCalls, nil
 }
 
-func executeTool(ctx context.Context, bus sdk.Bus, cfg sdk.Config, tc sdk.ToolCall) (sdk.ToolResult, error) {
-	tool, err := sdk.GetTool(tc.Name, cfg)
-	if err != nil {
-		return sdk.ToolResult{}, fmt.Errorf("tool %q not found: %w", tc.Name, err)
+func executeTool(ctx context.Context, bus sdk.Bus, cfg sdk.Config, tc sdk.ToolCall) (result sdk.ToolResult, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			stack := debug.Stack()
+			sdk.Logger("agent").Error("tool panicked", "tool", tc.Name, "panic", r, "stack", string(stack))
+
+			result = sdk.ToolResult{}
+			err = fmt.Errorf("tool panicked: %v", r)
+		}
+	}()
+
+	tool, getErr := sdk.GetTool(tc.Name, cfg)
+	if getErr != nil {
+		return sdk.ToolResult{}, fmt.Errorf("tool %q not found: %w", tc.Name, getErr)
 	}
 
 	ctx = sdk.WithBus(ctx, bus)
 
-	result, err := tool.Execute(ctx, tc.Arguments)
+	result, err = tool.Execute(ctx, tc.Arguments)
 	if err != nil {
 		return sdk.ToolResult{}, fmt.Errorf("tool %q execute: %w", tc.Name, err)
 	}
