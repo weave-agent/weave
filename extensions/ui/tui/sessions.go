@@ -20,6 +20,7 @@ type SessionEntry struct {
 	ID        string
 	CWD       string
 	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // sessionDir returns the directory where session JSONL files are stored.
@@ -126,15 +127,21 @@ func listSessions(dirOverride string) ([]SessionEntry, error) {
 			continue
 		}
 
+		fi, err := e.Info()
+		if err != nil {
+			continue
+		}
+
 		sessions = append(sessions, SessionEntry{
 			ID:        header.ID,
 			CWD:       header.CWD,
 			CreatedAt: header.Timestamp,
+			UpdatedAt: fi.ModTime(),
 		})
 	}
 
 	sort.Slice(sessions, func(i, j int) bool {
-		return sessions[i].CreatedAt.After(sessions[j].CreatedAt)
+		return sessions[i].UpdatedAt.After(sessions[j].UpdatedAt)
 	})
 
 	return sessions, nil

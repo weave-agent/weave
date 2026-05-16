@@ -73,6 +73,7 @@ func (a *AgentExtension) run(
 				messages = payload.Messages
 				a.sessionID = payload.SessionID
 				a.resumed = true
+				a.fileOps = newFileOperations()
 			}
 
 			continue
@@ -89,6 +90,7 @@ func (a *AgentExtension) run(
 				messages = payload.Messages
 				a.sessionID = payload.SessionID
 				a.resumed = true
+				a.fileOps = newFileOperations()
 			}
 
 			continue
@@ -348,6 +350,7 @@ func (a *AgentExtension) run(
 				messages = payload.Messages
 				a.sessionID = payload.SessionID
 				a.resumed = true
+				a.fileOps = newFileOperations()
 			}
 
 			goto waitForInput

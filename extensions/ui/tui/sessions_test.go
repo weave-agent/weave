@@ -36,8 +36,8 @@ func TestListSessions_ReadsHeaders(t *testing.T) {
 
 	now := time.Now().UTC().Truncate(time.Second)
 
-	writeSessionFile(t, dir, "aaa11122233344455566677788899900", "/project/alpha", now)
 	writeSessionFile(t, dir, "bbb11122233344455566677788899900", "/project/beta", now.Add(-time.Hour))
+	writeSessionFile(t, dir, "aaa11122233344455566677788899900", "/project/alpha", now)
 
 	sessions, err := listSessions("")
 	require.NoError(t, err)

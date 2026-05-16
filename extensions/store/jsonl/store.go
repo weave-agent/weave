@@ -233,8 +233,11 @@ func (s *Store) handleSessionResume(evt sdk.Event) {
 
 	sess, err := s.Load(payload.SessionID)
 	if err != nil {
-		logger.Warn("jsonl: load session for resume, continuing with empty state", "session", payload.SessionID, "error", err)
-	} else if len(sess.Entries) > 0 {
+		logger.Warn("jsonl: load session for resume failed, staying in clean state", "session", payload.SessionID, "error", err)
+		return
+	}
+
+	if len(sess.Entries) > 0 {
 		last := sess.Entries[len(sess.Entries)-1]
 		lastEntryID = last.ID
 		maxTurn = last.Turn

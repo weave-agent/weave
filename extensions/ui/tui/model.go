@@ -1558,7 +1558,7 @@ func (m Model) onSessionListResult(msg SessionListResultMsg) (tea.Model, tea.Cmd
 	for i, s := range msg.Sessions {
 		items[i] = overlays.SelectorItem{
 			Title:    shortenCWD(s.CWD),
-			Subtitle: s.CreatedAt.Format("2006-01-02 15:04"),
+			Subtitle: s.UpdatedAt.Format("2006-01-02 15:04"),
 		}
 	}
 
@@ -1861,6 +1861,11 @@ func (m Model) onSessionDialogDone(result overlays.DialogResult, pendingCmd tea.
 
 	if m.bus != nil {
 		payload := sdk.SessionResumePayload{SessionID: session.ID}
+		if store := sdk.GetSessionStore(); store != nil {
+			history, _ := store.LoadHistory(session.ID)
+			payload.Messages = history
+		}
+
 		return m, tea.Batch(pendingCmd, PublishSessionResume(m.bus, payload))
 	}
 

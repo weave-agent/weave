@@ -767,6 +767,13 @@ func TestModel_SessionSelectorSelect(t *testing.T) {
 	err := os.WriteFile(filepath.Join(dir, sessionID+".jsonl"), []byte(content), 0o644)
 	require.NoError(t, err)
 
+	// Register a mock session store so the resume payload includes message history.
+	sdk.SetSessionStore(&testSessionStore{
+		history: []sdk.Message{sdk.NewUserMessage("previous question")},
+	})
+
+	defer sdk.ResetSessionStore()
+
 	// Show selector
 	model, _ := m.Update(SessionListResultMsg{Sessions: sessions})
 	m = model.(Model)
@@ -793,12 +800,14 @@ func TestModel_SessionSelectorSelect(t *testing.T) {
 	require.NotNil(t, cmd)
 	cmd()
 
-	// Verify session.resume event was published
+	// Verify session.resume event was published with message history
 	evt := <-ch
 	assert.Equal(t, topicSessionResume, evt.Topic)
 	payload, ok := evt.Payload.(sdk.SessionResumePayload)
 	require.True(t, ok)
 	assert.Equal(t, sessionID, payload.SessionID)
+	require.Len(t, payload.Messages, 1)
+	assert.Equal(t, "previous question", payload.Messages[0].Content)
 }
 
 func TestModel_OverlayInterceptsKeys(t *testing.T) {
@@ -3957,4 +3966,14 @@ func TestKeybindings_CopySelection_IsRegistered(t *testing.T) {
 	action, ok := bindings.Resolve("ctrl+shift+c")
 	assert.True(t, ok, "ctrl+shift+c should be registered")
 	assert.Equal(t, ActionCopySelection, action)
+}
+
+// testSessionStore is a minimal sdk.SessionStore implementation for tests.
+type testSessionStore struct {
+	history []sdk.Message
+}
+
+func (s *testSessionStore) ListSessions() ([]sdk.SessionInfo, error) { return nil, nil }
+func (s *testSessionStore) LoadHistory(_ string) ([]sdk.Message, error) {
+	return s.history, nil
 }
