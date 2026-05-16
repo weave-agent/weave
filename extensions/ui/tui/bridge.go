@@ -37,6 +37,9 @@ const (
 
 	topicExtOutdated = "extension.outdated"
 
+	topicAuthLoginSuccess = "auth.login.success"
+	topicAuthLogout       = "auth.logout"
+
 	keyProvider = "provider"
 	keyModel    = "model"
 )
@@ -189,6 +192,16 @@ func (t *agentStateTracker) update(msg tea.Msg) (palette.State, bool) {
 // ProviderListResultMsg carries the result of listing providers with key status.
 type ProviderListResultMsg struct {
 	Providers []ProviderEntry
+}
+
+// LoginListResultMsg carries the result of listing providers available for login.
+type LoginListResultMsg struct {
+	Providers []LoginProviderEntry
+}
+
+// LogoutListResultMsg carries the result of listing providers with configured auth.
+type LogoutListResultMsg struct {
+	Providers []LogoutProviderEntry
 }
 
 // translateEvent converts a bus event into a tea.Msg.
@@ -516,6 +529,32 @@ func PublishThinkingChange(bus sdk.Bus, level sdkmodel.ThinkingLevel) tea.Cmd {
 	}
 }
 
+// PublishAuthLoginSuccess returns a tea.Cmd that publishes an auth.login.success event.
+func PublishAuthLoginSuccess(bus sdk.Bus, provider string) tea.Cmd {
+	return func() tea.Msg {
+		if bus != nil {
+			bus.Publish(sdk.NewEvent(topicAuthLoginSuccess, map[string]string{
+				keyProvider: provider,
+			}))
+		}
+
+		return nil
+	}
+}
+
+// PublishAuthLogout returns a tea.Cmd that publishes an auth.logout event.
+func PublishAuthLogout(bus sdk.Bus, provider string) tea.Cmd {
+	return func() tea.Msg {
+		if bus != nil {
+			bus.Publish(sdk.NewEvent(topicAuthLogout, map[string]string{
+				keyProvider: provider,
+			}))
+		}
+
+		return nil
+	}
+}
+
 // listModelsCmd returns a tea.Cmd that lists available models.
 func listModelsCmd() tea.Cmd {
 	return func() tea.Msg {
@@ -527,5 +566,19 @@ func listModelsCmd() tea.Cmd {
 func listProvidersCmd() tea.Cmd {
 	return func() tea.Msg {
 		return ProviderListResultMsg{Providers: listProviders()}
+	}
+}
+
+// loginCmd returns a tea.Cmd that lists providers available for login.
+func loginCmd() tea.Cmd {
+	return func() tea.Msg {
+		return LoginListResultMsg{Providers: buildLoginProviders()}
+	}
+}
+
+// logoutCmd returns a tea.Cmd that lists providers with configured auth.
+func logoutCmd() tea.Cmd {
+	return func() tea.Msg {
+		return LogoutListResultMsg{Providers: buildLogoutProviders()}
 	}
 }

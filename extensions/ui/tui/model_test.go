@@ -4000,3 +4000,199 @@ func (s *testSessionStore) ListSessions() ([]sdk.SessionInfo, error) { return ni
 func (s *testSessionStore) LoadHistory(_ string) ([]sdk.Message, error) {
 	return s.history, nil
 }
+
+func TestModel_LoginListResult_Empty(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+
+	model, _ := m.onLoginListResult(LoginListResultMsg{Providers: nil})
+	m2 := model.(Model)
+
+	items := m2.chat.Items()
+	require.Len(t, items, 1)
+	am, ok := items[0].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Contains(t, am.Content(), "No providers available")
+}
+
+func TestModel_LoginListResult_ShowsDialog(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+
+	providers := []LoginProviderEntry{
+		{Name: "Test Provider", ID: "test", IsOAuth: false, HasAuth: false},
+	}
+
+	model, _ := m.onLoginListResult(LoginListResultMsg{Providers: providers})
+	m2 := model.(Model)
+
+	assert.False(t, m2.dialogStack.Empty())
+	assert.Len(t, m2.pendingLoginProviders, 1)
+}
+
+func TestModel_LogoutListResult_Empty(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+
+	model, _ := m.onLogoutListResult(LogoutListResultMsg{Providers: nil})
+	m2 := model.(Model)
+
+	items := m2.chat.Items()
+	require.Len(t, items, 1)
+	am, ok := items[0].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Contains(t, am.Content(), "No providers currently authenticated")
+}
+
+func TestModel_LogoutListResult_ShowsDialog(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+
+	providers := []LogoutProviderEntry{
+		{Name: "Test Provider", ID: "test"},
+	}
+
+	model, _ := m.onLogoutListResult(LogoutListResultMsg{Providers: providers})
+	m2 := model.(Model)
+
+	assert.False(t, m2.dialogStack.Empty())
+	assert.Len(t, m2.pendingLogoutProviders, 1)
+}
+
+func TestModel_OnLoginDialogDone_OAuthProvider(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+
+	m.pendingLoginProviders = []LoginProviderEntry{
+		{Name: "OpenAI", ID: "openai", IsOAuth: true},
+	}
+
+	result := overlays.DialogResult{Index: 0}
+	model, _ := m.onLoginDialogDone(result, nil)
+	m2 := model.(Model)
+
+	assert.Nil(t, m2.pendingLoginProviders)
+	items := m2.chat.Items()
+	require.Len(t, items, 1)
+	am, ok := items[0].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Contains(t, am.Content(), "OAuth login")
+}
+
+func TestModel_OnLoginDialogDone_RegularProvider(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+
+	m.pendingLoginProviders = []LoginProviderEntry{
+		{Name: "Anthropic", ID: "anthropic", IsOAuth: false},
+	}
+
+	result := overlays.DialogResult{Index: 0}
+	model, _ := m.onLoginDialogDone(result, nil)
+	m2 := model.(Model)
+
+	assert.Nil(t, m2.pendingLoginProviders)
+	assert.Equal(t, "anthropic", m2.providerTarget)
+	assert.False(t, m2.dialogStack.Empty())
+}
+
+func TestModel_OnLoginDialogDone_Cancel(t *testing.T) {
+	m := newModelNoLanding()
+	m.pendingLoginProviders = []LoginProviderEntry{
+		{Name: "Test", ID: "test"},
+	}
+
+	result := overlays.DialogResult{Err: assert.AnError}
+	model, _ := m.onLoginDialogDone(result, nil)
+	m2 := model.(Model)
+
+	assert.Nil(t, m2.pendingLoginProviders)
+	assert.Empty(t, m2.providerTarget)
+}
+
+func TestModel_OnLogoutDialogDone_ClearsAuth(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+
+	m.pendingLogoutProviders = []LogoutProviderEntry{
+		{Name: "Test", ID: "test"},
+	}
+
+	result := overlays.DialogResult{Index: 0}
+	model, _ := m.onLogoutDialogDone(result, nil)
+	m2 := model.(Model)
+
+	assert.Nil(t, m2.pendingLogoutProviders)
+	items := m2.chat.Items()
+	require.Len(t, items, 1)
+	am, ok := items[0].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Contains(t, am.Content(), "Logged out")
+}
+
+func TestModel_OnLogoutDialogDone_Cancel(t *testing.T) {
+	m := newModelNoLanding()
+	m.pendingLogoutProviders = []LogoutProviderEntry{
+		{Name: "Test", ID: "test"},
+	}
+
+	result := overlays.DialogResult{Err: assert.AnError}
+	model, _ := m.onLogoutDialogDone(result, nil)
+	m2 := model.(Model)
+
+	assert.Nil(t, m2.pendingLogoutProviders)
+}
+
+func TestModel_HandleDialogDone_LoginLogout(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+
+	// Test login dialog
+	m.pendingLoginProviders = []LoginProviderEntry{
+		{Name: "OpenAI", ID: "openai", IsOAuth: true},
+	}
+	sel := overlays.NewSelectorModel("Login", []overlays.SelectorItem{{Title: "OpenAI"}})
+	sel = sel.Show()
+	m.dialogStack = m.dialogStack.Push(overlays.NewSelectorDialog(dialogLoginSelect, sel))
+
+	// Simulate dialog completion via Update
+	model, _ := m.Update(overlays.SelectorSelectedMsg{Index: 0})
+	m2 := model.(Model)
+	assert.Nil(t, m2.pendingLoginProviders)
+}
+
+func TestModel_HandleDialogForceCancel_LoginLogout(t *testing.T) {
+	m := newModelNoLanding()
+	m.pendingLoginProviders = []LoginProviderEntry{{Name: "Test", ID: "test"}}
+	m.pendingLogoutProviders = []LogoutProviderEntry{{Name: "Test", ID: "test"}}
+
+	sel := overlays.NewSelectorModel("Login", []overlays.SelectorItem{{Title: "Test"}})
+	sel = sel.Show()
+	loginDlg := overlays.NewSelectorDialog(dialogLoginSelect, sel)
+
+	model, _ := m.handleDialogForceCancel(loginDlg)
+	m2 := model.(Model)
+	assert.Nil(t, m2.pendingLoginProviders)
+	assert.NotNil(t, m2.pendingLogoutProviders) // logout should still be pending
+
+	sel2 := overlays.NewSelectorModel("Logout", []overlays.SelectorItem{{Title: "Test"}})
+	sel2 = sel2.Show()
+	logoutDlg := overlays.NewSelectorDialog(dialogLogoutSelect, sel2)
+
+	model, _ = m2.handleDialogForceCancel(logoutDlg)
+	m3 := model.(Model)
+	assert.Nil(t, m3.pendingLogoutProviders)
+}

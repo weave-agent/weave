@@ -29,6 +29,8 @@ func TestCommandRegistry_BuiltinCommands(t *testing.T) {
 	assert.Contains(t, names, "/help")
 	assert.Contains(t, names, "/compact")
 	assert.Contains(t, names, "/name")
+	assert.Contains(t, names, "/login")
+	assert.Contains(t, names, "/logout")
 }
 
 func TestCommandRegistry_DispatchNonCommand(t *testing.T) {
@@ -610,4 +612,47 @@ func TestIsSHA256Hex(t *testing.T) {
 			assert.False(t, isSHA256Hex(tt.in))
 		})
 	}
+}
+
+func TestCommandRegistry_DispatchLogin(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	r := NewCommandRegistry(b, "")
+
+	handled, result := r.Dispatch("/login")
+	require.True(t, handled)
+	assert.NotNil(t, result.Command)
+
+	msg := result.Command()
+	loginResult, ok := msg.(LoginListResultMsg)
+	require.True(t, ok, "expected LoginListResultMsg, got %T", msg)
+	assert.NotNil(t, loginResult.Providers)
+}
+
+func TestCommandRegistry_DispatchLogout(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	r := NewCommandRegistry(b, "")
+
+	handled, result := r.Dispatch("/logout")
+	require.True(t, handled)
+	assert.NotNil(t, result.Command)
+
+	msg := result.Command()
+	logoutResult, ok := msg.(LogoutListResultMsg)
+	require.True(t, ok, "expected LogoutListResultMsg, got %T", msg)
+	assert.NotNil(t, logoutResult.Providers)
+}
+
+func TestCommandRegistry_LoginLogoutInHelp(t *testing.T) {
+	b := bus.New()
+	defer b.Close()
+
+	r := NewCommandRegistry(b, "")
+
+	help := r.helpText()
+	assert.Contains(t, help, "/login")
+	assert.Contains(t, help, "/logout")
 }

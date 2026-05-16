@@ -91,6 +91,14 @@ func NewCommandRegistry(bus sdk.Bus, sessionDir string) *CommandRegistry {
 		return CommandResult{Command: reloadCmd()}
 	})
 
+	r.register("/login", "Authenticate with a provider", false, func(_ string) CommandResult {
+		return CommandResult{Command: loginCmd()}
+	})
+
+	r.register("/logout", "Clear authentication for a provider", false, func(_ string) CommandResult {
+		return CommandResult{Command: logoutCmd()}
+	})
+
 	return r
 }
 

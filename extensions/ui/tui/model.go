@@ -80,14 +80,16 @@ type Model struct {
 	ui         *TUIImpl
 	layout     LayoutEngine
 
-	pendingSessions   []SessionEntry
-	pendingModels     []ModelEntry
-	pendingProviders  []ProviderEntry
-	currentModel      ModelEntry
-	prevModel         ModelEntry
-	prevThinkingLevel sdkmodel.ThinkingLevel
-	dialogStack       overlays.DialogStack
-	attach            attachments.Model
+	pendingSessions        []SessionEntry
+	pendingModels          []ModelEntry
+	pendingProviders       []ProviderEntry
+	pendingLoginProviders  []LoginProviderEntry
+	pendingLogoutProviders []LogoutProviderEntry
+	currentModel           ModelEntry
+	prevModel              ModelEntry
+	prevThinkingLevel      sdkmodel.ThinkingLevel
+	dialogStack            overlays.DialogStack
+	attach                 attachments.Model
 
 	providerTarget string
 	popupChans     map[string]chan overlayResponse
@@ -685,6 +687,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ProviderListResultMsg:
 		return m.onProviderListResult(msg)
+
+	case LoginListResultMsg:
+		return m.onLoginListResult(msg)
+
+	case LogoutListResultMsg:
+		return m.onLogoutListResult(msg)
 
 	case ShutdownMsg:
 		return m, tea.Quit
@@ -1816,6 +1824,65 @@ func (m Model) onProviderListResult(msg ProviderListResultMsg) (tea.Model, tea.C
 	return m, nil
 }
 
+func (m Model) onLoginListResult(msg LoginListResultMsg) (tea.Model, tea.Cmd) {
+	if len(msg.Providers) == 0 {
+		am := messages.NewAssistantMessage()
+		am.Finalize("No providers available for login.")
+		m.chat = m.chat.AddItem(am)
+
+		return m, nil
+	}
+
+	items := make([]overlays.SelectorItem, len(msg.Providers))
+	for i, p := range msg.Providers {
+		statusText := "not configured"
+		if p.HasAuth {
+			statusText = "configured"
+		}
+
+		if p.IsOAuth {
+			statusText += " · OAuth"
+		}
+
+		items[i] = overlays.SelectorItem{
+			Title:    p.Name,
+			Subtitle: statusText,
+		}
+	}
+
+	m.pendingLoginProviders = msg.Providers
+	sel := overlays.NewSelectorModel("Login to Provider", items)
+	sel = sel.SetSize(m.width, m.height).Show()
+	m.dialogStack = m.dialogStack.Push(overlays.NewSelectorDialog(dialogLoginSelect, sel))
+
+	return m, nil
+}
+
+func (m Model) onLogoutListResult(msg LogoutListResultMsg) (tea.Model, tea.Cmd) {
+	if len(msg.Providers) == 0 {
+		am := messages.NewAssistantMessage()
+		am.Finalize("No providers currently authenticated.")
+		m.chat = m.chat.AddItem(am)
+
+		return m, nil
+	}
+
+	items := make([]overlays.SelectorItem, len(msg.Providers))
+	for i, p := range msg.Providers {
+		items[i] = overlays.SelectorItem{
+			Title:    p.Name,
+			Subtitle: "configured",
+		}
+	}
+
+	m.pendingLogoutProviders = msg.Providers
+	sel := overlays.NewSelectorModel("Logout from Provider", items)
+	sel = sel.SetSize(m.width, m.height).Show()
+	m.dialogStack = m.dialogStack.Push(overlays.NewSelectorDialog(dialogLogoutSelect, sel))
+
+	return m, nil
+}
+
 func (m Model) onProviderDialogDone(result overlays.DialogResult, pendingCmd tea.Cmd) (tea.Model, tea.Cmd) {
 	if result.Err != nil || result.Index < 0 || result.Index >= len(m.pendingProviders) {
 		m.pendingProviders = nil
@@ -1891,7 +1958,79 @@ func (m Model) onKeyInputDialogDone(result overlays.DialogResult, pendingCmd tea
 		}
 	}
 
+	if m.bus != nil {
+		return m, tea.Batch(pendingCmd, PublishAuthLoginSuccess(m.bus, providerName))
+	}
+
 	return m, pendingCmd
+}
+
+func (m Model) onLoginDialogDone(result overlays.DialogResult, pendingCmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if result.Err != nil || result.Index < 0 || result.Index >= len(m.pendingLoginProviders) {
+		m.pendingLoginProviders = nil
+		return m, pendingCmd
+	}
+
+	selected := m.pendingLoginProviders[result.Index]
+	m.pendingLoginProviders = nil
+
+	if selected.IsOAuth {
+		// OAuth flow will be implemented in Tasks 6-8.
+		am := messages.NewAssistantMessage()
+		am.Finalize(fmt.Sprintf("OAuth login for %s is not yet implemented. Use /providers to set an API key instead.", selected.Name))
+		m.chat = m.chat.AddItem(am)
+
+		return m, pendingCmd
+	}
+
+	// API key flow: reuse the existing key input dialog.
+	m.providerTarget = selected.ID
+	input := overlays.NewInputModel("Enter API key for " + selected.Name)
+	input = input.SetSize(m.width, m.height).Show()
+	m.dialogStack = m.dialogStack.Push(overlays.NewInputDialog(dialogKeyInput, input))
+
+	return m, pendingCmd
+}
+
+func (m Model) onLogoutDialogDone(result overlays.DialogResult, pendingCmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if result.Err != nil || result.Index < 0 || result.Index >= len(m.pendingLogoutProviders) {
+		m.pendingLogoutProviders = nil
+		return m, pendingCmd
+	}
+
+	selected := m.pendingLogoutProviders[result.Index]
+	m.pendingLogoutProviders = nil
+
+	if err := sdk.ClearProviderAuth(selected.ID); err != nil {
+		am := messages.NewAssistantMessage()
+		am.Finalize(fmt.Sprintf("Failed to clear auth for %s: %v", selected.Name, err))
+		m.chat = m.chat.AddItem(am)
+
+		return m, pendingCmd
+	}
+
+	// Update in-memory auth status so the provider is no longer usable.
+	sdkmodel.SetProviderAuth(selected.ID, false)
+
+	am := messages.NewAssistantMessage()
+	am.Finalize(fmt.Sprintf("Logged out from %s.", selected.Name))
+	m.chat = m.chat.AddItem(am)
+
+	var cmds []tea.Cmd
+
+	cmds = append(cmds, pendingCmd)
+
+	if m.bus != nil {
+		cmds = append(cmds, PublishAuthLogout(m.bus, selected.ID))
+	}
+
+	// Re-evaluate noConfigured state.
+	models := listModels()
+	if len(models) == 0 {
+		m.noConfigured = true
+	}
+
+	return m, tea.Batch(cmds...)
 }
 
 // handleDialogDone processes a completed dialog from the stack.
@@ -1908,6 +2047,10 @@ func (m Model) handleDialogDone(d overlays.Dialog, pendingCmd tea.Cmd) (tea.Mode
 		return m.onProviderDialogDone(result, pendingCmd)
 	case dialogKeyInput:
 		return m.onKeyInputDialogDone(result, pendingCmd)
+	case dialogLoginSelect:
+		return m.onLoginDialogDone(result, pendingCmd)
+	case dialogLogoutSelect:
+		return m.onLogoutDialogDone(result, pendingCmd)
 	default:
 		// Popup dialogs: send result on channel.
 		if ch, ok := m.popupChans[id]; ok {
@@ -1944,6 +2087,10 @@ func (m Model) handleDialogForceCancel(d overlays.Dialog) (tea.Model, tea.Cmd) {
 	case dialogKeyInput:
 		m.pendingProviders = nil
 		m.providerTarget = ""
+	case dialogLoginSelect:
+		m.pendingLoginProviders = nil
+	case dialogLogoutSelect:
+		m.pendingLogoutProviders = nil
 	default:
 		// Popup dialog cancellation.
 		if ch, ok := m.popupChans[id]; ok {

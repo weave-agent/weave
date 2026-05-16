@@ -73,14 +73,14 @@ Add interactive login support to Weave's TUI, including both API key entry and O
 - [x] Run `make test` — must pass before Task 4
 
 ### Task 4: Add `/login` and `/logout` slash commands
-- [ ] Register `/login` command in `commands.go` — shows OAuth + API key provider selector
-- [ ] Register `/logout` command — shows configured providers, clears selected auth
-- [ ] Add `AuthSelectorComponent` (lists providers with status indicators)
-- [ ] Wire auth selector into TUI model (`model.go`)
-- [ ] Add `auth.login.success` and `auth.logout` bus events
-- [ ] Write tests for slash command registration
-- [ ] Write tests for auth selector state
-- [ ] Run `make test` — must pass before Task 5
+- [x] Register `/login` command in `commands.go` — shows OAuth + API key provider selector
+- [x] Register `/logout` command — shows configured providers, clears selected auth
+- [x] Add `AuthSelectorComponent` (lists providers with status indicators)
+- [x] Wire auth selector into TUI model (`model.go`)
+- [x] Add `auth.login.success` and `auth.logout` bus events
+- [x] Write tests for slash command registration
+- [x] Write tests for auth selector state
+- [x] Run `make test` — must pass before Task 5
 
 ### Task 5: Implement API key login flow
 - [ ] API key selection from auth selector triggers `InputDialog` with password masking
