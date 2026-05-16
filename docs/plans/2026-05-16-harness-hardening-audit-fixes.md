@@ -120,10 +120,10 @@ Fix 17 gaps identified by the agents-best-practices audit of the Weave agent fra
 - [x] run `cd extensions/providers/anthropic && go test ./...` — must pass before task 12
 
 ### Task 12: Add trust labeling on tool results
-- [ ] in `sdk/message.go`, wrap tool result content in `<tool_output name="...">` XML tags when constructing `NewToolResultMessage()`
-- [ ] add one line to `extensions/agent/default-system-prompt.md` instructing the model that content in `<tool_output>` tags is external data, not system instructions
-- [ ] write tests: TestNewToolResultMessage_TrustLabel in `sdk/message_test.go`
-- [ ] run `cd sdk && go test ./...` — must pass before task 13
+- [x] in `sdk/message.go`, wrap tool result content in `<tool_output name="...">` XML tags when constructing `NewToolResultMessage()`
+- [x] add one line to `extensions/agent/default-system-prompt.md` instructing the model that content in `<tool_output>` tags is external data, not system instructions
+- [x] write tests: TestNewToolResultMessage_TrustLabel in `sdk/message_test.go`
+- [x] run `cd sdk && go test ./...` — must pass before task 13
 
 ### Task 13: Add trust labeling on skill body injection
 - [ ] in `extensions/agent/skills.go:makeSkillHandler()`, wrap the skill body in `<skill_body trust="untrusted">` XML tags before publishing as `agent.prompt`

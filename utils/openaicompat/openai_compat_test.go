@@ -79,7 +79,7 @@ func TestConvertMessages(t *testing.T) {
 				sdk.NewToolResultMessage("call_1", "bash", "file1.txt\nfile2.txt", false),
 			},
 			want: []ChatMessage{
-				{Role: "tool", Content: "file1.txt\nfile2.txt", ToolCallID: "call_1"},
+				{Role: "tool", Content: "<tool_output name=\"bash\">\nfile1.txt\nfile2.txt\n</tool_output>", ToolCallID: "call_1"},
 			},
 		},
 		{
@@ -110,7 +110,7 @@ func TestConvertMessages(t *testing.T) {
 						},
 					},
 				},
-				{Role: "tool", Content: "output", ToolCallID: "call_1"},
+				{Role: "tool", Content: "<tool_output name=\"bash\">\noutput\n</tool_output>", ToolCallID: "call_1"},
 			},
 		},
 	}

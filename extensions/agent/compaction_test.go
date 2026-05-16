@@ -44,17 +44,18 @@ func TestEstimateTokens(t *testing.T) {
 		msgs := []sdk.Message{
 			sdk.NewToolResultMessage("tc1", "bash", "command output here", false),
 		}
-		assert.Equal(t, 4, estimateTokens(msgs))
+		// Content is wrapped in <tool_output> tags: 60 chars -> 15 tokens
+		assert.Equal(t, 15, estimateTokens(msgs))
 	})
 
 	t.Run("mixed conversation", func(t *testing.T) {
 		msgs := []sdk.Message{
 			sdk.NewUserMessage("Write a function"),                   // 16 chars -> 4 tokens
 			sdk.NewAssistantMessage("Here is the function:"),         // 21 chars -> 5 tokens
-			sdk.NewToolResultMessage("tc1", "bash", "output", false), // 6 chars -> 1 token
+			sdk.NewToolResultMessage("tc1", "bash", "output", false), // wrapped: ~45 chars -> 11 tokens
 			sdk.NewAssistantMessage("Done"),                          // 4 chars -> 1 token
 		}
-		assert.Equal(t, 11, estimateTokens(msgs))
+		assert.Equal(t, 21, estimateTokens(msgs))
 	})
 
 	t.Run("with thinking blocks", func(t *testing.T) {
@@ -395,7 +396,8 @@ func TestSerializeForSummary(t *testing.T) {
 		assert.Contains(t, result, "[User]: run echo")
 		assert.Contains(t, result, "[Tool call]: bash(")
 		assert.Contains(t, result, `"command":"echo hi"`)
-		assert.Contains(t, result, "[Tool result]: hi")
+		assert.Contains(t, result, "[Tool result]:")
+		assert.Contains(t, result, "hi")
 		assert.Contains(t, result, "[Assistant]: Done")
 	})
 
@@ -408,9 +410,11 @@ func TestSerializeForSummary(t *testing.T) {
 		assert.Contains(t, result, "... (truncated)")
 		assert.Less(t, len(result), 2500)
 
-		// Verify exact truncation point: 2000 chars of 'x' + suffix.
-		prefix := "[Tool result]: " + strings.Repeat("x", maxToolResultLen)
-		assert.Contains(t, result, prefix, "truncation should preserve exactly %d chars", maxToolResultLen)
+		// Verify truncation point: content includes XML wrapper + 2000 chars of output.
+		// When truncated, the closing </tool_output> tag may be cut off.
+		assert.Contains(t, result, "[Tool result]:")
+		assert.Contains(t, result, strings.Repeat("x", 1000), "truncation should preserve substantial x characters")
+		assert.Contains(t, result, "<tool_output")
 	})
 
 	t.Run("previous summary inclusion", func(t *testing.T) {

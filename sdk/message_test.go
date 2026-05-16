@@ -41,16 +41,45 @@ func TestNewToolResultMessage(t *testing.T) {
 	after := time.Now()
 
 	assert.Equal(t, RoleToolResult, msg.Role)
-	assert.Equal(t, "output text", msg.Content)
 	assert.Equal(t, "call_123", msg.ToolCallID)
 	assert.Equal(t, "bash", msg.ToolName)
 	assert.False(t, msg.IsError)
 	assert.True(t, !msg.Timestamp.Before(before) && !msg.Timestamp.After(after))
+
+	content, ok := msg.Content.(string)
+	require.True(t, ok)
+	assert.Contains(t, content, "<tool_output name=\"bash\">")
+	assert.Contains(t, content, "output text")
+	assert.Contains(t, content, "</tool_output>")
 }
 
 func TestNewToolResultMessage_Error(t *testing.T) {
 	msg := NewToolResultMessage("call_err", "bash", "command failed", true)
 	assert.True(t, msg.IsError)
+
+	content, ok := msg.Content.(string)
+	require.True(t, ok)
+	assert.Contains(t, content, "<tool_output name=\"bash\">")
+	assert.Contains(t, content, "command failed")
+	assert.Contains(t, content, "</tool_output>")
+}
+
+func TestNewToolResultMessage_TrustLabel(t *testing.T) {
+	msg := NewToolResultMessage("call_1", "read", "file content here", false)
+
+	content, ok := msg.Content.(string)
+	require.True(t, ok)
+	assert.Equal(t, "<tool_output name=\"read\">\nfile content here\n</tool_output>", content)
+}
+
+func TestNewToolResultMessage_NonStringContent(t *testing.T) {
+	msg := NewToolResultMessage("call_2", "bash", map[string]any{"key": "value"}, false)
+
+	content, ok := msg.Content.(string)
+	require.True(t, ok)
+	assert.Contains(t, content, `<tool_output name="bash">`)
+	assert.Contains(t, content, "map[key:value]")
+	assert.Contains(t, content, "</tool_output>")
 }
 
 func TestNewUserMessage_NilContent(t *testing.T) {

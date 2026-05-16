@@ -41,5 +41,14 @@ func NewAssistantMessage(content any) Message {
 }
 
 func NewToolResultMessage(toolCallID, toolName string, content any, isError bool) Message {
-	return Message{Role: RoleToolResult, Content: content, ToolCallID: toolCallID, ToolName: toolName, IsError: isError, Timestamp: time.Now()}
+	var wrapped any
+
+	switch c := content.(type) {
+	case string:
+		wrapped = fmt.Sprintf("<tool_output name=%q>\n%s\n</tool_output>", toolName, c)
+	default:
+		wrapped = fmt.Sprintf("<tool_output name=%q>\n%v\n</tool_output>", toolName, c)
+	}
+
+	return Message{Role: RoleToolResult, Content: wrapped, ToolCallID: toolCallID, ToolName: toolName, IsError: isError, Timestamp: time.Now()}
 }
