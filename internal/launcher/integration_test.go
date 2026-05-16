@@ -22,7 +22,7 @@ import (
 )
 
 func init() {
-	sdk.RegisterExtension[struct{}]("noop", func(cfg sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("noop", func(cfg sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFunc("noop", func(b sdk.Bus) error {
 			b.Publish(sdk.NewEvent("noop.ready", "noop extension active"))
 			return nil
@@ -53,7 +53,7 @@ import (
 )
 
 func init() {
-	sdk.RegisterExtension[struct{}]("noop", func(cfg sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("noop", func(cfg sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Extension, error) {
 		return sdk.NewExtensionFunc("noop", func(b sdk.Bus) error {
 			marker := os.Getenv("WEAVE_NOOP_MARKER")
 			if marker != "" {

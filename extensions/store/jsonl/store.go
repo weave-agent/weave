@@ -72,7 +72,7 @@ type Store struct {
 }
 
 func init() {
-	sdk.RegisterExtensionWithScope("jsonl", "jsonl", func(_ sdk.Config, _ sdk.PreferenceStore, opts JSONLOpts) (sdk.Extension, error) {
+	sdk.RegisterExtensionWithScope("jsonl", "jsonl", func(_ sdk.Config, _ sdk.PreferenceReader, opts JSONLOpts) (sdk.Extension, error) {
 		return NewStore(opts)
 	})
 }

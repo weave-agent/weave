@@ -25,7 +25,7 @@ func TestRegisterUIExtension(t *testing.T) {
 
 	ext := &stubUIExtension{name: "test-ext"}
 
-	RegisterUIExtension("test-ext", func(_ Config, _ PreferenceStore, _ struct{}) (UIExtension, error) {
+	RegisterUIExtension("test-ext", func(_ Config, _ PreferenceReader, _ struct{}) (UIExtension, error) {
 		return ext, nil
 	})
 
@@ -39,7 +39,7 @@ func TestRegisterUIExtension_WithConfig(t *testing.T) {
 
 	var receivedCfg stubUIExtConfig
 
-	RegisterUIExtension("config-ext", func(_ Config, _ PreferenceStore, cfg stubUIExtConfig) (UIExtension, error) {
+	RegisterUIExtension("config-ext", func(_ Config, _ PreferenceReader, cfg stubUIExtConfig) (UIExtension, error) {
 		receivedCfg = cfg
 		return &stubUIExtension{name: "config-ext", config: cfg}, nil
 	})
@@ -55,12 +55,12 @@ func TestRegisterUIExtension_DuplicateWarns(t *testing.T) {
 
 	first := &stubUIExtension{name: "dup"}
 
-	RegisterUIExtension("dup", func(_ Config, _ PreferenceStore, _ struct{}) (UIExtension, error) {
+	RegisterUIExtension("dup", func(_ Config, _ PreferenceReader, _ struct{}) (UIExtension, error) {
 		return first, nil
 	})
 
 	// Second registration should be a no-op with a warning (no panic).
-	RegisterUIExtension("dup", func(_ Config, _ PreferenceStore, _ struct{}) (UIExtension, error) {
+	RegisterUIExtension("dup", func(_ Config, _ PreferenceReader, _ struct{}) (UIExtension, error) {
 		return &stubUIExtension{name: "dup"}, nil
 	})
 
@@ -80,13 +80,13 @@ func TestGetUIExtensions_Empty(t *testing.T) {
 func TestGetUIExtensions_Multiple(t *testing.T) {
 	ResetUIExtensionRegistry()
 
-	RegisterUIExtension("charlie", func(_ Config, _ PreferenceStore, _ struct{}) (UIExtension, error) {
+	RegisterUIExtension("charlie", func(_ Config, _ PreferenceReader, _ struct{}) (UIExtension, error) {
 		return &stubUIExtension{name: "charlie"}, nil
 	})
-	RegisterUIExtension("alpha", func(_ Config, _ PreferenceStore, _ struct{}) (UIExtension, error) {
+	RegisterUIExtension("alpha", func(_ Config, _ PreferenceReader, _ struct{}) (UIExtension, error) {
 		return &stubUIExtension{name: "alpha"}, nil
 	})
-	RegisterUIExtension("bravo", func(_ Config, _ PreferenceStore, _ struct{}) (UIExtension, error) {
+	RegisterUIExtension("bravo", func(_ Config, _ PreferenceReader, _ struct{}) (UIExtension, error) {
 		return &stubUIExtension{name: "bravo"}, nil
 	})
 
@@ -101,13 +101,13 @@ func TestGetUIExtensions_Multiple(t *testing.T) {
 func TestGetUIExtensions_Sorted(t *testing.T) {
 	ResetUIExtensionRegistry()
 
-	RegisterUIExtension("z-ext", func(_ Config, _ PreferenceStore, _ struct{}) (UIExtension, error) {
+	RegisterUIExtension("z-ext", func(_ Config, _ PreferenceReader, _ struct{}) (UIExtension, error) {
 		return &stubUIExtension{name: "z-ext"}, nil
 	})
-	RegisterUIExtension("a-ext", func(_ Config, _ PreferenceStore, _ struct{}) (UIExtension, error) {
+	RegisterUIExtension("a-ext", func(_ Config, _ PreferenceReader, _ struct{}) (UIExtension, error) {
 		return &stubUIExtension{name: "a-ext"}, nil
 	})
-	RegisterUIExtension("m-ext", func(_ Config, _ PreferenceStore, _ struct{}) (UIExtension, error) {
+	RegisterUIExtension("m-ext", func(_ Config, _ PreferenceReader, _ struct{}) (UIExtension, error) {
 		return &stubUIExtension{name: "m-ext"}, nil
 	})
 
@@ -121,7 +121,7 @@ func TestGetUIExtensions_Sorted(t *testing.T) {
 func TestResetUIExtensionRegistry(t *testing.T) {
 	ResetUIExtensionRegistry()
 
-	RegisterUIExtension("temp", func(_ Config, _ PreferenceStore, _ struct{}) (UIExtension, error) {
+	RegisterUIExtension("temp", func(_ Config, _ PreferenceReader, _ struct{}) (UIExtension, error) {
 		return &stubUIExtension{name: "temp"}, nil
 	})
 
@@ -141,10 +141,10 @@ func TestGetUIExtension_NotRegistered(t *testing.T) {
 func TestListUIExtensions(t *testing.T) {
 	ResetUIExtensionRegistry()
 
-	RegisterUIExtension("beta", func(_ Config, _ PreferenceStore, _ struct{}) (UIExtension, error) {
+	RegisterUIExtension("beta", func(_ Config, _ PreferenceReader, _ struct{}) (UIExtension, error) {
 		return &stubUIExtension{name: "beta"}, nil
 	})
-	RegisterUIExtension("alpha", func(_ Config, _ PreferenceStore, _ struct{}) (UIExtension, error) {
+	RegisterUIExtension("alpha", func(_ Config, _ PreferenceReader, _ struct{}) (UIExtension, error) {
 		return &stubUIExtension{name: "alpha"}, nil
 	})
 
@@ -159,7 +159,7 @@ func TestUIExtensionRegistered(t *testing.T) {
 
 	assert.False(t, UIExtensionRegistered("none"))
 
-	RegisterUIExtension("exists", func(_ Config, _ PreferenceStore, _ struct{}) (UIExtension, error) {
+	RegisterUIExtension("exists", func(_ Config, _ PreferenceReader, _ struct{}) (UIExtension, error) {
 		return &stubUIExtension{name: "exists"}, nil
 	})
 
@@ -170,10 +170,10 @@ func TestUIExtensionRegistered(t *testing.T) {
 func TestGetUIExtensions_FactoryErrorSkipped(t *testing.T) {
 	ResetUIExtensionRegistry()
 
-	RegisterUIExtension("good", func(_ Config, _ PreferenceStore, _ struct{}) (UIExtension, error) {
+	RegisterUIExtension("good", func(_ Config, _ PreferenceReader, _ struct{}) (UIExtension, error) {
 		return &stubUIExtension{name: "good"}, nil
 	})
-	RegisterUIExtension("bad", func(_ Config, _ PreferenceStore, _ struct{}) (UIExtension, error) {
+	RegisterUIExtension("bad", func(_ Config, _ PreferenceReader, _ struct{}) (UIExtension, error) {
 		return nil, assert.AnError
 	})
 

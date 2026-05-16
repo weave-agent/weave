@@ -78,7 +78,7 @@ func init() {
 		})
 	})
 
-	sdk.RegisterTool[BashConfig]("bash", func(cfg sdk.Config, _ sdk.PreferenceStore, bc BashConfig) (sdk.Tool, error) {
+	sdk.RegisterTool[BashConfig]("bash", func(cfg sdk.Config, _ sdk.PreferenceReader, bc BashConfig) (sdk.Tool, error) {
 		timeout := time.Duration(bc.Timeout) * time.Second
 		if timeout <= 0 {
 			timeout = defaultTimeout

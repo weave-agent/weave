@@ -81,7 +81,7 @@ func TestAgentExtension_RegisterAsExtension(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	sdk.RegisterExtension("agent", func(cfg sdk.Config, ps sdk.PreferenceStore, cc CompactionConfig) (sdk.Extension, error) {
+	sdk.RegisterExtension("agent", func(cfg sdk.Config, ps sdk.PreferenceReader, cc CompactionConfig) (sdk.Extension, error) {
 		return NewAgentExtension(cfg, ps, cc)
 	})
 

@@ -61,7 +61,7 @@ func init() {
 		})
 	})
 
-	sdk.RegisterTool("edit", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool("edit", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 		return &tool{
 			tracker:   sdk.GetFileTracker(),
 			fileMutex: sdk.GetFileMutex(),

@@ -140,13 +140,13 @@ func TestBuild_WithToolDescriptions(t *testing.T) {
 	sdk.ResetToolRegistry()
 	defer sdk.ResetToolRegistry()
 
-	sdk.RegisterTool("bash", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool("bash", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 		return &mockTool{
 			name:        "bash",
 			description: "Execute shell commands",
 		}, nil
 	})
-	sdk.RegisterTool("read", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool("read", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 		return &mockTool{
 			name:        "read",
 			description: "Read file contents",
@@ -175,7 +175,7 @@ func TestBuild_AllLayersCombined(t *testing.T) {
 	sdk.ResetToolRegistry()
 	defer sdk.ResetToolRegistry()
 
-	sdk.RegisterTool("bash", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool("bash", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 		return &mockTool{name: "bash", description: "Run commands"}, nil
 	})
 
@@ -205,7 +205,7 @@ func TestBuild_LayerOrdering(t *testing.T) {
 	sdk.ResetToolRegistry()
 	defer sdk.ResetToolRegistry()
 
-	sdk.RegisterTool("bash", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool("bash", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 		return &mockTool{name: "bash", description: "Run commands"}, nil
 	})
 
@@ -241,7 +241,7 @@ func TestBuild_DateCWDAtEnd(t *testing.T) {
 	sdk.ResetToolRegistry()
 	defer sdk.ResetToolRegistry()
 
-	sdk.RegisterTool("bash", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool("bash", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 		return &mockTool{name: "bash", description: "Run commands"}, nil
 	})
 
@@ -377,7 +377,7 @@ func TestBuild_ToolWithoutDescription(t *testing.T) {
 	sdk.ResetToolRegistry()
 	defer sdk.ResetToolRegistry()
 
-	sdk.RegisterTool("mystery", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool("mystery", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 		return &mockTool{name: "mystery", description: ""}, nil
 	})
 

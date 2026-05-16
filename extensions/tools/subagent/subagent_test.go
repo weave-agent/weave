@@ -18,7 +18,7 @@ func TestExtensionRegistration(t *testing.T) {
 
 	// Re-register the extension by calling init logic manually.
 	// Since init() already ran at package load, we need to reset and re-register.
-	sdk.RegisterExtension[struct{}]("subagent", func(cfg sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("subagent", func(cfg sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Extension, error) {
 		projectDir := dirFromConfig(cfg)
 
 		agents, err := DiscoverAgents(projectDir)
@@ -29,17 +29,17 @@ func TestExtensionRegistration(t *testing.T) {
 		for _, agent := range agents {
 			a := agent
 			toolName := "subagent_" + a.Name
-			sdk.RegisterTool[struct{}](toolName, func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+			sdk.RegisterTool[struct{}](toolName, func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 				return newSubagentTool(a, nil, nil, "", ""), nil
 			})
 		}
 
 		mgr := newBackgroundManager(nil, "", "")
 
-		sdk.RegisterTool[struct{}]("check_agent", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+		sdk.RegisterTool[struct{}]("check_agent", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 			return &checkAgentTool{mgr: mgr}, nil
 		})
-		sdk.RegisterTool[struct{}]("await_agent", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+		sdk.RegisterTool[struct{}]("await_agent", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 			return &awaitAgentTool{mgr: mgr}, nil
 		})
 
@@ -57,7 +57,7 @@ func TestExtensionFactoryRegistersTools(t *testing.T) {
 	sdk.ResetToolRegistry()
 
 	// Register and instantiate the extension.
-	sdk.RegisterExtension[struct{}]("subagent", func(cfg sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("subagent", func(cfg sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Extension, error) {
 		projectDir := dirFromConfig(cfg)
 
 		agents, err := DiscoverAgents(projectDir)
@@ -70,15 +70,15 @@ func TestExtensionFactoryRegistersTools(t *testing.T) {
 		for _, agent := range agents {
 			a := agent
 			toolName := "subagent_" + a.Name
-			sdk.RegisterTool[struct{}](toolName, func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+			sdk.RegisterTool[struct{}](toolName, func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 				return newSubagentTool(a, mgr, nil, "", ""), nil
 			})
 		}
 
-		sdk.RegisterTool[struct{}]("check_agent", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+		sdk.RegisterTool[struct{}]("check_agent", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 			return &checkAgentTool{mgr: mgr}, nil
 		})
-		sdk.RegisterTool[struct{}]("await_agent", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+		sdk.RegisterTool[struct{}]("await_agent", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 			return &awaitAgentTool{mgr: mgr}, nil
 		})
 

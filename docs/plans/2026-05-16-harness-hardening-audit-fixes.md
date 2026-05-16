@@ -137,13 +137,13 @@ Fix 17 gaps identified by the agents-best-practices audit of the Weave agent fra
 - [x] run `cd sdk && go test ./...` — must pass before task 15
 
 ### Task 15: Split PreferenceStore interface for credential access
-- [ ] create `PreferenceReader` interface in `sdk/config.go` with `Preferences(target)` only (no `SaveProviderKey`)
-- [ ] create `PreferenceWriter` interface extending `PreferenceReader` with `SaveProviderKey(provider, key)` and `SavePreferences(target)`
-- [ ] keep `PreferenceStore` as the full interface (backward compatible) but update factory signatures so tools/extensions receive `PreferenceReader` by default; only auth-related extensions receive `PreferenceWriter`
-- [ ] update tool and extension factory signatures in `sdk/tool_registry.go`, `sdk/extension.go` to use `PreferenceReader`
-- [ ] update `internal/wire/` to pass `PreferenceWriter` only to providers and auth-related extensions
-- [ ] write tests: verify tools receive `PreferenceReader`, verify providers receive `PreferenceWriter`
-- [ ] run `make test` — must pass before task 16
+- [x] create `PreferenceReader` interface in `sdk/config.go` with `Preferences(target)` only (no `SaveProviderKey`)
+- [x] create `PreferenceWriter` interface extending `PreferenceReader` with `SaveProviderKey(provider, key)` and `SavePreferences(target)`
+- [x] keep `PreferenceStore` as the full interface (backward compatible) but update factory signatures so tools/extensions receive `PreferenceReader` by default; only auth-related extensions receive `PreferenceWriter`
+- [x] update tool and extension factory signatures in `sdk/tool_registry.go`, `sdk/registry.go` to use `PreferenceReader`
+- [x] TUI extension type-asserts `PreferenceReader` to `PreferenceWriter` internally; wire passes `Config` which implements all interfaces
+- [x] write tests: verify tools receive `PreferenceReader`, verify type assertion to `PreferenceWriter`
+- [x] run `make test` — must pass before task 16
 
 ### Task 16: Add install-time warning for extensions
 - [ ] in `internal/extmanage/install.go`, after validating `.go` files and `go.mod`, print a warning to stderr: "Extension '<name>' will be compiled with full access to filesystem, network, and provider credentials. Only install extensions from trusted sources."

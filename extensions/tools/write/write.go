@@ -55,7 +55,7 @@ func init() {
 		})
 	})
 
-	sdk.RegisterTool[struct{}]("write", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool[struct{}]("write", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 		return &tool{fileMutex: sdk.GetFileMutex()}, nil
 	})
 }

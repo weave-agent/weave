@@ -50,12 +50,12 @@ type AgentExtension struct {
 }
 
 func init() {
-	sdk.RegisterExtension("agent", func(cfg sdk.Config, ps sdk.PreferenceStore, cc CompactionConfig) (sdk.Extension, error) {
+	sdk.RegisterExtension("agent", func(cfg sdk.Config, ps sdk.PreferenceReader, cc CompactionConfig) (sdk.Extension, error) {
 		return NewAgentExtension(cfg, ps, cc)
 	})
 }
 
-func NewAgentExtension(cfg sdk.Config, ps sdk.PreferenceStore, cc CompactionConfig) (*AgentExtension, error) {
+func NewAgentExtension(cfg sdk.Config, ps sdk.PreferenceReader, cc CompactionConfig) (*AgentExtension, error) {
 	provider := resolveProviderName(os.Getenv("WEAVE_PROVIDER"), ps)
 
 	modelName := resolveModelName(ps)
@@ -241,7 +241,7 @@ func (a *AgentExtension) registerSkillCommands(bus sdk.Bus) {
 //  2. settings.json "provider" field (persisted user preference)
 //  3. alphabetically first registered provider (sdk.ListProviders()[0])
 //  4. "anthropic" (ultimate fallback)
-func resolveProviderName(envProvider string, ps sdk.PreferenceStore) string {
+func resolveProviderName(envProvider string, ps sdk.PreferenceReader) string {
 	if envProvider != "" {
 		return envProvider
 	}
@@ -263,7 +263,7 @@ func resolveProviderName(envProvider string, ps sdk.PreferenceStore) string {
 
 // resolveModelName reads the persisted model from settings. Returns empty
 // string when no model is set, which lets the provider use its default.
-func resolveModelName(ps sdk.PreferenceStore) string {
+func resolveModelName(ps sdk.PreferenceReader) string {
 	if ps == nil {
 		return ""
 	}
@@ -281,7 +281,7 @@ func resolveModelName(ps sdk.PreferenceStore) string {
 
 // resolveThinkingLevel reads the persisted thinking level from settings,
 // falling back to WEAVE_THINKING_LEVEL env var, then medium.
-func resolveThinkingLevel(ps sdk.PreferenceStore) model.ThinkingLevel {
+func resolveThinkingLevel(ps sdk.PreferenceReader) model.ThinkingLevel {
 	if ps != nil {
 		var prefs struct {
 			ThinkingLevel string `json:"thinking_level,omitempty"`

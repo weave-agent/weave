@@ -123,7 +123,7 @@ func registerMockProvider(_ string, mp *ProviderMock) {
 }
 
 func registerMockTool(mt *ToolMock) {
-	sdk.RegisterTool[struct{}](mt.NameFunc(), func(sdk.Config, sdk.PreferenceStore, struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool[struct{}](mt.NameFunc(), func(sdk.Config, sdk.PreferenceReader, struct{}) (sdk.Tool, error) {
 		return mt, nil
 	})
 }

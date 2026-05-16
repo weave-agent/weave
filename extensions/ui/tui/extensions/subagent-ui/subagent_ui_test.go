@@ -174,13 +174,13 @@ func TestSubagentExtension_Name(t *testing.T) {
 func TestSubagentExtension_RegisterTUI_RegistersSubagentRenderers(t *testing.T) {
 	// Set up test tools to verify renderer registration.
 	sdk.ResetToolRegistry()
-	sdk.RegisterTool("subagent_general", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool("subagent_general", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 		return &mockTool{name: "subagent_general"}, nil
 	})
-	sdk.RegisterTool("subagent_custom", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool("subagent_custom", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 		return &mockTool{name: "subagent_custom"}, nil
 	})
-	sdk.RegisterTool("bash", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool("bash", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 		return &mockTool{name: "bash"}, nil
 	})
 	t.Cleanup(sdk.ResetToolRegistry)

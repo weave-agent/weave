@@ -11,11 +11,22 @@ type Config interface {
 	RespectGitignore() bool
 }
 
-// PreferenceStore provides access to user preferences and provider keys.
-type PreferenceStore interface {
+// PreferenceReader provides read-only access to user preferences.
+type PreferenceReader interface {
 	Preferences(target any) error
+}
+
+// PreferenceWriter extends PreferenceReader with write operations for
+// preferences and provider credentials.
+type PreferenceWriter interface {
+	PreferenceReader
 	SavePreferences(target any) error
 	SaveProviderKey(providerName, apiKey string) error
+}
+
+// PreferenceStore is the full interface for backward compatibility.
+type PreferenceStore interface {
+	PreferenceWriter
 }
 
 // NoopConfig is a nil-safe Config implementation that returns empty/zero values.
@@ -51,7 +62,7 @@ func ConfigOrDefault(cfg Config) Config {
 	return NoopConfig{}
 }
 
-func PreferenceStoreFrom(cfg Config) PreferenceStore {
+func PreferenceStoreFrom(cfg Config) PreferenceReader {
 	if ps, ok := cfg.(PreferenceStore); ok {
 		return ps
 	}

@@ -45,13 +45,13 @@ func registerMessagingTools() {
 		return
 	}
 
-	sdk.RegisterTool[struct{}]("send_message", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool[struct{}]("send_message", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 		return &sendMessageTool{}, nil
 	})
-	sdk.RegisterTool[struct{}]("broadcast_message", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool[struct{}]("broadcast_message", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 		return &broadcastMessageTool{}, nil
 	})
-	sdk.RegisterTool[struct{}](msgTypeListAgents, func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool[struct{}](msgTypeListAgents, func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 		return &listAgentsTool{}, nil
 	})
 }
