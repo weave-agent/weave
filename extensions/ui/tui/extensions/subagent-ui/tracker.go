@@ -5,6 +5,11 @@ import (
 	"time"
 )
 
+// PanelIDForAgent returns the panel ID for a given agent ID.
+func PanelIDForAgent(id string) string {
+	return "subagent-" + id
+}
+
 // AgentStatus represents the current state of a tracked subagent.
 type AgentStatus int
 
@@ -88,7 +93,7 @@ func (t *AgentTracker) Start(id, name, mode string) *TrackedAgent {
 		Status:    AgentRunning,
 		Mode:      mode,
 		SpawnedAt: time.Now(),
-		PanelID:   "subagent-" + id,
+		PanelID:   PanelIDForAgent(id),
 	}
 	t.agents[id] = agent
 	onRemove := t.onRemove

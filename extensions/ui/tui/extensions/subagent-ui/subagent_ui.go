@@ -55,7 +55,7 @@ func (e *SubagentExtension) RegisterTUI(api tui.TUIExtAPI) {
 		e.mu.Unlock()
 
 		if a != nil {
-			a.RemovePanel("subagent-" + id)
+			a.RemovePanel(PanelIDForAgent(id))
 		}
 	})
 
@@ -113,9 +113,10 @@ func (e *SubagentExtension) tickLoop() {
 		case <-ticker.C:
 			e.mu.Lock()
 			api := e.api
+			hasAgents := len(e.tracker.List()) > 0
 			e.mu.Unlock()
 
-			if api != nil && len(e.tracker.List()) > 0 {
+			if api != nil && hasAgents {
 				api.RequestRedraw()
 			}
 		case <-e.done:
