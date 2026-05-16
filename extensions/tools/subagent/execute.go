@@ -167,7 +167,7 @@ func buildCommand(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID,
 
 	cleanup := func() { _ = os.Remove(f.Name()) }
 
-	exe, err := os.Executable()
+	exe, err := subagentExecutable()
 	if err != nil {
 		cleanup()
 
@@ -175,11 +175,9 @@ func buildCommand(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID,
 	}
 
 	args := []string{
-		"--weave-headless=true",
 		"--weave-prompt-file=" + f.Name(),
+		"--output=json",
 	}
-
-	args = append(args, "--weave-output=json")
 
 	tools := make([]string, 0, len(agent.Tools))
 	tools = append(tools, agent.Tools...)
@@ -200,23 +198,23 @@ func buildCommand(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID,
 	}
 
 	if agent.Tools != nil {
-		args = append(args, "--weave-tools="+strings.Join(tools, ","))
+		args = append(args, "--tools="+strings.Join(tools, ","))
 	}
 
 	if agent.Sandbox != "" {
-		args = append(args, "--weave-sandbox-mode="+agent.Sandbox)
+		args = append(args, "--sandbox="+agent.Sandbox)
 	}
 
 	if agent.Model != "" {
-		args = append(args, "--weave-model="+agent.Model)
+		args = append(args, "--model="+agent.Model)
 	}
 
 	if subagentID != "" {
-		args = append(args, "--weave-subagent-id="+subagentID)
+		args = append(args, "--subagent-id="+subagentID)
 	}
 
 	if cfgPath != "" {
-		args = append(args, "--weave-config="+cfgPath)
+		args = append(args, "--config="+cfgPath)
 	}
 
 	if projectDir != "" {
@@ -238,6 +236,14 @@ func buildCommand(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID,
 	}
 
 	return cmd, cleanup, nil
+}
+
+func subagentExecutable() (string, error) {
+	if launcherPath := os.Getenv("WEAVE_LAUNCHER_PATH"); launcherPath != "" {
+		return launcherPath, nil
+	}
+
+	return "", errors.New("WEAVE_LAUNCHER_PATH is not set")
 }
 
 // parseJSONLines reads JSON lines from r and returns the content of the last

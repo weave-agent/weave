@@ -45,12 +45,67 @@ func handleSubcommand(args []string) (int, bool) {
 }
 
 func loadConfig(args []string) (configFile string, cf *settings.Settings, rest []string, err error) {
+	var promptFile string
+
+	promptFile, args = parseWeavePromptFileFlag(args)
+	projectDirOverride, args := parseWeaveProjectDirFlag(args)
+
 	configFile, cf, rest, err = settings.Load(args)
 	if err != nil {
 		return "", nil, nil, fmt.Errorf("load config: %w", err)
 	}
 
+	if promptFile != "" {
+		prompt, readErr := os.ReadFile(promptFile)
+		if readErr != nil {
+			return "", nil, nil, fmt.Errorf("read prompt file: %w", readErr)
+		}
+
+		cf.Prompt = string(prompt)
+		rest = append([]string{"--weave-prompt-file=" + promptFile}, rest...)
+	}
+
+	if projectDirOverride != "" {
+		rest = append([]string{"--weave-project-dir=" + projectDirOverride}, rest...)
+	}
+
 	return configFile, cf, rest, nil
+}
+
+func parseWeavePromptFileFlag(args []string) (string, []string) {
+	for i := range args {
+		if args[i] == "--weave-prompt-file" {
+			if i+1 < len(args) {
+				return args[i+1], append(args[:i:i], args[i+2:]...)
+			}
+
+			return "", append(args[:i:i], args[i+1:]...)
+		}
+
+		if promptFile, ok := strings.CutPrefix(args[i], "--weave-prompt-file="); ok {
+			return promptFile, append(args[:i:i], args[i+1:]...)
+		}
+	}
+
+	return "", args
+}
+
+func parseWeaveProjectDirFlag(args []string) (string, []string) {
+	for i := range args {
+		if args[i] == "--weave-project-dir" {
+			if i+1 < len(args) {
+				return args[i+1], append(args[:i:i], args[i+2:]...)
+			}
+
+			return "", append(args[:i:i], args[i+1:]...)
+		}
+
+		if projectDir, ok := strings.CutPrefix(args[i], "--weave-project-dir="); ok {
+			return projectDir, append(args[:i:i], args[i+1:]...)
+		}
+	}
+
+	return "", args
 }
 
 func buildLauncher(ctx context.Context, cf *settings.Settings, rest []string, configFile string) int {
@@ -82,6 +137,10 @@ func buildLauncher(ctx context.Context, cf *settings.Settings, rest []string, co
 		}
 	}
 
+	if override := weaveProjectDirFromRest(rest); override != "" {
+		projectDir = override
+	}
+
 	if cf.Prompt == "" && (cf.UIExtension == "" || cf.UIExtension == "none") && !hasHelpFlag(rest) {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", errNoInput)
 		return 1
@@ -89,7 +148,7 @@ func buildLauncher(ctx context.Context, cf *settings.Settings, rest []string, co
 
 	headless := cf.Prompt != ""
 
-	if cf.Prompt != "" {
+	if cf.Prompt != "" && !hasWeavePromptFileFlag(rest) {
 		promptFile, cleanup, ok := writePromptFile(cf.Prompt)
 		if !ok {
 			return 1
@@ -112,6 +171,30 @@ func buildLauncher(ctx context.Context, cf *settings.Settings, rest []string, co
 	}
 
 	return 0
+}
+
+func hasWeavePromptFileFlag(args []string) bool {
+	for _, a := range args {
+		if a == "--weave-prompt-file" || strings.HasPrefix(a, "--weave-prompt-file=") {
+			return true
+		}
+	}
+
+	return false
+}
+
+func weaveProjectDirFromRest(args []string) string {
+	for i, a := range args {
+		if a == "--weave-project-dir" && i+1 < len(args) {
+			return args[i+1]
+		}
+
+		if projectDir, ok := strings.CutPrefix(a, "--weave-project-dir="); ok {
+			return projectDir
+		}
+	}
+
+	return ""
 }
 
 func run(ctx context.Context, args ...string) (exitCode int) {

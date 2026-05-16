@@ -191,6 +191,47 @@ func TestWritePromptFile(t *testing.T) {
 	assert.Equal(t, "hello world", string(data))
 }
 
+func TestLoadConfig_WeavePromptFile(t *testing.T) {
+	dir := t.TempDir()
+	cfgFile := filepath.Join(dir, ".weave", "settings.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(cfgFile), 0o750))
+	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"none","agent_loop":"agent"}`), 0o600))
+
+	promptFile := filepath.Join(dir, "prompt.txt")
+	require.NoError(t, os.WriteFile(promptFile, []byte("hidden prompt"), 0o600))
+
+	origWd, _ := os.Getwd()
+	require.NoError(t, os.Chdir(dir))
+	defer func() { _ = os.Chdir(origWd) }()
+
+	_, cf, rest, err := loadConfig([]string{"--weave-prompt-file=" + promptFile, "--output=json"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "hidden prompt", cf.Prompt)
+	assert.Equal(t, "json", cf.Output)
+	assert.Contains(t, rest, "--weave-prompt-file="+promptFile)
+}
+
+func TestLoadConfig_WeaveProjectDir(t *testing.T) {
+	dir := t.TempDir()
+	cfgFile := filepath.Join(dir, ".weave", "settings.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(cfgFile), 0o750))
+	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"none","agent_loop":"agent"}`), 0o600))
+
+	projectDir := filepath.Join(dir, "project")
+	require.NoError(t, os.MkdirAll(projectDir, 0o750))
+
+	origWd, _ := os.Getwd()
+	require.NoError(t, os.Chdir(dir))
+	defer func() { _ = os.Chdir(origWd) }()
+
+	_, _, rest, err := loadConfig([]string{"--weave-project-dir=" + projectDir})
+	require.NoError(t, err)
+
+	assert.Contains(t, rest, "--weave-project-dir="+projectDir)
+	assert.Equal(t, projectDir, weaveProjectDirFromRest(rest))
+}
+
 func TestHandleSubcommand_Install(t *testing.T) {
 	// install subcommand needs a valid extension dir, so we create one.
 	dir := t.TempDir()

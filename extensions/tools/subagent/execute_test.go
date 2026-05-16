@@ -69,6 +69,8 @@ func TestParseJSONLines_AllEventTypes(t *testing.T) {
 }
 
 func TestBuildCommand_BasicArgs(t *testing.T) {
+	t.Setenv("WEAVE_LAUNCHER_PATH", "/tmp/weave-launcher")
+
 	agent := &AgentDef{
 		Name:        "explore",
 		Description: "Research agent",
@@ -88,8 +90,7 @@ func TestBuildCommand_BasicArgs(t *testing.T) {
 	args := cmd.Args
 	require.GreaterOrEqual(t, len(args), 2)
 
-	// First arg after binary is --weave-headless=true.
-	assert.Equal(t, "--weave-headless=true", args[1])
+	assert.Equal(t, "/tmp/weave-launcher", cmd.Path)
 
 	// Check for weave-prompt-file.
 	foundPromptFile := false
@@ -105,13 +106,64 @@ func TestBuildCommand_BasicArgs(t *testing.T) {
 	assert.True(t, foundPromptFile, "expected --weave-prompt-file flag")
 
 	// Verify extra flags.
-	assert.Contains(t, args, "--weave-output=json")
-	assert.Contains(t, args, "--weave-tools=read,grep,find")
-	assert.Contains(t, args, "--weave-sandbox-mode=readonly")
-	assert.Contains(t, args, "--weave-model=claude-haiku-4-5")
+	assert.Contains(t, args, "--output=json")
+	assert.Contains(t, args, "--tools=read,grep,find")
+	assert.Contains(t, args, "--sandbox=readonly")
+	assert.Contains(t, args, "--model=claude-haiku-4-5")
+}
+
+func TestBuildCommand_UsesLauncherPathWhenAvailable(t *testing.T) {
+	launcherPath := "/tmp/weave-launcher"
+	t.Setenv("WEAVE_LAUNCHER_PATH", launcherPath)
+
+	agent := &AgentDef{
+		Name:    "explore",
+		Tools:   []string{"read", "grep", "find"},
+		Model:   "claude-haiku-4-5",
+		Sandbox: "readonly",
+	}
+
+	cmd, cleanup, err := buildCommand(context.Background(), agent, "search for TODOs", "", "subagent_explore_123", "/project/.weave/settings.json", "/project")
+	require.NoError(t, err)
+
+	defer cleanup()
+
+	assert.Equal(t, launcherPath, cmd.Path)
+
+	args := cmd.Args
+	assert.NotContains(t, args, "--weave-headless=true")
+	assert.Contains(t, args, "--output=json")
+	assert.Contains(t, args, "--tools=read,grep,find")
+	assert.Contains(t, args, "--sandbox=readonly")
+	assert.Contains(t, args, "--model=claude-haiku-4-5")
+	assert.Contains(t, args, "--subagent-id=subagent_explore_123")
+	assert.Contains(t, args, "--config=/project/.weave/settings.json")
+	assert.Contains(t, args, "--weave-project-dir=/project")
+
+	foundPromptFile := false
+
+	for _, a := range args {
+		if strings.HasPrefix(a, "--weave-prompt-file=") {
+			foundPromptFile = true
+		}
+	}
+
+	assert.True(t, foundPromptFile, "expected internal prompt-file flag")
+}
+
+func TestBuildCommand_RequiresLauncherPath(t *testing.T) {
+	t.Setenv("WEAVE_LAUNCHER_PATH", "")
+
+	cmd, cleanup, err := buildCommand(context.Background(), &AgentDef{Name: "test"}, "prompt", "", "", "", "")
+	require.Error(t, err)
+	assert.Nil(t, cmd)
+	assert.Nil(t, cleanup)
+	assert.Contains(t, err.Error(), "WEAVE_LAUNCHER_PATH is not set")
 }
 
 func TestBuildCommand_NoOptionalFlags(t *testing.T) {
+	t.Setenv("WEAVE_LAUNCHER_PATH", "/tmp/weave-launcher")
+
 	agent := &AgentDef{
 		Name:        "minimal",
 		Description: "Minimal agent",
@@ -124,18 +176,20 @@ func TestBuildCommand_NoOptionalFlags(t *testing.T) {
 
 	args := cmd.Args
 
-	// Should not have --weave-tools, --weave-sandbox-mode, or --weave-model when agent has none.
+	// Should not have --tools, --sandbox, or --model when agent has none.
 	for _, a := range args {
-		assert.False(t, strings.HasPrefix(a, "--weave-tools="), "unexpected --weave-tools flag")
-		assert.False(t, strings.HasPrefix(a, "--weave-sandbox-mode="), "unexpected --weave-sandbox-mode flag")
-		assert.False(t, strings.HasPrefix(a, "--weave-model="), "unexpected --weave-model flag")
+		assert.False(t, strings.HasPrefix(a, "--tools="), "unexpected --tools flag")
+		assert.False(t, strings.HasPrefix(a, "--sandbox="), "unexpected --sandbox flag")
+		assert.False(t, strings.HasPrefix(a, "--model="), "unexpected --model flag")
 	}
 
-	// --weave-output=json is always included.
-	assert.Contains(t, args, "--weave-output=json")
+	// --output=json is always included.
+	assert.Contains(t, args, "--output=json")
 }
 
 func TestBuildCommand_CWD(t *testing.T) {
+	t.Setenv("WEAVE_LAUNCHER_PATH", "/tmp/weave-launcher")
+
 	agent := &AgentDef{Name: "test"}
 
 	cmd, cleanup, err := buildCommand(context.Background(), agent, "prompt", "/tmp/workdir", "", "", "")
@@ -147,6 +201,8 @@ func TestBuildCommand_CWD(t *testing.T) {
 }
 
 func TestBuildCommand_PromptFileCreated(t *testing.T) {
+	t.Setenv("WEAVE_LAUNCHER_PATH", "/tmp/weave-launcher")
+
 	agent := &AgentDef{Name: "test"}
 
 	cmd, cleanup, err := buildCommand(context.Background(), agent, "my test prompt", "", "", "", "")
@@ -208,6 +264,8 @@ func TestRunSubagent_MockError(t *testing.T) {
 }
 
 func TestRunSubagent_Abort(t *testing.T) {
+	t.Setenv("WEAVE_LAUNCHER_PATH", "/tmp/weave-launcher")
+
 	// Test that context cancellation aborts the subagent.
 	// We spawn a real "sleep" command and cancel the context early.
 	if testRunSubagent != nil {
@@ -301,6 +359,8 @@ func TestParseJSONLines_EmptyLinesBetweenJSON(t *testing.T) {
 }
 
 func TestBuildCommand_ProcessGroup(t *testing.T) {
+	t.Setenv("WEAVE_LAUNCHER_PATH", "/tmp/weave-launcher")
+
 	agent := &AgentDef{Name: "test"}
 
 	cmd, cleanup, err := buildCommand(context.Background(), agent, "prompt", "", "", "", "")
@@ -313,6 +373,8 @@ func TestBuildCommand_ProcessGroup(t *testing.T) {
 }
 
 func TestBuildCommand_WithMessaging(t *testing.T) {
+	t.Setenv("WEAVE_LAUNCHER_PATH", "/tmp/weave-launcher")
+
 	agent := &AgentDef{
 		Name:      "general",
 		Messaging: true,
@@ -323,10 +385,12 @@ func TestBuildCommand_WithMessaging(t *testing.T) {
 
 	defer cleanup()
 
-	assert.True(t, slices.Contains(cmd.Args, "--weave-subagent-id=subagent_general_abc123"), "expected --weave-subagent-id flag with correct value")
+	assert.True(t, slices.Contains(cmd.Args, "--subagent-id=subagent_general_abc123"), "expected --subagent-id flag with correct value")
 }
 
 func TestBuildCommand_MessagingAppendsTools(t *testing.T) {
+	t.Setenv("WEAVE_LAUNCHER_PATH", "/tmp/weave-launcher")
+
 	agent := &AgentDef{
 		Name:      "general",
 		Tools:     []string{"bash", "read"},
@@ -341,13 +405,13 @@ func TestBuildCommand_MessagingAppendsTools(t *testing.T) {
 	var toolsArg string
 
 	for _, a := range cmd.Args {
-		if p, ok := strings.CutPrefix(a, "--weave-tools="); ok {
+		if p, ok := strings.CutPrefix(a, "--tools="); ok {
 			toolsArg = p
 			break
 		}
 	}
 
-	require.NotEmpty(t, toolsArg, "expected --weave-tools flag")
+	require.NotEmpty(t, toolsArg, "expected --tools flag")
 
 	tools := strings.Split(toolsArg, ",")
 	assert.Contains(t, tools, "bash")
@@ -358,6 +422,8 @@ func TestBuildCommand_MessagingAppendsTools(t *testing.T) {
 }
 
 func TestBuildCommand_MessagingDedupesTools(t *testing.T) {
+	t.Setenv("WEAVE_LAUNCHER_PATH", "/tmp/weave-launcher")
+
 	agent := &AgentDef{
 		Name:      "general",
 		Tools:     []string{"bash", "send_message"},
@@ -372,13 +438,13 @@ func TestBuildCommand_MessagingDedupesTools(t *testing.T) {
 	var toolsArg string
 
 	for _, a := range cmd.Args {
-		if p, ok := strings.CutPrefix(a, "--weave-tools="); ok {
+		if p, ok := strings.CutPrefix(a, "--tools="); ok {
 			toolsArg = p
 			break
 		}
 	}
 
-	require.NotEmpty(t, toolsArg, "expected --weave-tools flag")
+	require.NotEmpty(t, toolsArg, "expected --tools flag")
 
 	// send_message should appear exactly once.
 	count := strings.Count(toolsArg, "send_message")
@@ -386,6 +452,8 @@ func TestBuildCommand_MessagingDedupesTools(t *testing.T) {
 }
 
 func TestBuildCommand_WithoutMessaging(t *testing.T) {
+	t.Setenv("WEAVE_LAUNCHER_PATH", "/tmp/weave-launcher")
+
 	agent := &AgentDef{
 		Name:      "explore",
 		Messaging: false,
@@ -397,7 +465,7 @@ func TestBuildCommand_WithoutMessaging(t *testing.T) {
 	defer cleanup()
 
 	for _, a := range cmd.Args {
-		assert.False(t, strings.HasPrefix(a, "--weave-subagent-id"), "unexpected --weave-subagent-id flag")
+		assert.False(t, strings.HasPrefix(a, "--subagent-id"), "unexpected --subagent-id flag")
 	}
 }
 
