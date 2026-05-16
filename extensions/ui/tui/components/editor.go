@@ -26,8 +26,10 @@ type EditorModel struct {
 	BorderColor string
 
 	// Pulse animation state
-	PulsePos    int  // 0-7 position for pulse animation (0 = inactive)
-	PulseActive bool // true when agent is actively working
+	PulsePos          int    // 0-7 position for pulse animation (0 = inactive)
+	PulseActive       bool   // true when agent is actively working
+	pulseAccent       string // accent color for pulse animation
+	pulseAccentBright string // bright accent color for pulse animation
 
 	// history
 	history    []string
@@ -183,6 +185,14 @@ func (m EditorModel) SetPulseActive(active bool) EditorModel {
 // SetPulsePos updates the pulse animation position (0-7).
 func (m EditorModel) SetPulsePos(pos int) EditorModel {
 	m.PulsePos = pos % 8
+
+	return m
+}
+
+// SetPulseColors updates the accent colors used by the pulse animation.
+func (m EditorModel) SetPulseColors(accent, accentBright string) EditorModel {
+	m.pulseAccent = accent
+	m.pulseAccentBright = accentBright
 
 	return m
 }
@@ -781,8 +791,6 @@ func (m EditorModel) Draw(scr uv.Screen, area uv.Rectangle) {
 // drawPulse overlays colored border cells for the pulse animation.
 // Positions 0-3 are corners (TL, TR, BR, BL), positions 4-7 are edges (top, right, bottom, left).
 func (m EditorModel) drawPulse(scr uv.Screen, area uv.Rectangle) {
-	theme := palette.DefaultTheme()
-
 	type segment struct {
 		x, y int
 	}
@@ -811,9 +819,15 @@ func (m EditorModel) drawPulse(scr uv.Screen, area uv.Rectangle) {
 
 		switch i {
 		case pos:
-			color = theme.AccentBright
+			color = m.pulseAccentBright
+			if color == "" {
+				color = palette.DefaultTheme().AccentBright
+			}
 		case trailing:
-			color = theme.Accent
+			color = m.pulseAccent
+			if color == "" {
+				color = palette.DefaultTheme().Accent
+			}
 		default:
 			continue // don't override other border cells
 		}

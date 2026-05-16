@@ -46,7 +46,9 @@ type doublePressTimeoutMsg struct {
 }
 
 // pulseTickMsg advances the editor border pulse animation.
-type pulseTickMsg struct{}
+type pulseTickMsg struct {
+	gen int // generation counter to ignore stale timers
+}
 
 const (
 	doublePressCtrlC  = 0
@@ -119,6 +121,9 @@ type Model struct {
 
 	// agentState tracks current agent activity for accent color and pulse.
 	agentState palette.State
+
+	// pulseGen increments on each pulse timer start to ignore stale ticks.
+	pulseGen int
 
 	// panel system
 	panelManager *PanelManager
@@ -723,47 +728,46 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case AgentStateChangeMsg:
 		m.agentState = msg.State
 		accent, accentDim, accentBright := palette.AccentForState(msg.State)
-		m.theme = &palette.Theme{
-			Foreground:            m.theme.Foreground,
-			ForegroundDim:         m.theme.ForegroundDim,
-			ForegroundBright:      m.theme.ForegroundBright,
-			Muted:                 m.theme.Muted,
-			MutedBright:           m.theme.MutedBright,
-			Background:            m.theme.Background,
-			BackgroundTint:        m.theme.BackgroundTint,
-			BackgroundTint2:       m.theme.BackgroundTint2,
-			Border:                m.theme.Border,
-			BorderFocused:         m.theme.BorderFocused,
-			Success:               m.theme.Success,
-			Error:                 m.theme.Error,
-			Warning:               m.theme.Warning,
-			BackgroundTintPending: m.theme.BackgroundTintPending,
-			BackgroundTintSuccess: m.theme.BackgroundTintSuccess,
-			BackgroundTintError:   m.theme.BackgroundTintError,
-			Accent:                accent,
-			AccentDim:             accentDim,
-			AccentBright:          accentBright,
+		newTheme := *m.theme
+		newTheme.Accent = accent
+		newTheme.AccentDim = accentDim
+		newTheme.AccentBright = accentBright
+		m.theme = &newTheme
+
+		// When idle, border uses thinking-level grayscale color.
+		borderColor := accent
+		if msg.State == palette.StateIdle {
+			borderColor = palette.ThinkingBorderColor(m.thinkingLevel)
 		}
-		m.editor = m.editor.SetBorderColor(accent)
+
+		m.editor = m.editor.SetBorderColor(borderColor)
+		m.editor = m.editor.SetPulseColors(accent, accentBright)
 
 		// Enable/disable pulse animation based on active state
 		active := msg.State == palette.StateStreaming || msg.State == palette.StateToolRunning
 		m.editor = m.editor.SetPulseActive(active)
 
 		if active {
+			m.pulseGen++
+			gen := m.pulseGen
+
 			return m, tea.Tick(500*time.Millisecond, func(time.Time) tea.Msg {
-				return pulseTickMsg{}
+				return pulseTickMsg{gen: gen}
 			})
 		}
 
 		return m, nil
 
 	case pulseTickMsg:
+		if msg.gen != m.pulseGen {
+			return m, nil // stale tick
+		}
+
 		if m.editor.PulseActive {
 			m.editor = m.editor.SetPulsePos(m.editor.PulsePos + 1)
 
 			return m, tea.Tick(500*time.Millisecond, func(time.Time) tea.Msg {
-				return pulseTickMsg{}
+				return pulseTickMsg{gen: m.pulseGen}
 			})
 		}
 
@@ -1440,8 +1444,12 @@ func (m *Model) onMessageEnd(msg MessageEndMsg) {
 	m.chat = m.chat.UpdateItemAt(idx, am)
 
 	for _, tc := range msg.ToolCalls {
-		args, _ := json.Marshal(tc.Arguments)
-		argsStr := string(args)
+		args, err := json.Marshal(tc.Arguments)
+
+		argsStr := "{}"
+		if err == nil {
+			argsStr = string(args)
+		}
 
 		panel := messages.NewToolPanel(tc.ID, tc.Name, argsStr)
 		if m.ui != nil {
