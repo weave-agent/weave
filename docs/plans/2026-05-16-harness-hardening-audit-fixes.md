@@ -79,9 +79,9 @@ Fix 17 gaps identified by the agents-best-practices audit of the Weave agent fra
 - [x] run `cd extensions/agent && go test ./...` — must pass before task 6
 
 ### Task 6: Warn on subagent missing tool declarations
-- [ ] in `extensions/tools/subagent/agent.go:parseToolsField()` or at agent load time, when `tools` field is nil/empty, log a warning via `sdk.Logger("subagent")` with the agent name and a message suggesting explicit tool declaration
-- [ ] write tests: TestParseToolsField_WarnOnEmpty in `extensions/tools/subagent/agent_test.go`
-- [ ] run `cd extensions/tools/subagent && go test ./...` — must pass before task 7
+- [x] in `extensions/tools/subagent/agent.go:parseToolsField()` or at agent load time, when `tools` field is nil/empty, log a warning via `sdk.Logger("subagent")` with the agent name and a message suggesting explicit tool declaration
+- [x] write tests: TestParseToolsField_WarnOnEmpty in `extensions/tools/subagent/agent_test.go`
+- [x] run `cd extensions/tools/subagent && go test ./...` — must pass before task 7
 
 ### Task 7: Add harness-level argument validation
 - [ ] add a lightweight JSON schema validator utility (or use `encoding/json` + manual checks) in a shared location — validate incoming `map[string]any` args against the tool's `Definition().Parameters` schema (check required fields exist, check types match, reject unknown properties if `additionalProperties: false`)
