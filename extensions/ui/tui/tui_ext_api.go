@@ -44,6 +44,9 @@ type TUIExtAPI interface {
 	// Cosmetic
 	SetWorkingFrames(frames []string, interval time.Duration)
 	RegisterTheme(name string, theme ThemeDef) error
+
+	// Redraw
+	RequestRedraw()
 }
 
 // TUIExtension is a TUI-specific plugin that registers with the TUI's

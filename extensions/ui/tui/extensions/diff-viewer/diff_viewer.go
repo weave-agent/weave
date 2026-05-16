@@ -45,6 +45,7 @@ func (r *richDiffRenderer) Render(content string, theme sdk.ThemeInfo, width int
 	contextStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Muted))
 
 	lines := strings.Split(content, "\n")
+
 	var bldr strings.Builder
 
 	for i, line := range lines {
@@ -92,26 +93,35 @@ func wrapLine(line string, width int) []string {
 	}
 
 	var result []string
+
 	start := 0
+
 	for start < len(line) {
 		end := start
 		w := 0
+
 		for end < len(line) {
 			r, size := utf8.DecodeRuneInString(line[end:])
+
 			rw := runewidth.RuneWidth(r)
+
 			if w+rw > width {
 				break
 			}
+
 			w += rw
 			end += size
 		}
+
 		if end == start {
 			// Fallback for a single rune wider than width
 			_, size := utf8.DecodeRuneInString(line[start:])
 			end = start + size
 		}
+
 		result = append(result, line[start:end])
 		start = end
 	}
+
 	return result
 }

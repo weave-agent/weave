@@ -525,6 +525,18 @@ func (u *TUIImpl) PanelVisible(id string) bool {
 	return u.panelManager.PanelVisible(id)
 }
 
+// RequestRedraw sends a message to the Bubble Tea program to trigger a
+// redraw of the TUI. Safe to call when the program is not yet running.
+func (u *TUIImpl) RequestRedraw() {
+	u.mu.Lock()
+	p := u.program
+	u.mu.Unlock()
+
+	if p != nil {
+		p.Send(panelChangedMsg{})
+	}
+}
+
 // PanelTray returns the panel tray API.
 func (u *TUIImpl) PanelTray() PanelTrayAPI {
 	return u

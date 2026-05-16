@@ -54,72 +54,72 @@ A TUI extension that visualizes running subagents as per-agent panels in the pan
 ## Implementation Steps
 
 ### Task 1: Add `subagent.started` event to subagent extension
-- [ ] Add `subagent.started` event publication in `background.go` when `spawn()` creates a new agent
-- [ ] Ensure payload includes `id`, `name`, `mode` keys as `map[string]string`
-- [ ] Consider adding `subagent.started` for foreground agents in `execute.go` (if straightforward)
-- [ ] Write tests verifying the event is published with correct payload
-- [ ] Run subagent extension tests: `cd extensions/tools/subagent && go test ./...`
+- [x] Add `subagent.started` event publication in `background.go` when `spawn()` creates a new agent
+- [x] Ensure payload includes `id`, `name`, `mode` keys as `map[string]string`
+- [x] Consider adding `subagent.started` for foreground agents in `execute.go` (if straightforward) — skipped, foreground agents block synchronously and do not need the event; only background agents emit `subagent.started`, which is sufficient for panel visualization
+- [x] Write tests verifying the event is published with correct payload
+- [x] Run subagent extension tests: `cd extensions/tools/subagent && go test ./...`
 
 ### Task 2: Create subagent TUI extension module skeleton
-- [ ] Create `extensions/ui/tui/extensions/subagent/` directory
-- [ ] Create `go.mod` with proper module path (`weave/ext/ui/tui/extensions/subagent`) and replacements
-- [ ] Create main `subagent_ui.go` with `init()` registering via `tui.RegisterTUIExtension`
-- [ ] Implement stub `TUIExtension` interface (`Name()`, `RegisterTUI(api)`)
-- [ ] Verify module compiles: `cd extensions/ui/tui/extensions/subagent && go build ./...`
+- [x] Create `extensions/ui/tui/extensions/subagent/` directory
+- [x] Create `go.mod` with proper module path (`weave/ext/ui/tui/extensions/subagent`) and replacements
+- [x] Create main `subagent_ui.go` with `init()` registering via `tui.RegisterTUIExtension`
+- [x] Implement stub `TUIExtension` interface (`Name()`, `RegisterTUI(api)`)
+- [x] Verify module compiles: `cd extensions/ui/tui/extensions/subagent && go build ./...`
 
 ### Task 3: Implement `AgentTracker`
-- [ ] Create `tracker.go` with `AgentTracker` struct and `TrackedAgent` type
-- [ ] Methods: `Start(id, name, mode)`, `Done(id, status, result)`, `Get(id)`, `List()`, `Remove(id)`
-- [ ] Grace period handling: `Done()` marks status but `Remove()` is deferred (3-second timer or tick-based)
-- [ ] Thread-safe using `sync.RWMutex`
-- [ ] Write tests for all tracker methods (success + concurrent access cases)
-- [ ] Write tests for grace period logic
+- [x] Create `tracker.go` with `AgentTracker` struct and `TrackedAgent` type
+- [x] Methods: `Start(id, name, mode)`, `Done(id, status, result)`, `Get(id)`, `List()`, `Remove(id)`
+- [x] Grace period handling: `Done()` marks status but `Remove()` is deferred (3-second timer or tick-based)
+- [x] Thread-safe using `sync.RWMutex`
+- [x] Write tests for all tracker methods (success + concurrent access cases)
+- [x] Write tests for grace period logic
 
 ### Task 4: Implement bus subscription and panel lifecycle
-- [ ] In `RegisterTUI`, create `AgentTracker` instance
-- [ ] Access the event bus (may need dual registration as `sdk.UIExtensionWithBus` if bus not available via TUIExtAPI)
-- [ ] Subscribe to `subagent.started`: create `TrackedAgent`, call `api.ShowPanel()` with panel drawer
-- [ ] Subscribe to `subagent.done`: update agent status/result, schedule panel removal after grace period
-- [ ] Implement panel removal logic: after grace period, call `api.RemovePanel()` and `tracker.Remove()`
-- [ ] Write tests for panel lifecycle: start → done → removal
+- [x] In `RegisterTUI`, create `AgentTracker` instance
+- [x] Access the event bus (may need dual registration as `sdk.UIExtensionWithBus` if bus not available via TUIExtAPI)
+- [x] Subscribe to `subagent.started`: create `TrackedAgent`, call `api.ShowPanel()` with panel drawer
+- [x] Subscribe to `subagent.done`: update agent status/result, schedule panel removal after grace period
+- [x] Implement panel removal logic: after grace period, call `api.RemovePanel()` and `tracker.Remove()`
+- [x] Write tests for panel lifecycle: start → done → removal
 
 ### Task 5: Implement panel drawer
-- [ ] Create `panel.go` with `agentPanelDrawer` implementing `tui.PanelDrawer`
-- [ ] `Draw()` renders: agent name, status indicator (●/✓/✗), mode, elapsed time, truncated result preview
-- [ ] `Update()` handles `tea.Msg` — on tick, trigger redraw for elapsed time updates
-- [ ] `Handles()` returns true for tick messages
-- [ ] Use `theme` colors for status indicators
-- [ ] Write tests verifying rendered output matches expected format
+- [x] Create `panel.go` with `agentPanelDrawer` implementing `tui.PanelDrawer`
+- [x] `Draw()` renders: agent name, status indicator (●/✓/✗), mode, elapsed time, truncated result preview
+- [x] `Update()` handles `tea.Msg` — on tick, trigger redraw for elapsed time updates
+- [x] `Handles()` returns true for tick messages
+- [x] Use `theme` colors for status indicators
+- [x] Write tests verifying rendered output matches expected format
 
 ### Task 6: Implement rich tool renderer
-- [ ] Create `renderer.go` with `subagentRenderer` implementing `tui.RichToolRenderer`
-- [ ] Register renderer for all `subagent_*` tool names dynamically (discover from agent registry or use prefix matching if supported)
-- [ ] Render running state with spinner placeholder
-- [ ] Render completed state with compact result card
-- [ ] Write tests for renderer output
+- [x] Create `renderer.go` with `subagentRenderer` implementing `tui.RichToolRenderer`
+- [x] Register renderer for all `subagent_*` tool names dynamically (discover from agent registry or use prefix matching if supported)
+- [x] Render running state with spinner placeholder
+- [x] Render completed state with compact result card
+- [x] Write tests for renderer output
 
 ### Task 7: Final integration and verification
-- [ ] Wire all components together in `RegisterTUI`
-- [ ] Ensure no panels leak (all removals are accounted for)
-- [ ] Add graceful handling when TUI shuts down while agents are running
-- [ ] Run full TUI extension tests: `cd extensions/ui/tui && go test ./...`
-- [ ] Run subagent extension tests: `cd extensions/tools/subagent && go test ./...`
-- [ ] Run root tests: `go test ./...`
-- [ ] Run linter: `make lint`
+- [x] Wire all components together in `RegisterTUI`
+- [x] Ensure no panels leak (all removals are accounted for)
+- [x] Add graceful handling when TUI shuts down while agents are running
+- [x] Run full TUI extension tests: `cd extensions/ui/tui && go test ./...`
+- [x] Run subagent extension tests: `cd extensions/tools/subagent && go test ./...`
+- [x] Run root tests: `go test ./...`
+- [x] Run linter: `make lint`
 
 ### Task 8: Verify acceptance criteria
-- [ ] Verify `subagent.started` event is published when background agents spawn
-- [ ] Verify panel appears in tray when agent starts
-- [ ] Verify panel shows agent name, status, and elapsed time
-- [ ] Verify panel auto-removes a few seconds after agent completes/fails
-- [ ] Verify rich renderer shows subagent tool calls in chat
-- [ ] Verify no custom keybindings are needed (tray-only interaction)
-- [ ] Run full test suite (unit tests)
-- [ ] Run linter — all issues fixed
+- [x] Verify `subagent.started` event is published when background agents spawn
+- [x] Verify panel appears in tray when agent starts
+- [x] Verify panel shows agent name, status, and elapsed time
+- [x] Verify panel auto-removes a few seconds after agent completes/fails
+- [x] Verify rich renderer shows subagent tool calls in chat
+- [x] Verify no custom keybindings are needed (tray-only interaction)
+- [x] Run full test suite (unit tests)
+- [x] Run linter — all issues fixed
 
 ### Task 9: Update documentation
-- [ ] Add brief note to TUI section in project docs about subagent panel feature
-- [ ] Update this plan file with any deviations discovered during implementation
+- [x] Add brief note to TUI section in project docs about subagent panel feature
+- [x] Update this plan file with any deviations discovered during implementation
 
 ## Technical Details
 

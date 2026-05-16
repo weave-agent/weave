@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -59,7 +60,11 @@ func (bm *backgroundManager) setBus(bus sdk.Bus) {
 	bm.bus = bus
 }
 
-func (bm *backgroundManager) spawn(agent *AgentDef, prompt, cwd, subagentID string) string {
+func (bm *backgroundManager) spawn(agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
+	if bm.ctx.Err() != nil {
+		return "", errors.New("background manager is shutting down")
+	}
+
 	if subagentID == "" {
 		subagentID = generateAgentID(agent.Name)
 	}
@@ -82,6 +87,8 @@ func (bm *backgroundManager) spawn(agent *AgentDef, prompt, cwd, subagentID stri
 
 	bm.agents[subagentID] = ba
 	bm.mu.Unlock()
+
+	bm.notifyStarted(ba)
 
 	go func() {
 		defer close(ba.done)
@@ -106,7 +113,25 @@ func (bm *backgroundManager) spawn(agent *AgentDef, prompt, cwd, subagentID stri
 		bm.notifyDone(ba)
 	}()
 
-	return subagentID
+	return subagentID, nil
+}
+
+func (bm *backgroundManager) notifyStarted(ba *backgroundAgent) {
+	bm.mu.RLock()
+	bus := bm.bus
+	bm.mu.RUnlock()
+
+	if bus == nil {
+		return
+	}
+
+	payload := map[string]string{
+		propID: ba.ID,
+		"name": ba.Agent.Name,
+		"mode": paramBackground,
+	}
+
+	bus.Publish(sdk.NewEvent("subagent.started", payload))
 }
 
 func (bm *backgroundManager) notifyDone(ba *backgroundAgent) {
@@ -150,10 +175,10 @@ func (bm *backgroundManager) getSnapshot(id string) (backgroundAgent, bool) {
 	return *ba, true
 }
 
-func (bm *backgroundManager) await(ctx context.Context, id string) (*backgroundAgent, bool) {
+func (bm *backgroundManager) await(ctx context.Context, id string) (*backgroundAgent, error) {
 	ba, ok := bm.getSnapshot(id)
 	if !ok {
-		return nil, false
+		return nil, fmt.Errorf("agent %q not found", id)
 	}
 
 	select {
@@ -161,12 +186,12 @@ func (bm *backgroundManager) await(ctx context.Context, id string) (*backgroundA
 		// Re-fetch to get the final updated state after completion.
 		ba, ok = bm.getSnapshot(id)
 		if !ok {
-			return nil, false
+			return nil, fmt.Errorf("agent %q not found", id)
 		}
 
-		return &ba, true
+		return &ba, nil
 	case <-ctx.Done():
-		return nil, false
+		return nil, fmt.Errorf("await agent: %w", ctx.Err())
 	}
 }
 
@@ -271,9 +296,13 @@ func (t *awaitAgentTool) Execute(ctx context.Context, args map[string]any) (sdk.
 		return sdk.ToolResult{Content: "id must be a non-empty string", IsError: true}, nil
 	}
 
-	ba, ok := t.mgr.await(ctx, id)
-	if !ok {
-		return sdk.ToolResult{Content: fmt.Sprintf("agent %q not found", id), IsError: true}, nil
+	ba, err := t.mgr.await(ctx, id)
+	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return sdk.ToolResult{Content: fmt.Sprintf("await agent %q canceled: %v", id, err), IsError: true}, nil
+		}
+
+		return sdk.ToolResult{Content: err.Error(), IsError: true}, nil
 	}
 
 	result := map[string]any{

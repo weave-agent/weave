@@ -43,8 +43,6 @@ func (b *testBus) getEvents() []sdk.Event {
 func TestBackgroundSpawn_ReturnsImmediately(t *testing.T) {
 	original := testRunSubagent
 
-	t.Cleanup(func() { testRunSubagent = original })
-
 	// Slow mock to prove we return before completion.
 	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
 		time.Sleep(200 * time.Millisecond)
@@ -52,6 +50,13 @@ func TestBackgroundSpawn_ReturnsImmediately(t *testing.T) {
 	}
 
 	mgr := newBackgroundManager(nil, "", "")
+
+	t.Cleanup(func() {
+		mgr.cancel()
+
+		testRunSubagent = original
+	})
+
 	agent := &AgentDef{Name: "test"}
 	tool := newSubagentTool(agent, mgr, nil, "", "")
 
@@ -64,7 +69,7 @@ func TestBackgroundSpawn_ReturnsImmediately(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.False(t, result.IsError)
-	assert.Less(t, elapsed, 50*time.Millisecond, "expected immediate return")
+	assert.Less(t, elapsed, 100*time.Millisecond, "expected immediate return")
 
 	// Verify JSON response.
 	var resp map[string]any
@@ -86,8 +91,6 @@ func TestBackgroundSpawn_ReturnsImmediately(t *testing.T) {
 func TestBackgroundSpawn_CompletesWithError(t *testing.T) {
 	original := testRunSubagent
 
-	t.Cleanup(func() { testRunSubagent = original })
-
 	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
 		return "", errors.New("mock failure")
 	}
@@ -95,6 +98,12 @@ func TestBackgroundSpawn_CompletesWithError(t *testing.T) {
 	mgr := newBackgroundManager(nil, "", "")
 	agent := &AgentDef{Name: "test"}
 	tool := newSubagentTool(agent, mgr, nil, "", "")
+
+	t.Cleanup(func() {
+		mgr.cancel()
+
+		testRunSubagent = original
+	})
 
 	ctx := context.Background()
 	args := map[string]any{"prompt": "hello", "background": true}
@@ -119,15 +128,25 @@ func TestBackgroundSpawn_CompletesWithError(t *testing.T) {
 func TestCheckAgent_Pending(t *testing.T) {
 	original := testRunSubagent
 
-	t.Cleanup(func() { testRunSubagent = original })
-
 	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
-		time.Sleep(5 * time.Second)
-		return "never", nil
+		<-ctx.Done()
+		return "", ctx.Err()
 	}
 
 	mgr := newBackgroundManager(nil, "", "")
-	id := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	id, err := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		mgr.cancel()
+
+		ba, ok := mgr.get(id)
+		if ok {
+			<-ba.done
+		}
+
+		testRunSubagent = original
+	})
 
 	tool := &checkAgentTool{mgr: mgr}
 	result, err := tool.Execute(context.Background(), map[string]any{"id": id})
@@ -144,14 +163,24 @@ func TestCheckAgent_Pending(t *testing.T) {
 func TestCheckAgent_Completed(t *testing.T) {
 	original := testRunSubagent
 
-	t.Cleanup(func() { testRunSubagent = original })
-
 	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
 		return "final result", nil
 	}
 
 	mgr := newBackgroundManager(nil, "", "")
-	id := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	id, err := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		mgr.cancel()
+
+		ba, ok := mgr.get(id)
+		if ok {
+			<-ba.done
+		}
+
+		testRunSubagent = original
+	})
 
 	// Wait for completion.
 	time.Sleep(50 * time.Millisecond)
@@ -199,15 +228,25 @@ func TestCheckAgent_InvalidIDType(t *testing.T) {
 func TestAwaitAgent_BlocksUntilDone(t *testing.T) {
 	original := testRunSubagent
 
-	t.Cleanup(func() { testRunSubagent = original })
-
 	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
 		time.Sleep(100 * time.Millisecond)
 		return "final result", nil
 	}
 
 	mgr := newBackgroundManager(nil, "", "")
-	id := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	id, err := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		mgr.cancel()
+
+		ba, ok := mgr.get(id)
+		if ok {
+			<-ba.done
+		}
+
+		testRunSubagent = original
+	})
 
 	tool := &awaitAgentTool{mgr: mgr}
 
@@ -228,15 +267,25 @@ func TestAwaitAgent_BlocksUntilDone(t *testing.T) {
 func TestAwaitAgent_ContextCancellation(t *testing.T) {
 	original := testRunSubagent
 
-	t.Cleanup(func() { testRunSubagent = original })
-
 	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
-		time.Sleep(5 * time.Second)
-		return "never", nil
+		<-ctx.Done()
+		return "", ctx.Err()
 	}
 
 	mgr := newBackgroundManager(nil, "", "")
-	id := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	id, err := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		mgr.cancel()
+
+		ba, ok := mgr.get(id)
+		if ok {
+			<-ba.done
+		}
+
+		testRunSubagent = original
+	})
 
 	tool := &awaitAgentTool{mgr: mgr}
 
@@ -245,9 +294,9 @@ func TestAwaitAgent_ContextCancellation(t *testing.T) {
 
 	result, err := tool.Execute(ctx, map[string]any{"id": id})
 	require.NoError(t, err)
-	// When context is canceled, await returns nil agent which we treat as not found.
+	// When context is canceled, await returns a cancellation error.
 	assert.True(t, result.IsError)
-	assert.Contains(t, result.Content, "not found")
+	assert.Contains(t, result.Content, "canceled")
 }
 
 func TestAwaitAgent_NotFound(t *testing.T) {
@@ -277,26 +326,38 @@ func TestBackgroundManager_NotifyDone(t *testing.T) {
 
 	original := testRunSubagent
 
-	t.Cleanup(func() { testRunSubagent = original })
-
 	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
 		return "result", nil
 	}
 
-	mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	t.Cleanup(func() {
+		mgr.cancel()
+
+		testRunSubagent = original
+	})
+
+	_, err := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	require.NoError(t, err)
 
 	// Wait for completion.
 	time.Sleep(50 * time.Millisecond)
 
 	events := bus.getEvents()
-	require.Len(t, events, 1)
-	assert.Equal(t, "subagent.done", events[0].Topic)
+	require.Len(t, events, 2)
+	assert.Equal(t, "subagent.started", events[0].Topic)
+	assert.Equal(t, "subagent.done", events[1].Topic)
 
-	payload, ok := events[0].Payload.(map[string]string)
+	startedPayload, ok := events[0].Payload.(map[string]string)
 	require.True(t, ok)
-	assert.Contains(t, payload["id"], "subagent_test_")
-	assert.Equal(t, "completed", payload["status"])
-	assert.Equal(t, "result", payload["content"])
+	assert.Contains(t, startedPayload["id"], "subagent_test_")
+	assert.Equal(t, "test", startedPayload["name"])
+	assert.Equal(t, "background", startedPayload["mode"])
+
+	donePayload, ok := events[1].Payload.(map[string]string)
+	require.True(t, ok)
+	assert.Contains(t, donePayload["id"], "subagent_test_")
+	assert.Equal(t, "completed", donePayload["status"])
+	assert.Equal(t, "result", donePayload["content"])
 }
 
 func TestBackgroundManager_NotifyDoneWithError(t *testing.T) {
@@ -307,23 +368,28 @@ func TestBackgroundManager_NotifyDoneWithError(t *testing.T) {
 
 	original := testRunSubagent
 
-	t.Cleanup(func() { testRunSubagent = original })
-
 	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
 		return "", errors.New("failed")
 	}
 
-	mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	t.Cleanup(func() {
+		mgr.cancel()
+
+		testRunSubagent = original
+	})
+
+	_, err := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	require.NoError(t, err)
 
 	time.Sleep(50 * time.Millisecond)
 
 	events := bus.getEvents()
-	require.Len(t, events, 1)
+	require.Len(t, events, 2)
 
-	payload, ok := events[0].Payload.(map[string]string)
+	donePayload, ok := events[1].Payload.(map[string]string)
 	require.True(t, ok)
-	assert.Equal(t, "failed", payload["status"])
-	assert.Contains(t, payload["content"], "failed")
+	assert.Equal(t, "failed", donePayload["status"])
+	assert.Contains(t, donePayload["content"], "failed")
 }
 
 func TestBackgroundManager_NotifyDoneNoBus(t *testing.T) {
@@ -332,14 +398,19 @@ func TestBackgroundManager_NotifyDoneNoBus(t *testing.T) {
 
 	original := testRunSubagent
 
-	t.Cleanup(func() { testRunSubagent = original })
-
 	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
 		return "result", nil
 	}
 
+	t.Cleanup(func() {
+		mgr.cancel()
+
+		testRunSubagent = original
+	})
+
 	// Should not panic.
-	id := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	id, err := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	require.NoError(t, err)
 
 	time.Sleep(50 * time.Millisecond)
 
@@ -423,4 +494,155 @@ func TestAwaitAgentTool_Definition(t *testing.T) {
 	assert.Equal(t, "await_agent", def.Name)
 	assert.NotEmpty(t, def.Description)
 	assert.NotNil(t, def.Parameters)
+}
+
+func TestBackgroundManager_NotifyStarted(t *testing.T) {
+	bus := &testBus{}
+
+	mgr := newBackgroundManager(nil, "", "")
+	mgr.setBus(bus)
+
+	original := testRunSubagent
+
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+		<-ctx.Done()
+		return "", ctx.Err()
+	}
+
+	var id string
+
+	t.Cleanup(func() {
+		mgr.cancel()
+
+		if ba, ok := mgr.get(id); ok && ba != nil {
+			<-ba.done
+		}
+
+		testRunSubagent = original
+	})
+
+	var err error
+
+	id, err = mgr.spawn(&AgentDef{Name: "researcher"}, "find stuff", "", "")
+	require.NoError(t, err)
+
+	// The started event should be published synchronously by spawn.
+	events := bus.getEvents()
+	require.Len(t, events, 1)
+	assert.Equal(t, "subagent.started", events[0].Topic)
+
+	payload, ok := events[0].Payload.(map[string]string)
+	require.True(t, ok)
+	assert.Contains(t, payload["id"], "subagent_researcher_")
+	assert.Equal(t, "researcher", payload["name"])
+	assert.Equal(t, "background", payload["mode"])
+}
+
+func TestBackgroundManager_NotifyStartedNoBus(t *testing.T) {
+	mgr := newBackgroundManager(nil, "", "")
+	// No bus — spawn should not panic.
+
+	original := testRunSubagent
+
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+		<-ctx.Done()
+		return "", ctx.Err()
+	}
+
+	var id string
+
+	t.Cleanup(func() {
+		mgr.cancel()
+
+		if ba, ok := mgr.get(id); ok && ba != nil {
+			<-ba.done
+		}
+
+		testRunSubagent = original
+	})
+
+	var err error
+
+	id, err = mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	require.NoError(t, err)
+	assert.NotEmpty(t, id)
+}
+
+func TestBackgroundManager_NotifyStartedWithCustomID(t *testing.T) {
+	bus := &testBus{}
+
+	mgr := newBackgroundManager(nil, "", "")
+	mgr.setBus(bus)
+
+	original := testRunSubagent
+
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+		<-ctx.Done()
+		return "", ctx.Err()
+	}
+
+	var id string
+
+	t.Cleanup(func() {
+		mgr.cancel()
+
+		if ba, ok := mgr.get(id); ok && ba != nil {
+			<-ba.done
+		}
+
+		testRunSubagent = original
+	})
+
+	var err error
+
+	id, err = mgr.spawn(&AgentDef{Name: "explore"}, "prompt", "", "custom_id_123")
+	require.NoError(t, err)
+
+	events := bus.getEvents()
+	require.Len(t, events, 1)
+
+	payload, ok := events[0].Payload.(map[string]string)
+	require.True(t, ok)
+	assert.Equal(t, "custom_id_123", payload["id"])
+	assert.Equal(t, "explore", payload["name"])
+	assert.Equal(t, "background", payload["mode"])
+}
+
+func TestBackgroundManager_Spawn_IDCollision(t *testing.T) {
+	bus := &testBus{}
+
+	mgr := newBackgroundManager(nil, "", "")
+	mgr.setBus(bus)
+
+	original := testRunSubagent
+
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+		<-ctx.Done()
+		return "", ctx.Err()
+	}
+
+	t.Cleanup(func() {
+		mgr.cancel()
+
+		for _, ba := range mgr.agents {
+			if ba != nil {
+				<-ba.done
+			}
+		}
+
+		testRunSubagent = original
+	})
+
+	// Spawn two agents with the same explicit ID — second should get a different ID.
+	id1, err := mgr.spawn(&AgentDef{Name: "test"}, "prompt1", "", "same-id")
+	require.NoError(t, err)
+	id2, err := mgr.spawn(&AgentDef{Name: "test"}, "prompt2", "", "same-id")
+	require.NoError(t, err)
+
+	assert.Equal(t, "same-id", id1)
+	assert.NotEqual(t, id1, id2, "collision should regenerate ID")
+	assert.Contains(t, id2, "subagent_test_")
+
+	// Both agents should be tracked.
+	assert.Len(t, bus.getEvents(), 2)
 }

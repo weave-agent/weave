@@ -217,9 +217,18 @@ func (t *subagentTool) Execute(ctx context.Context, args map[string]any) (sdk.To
 				return sdk.ToolResult{Content: "background manager not available", IsError: true}, nil
 			}
 
-			id := t.mgr.spawn(t.agent, prompt, cwd, subagentID)
+			id, err := t.mgr.spawn(t.agent, prompt, cwd, subagentID)
+			if err != nil {
+				//nolint:nilerr // tool protocol: errors in Content, not return
+				return sdk.ToolResult{Content: err.Error(), IsError: true}, nil
+			}
+
 			result := map[string]any{propID: id, "status": statusRunning}
-			jsonBytes, _ := json.Marshal(result)
+
+			jsonBytes, err := json.Marshal(result)
+			if err != nil {
+				return sdk.ToolResult{Content: fmt.Sprintf("marshal result: %v", err), IsError: true}, nil
+			}
 
 			return sdk.ToolResult{Content: string(jsonBytes)}, nil
 		}
@@ -292,7 +301,7 @@ func resolveCWD(cwd string) (string, error) {
 		return "", fmt.Errorf("cwd escapes working directory: %s", resolved)
 	}
 
-	return cwd, nil
+	return resolved, nil
 }
 
 // mode represents which execution mode was requested.
