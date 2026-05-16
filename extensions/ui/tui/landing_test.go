@@ -12,7 +12,7 @@ import (
 func TestLandingModel_DrawRendersLogo(t *testing.T) {
 	m := NewLandingModel("glm-5.1", "anthropic", nil)
 	scr := uv.NewScreenBuffer(60, 24)
-	m.Draw(scr, scr.Bounds())
+	m.Draw(scr, scr.Bounds(), nil)
 	rendered := scr.Render()
 
 	assert.Contains(t, rendered, "█████")
@@ -22,7 +22,7 @@ func TestLandingModel_DrawRendersLogo(t *testing.T) {
 func TestLandingModel_DrawRendersModelInfo(t *testing.T) {
 	m := NewLandingModel("glm-5.1", "anthropic", nil)
 	scr := uv.NewScreenBuffer(60, 24)
-	m.Draw(scr, scr.Bounds())
+	m.Draw(scr, scr.Bounds(), nil)
 	rendered := scr.Render()
 
 	assert.Contains(t, rendered, "glm-5.1")
@@ -32,7 +32,7 @@ func TestLandingModel_DrawRendersModelInfo(t *testing.T) {
 func TestLandingModel_DrawRendersKeybindingHints(t *testing.T) {
 	m := NewLandingModel("glm-5.1", "anthropic", nil)
 	scr := uv.NewScreenBuffer(60, 24)
-	m.Draw(scr, scr.Bounds())
+	m.Draw(scr, scr.Bounds(), nil)
 	rendered := scr.Render()
 
 	assert.Contains(t, rendered, "ctrl+p model")
@@ -43,7 +43,7 @@ func TestLandingModel_DrawZeroArea(t *testing.T) {
 	m := NewLandingModel("glm-5.1", "anthropic", nil)
 	scr := uv.NewScreenBuffer(60, 24)
 	area := uv.Rect(0, 0, 0, 0)
-	m.Draw(scr, area)
+	m.Draw(scr, area, nil)
 	// Should not panic
 }
 
@@ -57,7 +57,7 @@ func TestLandingModel_SetSize(t *testing.T) {
 func TestLandingModel_DrawNoModel(t *testing.T) {
 	m := NewLandingModel("", "", nil)
 	scr := uv.NewScreenBuffer(60, 24)
-	m.Draw(scr, scr.Bounds())
+	m.Draw(scr, scr.Bounds(), nil)
 	rendered := scr.Render()
 
 	// Should still render logo and hints but no model info
@@ -166,7 +166,7 @@ func TestLanding_EditorStillAccessibleWhenLandingActive(t *testing.T) {
 func TestLandingModel_DrawNoPlaceholder(t *testing.T) {
 	m := NewLandingModel("glm-5.1", "anthropic", nil)
 	scr := uv.NewScreenBuffer(60, 24)
-	m.Draw(scr, scr.Bounds())
+	m.Draw(scr, scr.Bounds(), nil)
 	rendered := scr.Render()
 
 	// Placeholder text should NOT be in landing output (it's in the editor now)
@@ -176,7 +176,7 @@ func TestLandingModel_DrawNoPlaceholder(t *testing.T) {
 func TestLandingModel_DrawRuleInBorderColor(t *testing.T) {
 	m := NewLandingModel("glm-5.1", "anthropic", nil)
 	scr := uv.NewScreenBuffer(60, 24)
-	m.Draw(scr, scr.Bounds())
+	m.Draw(scr, scr.Bounds(), nil)
 	rendered := scr.Render()
 
 	// Rule should be rendered with ANSI color code for Border (240)
@@ -187,7 +187,7 @@ func TestLandingModel_DrawRendersExtensions(t *testing.T) {
 	exts := []string{"agent", "tui", "bash", "read"}
 	m := NewLandingModel("glm-5.1", "anthropic", exts)
 	scr := uv.NewScreenBuffer(60, 24)
-	m.Draw(scr, scr.Bounds())
+	m.Draw(scr, scr.Bounds(), nil)
 	rendered := scr.Render()
 
 	assert.Contains(t, rendered, "agent")
@@ -199,7 +199,7 @@ func TestLandingModel_DrawRendersExtensions(t *testing.T) {
 func TestLandingModel_DrawNoExtensions(t *testing.T) {
 	m := NewLandingModel("glm-5.1", "anthropic", nil)
 	scr := uv.NewScreenBuffer(60, 24)
-	m.Draw(scr, scr.Bounds())
+	m.Draw(scr, scr.Bounds(), nil)
 	rendered := scr.Render()
 
 	// Should not contain the extensions label when no extensions are provided

@@ -39,9 +39,13 @@ func (m LandingModel) SetSize(width, height int) LandingModel {
 }
 
 // Draw renders the landing screen into the given screen buffer area.
-func (m LandingModel) Draw(scr uv.Screen, area uv.Rectangle) {
+func (m LandingModel) Draw(scr uv.Screen, area uv.Rectangle, theme *palette.Theme) {
 	if area.Dx() <= 0 || area.Dy() <= 0 {
 		return
+	}
+
+	if theme == nil {
+		theme = palette.DefaultTheme()
 	}
 
 	w := area.Dx()
@@ -53,11 +57,11 @@ func (m LandingModel) Draw(scr uv.Screen, area uv.Rectangle) {
 		y = area.Min.Y + (area.Dy()-len(lines))/2
 	}
 
-	nameStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Accent)).Bold(true)
-	hintStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Border))
-	ruleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Border))
-	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Muted))
-	mutedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().MutedBright))
+	nameStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Accent)).Bold(true)
+	hintStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Border))
+	ruleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Border))
+	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Muted))
+	mutedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.MutedBright))
 
 	for i, line := range lines {
 		if y+i >= area.Max.Y {

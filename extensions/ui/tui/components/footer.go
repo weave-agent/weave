@@ -164,14 +164,14 @@ func (m FooterModel) View() string {
 	}
 
 	line1 := m.renderLine1()
-	line2 := m.renderLine2()
+	line2 := m.renderLine2(nil)
 
 	return line1 + "\n" + line2
 }
 
 // Draw renders the footer into a screen buffer region.
 // Line 1 (CWD + git) goes into the first row, line 2 (tokens + model) into the second.
-func (m FooterModel) Draw(scr uv.Screen, area uv.Rectangle) {
+func (m FooterModel) Draw(scr uv.Screen, area uv.Rectangle, theme *palette.Theme) {
 	if area.Dx() <= 0 || area.Dy() <= 0 || m.width <= 0 {
 		return
 	}
@@ -183,7 +183,7 @@ func (m FooterModel) Draw(scr uv.Screen, area uv.Rectangle) {
 
 	if area.Dy() >= 2 {
 		line2Rect := uv.Rect(area.Min.X, area.Min.Y+1, area.Dx(), 1)
-		uv.NewStyledString(m.renderLine2()).Draw(scr, line2Rect)
+		uv.NewStyledString(m.renderLine2(theme)).Draw(scr, line2Rect)
 	}
 }
 
@@ -219,8 +219,11 @@ func (m FooterModel) renderLine1() string {
 	return dimStyle.Render(strings.Join(parts, " · "))
 }
 
-func (m FooterModel) renderLine2() string {
-	theme := palette.DefaultTheme()
+func (m FooterModel) renderLine2(theme *palette.Theme) string {
+	if theme == nil {
+		theme = palette.DefaultTheme()
+	}
+
 	mutedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Muted))
 
 	// Left side: stats (tokens, cost, context)

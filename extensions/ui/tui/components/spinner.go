@@ -19,22 +19,34 @@ type SpinnerModel struct {
 	label     string
 	width     int
 	tickCount int
+	theme     *palette.Theme
 }
 
 // NewSpinnerModel creates a new spinner model.
-func NewSpinnerModel() SpinnerModel {
+func NewSpinnerModel(theme *palette.Theme) SpinnerModel {
+	if theme == nil {
+		theme = palette.DefaultTheme()
+	}
+
 	sp := spinner.New(
 		spinner.WithSpinner(spinner.Spinner{
 			Frames: []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"},
 			FPS:    time.Second / 10,
 		}),
-		spinner.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Accent))),
+		spinner.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Accent))),
 	)
 
 	return SpinnerModel{
 		sp:    sp,
 		label: "Thinking...",
+		theme: theme,
 	}
+}
+
+// SetTheme updates the spinner's theme for dynamic accent colors.
+func (m SpinnerModel) SetTheme(theme *palette.Theme) SpinnerModel {
+	m.theme = theme
+	return m
 }
 
 // SetSize updates the spinner width.
@@ -70,12 +82,17 @@ func (m SpinnerModel) SetCustomFrames(frames []string, interval time.Duration) S
 		return m
 	}
 
+	accent := palette.DefaultTheme().Accent
+	if m.theme != nil {
+		accent = m.theme.Accent
+	}
+
 	m.sp = spinner.New(
 		spinner.WithSpinner(spinner.Spinner{
 			Frames: frames,
 			FPS:    interval,
 		}),
-		spinner.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Accent))),
+		spinner.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color(accent))),
 	)
 
 	return m
@@ -94,10 +111,18 @@ func (m SpinnerModel) Update(msg tea.Msg) (SpinnerModel, tea.Cmd) {
 	// Color pulse: alternate between Accent and AccentBright every 3 ticks
 	if _, ok := msg.(spinner.TickMsg); ok {
 		m.tickCount++
+		accent := palette.DefaultTheme().Accent
+		accentBright := palette.DefaultTheme().AccentBright
+
+		if m.theme != nil {
+			accent = m.theme.Accent
+			accentBright = m.theme.AccentBright
+		}
+
 		if m.tickCount%6 < 3 {
-			m.sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Accent))
+			m.sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(accent))
 		} else {
-			m.sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().AccentBright))
+			m.sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(accentBright))
 		}
 	}
 

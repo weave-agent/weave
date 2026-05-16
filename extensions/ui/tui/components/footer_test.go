@@ -252,7 +252,7 @@ func TestFooterView_ThinkingLevelShownForReasoning(t *testing.T) {
 func TestFooterModel_Draw(t *testing.T) {
 	f := NewFooterModel().SetSize(80).SetModel("claude-sonnet-4", "anthropic")
 	canvas := uv.NewScreenBuffer(80, 2)
-	f.Draw(canvas, canvas.Bounds())
+	f.Draw(canvas, canvas.Bounds(), nil)
 	output := uv.TrimSpace(canvas.Render())
 	assert.Contains(t, output, "anthropic/claude-sonnet-4")
 }
@@ -260,7 +260,7 @@ func TestFooterModel_Draw(t *testing.T) {
 func TestFooterModel_Draw_TwoLines(t *testing.T) {
 	f := NewFooterModel().SetSize(80).SetTokenUsage(100, 50, 0.01)
 	canvas := uv.NewScreenBuffer(80, 2)
-	f.Draw(canvas, canvas.Bounds())
+	f.Draw(canvas, canvas.Bounds(), nil)
 	output := uv.TrimSpace(canvas.Render())
 	lines := strings.Split(output, "\n")
 	assert.Len(t, lines, 2)
@@ -271,13 +271,13 @@ func TestFooterModel_Draw_TwoLines(t *testing.T) {
 func TestFooterModel_Draw_ZeroArea(t *testing.T) {
 	f := NewFooterModel().SetSize(80)
 	canvas := uv.NewScreenBuffer(80, 2)
-	f.Draw(canvas, uv.Rect(0, 0, 0, 0))
+	f.Draw(canvas, uv.Rect(0, 0, 0, 0), nil)
 }
 
 func TestFooterModel_Draw_SingleRow(t *testing.T) {
 	f := NewFooterModel().SetSize(80).SetCWD("/home/user/weave")
 	canvas := uv.NewScreenBuffer(80, 1)
-	f.Draw(canvas, canvas.Bounds())
+	f.Draw(canvas, canvas.Bounds(), nil)
 	output := uv.TrimSpace(canvas.Render())
 	assert.Contains(t, output, "weave")
 }
@@ -302,7 +302,7 @@ func TestFooterView_TokenRateClearedWhenZero(t *testing.T) {
 func TestFooterView_TokenRateInDraw(t *testing.T) {
 	f := NewFooterModel().SetSize(80).SetModel("claude-sonnet-4", "anthropic").SetTokenRate(123.4)
 	canvas := uv.NewScreenBuffer(80, 2)
-	f.Draw(canvas, canvas.Bounds())
+	f.Draw(canvas, canvas.Bounds(), nil)
 	output := uv.TrimSpace(canvas.Render())
 	assert.Contains(t, output, "123.4 tok/s")
 }

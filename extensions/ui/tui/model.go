@@ -217,7 +217,7 @@ func newModelWithConfig(bus sdk.Bus, cfg sdk.Config, ps sdk.PreferenceStore, ui 
 		chat:          components.NewChatModel(),
 		editor:        editor,
 		footer:        components.NewFooterModel(),
-		spinner:       components.NewSpinnerModel(),
+		spinner:       components.NewSpinnerModel(palette.DefaultTheme()),
 		toolPanels:    make(map[string]*messages.ToolPanel),
 		commands:      commands,
 		bindings:      bindings,
@@ -742,6 +742,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.editor = m.editor.SetBorderColor(borderColor)
 		m.editor = m.editor.SetPulseColors(accent, accentBright)
+		m.spinner = m.spinner.SetTheme(m.theme)
 
 		// Enable/disable pulse animation based on active state
 		active := msg.State == palette.StateStreaming || msg.State == palette.StateToolRunning
@@ -2647,13 +2648,13 @@ func (m Model) drawFooter(scr uv.Screen, area uv.Rectangle) {
 		return
 	}
 
-	m.footer.Draw(scr, area)
+	m.footer.Draw(scr, area, m.theme)
 }
 
 func (m Model) drawMainContent(scr uv.Screen, area uv.Rectangle) {
 	if m.showLanding {
 		m.landing = m.landing.SetSize(area.Dx(), area.Dy())
-		m.landing.Draw(scr, area)
+		m.landing.Draw(scr, area, m.theme)
 	} else {
 		m.chat.Draw(scr, area)
 	}

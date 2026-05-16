@@ -173,7 +173,7 @@ func TestScreenBuffer_MultiStyleRendering(t *testing.T) {
 // TestSpinnerV2_FunctionalOptions verifies that spinner.New with v2
 // functional options creates a working spinner model.
 func TestSpinnerV2_FunctionalOptions(t *testing.T) {
-	s := components.NewSpinnerModel()
+	s := components.NewSpinnerModel(palette.DefaultTheme())
 	require.False(t, s.Visible())
 
 	s = s.Show()
