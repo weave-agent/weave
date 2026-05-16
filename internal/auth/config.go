@@ -78,6 +78,13 @@ func applyOAuthCredentialFromRaw(raw json.RawMessage, target any) error {
 				return fmt.Errorf("unmarshal oauth credential: %w", err)
 			}
 
+			// Only overwrite if the raw JSON actually contains OAuth fields.
+			// This preserves values populated by the initial json.Unmarshal
+			// when the auth file uses nested format (oauth_token: {...}).
+			if cred.AccessToken == "" && cred.RefreshToken == "" {
+				return nil
+			}
+
 			field.Set(reflect.ValueOf(cred))
 
 			return nil

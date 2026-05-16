@@ -24,9 +24,9 @@ type LoginFlowResultMsg struct {
 // starts a callback server and opens the browser. For device code flow, the
 // caller must have already requested the device code and should use
 // pollDeviceCodeCmd for polling.
-func runOAuthFlowCmd(provider sdk.OAuthProvider) tea.Cmd {
+func runOAuthFlowCmd(parentCtx context.Context, provider sdk.OAuthProvider) tea.Cmd {
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		ctx, cancel := context.WithTimeout(parentCtx, 2*time.Minute)
 		defer cancel()
 
 		cred, err := sdk.RunAuthorizationCodeFlow(ctx, provider.AuthURL, provider.TokenURL, provider.ClientID, provider.RedirectURI, provider.Scopes, provider.ExtraAuthParams)
@@ -41,9 +41,9 @@ func runOAuthFlowCmd(provider sdk.OAuthProvider) tea.Cmd {
 
 // pollDeviceCodeCmd returns a tea.Cmd that polls the token endpoint for a
 // device code flow and returns a LoginFlowResultMsg.
-func pollDeviceCodeCmd(providerID, deviceCode string, intervalSecs int, tokenURL, clientID string) tea.Cmd {
+func pollDeviceCodeCmd(parentCtx context.Context, providerID, deviceCode string, intervalSecs int, tokenURL, clientID string) tea.Cmd {
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		ctx, cancel := context.WithTimeout(parentCtx, 2*time.Minute)
 		defer cancel()
 
 		tokenResp, err := sdk.PollDeviceToken(ctx, tokenURL, clientID, deviceCode, intervalSecs)
@@ -111,6 +111,12 @@ func (m Model) onLoginFlowResult(msg LoginFlowResultMsg) (tea.Model, tea.Cmd) {
 
 	if m.bus != nil {
 		cmds = append(cmds, PublishAuthLoginSuccess(m.bus, msg.Provider))
+
+		// If we transitioned out of noConfigured, publish model.change so the
+		// agent loop switches to the newly available provider.
+		if !m.noConfigured {
+			cmds = append(cmds, PublishModelChange(m.bus, m.currentModel))
+		}
 	}
 
 	return m, tea.Batch(cmds...)

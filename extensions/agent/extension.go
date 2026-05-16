@@ -89,6 +89,7 @@ func (a *AgentExtension) Subscribe(bus sdk.Bus) error {
 	modelChangeCh := make(chan sdk.Event, 64)
 	thinkingCh := make(chan sdk.Event, 64)
 	sessionResumeCh := make(chan sdk.Event, 64)
+	authLogoutCh := make(chan sdk.Event, 64)
 
 	bus.OnAll(func(ev sdk.Event) error {
 		select {
@@ -114,6 +115,8 @@ func (a *AgentExtension) Subscribe(bus sdk.Bus) error {
 			ch = thinkingCh
 		case TopicSessionResume:
 			ch = sessionResumeCh
+		case TopicAuthLogout:
+			ch = authLogoutCh
 		}
 
 		if ch != nil {
@@ -129,7 +132,7 @@ func (a *AgentExtension) Subscribe(bus sdk.Bus) error {
 	a.cancel = cancel
 	a.done = make(chan struct{})
 
-	go a.run(ctx, bus, promptCh, steerCh, followupCh, interruptCh, modelChangeCh, thinkingCh, sessionResumeCh)
+	go a.run(ctx, bus, promptCh, steerCh, followupCh, interruptCh, modelChangeCh, thinkingCh, sessionResumeCh, authLogoutCh)
 
 	a.registerSkillCommands(bus)
 

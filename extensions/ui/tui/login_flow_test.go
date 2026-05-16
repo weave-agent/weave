@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -24,7 +25,7 @@ func TestPollDeviceCodeCmd_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	cmd := pollDeviceCodeCmd("test-provider", "dc-123", 1, server.URL, "client-id")
+	cmd := pollDeviceCodeCmd(context.Background(), "test-provider", "dc-123", 1, server.URL, "client-id")
 	msg := cmd()
 
 	result, ok := msg.(LoginFlowResultMsg)
@@ -46,7 +47,7 @@ func TestPollDeviceCodeCmd_Error(t *testing.T) {
 	}))
 	defer server.Close()
 
-	cmd := pollDeviceCodeCmd("test-provider", "dc-123", 1, server.URL, "client-id")
+	cmd := pollDeviceCodeCmd(context.Background(), "test-provider", "dc-123", 1, server.URL, "client-id")
 	msg := cmd()
 
 	result, ok := msg.(LoginFlowResultMsg)

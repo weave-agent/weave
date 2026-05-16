@@ -113,6 +113,10 @@ type Model struct {
 	// noConfigured is true when no provider has an API key set.
 	noConfigured bool
 
+	// oauthCancel cancels an in-flight OAuth flow when the user force-dismisses
+	// the login dialog. Nil when no OAuth flow is active.
+	oauthCancel context.CancelFunc
+
 	// startup hints banner
 	showHints bool
 
@@ -338,6 +342,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Login flow completion must be handled even when the login dialog is open.
 	if loginResult, ok := msg.(LoginFlowResultMsg); ok {
+		if m.oauthCancel == nil {
+			// Flow was canceled by the user; ignore stale result.
+			return m, nil
+		}
+
+		m.oauthCancel = nil
+
 		if top := m.dialogStack.Peek(); top != nil && top.ID() == dialogLoginOAuth {
 			m.dialogStack, _ = m.dialogStack.Pop()
 		}
@@ -2099,11 +2110,21 @@ func (m Model) onKeyInputDialogDone(result overlays.DialogResult, pendingCmd tea
 		}
 	}
 
+	var cmds []tea.Cmd
+
+	cmds = append(cmds, pendingCmd)
+
 	if m.bus != nil {
-		return m, tea.Batch(pendingCmd, PublishAuthLoginSuccess(m.bus, providerName))
+		cmds = append(cmds, PublishAuthLoginSuccess(m.bus, providerName))
+
+		// If we transitioned out of noConfigured, publish model.change so the
+		// agent loop switches to the newly available provider.
+		if !m.noConfigured {
+			cmds = append(cmds, PublishModelChange(m.bus, m.currentModel))
+		}
 	}
 
-	return m, pendingCmd
+	return m, tea.Batch(cmds...)
 }
 
 func (m Model) onLoginDialogDone(result overlays.DialogResult, pendingCmd tea.Cmd) (tea.Model, tea.Cmd) {
@@ -2140,13 +2161,22 @@ func (m Model) startOAuthLogin(selected LoginProviderEntry, pendingCmd tea.Cmd) 
 		return m, pendingCmd
 	}
 
+	// Create a cancellable context for the OAuth flow so force-canceling the
+	// dialog can stop the background callback server / polling.
+	ctx, cancel := context.WithCancel(context.Background())
+	m.oauthCancel = cancel
+
 	if oauthProvider.FlowType == sdk.DeviceCode {
 		// Device code flow: request code synchronously, then poll asynchronously.
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
+		reqCtx, reqCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer reqCancel()
 
-		resp, err := sdk.RequestDeviceCode(ctx, oauthProvider.DeviceCodeURL, oauthProvider.ClientID, oauthProvider.Scopes)
+		resp, err := sdk.RequestDeviceCode(reqCtx, oauthProvider.DeviceCodeURL, oauthProvider.ClientID, oauthProvider.Scopes)
 		if err != nil {
+			m.oauthCancel = nil
+
+			cancel()
+
 			am := messages.NewAssistantMessage()
 			am.Finalize(fmt.Sprintf("Failed to start device code flow for %s: %v", selected.Name, err))
 			m.chat = m.chat.AddItem(am)
@@ -2164,7 +2194,7 @@ func (m Model) startOAuthLogin(selected LoginProviderEntry, pendingCmd tea.Cmd) 
 			interval = 5
 		}
 
-		return m, tea.Batch(pendingCmd, pollDeviceCodeCmd(selected.ID, resp.DeviceCode, interval, oauthProvider.TokenURL, oauthProvider.ClientID))
+		return m, tea.Batch(pendingCmd, pollDeviceCodeCmd(ctx, selected.ID, resp.DeviceCode, interval, oauthProvider.TokenURL, oauthProvider.ClientID))
 	}
 
 	// Authorization code flow: show dialog and run callback + browser flow.
@@ -2172,7 +2202,7 @@ func (m Model) startOAuthLogin(selected LoginProviderEntry, pendingCmd tea.Cmd) 
 	loginDlg = loginDlg.SetSize(m.width, m.height).Show()
 	m.dialogStack = m.dialogStack.Push(overlays.NewLoginDialog(dialogLoginOAuth, loginDlg))
 
-	return m, tea.Batch(pendingCmd, runOAuthFlowCmd(oauthProvider))
+	return m, tea.Batch(pendingCmd, runOAuthFlowCmd(ctx, oauthProvider))
 }
 
 func (m Model) onLogoutDialogDone(result overlays.DialogResult, pendingCmd tea.Cmd) (tea.Model, tea.Cmd) {
@@ -2207,10 +2237,20 @@ func (m Model) onLogoutDialogDone(result overlays.DialogResult, pendingCmd tea.C
 		cmds = append(cmds, PublishAuthLogout(m.bus, selected.ID))
 	}
 
-	// Re-evaluate noConfigured state.
+	// Re-evaluate noConfigured state and switch to the next available provider.
 	models := listModels()
 	if len(models) == 0 {
 		m.noConfigured = true
+	} else {
+		m.noConfigured = false
+		cur := currentModel(models, m.ps)
+		m.currentModel = cur
+		m.footer = m.footer.SetModel(cur.Model, cur.Provider)
+		m.footer = m.footer.SetReasoning(modelReasoning(cur.Model))
+	}
+
+	if m.bus != nil {
+		cmds = append(cmds, PublishModelChange(m.bus, m.currentModel))
 	}
 
 	return m, tea.Batch(cmds...)
@@ -2279,7 +2319,10 @@ func (m Model) handleDialogForceCancel(d overlays.Dialog) (tea.Model, tea.Cmd) {
 	case dialogLogoutSelect:
 		m.pendingLogoutProviders = nil
 	case dialogLoginOAuth:
-		// No cleanup needed for OAuth login dialog force-cancel.
+		if m.oauthCancel != nil {
+			m.oauthCancel()
+			m.oauthCancel = nil
+		}
 	default:
 		// Popup dialog cancellation.
 		if ch, ok := m.popupChans[id]; ok {
