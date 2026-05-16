@@ -145,6 +145,7 @@ func (t *tool) Definition() sdk.ToolDef {
 					"description": "Kill a background job by ID. When provided, terminates the specified job and returns its final status.",
 				},
 			},
+			"additionalProperties": false,
 		},
 	}
 }

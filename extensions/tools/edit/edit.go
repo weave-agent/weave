@@ -106,7 +106,8 @@ func (t *tool) Definition() sdk.ToolDef {
 					"description": "List of text replacements to apply in order.",
 				},
 			},
-			"required": []string{"path", ParamEdits},
+			"required":             []string{"path", ParamEdits},
+			"additionalProperties": false,
 		},
 	}
 }

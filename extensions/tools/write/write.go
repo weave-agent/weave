@@ -127,7 +127,8 @@ func (t *tool) Definition() sdk.ToolDef {
 					"description": "The content to write.",
 				},
 			},
-			"required": []string{ParamPath, ParamContent},
+			"required":             []string{ParamPath, ParamContent},
+			"additionalProperties": false,
 		},
 	}
 }

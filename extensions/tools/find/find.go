@@ -81,7 +81,8 @@ func (t *tool) Definition() sdk.ToolDef {
 					"description": "Directory to search in. Defaults to current directory.",
 				},
 			},
-			"required": []string{ParamPattern},
+			"required":             []string{ParamPattern},
+			"additionalProperties": false,
 		},
 	}
 }

@@ -116,7 +116,8 @@ func (t *tool) Definition() sdk.ToolDef {
 					"description": "Maximum number of lines to read. Defaults to all lines.",
 				},
 			},
-			"required": []string{ParamPath},
+			"required":             []string{ParamPath},
+			"additionalProperties": false,
 		},
 	}
 }

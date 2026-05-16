@@ -100,6 +100,7 @@ func (t *tool) Definition() sdk.ToolDef {
 					"description": "Maximum depth for tree output. 0 = flat list (default). > 0 = recursive tree with depth limit.",
 				},
 			},
+			"additionalProperties": false,
 		},
 	}
 }

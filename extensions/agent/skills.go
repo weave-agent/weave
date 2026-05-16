@@ -361,7 +361,9 @@ func (a *AgentExtension) makeSkillHandler(skill Skill, bus sdk.Bus) func(args st
 		if len(skill.AllowedTools) > 0 {
 			a.mu.Lock()
 			a.savedToolFilter = sdk.GetToolFilter()
+
 			sdk.SetToolFilter(skill.AllowedTools)
+
 			a.skillFilterActive = true
 			a.mu.Unlock()
 		}

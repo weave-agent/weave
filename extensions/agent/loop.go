@@ -9,6 +9,7 @@ import (
 
 	"weave/sdk"
 	"weave/sdk/model"
+	"weave/sdk/validate"
 )
 
 // Bus topics
@@ -743,6 +744,13 @@ func executeTool(ctx context.Context, bus sdk.Bus, cfg sdk.Config, tc sdk.ToolCa
 	tool, getErr := sdk.GetTool(tc.Name, cfg)
 	if getErr != nil {
 		return sdk.ToolResult{}, fmt.Errorf("tool %q not found: %w", tc.Name, getErr)
+	}
+
+	def := tool.Definition()
+	if schema, ok := def.Parameters.(map[string]any); ok {
+		if valErr := validate.Args(tc.Arguments, schema); valErr != nil {
+			return sdk.ToolResult{Content: "invalid arguments: " + valErr.Error(), IsError: true}, nil
+		}
 	}
 
 	ctx = sdk.WithBus(ctx, bus)

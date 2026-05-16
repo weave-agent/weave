@@ -105,7 +105,8 @@ func (t *tool) Definition() sdk.ToolDef {
 					"description": "Number of context lines before and after each match. Defaults to 0.",
 				},
 			},
-			"required": []string{ParamPattern},
+			"required":             []string{ParamPattern},
+			"additionalProperties": false,
 		},
 	}
 }

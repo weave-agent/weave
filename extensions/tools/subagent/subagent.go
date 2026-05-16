@@ -171,6 +171,7 @@ func (t *subagentTool) Definition() sdk.ToolDef {
 					propDescription: "Working directory override",
 				},
 			},
+			"additionalProperties": false,
 		},
 	}
 }

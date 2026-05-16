@@ -84,12 +84,12 @@ Fix 17 gaps identified by the agents-best-practices audit of the Weave agent fra
 - [x] run `cd extensions/tools/subagent && go test ./...` — must pass before task 7
 
 ### Task 7: Add harness-level argument validation
-- [ ] add a lightweight JSON schema validator utility (or use `encoding/json` + manual checks) in a shared location — validate incoming `map[string]any` args against the tool's `Definition().Parameters` schema (check required fields exist, check types match, reject unknown properties if `additionalProperties: false`)
-- [ ] integrate validation into `executeTool()` at `extensions/agent/loop.go:708-722` — before calling `tool.Execute()`, validate args and return `ToolResult{Content: "invalid arguments: ...", IsError: true}` on failure
-- [ ] add `additionalProperties: false` to all tool schemas in `extensions/tools/*/` Definition() methods
-- [ ] write tests: TestExecuteTool_InvalidArgs, TestExecuteTool_MissingRequired in `extensions/agent/loop_test.go`
-- [ ] write tests: TestSchemaValidation_RequiredFields, TestSchemaValidation_UnknownFields in the validation utility test file
-- [ ] run `cd extensions/agent && go test ./...` — must pass before task 8
+- [x] add a lightweight JSON schema validator utility (or use `encoding/json` + manual checks) in a shared location — validate incoming `map[string]any` args against the tool's `Definition().Parameters` schema (check required fields exist, check types match, reject unknown properties if `additionalProperties: false`)
+- [x] integrate validation into `executeTool()` at `extensions/agent/loop.go:708-722` — before calling `tool.Execute()`, validate args and return `ToolResult{Content: "invalid arguments: ...", IsError: true}` on failure
+- [x] add `additionalProperties: false` to all tool schemas in `extensions/tools/*/` Definition() methods
+- [x] write tests: TestExecuteTool_InvalidArgs, TestExecuteTool_MissingRequired in `extensions/agent/loop_test.go`
+- [x] write tests: TestSchemaValidation_RequiredFields, TestSchemaValidation_UnknownFields in the validation utility test file
+- [x] run `cd extensions/agent && go test ./...` — must pass before task 8
 
 ### Task 8: Surface provider token usage to UI
 - [ ] add `ProviderEventUsage` event type to `sdk/provider.go` with `InputTokens`, `OutputTokens`, `CacheCreationTokens`, `CacheReadTokens` fields

@@ -2164,3 +2164,148 @@ func TestAgent_SessionResume_InvalidPayloadIgnored(t *testing.T) {
 	assert.False(t, a.resumed)
 	assert.Empty(t, a.sessionID)
 }
+
+func TestExecuteTool_InvalidArgs(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mt := newMockTool("test-tool", sdk.ToolDef{
+		Name:        "test-tool",
+		Description: "a test tool",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"count": map[string]any{"type": "number"},
+			},
+			"additionalProperties": false,
+		},
+	}, nil)
+	registerMockTool(mt)
+
+	mp := newMockProvider([]providerResponse{
+		{
+			toolCalls: []sdk.ToolCall{
+				{ID: "tc1", Name: "test-tool", Arguments: map[string]any{"count": "not-a-number"}},
+			},
+		},
+		{textDeltas: []string{"recovered"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "trigger invalid args"))
+
+	toolResultEvt, ok := waitForTopic(allCh, TopicToolResult, 2*time.Second)
+	require.True(t, ok, "timeout waiting for tool_result")
+
+	payload := toolResultEvt.Payload.(map[string]any)
+	result := payload["result"].(sdk.ToolResult)
+	assert.True(t, result.IsError)
+	assert.Contains(t, result.Content, "invalid arguments:")
+	assert.Contains(t, result.Content, "expected type \"number\", got \"string\"")
+
+	// Tool Execute should NOT have been called
+	assert.Empty(t, mt.ExecuteCalls())
+}
+
+func TestExecuteTool_MissingRequired(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mt := newMockTool("test-tool", sdk.ToolDef{
+		Name:        "test-tool",
+		Description: "a test tool",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"name": map[string]any{"type": "string"},
+			},
+			"required":             []any{"name"},
+			"additionalProperties": false,
+		},
+	}, nil)
+	registerMockTool(mt)
+
+	mp := newMockProvider([]providerResponse{
+		{
+			toolCalls: []sdk.ToolCall{
+				{ID: "tc1", Name: "test-tool", Arguments: map[string]any{}},
+			},
+		},
+		{textDeltas: []string{"recovered"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "trigger missing required"))
+
+	toolResultEvt, ok := waitForTopic(allCh, TopicToolResult, 2*time.Second)
+	require.True(t, ok, "timeout waiting for tool_result")
+
+	payload := toolResultEvt.Payload.(map[string]any)
+	result := payload["result"].(sdk.ToolResult)
+	assert.True(t, result.IsError)
+	assert.Contains(t, result.Content, "invalid arguments:")
+	assert.Contains(t, result.Content, `missing required field: "name"`)
+
+	// Tool Execute should NOT have been called
+	assert.Empty(t, mt.ExecuteCalls())
+}
+
+func TestExecuteTool_UnknownField(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mt := newMockTool("test-tool", sdk.ToolDef{
+		Name:        "test-tool",
+		Description: "a test tool",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"name": map[string]any{"type": "string"},
+			},
+			"additionalProperties": false,
+		},
+	}, nil)
+	registerMockTool(mt)
+
+	mp := newMockProvider([]providerResponse{
+		{
+			toolCalls: []sdk.ToolCall{
+				{ID: "tc1", Name: "test-tool", Arguments: map[string]any{"name": "alice", "extra": "value"}},
+			},
+		},
+		{textDeltas: []string{"recovered"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "trigger unknown field"))
+
+	toolResultEvt, ok := waitForTopic(allCh, TopicToolResult, 2*time.Second)
+	require.True(t, ok, "timeout waiting for tool_result")
+
+	payload := toolResultEvt.Payload.(map[string]any)
+	result := payload["result"].(sdk.ToolResult)
+	assert.True(t, result.IsError)
+	assert.Contains(t, result.Content, "invalid arguments:")
+	assert.Contains(t, result.Content, `unknown field: "extra"`)
+
+	// Tool Execute should NOT have been called
+	assert.Empty(t, mt.ExecuteCalls())
+}
