@@ -62,6 +62,7 @@ func loadConfig(args []string) (configFile string, cf *settings.Settings, rest [
 		}
 
 		cf.Prompt = string(prompt)
+
 		rest = append([]string{"--weave-prompt-file=" + promptFile}, rest...)
 	}
 

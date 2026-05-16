@@ -158,7 +158,7 @@ type Model struct {
 // If ui is non-nil, it is reused (production path) so that renderers registered
 // via sdk.UI are visible to the model. If nil, a fresh TUIImpl is created (tests).
 //
-//nolint:unparam // cfg is always nil in tests; kept for API consistency with newModelWithConfig.
+
 func newModel(bus sdk.Bus, cfg sdk.Config, ps sdk.PreferenceStore, ui *TUIImpl) Model {
 	return newModelWithConfig(bus, cfg, ps, ui, TUIConfig{})
 }
@@ -334,6 +334,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Keep panel tray in sync with panel manager state
 	m.syncPanelTray()
+
+	// Login flow completion must be handled even when the login dialog is open.
+	if loginResult, ok := msg.(LoginFlowResultMsg); ok {
+		if top := m.dialogStack.Peek(); top != nil && top.ID() == dialogLoginOAuth {
+			m.dialogStack, _ = m.dialogStack.Pop()
+		}
+
+		return m.onLoginFlowResult(loginResult)
+	}
 
 	// Dialog stack gets priority when non-empty.
 	if !m.dialogStack.Empty() {
@@ -743,6 +752,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case LogoutListResultMsg:
 		return m.onLogoutListResult(msg)
+
+	case LoginFlowResultMsg:
+		return m.onLoginFlowResult(msg)
 
 	case ShutdownMsg:
 		return m, tea.Quit
@@ -2102,12 +2114,21 @@ func (m Model) onLoginDialogDone(result overlays.DialogResult, pendingCmd tea.Cm
 	m.pendingLoginProviders = nil
 
 	if selected.IsOAuth {
-		// OAuth flow will be implemented in Tasks 6-8.
-		am := messages.NewAssistantMessage()
-		am.Finalize(fmt.Sprintf("OAuth login for %s is not yet implemented. Use /providers to set an API key instead.", selected.Name))
-		m.chat = m.chat.AddItem(am)
+		oauthProvider, ok := sdk.GetOAuthProvider(selected.ID)
+		if !ok {
+			am := messages.NewAssistantMessage()
+			am.Finalize(fmt.Sprintf("OAuth provider %s not configured.", selected.Name))
+			m.chat = m.chat.AddItem(am)
 
-		return m, pendingCmd
+			return m, pendingCmd
+		}
+
+		// Show login dialog while the OAuth flow runs asynchronously.
+		loginDlg := overlays.NewLoginModel(selected.Name, oauthProvider.AuthURL)
+		loginDlg = loginDlg.SetSize(m.width, m.height).Show()
+		m.dialogStack = m.dialogStack.Push(overlays.NewLoginDialog(dialogLoginOAuth, loginDlg))
+
+		return m, tea.Batch(pendingCmd, runOAuthFlowCmd(oauthProvider))
 	}
 
 	// API key flow: reuse the existing key input dialog.
@@ -2178,6 +2199,10 @@ func (m Model) handleDialogDone(d overlays.Dialog, pendingCmd tea.Cmd) (tea.Mode
 		return m.onLoginDialogDone(result, pendingCmd)
 	case dialogLogoutSelect:
 		return m.onLogoutDialogDone(result, pendingCmd)
+	case dialogLoginOAuth:
+		// Login OAuth dialog was dismissed (user canceled or flow completed).
+		// The actual flow result is handled by LoginFlowResultMsg.
+		return m, pendingCmd
 	default:
 		// Popup dialogs: send result on channel.
 		if ch, ok := m.popupChans[id]; ok {
@@ -2218,6 +2243,8 @@ func (m Model) handleDialogForceCancel(d overlays.Dialog) (tea.Model, tea.Cmd) {
 		m.pendingLoginProviders = nil
 	case dialogLogoutSelect:
 		m.pendingLogoutProviders = nil
+	case dialogLoginOAuth:
+		// No cleanup needed for OAuth login dialog force-cancel.
 	default:
 		// Popup dialog cancellation.
 		if ch, ok := m.popupChans[id]; ok {

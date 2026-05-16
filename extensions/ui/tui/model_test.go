@@ -3217,7 +3217,7 @@ func TestModel_TrayNavigation_ReturnShowsSelectedSubagentPanel(t *testing.T) {
 	assert.False(t, m.panelTray.IsFocused())
 
 	tray, above, below := m.panelRows()
-	assert.Equal(t, 2, tray)
+	assert.Equal(t, 1, tray)
 	assert.Equal(t, 0, above)
 	assert.Equal(t, 6, below)
 }
@@ -3241,7 +3241,7 @@ func TestModel_TrayNavigation_EnterOpensTrayOnlyPanelOverlay(t *testing.T) {
 	assert.False(t, m.panelTray.IsFocused())
 
 	tray, above, below := m.panelRows()
-	assert.Equal(t, 2, tray)
+	assert.Equal(t, 1, tray)
 	assert.Equal(t, 0, above)
 	assert.Equal(t, 0, below)
 
@@ -3566,7 +3566,7 @@ func TestModel_PanelRows_WithPanels(t *testing.T) {
 
 	tray, above, below := m.panelRows()
 
-	assert.Equal(t, 2, tray)
+	assert.Equal(t, 1, tray)
 	assert.Equal(t, 6, above)
 	assert.Equal(t, 0, below)
 }
@@ -3579,7 +3579,7 @@ func TestModel_PanelRows_BelowEditor(t *testing.T) {
 
 	tray, above, below := m.panelRows()
 
-	assert.Equal(t, 2, tray)
+	assert.Equal(t, 1, tray)
 	assert.Equal(t, 0, above)
 	assert.Equal(t, 4, below)
 }
@@ -3592,7 +3592,7 @@ func TestModel_PanelRows_TrayOnly(t *testing.T) {
 
 	tray, above, below := m.panelRows()
 
-	assert.Equal(t, 2, tray)
+	assert.Equal(t, 1, tray)
 	assert.Equal(t, 0, above)
 	assert.Equal(t, 0, below)
 }
@@ -3633,7 +3633,7 @@ func TestModel_PanelChanged_TrayOnlyResizesChatViewport(t *testing.T) {
 	model, _ := m.Update(panelChangedMsg{})
 	m = model.(Model)
 
-	assert.Equal(t, beforeHeight-2, m.chat.Height())
+	assert.Equal(t, beforeHeight-1, m.chat.Height())
 	assert.Greater(t, m.chat.ScrollOffset(), beforeScroll)
 	assert.Equal(t, m.chatHeight(m.height), m.chat.Height())
 }
@@ -3659,7 +3659,7 @@ func TestModel_SpinnerWithTrayResizesChatViewport(t *testing.T) {
 	model, _ = m.Update(components.SpinnerShowMsg{})
 	m = model.(Model)
 
-	assert.Equal(t, trayHeight-2, m.chat.Height())
+	assert.Equal(t, trayHeight-1, m.chat.Height())
 	assert.Greater(t, m.chat.ScrollOffset(), trayScroll)
 	assert.Equal(t, m.chatHeight(m.height), m.chat.Height())
 
@@ -4455,13 +4455,47 @@ func TestModel_LogoutListResult_ShowsDialog(t *testing.T) {
 }
 
 func TestModel_OnLoginDialogDone_OAuthProvider(t *testing.T) {
+	// Register a test OAuth provider.
+	//nolint:gosec // Test URLs, not real credentials
+	sdk.RegisterOAuthProvider(sdk.OAuthProvider{
+		ID:       "test-oauth",
+		Name:     "Test OAuth",
+		AuthURL:  "https://example.com/authorize",
+		TokenURL: "https://example.com/token",
+		Scopes:   []string{"read"},
+		FlowType: sdk.AuthorizationCode,
+	})
+
+	defer sdk.ResetOAuthRegistry()
+
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+
+	m.pendingLoginProviders = []LoginProviderEntry{
+		{Name: "Test OAuth", ID: "test-oauth", IsOAuth: true},
+	}
+
+	result := overlays.DialogResult{Index: 0}
+	model, cmd := m.onLoginDialogDone(result, nil)
+	m2 := model.(Model)
+
+	assert.Nil(t, m2.pendingLoginProviders)
+	// Login dialog should be pushed onto the stack.
+	assert.False(t, m2.dialogStack.Empty())
+	assert.Equal(t, dialogLoginOAuth, m2.dialogStack.Peek().ID())
+	// A command should be returned to run the OAuth flow.
+	assert.NotNil(t, cmd)
+}
+
+func TestModel_OnLoginDialogDone_OAuthProvider_NotFound(t *testing.T) {
 	m := newModelNoLanding()
 	m.width = 80
 	m.height = 24
 	m.chat = m.chat.SetSize(80, m.chatHeight(24))
 
 	m.pendingLoginProviders = []LoginProviderEntry{
-		{Name: "OpenAI", ID: "openai", IsOAuth: true},
+		{Name: "Unknown OAuth", ID: "unknown-oauth", IsOAuth: true},
 	}
 
 	result := overlays.DialogResult{Index: 0}
@@ -4473,7 +4507,7 @@ func TestModel_OnLoginDialogDone_OAuthProvider(t *testing.T) {
 	require.Len(t, items, 1)
 	am, ok := items[0].(*messages.AssistantMessage)
 	require.True(t, ok)
-	assert.Contains(t, am.Content(), "OAuth login")
+	assert.Contains(t, am.Content(), "not configured")
 }
 
 func TestModel_OnLoginDialogDone_RegularProvider(t *testing.T) {

@@ -19,6 +19,7 @@ const (
 	dialogKeyInput       = "key-input"
 	dialogLoginSelect    = "login-select"
 	dialogLogoutSelect   = "logout-select"
+	dialogLoginOAuth     = "login-oauth"
 )
 
 // overlayRequestKind identifies the type of cross-extension popup request.

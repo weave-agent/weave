@@ -99,14 +99,14 @@ Add interactive login support to Weave's TUI, including both API key entry and O
 - [x] Run `make test` — must pass before Task 7
 
 ### Task 7: Implement authorization code OAuth flow (OpenAI)
-- [ ] PKCE verifier/challenge generation
-- [ ] Build authorization URL with redirect URI, state, PKCE
-- [ ] Open browser via `xdg-open` / `open` / `start`
-- [ ] Exchange code for tokens via HTTP POST to token URL
-- [ ] Store tokens via `auth.SetOAuthCredential`
-- [ ] Add `LoginDialogComponent` — shows URL, waiting state, success/error
-- [ ] Write tests for PKCE generation, URL building, token exchange (mocked HTTP)
-- [ ] Run `make test` — must pass before Task 8
+- [x] PKCE verifier/challenge generation
+- [x] Build authorization URL with redirect URI, state, PKCE
+- [x] Open browser via `xdg-open` / `open` / `start`
+- [x] Exchange code for tokens via HTTP POST to token URL
+- [x] Store tokens via `auth.SetOAuthCredential`
+- [x] Add `LoginDialogComponent` — shows URL, waiting state, success/error
+- [x] Write tests for PKCE generation, URL building, token exchange (mocked HTTP)
+- [x] Run `make test` — must pass before Task 8
 
 ### Task 8: Implement device code OAuth flow (GitHub Copilot)
 - [ ] Request device code from device authorization endpoint

@@ -201,6 +201,7 @@ func TestLoadConfig_WeavePromptFile(t *testing.T) {
 	require.NoError(t, os.WriteFile(promptFile, []byte("hidden prompt"), 0o600))
 
 	origWd, _ := os.Getwd()
+
 	require.NoError(t, os.Chdir(dir))
 	defer func() { _ = os.Chdir(origWd) }()
 
@@ -222,6 +223,7 @@ func TestLoadConfig_WeaveProjectDir(t *testing.T) {
 	require.NoError(t, os.MkdirAll(projectDir, 0o750))
 
 	origWd, _ := os.Getwd()
+
 	require.NoError(t, os.Chdir(dir))
 	defer func() { _ = os.Chdir(origWd) }()
 
