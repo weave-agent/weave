@@ -209,7 +209,7 @@ func (m EditorModel) History() []string {
 }
 
 // Update handles messages by forwarding to the textarea and intercepting
-// enter (submit), up/down (history), and alt+enter (newline).
+// enter (submit), up/down (history), and alt/shift+enter (newline).
 func (m EditorModel) Update(msg tea.Msg) (EditorModel, tea.Cmd) {
 	if !m.focused {
 		return m, nil
@@ -287,10 +287,10 @@ func (m EditorModel) handleKey(msg tea.KeyPressMsg) (bool, EditorModel, tea.Cmd)
 		}
 	}
 
-	// Alt+Enter inserts a newline (plain Enter is bound to submit)
-	if msg.Code == tea.KeyEnter && msg.Mod&tea.ModAlt != 0 {
+	// Alt+Enter or Shift+Enter inserts a newline (plain Enter is bound to submit)
+	if msg.Code == tea.KeyEnter && msg.Mod&(tea.ModAlt|tea.ModShift) != 0 {
 		plain := msg
-		plain.Mod &^= tea.ModAlt
+		plain.Mod &^= tea.ModAlt | tea.ModShift
 
 		var cmd tea.Cmd
 

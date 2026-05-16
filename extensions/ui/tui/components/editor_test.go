@@ -784,3 +784,32 @@ func TestEditorDraw_PulseCyclesThroughPositions(t *testing.T) {
 	rendered := scr.Render()
 	assert.Contains(t, rendered, "test")
 }
+
+func TestEditor_ShiftEnter_InsertsNewline(t *testing.T) {
+	m := NewEditorModel()
+	m = m.Focus()
+	m = m.SetValue("hello")
+
+	// Shift+Enter should insert newline, not submit
+	updated, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModShift})
+
+	// Value should contain newline
+	assert.Equal(t, "hello\n", updated.Value(), "Shift+Enter should append newline")
+
+	// cmd is the textarea's internal command (e.g. cursor blink), not SubmitMsg
+	_ = cmd
+}
+
+func TestEditor_AltEnter_InsertsNewline(t *testing.T) {
+	m := NewEditorModel()
+	m = m.Focus()
+	m = m.SetValue("hello")
+
+	// Alt+Enter should insert newline, not submit
+	updated, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModAlt})
+
+	// Value should contain newline
+	assert.Equal(t, "hello\n", updated.Value(), "Alt+Enter should append newline")
+
+	_ = cmd
+}

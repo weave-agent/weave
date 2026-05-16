@@ -45,6 +45,9 @@ type doublePressTimeoutMsg struct {
 	gen  int // generation counter to ignore stale timers
 }
 
+// pulseTickMsg advances the editor border pulse animation.
+type pulseTickMsg struct{}
+
 const (
 	doublePressCtrlC  = 0
 	doublePressEscape = 1
@@ -746,6 +749,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Enable/disable pulse animation based on active state
 		active := msg.State == palette.StateStreaming || msg.State == palette.StateToolRunning
 		m.editor = m.editor.SetPulseActive(active)
+
+		if active {
+			return m, tea.Tick(500*time.Millisecond, func(time.Time) tea.Msg {
+				return pulseTickMsg{}
+			})
+		}
+
+		return m, nil
+
+	case pulseTickMsg:
+		if m.editor.PulseActive {
+			m.editor = m.editor.SetPulsePos(m.editor.PulsePos + 1)
+
+			return m, tea.Tick(500*time.Millisecond, func(time.Time) tea.Msg {
+				return pulseTickMsg{}
+			})
+		}
 
 		return m, nil
 
