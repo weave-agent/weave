@@ -2560,3 +2560,68 @@ func TestExecuteTools_MixedParallelAndSequential(t *testing.T) {
 	assert.Equal(t, "tc2", calls[1].Req.Messages[3].ToolCallID)
 	assert.Equal(t, "tc3", calls[1].Req.Messages[4].ToolCallID)
 }
+
+func TestExecuteTools_ContextCancelDuringParallelReads(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	started := make(chan struct{}, 2)
+
+	read1 := newMockTool("read", sdk.ToolDef{Name: "read"}, func(ctx context.Context, _ map[string]any) (sdk.ToolResult, error) {
+		started <- struct{}{}
+
+		select {
+		case <-ctx.Done():
+			return sdk.ToolResult{}, ctx.Err()
+		case <-time.After(5 * time.Second):
+			return sdk.ToolResult{Content: "read done"}, nil
+		}
+	})
+	read2 := newMockTool("grep", sdk.ToolDef{Name: "grep"}, func(ctx context.Context, _ map[string]any) (sdk.ToolResult, error) {
+		started <- struct{}{}
+
+		select {
+		case <-ctx.Done():
+			return sdk.ToolResult{}, ctx.Err()
+		case <-time.After(5 * time.Second):
+			return sdk.ToolResult{Content: "grep done"}, nil
+		}
+	})
+
+	registerMockTool(read1)
+	registerMockTool(read2)
+
+	mp := newMockProvider([]providerResponse{
+		{
+			toolCalls: []sdk.ToolCall{
+				{ID: "tc1", Name: "read", Arguments: map[string]any{"path": "a.go"}},
+				{ID: "tc2", Name: "grep", Arguments: map[string]any{"pattern": "foo"}},
+			},
+		},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "parallel reads"))
+
+	// Wait for both read tools to start executing.
+	<-started
+	<-started
+
+	// Cancel the turn while tools are still running.
+	b.Publish(sdk.NewEvent(TopicInterrupt, "user interrupt"))
+
+	// The turn should end cleanly without panics or data races.
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 3*time.Second)
+	require.True(t, ok, "timeout waiting for turn_end after interrupt during parallel reads")
+
+	require.NoError(t, a.Close())
+
+	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
+}

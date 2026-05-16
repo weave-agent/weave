@@ -302,6 +302,21 @@ func resolveCWD(cwd string) (string, error) {
 		return "", fmt.Errorf("cwd escapes working directory: %s", resolved)
 	}
 
+	// Re-resolve symlinks right before returning to narrow the TOCTOU
+	// window between the containment check and actual use.
+	if r, evalErr := filepath.EvalSymlinks(resolved); evalErr == nil {
+		resolved = r
+	}
+
+	rel, err = filepath.Rel(parentCWD, resolved)
+	if err != nil {
+		return "", fmt.Errorf("resolve cwd: %w", err)
+	}
+
+	if strings.HasPrefix(rel, "..") {
+		return "", fmt.Errorf("cwd escapes working directory: %s", resolved)
+	}
+
 	return resolved, nil
 }
 

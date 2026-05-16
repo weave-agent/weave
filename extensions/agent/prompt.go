@@ -122,8 +122,8 @@ func (pb *promptBuilder) buildToolDescriptions() string {
 
 	for _, name := range toolNames {
 		// Try to get the tool instance for its description.
-		// Use NoopConfig since we only need the definition, not execution.
-		tool, err := sdk.GetTool(name, sdk.NoopConfig{})
+		// Pass the actual config so descriptions reflect runtime settings.
+		tool, err := sdk.GetTool(name, pb.cfg)
 		if err != nil {
 			fmt.Fprintf(&b, "- %s\n", name)
 			continue

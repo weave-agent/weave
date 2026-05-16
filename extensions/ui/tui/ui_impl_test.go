@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -19,11 +20,28 @@ import (
 
 // mockSender records messages sent via Send.
 type mockSender struct {
+	mu   sync.Mutex
 	msgs []tea.Msg
 }
 
 func (s *mockSender) Send(msg tea.Msg) {
+	s.mu.Lock()
 	s.msgs = append(s.msgs, msg)
+	s.mu.Unlock()
+}
+
+func (s *mockSender) Len() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return len(s.msgs)
+}
+
+func (s *mockSender) At(i int) tea.Msg {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.msgs[i]
 }
 
 func TestTUIImpl_SetStatus(t *testing.T) {
@@ -1452,10 +1470,10 @@ func TestTUIImpl_EditorText(t *testing.T) {
 
 	// Wait for the goroutine to call p.Send and block on the response
 	require.Eventually(t, func() bool {
-		return len(sender.msgs) == 1
+		return sender.Len() == 1
 	}, time.Second, 10*time.Millisecond)
 
-	msg, ok := sender.msgs[0].(editorTextRequestMsg)
+	msg, ok := sender.At(0).(editorTextRequestMsg)
 	require.True(t, ok)
 
 	// Send response to unblock

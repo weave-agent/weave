@@ -715,6 +715,10 @@ func streamTurn(ctx context.Context, bus sdk.Bus, provider sdk.Provider, message
 			}
 		case sdk.ProviderEventError:
 			bus.Publish(sdk.NewEvent(TopicMsgEnd, map[string]any{"content": content.String(), "tool_calls": toolCalls}))
+			// Drain remaining events to avoid leaking the provider's send goroutine.
+			for range ch { //nolint:revive // empty body is intentional
+			}
+
 			return sdk.Message{}, nil, fmt.Errorf("provider error: %v", evt.Content)
 		}
 	}
@@ -821,16 +825,18 @@ func executeTools(ctx context.Context, bus sdk.Bus, cfg sdk.Config, toolCalls []
 		}
 	}
 
-	done := make(chan struct{})
+	// Wait for all read-only goroutines to finish before proceeding.
+	// We must wait unconditionally to avoid a data race on the results
+	// slice — goroutines may still be writing their results when the
+	// context is canceled.
+	wg.Wait()
 
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-	case <-ctx.Done():
+	// Mark any read-only tools that didn't produce a result (because the
+	// context was canceled mid-execution) as interrupted.
+	for i, tc := range toolCalls {
+		if isReadOnlyTool(tc.Name) && results[i].call.ID == "" {
+			results[i] = toolExecutionResult{call: tc, result: sdk.ToolResult{Content: "interrupted", IsError: true}}
+		}
 	}
 
 	// Execute write tools sequentially after all reads complete.

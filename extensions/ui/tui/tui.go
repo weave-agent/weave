@@ -125,6 +125,7 @@ func (t *TUI) Subscribe(bus sdk.Bus) error {
 		select {
 		case events <- ev:
 		default:
+			sdk.Logger("tui").Warn("dropped event, channel full", "topic", ev.Topic)
 		}
 
 		eventsMu.Unlock()
