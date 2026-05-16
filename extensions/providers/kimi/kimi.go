@@ -28,8 +28,7 @@ type KimiConfig struct {
 
 // AuthConfig holds authentication credentials for the Kimi provider.
 type AuthConfig struct {
-	APIKey     string              `json:"api_key" env:"KIMI_API_KEY" description:"API key"`
-	OAuthToken sdk.OAuthCredential `json:"oauth_token"`
+	APIKey string `json:"api_key" env:"KIMI_API_KEY" description:"API key"`
 }
 
 type provider struct {
@@ -41,14 +40,11 @@ type provider struct {
 
 func init() {
 	sdk.RegisterProvider[KimiConfig, AuthConfig]("kimi", func(cfg sdk.Config, kc KimiConfig, a AuthConfig) (sdk.Provider, error) {
-		apiKey := a.APIKey
-		if apiKey == "" {
-			apiKey = a.OAuthToken.AccessToken
+		if a.APIKey == "" {
+			return nil, errors.New("kimi: API key required (set KIMI_API_KEY)")
 		}
 
-		if apiKey == "" {
-			return nil, errors.New("kimi: API key or OAuth token required (set KIMI_API_KEY, use /login, or add to ~/.weave/auth.json)")
-		}
+		apiKey := a.APIKey
 
 		client := anthropic.NewClient(
 			option.WithAPIKey(apiKey),

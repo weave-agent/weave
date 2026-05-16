@@ -29,7 +29,7 @@ func runOAuthFlowCmd(provider sdk.OAuthProvider) tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 
-		cred, err := sdk.RunAuthorizationCodeFlow(ctx, provider.AuthURL, provider.TokenURL, provider.ClientID, provider.Scopes)
+		cred, err := sdk.RunAuthorizationCodeFlow(ctx, provider.AuthURL, provider.TokenURL, provider.ClientID, provider.RedirectURI, provider.Scopes, provider.ExtraAuthParams)
 
 		return LoginFlowResultMsg{
 			Provider:   provider.ID,

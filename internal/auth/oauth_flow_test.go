@@ -79,6 +79,7 @@ func TestAuthorizationCodeURL(t *testing.T) {
 		"test-state",
 		pkce,
 		[]string{"read", "write"},
+		nil,
 	)
 
 	assert.True(t, strings.HasPrefix(url, "https://example.com/authorize?"))
@@ -105,6 +106,7 @@ func TestAuthorizationCodeURL_NoScopes(t *testing.T) {
 		"test-state",
 		pkce,
 		nil,
+		nil,
 	)
 
 	assert.NotContains(t, url, "scope=")
@@ -112,7 +114,7 @@ func TestAuthorizationCodeURL_NoScopes(t *testing.T) {
 
 func TestAuthorizationCodeURL_InvalidURL(t *testing.T) {
 	pkce := PKCE{Verifier: "v", Challenge: "c", Method: "S256"}
-	url := AuthorizationCodeURL("://invalid", "id", "http://localhost/callback", "state", pkce, nil)
+	url := AuthorizationCodeURL("://invalid", "id", "http://localhost/callback", "state", pkce, nil, nil)
 	// Should return the raw URL on parse failure
 	assert.Equal(t, "://invalid", url)
 }
@@ -251,7 +253,7 @@ func TestRunAuthorizationCodeFlow_ContextTimeout(t *testing.T) {
 	defer cancel()
 
 	// No callback server will receive a request, so it should time out
-	_, err := RunAuthorizationCodeFlow(ctx, "https://example.com/authorize", "https://example.com/token", "client-id", nil)
+	_, err := RunAuthorizationCodeFlow(ctx, "https://example.com/authorize", "https://example.com/token", "client-id", "", nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "timed out")
 }

@@ -46,8 +46,8 @@ func RefreshOAuthTokenIfNeeded(ctx context.Context, providerName, tokenURL, clie
 // RunAuthorizationCodeFlow executes the full OAuth authorization code flow.
 // It starts a callback server, opens the browser, waits for the callback,
 // exchanges the code for tokens, and returns the credential.
-func RunAuthorizationCodeFlow(ctx context.Context, authURL, tokenURL, clientID string, scopes []string) (OAuthCredential, error) {
-	cred, err := auth.RunAuthorizationCodeFlow(ctx, authURL, tokenURL, clientID, scopes)
+func RunAuthorizationCodeFlow(ctx context.Context, authURL, tokenURL, clientID, redirectURI string, scopes []string, extraParams map[string]string) (OAuthCredential, error) {
+	cred, err := auth.RunAuthorizationCodeFlow(ctx, authURL, tokenURL, clientID, redirectURI, scopes, extraParams)
 	if err != nil {
 		return OAuthCredential{}, fmt.Errorf("authorization code flow: %w", err)
 	}

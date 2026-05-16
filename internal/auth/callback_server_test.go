@@ -16,7 +16,7 @@ func TestStartCallbackServer(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	cs, err := StartCallbackServer(ctx)
+	cs, err := StartCallbackServer(ctx, "")
 	require.NoError(t, err)
 	require.NotNil(t, cs)
 
@@ -29,7 +29,7 @@ func TestCallbackServer_ReceivesAuthorizationCode(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	cs, err := StartCallbackServer(ctx)
+	cs, err := StartCallbackServer(ctx, "")
 	require.NoError(t, err)
 
 	// Simulate the OAuth provider redirecting to the callback with a code.
@@ -54,7 +54,7 @@ func TestCallbackServer_OAuthError(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	cs, err := StartCallbackServer(ctx)
+	cs, err := StartCallbackServer(ctx, "")
 	require.NoError(t, err)
 
 	resp, err := http.Get(cs.RedirectURI() + "?error=access_denied&error_description=user+denied")
@@ -74,7 +74,7 @@ func TestCallbackServer_MissingCode(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	cs, err := StartCallbackServer(ctx)
+	cs, err := StartCallbackServer(ctx, "")
 	require.NoError(t, err)
 
 	resp, err := http.Get(cs.RedirectURI() + "?state=abc")
@@ -93,7 +93,7 @@ func TestCallbackServer_IgnoresDuplicateRequests(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	cs, err := StartCallbackServer(ctx)
+	cs, err := StartCallbackServer(ctx, "")
 	require.NoError(t, err)
 
 	// First request succeeds.
@@ -128,7 +128,7 @@ func TestCallbackServer_IgnoresDuplicateRequests(t *testing.T) {
 func TestCallbackServer_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	cs, err := StartCallbackServer(ctx)
+	cs, err := StartCallbackServer(ctx, "")
 	require.NoError(t, err)
 
 	// Cancel the context to trigger auto-shutdown.
@@ -151,7 +151,7 @@ func TestCallbackServer_ContextTimeout_NoCallback(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
-	cs, err := StartCallbackServer(ctx)
+	cs, err := StartCallbackServer(ctx, "")
 	require.NoError(t, err)
 
 	// Wait for context to expire.

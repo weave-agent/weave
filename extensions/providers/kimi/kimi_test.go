@@ -1138,42 +1138,7 @@ func TestProviderInit_MissingAPIKey(t *testing.T) {
 	cfg := &testConfig{providerData: map[string]any{"base_url": "http://example.com"}}
 	_, err := sdk.GetProvider("kimi", cfg)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "API key or OAuth token required")
-}
-
-func TestProviderInit_WithOAuthToken(t *testing.T) {
-	model.ResetModelRegistry()
-	defer model.ResetModelRegistry()
-
-	RegisterModels()
-
-	dir := t.TempDir()
-	t.Setenv("HOME", dir)
-	require.NoError(t, sdk.SetOAuthCredential("kimi", sdk.OAuthCredential{AccessToken: "test-access-value"}))
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		writeSSE(w, textStreamEvents("hi"))
-	}))
-	defer server.Close()
-
-	cfg := &testConfig{providerData: map[string]any{"base_url": server.URL}}
-	p, err := sdk.GetProvider("kimi", cfg)
-	require.NoError(t, err)
-
-	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{Messages: []sdk.Message{sdk.NewUserMessage("hello")}})
-	require.NoError(t, err)
-	collectEvents(t, ch)
-}
-
-func TestAuthConfig_PrefersAPIKeyOverOAuthToken(t *testing.T) {
-	cfg := AuthConfig{APIKey: "api-key", OAuthToken: sdk.OAuthCredential{AccessToken: "test-access-value"}}
-
-	apiKey := cfg.APIKey
-	if apiKey == "" {
-		apiKey = cfg.OAuthToken.AccessToken
-	}
-
-	assert.Equal(t, "api-key", apiKey)
+	assert.Contains(t, err.Error(), "API key required")
 }
 
 func TestProviderInit_WithAPIKey(t *testing.T) {

@@ -23,7 +23,7 @@ type AuthConfig struct {
 	OAuthToken sdk.OAuthCredential `json:"oauth_token"`
 }
 
-const openAITokenURL = "https://api.openai.com/v1/oauth/token" // #nosec G101 -- OAuth endpoint URL, not a credential.
+const openAITokenURL = "https://auth.openai.com/oauth/token" // #nosec G101 -- OAuth endpoint URL, not a credential.
 
 type provider struct {
 	client      *http.Client
@@ -34,6 +34,23 @@ type provider struct {
 }
 
 func init() {
+	// Register OAuth provider so /login can discover OpenAI's OAuth flow.
+	sdk.RegisterOAuthProvider(sdk.OAuthProvider{
+		ID:          "openai",
+		Name:        "OpenAI",
+		ClientID:    "app_EMoamEEZ73f0CkXaXp7hrann",
+		AuthURL:     "https://auth.openai.com/oauth/authorize",
+		TokenURL:    openAITokenURL,
+		RedirectURI: "http://localhost:1455/auth/callback",
+		ExtraAuthParams: map[string]string{
+			"codex_cli_simplified_flow": "true",
+			"originator":                "weave",
+		},
+		Scopes:   []string{"openid", "profile", "email", "offline_access"},
+		FlowType: sdk.AuthorizationCode,
+	})
+	sdk.MarkProviderOAuthSupported("openai")
+
 	sdk.RegisterProvider[OpenAIConfig, AuthConfig]("openai", func(cfg sdk.Config, oc OpenAIConfig, a AuthConfig) (sdk.Provider, error) {
 		apiKey := a.APIKey
 		if apiKey == "" {

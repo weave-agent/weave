@@ -78,31 +78,31 @@ func TestListOAuthProviders_Empty(t *testing.T) {
 	assert.Empty(t, ListOAuthProviders())
 }
 
-func TestRegisterBuiltinOAuthProviders(t *testing.T) {
+//nolint:gosec // test URLs and client IDs are not credentials
+func TestOpenAIOAuthProviderConfig(t *testing.T) {
 	ResetOAuthRegistry()
 	defer ResetOAuthRegistry()
 
-	RegisterBuiltinOAuthProviders()
+	// Register with the same config the openai provider uses in init().
+	RegisterOAuthProvider(OAuthProvider{
+		ID:       "openai",
+		Name:     "OpenAI",
+		ClientID: "app_EMoamEEZ73f0CkXaXp7hrann",
+		AuthURL:  "https://auth.openai.com/oauth/authorize",
+		TokenURL: "https://auth.openai.com/oauth/token",
+		Scopes:   []string{"openid", "profile", "email", "offline_access"},
+		FlowType: AuthorizationCode,
+	})
+	MarkProviderOAuthSupported("openai")
 
-	// GitHub Copilot should be registered with DeviceCode flow.
-	copilot, ok := GetOAuthProvider("github-copilot")
-	require.True(t, ok)
-	assert.Equal(t, "GitHub Copilot", copilot.Name)
-	assert.Equal(t, DeviceCode, copilot.FlowType)
-	assert.Equal(t, "https://github.com/login/oauth/authorize", copilot.AuthURL)
-	assert.Equal(t, "https://github.com/login/oauth/access_token", copilot.TokenURL)
-	assert.Equal(t, "https://github.com/login/device/code", copilot.DeviceCodeURL)
-	assert.Equal(t, []string{"read:user", "read:org"}, copilot.Scopes)
-	assert.True(t, ProviderSupportsOAuth("github-copilot"))
-
-	// OpenAI should be registered with AuthorizationCode flow.
 	openai, ok := GetOAuthProvider("openai")
 	require.True(t, ok)
 	assert.Equal(t, "OpenAI", openai.Name)
 	assert.Equal(t, AuthorizationCode, openai.FlowType)
-	assert.Equal(t, "https://platform.openai.com/authorize", openai.AuthURL)
-	assert.Equal(t, "https://api.openai.com/v1/oauth/token", openai.TokenURL)
-	assert.Equal(t, []string{"api"}, openai.Scopes)
+	assert.Equal(t, "app_EMoamEEZ73f0CkXaXp7hrann", openai.ClientID)
+	assert.Equal(t, "https://auth.openai.com/oauth/authorize", openai.AuthURL)
+	assert.Equal(t, "https://auth.openai.com/oauth/token", openai.TokenURL)
+	assert.Equal(t, []string{"openid", "profile", "email", "offline_access"}, openai.Scopes)
 	assert.True(t, ProviderSupportsOAuth("openai"))
 }
 

@@ -11,38 +11,11 @@ import (
 	"time"
 
 	"weave/sdk"
-	"weave/settings"
 	"weave/utils/openaicompat"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-type testConfig struct {
-	providerData map[string]any
-}
-
-func (m *testConfig) FilePath() string   { return "" }
-func (m *testConfig) ProjectDir() string { return "" }
-func (m *testConfig) ExtensionConfig(scope, name string, target any) error {
-	if scope != "providers" || name != "zai" {
-		return nil
-	}
-
-	cfg, ok := target.(*ZaiConfig)
-	if !ok {
-		return nil
-	}
-
-	loader := settings.Loader{Data: m.providerData, EnvPrefix: ""}
-	if err := loader.Load(cfg); err != nil {
-		return fmt.Errorf("load config: %w", err)
-	}
-
-	return nil
-}
-func (m *testConfig) IsHeadless() bool       { return true }
-func (m *testConfig) RespectGitignore() bool { return true }
 
 func newTestProvider(server *httptest.Server, model string) sdk.Provider {
 	if model == "" {
@@ -108,63 +81,6 @@ func setupServer(response string) *httptest.Server {
 		w.Header().Set("Cache-Control", "no-cache")
 		_, _ = fmt.Fprint(w, response)
 	}))
-}
-
-func TestProviderInit_WithOAuthToken(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("HOME", dir)
-	settings.SetSettingsPath(dir + "/settings.json")
-	t.Cleanup(func() { settings.SetSettingsPath("") })
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "Bearer test-access-value", r.Header.Get("Authorization"))
-		w.Header().Set("Content-Type", "text/event-stream")
-		_, _ = fmt.Fprint(w, sseStream(
-			sseChunk(openaicompat.ChunkDelta{Content: "ok"}, nil),
-			sseChunk(openaicompat.ChunkDelta{}, new("stop")),
-			sseDone(),
-		))
-	}))
-	defer server.Close()
-
-	require.NoError(t, sdk.SetOAuthCredential("zai", sdk.OAuthCredential{AccessToken: "test-access-value"}))
-
-	cfg := &testConfig{providerData: map[string]any{"base_url": server.URL}}
-	p, err := sdk.GetProvider("zai", cfg)
-	require.NoError(t, err)
-
-	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{Messages: []sdk.Message{sdk.NewUserMessage("hi")}})
-	require.NoError(t, err)
-	collectEvents(t, ch)
-}
-
-func TestProviderInit_PrefersAPIKeyOverOAuthToken(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("HOME", dir)
-	settings.SetSettingsPath(dir + "/settings.json")
-	t.Cleanup(func() { settings.SetSettingsPath("") })
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "Bearer api-key", r.Header.Get("Authorization"))
-		w.Header().Set("Content-Type", "text/event-stream")
-		_, _ = fmt.Fprint(w, sseStream(
-			sseChunk(openaicompat.ChunkDelta{Content: "ok"}, nil),
-			sseChunk(openaicompat.ChunkDelta{}, new("stop")),
-			sseDone(),
-		))
-	}))
-	defer server.Close()
-
-	require.NoError(t, sdk.SetOAuthCredential("zai", sdk.OAuthCredential{AccessToken: "test-access-value"}))
-	t.Setenv("ZAI_API_KEY", "api-key")
-
-	cfg := &testConfig{providerData: map[string]any{"base_url": server.URL}}
-	p, err := sdk.GetProvider("zai", cfg)
-	require.NoError(t, err)
-
-	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{Messages: []sdk.Message{sdk.NewUserMessage("hi")}})
-	require.NoError(t, err)
-	collectEvents(t, ch)
 }
 
 func TestStream_TextResponse(t *testing.T) {

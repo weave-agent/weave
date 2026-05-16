@@ -28,6 +28,8 @@ type OAuthProvider struct {
 	AuthURL       string
 	TokenURL      string
 	DeviceCodeURL string
+	RedirectURI   string            // Fixed callback URI registered with the provider (e.g. "http://localhost:1455/auth/callback").
+	ExtraAuthParams map[string]string // Additional query params for the authorization URL.
 	Scopes        []string
 	ClientID      string
 	FlowType      OAuthFlowType
@@ -67,7 +69,7 @@ func ResetOAuthRegistry() {
 }
 
 // oauthProviderAuthMu protects the map of which providers are known to
-// support OAuth (set by RegisterBuiltinOAuthProviders).
+// support OAuth.
 var (
 	oauthProviderAuth   = make(map[string]bool)
 	oauthProviderAuthMu sync.RWMutex
@@ -91,31 +93,4 @@ func ProviderSupportsOAuth(provider string) bool {
 	defer oauthProviderAuthMu.RUnlock()
 
 	return oauthProviderAuth[provider]
-}
-
-// RegisterBuiltinOAuthProviders registers the built-in OAuth providers
-// (GitHub Copilot and OpenAI).
-//
-//nolint:gosec // OAuth endpoint URLs are not credentials
-func RegisterBuiltinOAuthProviders() {
-	RegisterOAuthProvider(OAuthProvider{
-		ID:            "github-copilot",
-		Name:          "GitHub Copilot",
-		AuthURL:       "https://github.com/login/oauth/authorize",
-		TokenURL:      "https://github.com/login/oauth/access_token",
-		DeviceCodeURL: "https://github.com/login/device/code",
-		Scopes:        []string{"read:user", "read:org"},
-		FlowType:      DeviceCode,
-	})
-	MarkProviderOAuthSupported("github-copilot")
-
-	RegisterOAuthProvider(OAuthProvider{
-		ID:       "openai",
-		Name:     "OpenAI",
-		AuthURL:  "https://platform.openai.com/authorize",
-		TokenURL: "https://api.openai.com/v1/oauth/token",
-		Scopes:   []string{"api"},
-		FlowType: AuthorizationCode,
-	})
-	MarkProviderOAuthSupported("openai")
 }

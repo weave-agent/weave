@@ -47,7 +47,7 @@ func GeneratePKCE() (PKCE, error) {
 }
 
 // AuthorizationCodeURL builds the OAuth authorization URL with PKCE parameters.
-func AuthorizationCodeURL(authURL, clientID, redirectURI, state string, pkce PKCE, scopes []string) string {
+func AuthorizationCodeURL(authURL, clientID, redirectURI, state string, pkce PKCE, scopes []string, extraParams map[string]string) string {
 	u, err := url.Parse(authURL)
 	if err != nil {
 		// Fallback: return the raw URL with query params appended manually
@@ -64,6 +64,10 @@ func AuthorizationCodeURL(authURL, clientID, redirectURI, state string, pkce PKC
 
 	if len(scopes) > 0 {
 		q.Set("scope", strings.Join(scopes, " "))
+	}
+
+	for k, v := range extraParams {
+		q.Set(k, v)
 	}
 
 	u.RawQuery = q.Encode()
@@ -358,7 +362,7 @@ func pollDeviceTokenOnce(ctx context.Context, tokenURL, clientID, deviceCode str
 // RunAuthorizationCodeFlow executes the full OAuth authorization code flow.
 // It starts a callback server, opens the browser, waits for the callback,
 // exchanges the code for tokens, and returns the credential.
-func RunAuthorizationCodeFlow(ctx context.Context, authURL, tokenURL, clientID string, scopes []string) (OAuthCredential, error) {
+func RunAuthorizationCodeFlow(ctx context.Context, authURL, tokenURL, clientID, redirectURI string, scopes []string, extraParams map[string]string) (OAuthCredential, error) {
 	pkce, err := GeneratePKCE()
 	if err != nil {
 		return OAuthCredential{}, fmt.Errorf("generate PKCE: %w", err)
@@ -369,13 +373,13 @@ func RunAuthorizationCodeFlow(ctx context.Context, authURL, tokenURL, clientID s
 		return OAuthCredential{}, fmt.Errorf("generate state: %w", err)
 	}
 
-	cs, err := StartCallbackServer(ctx)
+	cs, err := StartCallbackServer(ctx, redirectURI)
 	if err != nil {
 		return OAuthCredential{}, fmt.Errorf("start callback server: %w", err)
 	}
 
-	redirectURI := cs.RedirectURI()
-	authCodeURL := AuthorizationCodeURL(authURL, clientID, redirectURI, state, pkce, scopes)
+	resolvedRedirect := cs.RedirectURI()
+	authCodeURL := AuthorizationCodeURL(authURL, clientID, resolvedRedirect, state, pkce, scopes, extraParams)
 
 	if openErr := OpenBrowser(authCodeURL); openErr != nil {
 		return OAuthCredential{}, fmt.Errorf("open browser: %w", openErr)
@@ -397,7 +401,7 @@ func RunAuthorizationCodeFlow(ctx context.Context, authURL, tokenURL, clientID s
 		return OAuthCredential{}, errors.New("oauth state mismatch")
 	}
 
-	tokenResp, err := ExchangeAuthorizationCode(ctx, tokenURL, clientID, result.Code, redirectURI, pkce)
+	tokenResp, err := ExchangeAuthorizationCode(ctx, tokenURL, clientID, result.Code, resolvedRedirect, pkce)
 	if err != nil {
 		return OAuthCredential{}, fmt.Errorf("exchange code: %w", err)
 	}

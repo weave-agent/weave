@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 )
@@ -20,32 +21,52 @@ type CallbackResult struct {
 // CallbackServer is a temporary HTTP server that listens for a single OAuth callback
 // on localhost, extracts the authorization code, and shuts down automatically.
 type CallbackServer struct {
-	server   *http.Server
-	listener net.Listener
-	result   chan CallbackResult
-	mu       sync.Mutex
-	closed   bool
+	server        *http.Server
+	listener      net.Listener
+	fixedRedirect string // original fixed redirect URI, if provided
+	result        chan CallbackResult
+	mu            sync.Mutex
+	closed        bool
 }
 
-// StartCallbackServer creates and starts a temporary HTTP server on a random
-// localhost port. It handles a single /callback request and returns the result
-// via the channel. The server shuts down automatically after receiving the
-// callback or after the context is canceled.
-func StartCallbackServer(ctx context.Context) (*CallbackServer, error) {
+// StartCallbackServer creates and starts a temporary HTTP server. If
+// fixedRedirectURI is non-empty, the server listens on the host:port from that
+// URI and handles the path. Otherwise it uses a random localhost port with
+// /callback as the path. The server shuts down after receiving one callback or
+// when the context is canceled.
+func StartCallbackServer(ctx context.Context, fixedRedirectURI string) (*CallbackServer, error) {
+	listenAddr := "127.0.0.1:0"
+	callbackPath := "/callback"
+
+	if fixedRedirectURI != "" {
+		u, err := url.Parse(fixedRedirectURI)
+		if err != nil {
+			return nil, fmt.Errorf("parse redirect URI: %w", err)
+		}
+
+		listenAddr = u.Host
+
+		callbackPath = u.Path
+		if callbackPath == "" {
+			callbackPath = "/callback"
+		}
+	}
+
 	lc := net.ListenConfig{}
 
-	listener, err := lc.Listen(ctx, "tcp", "127.0.0.1:0")
+	listener, err := lc.Listen(ctx, "tcp", listenAddr)
 	if err != nil {
 		return nil, fmt.Errorf("create callback listener: %w", err)
 	}
 
 	cs := &CallbackServer{
-		result:   make(chan CallbackResult, 1),
-		listener: listener,
+		result:        make(chan CallbackResult, 1),
+		listener:      listener,
+		fixedRedirect: fixedRedirectURI,
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/callback", cs.handleCallback)
+	mux.HandleFunc(callbackPath, cs.handleCallback)
 
 	cs.server = &http.Server{
 		Handler:      mux,
@@ -67,9 +88,13 @@ func StartCallbackServer(ctx context.Context) (*CallbackServer, error) {
 	return cs, nil
 }
 
-// RedirectURI returns the full callback URL that should be passed to the OAuth
-// authorization endpoint.
+// RedirectURI returns the callback URL. If a fixed redirect URI was provided,
+// it returns that. Otherwise it derives one from the listener address.
 func (cs *CallbackServer) RedirectURI() string {
+	if cs.fixedRedirect != "" {
+		return cs.fixedRedirect
+	}
+
 	return fmt.Sprintf("http://%s/callback", cs.listener.Addr().String())
 }
 
