@@ -91,12 +91,12 @@ Add interactive login support to Weave's TUI, including both API key entry and O
 - [x] Run `make test` — must pass before Task 6
 
 ### Task 6: Implement OAuth callback server
-- [ ] Create `internal/auth/callback_server.go` — temporary HTTP server on localhost random port
-- [ ] Handle single `/callback` request, extract authorization code
-- [ ] 2-minute timeout with context cancellation
-- [ ] Return code via channel, then auto-shutdown
-- [ ] Write tests for callback server (mock HTTP requests)
-- [ ] Run `make test` — must pass before Task 7
+- [x] Create `internal/auth/callback_server.go` — temporary HTTP server on localhost random port
+- [x] Handle single `/callback` request, extract authorization code
+- [x] 2-minute timeout with context cancellation
+- [x] Return code via channel, then auto-shutdown
+- [x] Write tests for callback server (mock HTTP requests)
+- [x] Run `make test` — must pass before Task 7
 
 ### Task 7: Implement authorization code OAuth flow (OpenAI)
 - [ ] PKCE verifier/challenge generation
