@@ -93,7 +93,6 @@ func TestOpenAIOAuthProviderConfig(t *testing.T) {
 		Scopes:   []string{"openid", "profile", "email", "offline_access"},
 		FlowType: AuthorizationCode,
 	})
-	MarkProviderOAuthSupported("openai")
 
 	openai, ok := GetOAuthProvider("openai")
 	require.True(t, ok)
@@ -103,11 +102,6 @@ func TestOpenAIOAuthProviderConfig(t *testing.T) {
 	assert.Equal(t, "https://auth.openai.com/oauth/authorize", openai.AuthURL)
 	assert.Equal(t, "https://auth.openai.com/oauth/token", openai.TokenURL)
 	assert.Equal(t, []string{"openid", "profile", "email", "offline_access"}, openai.Scopes)
-	assert.True(t, ProviderSupportsOAuth("openai"))
-}
-
-func TestProviderSupportsOAuth_NeverMarked(t *testing.T) {
-	assert.False(t, ProviderSupportsOAuth("unknown-provider"))
 }
 
 func TestResetOAuthRegistry(t *testing.T) {

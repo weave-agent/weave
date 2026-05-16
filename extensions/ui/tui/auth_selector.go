@@ -55,10 +55,11 @@ func buildLoginProviders() []LoginProviderEntry {
 		}
 
 		seen[md.Provider] = true
+		_, isOAuth := sdk.GetOAuthProvider(md.Provider)
 		entries = append(entries, LoginProviderEntry{
 			Name:    displayNameForProvider(md.Provider),
 			ID:      md.Provider,
-			IsOAuth: sdk.ProviderSupportsOAuth(md.Provider),
+			IsOAuth: isOAuth,
 			HasAuth: sdkmodel.ProviderHasAuth(md.Provider),
 		})
 	}

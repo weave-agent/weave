@@ -4882,3 +4882,83 @@ func TestModel_OnKeyInputDialogDone_NoPS(t *testing.T) {
 	require.True(t, ok)
 	assert.Contains(t, am.Content(), "No preference store available")
 }
+
+func TestModel_OnLoginFlowResult_OAuthError(t *testing.T) {
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+
+	msg := LoginFlowResultMsg{
+		Provider: "openai",
+		Error:    errors.New("user denied access"),
+	}
+
+	model, _ := m.onLoginFlowResult(msg)
+	m2 := model.(Model)
+
+	items := m2.chat.Items()
+	require.Len(t, items, 1)
+	am, ok := items[0].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Contains(t, am.Content(), "OAuth login failed")
+	assert.Contains(t, am.Content(), "user denied access")
+}
+
+func TestModel_OnLoginFlowResult_Success(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	b := bus.New()
+	defer b.Close()
+
+	ch := subscribeToChan(b, topicAuthLoginSuccess)
+
+	m := newModel(b, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+
+	msg := LoginFlowResultMsg{
+		Provider: "openai",
+		Credential: sdk.OAuthCredential{
+			AccessToken: "at-test",
+			TokenType:   "bearer",
+		},
+	}
+
+	model, cmd := m.onLoginFlowResult(msg)
+	m2 := model.(Model)
+
+	items := m2.chat.Items()
+	require.Len(t, items, 1)
+	am, ok := items[0].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Contains(t, am.Content(), "Successfully logged in")
+
+	require.NotNil(t, cmd)
+	executeBatchCmd(t, cmd)
+
+	evt := <-ch
+	assert.Equal(t, topicAuthLoginSuccess, evt.Topic)
+
+	payload, ok := evt.Payload.(map[string]string)
+	require.True(t, ok)
+	assert.Equal(t, "openai", payload["provider"])
+}
+
+func TestModel_HandleDialogForceCancel_OAuthLogin(t *testing.T) {
+	m := newModelNoLanding()
+
+	canceled := false
+	m.oauthCancel = func() {
+		canceled = true
+	}
+
+	loginDlg := overlays.NewLoginDialog(dialogLoginOAuth, overlays.NewLoginModel("Test", "https://example.com"))
+	model, _ := m.handleDialogForceCancel(loginDlg)
+	m2 := model.(Model)
+
+	assert.True(t, canceled)
+	assert.Nil(t, m2.oauthCancel)
+}

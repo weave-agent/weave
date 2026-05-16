@@ -260,11 +260,9 @@ func TestRunAuthorizationCodeFlow_ContextTimeout(t *testing.T) {
 
 func TestOpenBrowser_NonExistentURL(t *testing.T) {
 	// This test verifies OpenBrowser doesn't panic on an invalid URL.
-	// The browser command will fail but we just need to ensure it returns an error.
-	err := OpenBrowser("http://127.0.0.1:1/this-will-fail")
-	// On some systems the command might start successfully even if the URL is bad,
-	// so we don't assert on the error.
-	_ = err
+	assert.NotPanics(t, func() {
+		_ = OpenBrowser("http://127.0.0.1:1/this-will-fail")
+	})
 }
 
 func TestRequestDeviceCode_Success(t *testing.T) {

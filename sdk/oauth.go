@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"log/slog"
 	"slices"
-	"sync"
 
 	"weave/sdk/registry"
 )
@@ -66,31 +65,4 @@ func ListOAuthProviders() []OAuthProvider {
 // ResetOAuthRegistry clears all registered OAuth providers. For testing only.
 func ResetOAuthRegistry() {
 	oauthReg.Reset()
-}
-
-// oauthProviderAuthMu protects the map of which providers are known to
-// support OAuth.
-var (
-	oauthProviderAuth   = make(map[string]bool)
-	oauthProviderAuthMu sync.RWMutex
-)
-
-// MarkProviderOAuthSupported records that the named provider supports OAuth
-// authentication. This is used by CheckProviderAuth as an additional signal
-// that a provider may have OAuth credentials even when its static auth struct
-// does not yet declare an OAuthToken field.
-func MarkProviderOAuthSupported(provider string) {
-	oauthProviderAuthMu.Lock()
-	defer oauthProviderAuthMu.Unlock()
-
-	oauthProviderAuth[provider] = true
-}
-
-// ProviderSupportsOAuth returns true if the provider has been marked as
-// supporting OAuth authentication.
-func ProviderSupportsOAuth(provider string) bool {
-	oauthProviderAuthMu.RLock()
-	defer oauthProviderAuthMu.RUnlock()
-
-	return oauthProviderAuth[provider]
 }

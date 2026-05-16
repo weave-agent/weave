@@ -146,6 +146,22 @@ func TestCallbackServer_ContextCancellation(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestCallbackServer_FixedRedirectURI(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	cs, err := StartCallbackServer(ctx, "http://127.0.0.1:0/auth/callback")
+	require.NoError(t, err)
+	require.NotNil(t, cs)
+
+	// RedirectURI returns the fixed redirect URI as provided.
+	redirectURI := cs.RedirectURI()
+	assert.Equal(t, "http://127.0.0.1:0/auth/callback", redirectURI)
+
+	// The server should be listening on the parsed host:port.
+	assert.NotNil(t, cs.listener)
+}
+
 func TestCallbackServer_ContextTimeout_NoCallback(t *testing.T) {
 	// Short timeout so the context cancels before any callback.
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)

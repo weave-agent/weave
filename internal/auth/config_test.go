@@ -420,6 +420,31 @@ func TestLoadProviderAuth_EnvOverridesOAuth(t *testing.T) {
 	assert.Equal(t, "at-file", target.OAuthToken.AccessToken)
 }
 
+func TestLoadProviderAuth_OAuthCredentialEmptyTokensPreservesNested(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	type oauthAuth struct {
+		APIKey     string          `json:"api_key"`
+		OAuthToken OAuthCredential `json:"oauth_token"`
+	}
+
+	// Auth file uses nested oauth_token format (not flat fields).
+	auth := &File{
+		Providers: map[string]json.RawMessage{
+			"openai": json.RawMessage(`{"api_key":"sk-key","oauth_token":{"access_token":"nested-at","refresh_token":"nested-rt"}}`),
+		},
+	}
+	require.NoError(t, Save(auth))
+
+	var target oauthAuth
+	require.NoError(t, LoadProviderAuth("openai", &target))
+	assert.Equal(t, "sk-key", target.APIKey)
+	// Nested oauth_token should be preserved even though flat access_token/refresh_token are empty.
+	assert.Equal(t, "nested-at", target.OAuthToken.AccessToken)
+	assert.Equal(t, "nested-rt", target.OAuthToken.RefreshToken)
+}
+
 func TestLoadProviderAuth_BackwardCompatibility_NoOAuthFields(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)

@@ -57,7 +57,6 @@ func init() {
 		Scopes:   []string{"openid", "profile", "email", "offline_access"},
 		FlowType: sdk.AuthorizationCode,
 	})
-	sdk.MarkProviderOAuthSupported("codex")
 
 	sdk.RegisterProvider("codex", func(cfg sdk.Config, cc CodexConfig, a AuthConfig) (sdk.Provider, error) {
 		if a.OAuthToken.AccessToken == "" {

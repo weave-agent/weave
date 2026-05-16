@@ -493,6 +493,75 @@ func TestExtractAccountID_MissingClaim(t *testing.T) {
 	assert.Contains(t, err.Error(), "missing chatgpt_account_id")
 }
 
+func TestExtractAccountID_InvalidBase64(t *testing.T) {
+	// Valid JWT structure but invalid base64 in payload section.
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256","typ":"JWT"}`))
+	token := header + ".!!!invalid-base64!!!.sig"
+
+	_, err := extractAccountID(token)
+	require.Error(t, err)
+}
+
+func TestStream_MalformedToolCallArguments(t *testing.T) {
+	stream := sseEvent("response.output_item.added", `{"type":"response.output_item.added","output_index":0,"item":{"type":"function_call","id":"fc_abc","call_id":"call_abc","name":"bash"}}`) +
+		sseEvent("response.function_call_arguments.delta", `{"type":"response.function_call_arguments.delta","output_index":0,"delta":"{not-valid-json"}`) +
+		sseEvent("response.output_item.done", `{"type":"response.output_item.done","output_index":0,"item":{"type":"function_call"}}`) +
+		sseResponseCompleted()
+
+	server := setupServer(stream)
+	defer server.Close()
+
+	p := newTestProvider(server, "gpt-5.5")
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("run ls")},
+	})
+	require.NoError(t, err)
+
+	events := collectEvents(t, ch)
+
+	var hasError bool
+
+	for _, e := range events {
+		if e.Type == sdk.ProviderEventError {
+			hasError = true
+
+			assert.Contains(t, fmt.Sprint(e.Content), "parse tool call arguments")
+		}
+	}
+
+	assert.True(t, hasError)
+}
+
+func TestStream_ArgsDeltaWithoutItemAdded(t *testing.T) {
+	// Args delta arrives before item.added, creating an orphan accumulator.
+	stream := sseEvent("response.function_call_arguments.delta", `{"type":"response.function_call_arguments.delta","output_index":0,"delta":"{\"command\":\"ls\"}"}`) +
+		sseEvent("response.output_item.added", `{"type":"response.output_item.added","output_index":0,"item":{"type":"function_call","id":"fc_abc","call_id":"call_abc","name":"bash"}}`) +
+		sseEvent("response.output_item.done", `{"type":"response.output_item.done","output_index":0,"item":{"type":"function_call"}}`) +
+		sseResponseCompleted()
+
+	server := setupServer(stream)
+	defer server.Close()
+
+	p := newTestProvider(server, "gpt-5.5")
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("run ls")},
+	})
+	require.NoError(t, err)
+
+	events := collectEvents(t, ch)
+
+	var toolCalls []sdk.ToolCall
+
+	for _, e := range events {
+		if e.Type == sdk.ProviderEventToolCall {
+			toolCalls = append(toolCalls, e.Content.(sdk.ToolCall))
+		}
+	}
+
+	require.Len(t, toolCalls, 1)
+	assert.Equal(t, "bash", toolCalls[0].Name)
+}
+
 func TestStream_DefaultModel(t *testing.T) {
 	var receivedBody map[string]any
 
