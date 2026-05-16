@@ -117,7 +117,10 @@ type ThemeDef struct {
 	BackgroundTintSuccess string
 	BackgroundTintError   string
 	Foreground            string
+	ForegroundDim         string
 	ForegroundBright      string
+	Background            string
+	BackgroundTint2       string
 }
 
 // toPaletteTheme converts a ThemeDef to a palette.Theme.
@@ -138,6 +141,9 @@ func (td ThemeDef) toPaletteTheme() *palette.Theme {
 		BackgroundTintSuccess: td.BackgroundTintSuccess,
 		BackgroundTintError:   td.BackgroundTintError,
 		Foreground:            td.Foreground,
+		ForegroundDim:         td.ForegroundDim,
 		ForegroundBright:      td.ForegroundBright,
+		Background:            td.Background,
+		BackgroundTint2:       td.BackgroundTint2,
 	}
 }

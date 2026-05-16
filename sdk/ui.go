@@ -121,8 +121,11 @@ type ThemeInfo struct {
 	Border                string
 	BorderFocused         string
 	Foreground            string
+	ForegroundDim         string
 	ForegroundBright      string
+	Background            string
 	BackgroundTint        string
+	BackgroundTint2       string
 	BackgroundTintPending string
 	BackgroundTintSuccess string
 	BackgroundTintError   string

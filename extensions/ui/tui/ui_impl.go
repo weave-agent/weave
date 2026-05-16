@@ -463,8 +463,11 @@ func (u *TUIImpl) Theme() sdk.ThemeInfo {
 		Border:                t.Border,
 		BorderFocused:         t.BorderFocused,
 		Foreground:            t.Foreground,
+		ForegroundDim:         t.ForegroundDim,
 		ForegroundBright:      t.ForegroundBright,
+		Background:            t.Background,
 		BackgroundTint:        t.BackgroundTint,
+		BackgroundTint2:       t.BackgroundTint2,
 		BackgroundTintPending: t.BackgroundTintPending,
 		BackgroundTintSuccess: t.BackgroundTintSuccess,
 		BackgroundTintError:   t.BackgroundTintError,
@@ -636,6 +639,11 @@ func (u *TUIImpl) RegisterRichRenderer(tool string, renderer RichToolRenderer) {
 // RegisterMessageRenderer registers a custom renderer for a message type.
 func (u *TUIImpl) RegisterMessageRenderer(msgType string, renderer sdk.MessageRenderer) {
 	messages.SetMessageRenderer(msgType, renderer)
+}
+
+// GetMessageRenderer returns a registered message renderer, if any.
+func (u *TUIImpl) GetMessageRenderer(msgType string) (sdk.MessageRenderer, bool) {
+	return messages.GetMessageRenderer(msgType)
 }
 
 // GetRichRenderer returns a registered rich tool renderer, if any.

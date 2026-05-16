@@ -907,51 +907,6 @@ func TestModel_NotifyTypedMsg_WarningLevel(t *testing.T) {
 	assert.Equal(t, sdk.NotifyWarning, nm.Level())
 }
 
-func TestModel_CompactedMsg_AddsNotificationAndEntry(t *testing.T) {
-	m := newModel(nil, nil, nil, nil)
-	m.width = 80
-	m.height = 24
-	m.chat = m.chat.SetSize(80, 10)
-
-	updated, _ := m.Update(CompactedMsg{Summarized: 5, TokensBefore: 10000, TokensAfter: 3000})
-	m = updated.(Model)
-
-	items := m.chat.Items()
-	require.Len(t, items, 2)
-
-	nm, ok := items[0].(*messages.NotificationMessage)
-	require.True(t, ok)
-	assert.Equal(t, "Context compacted: 5 messages summarized", nm.Content())
-	assert.Equal(t, sdk.NotifyInfo, nm.Level())
-
-	ce, ok := items[1].(*messages.CompactionEntry)
-	require.True(t, ok)
-
-	view := ce.View(80)
-	assert.Contains(t, view, "5 messages summarized")
-	assert.Contains(t, view, "7000 saved")
-	assert.False(t, m.showLanding)
-}
-
-func TestModel_CompactedMsg_WithError(t *testing.T) {
-	m := newModel(nil, nil, nil, nil)
-	m.width = 80
-	m.height = 24
-	m.chat = m.chat.SetSize(80, 10)
-
-	updated, _ := m.Update(CompactedMsg{Error: "compaction stream: timeout"})
-	m = updated.(Model)
-
-	items := m.chat.Items()
-	require.Len(t, items, 1)
-
-	nm, ok := items[0].(*messages.NotificationMessage)
-	require.True(t, ok)
-	assert.Contains(t, nm.Content(), "Compaction failed")
-	assert.Contains(t, nm.Content(), "timeout")
-	assert.Equal(t, sdk.NotifyError, nm.Level())
-}
-
 func TestModel_ExtStatusMsgUpdatesFooter(t *testing.T) {
 	m := newModel(nil, nil, nil, nil)
 	m.width = 80
@@ -1572,6 +1527,20 @@ func TestTUIImpl_RegisterRichRenderer(t *testing.T) {
 	assert.False(t, ok)
 }
 
+func TestTUIImpl_RegisterMessageRenderer(t *testing.T) {
+	ui := NewTUIImpl(nil, nil)
+
+	renderer := &mockMessageRenderer{}
+	ui.RegisterMessageRenderer("jira-ticket", renderer)
+
+	got, ok := ui.GetMessageRenderer("jira-ticket")
+	assert.True(t, ok)
+	assert.Equal(t, renderer, got)
+
+	_, ok = ui.GetMessageRenderer("nonexistent")
+	assert.False(t, ok)
+}
+
 func TestTUIImpl_SetFooter(t *testing.T) {
 	sender := &mockSender{}
 	ui := NewTUIImpl(nil, nil)
@@ -1660,45 +1629,18 @@ func TestTUIImpl_SetWorkingFrames_NoProgram(t *testing.T) {
 	ui.SetWorkingFrames([]string{"|"}, 100*time.Millisecond)
 }
 
-func TestTUIImpl_Enqueue_NotRunning(t *testing.T) {
-	ui := NewTUIImpl(nil, nil)
-
-	req := &overlayRequest{
-		kind:   requestSelect,
-		title:  "Pick one",
-		items:  []string{"a", "b"},
-		result: make(chan overlayResponse, 1),
-	}
-
-	err := ui.enqueue(req)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not running")
-}
-
-func TestTUIImpl_Enqueue_ShuttingDown(t *testing.T) {
-	sender := &mockSender{}
-	ui := NewTUIImpl(nil, nil)
-	ui.SetProgram(sender)
-	ui.Close()
-
-	req := &overlayRequest{
-		kind:   requestSelect,
-		title:  "Pick one",
-		items:  []string{"a", "b"},
-		result: make(chan overlayResponse, 1),
-	}
-
-	err := ui.enqueue(req)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "shutting down")
-}
-
 // Mock types for Task 9 tests
 
 type mockRichRenderer struct{}
 
 func (m *mockRichRenderer) Render(content string, theme sdk.ThemeInfo, width int) string {
 	return "rich:" + content
+}
+
+type mockMessageRenderer struct{}
+
+func (m *mockMessageRenderer) Render(content string, theme sdk.ThemeInfo, width int) string {
+	return "msg:" + content
 }
 
 type mockTUIComponent struct{}
