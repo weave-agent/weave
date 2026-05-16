@@ -99,6 +99,21 @@ func (a *AgentExtension) run(
 				return
 			}
 
+			// Drain any concurrent session resume before processing the prompt
+			// so that restored history is always loaded first.
+			select {
+			case resumeEvt, resumeOk := <-sessionResumeCh:
+				if resumeOk {
+					if payload, ok := resumeEvt.Payload.(sdk.SessionResumePayload); ok {
+						messages = payload.Messages
+						a.sessionID = payload.SessionID
+						a.resumed = true
+						a.fileOps = newFileOperations()
+					}
+				}
+			default:
+			}
+
 			messages = append(messages, sdk.NewUserMessage(evt.Payload))
 			a.resumed = false
 		case evt := <-modelChangeCh:
@@ -297,6 +312,7 @@ func (a *AgentExtension) run(
 			provider = a.drainChanges(modelChangeCh, thinkingCh, bus, provider)
 
 			messages = append(messages, sdk.NewUserMessage(evt.Payload))
+			a.resumed = false
 		case evt, ok := <-steerCh:
 			if !ok {
 				return

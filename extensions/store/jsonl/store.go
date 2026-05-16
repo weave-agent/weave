@@ -233,8 +233,7 @@ func (s *Store) handleSessionResume(evt sdk.Event) {
 
 	sess, err := s.Load(payload.SessionID)
 	if err != nil {
-		logger.Warn("jsonl: load session for resume failed, staying in clean state", "session", payload.SessionID, "error", err)
-		return
+		logger.Warn("jsonl: load session for resume failed, continuing with empty state", "session", payload.SessionID, "error", err)
 	}
 
 	if len(sess.Entries) > 0 {
@@ -677,6 +676,10 @@ func (s *Store) LoadHistory(sessionID string) ([]sdk.Message, error) {
 		var entry Entry
 		if err := json.Unmarshal([]byte(line), &entry); err != nil {
 			logger.Warn("jsonl: skip unparseable entry", "session", sessionID, "error", err)
+			continue
+		}
+
+		if entry.Type != EventTypeMessage {
 			continue
 		}
 

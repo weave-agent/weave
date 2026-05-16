@@ -1862,7 +1862,16 @@ func (m Model) onSessionDialogDone(result overlays.DialogResult, pendingCmd tea.
 	if m.bus != nil {
 		payload := sdk.SessionResumePayload{SessionID: session.ID}
 		if store := sdk.GetSessionStore(); store != nil {
-			history, _ := store.LoadHistory(session.ID)
+			history, err := store.LoadHistory(session.ID)
+			if err != nil {
+				return m, tea.Batch(
+					pendingCmd,
+					func() tea.Msg {
+						return notifyTypedMsg{message: "Failed to load session: " + err.Error(), level: sdk.NotifyError}
+					},
+				)
+			}
+
 			payload.Messages = history
 		}
 
