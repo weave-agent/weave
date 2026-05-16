@@ -47,7 +47,7 @@ Standard library as much as possible. Every replaceable component is an extensio
 - `sdk/model/` — model types (`ThinkingLevel`, `ModelDef`, `StreamOptions`), model registry (`RegisterModel`/`GetModel`/`ListModelsForProvider`/`ListAllModels`/`ListAvailableModels`/`DefaultModelForProvider`/`SetProviderAuth`/`ProviderHasAuth`/`ResetAuthRegistry`), and `RegisterBuiltinModels()` with all hardcoded entries. Model registry warns on duplicates (first wins, matching other registries). Auth status tracking: `SetProviderAuth`/`ProviderHasAuth` are populated during wiring by `sdk/wire/wire.go` and queried by the TUI and loop to filter available models
 - `sdk/registry/` — generic `Registry[T]` type used internally by all sdk registries; supports `WithWarn` (first-wins + warning) and `WithPanic` (panic on dup) options
 - `internal/log/` — `Setup(logFile, debug, extraWriters...)` configures `slog.Default()` with a JSON handler writing to a rotating file via lumberjack. `Initialized()` reports whether logging has been set up. Called by the launcher-generated `main.go` before wiring extensions so all extension logs are captured
-- `internal/wire/` — `WireExtensions()` and `WireWithCore()` composition roots that resolve names and subscribe extensions to the bus; `Run()` absorbs the full entry-point pipeline (config loading, auto-discovery via `launcher.AutoDiscover`, launcher build) and delegates extension management subcommands (`install`, `list`, `update`, `uninstall`) to `cmd/weave/extmanage/`; `CoreWireConfig` struct (AgentLoop + SingleTurn only); `WireWithCore()` calls `sdk.InvokeBusSubscribers(bus)` before resolving extensions, publishes `app.started` after wiring, sets `WEAVE_SINGLE_TURN` env var when `SingleTurn` is true, then calls `WireExtensions()`; `WireExtensions()` silently skips tools, providers, and UI extensions that appear in the extension names list; `WireExtensions()` checks auth status for all registered providers via `sdk.CheckProviderAuth` and stores results in the model registry via `model.SetProviderAuth`
+- `internal/wire/` — `WireExtensions()` and `WireWithCore()` composition roots that resolve names and subscribe extensions to the bus; `Run()` absorbs the full entry-point pipeline (config loading, auto-discovery via `launcher.AutoDiscover`, launcher build) and delegates extension management subcommands (`install`, `list`, `update`, `uninstall`) to `cmd/weave/extmanage/`; `CoreWireConfig` struct (AgentLoop, SingleTurn, Continue, Resume); `WireWithCore()` calls `sdk.InvokeBusSubscribers(bus)` before resolving extensions, calls `resolveSession()` when Continue/Resume are set, publishes `app.started` after wiring, sets `WEAVE_SINGLE_TURN` env var when `SingleTurn` is true, then calls `WireExtensions()`; `WireExtensions()` silently skips tools, providers, and UI extensions that appear in the extension names list; `WireExtensions()` checks auth status for all registered providers via `sdk.CheckProviderAuth` and stores results in the model registry via `model.SetProviderAuth`
 - `bus/` — callback-based event bus (`Publish`/`On`/`OnAll`/`Off`) with per-handler goroutines, non-blocking dispatch, `recover()` wrapping every handler invocation (panics trigger diagnostic events via configurable topics), and graceful close via `sync.WaitGroup`
 - `internal/auth/` — provider credential storage in `~/.weave/auth.json` with structured format `{"providers": {"anthropic": {"api_key": "..."}}}`; `Load()`/`Save()`/`SetProviderKey()`/`GetProviderKey()`; `LoadProviderAuth(providerName, target)` loads auth into a typed struct from auth.json + env vars (using `env` tags with no prefix). Used by the `sdk.RegisterProvider` wrapper for automatic auth injection into provider factories
 - `settings/` — unified JSON-only settings system. Discovers `.weave/settings.json` by walking up from cwd, falling back to `~/.weave/settings.json`. `Settings` struct holds all config fields (agent_loop, ui_extension, providers, sandbox, jsonl, extensions, plus user preferences like provider, model, thinking_level, ui, tools). `FullConfig` implements `sdk.Config` with key resolution and typed extension config via `ExtensionConfig()`. `FullConfig.SetArgs(args)` stores remaining CLI args for extension-specific flag parsing. `FullConfig.SetProjectDir(dir)` overrides the project directory for layered settings resolution. `loader.go` — custom `Loader` struct with `Load(target)` that applies defaults → JSON data → env vars → CLI flags → validation, using struct tags (`default`, `env`, `flag`, `short`, `validate`, `description`). `merge.go` — `MergeSettings` deep-merges global → local layers for tool/UI preferences. `validation.go` — generic field-path validation (no extension-specific values). `ProjectDirFromConfig()` derives project root from config file path for auto-discovery from subdirectories. `help.go` — `GenerateFullHelp()` produces full `--help` output from registered extension schemas.
@@ -423,15 +423,15 @@ The JSONL store (`extensions/store/jsonl/`) implements `SessionStore`. Wire inje
 
 ```
 wire.Run()
-  ├─ resolve --continue/--resume flags
-  ├─ WireExtensions() calls sdk.SetSessionStore(store) for first SessionStore implementation
+  ├─ resolve --continue/--resume flags from CLI/config
+  ├─ WireExtensions() wires all extensions (including jsonl store)
   ├─ resolveSession() → ListSessions/LoadHistory
   ├─ publish session.resume {SessionID, Messages}
   ├─ publish app.started
-  └─ WireExtensions()
+  └─ Extensions receive events
        ├─ agent.loop.Subscribe → receives session.resume, populates messages, sets resumed=true
        ├─ jsonl.Store.Subscribe → receives session.resume, sets internal sessionID so appends go to existing file
-       └─ tui.Subscribe → receives session.resume, rebuilds chat display
+       └─ tui.Subscribe → receives session.resume, rebuilds chat display (preserves tool_calls and thinking blocks)
 ```
 
 ### Agent loop resume behavior
@@ -440,14 +440,6 @@ When the agent loop receives `session.resume`:
 - `messages` is populated from `SessionResumePayload.Messages`
 - `resumed` flag is set to `true`
 - On the next `agent.prompt`, if `resumed` is true, the new user message is appended to the restored history instead of resetting messages (which would happen for a normal `agent.prompt`); `resumed` is then cleared
-- In headless mode (`-p` + `--continue`/`--resume`), wire publishes `agent.followup` instead of `agent.prompt`, so the new prompt always appends
-
-### Headless mode with -p + --continue
-
-```
-wire publishes: session.resume → agent.followup (not agent.prompt)
-agent loop: messages restored from session, then new prompt appended
-```
 
 ### Error handling
 

@@ -161,9 +161,11 @@ func readSessionHeader(path string) (*sessionHeader, error) {
 
 // sessionEntryData is the JSON payload of a message entry.
 type sessionEntryData struct {
-	Role    string          `json:"role"`
-	Content string          `json:"content"`
-	Tool    json.RawMessage `json:"tool,omitempty"`
+	Role      string          `json:"role"`
+	Content   string          `json:"content"`
+	ToolCalls json.RawMessage `json:"tool_calls,omitempty"`
+	Thinking  string          `json:"thinking,omitempty"`
+	Tool      json.RawMessage `json:"tool,omitempty"`
 }
 
 // loadSessionEntries reads all message entries from a session file.

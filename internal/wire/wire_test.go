@@ -1056,7 +1056,11 @@ func TestWireWithCore_ResumePublishesSessionEvent(t *testing.T) {
 	)
 
 	realBus.On("session.resume", func(e sdk.Event) error {
-		sessionReceived.Store(true)
+		payload, ok := e.Payload.(sdk.SessionResumePayload)
+		if ok && payload.SessionID == "sess1" {
+			sessionReceived.Store(true)
+		}
+
 		return nil
 	})
 	realBus.On("app.started", func(e sdk.Event) error {
@@ -1067,8 +1071,6 @@ func TestWireWithCore_ResumePublishesSessionEvent(t *testing.T) {
 	wired, err := WireWithCore(CoreWireConfig{AgentLoop: "agent", Continue: true}, []string{"jsonl"}, realBus, nil)
 	require.NoError(t, err)
 	require.NotNil(t, wired)
-	assert.True(t, wired.Resumed)
-	assert.Equal(t, "sess1", wired.SessionID)
 
 	require.Eventually(t, func() bool {
 		return sessionReceived.Load() && appStartedReceived.Load()
@@ -1101,7 +1103,6 @@ func TestWireWithCore_ResumeErrorTUI(t *testing.T) {
 	wired, err := WireWithCore(CoreWireConfig{AgentLoop: "agent", Continue: true}, nil, bus, nil)
 	require.NoError(t, err)
 	require.NotNil(t, wired)
-	assert.False(t, wired.Resumed)
 }
 
 func TestWireWithCore_NoResumeWhenNotRequested(t *testing.T) {
@@ -1116,6 +1117,4 @@ func TestWireWithCore_NoResumeWhenNotRequested(t *testing.T) {
 	wired, err := WireWithCore(coreCfg(), nil, bus, nil)
 	require.NoError(t, err)
 	require.NotNil(t, wired)
-	assert.False(t, wired.Resumed)
-	assert.Empty(t, wired.SessionID)
 }

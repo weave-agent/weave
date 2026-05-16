@@ -685,6 +685,26 @@ func TestLoadHistory_NotFound(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestLoadHistory_InvalidSessionID(t *testing.T) {
+	s := newTestStore(t)
+	_, err := s.LoadHistory("../../etc/passwd")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid session ID")
+}
+
+func TestListSessions_ReadDirError(t *testing.T) {
+	s := newTestStore(t)
+
+	// Create a file with the same name as the session dir to cause ReadDir to fail
+	err := os.WriteFile(s.cfg.Dir+".file", []byte("x"), 0o644)
+	require.NoError(t, err)
+
+	// Swap cfg.Dir to point to the file path (not a directory) to trigger a ReadDir error
+	s.cfg.Dir += ".file"
+	_, err = s.ListSessions()
+	require.Error(t, err)
+}
+
 func TestEntryToMessage_InvalidJSON(t *testing.T) {
 	entry := Entry{Data: json.RawMessage(`{invalid}`)}
 	_, err := entryToMessage(entry)

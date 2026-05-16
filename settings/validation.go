@@ -87,13 +87,6 @@ func ValidateWithConfigDir(s *Settings, configDir string) error {
 		})
 	}
 
-	if s.Continue && s.Resume != "" {
-		errs = append(errs, ValidationError{
-			Field:   "continue",
-			Message: "--continue and --resume are mutually exclusive",
-		})
-	}
-
 	if len(errs) > 0 {
 		return errs
 	}

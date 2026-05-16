@@ -993,6 +993,152 @@ func TestModel_SessionResumedMsg_HandlesMissingSession(t *testing.T) {
 	assert.False(t, m.prompted)
 }
 
+func TestParseToolEntry_Valid(t *testing.T) {
+	input := json.RawMessage(`{"id":"tc1","tool":"bash","result":{"content":"output","is_error":false}}`)
+	id, name, content, isError := parseToolEntry(input)
+	assert.Equal(t, "tc1", id)
+	assert.Equal(t, "bash", name)
+	assert.Equal(t, "output", content)
+	assert.False(t, isError)
+}
+
+func TestParseToolEntry_InvalidJSON(t *testing.T) {
+	id, name, content, isError := parseToolEntry(json.RawMessage(`not json`))
+	assert.Empty(t, id)
+	assert.Equal(t, "tool", name)
+	assert.Empty(t, content)
+	assert.False(t, isError)
+}
+
+func TestParseToolEntry_MissingFields(t *testing.T) {
+	id, name, content, isError := parseToolEntry(json.RawMessage(`{}`))
+	assert.Empty(t, id)
+	assert.Equal(t, "tool", name)
+	assert.Empty(t, content)
+	assert.False(t, isError)
+}
+
+func TestParseToolEntry_Empty(t *testing.T) {
+	id, name, content, isError := parseToolEntry(nil)
+	assert.Empty(t, id)
+	assert.Equal(t, "tool", name)
+	assert.Empty(t, content)
+	assert.False(t, isError)
+}
+
+func TestModel_RebuildChatFromSession_WithToolCalls(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("WEAVE_JSONL_DIR", dir)
+
+	sessionID := "aaa11122233344455566677788899900"
+
+	header := sessionHeader{Type: "session", ID: sessionID, Timestamp: time.Now().UTC(), CWD: "/test"}
+	headerJSON, _ := json.Marshal(header)
+
+	e1 := map[string]any{
+		"type": "message",
+		"data": map[string]any{"role": "user", "content": "run command"},
+	}
+	e2 := map[string]any{
+		"type": "message",
+		"data": map[string]any{
+			"role":       "assistant",
+			"content":    "",
+			"tool_calls": []map[string]any{{"id": "tc1", "name": "bash", "arguments": map[string]any{"command": "echo hi"}}},
+		},
+	}
+	e3 := map[string]any{
+		"type": "message",
+		"data": map[string]any{
+			"role":    "tool_result",
+			"content": "hi",
+			"tool":    map[string]any{"id": "tc1", "tool": "bash", "result": map[string]any{"content": "hi", "is_error": false}},
+		},
+	}
+
+	e1JSON, _ := json.Marshal(e1)
+	e2JSON, _ := json.Marshal(e2)
+	e3JSON, _ := json.Marshal(e3)
+
+	content := string(headerJSON) + "\n" + string(e1JSON) + "\n" + string(e2JSON) + "\n" + string(e3JSON) + "\n"
+	err := os.WriteFile(filepath.Join(dir, sessionID+".jsonl"), []byte(content), 0o644)
+	require.NoError(t, err)
+
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, 10)
+
+	m.rebuildChatFromSession(sessionID)
+
+	items := m.chat.Items()
+	require.Len(t, items, 3) // user + assistant + tool_panel
+
+	um, ok := items[0].(*messages.UserMessage)
+	require.True(t, ok)
+	assert.Equal(t, "run command", um.Content())
+
+	am, ok := items[1].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Empty(t, am.Content())
+
+	tp, ok := items[2].(*messages.ToolPanel)
+	require.True(t, ok)
+	assert.Contains(t, tp.View(80), "hi")
+}
+
+func TestModel_RebuildChatFromSession_WithThinking(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("WEAVE_JSONL_DIR", dir)
+
+	sessionID := "aaa11122233344455566677788899900"
+
+	header := sessionHeader{Type: "session", ID: sessionID, Timestamp: time.Now().UTC(), CWD: "/test"}
+	headerJSON, _ := json.Marshal(header)
+
+	e1 := map[string]any{
+		"type": "message",
+		"data": map[string]any{"role": "user", "content": "question"},
+	}
+	e2 := map[string]any{
+		"type": "message",
+		"data": map[string]any{
+			"role":     "assistant",
+			"content":  "answer",
+			"thinking": "Let me think about this...",
+		},
+	}
+
+	e1JSON, _ := json.Marshal(e1)
+	e2JSON, _ := json.Marshal(e2)
+
+	content := string(headerJSON) + "\n" + string(e1JSON) + "\n" + string(e2JSON) + "\n"
+	err := os.WriteFile(filepath.Join(dir, sessionID+".jsonl"), []byte(content), 0o644)
+	require.NoError(t, err)
+
+	m := newModel(nil, nil, nil, nil)
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, 10)
+
+	m.rebuildChatFromSession(sessionID)
+
+	items := m.chat.Items()
+	require.Len(t, items, 3) // user + thinking + assistant
+
+	um, ok := items[0].(*messages.UserMessage)
+	require.True(t, ok)
+	assert.Equal(t, "question", um.Content())
+
+	tb, ok := items[1].(*messages.ThinkingBlock)
+	require.True(t, ok)
+	assert.Equal(t, "Let me think about this...", tb.Content())
+
+	am, ok := items[2].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Equal(t, "answer", am.Content())
+}
+
 func TestModel_ViewShowsOverlayWhenActive(t *testing.T) {
 	m := newModel(nil, nil, nil, nil)
 	m.width = 80

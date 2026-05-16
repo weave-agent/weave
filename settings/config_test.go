@@ -896,12 +896,7 @@ func TestLoad_MutualExclusion(t *testing.T) {
 
 	_, _, _, err := LoadFromDir(dir, []string{"--continue", "--resume", "sess-abc123"})
 	require.Error(t, err)
-
-	var errs ValidationErrors
-	require.ErrorAs(t, err, &errs)
-	require.Len(t, errs, 1)
-	assert.Equal(t, "continue", errs[0].Field)
-	assert.Contains(t, errs[0].Message, "mutually exclusive")
+	assert.Contains(t, err.Error(), "mutually exclusive")
 }
 
 func TestToMapAny_Nil(t *testing.T) {

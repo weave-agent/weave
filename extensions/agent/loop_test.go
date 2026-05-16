@@ -1946,3 +1946,42 @@ func TestAgent_SessionResume_AfterPromptIgnored(t *testing.T) {
 	assert.Len(t, calls[1].Req.Messages, 1)
 	assert.Equal(t, "new conversation", calls[1].Req.Messages[0].Content)
 }
+
+func TestAgent_SessionResume_InvalidPayloadIgnored(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mp := newMockProvider([]providerResponse{
+		{textDeltas: []string{"ok"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	// Publish session.resume with an invalid payload (not SessionResumePayload)
+	b.Publish(sdk.NewEvent(TopicSessionResume, "not-a-payload"))
+
+	time.Sleep(50 * time.Millisecond)
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "prompt"))
+
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for turn_end")
+
+	require.NoError(t, a.Close())
+
+	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
+
+	// Messages should be empty (resume failed), prompt starts fresh
+	calls := mp.StreamCalls()
+	require.Len(t, calls, 1)
+	assert.Len(t, calls[0].Req.Messages, 1)
+	assert.Equal(t, "prompt", calls[0].Req.Messages[0].Content)
+	assert.False(t, a.resumed)
+	assert.Empty(t, a.sessionID)
+}

@@ -138,6 +138,26 @@ func TestLoadSessionEntries_EmptySession(t *testing.T) {
 	assert.Empty(t, entries)
 }
 
+func TestLoadSessionEntries_PathTraversalRejected(t *testing.T) {
+	tests := []struct {
+		name      string
+		sessionID string
+	}{
+		{"parent traversal", "../etc/passwd"},
+		{"forward slash", "foo/bar"},
+		{"backslash", "foo\\bar"},
+		{"mixed traversal", "..\\..\\secrets"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := loadSessionEntries("", tt.sessionID)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "invalid session ID")
+		})
+	}
+}
+
 func TestShortenCWD(t *testing.T) {
 	home, err := os.UserHomeDir()
 	require.NoError(t, err)

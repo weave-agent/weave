@@ -29,8 +29,6 @@ type CoreWireConfig struct {
 type Wired struct {
 	extensions []sdk.Extension
 	bus        sdk.Bus
-	SessionID  string
-	Resumed    bool
 }
 
 func resolveExtensions(extNames []string, cfg sdk.Config) ([]sdk.Extension, error) {
@@ -206,16 +204,12 @@ func WireWithCore(core CoreWireConfig, optExts []string, bus sdk.Bus, cfg sdk.Co
 	}
 
 	if core.Continue || core.Resume != "" {
-		sessionID, _, err := resolveSession(core.Continue, core.Resume, bus)
-		if err != nil {
+		if _, _, err := resolveSession(core.Continue, core.Resume, bus); err != nil {
 			if cfg != nil && cfg.IsHeadless() {
 				return nil, fmt.Errorf("session resume: %w", err)
 			}
 
 			slog.Warn("session resume failed", "error", err)
-		} else {
-			wired.SessionID = sessionID
-			wired.Resumed = true
 		}
 	}
 

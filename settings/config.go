@@ -270,6 +270,10 @@ func LoadFromDir(dir string, args []string) (string, *Settings, []string, error)
 	s.Continue = flags.Continue
 	s.Resume = flags.Resume
 
+	if s.Continue && s.Resume != "" {
+		return "", nil, nil, errors.New("--continue and --resume are mutually exclusive")
+	}
+
 	// Detect explicitly empty --tools= so the launcher can forward it.
 	for _, a := range args {
 		if strings.HasPrefix(a, "--tools=") || a == "--tools" {

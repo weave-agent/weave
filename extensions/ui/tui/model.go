@@ -1899,25 +1899,49 @@ func (m *Model) rebuildChatFromSession(sessionID string) {
 		case sdk.RoleUser:
 			m.chat = m.chat.AddItem(messages.NewUserMessage(entry.Content))
 		case sdk.RoleAssistant:
+			if entry.Thinking != "" {
+				m.chat = m.chat.AddItem(messages.NewThinkingBlock(entry.Thinking))
+			}
+
 			am := messages.NewAssistantMessage()
 			am.Finalize(entry.Content)
 			m.chat = m.chat.AddItem(am)
+
+			if len(entry.ToolCalls) > 0 {
+				var tcs []sdk.ToolCall
+				if err := json.Unmarshal(entry.ToolCalls, &tcs); err == nil {
+					for _, tc := range tcs {
+						args, _ := json.Marshal(tc.Arguments)
+						panel := messages.NewToolPanel(tc.ID, tc.Name, string(args))
+						m.toolPanels[tc.ID] = panel
+						m.chat = m.chat.AddItem(panel)
+					}
+				}
+			}
 		case sdk.RoleToolResult:
-			toolName, toolContent, toolIsError := parseToolEntry(entry.Tool)
-			panel := messages.NewToolPanel("", toolName, "")
+			toolID, toolName, toolContent, toolIsError := parseToolEntry(entry.Tool)
+
+			panel, ok := m.toolPanels[toolID]
+			if !ok {
+				panel = messages.NewToolPanel(toolID, toolName, "")
+				m.toolPanels[toolID] = panel
+				m.chat = m.chat.AddItem(panel)
+			}
+
 			panel.SetResult(toolContent, toolIsError)
-			m.chat = m.chat.AddItem(panel)
+			m.chat = m.chat.UpdateItemByID(panel)
 		}
 	}
 }
 
-// parseToolEntry extracts tool name, content, and error flag from a stored tool entry.
-func parseToolEntry(raw json.RawMessage) (name, content string, isError bool) {
+// parseToolEntry extracts tool call ID, name, content, and error flag from a stored tool entry.
+func parseToolEntry(raw json.RawMessage) (id, name, content string, isError bool) {
 	if len(raw) == 0 {
-		return "tool", "", false
+		return "", "tool", "", false
 	}
 
 	var toolData struct {
+		ID     string `json:"id"`
 		Tool   string `json:"tool"`
 		Result struct {
 			Content string `json:"content"`
@@ -1926,15 +1950,17 @@ func parseToolEntry(raw json.RawMessage) (name, content string, isError bool) {
 	}
 
 	if err := json.Unmarshal(raw, &toolData); err != nil {
-		return "tool", "", false
+		return "", "tool", "", false
 	}
+
+	id = toolData.ID
 
 	name = toolData.Tool
 	if name == "" {
 		name = "tool"
 	}
 
-	return name, toolData.Result.Content, toolData.Result.IsError
+	return id, name, toolData.Result.Content, toolData.Result.IsError
 }
 
 // cycleThinkingLevel returns the next distinct thinking level, skipping

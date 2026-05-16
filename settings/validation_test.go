@@ -170,17 +170,3 @@ func TestValidate_ResumeOnly(t *testing.T) {
 	err := Validate(f)
 	assert.NoError(t, err)
 }
-
-func TestValidate_MutualExclusion(t *testing.T) {
-	f := validSettings()
-	f.Continue = true
-	f.Resume = "sess-abc123"
-	err := Validate(f)
-	require.Error(t, err)
-
-	var errs ValidationErrors
-	require.ErrorAs(t, err, &errs)
-	require.Len(t, errs, 1)
-	assert.Equal(t, "continue", errs[0].Field)
-	assert.Contains(t, errs[0].Message, "mutually exclusive")
-}
