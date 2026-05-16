@@ -27,6 +27,7 @@ type CallbackServer struct {
 	result        chan CallbackResult
 	mu            sync.Mutex
 	closed        bool
+	shutdownOnce  sync.Once
 }
 
 // StartCallbackServer creates and starts a temporary HTTP server. If
@@ -163,16 +164,18 @@ func (cs *CallbackServer) sendResult(result CallbackResult) {
 }
 
 func (cs *CallbackServer) shutdown() {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	cs.shutdownOnce.Do(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 
-	_ = cs.server.Shutdown(ctx)
+		_ = cs.server.Shutdown(ctx)
 
-	cs.mu.Lock()
-	defer cs.mu.Unlock()
+		cs.mu.Lock()
+		defer cs.mu.Unlock()
 
-	if !cs.closed {
-		close(cs.result)
-		cs.closed = true
-	}
+		if !cs.closed {
+			close(cs.result)
+			cs.closed = true
+		}
+	})
 }

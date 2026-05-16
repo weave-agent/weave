@@ -233,7 +233,7 @@ func TestHasProviderAuth_RefreshTokenOnly(t *testing.T) {
 			"github-copilot": json.RawMessage(`{"refresh_token":"rt-only"}`),
 		},
 	}
-	assert.True(t, auth.HasProviderAuth("github-copilot"))
+	assert.False(t, auth.HasProviderAuth("github-copilot"))
 }
 
 func TestHasProviderAuth_EmptyProvider(t *testing.T) {

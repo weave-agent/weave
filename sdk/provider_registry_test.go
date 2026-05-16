@@ -429,7 +429,7 @@ func TestCheckProviderAuth_OAuthFallback_RefreshTokenOnly(t *testing.T) {
 
 	hasAuth, err := CheckProviderAuth("oauth-fb2-provider")
 	require.NoError(t, err)
-	assert.True(t, hasAuth, "Refresh token only should count as authenticated via fallback")
+	assert.False(t, hasAuth, "Refresh token only should not count as authenticated")
 }
 
 func TestCheckProviderAuth_OAuthFallback_NoCredentials(t *testing.T) {

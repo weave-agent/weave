@@ -152,7 +152,7 @@ func (a *File) HasProviderAuth(providerName string) bool {
 		return false
 	}
 
-	return p.APIKey != "" || p.AccessToken != "" || p.RefreshToken != ""
+	return p.APIKey != "" || p.AccessToken != ""
 }
 
 // SetProviderKey updates or adds a provider key in the auth file and saves.

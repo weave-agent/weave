@@ -169,20 +169,7 @@ func (a *AgentExtension) run(
 	// Drain initial model/thinking changes before instantiating the provider.
 	provider := a.drainChanges(modelChangeCh, thinkingCh, bus, nil)
 	if provider == nil {
-		var err error
-
-		provider, err = sdk.GetProvider(a.providerName, a.cfg)
-		if err != nil {
-			msg := err.Error()
-
-			if !anyProviderHasKey() {
-				msg = "No providers configured. Set an API key via /providers or the environment variable."
-			}
-
-			endPayload = msg
-
-			return
-		}
+		provider, _ = sdk.GetProvider(a.providerName, a.cfg)
 	}
 
 	provider = a.drainChanges(modelChangeCh, thinkingCh, bus, provider)
@@ -211,6 +198,28 @@ func (a *AgentExtension) run(
 		continueLoop := true
 
 		for continueLoop {
+			// Ensure provider is available before each turn. If the initial
+			// instantiation failed (e.g. no auth configured), retry now so that
+			// users can log in via /login and then send a message without
+			// restarting weave.
+			if provider == nil {
+				var err error
+
+				provider, err = sdk.GetProvider(a.providerName, a.cfg)
+				if err != nil {
+					msg := err.Error()
+
+					if !anyProviderHasKey() {
+						msg = "No providers configured. Set an API key via /providers or the environment variable."
+					}
+
+					bus.Publish(sdk.NewEvent(TopicEnd, msg))
+					bus.Publish(sdk.NewEvent(TopicTurnEnd, nil))
+
+					break
+				}
+			}
+
 			var (
 				compactInstr     string
 				compactRequested bool

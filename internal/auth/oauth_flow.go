@@ -287,6 +287,12 @@ func PollDeviceToken(ctx context.Context, tokenURL, clientID, deviceCode string,
 		select {
 		case <-ctx.Done():
 			return TokenResponse{}, errors.New("device code polling timed out or was canceled")
+		default:
+		}
+
+		select {
+		case <-ctx.Done():
+			return TokenResponse{}, errors.New("device code polling timed out or was canceled")
 
 		case <-ticker.C:
 			tokenResp, cont, err := pollDeviceTokenOnce(ctx, tokenURL, clientID, deviceCode)

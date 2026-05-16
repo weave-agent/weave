@@ -771,9 +771,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case LogoutListResultMsg:
 		return m.onLogoutListResult(msg)
 
-	case LoginFlowResultMsg:
-		return m.onLoginFlowResult(msg)
-
 	case ShutdownMsg:
 		return m, tea.Quit
 
@@ -2245,7 +2242,6 @@ func (m Model) onLogoutDialogDone(result overlays.DialogResult, pendingCmd tea.C
 
 	// Re-evaluate noConfigured state and switch to the next available provider.
 	oldModel := m.currentModel
-	oldNoConfigured := m.noConfigured
 
 	models := listModels()
 	if len(models) == 0 {
@@ -2258,7 +2254,7 @@ func (m Model) onLogoutDialogDone(result overlays.DialogResult, pendingCmd tea.C
 		m.footer = m.footer.SetReasoning(modelReasoning(cur.Model))
 	}
 
-	if m.bus != nil && (m.noConfigured != oldNoConfigured || m.currentModel != oldModel) {
+	if m.bus != nil && !m.noConfigured && m.currentModel != oldModel {
 		cmds = append(cmds, PublishModelChange(m.bus, m.currentModel))
 	}
 
