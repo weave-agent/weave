@@ -132,9 +132,9 @@ Fix 17 gaps identified by the agents-best-practices audit of the Weave agent fra
 - [x] run `cd extensions/agent && go test ./...` — must pass before task 14
 
 ### Task 14: Populate TraceID in bus events
-- [ ] in `sdk/event.go:NewEvent()`, generate a UUID (using `crypto/rand` or `fmt.Sprintf` with time+random) and populate the `TraceID` field
-- [ ] write tests: TestNewEvent_TraceIDPopulated, TestNewEvent_TraceIDUnique in `sdk/event_test.go`
-- [ ] run `cd sdk && go test ./...` — must pass before task 15
+- [x] in `sdk/event.go:NewEvent()`, generate a UUID (using `crypto/rand` or `fmt.Sprintf` with time+random) and populate the `TraceID` field
+- [x] write tests: TestNewEvent_TraceIDPopulated, TestNewEvent_TraceIDUnique in `sdk/event_test.go`
+- [x] run `cd sdk && go test ./...` — must pass before task 15
 
 ### Task 15: Split PreferenceStore interface for credential access
 - [ ] create `PreferenceReader` interface in `sdk/config.go` with `Preferences(target)` only (no `SaveProviderKey`)

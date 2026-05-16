@@ -1,6 +1,10 @@
 package sdk
 
-import "time"
+import (
+	"crypto/rand"
+	"encoding/hex"
+	"time"
+)
 
 type Event struct {
 	Topic     string
@@ -14,7 +18,16 @@ func NewEvent(topic string, payload any) Event {
 		Topic:     topic,
 		Payload:   payload,
 		Timestamp: time.Now(),
+		TraceID:   generateTraceID(),
 	}
+}
+
+func generateTraceID() string {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return ""
+	}
+	return hex.EncodeToString(b)
 }
 
 // ReadDonePayload is the payload for the "tool.read.done" bus event.
