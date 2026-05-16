@@ -3,7 +3,6 @@ package components
 import (
 	"fmt"
 	"time"
-	"unicode/utf8"
 
 	"weave/ext/ui/tui/palette"
 
@@ -166,23 +165,3 @@ type SpinnerShowMsg struct{}
 
 // SpinnerHideMsg is a tea.Msg that hides the spinner.
 type SpinnerHideMsg struct{}
-
-// SpinnerCharSet is kept for compatibility.
-var SpinnerCharSet = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-
-// RenderSpinnerClean renders without lipgloss (for testing).
-func RenderSpinnerClean(frame int, label string, width int) string {
-	if frame < 0 || frame >= len(SpinnerCharSet) {
-		frame = 0
-	}
-
-	char := SpinnerCharSet[frame]
-
-	text := fmt.Sprintf("%s %s", char, label)
-	if width > 0 && utf8.RuneCountInString(text) > width {
-		runes := []rune(text)
-		text = string(runes[:width])
-	}
-
-	return text
-}
