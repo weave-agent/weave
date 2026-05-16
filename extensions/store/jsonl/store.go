@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,6 +21,10 @@ var logger = sdk.Logger("jsonl")
 
 // EventTypeMessage is the event type for message entries.
 const EventTypeMessage = "message"
+
+// compactionSummaryPrefix matches the prefix used by the agent extension
+// when creating compaction summary messages.
+const compactionSummaryPrefix = "[Compaction Summary]\n"
 
 type SessionHeader struct {
 	Type      string    `json:"type"`
@@ -698,7 +703,26 @@ func (s *Store) LoadHistory(sessionID string) ([]sdk.Message, error) {
 		messages = append(messages, msg)
 	}
 
-	return messages, nil
+	return filterCompactedMessages(messages), nil
+}
+
+// filterCompactedMessages scans for the last compaction summary message
+// (content starting with "[Compaction Summary]\n") and returns only that
+// message and all messages after it. If no compaction summary is found,
+// all messages are returned unchanged.
+func filterCompactedMessages(messages []sdk.Message) []sdk.Message {
+	lastSummaryIdx := -1
+	for i, msg := range messages {
+		if content, ok := msg.Content.(string); ok && strings.HasPrefix(content, compactionSummaryPrefix) {
+			lastSummaryIdx = i
+		}
+	}
+
+	if lastSummaryIdx < 0 {
+		return messages
+	}
+
+	return messages[lastSummaryIdx:]
 }
 
 type rawMessage struct {

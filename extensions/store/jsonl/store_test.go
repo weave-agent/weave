@@ -1005,3 +1005,87 @@ func TestSubscribe_PromptCreatesNewSessionWhenNotResumed(t *testing.T) {
 	assert.Equal(t, "user", data["role"])
 	assert.Equal(t, "hello world", data["content"])
 }
+
+func TestLoadHistory_WithCompactionSummary(t *testing.T) {
+	s := newTestStore(t)
+	sess, err := s.Create("/tmp/project")
+	require.NoError(t, err)
+
+	entries := []Entry{
+		{Type: "message", Turn: 1, Data: json.RawMessage(`{"role":"user","content":"first message"}`), Created: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)},
+		{Type: "message", Turn: 2, Data: json.RawMessage(`{"role":"assistant","content":"first response"}`), Created: time.Date(2026, 1, 1, 0, 0, 1, 0, time.UTC)},
+		{Type: "message", Turn: 3, Data: json.RawMessage(`{"role":"assistant","content":"[Compaction Summary]\nsummary of earlier conversation"}`), Created: time.Date(2026, 1, 1, 0, 0, 2, 0, time.UTC)},
+		{Type: "message", Turn: 4, Data: json.RawMessage(`{"role":"user","content":"after compaction"}`), Created: time.Date(2026, 1, 1, 0, 0, 3, 0, time.UTC)},
+		{Type: "message", Turn: 5, Data: json.RawMessage(`{"role":"assistant","content":"response after compaction"}`), Created: time.Date(2026, 1, 1, 0, 0, 4, 0, time.UTC)},
+	}
+	for _, e := range entries {
+		_, err = s.Append(sess.Header.ID, e)
+		require.NoError(t, err)
+	}
+
+	messages, err := s.LoadHistory(sess.Header.ID)
+	require.NoError(t, err)
+	require.Len(t, messages, 3, "expected only compaction summary and messages after it")
+
+	assert.Equal(t, sdk.RoleAssistant, messages[0].Role)
+	assert.Equal(t, "[Compaction Summary]\nsummary of earlier conversation", messages[0].Content)
+
+	assert.Equal(t, sdk.RoleUser, messages[1].Role)
+	assert.Equal(t, "after compaction", messages[1].Content)
+
+	assert.Equal(t, sdk.RoleAssistant, messages[2].Role)
+	assert.Equal(t, "response after compaction", messages[2].Content)
+}
+
+func TestLoadHistory_MultipleCompactions(t *testing.T) {
+	s := newTestStore(t)
+	sess, err := s.Create("/tmp/project")
+	require.NoError(t, err)
+
+	entries := []Entry{
+		{Type: "message", Turn: 1, Data: json.RawMessage(`{"role":"user","content":"msg 1"}`)},
+		{Type: "message", Turn: 2, Data: json.RawMessage(`{"role":"assistant","content":"[Compaction Summary]\nfirst summary"}`)},
+		{Type: "message", Turn: 3, Data: json.RawMessage(`{"role":"user","content":"msg 3"}`)},
+		{Type: "message", Turn: 4, Data: json.RawMessage(`{"role":"assistant","content":"[Compaction Summary]\nsecond summary"}`)},
+		{Type: "message", Turn: 5, Data: json.RawMessage(`{"role":"user","content":"msg 5"}`)},
+		{Type: "message", Turn: 6, Data: json.RawMessage(`{"role":"assistant","content":"msg 6"}`)},
+	}
+	for _, e := range entries {
+		_, err = s.Append(sess.Header.ID, e)
+		require.NoError(t, err)
+	}
+
+	messages, err := s.LoadHistory(sess.Header.ID)
+	require.NoError(t, err)
+	require.Len(t, messages, 3, "expected only last compaction summary and messages after it")
+
+	assert.Equal(t, "[Compaction Summary]\nsecond summary", messages[0].Content)
+	assert.Equal(t, sdk.RoleUser, messages[1].Role)
+	assert.Equal(t, "msg 5", messages[1].Content)
+	assert.Equal(t, sdk.RoleAssistant, messages[2].Role)
+	assert.Equal(t, "msg 6", messages[2].Content)
+}
+
+func TestLoadHistory_NoCompactionSummary(t *testing.T) {
+	s := newTestStore(t)
+	sess, err := s.Create("/tmp/project")
+	require.NoError(t, err)
+
+	entries := []Entry{
+		{Type: "message", Turn: 1, Data: json.RawMessage(`{"role":"user","content":"hello"}`)},
+		{Type: "message", Turn: 2, Data: json.RawMessage(`{"role":"assistant","content":"hi there"}`)},
+	}
+	for _, e := range entries {
+		_, err = s.Append(sess.Header.ID, e)
+		require.NoError(t, err)
+	}
+
+	messages, err := s.LoadHistory(sess.Header.ID)
+	require.NoError(t, err)
+	require.Len(t, messages, 2, "expected all messages when no compaction summary exists")
+
+	assert.Equal(t, sdk.RoleUser, messages[0].Role)
+	assert.Equal(t, "hello", messages[0].Content)
+	assert.Equal(t, sdk.RoleAssistant, messages[1].Role)
+	assert.Equal(t, "hi there", messages[1].Content)
+}

@@ -101,10 +101,10 @@ Fix 17 gaps identified by the agents-best-practices audit of the Weave agent fra
 - [x] run `cd extensions/providers/anthropic && go test ./...` and `cd extensions/ui/tui && go test ./...` — must pass before task 9
 
 ### Task 9: Filter compacted entries on session resume
-- [ ] in `extensions/store/jsonl/store.go:LoadHistory()`, after loading all messages, scan for compaction summary messages (those starting with `[Compaction Summary]\n`) and remove all earlier messages that the summary covers
-- [ ] preserve messages after the last compaction summary verbatim
-- [ ] write tests: TestLoadHistory_WithCompactionSummary, TestLoadHistory_MultipleCompactions in `extensions/store/jsonl/store_test.go`
-- [ ] run `cd extensions/store/jsonl && go test ./...` — must pass before task 10
+- [x] in `extensions/store/jsonl/store.go:LoadHistory()`, after loading all messages, scan for compaction summary messages (those starting with `[Compaction Summary]\n`) and remove all earlier messages that the summary covers
+- [x] preserve messages after the last compaction summary verbatim
+- [x] write tests: TestLoadHistory_WithCompactionSummary, TestLoadHistory_MultipleCompactions in `extensions/store/jsonl/store_test.go`
+- [x] run `cd extensions/store/jsonl && go test ./...` — must pass before task 10
 
 ### Task 10: Reorder system prompt for cache friendliness
 - [ ] in `extensions/agent/prompt.go:Build()`, move date+CWD injection from layer 2 to the last layer (after APPEND_SYSTEM.md)
