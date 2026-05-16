@@ -2,10 +2,12 @@ package anthropic
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -694,4 +696,137 @@ func TestStream_UsageEventWithCacheTokens(t *testing.T) {
 	assert.Equal(t, 10, usageEvents[0].OutputTokens)
 	assert.Equal(t, 50, usageEvents[0].CacheCreationTokens)
 	assert.Equal(t, 200, usageEvents[0].CacheReadTokens)
+}
+
+func TestAnthropic_CacheControlMarkers(t *testing.T) {
+	var receivedBody string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf := make([]byte, r.ContentLength)
+		_, _ = r.Body.Read(buf)
+		receivedBody = string(buf)
+
+		writeSSE(w, textStreamEvents("response"))
+	}))
+	defer server.Close()
+
+	p := newTestProvider(server)
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
+		SystemPrompt: "You are a helpful assistant.",
+		Messages: []sdk.Message{
+			sdk.NewUserMessage("Hello"),
+			sdk.NewAssistantMessage("Hi there"),
+			sdk.NewUserMessage("What's the weather?"),
+		},
+	})
+	require.NoError(t, err)
+	collectEvents(t, ch)
+
+	var body map[string]any
+
+	err = json.Unmarshal([]byte(receivedBody), &body)
+	require.NoError(t, err)
+
+	// System prompt should have cache_control
+	system, ok := body["system"].([]any)
+	require.True(t, ok)
+	require.Len(t, system, 1)
+
+	sysBlock := system[0].(map[string]any)
+	cacheControl, ok := sysBlock["cache_control"].(map[string]any)
+	require.True(t, ok, "system prompt should have cache_control")
+	assert.Equal(t, "ephemeral", cacheControl["type"])
+
+	// Last user message should have cache_control
+	messages, ok := body["messages"].([]any)
+	require.True(t, ok)
+
+	var lastUserMsg map[string]any
+
+	for _, m := range messages {
+		msg := m.(map[string]any)
+		if msg["role"] == "user" {
+			lastUserMsg = msg
+		}
+	}
+
+	require.NotNil(t, lastUserMsg)
+
+	content := lastUserMsg["content"].([]any)
+	require.GreaterOrEqual(t, len(content), 1)
+
+	firstBlock := content[0].(map[string]any)
+	cacheControl, ok = firstBlock["cache_control"].(map[string]any)
+	require.True(t, ok, "last user message should have cache_control")
+	assert.Equal(t, "ephemeral", cacheControl["type"])
+}
+
+func TestAnthropic_CacheControlOnCompactionSummary(t *testing.T) {
+	var receivedBody string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf := make([]byte, r.ContentLength)
+		_, _ = r.Body.Read(buf)
+		receivedBody = string(buf)
+
+		writeSSE(w, textStreamEvents("response"))
+	}))
+	defer server.Close()
+
+	p := newTestProvider(server)
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
+		SystemPrompt: "You are a helpful assistant.",
+		Messages: []sdk.Message{
+			sdk.NewUserMessage("Hello"),
+			sdk.NewAssistantMessage("[Compaction Summary]\nThis is a summary."),
+			sdk.NewUserMessage("What's next?"),
+		},
+	})
+	require.NoError(t, err)
+	collectEvents(t, ch)
+
+	var body map[string]any
+
+	err = json.Unmarshal([]byte(receivedBody), &body)
+	require.NoError(t, err)
+
+	messages, ok := body["messages"].([]any)
+	require.True(t, ok)
+
+	// Find compaction summary message
+	var compactionMsg map[string]any
+
+	for _, m := range messages {
+		msg := m.(map[string]any)
+		if msg["role"] != "assistant" {
+			continue
+		}
+
+		contentBlocks, isArr := msg["content"].([]any)
+		if !isArr {
+			continue
+		}
+
+		for _, c := range contentBlocks {
+			block, isMap := c.(map[string]any)
+			if !isMap {
+				continue
+			}
+
+			text, isStr := block["text"].(string)
+			if isStr && strings.HasPrefix(text, "[Compaction Summary]") {
+				compactionMsg = msg
+
+				break
+			}
+		}
+	}
+
+	require.NotNil(t, compactionMsg, "compaction summary message not found")
+
+	content := compactionMsg["content"].([]any)
+	firstBlock := content[0].(map[string]any)
+	cacheControl, ok := firstBlock["cache_control"].(map[string]any)
+	require.True(t, ok, "compaction summary should have cache_control")
+	assert.Equal(t, "ephemeral", cacheControl["type"])
 }

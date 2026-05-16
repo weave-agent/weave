@@ -712,6 +712,7 @@ func (s *Store) LoadHistory(sessionID string) ([]sdk.Message, error) {
 // all messages are returned unchanged.
 func filterCompactedMessages(messages []sdk.Message) []sdk.Message {
 	lastSummaryIdx := -1
+
 	for i, msg := range messages {
 		if content, ok := msg.Content.(string); ok && strings.HasPrefix(content, compactionSummaryPrefix) {
 			lastSummaryIdx = i

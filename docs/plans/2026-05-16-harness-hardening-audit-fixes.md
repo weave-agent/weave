@@ -113,11 +113,11 @@ Fix 17 gaps identified by the agents-best-practices audit of the Weave agent fra
 - [x] run `cd extensions/agent && go test ./...` — must pass before task 11
 
 ### Task 11: Add Anthropic cache_control breakpoints
-- [ ] in `extensions/providers/anthropic/anthropic.go`, add `cache_control: {type: "ephemeral"}` to the system prompt content block(s)
-- [ ] add `cache_control` to the last user message or the most recent assistant message (whichever Anthropic recommends for conversation caching)
-- [ ] if a compaction summary message exists, add `cache_control` to it as well
-- [ ] write tests: TestAnthropic_CacheControlMarkers in `extensions/providers/anthropic/anthropic_test.go`
-- [ ] run `cd extensions/providers/anthropic && go test ./...` — must pass before task 12
+- [x] in `extensions/providers/anthropic/anthropic.go`, add `cache_control: {type: "ephemeral"}` to the system prompt content block(s)
+- [x] add `cache_control` to the last user message or the most recent assistant message (whichever Anthropic recommends for conversation caching)
+- [x] if a compaction summary message exists, add `cache_control` to it as well
+- [x] write tests: TestAnthropic_CacheControlMarkers in `extensions/providers/anthropic/anthropic_test.go`
+- [x] run `cd extensions/providers/anthropic && go test ./...` — must pass before task 12
 
 ### Task 12: Add trust labeling on tool results
 - [ ] in `sdk/message.go`, wrap tool result content in `<tool_output name="...">` XML tags when constructing `NewToolResultMessage()`

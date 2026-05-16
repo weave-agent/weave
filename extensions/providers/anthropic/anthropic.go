@@ -370,7 +370,10 @@ func (p *provider) buildParams(req sdk.ProviderRequest, mdl string, maxTokens in
 
 	if req.SystemPrompt != "" {
 		params.System = []anthropic.TextBlockParam{
-			{Text: req.SystemPrompt},
+			{
+				Text:         req.SystemPrompt,
+				CacheControl: anthropic.NewCacheControlEphemeralParam(),
+			},
 		}
 	}
 
@@ -443,13 +446,16 @@ func parseToolArgs(toolName, raw string, send func(sdk.ProviderEvent) bool) map[
 
 func convertMessages(msgs []sdk.Message) []anthropic.MessageParam {
 	var (
-		params             []anthropic.MessageParam
-		pendingToolResults []anthropic.ContentBlockParamUnion
+		params                    []anthropic.MessageParam
+		pendingToolResults        []anthropic.ContentBlockParamUnion
+		lastUserParamIdx          = -1
+		compactionSummaryParamIdx = -1
 	)
 
 	flush := func() {
 		if len(pendingToolResults) > 0 {
 			params = append(params, anthropic.NewUserMessage(pendingToolResults...))
+			lastUserParamIdx = len(params) - 1
 			pendingToolResults = nil
 		}
 	}
@@ -462,6 +468,7 @@ func convertMessages(msgs []sdk.Message) []anthropic.MessageParam {
 			params = append(params, anthropic.NewUserMessage(
 				anthropic.NewTextBlock(fmt.Sprint(msg.Content)),
 			))
+			lastUserParamIdx = len(params) - 1
 		case sdk.RoleAssistant:
 			flush()
 
@@ -476,6 +483,10 @@ func convertMessages(msgs []sdk.Message) []anthropic.MessageParam {
 			}
 
 			if text, ok := msg.Content.(string); ok && text != "" {
+				if strings.HasPrefix(text, "[Compaction Summary]\n") {
+					compactionSummaryParamIdx = len(params)
+				}
+
 				blocks = append(blocks, anthropic.NewTextBlock(text))
 			}
 
@@ -501,7 +512,30 @@ func convertMessages(msgs []sdk.Message) []anthropic.MessageParam {
 
 	flush()
 
+	cacheControl := anthropic.NewCacheControlEphemeralParam()
+
+	if lastUserParamIdx >= 0 && lastUserParamIdx < len(params) {
+		applyCacheControl(&params[lastUserParamIdx], cacheControl)
+	}
+
+	if compactionSummaryParamIdx >= 0 && compactionSummaryParamIdx < len(params) {
+		applyCacheControl(&params[compactionSummaryParamIdx], cacheControl)
+	}
+
 	return params
+}
+
+func applyCacheControl(msg *anthropic.MessageParam, cacheControl anthropic.CacheControlEphemeralParam) {
+	for i := range msg.Content {
+		switch {
+		case msg.Content[i].OfText != nil:
+			msg.Content[i].OfText.CacheControl = cacheControl
+			return
+		case msg.Content[i].OfToolResult != nil:
+			msg.Content[i].OfToolResult.CacheControl = cacheControl
+			return
+		}
+	}
 }
 
 func convertTools(tools []sdk.ToolDef) []anthropic.ToolUnionParam {
