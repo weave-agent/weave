@@ -1641,3 +1641,44 @@ func TestShouldCompact_BudgetLessThanOrEqualZero(t *testing.T) {
 	assert.True(t, shouldCompact(msgs, "", cfg, "test-model"),
 		"one token over fallback budget should compact")
 }
+
+func TestDefaultCompactPrompt_HasActiveConstraintsSection(t *testing.T) {
+	assert.Contains(t, defaultCompactPrompt, "## Active Constraints")
+	assert.Contains(t, defaultCompactPrompt, "Preserve ALL user-stated constraints verbatim")
+	assert.Contains(t, defaultCompactPrompt, "Do not paraphrase or summarize constraints")
+}
+
+func TestDefaultCompactPrompt_HasCurrentPlanSection(t *testing.T) {
+	assert.Contains(t, defaultCompactPrompt, "## Current Plan")
+	assert.Contains(t, defaultCompactPrompt, "step X of Y")
+	assert.Contains(t, defaultCompactPrompt, "completed and remaining steps")
+}
+
+func TestDefaultCompactPrompt_HasAllRequiredSections(t *testing.T) {
+	requiredSections := []string{
+		"## Goal",
+		"## Progress",
+		"## Active Constraints",
+		"## Current Plan",
+		"## Key Context",
+		"## Recent Tool Activity",
+	}
+	for _, section := range requiredSections {
+		assert.Contains(t, defaultCompactPrompt, section, "default compact prompt missing section: %s", section)
+	}
+}
+
+func TestDefaultCompactPrompt_ConstraintsInstructionsAreVerbatim(t *testing.T) {
+	// Verify the instruction to preserve constraints verbatim appears before the Rules section
+	constraintsIdx := strings.Index(defaultCompactPrompt, "Preserve ALL user-stated constraints verbatim")
+	rulesIdx := strings.Index(defaultCompactPrompt, "Rules:")
+	assert.Greater(t, constraintsIdx, 0, "constraints instruction should be present")
+	assert.Greater(t, rulesIdx, 0, "rules section should be present")
+	assert.Less(t, constraintsIdx, rulesIdx, "constraints instruction should appear before Rules")
+}
+
+func TestDefaultCompactPrompt_PlanInstructionsIncludeStepTracking(t *testing.T) {
+	assert.Contains(t, defaultCompactPrompt, "completed steps")
+	assert.Contains(t, defaultCompactPrompt, "remaining steps")
+	assert.Contains(t, defaultCompactPrompt, "modified, skipped, or added")
+}

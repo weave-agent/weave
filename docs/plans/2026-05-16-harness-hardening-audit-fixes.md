@@ -158,11 +158,11 @@ Fix 17 gaps identified by the agents-best-practices audit of the Weave agent fra
 - [x] run `cd extensions/agent && go test ./...` — must pass before task 18
 
 ### Task 18: Add explicit sections to compact prompt template
-- [ ] in `extensions/agent/default-compact-prompt.md`, add explicit `## Active Constraints` and `## Current Plan (step X of Y)` sections to the requested output format
-- [ ] add instruction: "Preserve ALL user-stated constraints verbatim in Active Constraints. Do not paraphrase or summarize constraints."
-- [ ] add instruction: "Include the current plan state in Current Plan. If the user stated a multi-step goal, list completed and remaining steps."
-- [ ] write tests: update compaction tests to verify the prompt template includes the new sections
-- [ ] run `cd extensions/agent && go test ./...` — must pass before task 19
+- [x] in `extensions/agent/default-compact-prompt.md`, add explicit `## Active Constraints` and `## Current Plan (step X of Y)` sections to the requested output format
+- [x] add instruction: "Preserve ALL user-stated constraints verbatim in Active Constraints. Do not paraphrase or summarize constraints."
+- [x] add instruction: "Include the current plan state in Current Plan. If the user stated a multi-step goal, list completed and remaining steps."
+- [x] write tests: update compaction tests to verify the prompt template includes the new sections
+- [x] run `cd extensions/agent && go test ./...` — must pass before task 19
 
 ### Task 19: Final verification
 - [ ] run full test suite: `make test`
