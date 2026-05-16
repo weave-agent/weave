@@ -224,19 +224,25 @@ func TestBridge_ForwardsEventsAndShutdown(t *testing.T) {
 
 	<-done
 
-	require.Len(t, sender.msgs, 4) // 3 events + shutdown
+	require.Len(t, sender.msgs, 6) // state change + msg start + update + state change + turn end + shutdown
 
-	_, ok := sender.msgs[0].(MessageStartMsg)
+	_, ok := sender.msgs[0].(AgentStateChangeMsg)
 	assert.True(t, ok)
 
-	mu, ok := sender.msgs[1].(MessageUpdateMsg)
+	_, ok = sender.msgs[1].(MessageStartMsg)
+	assert.True(t, ok)
+
+	mu, ok := sender.msgs[2].(MessageUpdateMsg)
 	assert.True(t, ok)
 	assert.Equal(t, "hello", mu.Content)
 
-	_, ok = sender.msgs[2].(TurnEndMsg)
+	_, ok = sender.msgs[3].(AgentStateChangeMsg)
 	assert.True(t, ok)
 
-	_, ok = sender.msgs[3].(ShutdownMsg)
+	_, ok = sender.msgs[4].(TurnEndMsg)
+	assert.True(t, ok)
+
+	_, ok = sender.msgs[5].(ShutdownMsg)
 	assert.True(t, ok)
 }
 
@@ -260,12 +266,15 @@ func TestBridge_SkipsUnknownTopics(t *testing.T) {
 
 	<-done
 
-	require.Len(t, sender.msgs, 2) // unknown skipped, msg start + shutdown
+	require.Len(t, sender.msgs, 3) // unknown skipped, state change + msg start + shutdown
 
-	_, ok := sender.msgs[0].(MessageStartMsg)
+	_, ok := sender.msgs[0].(AgentStateChangeMsg)
 	assert.True(t, ok)
 
-	_, ok = sender.msgs[1].(ShutdownMsg)
+	_, ok = sender.msgs[1].(MessageStartMsg)
+	assert.True(t, ok)
+
+	_, ok = sender.msgs[2].(ShutdownMsg)
 	assert.True(t, ok)
 }
 

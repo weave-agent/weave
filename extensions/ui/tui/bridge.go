@@ -161,9 +161,7 @@ func (t *agentStateTracker) update(msg tea.Msg) (palette.State, bool) {
 		t.state = palette.StateStreaming
 		t.toolCount = 0
 	case MessageStartMsg:
-		if t.state == palette.StateStreaming || t.state == palette.StateToolRunning {
-			t.state = palette.StateStreaming
-		}
+		t.state = palette.StateStreaming
 	case ToolResultMsg:
 		if t.toolCount > 0 {
 			t.toolCount--

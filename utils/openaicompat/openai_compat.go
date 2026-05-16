@@ -305,6 +305,11 @@ func doStreamRequestWithRetry(ctx context.Context, client *http.Client, req *htt
 	var respBody io.ReadCloser
 
 	err := retry.Do(ctx, retryConfig, isRetriableError, func() error {
+		if respBody != nil {
+			respBody.Close()
+			respBody = nil
+		}
+
 		body, doErr := doStreamRequest(client, req)
 		if doErr != nil {
 			return doErr

@@ -353,6 +353,10 @@ func (s *Store) handleMsgEnd(evt sdk.Event) {
 		if th, ok := p["thinking"]; ok {
 			payload["thinking"] = th
 		}
+
+		if rt, ok := p["redacted_thinking"]; ok {
+			payload["redacted_thinking"] = rt
+		}
 	case string:
 		payload["content"] = p
 	}
@@ -727,11 +731,12 @@ func filterCompactedMessages(messages []sdk.Message) []sdk.Message {
 }
 
 type rawMessage struct {
-	Role      string          `json:"role"`
-	Content   any             `json:"content"`
-	ToolCalls json.RawMessage `json:"tool_calls"`
-	Tool      json.RawMessage `json:"tool"`
-	Thinking  string          `json:"thinking"`
+	Role             string          `json:"role"`
+	Content          any             `json:"content"`
+	ToolCalls        json.RawMessage `json:"tool_calls"`
+	Tool             json.RawMessage `json:"tool"`
+	Thinking         string          `json:"thinking"`
+	RedactedThinking json.RawMessage `json:"redacted_thinking"`
 }
 
 func entryToMessage(entry Entry) (sdk.Message, error) {
@@ -759,6 +764,15 @@ func entryToMessage(entry Entry) (sdk.Message, error) {
 
 		if raw.Thinking != "" {
 			msg.Thinking = []sdk.SignedThinking{{Thinking: raw.Thinking}}
+		}
+
+		if len(raw.RedactedThinking) > 0 {
+			var rt []sdk.RedactedThinking
+			if err := json.Unmarshal(raw.RedactedThinking, &rt); err != nil {
+				return sdk.Message{}, fmt.Errorf("unmarshal redacted_thinking: %w", err)
+			}
+
+			msg.RedactedThinking = rt
 		}
 	case sdk.RoleToolResult:
 		if err := applyToolResult(&msg, raw.Tool); err != nil {

@@ -321,6 +321,10 @@ func compact(
 	ops *fileOperations,
 	compactPrompt string,
 ) (*compactResult, error) {
+	if provider == nil {
+		return nil, errors.New("compaction: provider is nil")
+	}
+
 	tokensBefore := estimateTokens(messages)
 
 	cutIdx := findCutPoint(messages, cfg.KeepRecentTokens)

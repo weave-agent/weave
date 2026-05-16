@@ -715,6 +715,10 @@ func streamTurn(ctx context.Context, bus sdk.Bus, provider sdk.Provider, message
 		msgEndPayload["thinking"] = thinking.String()
 	}
 
+	if len(redactedThinking) > 0 {
+		msgEndPayload["redacted_thinking"] = redactedThinking
+	}
+
 	bus.Publish(sdk.NewEvent(TopicMsgEnd, msgEndPayload))
 
 	resp := sdk.NewAssistantMessage(content.String())

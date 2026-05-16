@@ -374,7 +374,7 @@ func (a *AgentExtension) makeSkillHandler(skill Skill, bus sdk.Bus) func(args st
 		fmt.Fprintf(&msg, "<skill name=\"%s\" location=\"%s\">\n", escapeXML(skill.Name), escapeXML(skill.FilePath))
 		fmt.Fprintf(&msg, "References are relative to %s.\n\n", escapeXML(skill.BaseDir))
 		msg.WriteString("<skill_body trust=\"untrusted\">\n")
-		msg.WriteString(body)
+		msg.WriteString(escapeXML(body))
 		msg.WriteString("\n</skill_body>\n</skill>")
 
 		if args != "" {

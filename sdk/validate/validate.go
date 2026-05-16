@@ -1,6 +1,7 @@
 package validate
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -27,6 +28,16 @@ func Args(args, schema map[string]any) error {
 	required, _ := schema["required"].([]any)
 	additionalPropertiesVal, hasAdditionalProperties := schema["additionalProperties"]
 	additionalProperties, _ := additionalPropertiesVal.(bool)
+
+	// Also handle []string for required arrays (common in programmatic schemas).
+	if required == nil {
+		if reqStr, ok := schema["required"].([]string); ok {
+			required = make([]any, len(reqStr))
+			for i, s := range reqStr {
+				required[i] = s
+			}
+		}
+	}
 
 	// Check required fields
 	for _, req := range required {
@@ -135,6 +146,8 @@ func jsonTypeOf(value any) string {
 			return jsonTypeInteger
 		}
 
+		return jsonTypeNumber
+	case json.Number:
 		return jsonTypeNumber
 	case int, int8, int16, int32, int64:
 		return jsonTypeInteger

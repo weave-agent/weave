@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -316,7 +317,10 @@ func emitContentBlocksWithAccumulator(blocks []anthropic.ContentBlockUnion, acc 
 				return
 			}
 		case anthropic.ToolUseBlock:
-			args := parseToolArgs(b.Name, b.JSON.Input.Raw(), send)
+			args, ok := parseToolArgs(b.Name, b.JSON.Input.Raw(), send)
+			if !ok {
+				return
+			}
 
 			if !acc.emitToolCall(sdk.ToolCall{ID: b.ID, Name: b.Name, Arguments: args}, send) {
 				return
@@ -425,9 +429,9 @@ func resolveThinkingLevel(mdl string, level model.ThinkingLevel) model.ThinkingL
 	return level
 }
 
-func parseToolArgs(toolName, raw string, send func(sdk.ProviderEvent) bool) map[string]any {
+func parseToolArgs(toolName, raw string, send func(sdk.ProviderEvent) bool) (map[string]any, bool) {
 	if raw == "" {
-		return make(map[string]any)
+		return make(map[string]any), true
 	}
 
 	var args map[string]any
@@ -438,10 +442,10 @@ func parseToolArgs(toolName, raw string, send func(sdk.ProviderEvent) bool) map[
 			Content: fmt.Sprintf("anthropic: parse tool call arguments for %s: %v", toolName, err),
 		})
 
-		return make(map[string]any)
+		return nil, false
 	}
 
-	return args
+	return args, true
 }
 
 func convertMessages(msgs []sdk.Message) []anthropic.MessageParam {
@@ -526,7 +530,8 @@ func convertMessages(msgs []sdk.Message) []anthropic.MessageParam {
 }
 
 func applyCacheControl(msg *anthropic.MessageParam, cacheControl anthropic.CacheControlEphemeralParam) {
-	for i := range msg.Content {
+	// Apply cache control to the LAST eligible block to maximize caching.
+	for i := range slices.Backward(msg.Content) {
 		switch {
 		case msg.Content[i].OfText != nil:
 			msg.Content[i].OfText.CacheControl = cacheControl
