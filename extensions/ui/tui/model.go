@@ -221,7 +221,7 @@ func newModelWithConfig(bus sdk.Bus, cfg sdk.Config, ps sdk.PreferenceStore, ui 
 		noConfigured:  len(models) == 0,
 		showHints:     true,
 		showLanding:   true,
-		landing:       NewLandingModel(cur.Model, cur.Provider),
+		landing:       NewLandingModel(cur.Model, cur.Provider, listLoadedComponents()),
 		dialogStack:   overlays.NewDialogStack(),
 		popupChans:    make(map[string]chan overlayResponse),
 		theme:         palette.DefaultTheme(),
@@ -239,6 +239,33 @@ func newModelWithConfig(bus sdk.Bus, cfg sdk.Config, ps sdk.PreferenceStore, ui 
 	}
 
 	return m
+}
+
+// listLoadedComponents returns a deduplicated, sorted list of all registered
+// component names across extension, tool, provider, UI extension, and TUI
+// extension registries.
+func listLoadedComponents() []string {
+	seen := make(map[string]bool)
+	var names []string
+
+	add := func(list []string) {
+		for _, name := range list {
+			if !seen[name] {
+				seen[name] = true
+				names = append(names, name)
+			}
+		}
+	}
+
+	add(sdk.ListExtensions())
+	add(sdk.ListTools())
+	add(sdk.ListProviders())
+	add(sdk.ListUIExtensions())
+	add(ListTUIExtensions())
+
+	slices.Sort(names)
+
+	return names
 }
 
 // Init returns the initial command.

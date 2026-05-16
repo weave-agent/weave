@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"strings"
 	"testing"
 
 	uv "github.com/charmbracelet/ultraviolet"
@@ -9,7 +10,7 @@ import (
 )
 
 func TestLandingModel_DrawRendersLogo(t *testing.T) {
-	m := NewLandingModel("glm-5.1", "anthropic")
+	m := NewLandingModel("glm-5.1", "anthropic", nil)
 	scr := uv.NewScreenBuffer(60, 24)
 	m.Draw(scr, scr.Bounds())
 	rendered := scr.Render()
@@ -19,7 +20,7 @@ func TestLandingModel_DrawRendersLogo(t *testing.T) {
 }
 
 func TestLandingModel_DrawRendersModelInfo(t *testing.T) {
-	m := NewLandingModel("glm-5.1", "anthropic")
+	m := NewLandingModel("glm-5.1", "anthropic", nil)
 	scr := uv.NewScreenBuffer(60, 24)
 	m.Draw(scr, scr.Bounds())
 	rendered := scr.Render()
@@ -29,7 +30,7 @@ func TestLandingModel_DrawRendersModelInfo(t *testing.T) {
 }
 
 func TestLandingModel_DrawRendersKeybindingHints(t *testing.T) {
-	m := NewLandingModel("glm-5.1", "anthropic")
+	m := NewLandingModel("glm-5.1", "anthropic", nil)
 	scr := uv.NewScreenBuffer(60, 24)
 	m.Draw(scr, scr.Bounds())
 	rendered := scr.Render()
@@ -39,7 +40,7 @@ func TestLandingModel_DrawRendersKeybindingHints(t *testing.T) {
 }
 
 func TestLandingModel_DrawZeroArea(t *testing.T) {
-	m := NewLandingModel("glm-5.1", "anthropic")
+	m := NewLandingModel("glm-5.1", "anthropic", nil)
 	scr := uv.NewScreenBuffer(60, 24)
 	area := uv.Rect(0, 0, 0, 0)
 	m.Draw(scr, area)
@@ -47,14 +48,14 @@ func TestLandingModel_DrawZeroArea(t *testing.T) {
 }
 
 func TestLandingModel_SetSize(t *testing.T) {
-	m := NewLandingModel("glm-5.1", "anthropic")
+	m := NewLandingModel("glm-5.1", "anthropic", nil)
 	m2 := m.SetSize(100, 50)
 	assert.Equal(t, 100, m2.width)
 	assert.Equal(t, 50, m2.height)
 }
 
 func TestLandingModel_DrawNoModel(t *testing.T) {
-	m := NewLandingModel("", "")
+	m := NewLandingModel("", "", nil)
 	scr := uv.NewScreenBuffer(60, 24)
 	m.Draw(scr, scr.Bounds())
 	rendered := scr.Render()
@@ -163,7 +164,7 @@ func TestLanding_EditorStillAccessibleWhenLandingActive(t *testing.T) {
 // --- Task 4: Landing composition tests ---
 
 func TestLandingModel_DrawNoPlaceholder(t *testing.T) {
-	m := NewLandingModel("glm-5.1", "anthropic")
+	m := NewLandingModel("glm-5.1", "anthropic", nil)
 	scr := uv.NewScreenBuffer(60, 24)
 	m.Draw(scr, scr.Bounds())
 	rendered := scr.Render()
@@ -173,11 +174,57 @@ func TestLandingModel_DrawNoPlaceholder(t *testing.T) {
 }
 
 func TestLandingModel_DrawRuleInBorderColor(t *testing.T) {
-	m := NewLandingModel("glm-5.1", "anthropic")
+	m := NewLandingModel("glm-5.1", "anthropic", nil)
 	scr := uv.NewScreenBuffer(60, 24)
 	m.Draw(scr, scr.Bounds())
 	rendered := scr.Render()
 
 	// Rule should be rendered with ANSI color code for Border (240)
 	assert.Contains(t, rendered, "\x1b[38;5;240m")
+}
+
+func TestLandingModel_DrawRendersExtensions(t *testing.T) {
+	exts := []string{"agent", "tui", "bash", "read"}
+	m := NewLandingModel("glm-5.1", "anthropic", exts)
+	scr := uv.NewScreenBuffer(60, 24)
+	m.Draw(scr, scr.Bounds())
+	rendered := scr.Render()
+
+	assert.Contains(t, rendered, "agent")
+	assert.Contains(t, rendered, "tui")
+	assert.Contains(t, rendered, "bash")
+	assert.Contains(t, rendered, "read")
+}
+
+func TestLandingModel_DrawNoExtensions(t *testing.T) {
+	m := NewLandingModel("glm-5.1", "anthropic", nil)
+	scr := uv.NewScreenBuffer(60, 24)
+	m.Draw(scr, scr.Bounds())
+	rendered := scr.Render()
+
+	// Should not contain the extensions label when no extensions are provided
+	assert.NotContains(t, rendered, "extensions")
+}
+
+func TestWrapList(t *testing.T) {
+	items := []string{"agent", "tui", "bash", "read", "edit", "write"}
+
+	// Wide enough for all items on one line
+	lines := wrapList("    ", items, 80)
+	require.Len(t, lines, 1)
+	assert.Equal(t, "    agent, tui, bash, read, edit, write", lines[0])
+
+	// Narrow width forces wrapping
+	lines = wrapList("    ", items, 30)
+	require.GreaterOrEqual(t, len(lines), 2)
+	assert.True(t, strings.HasPrefix(lines[0], "    "))
+	assert.Contains(t, lines[0], "agent")
+
+	// Empty list returns nil
+	assert.Nil(t, wrapList("    ", nil, 80))
+
+	// Zero width falls back to single line
+	lines = wrapList("    ", items, 0)
+	require.Len(t, lines, 1)
+	assert.Equal(t, "    agent, tui, bash, read, edit, write", lines[0])
 }

@@ -11,20 +11,22 @@ import (
 )
 
 // LandingModel renders a landing screen shown before the first prompt.
-// It displays the weave logo, current model/provider info, keybinding hints,
-// and a placeholder prompt.
+// It displays the weave logo, current model/provider info, loaded extensions,
+// and keybinding hints.
 type LandingModel struct {
-	model    string
-	provider string
-	width    int
-	height   int
+	model      string
+	provider   string
+	extensions []string
+	width      int
+	height     int
 }
 
-// NewLandingModel creates a landing model with the given model and provider info.
-func NewLandingModel(model, provider string) LandingModel {
+// NewLandingModel creates a landing model with the given model, provider, and extensions.
+func NewLandingModel(model, provider string, extensions []string) LandingModel {
 	return LandingModel{
-		model:    model,
-		provider: provider,
+		model:      model,
+		provider:   provider,
+		extensions: extensions,
 	}
 }
 
@@ -54,6 +56,8 @@ func (m LandingModel) Draw(scr uv.Screen, area uv.Rectangle) {
 	nameStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Accent)).Bold(true)
 	hintStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Border))
 	ruleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Border))
+	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().Muted))
+	mutedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(palette.DefaultTheme().MutedBright))
 
 	for i, line := range lines {
 		if y+i >= area.Max.Y {
@@ -73,6 +77,10 @@ func (m LandingModel) Draw(scr uv.Screen, area uv.Rectangle) {
 			if ruleWidth > 0 {
 				rendered = ruleStyle.Render(strings.Repeat("─", ruleWidth))
 			}
+		case strings.HasPrefix(line, "label:"):
+			rendered = labelStyle.Render(strings.TrimPrefix(line, "label:"))
+		case strings.HasPrefix(line, "muted:"):
+			rendered = mutedStyle.Render(strings.TrimPrefix(line, "muted:"))
 		default:
 			rendered = line
 		}
@@ -90,12 +98,65 @@ func (m LandingModel) buildLines() []string {
 		lines = append(lines, "", "name:"+label)
 	}
 
+	if len(m.extensions) > 0 {
+		lines = append(lines, "", "rule:")
+		lines = append(lines, "label:  extensions")
+		for _, extLine := range wrapList("    ", m.extensions, m.width) {
+			lines = append(lines, "muted:"+extLine)
+		}
+	}
+
 	lines = append(
 		lines,
 		"",
 		"hint:  ctrl+p model  ·  ctrl+l select  ·  shift+tab thinking",
 		"hint:  ctrl+n new  ·  ctrl+o expand  ·  ctrl+t toggle",
 	)
+
+	return lines
+}
+
+// wrapList formats a list of items as comma-separated strings, wrapping when
+// the line exceeds the available width. Each continuation line is prefixed.
+func wrapList(prefix string, items []string, width int) []string {
+	if len(items) == 0 {
+		return nil
+	}
+
+	if width <= 0 {
+		return []string{prefix + strings.Join(items, ", ")}
+	}
+
+	var lines []string
+	var b strings.Builder
+
+	for i, item := range items {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString(item)
+	}
+
+	text := b.String()
+	maxLine := max(width-len(prefix), 10)
+
+	for len(text) > 0 {
+		if len(text) <= maxLine {
+			lines = append(lines, prefix+text)
+			break
+		}
+
+		cut := maxLine
+		for cut > 0 && text[cut] != ' ' && text[cut] != ',' {
+			cut--
+		}
+		if cut == 0 {
+			cut = maxLine
+		}
+
+		lines = append(lines, prefix+text[:cut])
+		text = strings.TrimLeft(text[cut:], " ")
+	}
 
 	return lines
 }
