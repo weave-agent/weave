@@ -49,7 +49,7 @@ Standard library as much as possible. Every replaceable component is an extensio
 - `internal/log/` — `Setup(logFile, debug, extraWriters...)` configures `slog.Default()` with a JSON handler writing to a rotating file via lumberjack. `Initialized()` reports whether logging has been set up. Called by the launcher-generated `main.go` before wiring extensions so all extension logs are captured
 - `internal/wire/` — `WireExtensions()` and `WireWithCore()` composition roots that resolve names and subscribe extensions to the bus; `Run()` absorbs the full entry-point pipeline (config loading, auto-discovery via `launcher.AutoDiscover`, launcher build) and delegates extension management subcommands (`install`, `list`, `update`, `uninstall`) to `cmd/weave/extmanage/`; `CoreWireConfig` struct (AgentLoop, SingleTurn, Continue, Resume); `WireWithCore()` calls `sdk.InvokeBusSubscribers(bus)` before resolving extensions, calls `resolveSession()` when Continue/Resume are set, publishes `app.started` after wiring, sets `WEAVE_SINGLE_TURN` env var when `SingleTurn` is true, then calls `WireExtensions()`; `WireExtensions()` silently skips tools, providers, and UI extensions that appear in the extension names list; `WireExtensions()` checks auth status for all registered providers via `sdk.CheckProviderAuth` and stores results in the model registry via `model.SetProviderAuth`
 - `bus/` — callback-based event bus (`Publish`/`On`/`OnAll`/`Off`) with per-handler goroutines, non-blocking dispatch, `recover()` wrapping every handler invocation (panics trigger diagnostic events via configurable topics), and graceful close via `sync.WaitGroup`
-- `internal/auth/` — provider credential storage in `~/.weave/auth.json` with structured format `{"providers": {"anthropic": {"api_key": "..."}}}`; `Load()`/`Save()`/`SetProviderKey()`/`GetProviderKey()`; `LoadProviderAuth(providerName, target)` loads auth into a typed struct from auth.json + env vars (using `env` tags with no prefix). Used by the `sdk.RegisterProvider` wrapper for automatic auth injection into provider factories
+- `internal/auth/` — provider credential storage in `~/.weave/auth.json`; supports both API keys (`api_key`) and OAuth tokens (`access_token`, `refresh_token`, `expires_at`, `token_type`). `Load()`/`Save()`/`SetProviderKey()`/`GetProviderKey()`/`SetOAuthCredential()`/`GetOAuthCredential()`/`ClearProviderAuth()`/`RefreshOAuthToken()`; `LoadProviderAuth(providerName, target)` loads auth into a typed struct from auth.json + env vars (using `env` tags with no prefix). Used by the `sdk.RegisterProvider` wrapper for automatic auth injection into provider factories. Auth file permissions are `0600`
 - `settings/` — unified JSON-only settings system. Discovers `.weave/settings.json` by walking up from cwd, falling back to `~/.weave/settings.json`. `Settings` struct holds all config fields (agent_loop, ui_extension, providers, sandbox, jsonl, extensions, plus user preferences like provider, model, thinking_level, ui, tools). `FullConfig` implements `sdk.Config` with key resolution and typed extension config via `ExtensionConfig()`. `FullConfig.SetArgs(args)` stores remaining CLI args for extension-specific flag parsing. `FullConfig.SetProjectDir(dir)` overrides the project directory for layered settings resolution. `loader.go` — custom `Loader` struct with `Load(target)` that applies defaults → JSON data → env vars → CLI flags → validation, using struct tags (`default`, `env`, `flag`, `short`, `validate`, `description`). `merge.go` — `MergeSettings` deep-merges global → local layers for tool/UI preferences. `validation.go` — generic field-path validation (no extension-specific values). `ProjectDirFromConfig()` derives project root from config file path for auto-discovery from subdirectories. `help.go` — `GenerateFullHelp()` produces full `--help` output from registered extension schemas.
 - `internal/truncate/` — shared output truncation (2000 lines / 50KB) used by all tools for consistent output limiting
 - `utils/ripgrep/` — shared ripgrep binary detection (`Find()` returns `rg` path or empty string, cached via `sync.OnceValue`); used by find and grep tools for rg-first strategy
@@ -96,7 +96,7 @@ Standard library as much as possible. Every replaceable component is an extensio
 - Spinner color pulse: `SpinnerModel.tickCount` increments on each `spinner.TickMsg`. Color alternates between `Accent` and `AccentBright` every 3 ticks (6-tick cycle).
 - Editor border pulse: When agent is active (Streaming or ToolRunning), the editor border cycles a pulse animation across 8 positions (4 corners + 4 edge midpoints). Current position uses `AccentBright`, trailing position uses `Accent`, rest uses `BorderFocused`. Position updates every 500ms from the model. Disabled when idle or in error state. Implemented in `components/editor.go` `drawPulse()`.
 
-The model selector (`Ctrl+L`) and `/model` slash command filter to only providers with valid auth credentials using `model.ListAvailableModels()`. The `/providers` slash command shows key status via `model.ProviderHasAuth()`.
+The model selector (`Ctrl+L`) and `/model` slash command filter to only providers with valid auth credentials using `model.ListAvailableModels()`. The `/providers` slash command shows key status via `model.ProviderHasAuth()`. The `/login` slash command opens the auth selector for interactive API key or OAuth login. The `/logout` slash command shows configured providers and clears selected auth.
 
 - `launcher/` — full pipeline: `AutoDiscover` recursively scans project-local `.weave/extensions/`, global `~/.weave/extensions/`, and built-in `extensions/` for Go modules (dirs with `go.mod` + `.go` files); UI extensions detected internally (scans `.go` files for `RegisterUIExtension(`, `RegisterUI(`, or `RegisterTUIExtension(` calls); deduplicates by name (local > global > built-in); applies `exclude_extensions` list; `ComputeHash` of .go files (includes headless flag for different caches), `Cache` in `~/.weave/bin/{hash}/`, `Build` by generating go.mod+main.go with blank imports (filtering UI extensions for headless), then `syscall.Exec`; generated code imports `weave/internal/wire` and uses `wire.CoreWireConfig`/`wire.WireWithCore`; passes `WEAVE_LAUNCHER_PATH`, `WEAVE_BUILD_HASH`, and `WEAVE_ORIG_ARGS` env vars for `/reload` support
 
@@ -195,7 +195,7 @@ Context compaction summarizes old conversation messages to stay within the model
 
 **Extension lifecycle:** Extension packages call `sdk.RegisterExtension[T](name, factory)` in `init()`, where `T` is the extension's typed config struct and `factory` has signature `func(Config, PreferenceStore, T) (Extension, error)`. Provider factories receive three arguments: `func(Config, TConfig, TAuth) (Provider, error)`. Tool factories: `func(Config, PreferenceStore, TConfig) (Tool, error)`. UI extension factories: `func(Config, PreferenceStore, TConfig) (UIExtension, error)`. TUI-specific extension factories: `func(Config, PreferenceStore, TConfig) (TUIExtension, error)` registered via `sdk.RegisterTUIExtension[TConfig](name, factory)` in `init()`. For extensions needing a custom config scope (e.g. TUI uses `"ui"`, sandbox uses `"sandbox"`), use `sdk.RegisterExtensionWithScope[T](name, scope, factory)`. Duplicate registrations log a warning (first registration wins). The SDK extracts the config schema via reflection at registration time and stores it for help generation. UI extensions (universal plugins) call `sdk.RegisterUIExtension[TConfig](name, factory)` and are wired by the TUI at startup via `sdk.GetUIExtensions()`. TUI extensions (TUI-only plugins) call `sdk.RegisterTUIExtension[TConfig](name, factory)` and are wired by the TUI at startup via `sdk.GetTUIExtensions()`, receiving a `TUIExtAPI` implementation. All auto-discovered extensions are blank-imported in the generated binary, triggering registration. `wire.WireWithCore()` (from `internal/wire/`) calls `sdk.InvokeBusSubscribers(bus)` before resolving extensions, then resolves names from registries and calls `Subscribe(bus)` on each extension. Before subscribing, it publishes `app.started` on the bus. Extensions register handlers via `bus.On(topic, handler)` or `bus.OnAll(handler)` to receive events; `bus.Off(handler)` removes a handler. Handler panics are caught by the bus and published as diagnostic events via configurable topics (`extension.panic` and `extension.error` by default); errors from handlers are similarly published as diagnostic events. When no prompt is provided (`-p` flag unset), the TUI extension is included in the build for interactive mode; with `-p`, weave runs in print mode without TUI. `FullConfig.IsHeadless()` always returns `false`; headless mode is determined at the entry point (`internal/wire/run.go`) by whether `-p` was provided. `HeadlessConfig` wraps a `Config` and overrides `IsHeadless()` for specific scenarios. UI extensions and TUI extensions are silently skipped in headless mode.
 
-**Declarative provider auth** — Providers declare an auth struct with `json`/`env` tags in a separate `auth.go` file (e.g., `AuthConfig{APIKey string \`json:"api_key" env:"ANTHROPIC_API_KEY"\`}`). They register with `sdk.RegisterProvider[TConfig, TAuth](name, factory)`. The framework automatically loads auth from `~/.weave/auth.json` (structured `{"providers": {"name": {"api_key": "..."}}}`) and environment variables (no prefix — `ANTHROPIC_API_KEY` not `WEAVE_ANTHROPIC_API_KEY`), then passes the populated auth struct to the factory. Auth availability is tracked by the model registry (`model.SetProviderAuth`/`model.ProviderHasAuth`), set during `wire.Wire()` for all registered providers. The TUI and agent extension query `model.ProviderHasAuth` instead of calling `cfg.ResolveKey`.
+**Declarative provider auth** — Providers declare an auth struct with `json`/`env` tags in a separate `auth.go` file (e.g., `AuthConfig{APIKey string \`json:"api_key" env:"ANTHROPIC_API_KEY"\`, OAuthToken string \`json:"oauth_token"\`}`). They register with `sdk.RegisterProvider[TConfig, TAuth](name, factory)`. The framework automatically loads auth from `~/.weave/auth.json` (structured `{"providers": {"name": {"api_key": "..."}}}` or with OAuth token fields) and environment variables (no prefix — `ANTHROPIC_API_KEY` not `WEAVE_ANTHROPIC_API_KEY`), then passes the populated auth struct to the factory. Auth availability is tracked by the model registry (`model.SetProviderAuth`/`model.ProviderHasAuth`), set during `wire.Wire()` for all registered providers. The TUI and agent extension query `model.ProviderHasAuth` instead of calling `cfg.ResolveKey`.
 
 **Module boundaries** — Every extension has its own `go.mod` (e.g., `weave/ext/ui/tui`), making it a separate Go module. Go's `internal/` visibility rule applies at the module boundary, so root-module `internal/` packages are **not importable by extensions**. Anything extensions need to share — especially bus event payload types that cross producer/consumer boundaries — must live in a public shared module (typically `sdk/`). Never place event payload types in `internal/` packages if any extension needs to type-assert them.
 
@@ -245,10 +245,16 @@ Auth credentials are stored separately in `~/.weave/auth.json` (not in `settings
 {
   "providers": {
     "anthropic": { "api_key": "sk-ant-..." },
-    "openai": { "api_key": "sk-..." }
+    "openai": {
+      "access_token": "sk-...",
+      "refresh_token": "rt-...",
+      "expires_at": "2026-05-16T12:00:00Z",
+      "token_type": "bearer"
+    }
   }
 }
 ```
+Both API keys and OAuth tokens are valid authentication methods. The framework loads whichever is present and passes it to the provider factory. OAuth tokens are refreshed automatically when near expiry if a `refresh_token` is available.
 
 **Config validation** runs automatically on every `LoadFromDir` call via `ValidateWithConfigDir` in `settings/validation.go`. Generic checks only — no extension-specific value validation (runtime resolves names via registries). Currently validates `output` format (`"text"` or `"json"`). Extension names, sandbox modes, UI values, and agent loop names are not validated at load time.
 
@@ -363,12 +369,12 @@ Thinking level color mapping (grayscale temperature progression):
 **StreamOptions** (`sdk/model/`) passes per-request options (model, thinking level, max tokens) to providers via functional options: `model.WithModel(model)`, `model.WithThinkingLevel(level)`, `model.WithMaxTokens(n)`. Providers read these instead of re-creating on model switch.
 
 **Provider environment variables:**
-- `ANTHROPIC_API_KEY` — required for Anthropic provider (default model: `claude-sonnet-4-6`, override with `ANTHROPIC_MODEL`)
-- `OPENAI_API_KEY` — required for OpenAI provider (default model: `gpt-5.5`, override with `OPENAI_MODEL`)
+- `ANTHROPIC_API_KEY` — API key for Anthropic provider (default model: `claude-sonnet-4-6`, override with `ANTHROPIC_MODEL`). OAuth token is also accepted if set via `/login`.
+- `OPENAI_API_KEY` — API key for OpenAI provider (default model: `gpt-5.5`, override with `OPENAI_MODEL`). OAuth token is also accepted if set via `/login`.
 - `OPENAI_BASE_URL` — override the default API base URL for OpenAI provider
-- `ZAI_API_KEY` — required for Z.ai provider (default model: `glm-5.1`, override with `ZAI_MODEL`)
+- `ZAI_API_KEY` — API key for Z.ai provider (default model: `glm-5.1`, override with `ZAI_MODEL`). OAuth token is also accepted if set via `/login`.
 - `ZAI_BASE_URL` — override the default API base URL for Z.ai provider
-- `KIMI_API_KEY` — required for Kimi provider (default model: `kimi-for-coding`, override with `KIMI_MODEL`)
+- `KIMI_API_KEY` — API key for Kimi provider (default model: `kimi-for-coding`, override with `KIMI_MODEL`). OAuth token is also accepted if set via `/login`.
 - `KIMI_MAX_TOKENS` — override the default max tokens (32768) for Kimi provider
 - `KIMI_BASE_URL` — override the default API base URL for Kimi provider
 - `WEAVE_PROVIDER` — override the active provider at runtime (e.g., `openai`, `zai`); highest priority, overrides settings.json preference
@@ -399,6 +405,39 @@ The Kimi API uses `kimi-for-coding` as the stable model identifier; the backend 
 - `weave update [<name>]` — update git-sourced extensions via `git pull --ff-only`; no args updates all git-sourced extensions
 - `weave uninstall <name>` — remove an extension from `~/.weave/extensions/`; validates extension name exists
 - `/reload` — TUI slash command that invalidates the build cache and re-execs the launcher for a full rebuild, picking up extension changes without restarting the terminal
+
+## Authentication and Login
+
+Weave supports two authentication methods: API keys and OAuth. Both are stored in `~/.weave/auth.json` (permissions `0600`). Environment variables take precedence over file-based auth.
+
+### `/login` slash command (TUI only)
+
+Type `/login` in the TUI to open the auth selector. It shows all registered providers with their current auth status:
+- **OAuth providers** (e.g., OpenAI, GitHub Copilot): launches the OAuth flow — browser redirect for authorization code flows, or device code + verification URL for device code flows.
+- **API key providers** (all providers): opens a masked input dialog to enter the API key.
+
+On successful login, `auth.json` is updated, auth status is refreshed in the model registry (`model.SetProviderAuth`), and a success notification is shown. The model selector (`Ctrl+L`) will include the newly authenticated provider's models.
+
+### `/logout` slash command (TUI only)
+
+Type `/logout` to see all providers with configured auth. Selecting a provider clears its credentials from `auth.json` and updates the model registry. The provider's models are removed from the model selector.
+
+### OAuth flows
+
+- **Authorization code** (OpenAI): PKCE verifier is generated, browser opens to the provider's auth URL with redirect to `localhost`, a temporary callback server receives the code, and tokens are exchanged via HTTP POST.
+- **Device code** (GitHub Copilot): requests a device code from the provider, displays the user code and verification URL, polls the token endpoint at interval until authorized or timeout.
+
+### OAuth provider registry (`sdk/`)
+
+OAuth providers are registered in the SDK via `sdk.RegisterOAuthProvider(id, provider)`. Each provider defines its flow type (`AuthorizationCode` or `DeviceCode`), auth URL, token URL, device code URL (for device code flows), scopes, and optional client ID. `sdk.ListOAuthProviders()` and `sdk.GetOAuthProvider(id)` query the registry.
+
+### Token refresh
+
+When a provider uses an OAuth token, it checks expiry before each request. If the token is near expiry and a `refresh_token` is available, `auth.RefreshOAuthToken()` is called to exchange the refresh token for new access/refresh tokens, update `auth.json`, and retry the request. If refresh fails, the provider returns an auth-expired error.
+
+### Headless mode
+
+In headless mode (`-p` flag), `/login` and `/logout` are unavailable. Authentication must be set via environment variables or pre-populated `auth.json`.
 
 ## Session Resume
 

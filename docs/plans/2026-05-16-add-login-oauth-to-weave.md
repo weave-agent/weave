@@ -147,9 +147,9 @@ Add interactive login support to Weave's TUI, including both API key entry and O
 - [x] Verify test coverage for new code
 
 ### Task 12: Update documentation
-- [ ] Update CLAUDE.md auth section with `/login` and `/logout` usage
-- [ ] Update provider docs to mention OAuth support
-- [ ] Add example: `weave /login` → select provider → enter key or OAuth flow
+- [x] Update CLAUDE.md auth section with `/login` and `/logout` usage
+- [x] Update provider docs to mention OAuth support
+- [x] Add example: `weave /login` → select provider → enter key or OAuth flow
 
 ## Technical Details
 
