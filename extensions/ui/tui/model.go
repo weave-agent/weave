@@ -1199,18 +1199,15 @@ func (m Model) handleEscape() (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	activeTool := m.activeToolName()
 
-	switch activeTool {
-	case "await_agent":
+	if activeTool == "await_agent" || strings.HasPrefix(activeTool, "subagent_") {
 		if m.bus != nil {
 			cmd = PublishInterrupt(m.bus)
 		}
-	default:
-		if !strings.HasPrefix(activeTool, "subagent_") {
-			// First press — interrupt streaming if active, start timeout.
-			var model tea.Model
-			model, cmd = m.interruptStreaming()
-			m = model.(Model)
-		}
+	} else {
+		// First press — interrupt streaming if active, start timeout.
+		var model tea.Model
+		model, cmd = m.interruptStreaming()
+		m = model.(Model)
 	}
 
 	return m, tea.Batch(cmd, tea.Tick(doublePressWindow, func(_ time.Time) tea.Msg {

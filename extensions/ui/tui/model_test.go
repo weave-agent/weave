@@ -1306,7 +1306,7 @@ func TestModel_EscapeInterruptsAwaitAgent(t *testing.T) {
 	}
 }
 
-func TestModel_EscapeDoesNotInterruptActiveSubagent(t *testing.T) {
+func TestModel_EscapeInterruptsActiveSubagent(t *testing.T) {
 	b := bus.New()
 	defer b.Close()
 
@@ -1333,8 +1333,9 @@ func TestModel_EscapeDoesNotInterruptActiveSubagent(t *testing.T) {
 
 	select {
 	case evt := <-ch:
-		t.Fatalf("unexpected interrupt event: %#v", evt)
-	default:
+		assert.Equal(t, topicInterrupt, evt.Topic)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for interrupt event")
 	}
 }
 
