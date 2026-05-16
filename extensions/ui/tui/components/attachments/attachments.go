@@ -2,7 +2,6 @@ package attachments
 
 import (
 	"fmt"
-	"html"
 	"path/filepath"
 	"strings"
 
@@ -158,11 +157,11 @@ func (m Model) RenderPrompt(editorText string) string {
 
 	for i, a := range m.items {
 		if i > 0 {
-			sb.WriteString("\n")
+			sb.WriteString("\n\n")
 		}
 
 		name := filepath.Base(a.Path)
-		fmt.Fprintf(&sb, "<file name=%q>\n%s\n</file>", name, html.EscapeString(a.Content))
+		fmt.Fprintf(&sb, "File: %s\n%s", name, a.Content)
 	}
 
 	return sb.String()

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -44,6 +43,9 @@ type doublePressTimeoutMsg struct {
 	kind int // 0 = ctrl+c, 1 = escape
 	gen  int // generation counter to ignore stale timers
 }
+
+// toolFlashExpireMsg triggers a re-render after a tool panel flash expires.
+type toolFlashExpireMsg struct{}
 
 // pulseTickMsg advances the editor border pulse animation.
 type pulseTickMsg struct {
@@ -613,6 +615,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ToolResultMsg:
 		m.onToolResult(msg)
 
+		// Schedule a tick to ensure the post-flash settled border is rendered
+		// even if the TUI goes idle before the 800ms flash expires.
+		return m, tea.Tick(800*time.Millisecond, func(time.Time) tea.Msg {
+			return toolFlashExpireMsg{}
+		})
+
+	case toolFlashExpireMsg:
 		return m, nil
 
 	case TurnEndMsg:
@@ -1562,7 +1571,7 @@ func (m Model) onSubmit(text string) (tea.Model, tea.Cmd) {
 	if handled, result := m.commands.Dispatch(text); handled { //nolint:nestif // command dispatch has multiple optional outcomes
 		cmdName, cmdArgs := parseCommand(text)
 		if skillName, ok := strings.CutPrefix(cmdName, "/skill:"); ok {
-			xmlContent := fmt.Sprintf("<skill name=%q>\n%s\n</skill>", skillName, html.EscapeString(cmdArgs))
+			xmlContent := fmt.Sprintf("<skill name=%q>\n%s\n</skill>", skillName, cmdArgs)
 
 			m.chat = m.chat.AddItem(messages.NewUserMessage(xmlContent))
 			m.prompted = true

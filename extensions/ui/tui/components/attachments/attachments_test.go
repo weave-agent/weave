@@ -188,9 +188,8 @@ func TestRenderPrompt_WithAttachments(t *testing.T) {
 	m = m.Add(Attachment{Path: "/path/to/test.go", Content: "package main", Lines: 1})
 	result := m.RenderPrompt("fix this")
 	assert.Contains(t, result, "fix this")
-	assert.Contains(t, result, `<file name="test.go">`)
+	assert.Contains(t, result, "File: test.go")
 	assert.Contains(t, result, "package main")
-	assert.Contains(t, result, "</file>")
 }
 
 func TestRenderPrompt_MultipleAttachments(t *testing.T) {
@@ -198,16 +197,16 @@ func TestRenderPrompt_MultipleAttachments(t *testing.T) {
 	m = m.Add(Attachment{Path: "a.go", Content: "aaa", Lines: 1})
 	m = m.Add(Attachment{Path: "b.go", Content: "bbb", Lines: 1})
 	result := m.RenderPrompt("check these")
-	assert.Contains(t, result, `<file name="a.go">`)
-	assert.Contains(t, result, `<file name="b.go">`)
+	assert.Contains(t, result, "File: a.go")
+	assert.Contains(t, result, "File: b.go")
 }
 
 func TestRenderPrompt_EmptyEditorText(t *testing.T) {
 	m := New()
 	m = m.Add(Attachment{Path: "a.go", Content: "aaa", Lines: 1})
 	result := m.RenderPrompt("")
-	assert.Contains(t, result, `<file name="a.go">`)
-	assert.NotContains(t, result, "\n\n<file")
+	assert.Contains(t, result, "File: a.go")
+	assert.NotContains(t, result, "\n\nFile:")
 }
 
 func TestDraw_NoAttachments(t *testing.T) {

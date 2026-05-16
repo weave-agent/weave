@@ -2158,7 +2158,7 @@ func TestModel_SubmitWithAttachments(t *testing.T) {
 
 	content := um.Content()
 	assert.Contains(t, content, "review this")
-	assert.Contains(t, content, `<file name="test.go">`)
+	assert.Contains(t, content, "File: test.go")
 	assert.Contains(t, content, "package main")
 
 	// Followup should be published
