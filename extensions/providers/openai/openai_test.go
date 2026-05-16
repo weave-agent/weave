@@ -201,6 +201,71 @@ func TestStream_APIError(t *testing.T) {
 	assert.Contains(t, err.Error(), "Invalid API key")
 }
 
+func TestStream_RefreshesExpiredOAuthToken(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	var chatAuth string
+
+	chatServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		chatAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = fmt.Fprint(w, sseStream(
+			sseChunk(openaicompat.ChunkDelta{Content: "ok"}, nil),
+			sseChunk(openaicompat.ChunkDelta{}, new("stop")),
+			sseDone(),
+		))
+	}))
+	defer chatServer.Close()
+
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm())
+		assert.Equal(t, "refresh_token", r.FormValue("grant_type"))
+		assert.Equal(t, "rt-old", r.FormValue("refresh_token"))
+		_ = json.NewEncoder(w).Encode(map[string]any{"access_token": "at-new", "expires_in": 3600})
+	}))
+	defer tokenServer.Close()
+
+	oldCred := sdk.OAuthCredential{AccessToken: "at-old", RefreshToken: "rt-old", ExpiresAt: time.Now().Add(-time.Minute)}
+	require.NoError(t, sdk.SetOAuthCredential("openai", oldCred))
+
+	p := &provider{
+		client: chatServer.Client(),
+		config: openaicompat.ProviderConfig{
+			BaseURL:       chatServer.URL,
+			APIKey:        oldCred.AccessToken,
+			Model:         "gpt-5.5",
+			ModifyRequest: modifyRequest("gpt-5.5"),
+		},
+		oauthToken: oldCred,
+		tokenURL:   tokenServer.URL,
+	}
+
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{Messages: []sdk.Message{sdk.NewUserMessage("hi")}})
+	require.NoError(t, err)
+	collectEvents(t, ch)
+
+	assert.Equal(t, "Bearer at-new", chatAuth)
+}
+
+func TestStream_ExpiredOAuthRefreshFailure(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	oldCred := sdk.OAuthCredential{AccessToken: "at-old", ExpiresAt: time.Now().Add(-time.Minute)}
+
+	p := &provider{
+		client:     &http.Client{},
+		config:     openaicompat.ProviderConfig{BaseURL: "http://127.0.0.1:1", APIKey: oldCred.AccessToken, Model: "gpt-5.5"},
+		oauthToken: oldCred,
+		tokenURL:   "http://127.0.0.1:1/token",
+	}
+
+	_, err := p.Stream(context.Background(), sdk.ProviderRequest{Messages: []sdk.Message{sdk.NewUserMessage("hi")}})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "auth expired")
+}
+
 func TestStream_WithTools(t *testing.T) {
 	var receivedBody openaicompat.ChatRequest
 

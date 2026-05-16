@@ -117,12 +117,12 @@ Add interactive login support to Weave's TUI, including both API key entry and O
 - [x] Run `make test` — must pass before Task 9
 
 ### Task 9: Add lazy token refresh
-- [ ] Add `RefreshOAuthToken` to `internal/auth/` — uses refresh token, updates `auth.json`
-- [ ] Provider factories call refresh before using OAuth token if near expiry
-- [ ] Graceful fallback to "auth expired" error if refresh fails
-- [ ] Write tests for token refresh (mocked HTTP)
-- [ ] Write tests for expiry check and fallback
-- [ ] Run `make test` — must pass before Task 10
+- [x] Add `RefreshOAuthToken` to `internal/auth/` — uses refresh token, updates `auth.json`
+- [x] Provider factories call refresh before using OAuth token if near expiry
+- [x] Graceful fallback to "auth expired" error if refresh fails
+- [x] Write tests for token refresh (mocked HTTP)
+- [x] Write tests for expiry check and fallback
+- [x] Run `make test` — must pass before Task 10
 
 ### Task 10: Update provider auth structs for OAuth
 - [ ] Update `extensions/providers/anthropic/auth.go` to include `OAuthToken` field

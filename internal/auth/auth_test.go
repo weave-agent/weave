@@ -2,6 +2,8 @@ package auth
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -250,6 +252,89 @@ func TestOAuthCredential_IsExpired(t *testing.T) {
 	assert.True(t, OAuthCredential{ExpiresAt: past}.IsExpired())
 	assert.False(t, OAuthCredential{ExpiresAt: future}.IsExpired())
 	assert.False(t, OAuthCredential{}.IsExpired())
+}
+
+func TestOAuthCredential_ExpiresWithin(t *testing.T) {
+	soon := time.Now().Add(30 * time.Second)
+	later := time.Now().Add(2 * time.Minute)
+
+	assert.True(t, OAuthCredential{ExpiresAt: soon}.ExpiresWithin(time.Minute))
+	assert.False(t, OAuthCredential{ExpiresAt: later}.ExpiresWithin(time.Minute))
+	assert.False(t, OAuthCredential{}.ExpiresWithin(time.Minute))
+}
+
+func TestRefreshOAuthTokenIfNeeded_NotNearExpiry(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	cred := OAuthCredential{AccessToken: "at-current", RefreshToken: "rt-current", ExpiresAt: time.Now().Add(time.Hour)}
+	refreshed, err := RefreshOAuthTokenIfNeeded(t.Context(), "openai", "http://127.0.0.1:1/token", "client", cred)
+	require.NoError(t, err)
+	assert.Equal(t, cred.AccessToken, refreshed.AccessToken)
+}
+
+func TestRefreshOAuthTokenIfNeeded_RefreshesNearExpiry(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm())
+		assert.Equal(t, "rt-old", r.FormValue("refresh_token"))
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"access_token": "at-new",
+			"expires_in":   3600,
+		})
+	}))
+	defer server.Close()
+
+	oldCred := OAuthCredential{
+		AccessToken:  "at-old",
+		RefreshToken: "rt-old",
+		ExpiresAt:    time.Now().Add(30 * time.Second),
+		TokenType:    "bearer",
+	}
+	require.NoError(t, SetOAuthCredential("openai", oldCred))
+
+	refreshed, err := RefreshOAuthTokenIfNeeded(t.Context(), "openai", server.URL, "client-id", oldCred)
+	require.NoError(t, err)
+	assert.Equal(t, "at-new", refreshed.AccessToken)
+	assert.Equal(t, "rt-old", refreshed.RefreshToken)
+	assert.Equal(t, "bearer", refreshed.TokenType)
+	assert.True(t, refreshed.ExpiresAt.After(time.Now().Add(30*time.Minute)))
+
+	loaded, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, "at-new", loaded.GetOAuthCredential("openai").AccessToken)
+}
+
+func TestRefreshOAuthTokenIfNeeded_MissingRefreshToken(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	cred := OAuthCredential{AccessToken: "at-old", ExpiresAt: time.Now().Add(-time.Minute)}
+	_, err := RefreshOAuthTokenIfNeeded(t.Context(), "openai", "http://127.0.0.1:1/token", "client", cred)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "auth expired")
+	assert.Contains(t, err.Error(), "refresh token missing")
+}
+
+func TestRefreshOAuthTokenIfNeeded_RefreshFailure(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{"error": "invalid_grant"})
+	}))
+	defer server.Close()
+
+	cred := OAuthCredential{AccessToken: "at-old", RefreshToken: "rt-old", ExpiresAt: time.Now().Add(-time.Minute)}
+	require.NoError(t, SetOAuthCredential("openai", cred))
+
+	_, err := RefreshOAuthTokenIfNeeded(t.Context(), "openai", server.URL, "client", cred)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "auth expired")
+	assert.Contains(t, err.Error(), "invalid_grant")
 }
 
 func TestBackwardCompatibility_OldAuthFileWithoutOAuth(t *testing.T) {

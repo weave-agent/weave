@@ -179,6 +179,57 @@ func TestExchangeAuthorizationCode_ErrorResponse(t *testing.T) {
 	assert.Contains(t, err.Error(), "The provided authorization grant is invalid")
 }
 
+func TestRefreshToken_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodPost, r.Method)
+		assert.Equal(t, "application/x-www-form-urlencoded", r.Header.Get("Content-Type"))
+
+		require.NoError(t, r.ParseForm())
+		assert.Equal(t, "refresh_token", r.FormValue("grant_type"))
+		assert.Equal(t, "client-id", r.FormValue("client_id"))
+		assert.Equal(t, "rt-old", r.FormValue("refresh_token"))
+
+		resp := map[string]any{
+			"access_token":  "at-new",
+			"refresh_token": "rt-new",
+			"token_type":    "bearer",
+			"expires_in":    3600,
+		}
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	result, err := RefreshToken(ctx, server.URL, "client-id", "rt-old")
+	require.NoError(t, err)
+	assert.Equal(t, "at-new", result.AccessToken)
+	assert.Equal(t, "rt-new", result.RefreshToken)
+	assert.Equal(t, "bearer", result.TokenType)
+	assert.Equal(t, 3600, result.ExpiresIn)
+}
+
+func TestRefreshToken_ErrorResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"error":             "invalid_grant",
+			"error_description": "Refresh token expired",
+		})
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := RefreshToken(ctx, server.URL, "client-id", "rt-old")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "token refresh failed")
+	assert.Contains(t, err.Error(), "invalid_grant")
+	assert.Contains(t, err.Error(), "Refresh token expired")
+}
+
 func TestExchangeAuthorizationCode_HTTPError(t *testing.T) {
 	pkce := PKCE{Verifier: "v", Challenge: "c", Method: "S256"}
 

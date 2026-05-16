@@ -19,28 +19,39 @@ type OpenAIConfig struct {
 
 // AuthConfig holds authentication credentials for the OpenAI provider.
 type AuthConfig struct {
-	APIKey string `json:"api_key" env:"OPENAI_API_KEY" validate:"required" description:"API key"`
+	APIKey     string              `json:"api_key" env:"OPENAI_API_KEY" description:"API key"`
+	OAuthToken sdk.OAuthCredential `json:"oauth_token"`
 }
 
 type provider struct {
-	client *http.Client
-	config openaicompat.ProviderConfig
+	client      *http.Client
+	config      openaicompat.ProviderConfig
+	oauthToken  sdk.OAuthCredential
+	oauthClient string
+	tokenURL    string
 }
 
 func init() {
 	sdk.RegisterProvider[OpenAIConfig, AuthConfig]("openai", func(cfg sdk.Config, oc OpenAIConfig, a AuthConfig) (sdk.Provider, error) {
-		if a.APIKey == "" {
-			return nil, errors.New("openai: API key required (set OPENAI_API_KEY or add to ~/.weave/auth.json)")
+		apiKey := a.APIKey
+		if apiKey == "" {
+			apiKey = a.OAuthToken.AccessToken
+		}
+
+		if apiKey == "" {
+			return nil, errors.New("openai: API key or OAuth token required (set OPENAI_API_KEY, use /login, or add to ~/.weave/auth.json)")
 		}
 
 		return &provider{
 			client: &http.Client{},
 			config: openaicompat.ProviderConfig{
 				BaseURL:       oc.BaseURL,
-				APIKey:        a.APIKey,
+				APIKey:        apiKey,
 				Model:         oc.Model,
 				ModifyRequest: modifyRequest(oc.Model),
 			},
+			oauthToken: a.OAuthToken,
+			tokenURL:   "https://api.openai.com/v1/oauth/token",
 		}, nil
 	})
 }
@@ -76,10 +87,31 @@ func modifyRequest(modelName string) func(body map[string]any, so *model.StreamO
 }
 
 func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest, opts ...model.StreamOption) (<-chan sdk.ProviderEvent, error) {
-	ch, err := openaicompat.Stream(ctx, p.client, p.config, req, opts...)
+	cfg, err := p.configWithFreshToken(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("openai: %w", err)
+	}
+
+	ch, err := openaicompat.Stream(ctx, p.client, cfg, req, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("openai: %w", err)
 	}
 
 	return ch, nil
+}
+
+func (p *provider) configWithFreshToken(ctx context.Context) (openaicompat.ProviderConfig, error) {
+	if p.oauthToken.AccessToken == "" {
+		return p.config, nil
+	}
+
+	cred, err := sdk.RefreshOAuthTokenIfNeeded(ctx, "openai", p.tokenURL, p.oauthClient, p.oauthToken)
+	if err != nil {
+		return openaicompat.ProviderConfig{}, err
+	}
+
+	p.oauthToken = cred
+	p.config.APIKey = cred.AccessToken
+
+	return p.config, nil
 }

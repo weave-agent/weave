@@ -34,6 +34,15 @@ func SetOAuthCredential(providerName string, cred OAuthCredential) error {
 	return nil
 }
 
+func RefreshOAuthTokenIfNeeded(ctx context.Context, providerName, tokenURL, clientID string, cred OAuthCredential) (OAuthCredential, error) {
+	refreshed, err := auth.RefreshOAuthTokenIfNeeded(ctx, providerName, tokenURL, clientID, cred)
+	if err != nil {
+		return OAuthCredential{}, fmt.Errorf("refresh oauth token: %w", err)
+	}
+
+	return refreshed, nil
+}
+
 // RunAuthorizationCodeFlow executes the full OAuth authorization code flow.
 // It starts a callback server, opens the browser, waits for the callback,
 // exchanges the code for tokens, and returns the credential.

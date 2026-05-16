@@ -127,6 +127,20 @@ func ExchangeAuthorizationCode(ctx context.Context, tokenURL, clientID, code, re
 	data.Set("redirect_uri", redirectURI)
 	data.Set("code_verifier", pkce.Verifier)
 
+	return postTokenForm(ctx, tokenURL, data, "token exchange")
+}
+
+// RefreshToken exchanges a refresh token for a new access token.
+func RefreshToken(ctx context.Context, tokenURL, clientID, refreshToken string) (TokenResponse, error) {
+	data := url.Values{}
+	data.Set("grant_type", "refresh_token")
+	data.Set("client_id", clientID)
+	data.Set("refresh_token", refreshToken)
+
+	return postTokenForm(ctx, tokenURL, data, "token refresh")
+}
+
+func postTokenForm(ctx context.Context, tokenURL string, data url.Values, operation string) (TokenResponse, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenURL, strings.NewReader(data.Encode()))
 	if err != nil {
 		return TokenResponse{}, fmt.Errorf("create token request: %w", err)
@@ -162,7 +176,7 @@ func ExchangeAuthorizationCode(ctx context.Context, tokenURL, clientID, code, re
 			msg = fmt.Sprintf("token endpoint returned %d", resp.StatusCode)
 		}
 
-		return TokenResponse{}, fmt.Errorf("token exchange failed: %s", msg)
+		return TokenResponse{}, fmt.Errorf("%s failed: %s", operation, msg)
 	}
 
 	return tokenResp, nil

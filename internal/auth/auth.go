@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -16,13 +17,20 @@ type OAuthCredential struct {
 	TokenType    string    `json:"token_type,omitempty"`
 }
 
+const oauthRefreshSkew = time.Minute
+
 // IsExpired returns true if the credential has an expiry time that has passed.
 func (o OAuthCredential) IsExpired() bool {
+	return o.ExpiresWithin(0)
+}
+
+// ExpiresWithin returns true if the credential expires within d.
+func (o OAuthCredential) ExpiresWithin(d time.Duration) bool {
 	if o.ExpiresAt.IsZero() {
 		return false
 	}
 
-	return time.Now().After(o.ExpiresAt)
+	return time.Now().Add(d).After(o.ExpiresAt)
 }
 
 // File represents ~/.weave/auth.json.
@@ -231,4 +239,61 @@ func ClearProviderAuth(providerName string) error {
 	delete(auth.Providers, providerName)
 
 	return Save(auth)
+}
+
+func RefreshOAuthToken(ctx context.Context, providerName, tokenURL, clientID string) (OAuthCredential, error) {
+	auth, err := Load()
+	if err != nil {
+		return OAuthCredential{}, err
+	}
+
+	cred := auth.GetOAuthCredential(providerName)
+	if cred.RefreshToken == "" {
+		return OAuthCredential{}, fmt.Errorf("%s auth expired: refresh token missing", providerName)
+	}
+
+	tokenResp, err := RefreshToken(ctx, tokenURL, clientID, cred.RefreshToken)
+	if err != nil {
+		return OAuthCredential{}, fmt.Errorf("%s auth expired: %w", providerName, err)
+	}
+
+	refreshed := OAuthCredential{
+		AccessToken:  tokenResp.AccessToken,
+		RefreshToken: tokenResp.RefreshToken,
+		TokenType:    tokenResp.TokenType,
+	}
+
+	if refreshed.RefreshToken == "" {
+		refreshed.RefreshToken = cred.RefreshToken
+	}
+
+	if refreshed.TokenType == "" {
+		refreshed.TokenType = cred.TokenType
+	}
+
+	if tokenResp.ExpiresIn > 0 {
+		refreshed.ExpiresAt = time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
+	}
+
+	if refreshed.AccessToken == "" {
+		return OAuthCredential{}, fmt.Errorf("%s auth expired: refresh response missing access token", providerName)
+	}
+
+	if err := SetOAuthCredential(providerName, refreshed); err != nil {
+		return OAuthCredential{}, fmt.Errorf("save refreshed oauth credential: %w", err)
+	}
+
+	return refreshed, nil
+}
+
+func RefreshOAuthTokenIfNeeded(ctx context.Context, providerName, tokenURL, clientID string, cred OAuthCredential) (OAuthCredential, error) {
+	if cred.AccessToken == "" {
+		return cred, nil
+	}
+
+	if !cred.ExpiresWithin(oauthRefreshSkew) {
+		return cred, nil
+	}
+
+	return RefreshOAuthToken(ctx, providerName, tokenURL, clientID)
 }
