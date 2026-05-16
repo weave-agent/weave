@@ -134,17 +134,17 @@ Add interactive login support to Weave's TUI, including both API key entry and O
 - [x] Run `make test` — must pass before Task 11
 
 ### Task 11: Verify acceptance criteria
-- [ ] `/login` shows provider selector with OAuth + API key options
-- [ ] `/logout` shows configured providers and clears selected auth
-- [ ] API key entry works end-to-end (input → storage → provider auth)
-- [ ] OAuth flows work for OpenAI (authorization code) and Copilot (device code)
-- [ ] Token refresh happens automatically on expiry
-- [ ] Auth status correctly shows in model selector (only configured providers/models)
-- [ ] Headless mode unchanged (no TUI login, env vars still work)
-- [ ] Backward compatibility: existing auth.json files work
-- [ ] Run full test suite: `make test`
-- [ ] Run linter: `make lint`
-- [ ] Verify test coverage for new code
+- [x] `/login` shows provider selector with OAuth + API key options
+- [x] `/logout` shows configured providers and clears selected auth
+- [x] API key entry works end-to-end (input → storage → provider auth)
+- [x] OAuth flows work for OpenAI (authorization code) and Copilot (device code)
+- [x] Token refresh happens automatically on expiry
+- [x] Auth status correctly shows in model selector (only configured providers/models)
+- [x] Headless mode unchanged (no TUI login, env vars still work)
+- [x] Backward compatibility: existing auth.json files work
+- [x] Run full test suite: `make test`
+- [x] Run linter: `make lint`
+- [x] Verify test coverage for new code
 
 ### Task 12: Update documentation
 - [ ] Update CLAUDE.md auth section with `/login` and `/logout` usage

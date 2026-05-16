@@ -125,6 +125,7 @@ func (d *agentPanelDrawer) formatElapsed(agent *TrackedAgent) string {
 // formatResult truncates and formats the result for display in the panel.
 func (d *agentPanelDrawer) formatResult(result string, maxWidth, maxLines int) string {
 	lines := strings.Split(strings.TrimSpace(result), "\n")
+
 	if maxLines <= 0 {
 		return ""
 	}

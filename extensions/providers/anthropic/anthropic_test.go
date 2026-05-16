@@ -104,17 +104,19 @@ func collectEvents(t *testing.T, ch <-chan sdk.ProviderEvent) []sdk.ProviderEven
 }
 
 func TestAuthConfig_WithOAuthToken(t *testing.T) {
-	cfg := AuthConfig{OAuthToken: sdk.OAuthCredential{AccessToken: "oauth-token"}}
+	cfg := AuthConfig{OAuthToken: sdk.OAuthCredential{AccessToken: "test-access-value"}}
+
 	apiKey := cfg.APIKey
 	if apiKey == "" {
 		apiKey = cfg.OAuthToken.AccessToken
 	}
 
-	assert.Equal(t, "oauth-token", apiKey)
+	assert.Equal(t, "test-access-value", apiKey)
 }
 
 func TestAuthConfig_PrefersAPIKeyOverOAuthToken(t *testing.T) {
-	cfg := AuthConfig{APIKey: "api-key", OAuthToken: sdk.OAuthCredential{AccessToken: "oauth-token"}}
+	cfg := AuthConfig{APIKey: "api-key", OAuthToken: sdk.OAuthCredential{AccessToken: "test-access-value"}}
+
 	apiKey := cfg.APIKey
 	if apiKey == "" {
 		apiKey = cfg.OAuthToken.AccessToken

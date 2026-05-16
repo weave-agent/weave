@@ -1294,8 +1294,7 @@ func TestModel_EscapeInterruptsAwaitAgent(t *testing.T) {
 	})
 	m = model.(Model)
 
-	model, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
-	m = model.(Model)
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 
 	require.NotNil(t, cmd)
 
@@ -1328,8 +1327,7 @@ func TestModel_EscapeInterruptsActiveSubagent(t *testing.T) {
 	})
 	m = model.(Model)
 
-	model, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
-	m = model.(Model)
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 
 	require.NotNil(t, cmd)
 
@@ -1369,8 +1367,7 @@ func TestModel_EscapeInterruptsAwaitAgentAfterSubagentCompletes(t *testing.T) {
 	})
 	m = model.(Model)
 
-	model, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
-	m = model.(Model)
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 
 	require.NotNil(t, cmd)
 

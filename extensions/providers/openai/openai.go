@@ -23,6 +23,8 @@ type AuthConfig struct {
 	OAuthToken sdk.OAuthCredential `json:"oauth_token"`
 }
 
+const openAITokenURL = "https://api.openai.com/v1/oauth/token" // #nosec G101 -- OAuth endpoint URL, not a credential.
+
 type provider struct {
 	client      *http.Client
 	config      openaicompat.ProviderConfig
@@ -51,7 +53,7 @@ func init() {
 				ModifyRequest: modifyRequest(oc.Model),
 			},
 			oauthToken: a.OAuthToken,
-			tokenURL:   "https://api.openai.com/v1/oauth/token",
+			tokenURL:   openAITokenURL,
 		}, nil
 	})
 }
@@ -107,7 +109,7 @@ func (p *provider) configWithFreshToken(ctx context.Context) (openaicompat.Provi
 
 	cred, err := sdk.RefreshOAuthTokenIfNeeded(ctx, "openai", p.tokenURL, p.oauthClient, p.oauthToken)
 	if err != nil {
-		return openaicompat.ProviderConfig{}, err
+		return openaicompat.ProviderConfig{}, fmt.Errorf("refresh oauth token: %w", err)
 	}
 
 	p.oauthToken = cred

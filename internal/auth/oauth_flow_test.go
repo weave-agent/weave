@@ -184,7 +184,11 @@ func TestRefreshToken_Success(t *testing.T) {
 		assert.Equal(t, http.MethodPost, r.Method)
 		assert.Equal(t, "application/x-www-form-urlencoded", r.Header.Get("Content-Type"))
 
-		require.NoError(t, r.ParseForm())
+		if err := r.ParseForm(); err != nil {
+			t.Errorf("parse form: %v", err)
+			return
+		}
+
 		assert.Equal(t, "refresh_token", r.FormValue("grant_type"))
 		assert.Equal(t, "client-id", r.FormValue("client_id"))
 		assert.Equal(t, "rt-old", r.FormValue("refresh_token"))

@@ -1149,7 +1149,7 @@ func TestProviderInit_WithOAuthToken(t *testing.T) {
 
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
-	require.NoError(t, sdk.SetOAuthCredential("kimi", sdk.OAuthCredential{AccessToken: "oauth-token"}))
+	require.NoError(t, sdk.SetOAuthCredential("kimi", sdk.OAuthCredential{AccessToken: "test-access-value"}))
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeSSE(w, textStreamEvents("hi"))
@@ -1166,7 +1166,8 @@ func TestProviderInit_WithOAuthToken(t *testing.T) {
 }
 
 func TestAuthConfig_PrefersAPIKeyOverOAuthToken(t *testing.T) {
-	cfg := AuthConfig{APIKey: "api-key", OAuthToken: sdk.OAuthCredential{AccessToken: "oauth-token"}}
+	cfg := AuthConfig{APIKey: "api-key", OAuthToken: sdk.OAuthCredential{AccessToken: "test-access-value"}}
+
 	apiKey := cfg.APIKey
 	if apiKey == "" {
 		apiKey = cfg.OAuthToken.AccessToken

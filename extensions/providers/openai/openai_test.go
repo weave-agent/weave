@@ -219,9 +219,14 @@ func TestStream_RefreshesExpiredOAuthToken(t *testing.T) {
 	defer chatServer.Close()
 
 	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.NoError(t, r.ParseForm())
+		if err := r.ParseForm(); err != nil {
+			t.Errorf("parse form: %v", err)
+			return
+		}
+
 		assert.Equal(t, "refresh_token", r.FormValue("grant_type"))
 		assert.Equal(t, "rt-old", r.FormValue("refresh_token"))
+
 		_ = json.NewEncoder(w).Encode(map[string]any{"access_token": "at-new", "expires_in": 3600})
 	}))
 	defer tokenServer.Close()
@@ -255,10 +260,14 @@ func TestStream_ExpiredOAuthRefreshFailure(t *testing.T) {
 	oldCred := sdk.OAuthCredential{AccessToken: "at-old", ExpiresAt: time.Now().Add(-time.Minute)}
 
 	p := &provider{
-		client:     &http.Client{},
-		config:     openaicompat.ProviderConfig{BaseURL: "http://127.0.0.1:1", APIKey: oldCred.AccessToken, Model: "gpt-5.5"},
+		client: &http.Client{},
+		config: openaicompat.ProviderConfig{
+			BaseURL: "http://127.0.0.1:1",
+			APIKey:  oldCred.AccessToken,
+			Model:   "gpt-5.5",
+		},
 		oauthToken: oldCred,
-		tokenURL:   "http://127.0.0.1:1/token",
+		tokenURL:   "http://127.0.0.1:1/token", // #nosec G101 -- test endpoint URL, not a credential.
 	}
 
 	_, err := p.Stream(context.Background(), sdk.ProviderRequest{Messages: []sdk.Message{sdk.NewUserMessage("hi")}})

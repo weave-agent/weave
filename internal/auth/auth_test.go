@@ -278,8 +278,13 @@ func TestRefreshOAuthTokenIfNeeded_RefreshesNearExpiry(t *testing.T) {
 	t.Setenv("HOME", dir)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.NoError(t, r.ParseForm())
+		if err := r.ParseForm(); err != nil {
+			t.Errorf("parse form: %v", err)
+			return
+		}
+
 		assert.Equal(t, "rt-old", r.FormValue("refresh_token"))
+
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"access_token": "at-new",
 			"expires_in":   3600,

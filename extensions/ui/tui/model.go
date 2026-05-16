@@ -502,6 +502,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		// Tray key navigation when focused
+		//nolint:nestif // Tray focus handles three key paths with shared model mutation.
 		if m.focus == FocusTray {
 			if msg.Code == tea.KeyRight {
 				m.panelTray = m.panelTray.Next()

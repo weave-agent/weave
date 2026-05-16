@@ -117,7 +117,7 @@ func TestProviderInit_WithOAuthToken(t *testing.T) {
 	t.Cleanup(func() { settings.SetSettingsPath("") })
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "Bearer oauth-token", r.Header.Get("Authorization"))
+		assert.Equal(t, "Bearer test-access-value", r.Header.Get("Authorization"))
 		w.Header().Set("Content-Type", "text/event-stream")
 		_, _ = fmt.Fprint(w, sseStream(
 			sseChunk(openaicompat.ChunkDelta{Content: "ok"}, nil),
@@ -127,7 +127,7 @@ func TestProviderInit_WithOAuthToken(t *testing.T) {
 	}))
 	defer server.Close()
 
-	require.NoError(t, sdk.SetOAuthCredential("zai", sdk.OAuthCredential{AccessToken: "oauth-token"}))
+	require.NoError(t, sdk.SetOAuthCredential("zai", sdk.OAuthCredential{AccessToken: "test-access-value"}))
 
 	cfg := &testConfig{providerData: map[string]any{"base_url": server.URL}}
 	p, err := sdk.GetProvider("zai", cfg)
@@ -155,7 +155,7 @@ func TestProviderInit_PrefersAPIKeyOverOAuthToken(t *testing.T) {
 	}))
 	defer server.Close()
 
-	require.NoError(t, sdk.SetOAuthCredential("zai", sdk.OAuthCredential{AccessToken: "oauth-token"}))
+	require.NoError(t, sdk.SetOAuthCredential("zai", sdk.OAuthCredential{AccessToken: "test-access-value"}))
 	t.Setenv("ZAI_API_KEY", "api-key")
 
 	cfg := &testConfig{providerData: map[string]any{"base_url": server.URL}}
