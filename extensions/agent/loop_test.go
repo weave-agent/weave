@@ -1892,7 +1892,7 @@ func TestAgent_SessionResume_EmptyMessages(t *testing.T) {
 	assert.Equal(t, "first", calls[0].Req.Messages[0].Content)
 }
 
-func TestAgent_SessionResume_AfterPromptIgnored(t *testing.T) {
+func TestAgent_SessionResume_AfterPromptHandled(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
@@ -1922,7 +1922,8 @@ func TestAgent_SessionResume_AfterPromptIgnored(t *testing.T) {
 		},
 	}))
 
-	// Send another prompt - should reset because the first prompt already cleared resumed state
+	// Send another prompt - should append to restored messages since session.resume
+	// is now handled in waitForInput.
 	b.Publish(sdk.NewEvent(TopicPrompt, "new conversation"))
 
 	_, ok = waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
@@ -1935,16 +1936,12 @@ func TestAgent_SessionResume_AfterPromptIgnored(t *testing.T) {
 
 	calls := mp.StreamCalls()
 	require.Len(t, calls, 2)
-	// First call: 1 message
+	// First call: 1 message (original prompt)
 	assert.Len(t, calls[0].Req.Messages, 1)
-	// Second call: session.resume arrived after prompt, but in waitForInput it's
-	// only processed in prompt/followup/steer/modelChange/thinking cases.
-	// Actually, session.resume is not handled in waitForInput at all currently.
-	// Let me verify what happens... In the waitForInput select, there's no case
-	// for sessionResumeCh, so the event just sits in the channel.
-	// The second prompt resets messages to just the new prompt.
-	assert.Len(t, calls[1].Req.Messages, 1)
-	assert.Equal(t, "new conversation", calls[1].Req.Messages[0].Content)
+	// Second call: restored message + new prompt appended
+	assert.Len(t, calls[1].Req.Messages, 2)
+	assert.Equal(t, "restored", calls[1].Req.Messages[0].Content)
+	assert.Equal(t, "new conversation", calls[1].Req.Messages[1].Content)
 }
 
 func TestAgent_SessionResume_InvalidPayloadIgnored(t *testing.T) {

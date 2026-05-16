@@ -339,6 +339,10 @@ func (s *Store) handleMsgEnd(evt sdk.Event) {
 		if tc, ok := p["tool_calls"]; ok {
 			payload["tool_calls"] = tc
 		}
+
+		if th, ok := p["thinking"]; ok {
+			payload["thinking"] = th
+		}
 	case string:
 		payload["content"] = p
 	}

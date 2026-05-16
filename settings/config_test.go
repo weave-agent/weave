@@ -860,16 +860,6 @@ func TestLoad_ContinueFlag(t *testing.T) {
 	assert.Empty(t, cf.Resume)
 }
 
-func TestLoad_ContinueShortFlag(t *testing.T) {
-	dir := t.TempDir()
-	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
-
-	_, cf, _, err := LoadFromDir(dir, []string{"-c"})
-	require.NoError(t, err)
-	assert.True(t, cf.Continue)
-	assert.Empty(t, cf.Resume)
-}
-
 func TestLoad_ResumeFlag(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)

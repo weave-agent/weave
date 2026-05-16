@@ -408,10 +408,10 @@ func PublishInterrupt(bus sdk.Bus) tea.Cmd {
 }
 
 // PublishSessionResume returns a tea.Cmd that publishes a session.resume event.
-func PublishSessionResume(bus sdk.Bus, sessionID string) tea.Cmd {
+func PublishSessionResume(bus sdk.Bus, payload sdk.SessionResumePayload) tea.Cmd {
 	return func() tea.Msg {
 		if bus != nil {
-			bus.Publish(sdk.NewEvent(topicSessionResume, sessionID))
+			bus.Publish(sdk.NewEvent(topicSessionResume, payload))
 		}
 
 		return nil

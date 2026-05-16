@@ -166,7 +166,7 @@ type flagSet struct {
 	SandboxMode string `flag:"sandbox" description:"Sandbox mode override"`
 	Model       string `flag:"model" description:"Model override for this session"`
 	Debug       bool   `flag:"debug" description:"Enable debug logging"`
-	Continue    bool   `flag:"continue" short:"c" description:"Resume most recent session"`
+	Continue    bool   `flag:"continue" description:"Resume most recent session"`
 	Resume      string `flag:"resume" short:"r" description:"Resume specific session by ID"`
 }
 

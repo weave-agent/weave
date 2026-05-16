@@ -58,15 +58,12 @@ func (a *AgentExtension) run(
 	// user set an API key via /providers before we try to connect.
 	// Also drain model/thinking changes from the TUI's Init() so the
 	// initial provider matches what the user sees.
+	//
+	// Session resume is checked first (non-blocking, then blocking) to avoid
+	// losing resume events when a prompt arrives concurrently.
 	for {
+		// Non-blocking check for session resume first.
 		select {
-		case evt, ok := <-promptCh:
-			if !ok {
-				return
-			}
-
-			messages = append(messages, sdk.NewUserMessage(evt.Payload))
-			a.resumed = false
 		case evt, ok := <-sessionResumeCh:
 			if !ok {
 				return
@@ -79,6 +76,29 @@ func (a *AgentExtension) run(
 			}
 
 			continue
+		default:
+		}
+
+		select {
+		case evt, ok := <-sessionResumeCh:
+			if !ok {
+				return
+			}
+
+			if payload, ok := evt.Payload.(sdk.SessionResumePayload); ok {
+				messages = payload.Messages
+				a.sessionID = payload.SessionID
+				a.resumed = true
+			}
+
+			continue
+		case evt, ok := <-promptCh:
+			if !ok {
+				return
+			}
+
+			messages = append(messages, sdk.NewUserMessage(evt.Payload))
+			a.resumed = false
 		case evt := <-modelChangeCh:
 			if m, ok := evt.Payload.(map[string]string); ok {
 				if p := m["provider"]; p != "" {
@@ -315,9 +335,22 @@ func (a *AgentExtension) run(
 				messages = []sdk.Message{sdk.NewUserMessage(evt.Payload)}
 				turn = 1
 				a.fileOps = newFileOperations()
+				a.sessionID = ""
 				// Rebuild system prompt on new conversation
 				systemPrompt = a.buildSystemPrompt()
 			}
+		case evt, ok := <-sessionResumeCh:
+			if !ok {
+				return
+			}
+
+			if payload, ok := evt.Payload.(sdk.SessionResumePayload); ok {
+				messages = payload.Messages
+				a.sessionID = payload.SessionID
+				a.resumed = true
+			}
+
+			goto waitForInput
 		case evt, ok := <-modelChangeCh:
 			if !ok {
 				return

@@ -446,7 +446,7 @@ func TestIntegration_SessionResumeFlow(t *testing.T) {
 
 	assert.True(t, m.dialogStack.Empty())
 	assert.Nil(t, m.pendingSessions)
-	assert.False(t, m.prompted)
+	assert.True(t, m.prompted)
 
 	// Verify chat was rebuilt
 	items := m.chat.Items()
@@ -463,7 +463,9 @@ func TestIntegration_SessionResumeFlow(t *testing.T) {
 	// Verify bus event
 	evt := <-ch
 	assert.Equal(t, topicSessionResume, evt.Topic)
-	assert.Equal(t, sessionID, evt.Payload)
+	payload, ok := evt.Payload.(sdk.SessionResumePayload)
+	require.True(t, ok)
+	assert.Equal(t, sessionID, payload.SessionID)
 }
 
 // TestIntegration_ModelSelectionFlow verifies model selection and cycling

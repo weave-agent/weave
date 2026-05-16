@@ -614,7 +614,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.SessionID != "" {
 			m.rebuildChatFromSession(msg.SessionID)
 			m.showLanding = false
-			m.prompted = false
+			m.prompted = true
 		}
 
 		return m, nil
@@ -1857,10 +1857,11 @@ func (m Model) onSessionDialogDone(result overlays.DialogResult, pendingCmd tea.
 
 	m.rebuildChatFromSession(session.ID)
 	m.showLanding = false
-	m.prompted = false
+	m.prompted = true
 
 	if m.bus != nil {
-		return m, tea.Batch(pendingCmd, PublishSessionResume(m.bus, session.ID))
+		payload := sdk.SessionResumePayload{SessionID: session.ID}
+		return m, tea.Batch(pendingCmd, PublishSessionResume(m.bus, payload))
 	}
 
 	return m, pendingCmd

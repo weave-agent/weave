@@ -780,7 +780,7 @@ func TestModel_SessionSelectorSelect(t *testing.T) {
 
 	assert.True(t, m.dialogStack.Empty())
 	assert.Nil(t, m.pendingSessions)
-	assert.False(t, m.prompted)
+	assert.True(t, m.prompted)
 
 	// Verify chat was rebuilt with session history
 	items := m.chat.Items()
@@ -796,7 +796,9 @@ func TestModel_SessionSelectorSelect(t *testing.T) {
 	// Verify session.resume event was published
 	evt := <-ch
 	assert.Equal(t, topicSessionResume, evt.Topic)
-	assert.Equal(t, sessionID, evt.Payload)
+	payload, ok := evt.Payload.(sdk.SessionResumePayload)
+	require.True(t, ok)
+	assert.Equal(t, sessionID, payload.SessionID)
 }
 
 func TestModel_OverlayInterceptsKeys(t *testing.T) {
@@ -948,8 +950,8 @@ func TestModel_SessionResumedMsg_RebuildsChat(t *testing.T) {
 
 	// Landing should be hidden
 	assert.False(t, m.showLanding)
-	// Prompted should be reset so next submit sends agent.prompt
-	assert.False(t, m.prompted)
+	// Prompted should be true so next submit sends agent.followup
+	assert.True(t, m.prompted)
 }
 
 func TestModel_SessionResumedMsg_EmptySessionID(t *testing.T) {
@@ -989,8 +991,8 @@ func TestModel_SessionResumedMsg_HandlesMissingSession(t *testing.T) {
 
 	// Landing should still be hidden (we attempted a resume)
 	assert.False(t, m.showLanding)
-	// Prompted should still be reset
-	assert.False(t, m.prompted)
+	// Prompted should be true so next submit sends agent.followup
+	assert.True(t, m.prompted)
 }
 
 func TestParseToolEntry_Valid(t *testing.T) {
