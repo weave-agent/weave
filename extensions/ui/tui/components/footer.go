@@ -38,6 +38,10 @@ type FooterModel struct {
 	// Token rate (placeholder for Phase 2 streaming enhancements)
 	tokenRate float64
 
+	// Cache tokens (prompt caching)
+	cacheCreationTokens int
+	cacheReadTokens     int
+
 	// Extension status entries (set by cross-extension UI)
 	extStatus map[string]string
 }
@@ -83,6 +87,14 @@ func (m FooterModel) SetTokenUsage(input, output int, cost float64) FooterModel 
 	m.inputTokens = input
 	m.outputTokens = output
 	m.cost = cost
+
+	return m
+}
+
+// SetCacheTokens updates cache token counts for prompt caching display.
+func (m FooterModel) SetCacheTokens(creation, read int) FooterModel {
+	m.cacheCreationTokens = creation
+	m.cacheReadTokens = read
 
 	return m
 }
@@ -231,6 +243,10 @@ func (m FooterModel) renderLine2(theme *palette.Theme) string {
 
 	if m.inputTokens > 0 || m.outputTokens > 0 {
 		leftParts = append(leftParts, mutedStyle.Render(fmt.Sprintf("in:%d out:%d", m.inputTokens, m.outputTokens)))
+	}
+
+	if m.cacheCreationTokens > 0 || m.cacheReadTokens > 0 {
+		leftParts = append(leftParts, mutedStyle.Render(fmt.Sprintf("cache:+%d ~%d", m.cacheCreationTokens, m.cacheReadTokens)))
 	}
 
 	if m.cost > 0 {

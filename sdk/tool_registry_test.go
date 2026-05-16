@@ -263,3 +263,43 @@ func TestGetToolFilter(t *testing.T) {
 	SetToolFilter(nil)
 	assert.Nil(t, GetToolFilter())
 }
+
+func TestGetTool_FilterBlocksTool(t *testing.T) {
+	ResetToolRegistry()
+
+	RegisterTool[struct{}]("bash", func(Config, PreferenceReader, struct{}) (Tool, error) {
+		return &ToolMock{NameFunc: func() string { return "bash" }}, nil
+	})
+	RegisterTool[struct{}]("edit", func(Config, PreferenceReader, struct{}) (Tool, error) {
+		return &ToolMock{NameFunc: func() string { return "edit" }}, nil
+	})
+
+	SetToolFilter([]string{"bash"})
+	defer SetToolFilter(nil)
+
+	// Allowed tool should succeed
+	got, err := GetTool("bash", nil)
+	require.NoError(t, err)
+	assert.Equal(t, "bash", got.Name())
+
+	// Blocked tool should fail
+	_, err = GetTool("edit", nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not in allowed list")
+}
+
+func TestGetTool_FilterAllowsTool(t *testing.T) {
+	ResetToolRegistry()
+
+	RegisterTool[struct{}]("read", func(Config, PreferenceReader, struct{}) (Tool, error) {
+		return &ToolMock{NameFunc: func() string { return "read" }}, nil
+	})
+
+	SetToolFilter([]string{"read", "bash"}) // bash not registered but in filter
+	defer SetToolFilter(nil)
+
+	// read is both registered and in filter
+	got, err := GetTool("read", nil)
+	require.NoError(t, err)
+	assert.Equal(t, "read", got.Name())
+}

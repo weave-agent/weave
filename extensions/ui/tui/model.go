@@ -648,7 +648,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case TokenUsageMsg:
-		m.footer = m.footer.SetTokenUsage(msg.InputTokens, msg.OutputTokens, 0)
+		m.footer = m.footer.SetTokenUsage(msg.InputTokens, msg.OutputTokens, 0).
+			SetCacheTokens(msg.CacheCreationTokens, msg.CacheReadTokens)
 
 		return m, nil
 

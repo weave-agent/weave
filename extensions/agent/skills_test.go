@@ -195,6 +195,56 @@ Full instructions here.`
 		assert.Equal(t, "crlf-skill", skill.Name)
 		assert.Equal(t, "CRLF test", skill.Description)
 	})
+
+	t.Run("delimiter inside body", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "delimiter-body")
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+
+		content := "---\nname: delimiter-body\ndescription: Body has delimiter\n---\n\n# Section 1\nSome text.\n\n---\n\n# Section 2\nMore text."
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(content), 0o644))
+
+		skill, err := loadSkillFromDir(dir)
+		require.NoError(t, err)
+		assert.Equal(t, "delimiter-body", skill.Name)
+		assert.Equal(t, "Body has delimiter", skill.Description)
+		// Body should contain everything after the FIRST delimiter, including the second ---
+		assert.Contains(t, skill.Body(), "---")
+		assert.Contains(t, skill.Body(), "# Section 2")
+	})
+}
+
+// --- parseFrontmatter direct tests ---
+
+func TestParseFrontmatter_DelimiterInBody(t *testing.T) {
+	content := []byte("---\nname: test\ndescription: test desc\n---\n\nBody with\n---\na horizontal rule\n")
+	body, fm, err := parseFrontmatter(content)
+	require.NoError(t, err)
+	assert.Equal(t, "test", fm.Name)
+	assert.Equal(t, "test desc", fm.Description)
+	assert.Contains(t, body, "horizontal rule")
+	assert.Contains(t, body, "---")
+}
+
+// --- escapeXML tests ---
+
+func TestEscapeXML(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"hello", "hello"},
+		{"a < b", "a &lt; b"},
+		{"a > b", "a &gt; b"},
+		{"a & b", "a &amp; b"},
+		{`say "hi"`, "say &quot;hi&quot;"},
+		{"<tag> & \"quotes\"", "&lt;tag&gt; &amp; &quot;quotes&quot;"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			assert.Equal(t, tt.expected, escapeXML(tt.input))
+		})
+	}
 }
 
 // --- discoverSkills tests ---
