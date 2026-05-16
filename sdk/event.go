@@ -3,6 +3,7 @@ package sdk
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"time"
 )
 
@@ -25,7 +26,8 @@ func NewEvent(topic string, payload any) Event {
 func generateTraceID() string {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
-		return ""
+		// crypto/rand should never fail on modern systems.
+		panic(fmt.Sprintf("generate trace ID: %v", err))
 	}
 
 	return hex.EncodeToString(b)
