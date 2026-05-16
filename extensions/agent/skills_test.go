@@ -636,3 +636,147 @@ func TestSkillBody(t *testing.T) {
 	s := Skill{body: "test body"}
 	assert.Equal(t, "test body", s.Body())
 }
+
+// --- AllowedTools enforcement tests ---
+
+func TestSkill_AllowedToolsEnforced(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{}, CompactionConfig{})
+	require.NoError(t, err)
+
+	skill := Skill{
+		Name:         "restricted-skill",
+		FilePath:     "/path/to/restricted-skill/SKILL.md",
+		BaseDir:      "/path/to/restricted-skill",
+		AllowedTools: []string{"bash", "read"},
+	}
+	skill.body = "# Instructions"
+
+	b := &BusMock{}
+
+	handler := ext.makeSkillHandler(skill, b)
+
+	// No filter initially
+	assert.Nil(t, sdk.GetToolFilter())
+
+	require.NoError(t, handler(""))
+
+	// Filter should be set to skill's allowed tools
+	filter := sdk.GetToolFilter()
+	assert.Equal(t, []string{"bash", "read"}, filter)
+
+	// Simulate turn end: restore the filter
+	ext.mu.Lock()
+	sdk.SetToolFilter(ext.savedToolFilter)
+	ext.skillFilterActive = false
+	ext.savedToolFilter = nil
+	ext.mu.Unlock()
+
+	// Filter should be restored (nil)
+	assert.Nil(t, sdk.GetToolFilter())
+}
+
+func TestSkill_AllowedToolsEmpty_NoFilter(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	// Set an existing filter
+	sdk.SetToolFilter([]string{"bash"})
+	defer sdk.SetToolFilter(nil)
+
+	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{}, CompactionConfig{})
+	require.NoError(t, err)
+
+	skill := Skill{
+		Name:     "open-skill",
+		FilePath: "/path/to/open-skill/SKILL.md",
+		BaseDir:  "/path/to/open-skill",
+	}
+	skill.body = "# Instructions"
+
+	b := &BusMock{}
+
+	handler := ext.makeSkillHandler(skill, b)
+
+	require.NoError(t, handler(""))
+
+	// Existing filter should not be changed
+	filter := sdk.GetToolFilter()
+	assert.Equal(t, []string{"bash"}, filter)
+}
+
+func TestSkill_AllowedToolsRestoresPreviousFilter(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	// Set an existing filter
+	sdk.SetToolFilter([]string{"bash", "write"})
+	defer sdk.SetToolFilter(nil)
+
+	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{}, CompactionConfig{})
+	require.NoError(t, err)
+
+	skill := Skill{
+		Name:         "restricted-skill",
+		FilePath:     "/path/to/restricted-skill/SKILL.md",
+		BaseDir:      "/path/to/restricted-skill",
+		AllowedTools: []string{"read"},
+	}
+	skill.body = "# Instructions"
+
+	b := &BusMock{}
+
+	handler := ext.makeSkillHandler(skill, b)
+
+	require.NoError(t, handler(""))
+
+	// Filter should be the skill's filter
+	assert.Equal(t, []string{"read"}, sdk.GetToolFilter())
+
+	// Simulate turn end: restore
+	ext.mu.Lock()
+	sdk.SetToolFilter(ext.savedToolFilter)
+	ext.skillFilterActive = false
+	ext.savedToolFilter = nil
+	ext.mu.Unlock()
+
+	// Filter should be the original filter
+	assert.Equal(t, []string{"bash", "write"}, sdk.GetToolFilter())
+}
+
+func TestSkill_AllowedToolsFilterClearedWhenNoPreviousFilter(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{}, CompactionConfig{})
+	require.NoError(t, err)
+
+	skill := Skill{
+		Name:         "restricted-skill",
+		FilePath:     "/path/to/restricted-skill/SKILL.md",
+		BaseDir:      "/path/to/restricted-skill",
+		AllowedTools: []string{"read", "write"},
+	}
+	skill.body = "# Instructions"
+
+	b := &BusMock{}
+
+	handler := ext.makeSkillHandler(skill, b)
+
+	require.NoError(t, handler(""))
+
+	// Filter should be the skill's filter
+	assert.Equal(t, []string{"read", "write"}, sdk.GetToolFilter())
+
+	// Simulate turn end: restore (savedToolFilter is nil, so filter is cleared)
+	ext.mu.Lock()
+	sdk.SetToolFilter(ext.savedToolFilter)
+	ext.skillFilterActive = false
+	ext.savedToolFilter = nil
+	ext.mu.Unlock()
+
+	// Filter should be cleared (nil)
+	assert.Nil(t, sdk.GetToolFilter())
+}

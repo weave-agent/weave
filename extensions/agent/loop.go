@@ -332,6 +332,14 @@ func (a *AgentExtension) run(
 
 		drainInterrupts(interruptCh)
 
+		if a.skillFilterActive {
+			a.mu.Lock()
+			sdk.SetToolFilter(a.savedToolFilter)
+			a.skillFilterActive = false
+			a.savedToolFilter = nil
+			a.mu.Unlock()
+		}
+
 		turn++
 
 		if a.singleTurn {

@@ -245,3 +245,21 @@ func TestRegisterTool_SchemaExtraction(t *testing.T) {
 	assert.Equal(t, "string", fieldMap["shell"].Type)
 	assert.Equal(t, "bash", fieldMap["shell"].Default)
 }
+
+func TestGetToolFilter(t *testing.T) {
+	ResetToolRegistry()
+
+	// No filter set
+	assert.Nil(t, GetToolFilter())
+
+	// Set a filter
+	SetToolFilter([]string{"read", "bash"})
+	defer SetToolFilter(nil)
+
+	filter := GetToolFilter()
+	assert.Equal(t, []string{"bash", "read"}, filter)
+
+	// Clear filter
+	SetToolFilter(nil)
+	assert.Nil(t, GetToolFilter())
+}

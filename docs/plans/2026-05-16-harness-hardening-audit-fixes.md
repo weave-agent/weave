@@ -72,11 +72,11 @@ Fix 17 gaps identified by the agents-best-practices audit of the Weave agent fra
 - [x] run `cd extensions/providers/anthropic && go test ./...` and `cd sdk && go test ./...` — must pass before task 5
 
 ### Task 5: Enforce skill AllowedTools
-- [ ] in `extensions/agent/skills.go:makeSkillHandler()`, before publishing the skill body via `agent.prompt`, call `sdk.SetToolFilter(skill.AllowedTools)` if `AllowedTools` is non-empty
-- [ ] save and restore the previous tool filter after skill execution completes (need a mechanism — possibly a bus event or a callback)
-- [ ] if `AllowedTools` is empty, skip filtering (skill gets all tools as today)
-- [ ] write tests: TestSkill_AllowedToolsEnforced, TestSkill_AllowedToolsEmpty_NoFilter in `extensions/agent/skills_test.go`
-- [ ] run `cd extensions/agent && go test ./...` — must pass before task 6
+- [x] in `extensions/agent/skills.go:makeSkillHandler()`, before publishing the skill body via `agent.prompt`, call `sdk.SetToolFilter(skill.AllowedTools)` if `AllowedTools` is non-empty
+- [x] save and restore the previous tool filter after skill execution completes (need a mechanism — possibly a bus event or a callback)
+- [x] if `AllowedTools` is empty, skip filtering (skill gets all tools as today)
+- [x] write tests: TestSkill_AllowedToolsEnforced, TestSkill_AllowedToolsEmpty_NoFilter in `extensions/agent/skills_test.go`
+- [x] run `cd extensions/agent && go test ./...` — must pass before task 6
 
 ### Task 6: Warn on subagent missing tool declarations
 - [ ] in `extensions/tools/subagent/agent.go:parseToolsField()` or at agent load time, when `tools` field is nil/empty, log a warning via `sdk.Logger("subagent")` with the agent name and a message suggesting explicit tool declaration

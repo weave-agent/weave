@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"reflect"
+	"sort"
 	"sync"
 
 	"weave/sdk/registry"
@@ -78,6 +79,24 @@ func SetToolFilter(names []string) {
 	for _, name := range names {
 		toolFilter[name] = true
 	}
+}
+
+func GetToolFilter() []string {
+	toolFilterMu.RLock()
+	defer toolFilterMu.RUnlock()
+
+	if toolFilter == nil {
+		return nil
+	}
+
+	result := make([]string, 0, len(toolFilter))
+	for name := range toolFilter {
+		result = append(result, name)
+	}
+
+	sort.Strings(result)
+
+	return result
 }
 
 func ListTools() []string {

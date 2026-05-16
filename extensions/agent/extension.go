@@ -41,6 +41,9 @@ type AgentExtension struct {
 	resumed   bool
 	sessionID string
 
+	savedToolFilter   []string
+	skillFilterActive bool
+
 	mu     sync.Mutex
 	cancel context.CancelFunc
 	done   chan struct{}
@@ -229,7 +232,7 @@ func (a *AgentExtension) registerSkillCommands(bus sdk.Bus) {
 	for i := range skills {
 		skill := skills[i]
 		cmdName := "/skill:" + skill.Name
-		ui.RegisterCommand(cmdName, makeSkillHandler(skill, bus))
+		ui.RegisterCommand(cmdName, a.makeSkillHandler(skill, bus))
 	}
 }
 
