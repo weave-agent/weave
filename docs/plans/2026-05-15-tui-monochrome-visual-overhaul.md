@@ -101,10 +101,10 @@ A complete visual redesign of the weave terminal UI, moving from a generic purpl
 
 ### Task 5: Cross-module updates and root tests
 
-- [ ] Update `extensions/diff-viewer/diff_viewer.go` if it references old theme fields
-- [ ] Run root tests: `make test` — must pass
-- [ ] Run linter: `make lint` — all issues fixed
-- [ ] Fix any cross-module test failures
+- [x] Update `extensions/diff-viewer/diff_viewer.go` if it references old theme fields (already uses new Accent/AccentBright fields — no changes needed)
+- [x] Run root tests: `make test` — must pass
+- [x] Run linter: `make lint` — all issues fixed
+- [x] Fix any cross-module test failures (none found)
 
 ### Task 6: Verify acceptance criteria
 
