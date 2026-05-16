@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -4508,6 +4510,104 @@ func TestModel_OnLoginDialogDone_OAuthProvider_NotFound(t *testing.T) {
 	am, ok := items[0].(*messages.AssistantMessage)
 	require.True(t, ok)
 	assert.Contains(t, am.Content(), "not configured")
+}
+
+//nolint:gosec // "TEST-CODE" is a mock user code for testing, not a credential
+func TestModel_OnLoginDialogDone_DeviceCodeProvider(t *testing.T) {
+	// Start a mock device code endpoint.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := map[string]any{
+			"device_code":      "dc-test",
+			"user_code":        "TEST-CODE",
+			"verification_uri": "https://example.com/verify",
+			"expires_in":       900,
+			"interval":         5,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	sdk.RegisterOAuthProvider(sdk.OAuthProvider{
+		ID:            "test-device-code",
+		Name:          "Test Device Code",
+		DeviceCodeURL: server.URL,
+		TokenURL:      "https://example.com/token",
+		FlowType:      sdk.DeviceCode,
+	})
+
+	defer sdk.ResetOAuthRegistry()
+
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+
+	m.pendingLoginProviders = []LoginProviderEntry{
+		{Name: "Test Device Code", ID: "test-device-code", IsOAuth: true},
+	}
+
+	result := overlays.DialogResult{Index: 0}
+	model, cmd := m.onLoginDialogDone(result, nil)
+	m2 := model.(Model)
+
+	assert.Nil(t, m2.pendingLoginProviders)
+	assert.False(t, m2.dialogStack.Empty())
+	assert.Equal(t, dialogLoginOAuth, m2.dialogStack.Peek().ID())
+	assert.NotNil(t, cmd)
+
+	// Verify the login dialog shows the user code.
+	ld, ok := m2.dialogStack.Peek().(*overlays.LoginDialog)
+	require.True(t, ok)
+	assert.Contains(t, ld.Model().View(), "TEST-CODE")
+	assert.Contains(t, ld.Model().View(), "https://example.com/verify")
+}
+
+//nolint:gosec // test OAuth provider registration with mock endpoints
+func TestModel_OnLoginDialogDone_DeviceCodeProvider_RequestFails(t *testing.T) {
+	// Start a mock endpoint that returns an error.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+
+		resp := map[string]any{
+			"error":             "invalid_client",
+			"error_description": "Bad client",
+		}
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	sdk.RegisterOAuthProvider(sdk.OAuthProvider{
+		ID:            "test-device-code-fail",
+		Name:          "Test Device Code Fail",
+		DeviceCodeURL: server.URL,
+		TokenURL:      "https://example.com/token",
+		FlowType:      sdk.DeviceCode,
+	})
+
+	defer sdk.ResetOAuthRegistry()
+
+	m := newModelNoLanding()
+	m.width = 80
+	m.height = 24
+	m.chat = m.chat.SetSize(80, m.chatHeight(24))
+
+	m.pendingLoginProviders = []LoginProviderEntry{
+		{Name: "Test Device Code Fail", ID: "test-device-code-fail", IsOAuth: true},
+	}
+
+	result := overlays.DialogResult{Index: 0}
+	model, _ := m.onLoginDialogDone(result, nil)
+	m2 := model.(Model)
+
+	assert.Nil(t, m2.pendingLoginProviders)
+	// Dialog should not be pushed on error.
+	assert.True(t, m2.dialogStack.Empty())
+	items := m2.chat.Items()
+	require.Len(t, items, 1)
+	am, ok := items[0].(*messages.AssistantMessage)
+	require.True(t, ok)
+	assert.Contains(t, am.Content(), "Failed to start device code flow")
 }
 
 func TestModel_OnLoginDialogDone_RegularProvider(t *testing.T) {

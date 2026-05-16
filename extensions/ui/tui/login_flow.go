@@ -19,8 +19,11 @@ type LoginFlowResultMsg struct {
 	Error      error
 }
 
-// runOAuthFlowCmd returns a tea.Cmd that executes the authorization code flow
-// for the given OAuth provider and returns a LoginFlowResultMsg.
+// runOAuthFlowCmd returns a tea.Cmd that executes the OAuth flow for the given
+// provider and returns a LoginFlowResultMsg. For authorization code flow, it
+// starts a callback server and opens the browser. For device code flow, the
+// caller must have already requested the device code and should use
+// pollDeviceCodeCmd for polling.
 func runOAuthFlowCmd(provider sdk.OAuthProvider) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -32,6 +35,38 @@ func runOAuthFlowCmd(provider sdk.OAuthProvider) tea.Cmd {
 			Provider:   provider.ID,
 			Credential: cred,
 			Error:      err,
+		}
+	}
+}
+
+// pollDeviceCodeCmd returns a tea.Cmd that polls the token endpoint for a
+// device code flow and returns a LoginFlowResultMsg.
+func pollDeviceCodeCmd(providerID, deviceCode string, intervalSecs int, tokenURL, clientID string) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+
+		tokenResp, err := sdk.PollDeviceToken(ctx, tokenURL, clientID, deviceCode, intervalSecs)
+		if err != nil {
+			return LoginFlowResultMsg{
+				Provider: providerID,
+				Error:    err,
+			}
+		}
+
+		cred := sdk.OAuthCredential{
+			AccessToken:  tokenResp.AccessToken,
+			RefreshToken: tokenResp.RefreshToken,
+			TokenType:    tokenResp.TokenType,
+		}
+
+		if tokenResp.ExpiresIn > 0 {
+			cred.ExpiresAt = time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
+		}
+
+		return LoginFlowResultMsg{
+			Provider:   providerID,
+			Credential: cred,
 		}
 	}
 }

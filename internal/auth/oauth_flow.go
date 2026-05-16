@@ -174,6 +174,173 @@ type OAuthFlowResult struct {
 	Error      error
 }
 
+// DeviceCodeResponse holds the result from the device authorization endpoint
+// (RFC 8628).
+type DeviceCodeResponse struct {
+	DeviceCode              string `json:"device_code"`
+	UserCode                string `json:"user_code"`
+	VerificationURI         string `json:"verification_uri"`
+	VerificationURL         string `json:"verification_url"`
+	VerificationURIComplete string `json:"verification_uri_complete"`
+	ExpiresIn               int    `json:"expires_in"`
+	Interval                int    `json:"interval"`
+	Error                   string `json:"error"`
+	ErrorDesc               string `json:"error_description"`
+}
+
+// VerificationURLOrURI returns the verification URL or URI, whichever is
+// present. It prefers verification_uri_complete, then verification_uri, then
+// verification_url.
+func (r DeviceCodeResponse) VerificationURLOrURI() string {
+	if r.VerificationURIComplete != "" {
+		return r.VerificationURIComplete
+	}
+
+	if r.VerificationURI != "" {
+		return r.VerificationURI
+	}
+
+	return r.VerificationURL
+}
+
+// RequestDeviceCode requests a device code from the device authorization
+// endpoint (RFC 8628 section 3.1).
+func RequestDeviceCode(ctx context.Context, deviceCodeURL, clientID string, scopes []string) (DeviceCodeResponse, error) {
+	data := url.Values{}
+	data.Set("client_id", clientID)
+
+	if len(scopes) > 0 {
+		data.Set("scope", strings.Join(scopes, " "))
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, deviceCodeURL, strings.NewReader(data.Encode()))
+	if err != nil {
+		return DeviceCodeResponse{}, fmt.Errorf("create device code request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return DeviceCodeResponse{}, fmt.Errorf("device code request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return DeviceCodeResponse{}, fmt.Errorf("read device code response: %w", err)
+	}
+
+	var devResp DeviceCodeResponse
+	if err := json.Unmarshal(body, &devResp); err != nil {
+		return DeviceCodeResponse{}, fmt.Errorf("parse device code response: %w", err)
+	}
+
+	if resp.StatusCode >= 400 || devResp.Error != "" {
+		msg := devResp.Error
+		if devResp.ErrorDesc != "" {
+			msg += ": " + devResp.ErrorDesc
+		}
+
+		if msg == "" {
+			msg = fmt.Sprintf("device code endpoint returned %d", resp.StatusCode)
+		}
+
+		return DeviceCodeResponse{}, fmt.Errorf("device code request failed: %s", msg)
+	}
+
+	return devResp, nil
+}
+
+// PollDeviceToken polls the token endpoint for a device code flow (RFC 8628
+// section 3.4) until the user authorizes the device, an error occurs, or the
+// context is canceled.
+func PollDeviceToken(ctx context.Context, tokenURL, clientID, deviceCode string, intervalSecs int) (TokenResponse, error) {
+	if intervalSecs <= 0 {
+		intervalSecs = 5
+	}
+
+	ticker := time.NewTicker(time.Duration(intervalSecs) * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return TokenResponse{}, errors.New("device code polling timed out or was canceled")
+
+		case <-ticker.C:
+			tokenResp, cont, err := pollDeviceTokenOnce(ctx, tokenURL, clientID, deviceCode)
+			if err != nil {
+				return TokenResponse{}, err
+			}
+
+			if !cont {
+				return tokenResp, nil
+			}
+
+			if tokenResp.Error == "slow_down" {
+				intervalSecs += 5
+				ticker.Reset(time.Duration(intervalSecs) * time.Second)
+			}
+		}
+	}
+}
+
+// pollDeviceTokenOnce makes a single token poll request for device code flow.
+// Returns (tokenResponse, shouldContinue, error). When shouldContinue is true,
+// the caller should poll again (authorization_pending or slow_down).
+func pollDeviceTokenOnce(ctx context.Context, tokenURL, clientID, deviceCode string) (TokenResponse, bool, error) {
+	data := url.Values{}
+	data.Set("grant_type", "urn:ietf:params:oauth:grant-type:device_code")
+	data.Set("client_id", clientID)
+	data.Set("device_code", deviceCode)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenURL, strings.NewReader(data.Encode()))
+	if err != nil {
+		return TokenResponse{}, false, fmt.Errorf("create token poll request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return TokenResponse{}, false, fmt.Errorf("token poll request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return TokenResponse{}, false, fmt.Errorf("read token poll response: %w", err)
+	}
+
+	var tokenResp TokenResponse
+	if err := json.Unmarshal(body, &tokenResp); err != nil {
+		return TokenResponse{}, false, fmt.Errorf("parse token poll response: %w", err)
+	}
+
+	if resp.StatusCode >= 400 || tokenResp.Error != "" {
+		switch tokenResp.Error {
+		case "authorization_pending":
+			return TokenResponse{}, true, nil
+		case "slow_down":
+			return tokenResp, true, nil
+		case "":
+			return TokenResponse{}, false, fmt.Errorf("token poll failed: endpoint returned %d", resp.StatusCode)
+		default:
+			msg := tokenResp.Error
+			if tokenResp.ErrorDesc != "" {
+				msg += ": " + tokenResp.ErrorDesc
+			}
+
+			return TokenResponse{}, false, fmt.Errorf("token poll failed: %s", msg)
+		}
+	}
+
+	return tokenResp, false, nil
+}
+
 // RunAuthorizationCodeFlow executes the full OAuth authorization code flow.
 // It starts a callback server, opens the browser, waits for the callback,
 // exchanges the code for tokens, and returns the credential.

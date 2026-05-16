@@ -109,12 +109,12 @@ Add interactive login support to Weave's TUI, including both API key entry and O
 - [x] Run `make test` — must pass before Task 8
 
 ### Task 8: Implement device code OAuth flow (GitHub Copilot)
-- [ ] Request device code from device authorization endpoint
-- [ ] Show user code and verification URL in `LoginDialogComponent`
-- [ ] Poll token endpoint at interval until authorized or timeout
-- [ ] Store tokens on success
-- [ ] Write tests for device code flow (mocked HTTP)
-- [ ] Run `make test` — must pass before Task 9
+- [x] Request device code from device authorization endpoint
+- [x] Show user code and verification URL in `LoginDialogComponent`
+- [x] Poll token endpoint at interval until authorized or timeout
+- [x] Store tokens on success
+- [x] Write tests for device code flow (mocked HTTP)
+- [x] Run `make test` — must pass before Task 9
 
 ### Task 9: Add lazy token refresh
 - [ ] Add `RefreshOAuthToken` to `internal/auth/` — uses refresh token, updates `auth.json`

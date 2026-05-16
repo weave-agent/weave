@@ -209,3 +209,252 @@ func TestOpenBrowser_NonExistentURL(t *testing.T) {
 	// so we don't assert on the error.
 	_ = err
 }
+
+func TestRequestDeviceCode_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodPost, r.Method)
+		assert.Equal(t, "application/x-www-form-urlencoded", r.Header.Get("Content-Type"))
+
+		err := r.ParseForm()
+		assert.NoError(t, err)
+		assert.Equal(t, "my-client-id", r.FormValue("client_id"))
+		assert.Equal(t, "read write", r.FormValue("scope"))
+
+		resp := map[string]any{
+			"device_code":      "dc-123",
+			"user_code":        "ABCD-EFGH",
+			"verification_uri": "https://example.com/verify",
+			"expires_in":       900,
+			"interval":         5,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	result, err := RequestDeviceCode(ctx, server.URL, "my-client-id", []string{"read", "write"})
+	require.NoError(t, err)
+	assert.Equal(t, "dc-123", result.DeviceCode)
+	assert.Equal(t, "ABCD-EFGH", result.UserCode)
+	assert.Equal(t, "https://example.com/verify", result.VerificationURI)
+	assert.Equal(t, 900, result.ExpiresIn)
+	assert.Equal(t, 5, result.Interval)
+}
+
+func TestRequestDeviceCode_Success_VerificationURL(t *testing.T) {
+	// Some providers use "verification_url" instead of "verification_uri".
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := map[string]any{
+			"device_code":      "dc-456",
+			"user_code":        "WXYZ-1234",
+			"verification_url": "https://example.com/device",
+			"expires_in":       600,
+			"interval":         5,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	result, err := RequestDeviceCode(ctx, server.URL, "client-id", nil)
+	require.NoError(t, err)
+	assert.Equal(t, "https://example.com/device", result.VerificationURLOrURI())
+}
+
+func TestRequestDeviceCode_Success_VerificationURIComplete(t *testing.T) {
+	// verification_uri_complete should be preferred over verification_uri.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := map[string]any{
+			"device_code":               "dc-789",
+			"user_code":                 "TEST-1234",
+			"verification_uri":          "https://example.com/verify",
+			"verification_uri_complete": "https://example.com/verify?code=TEST-1234",
+			"expires_in":                600,
+			"interval":                  5,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	result, err := RequestDeviceCode(ctx, server.URL, "client-id", nil)
+	require.NoError(t, err)
+	assert.Equal(t, "https://example.com/verify?code=TEST-1234", result.VerificationURLOrURI())
+}
+
+func TestRequestDeviceCode_ErrorResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+
+		resp := map[string]any{
+			"error":             "invalid_client",
+			"error_description": "Client authentication failed",
+		}
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := RequestDeviceCode(ctx, server.URL, "bad-client", nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid_client")
+	assert.Contains(t, err.Error(), "Client authentication failed")
+}
+
+func TestRequestDeviceCode_HTTPError(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	_, err := RequestDeviceCode(ctx, "http://127.0.0.1:1/device", "id", nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "device code request failed")
+}
+
+func TestPollDeviceToken_Success(t *testing.T) {
+	pollCount := 0
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodPost, r.Method)
+
+		err := r.ParseForm()
+		assert.NoError(t, err)
+		assert.Equal(t, "urn:ietf:params:oauth:grant-type:device_code", r.FormValue("grant_type"))
+		assert.Equal(t, "my-client-id", r.FormValue("client_id"))
+		assert.Equal(t, "dc-123", r.FormValue("device_code"))
+
+		pollCount++
+		if pollCount < 3 {
+			w.WriteHeader(http.StatusBadRequest)
+
+			resp := map[string]any{"error": "authorization_pending"}
+			_ = json.NewEncoder(w).Encode(resp)
+
+			return
+		}
+
+		resp := map[string]any{
+			"access_token":  "at-789",
+			"refresh_token": "rt-012",
+			"token_type":    "bearer",
+			"expires_in":    3600,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	result, err := PollDeviceToken(ctx, server.URL, "my-client-id", "dc-123", 1)
+	require.NoError(t, err)
+	assert.Equal(t, "at-789", result.AccessToken)
+	assert.Equal(t, "rt-012", result.RefreshToken)
+	assert.Equal(t, "bearer", result.TokenType)
+	assert.Equal(t, 3600, result.ExpiresIn)
+	assert.Equal(t, 3, pollCount)
+}
+
+func TestPollDeviceToken_SlowDown(t *testing.T) {
+	pollCount := 0
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		pollCount++
+		if pollCount < 2 {
+			w.WriteHeader(http.StatusBadRequest)
+
+			resp := map[string]any{"error": "slow_down"}
+			_ = json.NewEncoder(w).Encode(resp)
+
+			return
+		}
+
+		resp := map[string]any{
+			"access_token": "at-slow",
+			"token_type":   "bearer",
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Start with 1-second interval; slow_down adds 5 seconds each time.
+	result, err := PollDeviceToken(ctx, server.URL, "client", "dc", 1)
+	require.NoError(t, err)
+	assert.Equal(t, "at-slow", result.AccessToken)
+	assert.Equal(t, 2, pollCount)
+}
+
+func TestPollDeviceToken_AccessDenied(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+
+		resp := map[string]any{
+			"error":             "access_denied",
+			"error_description": "User denied the request",
+		}
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := PollDeviceToken(ctx, server.URL, "client", "dc", 1)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "access_denied")
+	assert.Contains(t, err.Error(), "User denied the request")
+}
+
+func TestPollDeviceToken_Timeout(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+
+		resp := map[string]any{"error": "authorization_pending"}
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	_, err := PollDeviceToken(ctx, server.URL, "client", "dc", 1)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "timed out")
+}
+
+func TestPollDeviceToken_ExpiredToken(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+
+		resp := map[string]any{"error": "expired_token"}
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := PollDeviceToken(ctx, server.URL, "client", "dc", 1)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "expired_token")
+}

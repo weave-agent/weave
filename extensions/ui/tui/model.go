@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -2114,21 +2115,7 @@ func (m Model) onLoginDialogDone(result overlays.DialogResult, pendingCmd tea.Cm
 	m.pendingLoginProviders = nil
 
 	if selected.IsOAuth {
-		oauthProvider, ok := sdk.GetOAuthProvider(selected.ID)
-		if !ok {
-			am := messages.NewAssistantMessage()
-			am.Finalize(fmt.Sprintf("OAuth provider %s not configured.", selected.Name))
-			m.chat = m.chat.AddItem(am)
-
-			return m, pendingCmd
-		}
-
-		// Show login dialog while the OAuth flow runs asynchronously.
-		loginDlg := overlays.NewLoginModel(selected.Name, oauthProvider.AuthURL)
-		loginDlg = loginDlg.SetSize(m.width, m.height).Show()
-		m.dialogStack = m.dialogStack.Push(overlays.NewLoginDialog(dialogLoginOAuth, loginDlg))
-
-		return m, tea.Batch(pendingCmd, runOAuthFlowCmd(oauthProvider))
+		return m.startOAuthLogin(selected, pendingCmd)
 	}
 
 	// API key flow: reuse the existing key input dialog.
@@ -2138,6 +2125,53 @@ func (m Model) onLoginDialogDone(result overlays.DialogResult, pendingCmd tea.Cm
 	m.dialogStack = m.dialogStack.Push(overlays.NewInputDialog(dialogKeyInput, input))
 
 	return m, pendingCmd
+}
+
+// startOAuthLogin initiates the OAuth login flow for the selected provider.
+// It handles both device code and authorization code flows.
+func (m Model) startOAuthLogin(selected LoginProviderEntry, pendingCmd tea.Cmd) (tea.Model, tea.Cmd) {
+	oauthProvider, ok := sdk.GetOAuthProvider(selected.ID)
+	if !ok {
+		am := messages.NewAssistantMessage()
+		am.Finalize(fmt.Sprintf("OAuth provider %s not configured.", selected.Name))
+		m.chat = m.chat.AddItem(am)
+
+		return m, pendingCmd
+	}
+
+	if oauthProvider.FlowType == sdk.DeviceCode {
+		// Device code flow: request code synchronously, then poll asynchronously.
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		resp, err := sdk.RequestDeviceCode(ctx, oauthProvider.DeviceCodeURL, oauthProvider.ClientID, oauthProvider.Scopes)
+		if err != nil {
+			am := messages.NewAssistantMessage()
+			am.Finalize(fmt.Sprintf("Failed to start device code flow for %s: %v", selected.Name, err))
+			m.chat = m.chat.AddItem(am)
+
+			return m, pendingCmd
+		}
+
+		// Show login dialog with user code and verification URL.
+		loginDlg := overlays.NewLoginModel(selected.Name, resp.VerificationURLOrURI())
+		loginDlg = loginDlg.SetStatus("Enter code: "+resp.UserCode).SetSize(m.width, m.height).Show()
+		m.dialogStack = m.dialogStack.Push(overlays.NewLoginDialog(dialogLoginOAuth, loginDlg))
+
+		interval := resp.Interval
+		if interval <= 0 {
+			interval = 5
+		}
+
+		return m, tea.Batch(pendingCmd, pollDeviceCodeCmd(selected.ID, resp.DeviceCode, interval, oauthProvider.TokenURL, oauthProvider.ClientID))
+	}
+
+	// Authorization code flow: show dialog and run callback + browser flow.
+	loginDlg := overlays.NewLoginModel(selected.Name, oauthProvider.AuthURL)
+	loginDlg = loginDlg.SetSize(m.width, m.height).Show()
+	m.dialogStack = m.dialogStack.Push(overlays.NewLoginDialog(dialogLoginOAuth, loginDlg))
+
+	return m, tea.Batch(pendingCmd, runOAuthFlowCmd(oauthProvider))
 }
 
 func (m Model) onLogoutDialogDone(result overlays.DialogResult, pendingCmd tea.Cmd) (tea.Model, tea.Cmd) {

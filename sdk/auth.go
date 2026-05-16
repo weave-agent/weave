@@ -10,6 +10,9 @@ import (
 // OAuthCredential stores OAuth tokens for a provider.
 type OAuthCredential = auth.OAuthCredential
 
+// DeviceCodeResponse holds the result from the device authorization endpoint.
+type DeviceCodeResponse = auth.DeviceCodeResponse
+
 // ClearProviderAuth removes all authentication data for a provider from the
 // auth file.
 func ClearProviderAuth(providerName string) error {
@@ -42,3 +45,29 @@ func RunAuthorizationCodeFlow(ctx context.Context, authURL, tokenURL, clientID s
 
 	return cred, nil
 }
+
+// RequestDeviceCode requests a device code from the device authorization
+// endpoint (RFC 8628).
+func RequestDeviceCode(ctx context.Context, deviceCodeURL, clientID string, scopes []string) (DeviceCodeResponse, error) {
+	resp, err := auth.RequestDeviceCode(ctx, deviceCodeURL, clientID, scopes)
+	if err != nil {
+		return DeviceCodeResponse{}, fmt.Errorf("request device code: %w", err)
+	}
+
+	return resp, nil
+}
+
+// PollDeviceToken polls the token endpoint for a device code flow (RFC 8628)
+// until the user authorizes the device, an error occurs, or the context is
+// canceled.
+func PollDeviceToken(ctx context.Context, tokenURL, clientID, deviceCode string, intervalSecs int) (TokenResponse, error) {
+	resp, err := auth.PollDeviceToken(ctx, tokenURL, clientID, deviceCode, intervalSecs)
+	if err != nil {
+		return TokenResponse{}, fmt.Errorf("poll device token: %w", err)
+	}
+
+	return resp, nil
+}
+
+// TokenResponse is the parsed JSON response from the token endpoint.
+type TokenResponse = auth.TokenResponse
