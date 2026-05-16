@@ -22,6 +22,7 @@ type CompactionConfig struct {
 	ReserveTokens    int    `json:"reserve_tokens" default:"16384" description:"Tokens reserved for model response"`
 	KeepRecentTokens int    `json:"keep_recent_tokens" default:"20000" description:"Recent tokens to keep (not summarized)"`
 	Model            string `json:"model" default:"" description:"Model for summary generation (empty = current model)"`
+	MaxSteps         int    `json:"max_steps" default:"50" description:"Maximum inner loop iterations per turn"`
 }
 
 // AgentExtension owns the entire conversation lifecycle:

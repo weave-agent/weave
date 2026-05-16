@@ -1051,6 +1051,140 @@ func TestAgent_ModelChangeDifferentProvider(t *testing.T) {
 	assert.Equal(t, "gpt-5.5", so.Model)
 }
 
+func TestAgent_InnerLoopStepLimit(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mt := newMockTool("bash", sdk.ToolDef{Name: "bash", Description: "run commands"}, nil)
+	registerMockTool(mt)
+
+	// Provider always returns a tool call, so the inner loop would run forever
+	// without the step limit.
+	mp := newMockProvider([]providerResponse{
+		{toolCalls: []sdk.ToolCall{{ID: "tc1", Name: "bash", Arguments: map[string]any{"command": "echo hi"}}}},
+		{toolCalls: []sdk.ToolCall{{ID: "tc2", Name: "bash", Arguments: map[string]any{"command": "echo hi"}}}},
+		{toolCalls: []sdk.ToolCall{{ID: "tc3", Name: "bash", Arguments: map[string]any{"command": "echo hi"}}}},
+		{toolCalls: []sdk.ToolCall{{ID: "tc4", Name: "bash", Arguments: map[string]any{"command": "echo hi"}}}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	// Use a low step limit so the test runs fast.
+	a, err := NewAgentExtension(nil, nil, CompactionConfig{MaxSteps: 3})
+	require.NoError(t, err)
+
+	a.providerName = "anthropic"
+
+	b := bus.New()
+	defer b.Close()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "loop test"))
+
+	// Wait for the step-limit exceeded event.
+	var compactedEvt sdk.Event
+	found := false
+	deadline := time.After(5 * time.Second)
+
+	for !found {
+		select {
+		case evt, ok := <-allCh:
+			require.True(t, ok, "event channel closed")
+			if evt.Topic == TopicCompacted {
+				compactedEvt = evt
+				found = true
+			}
+			if evt.Topic == TopicEnd {
+				t.Fatal("got TopicEnd before step-limit exceeded event")
+			}
+		case <-deadline:
+			t.Fatal("timeout waiting for step-limit exceeded event")
+		}
+	}
+
+	payload, ok := compactedEvt.Payload.(map[string]any)
+	require.True(t, ok, "compacted payload type = %T", compactedEvt.Payload)
+	errMsg, ok := payload["error"].(string)
+	require.True(t, ok, "error field type = %T", payload["error"])
+	assert.Contains(t, errMsg, "step limit exceeded")
+	assert.Contains(t, errMsg, "3")
+
+	// The loop should have broken out and eventually ended.
+	require.NoError(t, a.Close())
+
+	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
+
+	// Should have executed 3 tool calls before hitting the limit.
+	assert.Len(t, mt.ExecuteCalls(), 3)
+}
+
+func TestAgent_StepLimitConfigurable(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mt := newMockTool("bash", sdk.ToolDef{Name: "bash", Description: "run commands"}, nil)
+	registerMockTool(mt)
+
+	mp := newMockProvider([]providerResponse{
+		{toolCalls: []sdk.ToolCall{{ID: "tc1", Name: "bash", Arguments: map[string]any{"command": "echo 1"}}}},
+		{toolCalls: []sdk.ToolCall{{ID: "tc2", Name: "bash", Arguments: map[string]any{"command": "echo 2"}}}},
+		{toolCalls: []sdk.ToolCall{{ID: "tc3", Name: "bash", Arguments: map[string]any{"command": "echo 3"}}}},
+		{toolCalls: []sdk.ToolCall{{ID: "tc4", Name: "bash", Arguments: map[string]any{"command": "echo 4"}}}},
+		{toolCalls: []sdk.ToolCall{{ID: "tc5", Name: "bash", Arguments: map[string]any{"command": "echo 5"}}}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	// Custom step limit of 5.
+	a, err := NewAgentExtension(nil, nil, CompactionConfig{MaxSteps: 5})
+	require.NoError(t, err)
+
+	a.providerName = "anthropic"
+
+	b := bus.New()
+	defer b.Close()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "configurable limit test"))
+
+	var compactedEvt sdk.Event
+	found := false
+	deadline := time.After(5 * time.Second)
+
+	for !found {
+		select {
+		case evt, ok := <-allCh:
+			require.True(t, ok, "event channel closed")
+			if evt.Topic == TopicCompacted {
+				compactedEvt = evt
+				found = true
+			}
+			if evt.Topic == TopicEnd {
+				t.Fatal("got TopicEnd before step-limit exceeded event")
+			}
+		case <-deadline:
+			t.Fatal("timeout waiting for step-limit exceeded event")
+		}
+	}
+
+	payload, ok := compactedEvt.Payload.(map[string]any)
+	require.True(t, ok, "compacted payload type = %T", compactedEvt.Payload)
+	errMsg, ok := payload["error"].(string)
+	require.True(t, ok, "error field type = %T", payload["error"])
+	assert.Contains(t, errMsg, "5")
+
+	require.NoError(t, a.Close())
+
+	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
+
+	// Should have executed 5 tool calls before hitting the limit.
+	assert.Len(t, mt.ExecuteCalls(), 5)
+}
+
 func TestAgent_InvalidThinkingLevelIgnored(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()

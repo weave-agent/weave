@@ -208,8 +208,23 @@ func (a *AgentExtension) run(
 		// Inner loop: tool calls. Continues while the provider returns
 		// tool calls that need execution.
 		continueLoop := true
+		step := 0
+		maxSteps := a.compactionCfg.MaxSteps
+		if maxSteps <= 0 {
+			maxSteps = 50
+		}
 
 		for continueLoop {
+			step++
+			if step > maxSteps {
+				bus.Publish(sdk.NewEvent(TopicCompacted, map[string]any{
+					"error": fmt.Sprintf("inner loop step limit exceeded (%d); breaking to prevent runaway tool-calling", maxSteps),
+				}))
+				continueLoop = false
+
+				break
+			}
+
 			var (
 				compactInstr     string
 				compactRequested bool

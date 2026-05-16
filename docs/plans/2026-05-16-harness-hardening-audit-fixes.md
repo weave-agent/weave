@@ -44,11 +44,11 @@ Fix 17 gaps identified by the agents-best-practices audit of the Weave agent fra
 ## Implementation Steps
 
 ### Task 1: Add inner loop step limit
-- [ ] add `MaxSteps int` field to `CompactionConfig` (or new `LoopConfig`) in `extensions/agent/extension.go` with default 50
-- [ ] add step counter and limit check in the inner loop at `extensions/agent/loop.go:210-212` — when exceeded, set `continueLoop = false` and publish an `agent.compacted`-style warning event
-- [ ] add config wiring in the factory function so `max_steps` is loadable from settings
-- [ ] write tests: TestAgent_InnerLoopStepLimit, TestAgent_StepLimitConfigurable in `extensions/agent/loop_test.go`
-- [ ] run `cd extensions/agent && go test ./...` — must pass before task 2
+- [x] add `MaxSteps int` field to `CompactionConfig` (or new `LoopConfig`) in `extensions/agent/extension.go` with default 50
+- [x] add step counter and limit check in the inner loop at `extensions/agent/loop.go:210-212` — when exceeded, set `continueLoop = false` and publish an `agent.compacted`-style warning event
+- [x] add config wiring in the factory function so `max_steps` is loadable from settings
+- [x] write tests: TestAgent_InnerLoopStepLimit, TestAgent_StepLimitConfigurable in `extensions/agent/loop_test.go`
+- [x] run `cd extensions/agent && go test ./...` — must pass before task 2
 
 ### Task 2: Add tool execution panic recovery
 - [ ] wrap `executeTool()` body at `extensions/agent/loop.go:708-722` with `defer func() { if r := recover(); r != nil { ... } }()` that returns `ToolResult{Content: fmt.Sprintf("tool panicked: %v", r), IsError: true}` and logs stack trace via `sdk.Logger`
