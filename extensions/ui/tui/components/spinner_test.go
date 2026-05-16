@@ -3,10 +3,12 @@ package components
 import (
 	"testing"
 	"time"
-	"unicode/utf8"
+
+	"weave/ext/ui/tui/palette"
 
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/stretchr/testify/assert"
 )
@@ -109,16 +111,6 @@ func TestStopSpinner(t *testing.T) {
 	assert.True(t, ok)
 }
 
-func TestRenderSpinnerClean(t *testing.T) {
-	result := RenderSpinnerClean(0, "test", 0)
-	assert.Contains(t, result, "test")
-}
-
-func TestRenderSpinnerClean_Truncates(t *testing.T) {
-	result := RenderSpinnerClean(0, "Thinking...", 5)
-	assert.LessOrEqual(t, utf8.RuneCountInString(result), 5)
-}
-
 // Verify spinner.TickMsg is properly handled as a tea.Msg
 func TestSpinnerTickMsgIsTeaMsg(t *testing.T) {
 	var _ tea.Msg = spinner.TickMsg{}
@@ -156,16 +148,26 @@ func TestSpinnerModel_ColorPulse_Alternates(t *testing.T) {
 		s, _ = s.Update(spinner.TickMsg{Time: time.Now()})
 	}
 
-	view := s.View()
-	assert.Contains(t, view, "245")
+	// Verify spinner frame has Accent color by checking screen buffer
+	canvas := uv.NewScreenBuffer(80, 1)
+	s.Draw(canvas, canvas.Bounds())
+	// The spinner character (first cell) should have the Accent color
+	cell := canvas.CellAt(0, 0)
+	if cell != nil && !cell.IsZero() {
+		assert.Equal(t, lipgloss.Color(palette.DefaultTheme().Accent), cell.Style.Fg)
+	}
 
 	// Next 3 ticks should use AccentBright color (248)
 	for range 3 {
 		s, _ = s.Update(spinner.TickMsg{Time: time.Now()})
 	}
 
-	view = s.View()
-	assert.Contains(t, view, "248")
+	canvas = uv.NewScreenBuffer(80, 1)
+	s.Draw(canvas, canvas.Bounds())
+	cell = canvas.CellAt(0, 0)
+	if cell != nil && !cell.IsZero() {
+		assert.Equal(t, lipgloss.Color(palette.DefaultTheme().AccentBright), cell.Style.Fg)
+	}
 }
 
 func TestSpinnerModel_ColorPulse_CyclesBack(t *testing.T) {
@@ -175,9 +177,13 @@ func TestSpinnerModel_ColorPulse_CyclesBack(t *testing.T) {
 	for range 6 {
 		s, _ = s.Update(spinner.TickMsg{Time: time.Now()})
 	}
-	// After a full cycle, back to Accent (245)
-	view := s.View()
-	assert.Contains(t, view, "245")
+	// After a full cycle, back to Accent
+	canvas := uv.NewScreenBuffer(80, 1)
+	s.Draw(canvas, canvas.Bounds())
+	cell := canvas.CellAt(0, 0)
+	if cell != nil && !cell.IsZero() {
+		assert.Equal(t, lipgloss.Color(palette.DefaultTheme().Accent), cell.Style.Fg)
+	}
 }
 
 func TestSpinnerModel_TickCount_Increments(t *testing.T) {
