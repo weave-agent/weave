@@ -68,6 +68,23 @@ func newModelNoLanding() Model {
 	return m
 }
 
+func TestModel_NewlineKeybindingsInsertEditorNewline(t *testing.T) {
+	tests := []tea.KeyPressMsg{
+		{Code: tea.KeyEnter, Mod: tea.ModShift},
+		{Code: 'j', Mod: tea.ModCtrl},
+	}
+
+	for _, key := range tests {
+		m := newModelNoLanding()
+		m.editor = m.editor.SetValue("hello")
+
+		model, _ := m.Update(key)
+
+		updated := model.(Model)
+		assert.Equal(t, "hello\n", updated.editor.Value(), "key %s", keyString(key))
+	}
+}
+
 func TestModel_HandlesMessageStart(t *testing.T) {
 	m := newModel(nil, nil, nil, nil)
 	m.width = 80

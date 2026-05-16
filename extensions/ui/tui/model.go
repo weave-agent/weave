@@ -55,6 +55,10 @@ const (
 	doublePressEscape = 1
 )
 
+func isEnterKey(code rune) bool {
+	return code == tea.KeyEnter || code == tea.KeyKpEnter
+}
+
 // Model is the root Bubble Tea model for the TUI.
 type Model struct {
 	width  int
@@ -487,7 +491,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.panelManager.Show(m.panelTray.ActiveID())
 
 				return m, nil
-			case tea.KeyEnter:
+			case tea.KeyEnter, tea.KeyKpEnter:
 				m.focus = FocusPanel
 				m.panelTray = m.panelTray.SetFocused(false)
 				m.panelManager.Show(m.panelTray.ActiveID())
@@ -1180,6 +1184,12 @@ func (m Model) dispatchBinding(action BindingAction) (tea.Model, tea.Cmd) {
 	case ActionCursorWordRight:
 		m.editor = m.editor.CursorWordRight()
 		return m, nil
+	case ActionEditorNewline:
+		var cmd tea.Cmd
+
+		m.editor, cmd = m.editor.InsertNewline()
+
+		return m, cmd
 
 	// Chat scroll
 	case ActionScrollUp:
@@ -2271,7 +2281,12 @@ func (m Model) handleCompletionKey(msg tea.KeyPressMsg) (bool, Model, tea.Cmd) {
 	}
 
 	switch msg.Code {
-	case tea.KeyTab, tea.KeyUp, tea.KeyDown, tea.KeyEnter:
+	case tea.KeyTab, tea.KeyUp, tea.KeyDown, tea.KeyEnter, tea.KeyKpEnter:
+		// Alt+Enter or Shift+Enter inserts a newline, don't intercept
+		if isEnterKey(msg.Code) && msg.Mod&(tea.ModAlt|tea.ModShift) != 0 {
+			return false, m, nil
+		}
+
 		var cmd tea.Cmd
 
 		m.editor, cmd = m.editor.Update(msg)
@@ -2809,6 +2824,8 @@ func (m Model) View() tea.View {
 	v := tea.NewView(uv.TrimSpace(canvas.Render()))
 	v.AltScreen = true
 	v.MouseMode = tea.MouseModeAllMotion
+	v.KeyboardEnhancements.ReportAllKeysAsEscapeCodes = true
+	v.KeyboardEnhancements.ReportAssociatedText = true
 
 	return v
 }

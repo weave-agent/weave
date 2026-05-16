@@ -26,6 +26,7 @@ const (
 	ActionCursorLineEnd      BindingAction = "tui.editor.cursorLineEnd"
 	ActionCursorWordLeft     BindingAction = "tui.editor.cursorWordLeft"
 	ActionCursorWordRight    BindingAction = "tui.editor.cursorWordRight"
+	ActionEditorNewline      BindingAction = "tui.editor.newline"
 	ActionScrollUp           BindingAction = "tui.editor.scrollUp"
 	ActionScrollDown         BindingAction = "tui.editor.scrollDown"
 	ActionScrollToBottom     BindingAction = "tui.editor.scrollToBottom"
@@ -63,6 +64,7 @@ var defaultBindings = []Binding{
 	{Action: ActionCursorLineEnd, Keys: []string{"ctrl+e", "end"}, Description: "Cursor to line end"},
 	{Action: ActionCursorWordLeft, Keys: []string{"alt+left", "ctrl+left"}, Description: "Cursor word left"},
 	{Action: ActionCursorWordRight, Keys: []string{"alt+right", "ctrl+right"}, Description: "Cursor word right"},
+	{Action: ActionEditorNewline, Keys: []string{"shift+enter", "ctrl+j"}, Description: "Insert newline"},
 	{Action: ActionScrollUp, Keys: []string{"pgup"}, Description: "Scroll chat up"},
 	{Action: ActionScrollDown, Keys: []string{"pgdown"}, Description: "Scroll chat down"},
 	{Action: ActionScrollToBottom, Keys: []string{"shift+g"}, Description: "Scroll chat to bottom"},

@@ -48,6 +48,9 @@ func TestModel_View(t *testing.T) {
 	assert.Contains(t, view.Content, "weave")
 	// Should contain newlines separating sections
 	assert.Contains(t, view.Content, "\n")
+	assert.True(t, view.AltScreen)
+	assert.True(t, view.KeyboardEnhancements.ReportAllKeysAsEscapeCodes)
+	assert.True(t, view.KeyboardEnhancements.ReportAssociatedText)
 }
 
 func TestModel_Init(t *testing.T) {

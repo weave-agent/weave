@@ -69,6 +69,20 @@ func TestEditorEnterSubmits(t *testing.T) {
 	assert.Equal(t, "hello world", submit.Text)
 }
 
+func TestEditorKeypadEnterSubmits(t *testing.T) {
+	m := NewEditorModel()
+	m = m.SetValue("hello world")
+
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyKpEnter})
+	assert.Empty(t, m.Value())
+	require.NotNil(t, cmd)
+
+	msg := cmd()
+	submit, ok := msg.(SubmitMsg)
+	require.True(t, ok)
+	assert.Equal(t, "hello world", submit.Text)
+}
+
 func TestEditorAltEnterInsertsNewline(t *testing.T) {
 	m := NewEditorModel()
 	m = m.SetValue("hello")
@@ -797,6 +811,18 @@ func TestEditor_ShiftEnter_InsertsNewline(t *testing.T) {
 	assert.Equal(t, "hello\n", updated.Value(), "Shift+Enter should append newline")
 
 	// cmd is the textarea's internal command (e.g. cursor blink), not SubmitMsg
+	_ = cmd
+}
+
+func TestEditor_ShiftKeypadEnter_InsertsNewline(t *testing.T) {
+	m := NewEditorModel()
+	m = m.Focus()
+	m = m.SetValue("hello")
+
+	updated, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyKpEnter, Mod: tea.ModShift})
+
+	assert.Equal(t, "hello\n", updated.Value(), "Shift+keypad Enter should append newline")
+
 	_ = cmd
 }
 

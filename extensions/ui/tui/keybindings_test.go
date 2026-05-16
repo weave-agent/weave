@@ -15,11 +15,13 @@ func TestBindingRegistry_Defaults(t *testing.T) {
 	r := NewBindingRegistry()
 
 	actions := map[string]BindingAction{
-		"ctrl+d":    ActionExit,
-		"esc":       ActionInterrupt,
-		"ctrl+l":    ActionModelSelect,
-		"ctrl+p":    ActionModelCycle,
-		"shift+tab": ActionThinkingCycle,
+		"ctrl+d":      ActionExit,
+		"esc":         ActionInterrupt,
+		"ctrl+l":      ActionModelSelect,
+		"ctrl+p":      ActionModelCycle,
+		"shift+tab":   ActionThinkingCycle,
+		"shift+enter": ActionEditorNewline,
+		"ctrl+j":      ActionEditorNewline,
 	}
 
 	for key, want := range actions {
@@ -350,6 +352,8 @@ func TestKeyString_V2ModifierCombinations(t *testing.T) {
 		{tea.KeyPressMsg{Code: 'a', Mod: tea.ModAlt}, "alt+a"},
 		// Shift modifier with special keys
 		{tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift}, "shift+tab"},
+		{tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModShift}, "shift+enter"},
+		{tea.KeyPressMsg{Code: 'j', Mod: tea.ModCtrl}, "ctrl+j"},
 		// Plain printable chars
 		{tea.KeyPressMsg{Code: 'x', Text: "x"}, "x"},
 		// Special keys

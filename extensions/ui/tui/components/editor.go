@@ -52,6 +52,10 @@ type EditorModel struct {
 
 const minEditorWidth = 20
 
+func isEnterKey(code rune) bool {
+	return code == tea.KeyEnter || code == tea.KeyKpEnter
+}
+
 // borderStyle creates a border style with the given foreground color.
 func borderStyle(fg string) lipgloss.Style {
 	return lipgloss.NewStyle().
@@ -112,6 +116,16 @@ func (m EditorModel) SetValue(s string) EditorModel {
 // Value returns the current editor content.
 func (m EditorModel) Value() string {
 	return m.ta.Value()
+}
+
+// InsertNewline inserts a newline at the current cursor position without
+// treating Enter as submit.
+func (m EditorModel) InsertNewline() (EditorModel, tea.Cmd) {
+	var cmd tea.Cmd
+
+	m.ta, cmd = m.ta.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	return m, cmd
 }
 
 // SetSize updates the editor dimensions.
@@ -275,7 +289,12 @@ func (m EditorModel) handleCompletionKey(msg tea.KeyPressMsg) (bool, EditorModel
 		m.completion = m.completion.CursorDown()
 
 		return true, m, nil
-	case tea.KeyEnter:
+	case tea.KeyEnter, tea.KeyKpEnter:
+		// Alt+Enter or Shift+Enter inserts a newline, not apply completion
+		if msg.Mod&(tea.ModAlt|tea.ModShift) != 0 {
+			return false, m, nil
+		}
+
 		m = m.applyCompletion()
 		model, cmd := m.handleEnter()
 
@@ -298,7 +317,7 @@ func (m EditorModel) handleKey(msg tea.KeyPressMsg) (bool, EditorModel, tea.Cmd)
 	}
 
 	// Alt+Enter or Shift+Enter inserts a newline (plain Enter is bound to submit)
-	if msg.Code == tea.KeyEnter && msg.Mod&(tea.ModAlt|tea.ModShift) != 0 {
+	if isEnterKey(msg.Code) && msg.Mod&(tea.ModAlt|tea.ModShift) != 0 {
 		plain := msg
 		plain.Mod &^= tea.ModAlt | tea.ModShift
 
@@ -310,7 +329,7 @@ func (m EditorModel) handleKey(msg tea.KeyPressMsg) (bool, EditorModel, tea.Cmd)
 	}
 
 	// Enter submits
-	if msg.Code == tea.KeyEnter {
+	if isEnterKey(msg.Code) {
 		model, cmd := m.handleEnter()
 
 		return true, model, cmd
