@@ -705,23 +705,38 @@ func TestEditorDraw_PulseActiveOverlaysCornerColor(t *testing.T) {
 	scr := uv.NewScreenBuffer(40, 5)
 	m.Draw(scr, uv.Rect(0, 0, 40, 5))
 
-	// Verify the pulse didn't crash and the editor still renders
+	// Content still renders
 	rendered := scr.Render()
 	assert.Contains(t, rendered, "test")
+
+	// Pulse position 0 (TL corner at 0,0) should have AccentBright color
+	cell := scr.CellAt(0, 0)
+	require.NotNil(t, cell)
+	assert.Equal(t, lipgloss.Color(palette.DefaultTheme().AccentBright), cell.Style.Fg)
 }
 
 func TestEditorDraw_PulseTrailingPosition(t *testing.T) {
 	m := NewEditorModel().SetSize(40, 3)
 	m = m.SetValue("test")
 	m = m.SetPulseActive(true)
-	m = m.SetPulsePos(1) // position 1, trailing is position 0
+	m = m.SetPulsePos(1) // position 1 (TR corner), trailing is position 0 (TL corner)
 
 	scr := uv.NewScreenBuffer(40, 5)
 	m.Draw(scr, uv.Rect(0, 0, 40, 5))
 
-	// Verify no crash and content renders
+	// Content still renders
 	rendered := scr.Render()
 	assert.Contains(t, rendered, "test")
+
+	// Current position (1 = TR corner at 39,0) should have AccentBright
+	cell := scr.CellAt(39, 0)
+	require.NotNil(t, cell)
+	assert.Equal(t, lipgloss.Color(palette.DefaultTheme().AccentBright), cell.Style.Fg)
+
+	// Trailing position (0 = TL corner at 0,0) should have Accent
+	cell = scr.CellAt(0, 0)
+	require.NotNil(t, cell)
+	assert.Equal(t, lipgloss.Color(palette.DefaultTheme().Accent), cell.Style.Fg)
 }
 
 func TestEditorDraw_PulseCyclesThroughPositions(t *testing.T) {
@@ -734,6 +749,35 @@ func TestEditorDraw_PulseCyclesThroughPositions(t *testing.T) {
 	for pos := range 8 {
 		m = m.SetPulsePos(pos)
 		m.Draw(scr, uv.Rect(0, 0, 40, 5))
+
+		// Verify current position has AccentBright, trailing has Accent
+		segments := [8]struct{ x, y int }{
+			{0, 0},      // 0: TL
+			{39, 0},     // 1: TR
+			{39, 4},     // 2: BR
+			{0, 4},      // 3: BL
+			{20, 0},     // 4: top edge
+			{39, 2},     // 5: right edge
+			{20, 4},     // 6: bottom edge
+			{0, 2},      // 7: left edge
+		}
+
+		trailing := (pos - 1 + 8) % 8
+
+		for i, seg := range segments {
+			cell := scr.CellAt(seg.x, seg.y)
+			if cell == nil || cell.IsZero() {
+				continue
+			}
+			switch i {
+			case pos:
+				assert.Equal(t, lipgloss.Color(palette.DefaultTheme().AccentBright), cell.Style.Fg,
+					"position %d should be AccentBright", pos)
+			case trailing:
+				assert.Equal(t, lipgloss.Color(palette.DefaultTheme().Accent), cell.Style.Fg,
+					"trailing position %d should be Accent", trailing)
+			}
+		}
 	}
 
 	rendered := scr.Render()
