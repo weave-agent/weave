@@ -60,10 +60,10 @@ type NoopSessionStore struct{}
 
 // ListSessions returns an empty slice.
 func (NoopSessionStore) ListSessions() ([]SessionInfo, error) {
-	return nil, nil
+	return []SessionInfo{}, nil
 }
 
 // LoadHistory returns an empty slice.
 func (NoopSessionStore) LoadHistory(_ string) ([]Message, error) {
-	return nil, nil
+	return []Message{}, nil
 }

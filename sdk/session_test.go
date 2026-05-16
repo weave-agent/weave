@@ -115,7 +115,7 @@ func TestNoopSessionStore_ListSessions(t *testing.T) {
 
 	sessions, err := noop.ListSessions()
 	require.NoError(t, err)
-	assert.Nil(t, sessions)
+	assert.Empty(t, sessions)
 }
 
 func TestNoopSessionStore_LoadHistory(t *testing.T) {
@@ -123,7 +123,7 @@ func TestNoopSessionStore_LoadHistory(t *testing.T) {
 
 	msgs, err := noop.LoadHistory("any-id")
 	require.NoError(t, err)
-	assert.Nil(t, msgs)
+	assert.Empty(t, msgs)
 }
 
 func TestSessionResumePayload(t *testing.T) {

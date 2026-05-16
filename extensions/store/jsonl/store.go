@@ -226,18 +226,15 @@ func (s *Store) handleSessionResume(evt sdk.Event) {
 		return
 	}
 
-	sess, err := s.Load(payload.SessionID)
-	if err != nil {
-		logger.Error("jsonl: load session for resume", "session", payload.SessionID, "error", err)
-		return
-	}
-
 	var (
 		lastEntryID string
 		maxTurn     int
 	)
 
-	if len(sess.Entries) > 0 {
+	sess, err := s.Load(payload.SessionID)
+	if err != nil {
+		logger.Warn("jsonl: load session for resume, continuing with empty state", "session", payload.SessionID, "error", err)
+	} else if len(sess.Entries) > 0 {
 		last := sess.Entries[len(sess.Entries)-1]
 		lastEntryID = last.ID
 		maxTurn = last.Turn
@@ -639,7 +636,7 @@ func (s *Store) ListSessions() ([]sdk.SessionInfo, error) {
 	}
 
 	if len(infos) == 0 {
-		return nil, nil
+		return []sdk.SessionInfo{}, nil
 	}
 
 	result := make([]sdk.SessionInfo, len(infos))

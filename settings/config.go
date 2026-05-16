@@ -142,12 +142,10 @@ func Load(args []string) (string, *Settings, []string, error) {
 // and remaining args.
 func parseConfigFlag(args []string) (configPath string, rest []string) {
 	for i := range args {
-		if args[i] == "-c" || args[i] == "--config" {
+		if args[i] == "--config" {
 			if i+1 < len(args) {
 				return args[i+1], append(args[:i:i], args[i+2:]...)
 			}
-		} else if cfg, ok := strings.CutPrefix(args[i], "-c="); ok {
-			return cfg, append(args[:i:i], args[i+1:]...)
 		} else if cfg, ok := strings.CutPrefix(args[i], "--config="); ok {
 			return cfg, append(args[:i:i], args[i+1:]...)
 		}
@@ -166,7 +164,7 @@ type flagSet struct {
 	SandboxMode string `flag:"sandbox" description:"Sandbox mode override"`
 	Model       string `flag:"model" description:"Model override for this session"`
 	Debug       bool   `flag:"debug" description:"Enable debug logging"`
-	Continue    bool   `flag:"continue" description:"Resume most recent session"`
+	Continue    bool   `flag:"continue" short:"c" description:"Resume most recent session"`
 	Resume      string `flag:"resume" short:"r" description:"Resume specific session by ID"`
 }
 

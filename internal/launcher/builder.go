@@ -710,7 +710,7 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 	b.WriteString("\t\tb.Publish(sdk.NewEvent(\"model.change\", payload))\n")
 	b.WriteString("\t}\n")
 	b.WriteString("\tif prompt != \"\" {\n")
-	b.WriteString("\t\tif continueFlag != \"\" || resumeID != \"\" {\n")
+	b.WriteString("\t\tif core.Continue || core.Resume != \"\" {\n")
 	b.WriteString("\t\t\tb.Publish(sdk.NewEvent(\"agent.followup\", prompt))\n")
 	b.WriteString("\t\t} else {\n")
 	b.WriteString("\t\t\tb.Publish(sdk.NewEvent(\"agent.prompt\", prompt))\n")

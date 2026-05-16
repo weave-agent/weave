@@ -535,7 +535,7 @@ func TestListSessions_EmptyDir(t *testing.T) {
 	s := newTestStore(t)
 	infos, err := s.ListSessions()
 	require.NoError(t, err)
-	assert.Nil(t, infos)
+	assert.Empty(t, infos)
 }
 
 func TestListSessions_SkipsCorruptedHeader(t *testing.T) {

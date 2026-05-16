@@ -880,6 +880,16 @@ func TestLoad_ResumeShortFlag(t *testing.T) {
 	assert.False(t, cf.Continue)
 }
 
+func TestLoad_ContinueShortFlag(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
+
+	_, cf, _, err := LoadFromDir(dir, []string{"-c"})
+	require.NoError(t, err)
+	assert.True(t, cf.Continue)
+	assert.Empty(t, cf.Resume)
+}
+
 func TestLoad_MutualExclusion(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
