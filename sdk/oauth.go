@@ -23,16 +23,16 @@ const (
 
 // OAuthProvider describes an OAuth identity provider and its endpoints.
 type OAuthProvider struct {
-	ID            string
-	Name          string
-	AuthURL       string
-	TokenURL      string
-	DeviceCodeURL string
-	RedirectURI   string            // Fixed callback URI registered with the provider (e.g. "http://localhost:1455/auth/callback").
+	ID              string
+	Name            string
+	AuthURL         string
+	TokenURL        string
+	DeviceCodeURL   string
+	RedirectURI     string            // Fixed callback URI registered with the provider (e.g. "http://localhost:1455/auth/callback").
 	ExtraAuthParams map[string]string // Additional query params for the authorization URL.
-	Scopes        []string
-	ClientID      string
-	FlowType      OAuthFlowType
+	Scopes          []string
+	ClientID        string
+	FlowType        OAuthFlowType
 }
 
 var oauthReg = registry.New[OAuthProvider](
