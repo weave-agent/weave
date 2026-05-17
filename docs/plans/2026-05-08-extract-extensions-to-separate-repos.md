@@ -130,16 +130,16 @@ For each extension directory (`extensions/agent/`, `extensions/sandbox/`, `exten
 
 ### Task 5: Create extension repo template and extract first extension
 
-- [ ] Push `github.com/weave-agent/weave-bash` repo
+- [x] Push `github.com/weave-agent/weave-bash` repo
   - Copy `extensions/tools/bash/` contents to temp dir
   - `go.mod`: `module github.com/weave-agent/weave-bash`
   - README with fork/customize instructions
-  - LICENSE same as main repo
+  - LICENSE same as main repo (skipped - no LICENSE in main repo)
   - `git init`, `git add`, `git commit`, `git push` to `git@github.com:weave-agent/weave-bash.git`
-- [ ] Verify `weave install github.com/weave-agent/weave-bash --name bash` works
-- [ ] Remove `extensions/tools/bash/` from main repo
-- [ ] Update main repo CI/docs to reference external extension repos
-- [ ] Run tests — must pass
+- [x] Verify `weave install github.com/weave-agent/weave-bash --name bash` works
+- [x] Remove `extensions/tools/bash/` from main repo
+- [x] Update main repo CI/docs to reference external extension repos
+- [x] Run tests — must pass
 
 ### Task 6: Extract remaining core extensions
 

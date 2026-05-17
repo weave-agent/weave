@@ -10,13 +10,13 @@ import (
 
 var extsWithTUI = []string{
 	"loop", "anthropic",
-	"bash", "read", "edit", "write", "grep", "find", "ls",
+	"read", "edit", "write", "grep", "find", "ls",
 	"jsonl", "tui",
 }
 
 var extsWithoutTUI = []string{
 	"loop", "anthropic",
-	"bash", "read", "edit", "write", "grep", "find", "ls",
+	"read", "edit", "write", "grep", "find", "ls",
 	"jsonl",
 }
 

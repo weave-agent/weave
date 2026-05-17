@@ -259,7 +259,7 @@ func TestIntegration_DiscoverBuiltinNestedTools(t *testing.T) {
 	projectDir := t.TempDir()
 	homeDir := t.TempDir()
 
-	tools := []string{"bash", "read", "edit", "write", "grep", "find", "ls"}
+	tools := []string{"read", "edit", "write", "grep", "find", "ls"}
 
 	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 	require.NoError(t, err, "AutoDiscover")
