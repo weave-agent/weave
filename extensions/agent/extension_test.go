@@ -81,7 +81,7 @@ func TestAgentExtension_RegisterAsExtension(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	sdk.RegisterExtension("agent", func(cfg sdk.Config, ps sdk.PreferenceStore, cc CompactionConfig) (sdk.Extension, error) {
+	sdk.RegisterExtension("agent", func(cfg sdk.Config, ps sdk.PreferenceReader, cc CompactionConfig) (sdk.Extension, error) {
 		return NewAgentExtension(cfg, ps, cc)
 	})
 
@@ -175,7 +175,10 @@ func TestMakeSkillHandler(t *testing.T) {
 		},
 	}
 
-	handler := makeSkillHandler(skill, b)
+	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{}, CompactionConfig{})
+	require.NoError(t, err)
+
+	handler := ext.makeSkillHandler(skill, b)
 
 	require.NoError(t, handler(""))
 	require.Len(t, published, 1)
@@ -204,7 +207,10 @@ func TestMakeSkillHandler_WithArgs(t *testing.T) {
 		},
 	}
 
-	handler := makeSkillHandler(skill, b)
+	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{}, CompactionConfig{})
+	require.NoError(t, err)
+
+	handler := ext.makeSkillHandler(skill, b)
 
 	require.NoError(t, handler("extra args"))
 	require.Len(t, published, 1)
@@ -233,7 +239,10 @@ func TestMakeSkillHandler_ArgsNotXMLEscaped(t *testing.T) {
 		},
 	}
 
-	handler := makeSkillHandler(skill, b)
+	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{}, CompactionConfig{})
+	require.NoError(t, err)
+
+	handler := ext.makeSkillHandler(skill, b)
 
 	require.NoError(t, handler(`<div class="x">`))
 	require.Len(t, published, 1)
@@ -259,7 +268,10 @@ func TestMakeSkillHandler_FrontmatterStripped(t *testing.T) {
 		},
 	}
 
-	handler := makeSkillHandler(skill, b)
+	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{}, CompactionConfig{})
+	require.NoError(t, err)
+
+	handler := ext.makeSkillHandler(skill, b)
 	require.NoError(t, handler(""))
 
 	require.Len(t, published, 1)

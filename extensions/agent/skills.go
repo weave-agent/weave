@@ -353,16 +353,29 @@ func findModuleRoot() string {
 }
 
 // makeSkillHandler creates a slash command handler that pre-loads a skill's
-// body into the conversation as an agent.prompt event.
-func makeSkillHandler(skill Skill, bus sdk.Bus) func(args string) error {
+// body into the conversation as an agent.prompt event. If the skill has
+// AllowedTools set, the tool filter is saved and restricted for the duration
+// of the skill's turn; the previous filter is restored when the turn ends.
+func (a *AgentExtension) makeSkillHandler(skill Skill, bus sdk.Bus) func(args string) error {
 	return func(args string) error {
+		if len(skill.AllowedTools) > 0 {
+			a.mu.Lock()
+			a.savedToolFilter = sdk.GetToolFilter()
+
+			sdk.SetToolFilter(skill.AllowedTools)
+
+			a.skillFilterActive = true
+			a.mu.Unlock()
+		}
+
 		body := skill.Body()
 
 		var msg strings.Builder
 		fmt.Fprintf(&msg, "<skill name=\"%s\" location=\"%s\">\n", escapeXML(skill.Name), escapeXML(skill.FilePath))
 		fmt.Fprintf(&msg, "References are relative to %s.\n\n", escapeXML(skill.BaseDir))
-		msg.WriteString(body)
-		msg.WriteString("\n</skill>")
+		msg.WriteString("<skill_body trust=\"untrusted\">\n")
+		msg.WriteString(escapeXML(body))
+		msg.WriteString("\n</skill_body>\n</skill>")
 
 		if args != "" {
 			msg.WriteString("\n\n")
@@ -380,6 +393,7 @@ func escapeXML(s string) string {
 	s = strings.ReplaceAll(s, "<", "&lt;")
 	s = strings.ReplaceAll(s, ">", "&gt;")
 	s = strings.ReplaceAll(s, "\"", "&quot;")
+	s = strings.ReplaceAll(s, "'", "&apos;")
 
 	return s
 }

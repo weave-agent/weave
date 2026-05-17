@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -22,6 +23,34 @@ func storeSchema(scope, name string, schema Schema) {
 	}
 
 	schemas[key] = schema
+}
+
+// RegisterExtensionSchema extracts the schema from the provided config value and
+// stores it under the given scope and name. It is a no-op if a schema for that
+// key is already registered.
+func RegisterExtensionSchema(scope, name string, config any) {
+	schemaMu.Lock()
+	defer schemaMu.Unlock()
+
+	key := scopeKey(scope, name)
+	if _, exists := schemas[key]; exists {
+		return
+	}
+
+	typ := reflect.TypeOf(config)
+	if typ == nil {
+		return
+	}
+
+	for typ.Kind() == reflect.Pointer {
+		typ = typ.Elem()
+	}
+
+	if typ.Kind() != reflect.Struct {
+		return
+	}
+
+	schemas[key] = extractSchema(typ)
 }
 
 // GetSchema returns the schema for a named extension within the given scope.

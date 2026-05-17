@@ -58,7 +58,7 @@ func init() {
 		})
 	})
 
-	sdk.RegisterTool[struct{}]("find", func(cfg sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool[struct{}]("find", func(cfg sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 		return &tool{cfg: cfg}, nil
 	})
 }
@@ -81,7 +81,8 @@ func (t *tool) Definition() sdk.ToolDef {
 					"description": "Directory to search in. Defaults to current directory.",
 				},
 			},
-			"required": []string{ParamPattern},
+			"required":             []string{ParamPattern},
+			"additionalProperties": false,
 		},
 	}
 }

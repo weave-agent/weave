@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"reflect"
+	"sort"
 	"sync"
 
 	"weave/sdk/registry"
@@ -18,7 +19,7 @@ var toolReg = registry.New[func(Config) (Tool, error)](
 // RegisterTool registers a tool factory with a typed configuration struct.
 // The framework will automatically populate the config struct from settings, env vars,
 // and CLI flags before calling the factory.
-func RegisterTool[T any](name string, factory func(Config, PreferenceStore, T) (Tool, error)) {
+func RegisterTool[T any](name string, factory func(Config, PreferenceReader, T) (Tool, error)) {
 	var zero T
 
 	schema := extractSchema(reflect.TypeOf(zero))
@@ -31,7 +32,7 @@ func RegisterTool[T any](name string, factory func(Config, PreferenceStore, T) (
 			return nil, fmt.Errorf("load tool config: %w", err)
 		}
 
-		return factory(ConfigOrDefault(cfg), PreferenceStoreFrom(cfg), t)
+		return factory(ConfigReadOnly(cfg), PreferenceStoreFrom(cfg), t)
 	}
 
 	toolReg.Register(name, wrapper)
@@ -78,6 +79,24 @@ func SetToolFilter(names []string) {
 	for _, name := range names {
 		toolFilter[name] = true
 	}
+}
+
+func GetToolFilter() []string {
+	toolFilterMu.RLock()
+	defer toolFilterMu.RUnlock()
+
+	if toolFilter == nil {
+		return nil
+	}
+
+	result := make([]string, 0, len(toolFilter))
+	for name := range toolFilter {
+		result = append(result, name)
+	}
+
+	sort.Strings(result)
+
+	return result
 }
 
 func ListTools() []string {

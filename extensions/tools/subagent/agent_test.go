@@ -1,7 +1,9 @@
 package subagent
 
 import (
+	"bytes"
 	"fmt"
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -255,4 +257,30 @@ func TestParseAgent_ValidSandboxModes(t *testing.T) {
 			assert.Equal(t, mode, agent.Sandbox)
 		})
 	}
+}
+
+func TestParseToolsField_WarnOnEmpty(t *testing.T) {
+	var buf bytes.Buffer
+
+	oldLogger := slog.Default()
+	defer slog.SetDefault(oldLogger)
+
+	handler := slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})
+	slog.SetDefault(slog.New(handler))
+
+	data := []byte(`---
+name: warning_agent
+description: Agent with no tools field
+---
+`)
+
+	agent, err := ParseAgent(data)
+	require.NoError(t, err)
+	assert.Equal(t, "warning_agent", agent.Name)
+	assert.Nil(t, agent.Tools)
+
+	warningOutput := buf.String()
+	assert.Contains(t, warningOutput, "WARN")
+	assert.Contains(t, warningOutput, "warning_agent")
+	assert.Contains(t, warningOutput, "no explicit tools declaration")
 }

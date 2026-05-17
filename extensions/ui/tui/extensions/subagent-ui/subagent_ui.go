@@ -34,7 +34,7 @@ func init() {
 		ext.subscribe(bus)
 	})
 
-	tui.RegisterTUIExtension("subagent-ui", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (tui.TUIExtension, error) {
+	tui.RegisterTUIExtension("subagent-ui", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (tui.TUIExtension, error) {
 		return ext, nil
 	})
 }

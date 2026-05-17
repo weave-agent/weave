@@ -13,7 +13,7 @@ func TestTUI_ExtensionRegistration(t *testing.T) {
 	sdk.ResetExtensionRegistry()
 	defer sdk.ResetExtensionRegistry()
 
-	sdk.RegisterExtensionWithScope[TUIConfig]("tui", "ui", func(cfg sdk.Config, _ sdk.PreferenceStore, _ TUIConfig) (sdk.Extension, error) {
+	sdk.RegisterExtensionWithScopeAndWriter("tui", "ui", func(cfg sdk.Config, _ sdk.PreferenceWriter, _ TUIConfig) (sdk.Extension, error) {
 		return NewTUI(cfg, nil, TUIConfig{})
 	})
 
@@ -84,7 +84,7 @@ func TestTUI_WireUIExtensions(t *testing.T) {
 
 	ext := &mockUIExtension{name: "test-ext"}
 
-	sdk.RegisterUIExtension("test-ext", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.UIExtension, error) {
+	sdk.RegisterUIExtension("test-ext", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.UIExtension, error) {
 		return ext, nil
 	})
 
@@ -104,10 +104,10 @@ func TestTUI_WireUIExtensions_Multiple(t *testing.T) {
 	ext1 := &mockUIExtension{name: "ext-one"}
 	ext2 := &mockUIExtension{name: "ext-two"}
 
-	sdk.RegisterUIExtension("ext-one", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.UIExtension, error) {
+	sdk.RegisterUIExtension("ext-one", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.UIExtension, error) {
 		return ext1, nil
 	})
-	sdk.RegisterUIExtension("ext-two", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.UIExtension, error) {
+	sdk.RegisterUIExtension("ext-two", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.UIExtension, error) {
 		return ext2, nil
 	})
 
@@ -172,7 +172,7 @@ func TestTUI_WireUIExtensions_WithBus(t *testing.T) {
 
 	ext := &mockUIExtensionWithBus{name: "bus-ext"}
 
-	sdk.RegisterUIExtension("bus-ext", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.UIExtension, error) {
+	sdk.RegisterUIExtension("bus-ext", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.UIExtension, error) {
 		return ext, nil
 	})
 
@@ -194,7 +194,7 @@ func TestTUI_WireUIExtensions_PlainExtension_NoBus(t *testing.T) {
 
 	ext := &mockUIExtension{name: "plain-ext"}
 
-	sdk.RegisterUIExtension("plain-ext", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.UIExtension, error) {
+	sdk.RegisterUIExtension("plain-ext", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.UIExtension, error) {
 		return ext, nil
 	})
 

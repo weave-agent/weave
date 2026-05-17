@@ -31,7 +31,7 @@ const (
 )
 
 func init() {
-	sdk.RegisterExtension[struct{}]("subagent", func(cfg sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
+	sdk.RegisterExtension[struct{}]("subagent", func(cfg sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Extension, error) {
 		// Register child-side inter-agent tools when running as a subagent.
 		// This is done inside the factory (not init) so that the env var is
 		// already set by the generated main before WireWithCore runs.
@@ -55,16 +55,16 @@ func init() {
 		for _, agent := range agents {
 			a := agent // capture loop variable
 			toolName := "subagent_" + a.Name
-			sdk.RegisterTool[struct{}](toolName, func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+			sdk.RegisterTool[struct{}](toolName, func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 				return newSubagentTool(a, mgr, broker, cfgPath, projectDir), nil
 			})
 		}
 
 		// Register background management tools
-		sdk.RegisterTool[struct{}]("check_agent", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+		sdk.RegisterTool[struct{}]("check_agent", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 			return &checkAgentTool{mgr: mgr}, nil
 		})
-		sdk.RegisterTool[struct{}]("await_agent", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+		sdk.RegisterTool[struct{}]("await_agent", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 			return &awaitAgentTool{mgr: mgr}, nil
 		})
 
@@ -171,6 +171,7 @@ func (t *subagentTool) Definition() sdk.ToolDef {
 					propDescription: "Working directory override",
 				},
 			},
+			"additionalProperties": false,
 		},
 	}
 }
@@ -293,6 +294,21 @@ func resolveCWD(cwd string) (string, error) {
 	}
 
 	rel, err := filepath.Rel(parentCWD, resolved)
+	if err != nil {
+		return "", fmt.Errorf("resolve cwd: %w", err)
+	}
+
+	if strings.HasPrefix(rel, "..") {
+		return "", fmt.Errorf("cwd escapes working directory: %s", resolved)
+	}
+
+	// Re-resolve symlinks right before returning to narrow the TOCTOU
+	// window between the containment check and actual use.
+	if r, evalErr := filepath.EvalSymlinks(resolved); evalErr == nil {
+		resolved = r
+	}
+
+	rel, err = filepath.Rel(parentCWD, resolved)
 	if err != nil {
 		return "", fmt.Errorf("resolve cwd: %w", err)
 	}

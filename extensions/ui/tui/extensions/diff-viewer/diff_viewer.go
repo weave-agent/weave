@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	tui.RegisterTUIExtension("diff-viewer", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (tui.TUIExtension, error) {
+	tui.RegisterTUIExtension("diff-viewer", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (tui.TUIExtension, error) {
 		return &DiffViewer{}, nil
 	})
 }

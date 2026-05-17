@@ -441,6 +441,9 @@ func TestPathMatches(t *testing.T) {
 		{"/project/sub/file.go", "/project", true},
 		{"/other/file.go", "/project", false},
 		{"/exact/path", "/exact/path", true},
+		{"/project", "/project/", true},
+		{"/project/file.go", "/project/", true},
+		{"/other/file.go", "/project/", false},
 	}
 
 	for _, tt := range tests {

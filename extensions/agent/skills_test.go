@@ -3,6 +3,7 @@ package agent
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"weave/sdk"
@@ -194,6 +195,56 @@ Full instructions here.`
 		assert.Equal(t, "crlf-skill", skill.Name)
 		assert.Equal(t, "CRLF test", skill.Description)
 	})
+
+	t.Run("delimiter inside body", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "delimiter-body")
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+
+		content := "---\nname: delimiter-body\ndescription: Body has delimiter\n---\n\n# Section 1\nSome text.\n\n---\n\n# Section 2\nMore text."
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(content), 0o644))
+
+		skill, err := loadSkillFromDir(dir)
+		require.NoError(t, err)
+		assert.Equal(t, "delimiter-body", skill.Name)
+		assert.Equal(t, "Body has delimiter", skill.Description)
+		// Body should contain everything after the FIRST delimiter, including the second ---
+		assert.Contains(t, skill.Body(), "---")
+		assert.Contains(t, skill.Body(), "# Section 2")
+	})
+}
+
+// --- parseFrontmatter direct tests ---
+
+func TestParseFrontmatter_DelimiterInBody(t *testing.T) {
+	content := []byte("---\nname: test\ndescription: test desc\n---\n\nBody with\n---\na horizontal rule\n")
+	body, fm, err := parseFrontmatter(content)
+	require.NoError(t, err)
+	assert.Equal(t, "test", fm.Name)
+	assert.Equal(t, "test desc", fm.Description)
+	assert.Contains(t, body, "horizontal rule")
+	assert.Contains(t, body, "---")
+}
+
+// --- escapeXML tests ---
+
+func TestEscapeXML(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"hello", "hello"},
+		{"a < b", "a &lt; b"},
+		{"a > b", "a &gt; b"},
+		{"a & b", "a &amp; b"},
+		{`say "hi"`, "say &quot;hi&quot;"},
+		{"<tag> & \"quotes\"", "&lt;tag&gt; &amp; &quot;quotes&quot;"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			assert.Equal(t, tt.expected, escapeXML(tt.input))
+		})
+	}
 }
 
 // --- discoverSkills tests ---
@@ -334,7 +385,7 @@ func TestDiscoverExtensionSkills(t *testing.T) {
 		resetRegistries()
 		defer resetRegistries()
 
-		sdk.RegisterExtension("test-ext", func(cfg sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
+		sdk.RegisterExtension("test-ext", func(cfg sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Extension, error) {
 			return stubExt{}, nil
 		})
 
@@ -366,7 +417,7 @@ func TestDiscoverExtensionSkills(t *testing.T) {
 		resetRegistries()
 		defer resetRegistries()
 
-		sdk.RegisterExtension("global-ext", func(cfg sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
+		sdk.RegisterExtension("global-ext", func(cfg sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Extension, error) {
 			return stubExt{}, nil
 		})
 
@@ -385,7 +436,7 @@ func TestDiscoverExtensionSkills(t *testing.T) {
 		resetRegistries()
 		defer resetRegistries()
 
-		sdk.RegisterExtension("no-skills", func(cfg sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
+		sdk.RegisterExtension("no-skills", func(cfg sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Extension, error) {
 			return stubExt{}, nil
 		})
 
@@ -409,10 +460,10 @@ func TestDiscoverExtensionSkills(t *testing.T) {
 		resetRegistries()
 		defer resetRegistries()
 
-		sdk.RegisterExtension("proj-ext", func(cfg sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
+		sdk.RegisterExtension("proj-ext", func(cfg sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Extension, error) {
 			return stubExt{}, nil
 		})
-		sdk.RegisterExtension("glob-ext", func(cfg sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
+		sdk.RegisterExtension("glob-ext", func(cfg sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Extension, error) {
 			return stubExt{}, nil
 		})
 
@@ -439,7 +490,7 @@ func TestDiscoverExtensionSkills(t *testing.T) {
 		resetRegistries()
 		defer resetRegistries()
 
-		sdk.RegisterExtension("nested-ext", func(cfg sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
+		sdk.RegisterExtension("nested-ext", func(cfg sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Extension, error) {
 			return stubExt{}, nil
 		})
 
@@ -458,7 +509,7 @@ func TestDiscoverExtensionSkills(t *testing.T) {
 		resetRegistries()
 		defer resetRegistries()
 
-		sdk.RegisterExtension("shadow-ext", func(cfg sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
+		sdk.RegisterExtension("shadow-ext", func(cfg sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Extension, error) {
 			return stubExt{}, nil
 		})
 
@@ -484,7 +535,7 @@ func TestDiscoverExtensionSkills(t *testing.T) {
 		resetRegistries()
 		defer resetRegistries()
 
-		sdk.RegisterExtension("no-shadow-ext", func(cfg sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
+		sdk.RegisterExtension("no-shadow-ext", func(cfg sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Extension, error) {
 			return stubExt{}, nil
 		})
 
@@ -513,7 +564,7 @@ func TestDiscoverSkills_WithExtensionSkills(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	sdk.RegisterExtension("my-ext", func(cfg sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Extension, error) {
+	sdk.RegisterExtension("my-ext", func(cfg sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Extension, error) {
 		return stubExt{}, nil
 	})
 
@@ -635,4 +686,191 @@ func TestIsValidExtensionModule(t *testing.T) {
 func TestSkillBody(t *testing.T) {
 	s := Skill{body: "test body"}
 	assert.Equal(t, "test body", s.Body())
+}
+
+// --- AllowedTools enforcement tests ---
+
+func TestSkill_AllowedToolsEnforced(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{}, CompactionConfig{})
+	require.NoError(t, err)
+
+	skill := Skill{
+		Name:         "restricted-skill",
+		FilePath:     "/path/to/restricted-skill/SKILL.md",
+		BaseDir:      "/path/to/restricted-skill",
+		AllowedTools: []string{"bash", "read"},
+	}
+	skill.body = "# Instructions"
+
+	b := &BusMock{}
+
+	handler := ext.makeSkillHandler(skill, b)
+
+	// No filter initially
+	assert.Nil(t, sdk.GetToolFilter())
+
+	require.NoError(t, handler(""))
+
+	// Filter should be set to skill's allowed tools
+	filter := sdk.GetToolFilter()
+	assert.Equal(t, []string{"bash", "read"}, filter)
+
+	// Simulate turn end: restore the filter
+	ext.mu.Lock()
+	sdk.SetToolFilter(ext.savedToolFilter)
+	ext.skillFilterActive = false
+	ext.savedToolFilter = nil
+	ext.mu.Unlock()
+
+	// Filter should be restored (nil)
+	assert.Nil(t, sdk.GetToolFilter())
+}
+
+func TestSkill_AllowedToolsEmpty_NoFilter(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	// Set an existing filter
+	sdk.SetToolFilter([]string{"bash"})
+	defer sdk.SetToolFilter(nil)
+
+	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{}, CompactionConfig{})
+	require.NoError(t, err)
+
+	skill := Skill{
+		Name:     "open-skill",
+		FilePath: "/path/to/open-skill/SKILL.md",
+		BaseDir:  "/path/to/open-skill",
+	}
+	skill.body = "# Instructions"
+
+	b := &BusMock{}
+
+	handler := ext.makeSkillHandler(skill, b)
+
+	require.NoError(t, handler(""))
+
+	// Existing filter should not be changed
+	filter := sdk.GetToolFilter()
+	assert.Equal(t, []string{"bash"}, filter)
+}
+
+func TestSkill_AllowedToolsRestoresPreviousFilter(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	// Set an existing filter
+	sdk.SetToolFilter([]string{"bash", "write"})
+	defer sdk.SetToolFilter(nil)
+
+	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{}, CompactionConfig{})
+	require.NoError(t, err)
+
+	skill := Skill{
+		Name:         "restricted-skill",
+		FilePath:     "/path/to/restricted-skill/SKILL.md",
+		BaseDir:      "/path/to/restricted-skill",
+		AllowedTools: []string{"read"},
+	}
+	skill.body = "# Instructions"
+
+	b := &BusMock{}
+
+	handler := ext.makeSkillHandler(skill, b)
+
+	require.NoError(t, handler(""))
+
+	// Filter should be the skill's filter
+	assert.Equal(t, []string{"read"}, sdk.GetToolFilter())
+
+	// Simulate turn end: restore
+	ext.mu.Lock()
+	sdk.SetToolFilter(ext.savedToolFilter)
+	ext.skillFilterActive = false
+	ext.savedToolFilter = nil
+	ext.mu.Unlock()
+
+	// Filter should be the original filter
+	assert.Equal(t, []string{"bash", "write"}, sdk.GetToolFilter())
+}
+
+func TestSkill_AllowedToolsFilterClearedWhenNoPreviousFilter(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{}, CompactionConfig{})
+	require.NoError(t, err)
+
+	skill := Skill{
+		Name:         "restricted-skill",
+		FilePath:     "/path/to/restricted-skill/SKILL.md",
+		BaseDir:      "/path/to/restricted-skill",
+		AllowedTools: []string{"read", "write"},
+	}
+	skill.body = "# Instructions"
+
+	b := &BusMock{}
+
+	handler := ext.makeSkillHandler(skill, b)
+
+	require.NoError(t, handler(""))
+
+	// Filter should be the skill's filter
+	assert.Equal(t, []string{"read", "write"}, sdk.GetToolFilter())
+
+	// Simulate turn end: restore (savedToolFilter is nil, so filter is cleared)
+	ext.mu.Lock()
+	sdk.SetToolFilter(ext.savedToolFilter)
+	ext.skillFilterActive = false
+	ext.savedToolFilter = nil
+	ext.mu.Unlock()
+
+	// Filter should be cleared (nil)
+	assert.Nil(t, sdk.GetToolFilter())
+}
+
+func TestSkill_BodyTrustLabel(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	ext, err := NewAgentExtension(sdk.FilePathConfig(""), sdk.NoopPreferenceStore{}, CompactionConfig{})
+	require.NoError(t, err)
+
+	skill := Skill{
+		Name:     "test-skill",
+		FilePath: "/path/to/test-skill/SKILL.md",
+		BaseDir:  "/path/to/test-skill",
+	}
+	skill.body = "# Instructions\nDo the thing."
+
+	var published []sdk.Event
+
+	b := &BusMock{
+		PublishFunc: func(event sdk.Event) {
+			published = append(published, event)
+		},
+	}
+
+	handler := ext.makeSkillHandler(skill, b)
+	require.NoError(t, handler(""))
+
+	require.Len(t, published, 1)
+	assert.Equal(t, TopicPrompt, published[0].Topic)
+
+	payload := published[0].Payload.(string)
+	assert.Contains(t, payload, `<skill_body trust="untrusted">`)
+	assert.Contains(t, payload, "# Instructions\nDo the thing.")
+	assert.Contains(t, payload, "</skill_body>")
+	assert.Contains(t, payload, "</skill>")
+
+	// Verify ordering: skill_body opens before body and closes before skill closes
+	bodyOpen := strings.Index(payload, `<skill_body trust="untrusted">`)
+	bodyClose := strings.Index(payload, "</skill_body>")
+	skillClose := strings.Index(payload, "</skill>")
+
+	assert.Less(t, bodyOpen, bodyClose, "skill_body open should come before close")
+	assert.Less(t, bodyClose, skillClose, "skill_body close should come before skill close")
 }

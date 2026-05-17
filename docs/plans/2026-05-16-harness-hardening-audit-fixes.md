@@ -44,132 +44,132 @@ Fix 17 gaps identified by the agents-best-practices audit of the Weave agent fra
 ## Implementation Steps
 
 ### Task 1: Add inner loop step limit
-- [ ] add `MaxSteps int` field to `CompactionConfig` (or new `LoopConfig`) in `extensions/agent/extension.go` with default 50
-- [ ] add step counter and limit check in the inner loop at `extensions/agent/loop.go:210-212` — when exceeded, set `continueLoop = false` and publish an `agent.compacted`-style warning event
-- [ ] add config wiring in the factory function so `max_steps` is loadable from settings
-- [ ] write tests: TestAgent_InnerLoopStepLimit, TestAgent_StepLimitConfigurable in `extensions/agent/loop_test.go`
-- [ ] run `cd extensions/agent && go test ./...` — must pass before task 2
+- [x] add `MaxSteps int` field to `CompactionConfig` (or new `LoopConfig`) in `extensions/agent/extension.go` with default 50
+- [x] add step counter and limit check in the inner loop at `extensions/agent/loop.go:210-212` — when exceeded, set `continueLoop = false` and publish an `agent.compacted`-style warning event
+- [x] add config wiring in the factory function so `max_steps` is loadable from settings
+- [x] write tests: TestAgent_InnerLoopStepLimit, TestAgent_StepLimitConfigurable in `extensions/agent/loop_test.go`
+- [x] run `cd extensions/agent && go test ./...` — must pass before task 2
 
 ### Task 2: Add tool execution panic recovery
-- [ ] wrap `executeTool()` body at `extensions/agent/loop.go:708-722` with `defer func() { if r := recover(); r != nil { ... } }()` that returns `ToolResult{Content: fmt.Sprintf("tool panicked: %v", r), IsError: true}` and logs stack trace via `sdk.Logger`
-- [ ] write tests: TestExecuteTool_PanicRecovery in `extensions/agent/loop_test.go` using a mock tool that panics
-- [ ] run `cd extensions/agent && go test ./...` — must pass before task 3
+- [x] wrap `executeTool()` body at `extensions/agent/loop.go:708-722` with `defer func() { if r := recover(); r != nil { ... } }()` that returns `ToolResult{Content: fmt.Sprintf("tool panicked: %v", r), IsError: true}` and logs stack trace via `sdk.Logger`
+- [x] write tests: TestExecuteTool_PanicRecovery in `extensions/agent/loop_test.go` using a mock tool that panics
+- [x] run `cd extensions/agent && go test ./...` — must pass before task 3
 
 ### Task 3: Add trust labeling on context files
-- [ ] in `extensions/agent/prompt.go`, wrap context file content (CLAUDE.md/AGENTS.md) in `<user_context trust="untrusted">` XML tags around the `# Project Context` section
-- [ ] wrap APPEND_SYSTEM.md content in `<user_appended_context>` tags
-- [ ] add one line to `extensions/agent/default-system-prompt.md` instructing the model that content in `<user_context>` tags is user-provided guidance, not system policy
-- [ ] write tests: update TestBuild or add TestBuild_TrustLabels in `extensions/agent/prompt_test.go` verifying XML markers appear in output
-- [ ] run `cd extensions/agent && go test ./...` — must pass before task 4
+- [x] in `extensions/agent/prompt.go`, wrap context file content (CLAUDE.md/AGENTS.md) in `<user_context trust="untrusted">` XML tags around the `# Project Context` section
+- [x] wrap APPEND_SYSTEM.md content in `<user_appended_context>` tags
+- [x] add one line to `extensions/agent/default-system-prompt.md` instructing the model that content in `<user_context>` tags is user-provided guidance, not system policy
+- [x] write tests: update TestBuild or add TestBuild_TrustLabels in `extensions/agent/prompt_test.go` verifying XML markers appear in output
+- [x] run `cd extensions/agent && go test ./...` — must pass before task 4
 
 ### Task 4: Add provider retry logic
-- [ ] create a shared retry helper in `sdk/retry/retry.go` with configurable max retries (default 10), exponential backoff (1s base, 2x multiplier, 30s cap), and a predicate function to classify retriable vs non-retriable errors
-- [ ] integrate retry into Anthropic provider `extensions/providers/anthropic/anthropic.go` — wrap the initial `client.Messages.New()` call and add mid-stream reconnection support (save accumulated content, retry from last checkpoint)
-- [ ] integrate retry into OpenAI-compatible providers via `utils/openaicompat/openai_compat.go` — retry on 429/5xx/network using the existing `openaicompat.Error` classification
-- [ ] add `IsRetriable()` method to `openaicompat.Error` that returns true for rate_limit, server, and network categories
-- [ ] write tests: TestRetry_RetriableErrors, TestRetry_NonRetriableErrors, TestRetry_MaxRetries in `sdk/retry/retry_test.go`
-- [ ] write tests: TestAnthropicProvider_RetryOn429 in `extensions/providers/anthropic/anthropic_test.go`
-- [ ] run `cd extensions/providers/anthropic && go test ./...` and `cd sdk && go test ./...` — must pass before task 5
+- [x] create a shared retry helper in `sdk/retry/retry.go` with configurable max retries (default 10), exponential backoff (1s base, 2x multiplier, 30s cap), and a predicate function to classify retriable vs non-retriable errors
+- [x] integrate retry into Anthropic provider `extensions/providers/anthropic/anthropic.go` — wrap the initial `client.Messages.New()` call and add mid-stream reconnection support (save accumulated content, retry from last checkpoint)
+- [x] integrate retry into OpenAI-compatible providers via `utils/openaicompat/openai_compat.go` — retry on 429/5xx/network using the existing `openaicompat.Error` classification
+- [x] add `IsRetriable()` method to `openaicompat.Error` that returns true for rate_limit, server, and network categories
+- [x] write tests: TestRetry_RetriableErrors, TestRetry_NonRetriableErrors, TestRetry_MaxRetries in `sdk/retry/retry_test.go`
+- [x] write tests: TestAnthropicProvider_RetryOn429 in `extensions/providers/anthropic/anthropic_test.go`
+- [x] run `cd extensions/providers/anthropic && go test ./...` and `cd sdk && go test ./...` — must pass before task 5
 
 ### Task 5: Enforce skill AllowedTools
-- [ ] in `extensions/agent/skills.go:makeSkillHandler()`, before publishing the skill body via `agent.prompt`, call `sdk.SetToolFilter(skill.AllowedTools)` if `AllowedTools` is non-empty
-- [ ] save and restore the previous tool filter after skill execution completes (need a mechanism — possibly a bus event or a callback)
-- [ ] if `AllowedTools` is empty, skip filtering (skill gets all tools as today)
-- [ ] write tests: TestSkill_AllowedToolsEnforced, TestSkill_AllowedToolsEmpty_NoFilter in `extensions/agent/skills_test.go`
-- [ ] run `cd extensions/agent && go test ./...` — must pass before task 6
+- [x] in `extensions/agent/skills.go:makeSkillHandler()`, before publishing the skill body via `agent.prompt`, call `sdk.SetToolFilter(skill.AllowedTools)` if `AllowedTools` is non-empty
+- [x] save and restore the previous tool filter after skill execution completes (need a mechanism — possibly a bus event or a callback)
+- [x] if `AllowedTools` is empty, skip filtering (skill gets all tools as today)
+- [x] write tests: TestSkill_AllowedToolsEnforced, TestSkill_AllowedToolsEmpty_NoFilter in `extensions/agent/skills_test.go`
+- [x] run `cd extensions/agent && go test ./...` — must pass before task 6
 
 ### Task 6: Warn on subagent missing tool declarations
-- [ ] in `extensions/tools/subagent/agent.go:parseToolsField()` or at agent load time, when `tools` field is nil/empty, log a warning via `sdk.Logger("subagent")` with the agent name and a message suggesting explicit tool declaration
-- [ ] write tests: TestParseToolsField_WarnOnEmpty in `extensions/tools/subagent/agent_test.go`
-- [ ] run `cd extensions/tools/subagent && go test ./...` — must pass before task 7
+- [x] in `extensions/tools/subagent/agent.go:parseToolsField()` or at agent load time, when `tools` field is nil/empty, log a warning via `sdk.Logger("subagent")` with the agent name and a message suggesting explicit tool declaration
+- [x] write tests: TestParseToolsField_WarnOnEmpty in `extensions/tools/subagent/agent_test.go`
+- [x] run `cd extensions/tools/subagent && go test ./...` — must pass before task 7
 
 ### Task 7: Add harness-level argument validation
-- [ ] add a lightweight JSON schema validator utility (or use `encoding/json` + manual checks) in a shared location — validate incoming `map[string]any` args against the tool's `Definition().Parameters` schema (check required fields exist, check types match, reject unknown properties if `additionalProperties: false`)
-- [ ] integrate validation into `executeTool()` at `extensions/agent/loop.go:708-722` — before calling `tool.Execute()`, validate args and return `ToolResult{Content: "invalid arguments: ...", IsError: true}` on failure
-- [ ] add `additionalProperties: false` to all tool schemas in `extensions/tools/*/` Definition() methods
-- [ ] write tests: TestExecuteTool_InvalidArgs, TestExecuteTool_MissingRequired in `extensions/agent/loop_test.go`
-- [ ] write tests: TestSchemaValidation_RequiredFields, TestSchemaValidation_UnknownFields in the validation utility test file
-- [ ] run `cd extensions/agent && go test ./...` — must pass before task 8
+- [x] add a lightweight JSON schema validator utility (or use `encoding/json` + manual checks) in a shared location — validate incoming `map[string]any` args against the tool's `Definition().Parameters` schema (check required fields exist, check types match, reject unknown properties if `additionalProperties: false`)
+- [x] integrate validation into `executeTool()` at `extensions/agent/loop.go:708-722` — before calling `tool.Execute()`, validate args and return `ToolResult{Content: "invalid arguments: ...", IsError: true}` on failure
+- [x] add `additionalProperties: false` to all tool schemas in `extensions/tools/*/` Definition() methods
+- [x] write tests: TestExecuteTool_InvalidArgs, TestExecuteTool_MissingRequired in `extensions/agent/loop_test.go`
+- [x] write tests: TestSchemaValidation_RequiredFields, TestSchemaValidation_UnknownFields in the validation utility test file
+- [x] run `cd extensions/agent && go test ./...` — must pass before task 8
 
 ### Task 8: Surface provider token usage to UI
-- [ ] add `ProviderEventUsage` event type to `sdk/provider.go` with `InputTokens`, `OutputTokens`, `CacheCreationTokens`, `CacheReadTokens` fields
-- [ ] in Anthropic provider `extensions/providers/anthropic/anthropic.go`, extract `Usage` from accumulated message and emit a `ProviderEventUsage` event at end of stream
-- [ ] in OpenAI-compatible providers, extract usage from the final SSE event and emit `ProviderEventUsage`
-- [ ] in bridge `extensions/ui/tui/bridge.go`, handle usage events and call footer's `SetTokenUsage()`
-- [ ] write tests: TestAnthropic_UsageEventEmitted in `extensions/providers/anthropic/anthropic_test.go`
-- [ ] write tests: TestBridge_UsageEvent in `extensions/ui/tui/bridge_test.go` (if exists) or `model_test.go`
-- [ ] run `cd extensions/providers/anthropic && go test ./...` and `cd extensions/ui/tui && go test ./...` — must pass before task 9
+- [x] add `ProviderEventUsage` event type to `sdk/provider.go` with `InputTokens`, `OutputTokens`, `CacheCreationTokens`, `CacheReadTokens` fields
+- [x] in Anthropic provider `extensions/providers/anthropic/anthropic.go`, extract `Usage` from accumulated message and emit a `ProviderEventUsage` event at end of stream
+- [x] in OpenAI-compatible providers, extract usage from the final SSE event and emit `ProviderEventUsage`
+- [x] in bridge `extensions/ui/tui/bridge.go`, handle usage events and call footer's `SetTokenUsage()`
+- [x] write tests: TestAnthropic_UsageEventEmitted in `extensions/providers/anthropic/anthropic_test.go`
+- [x] write tests: TestBridge_UsageEvent in `extensions/ui/tui/bridge_test.go` (if exists) or `model_test.go`
+- [x] run `cd extensions/providers/anthropic && go test ./...` and `cd extensions/ui/tui && go test ./...` — must pass before task 9
 
 ### Task 9: Filter compacted entries on session resume
-- [ ] in `extensions/store/jsonl/store.go:LoadHistory()`, after loading all messages, scan for compaction summary messages (those starting with `[Compaction Summary]\n`) and remove all earlier messages that the summary covers
-- [ ] preserve messages after the last compaction summary verbatim
-- [ ] write tests: TestLoadHistory_WithCompactionSummary, TestLoadHistory_MultipleCompactions in `extensions/store/jsonl/store_test.go`
-- [ ] run `cd extensions/store/jsonl && go test ./...` — must pass before task 10
+- [x] in `extensions/store/jsonl/store.go:LoadHistory()`, after loading all messages, scan for compaction summary messages (those starting with `[Compaction Summary]\n`) and remove all earlier messages that the summary covers
+- [x] preserve messages after the last compaction summary verbatim
+- [x] write tests: TestLoadHistory_WithCompactionSummary, TestLoadHistory_MultipleCompactions in `extensions/store/jsonl/store_test.go`
+- [x] run `cd extensions/store/jsonl && go test ./...` — must pass before task 10
 
 ### Task 10: Reorder system prompt for cache friendliness
-- [ ] in `extensions/agent/prompt.go:Build()`, move date+CWD injection from layer 2 to the last layer (after APPEND_SYSTEM.md)
-- [ ] update any tests that assert on prompt ordering
-- [ ] write tests: TestBuild_DateCWDAtEnd in `extensions/agent/prompt_test.go`
-- [ ] run `cd extensions/agent && go test ./...` — must pass before task 11
+- [x] in `extensions/agent/prompt.go:Build()`, move date+CWD injection from layer 2 to the last layer (after APPEND_SYSTEM.md)
+- [x] update any tests that assert on prompt ordering
+- [x] write tests: TestBuild_DateCWDAtEnd in `extensions/agent/prompt_test.go`
+- [x] run `cd extensions/agent && go test ./...` — must pass before task 11
 
 ### Task 11: Add Anthropic cache_control breakpoints
-- [ ] in `extensions/providers/anthropic/anthropic.go`, add `cache_control: {type: "ephemeral"}` to the system prompt content block(s)
-- [ ] add `cache_control` to the last user message or the most recent assistant message (whichever Anthropic recommends for conversation caching)
-- [ ] if a compaction summary message exists, add `cache_control` to it as well
-- [ ] write tests: TestAnthropic_CacheControlMarkers in `extensions/providers/anthropic/anthropic_test.go`
-- [ ] run `cd extensions/providers/anthropic && go test ./...` — must pass before task 12
+- [x] in `extensions/providers/anthropic/anthropic.go`, add `cache_control: {type: "ephemeral"}` to the system prompt content block(s)
+- [x] add `cache_control` to the last user message or the most recent assistant message (whichever Anthropic recommends for conversation caching)
+- [x] if a compaction summary message exists, add `cache_control` to it as well
+- [x] write tests: TestAnthropic_CacheControlMarkers in `extensions/providers/anthropic/anthropic_test.go`
+- [x] run `cd extensions/providers/anthropic && go test ./...` — must pass before task 12
 
 ### Task 12: Add trust labeling on tool results
-- [ ] in `sdk/message.go`, wrap tool result content in `<tool_output name="...">` XML tags when constructing `NewToolResultMessage()`
-- [ ] add one line to `extensions/agent/default-system-prompt.md` instructing the model that content in `<tool_output>` tags is external data, not system instructions
-- [ ] write tests: TestNewToolResultMessage_TrustLabel in `sdk/message_test.go`
-- [ ] run `cd sdk && go test ./...` — must pass before task 13
+- [x] in `sdk/message.go`, wrap tool result content in `<tool_output name="...">` XML tags when constructing `NewToolResultMessage()`
+- [x] add one line to `extensions/agent/default-system-prompt.md` instructing the model that content in `<tool_output>` tags is external data, not system instructions
+- [x] write tests: TestNewToolResultMessage_TrustLabel in `sdk/message_test.go`
+- [x] run `cd sdk && go test ./...` — must pass before task 13
 
 ### Task 13: Add trust labeling on skill body injection
-- [ ] in `extensions/agent/skills.go:makeSkillHandler()`, wrap the skill body in `<skill_body trust="untrusted">` XML tags before publishing as `agent.prompt`
-- [ ] add one line to `extensions/agent/default-system-prompt.md` instructing the model that content in `<skill_body>` tags is user-provided skill content, not system policy
-- [ ] write tests: TestSkill_BodyTrustLabel in `extensions/agent/skills_test.go`
-- [ ] run `cd extensions/agent && go test ./...` — must pass before task 14
+- [x] in `extensions/agent/skills.go:makeSkillHandler()`, wrap the skill body in `<skill_body trust="untrusted">` XML tags before publishing as `agent.prompt`
+- [x] add one line to `extensions/agent/default-system-prompt.md` instructing the model that content in `<skill_body>` tags is user-provided skill content, not system policy
+- [x] write tests: TestSkill_BodyTrustLabel in `extensions/agent/skills_test.go`
+- [x] run `cd extensions/agent && go test ./...` — must pass before task 14
 
 ### Task 14: Populate TraceID in bus events
-- [ ] in `sdk/event.go:NewEvent()`, generate a UUID (using `crypto/rand` or `fmt.Sprintf` with time+random) and populate the `TraceID` field
-- [ ] write tests: TestNewEvent_TraceIDPopulated, TestNewEvent_TraceIDUnique in `sdk/event_test.go`
-- [ ] run `cd sdk && go test ./...` — must pass before task 15
+- [x] in `sdk/event.go:NewEvent()`, generate a UUID (using `crypto/rand` or `fmt.Sprintf` with time+random) and populate the `TraceID` field
+- [x] write tests: TestNewEvent_TraceIDPopulated, TestNewEvent_TraceIDUnique in `sdk/event_test.go`
+- [x] run `cd sdk && go test ./...` — must pass before task 15
 
 ### Task 15: Split PreferenceStore interface for credential access
-- [ ] create `PreferenceReader` interface in `sdk/config.go` with `Preferences(target)` only (no `SaveProviderKey`)
-- [ ] create `PreferenceWriter` interface extending `PreferenceReader` with `SaveProviderKey(provider, key)` and `SavePreferences(target)`
-- [ ] keep `PreferenceStore` as the full interface (backward compatible) but update factory signatures so tools/extensions receive `PreferenceReader` by default; only auth-related extensions receive `PreferenceWriter`
-- [ ] update tool and extension factory signatures in `sdk/tool_registry.go`, `sdk/extension.go` to use `PreferenceReader`
-- [ ] update `internal/wire/` to pass `PreferenceWriter` only to providers and auth-related extensions
-- [ ] write tests: verify tools receive `PreferenceReader`, verify providers receive `PreferenceWriter`
-- [ ] run `make test` — must pass before task 16
+- [x] create `PreferenceReader` interface in `sdk/config.go` with `Preferences(target)` only (no `SaveProviderKey`)
+- [x] create `PreferenceWriter` interface extending `PreferenceReader` with `SaveProviderKey(provider, key)` and `SavePreferences(target)`
+- [x] keep `PreferenceStore` as the full interface (backward compatible) but update factory signatures so tools/extensions receive `PreferenceReader` by default; only auth-related extensions receive `PreferenceWriter`
+- [x] update tool and extension factory signatures in `sdk/tool_registry.go`, `sdk/registry.go` to use `PreferenceReader`
+- [x] TUI extension type-asserts `PreferenceReader` to `PreferenceWriter` internally; wire passes `Config` which implements all interfaces
+- [x] write tests: verify tools receive `PreferenceReader`, verify type assertion to `PreferenceWriter`
+- [x] run `make test` — must pass before task 16
 
 ### Task 16: Add install-time warning for extensions
-- [ ] in `internal/extmanage/install.go`, after validating `.go` files and `go.mod`, print a warning to stderr: "Extension '<name>' will be compiled with full access to filesystem, network, and provider credentials. Only install extensions from trusted sources."
-- [ ] write tests: TestInstall_PrintsAccessWarning in `cmd/weave/extmanage/install_test.go` (or relevant test file)
-- [ ] run `go test ./cmd/weave/...` — must pass before task 17
+- [x] in `internal/extmanage/install.go`, after validating `.go` files and `go.mod`, print a warning to stderr: "Extension '<name>' will be compiled with full access to filesystem, network, and provider credentials. Only install extensions from trusted sources."
+- [x] write tests: TestInstall_PrintsAccessWarning in `cmd/weave/extmanage/install_test.go` (or relevant test file)
+- [x] run `go test ./cmd/weave/...` — must pass before task 17
 
 ### Task 17: Parallelize read-only tool execution
-- [ ] in `extensions/agent/loop.go`, classify tool calls as read-only (read, grep, find, ls) vs write (edit, write, bash, subagent) based on tool name
-- [ ] when multiple tool calls are present, execute read-only calls concurrently via goroutines with a sync.WaitGroup; execute write calls sequentially after all reads complete
-- [ ] preserve message ordering — collect results in original tool call order
-- [ ] write tests: TestExecuteTools_ParallelReads, TestExecuteTools_WritesSequential, TestExecuteTools_MixedParallelAndSequential in `extensions/agent/loop_test.go`
-- [ ] run `cd extensions/agent && go test ./...` — must pass before task 18
+- [x] in `extensions/agent/loop.go`, classify tool calls as read-only (read, grep, find, ls) vs write (edit, write, bash, subagent) based on tool name
+- [x] when multiple tool calls are present, execute read-only calls concurrently via goroutines with a sync.WaitGroup; execute write calls sequentially after all reads complete
+- [x] preserve message ordering — collect results in original tool call order
+- [x] write tests: TestExecuteTools_ParallelReads, TestExecuteTools_WritesSequential, TestExecuteTools_MixedParallelAndSequential in `extensions/agent/loop_test.go`
+- [x] run `cd extensions/agent && go test ./...` — must pass before task 18
 
 ### Task 18: Add explicit sections to compact prompt template
-- [ ] in `extensions/agent/default-compact-prompt.md`, add explicit `## Active Constraints` and `## Current Plan (step X of Y)` sections to the requested output format
-- [ ] add instruction: "Preserve ALL user-stated constraints verbatim in Active Constraints. Do not paraphrase or summarize constraints."
-- [ ] add instruction: "Include the current plan state in Current Plan. If the user stated a multi-step goal, list completed and remaining steps."
-- [ ] write tests: update compaction tests to verify the prompt template includes the new sections
-- [ ] run `cd extensions/agent && go test ./...` — must pass before task 19
+- [x] in `extensions/agent/default-compact-prompt.md`, add explicit `## Active Constraints` and `## Current Plan (step X of Y)` sections to the requested output format
+- [x] add instruction: "Preserve ALL user-stated constraints verbatim in Active Constraints. Do not paraphrase or summarize constraints."
+- [x] add instruction: "Include the current plan state in Current Plan. If the user stated a multi-step goal, list completed and remaining steps."
+- [x] write tests: update compaction tests to verify the prompt template includes the new sections
+- [x] run `cd extensions/agent && go test ./...` — must pass before task 19
 
 ### Task 19: Final verification
-- [ ] run full test suite: `make test`
-- [ ] run linter: `make lint`
-- [ ] verify all design decisions from brainstorm are implemented
-- [ ] update CLAUDE.md if any new config fields or interfaces were added
-- [ ] verify all trust labels are consistent (context files, tool output, skill body)
+- [x] run full test suite: `make test`
+- [x] run linter: `make lint`
+- [x] verify all design decisions from brainstorm are implemented (verified against Technical Details section — all 17 gaps addressed)
+- [x] update CLAUDE.md if any new config fields or interfaces were added
+- [x] verify all trust labels are consistent (context files, tool output, skill body)
 
 ## Technical Details
 

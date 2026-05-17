@@ -18,14 +18,14 @@ var extReg = registry.New[func(Config) (Extension, error)](
 // The framework will automatically populate the config struct from settings, env vars,
 // and CLI flags before calling the factory.
 // Config is loaded from the "extensions" scope.
-func RegisterExtension[T any](name string, factory func(Config, PreferenceStore, T) (Extension, error)) {
+func RegisterExtension[T any](name string, factory func(Config, PreferenceReader, T) (Extension, error)) {
 	RegisterExtensionWithScope[T](name, "extensions", factory)
 }
 
 // RegisterExtensionWithScope registers an extension factory with a typed configuration
 // struct and a custom config scope. The scope determines which settings subtree is
 // used to populate the config struct (e.g. "ui" for TUI, "sandbox" for sandbox).
-func RegisterExtensionWithScope[T any](name, scope string, factory func(Config, PreferenceStore, T) (Extension, error)) {
+func RegisterExtensionWithScope[T any](name, scope string, factory func(Config, PreferenceReader, T) (Extension, error)) {
 	var zero T
 
 	schema := extractSchema(reflect.TypeOf(zero))
@@ -38,7 +38,48 @@ func RegisterExtensionWithScope[T any](name, scope string, factory func(Config, 
 			return nil, fmt.Errorf("load extension config: %w", err)
 		}
 
-		return factory(ConfigOrDefault(cfg), PreferenceStoreFrom(cfg), t)
+		return factory(ConfigReadOnly(cfg), PreferenceStoreFrom(cfg), t)
+	}
+
+	extReg.Register(name, wrapper)
+}
+
+// RegisterExtensionWithWriter registers an extension factory that receives
+// PreferenceWriter instead of PreferenceReader. This is a declarative API
+// choice for extensions that need write access; it does not provide security
+// isolation because all extensions run in the same process with full system
+// access. The framework treats all installed extensions as fully trusted.
+func RegisterExtensionWithWriter[T any](name string, factory func(Config, PreferenceWriter, T) (Extension, error)) {
+	RegisterExtensionWithScopeAndWriter[T](name, "extensions", factory)
+}
+
+// RegisterExtensionWithScopeAndWriter registers an extension factory with a
+// custom config scope and write access to preferences. The factory receives
+// PreferenceWriter instead of PreferenceReader, allowing it to save preferences
+// and provider keys. This path is exported so built-in extensions in other
+// packages can use it; there is no runtime allowlist because the framework
+// treats all extensions as fully trusted.
+func RegisterExtensionWithScopeAndWriter[T any](name, scope string, factory func(Config, PreferenceWriter, T) (Extension, error)) {
+	var zero T
+
+	schema := extractSchema(reflect.TypeOf(zero))
+	storeSchema(scope, name, schema)
+
+	wrapper := func(cfg Config) (Extension, error) {
+		var t T
+
+		if err := cfg.ExtensionConfig(scope, name, &t); err != nil {
+			return nil, fmt.Errorf("load extension config: %w", err)
+		}
+
+		ps := PreferenceStoreFrom(cfg)
+
+		writer, ok := asPreferenceWriter(ps)
+		if !ok {
+			writer = NoopPreferenceStore{}
+		}
+
+		return factory(ConfigReadOnly(cfg), writer, t)
 	}
 
 	extReg.Register(name, wrapper)

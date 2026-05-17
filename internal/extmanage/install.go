@@ -131,6 +131,8 @@ func RunInstall(args []string) int {
 		return 1
 	}
 
+	fmt.Fprintf(os.Stderr, "Extension %q will be compiled with full access to filesystem, network, and provider credentials. Only install extensions from trusted sources.\n", extName)
+
 	if err := swapStaging(stagingDir, destDir); err != nil {
 		fmt.Fprintf(os.Stderr, "weave install: %v\n", err)
 		return 1

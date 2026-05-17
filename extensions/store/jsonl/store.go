@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,6 +21,10 @@ var logger = sdk.Logger("jsonl")
 
 // EventTypeMessage is the event type for message entries.
 const EventTypeMessage = "message"
+
+// compactionSummaryPrefix matches the prefix used by the agent extension
+// when creating compaction summary messages.
+const compactionSummaryPrefix = "[Compaction Summary]\n"
 
 type SessionHeader struct {
 	Type      string    `json:"type"`
@@ -67,7 +72,7 @@ type Store struct {
 }
 
 func init() {
-	sdk.RegisterExtensionWithScope("jsonl", "jsonl", func(_ sdk.Config, _ sdk.PreferenceStore, opts JSONLOpts) (sdk.Extension, error) {
+	sdk.RegisterExtensionWithScope("jsonl", "jsonl", func(_ sdk.Config, _ sdk.PreferenceReader, opts JSONLOpts) (sdk.Extension, error) {
 		return NewStore(opts)
 	})
 }
@@ -347,6 +352,10 @@ func (s *Store) handleMsgEnd(evt sdk.Event) {
 
 		if th, ok := p["thinking"]; ok {
 			payload["thinking"] = th
+		}
+
+		if rt, ok := p["redacted_thinking"]; ok {
+			payload["redacted_thinking"] = rt
 		}
 	case string:
 		payload["content"] = p
@@ -698,15 +707,36 @@ func (s *Store) LoadHistory(sessionID string) ([]sdk.Message, error) {
 		messages = append(messages, msg)
 	}
 
-	return messages, nil
+	return filterCompactedMessages(messages), nil
+}
+
+// filterCompactedMessages scans for the last compaction summary message
+// (content starting with "[Compaction Summary]\n") and returns only that
+// message and all messages after it. If no compaction summary is found,
+// all messages are returned unchanged.
+func filterCompactedMessages(messages []sdk.Message) []sdk.Message {
+	lastSummaryIdx := -1
+
+	for i, msg := range messages {
+		if content, ok := msg.Content.(string); ok && strings.HasPrefix(content, compactionSummaryPrefix) {
+			lastSummaryIdx = i
+		}
+	}
+
+	if lastSummaryIdx < 0 {
+		return messages
+	}
+
+	return messages[lastSummaryIdx:]
 }
 
 type rawMessage struct {
-	Role      string          `json:"role"`
-	Content   any             `json:"content"`
-	ToolCalls json.RawMessage `json:"tool_calls"`
-	Tool      json.RawMessage `json:"tool"`
-	Thinking  string          `json:"thinking"`
+	Role             string          `json:"role"`
+	Content          any             `json:"content"`
+	ToolCalls        json.RawMessage `json:"tool_calls"`
+	Tool             json.RawMessage `json:"tool"`
+	Thinking         string          `json:"thinking"`
+	RedactedThinking json.RawMessage `json:"redacted_thinking"`
 }
 
 func entryToMessage(entry Entry) (sdk.Message, error) {
@@ -734,6 +764,15 @@ func entryToMessage(entry Entry) (sdk.Message, error) {
 
 		if raw.Thinking != "" {
 			msg.Thinking = []sdk.SignedThinking{{Thinking: raw.Thinking}}
+		}
+
+		if len(raw.RedactedThinking) > 0 {
+			var rt []sdk.RedactedThinking
+			if err := json.Unmarshal(raw.RedactedThinking, &rt); err != nil {
+				return sdk.Message{}, fmt.Errorf("unmarshal redacted_thinking: %w", err)
+			}
+
+			msg.RedactedThinking = rt
 		}
 	case sdk.RoleToolResult:
 		if err := applyToolResult(&msg, raw.Tool); err != nil {

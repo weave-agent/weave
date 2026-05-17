@@ -66,7 +66,7 @@ func init() {
 		})
 	})
 
-	sdk.RegisterTool[struct{}]("grep", func(cfg sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool[struct{}]("grep", func(cfg sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 		return &tool{cfg: cfg}, nil
 	})
 }
@@ -105,7 +105,8 @@ func (t *tool) Definition() sdk.ToolDef {
 					"description": "Number of context lines before and after each match. Defaults to 0.",
 				},
 			},
-			"required": []string{ParamPattern},
+			"required":             []string{ParamPattern},
+			"additionalProperties": false,
 		},
 	}
 }

@@ -141,6 +141,19 @@ func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest, opts ...
 		}
 
 		emitContentBlocks(message.Content, send)
+
+		// Emit usage event with token counts from the accumulated message.
+		if message.Usage.InputTokens > 0 || message.Usage.OutputTokens > 0 {
+			send(sdk.ProviderEvent{
+				Type: sdk.ProviderEventUsage,
+				Content: sdk.ProviderUsage{
+					InputTokens:         int(message.Usage.InputTokens),
+					OutputTokens:        int(message.Usage.OutputTokens),
+					CacheCreationTokens: int(message.Usage.CacheCreationInputTokens),
+					CacheReadTokens:     int(message.Usage.CacheReadInputTokens),
+				},
+			})
+		}
 	}()
 
 	return ch, nil

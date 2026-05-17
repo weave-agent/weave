@@ -18,6 +18,9 @@ const (
 	toolNameRead  = "read"
 	toolNameEdit  = "edit"
 	toolNameWrite = "write"
+	toolNameGrep  = "grep"
+	toolNameFind  = "find"
+	toolNameLs    = "ls"
 )
 
 // estimateTokens returns a rough token count for the given messages using
@@ -318,6 +321,10 @@ func compact(
 	ops *fileOperations,
 	compactPrompt string,
 ) (*compactResult, error) {
+	if provider == nil {
+		return nil, errors.New("compaction: provider is nil")
+	}
+
 	tokensBefore := estimateTokens(messages)
 
 	cutIdx := findCutPoint(messages, cfg.KeepRecentTokens)

@@ -12,7 +12,7 @@ import (
 func TestRegisterAndRetrieveTool(t *testing.T) {
 	ResetToolRegistry()
 
-	RegisterTool[struct{}]("bash", func(Config, PreferenceStore, struct{}) (Tool, error) {
+	RegisterTool[struct{}]("bash", func(Config, PreferenceReader, struct{}) (Tool, error) {
 		return &ToolMock{
 			NameFunc: func() string { return "bash" },
 			DefinitionFunc: func() ToolDef {
@@ -29,12 +29,12 @@ func TestRegisterAndRetrieveTool(t *testing.T) {
 func TestDuplicateToolRegistration(t *testing.T) {
 	ResetToolRegistry()
 
-	RegisterTool[struct{}]("dup", func(Config, PreferenceStore, struct{}) (Tool, error) {
+	RegisterTool[struct{}]("dup", func(Config, PreferenceReader, struct{}) (Tool, error) {
 		return &ToolMock{NameFunc: func() string { return "first" }}, nil
 	})
 
 	// Second registration should be a no-op with a warning (no panic).
-	RegisterTool[struct{}]("dup", func(Config, PreferenceStore, struct{}) (Tool, error) {
+	RegisterTool[struct{}]("dup", func(Config, PreferenceReader, struct{}) (Tool, error) {
 		return &ToolMock{NameFunc: func() string { return "second" }}, nil
 	})
 
@@ -55,7 +55,7 @@ func TestMissingTool(t *testing.T) {
 func TestGetTool_FactoryError(t *testing.T) {
 	ResetToolRegistry()
 
-	RegisterTool[struct{}]("fail", func(Config, PreferenceStore, struct{}) (Tool, error) {
+	RegisterTool[struct{}]("fail", func(Config, PreferenceReader, struct{}) (Tool, error) {
 		return nil, errors.New("factory error")
 	})
 
@@ -67,10 +67,10 @@ func TestGetTool_FactoryError(t *testing.T) {
 func TestListTools(t *testing.T) {
 	ResetToolRegistry()
 
-	RegisterTool[struct{}]("bash", func(Config, PreferenceStore, struct{}) (Tool, error) {
+	RegisterTool[struct{}]("bash", func(Config, PreferenceReader, struct{}) (Tool, error) {
 		return &ToolMock{NameFunc: func() string { return "bash" }}, nil
 	})
-	RegisterTool[struct{}]("file", func(Config, PreferenceStore, struct{}) (Tool, error) {
+	RegisterTool[struct{}]("file", func(Config, PreferenceReader, struct{}) (Tool, error) {
 		return &ToolMock{NameFunc: func() string { return "file" }}, nil
 	})
 
@@ -83,7 +83,7 @@ func TestListTools(t *testing.T) {
 func TestResetToolRegistry(t *testing.T) {
 	ResetToolRegistry()
 
-	RegisterTool[struct{}]("temp", func(Config, PreferenceStore, struct{}) (Tool, error) {
+	RegisterTool[struct{}]("temp", func(Config, PreferenceReader, struct{}) (Tool, error) {
 		return &ToolMock{NameFunc: func() string { return "temp" }}, nil
 	})
 
@@ -95,13 +95,13 @@ func TestResetToolRegistry(t *testing.T) {
 func TestSetToolFilter(t *testing.T) {
 	ResetToolRegistry()
 
-	RegisterTool[struct{}]("bash", func(Config, PreferenceStore, struct{}) (Tool, error) {
+	RegisterTool[struct{}]("bash", func(Config, PreferenceReader, struct{}) (Tool, error) {
 		return &ToolMock{NameFunc: func() string { return "bash" }}, nil
 	})
-	RegisterTool[struct{}]("read", func(Config, PreferenceStore, struct{}) (Tool, error) {
+	RegisterTool[struct{}]("read", func(Config, PreferenceReader, struct{}) (Tool, error) {
 		return &ToolMock{NameFunc: func() string { return "read" }}, nil
 	})
-	RegisterTool[struct{}]("edit", func(Config, PreferenceStore, struct{}) (Tool, error) {
+	RegisterTool[struct{}]("edit", func(Config, PreferenceReader, struct{}) (Tool, error) {
 		return &ToolMock{NameFunc: func() string { return "edit" }}, nil
 	})
 
@@ -116,10 +116,10 @@ func TestSetToolFilter(t *testing.T) {
 func TestSetToolFilter_EmptyBlocksAll(t *testing.T) {
 	ResetToolRegistry()
 
-	RegisterTool[struct{}]("bash", func(Config, PreferenceStore, struct{}) (Tool, error) {
+	RegisterTool[struct{}]("bash", func(Config, PreferenceReader, struct{}) (Tool, error) {
 		return &ToolMock{NameFunc: func() string { return "bash" }}, nil
 	})
-	RegisterTool[struct{}]("read", func(Config, PreferenceStore, struct{}) (Tool, error) {
+	RegisterTool[struct{}]("read", func(Config, PreferenceReader, struct{}) (Tool, error) {
 		return &ToolMock{NameFunc: func() string { return "read" }}, nil
 	})
 
@@ -136,7 +136,7 @@ func TestSetToolFilter_EmptyBlocksAll(t *testing.T) {
 func TestSetToolFilter_UnknownToolIgnored(t *testing.T) {
 	ResetToolRegistry()
 
-	RegisterTool[struct{}]("bash", func(Config, PreferenceStore, struct{}) (Tool, error) {
+	RegisterTool[struct{}]("bash", func(Config, PreferenceReader, struct{}) (Tool, error) {
 		return &ToolMock{NameFunc: func() string { return "bash" }}, nil
 	})
 
@@ -150,10 +150,10 @@ func TestSetToolFilter_UnknownToolIgnored(t *testing.T) {
 func TestSetToolFilter_NilClearsFilter(t *testing.T) {
 	ResetToolRegistry()
 
-	RegisterTool[struct{}]("bash", func(Config, PreferenceStore, struct{}) (Tool, error) {
+	RegisterTool[struct{}]("bash", func(Config, PreferenceReader, struct{}) (Tool, error) {
 		return &ToolMock{NameFunc: func() string { return "bash" }}, nil
 	})
-	RegisterTool[struct{}]("read", func(Config, PreferenceStore, struct{}) (Tool, error) {
+	RegisterTool[struct{}]("read", func(Config, PreferenceReader, struct{}) (Tool, error) {
 		return &ToolMock{NameFunc: func() string { return "read" }}, nil
 	})
 
@@ -181,7 +181,7 @@ func TestRegisterTool_ConfigPopulation(t *testing.T) {
 
 	var receivedConfig testToolConfig
 
-	RegisterTool("bash", func(cfg Config, _ PreferenceStore, bc testToolConfig) (Tool, error) {
+	RegisterTool("bash", func(cfg Config, _ PreferenceReader, bc testToolConfig) (Tool, error) {
 		receivedConfig = bc
 		return &ToolMock{NameFunc: func() string { return "bash" }}, nil
 	})
@@ -208,7 +208,7 @@ func TestRegisterTool_ConfigPopulation(t *testing.T) {
 func TestRegisterTool_ConfigPopulationError(t *testing.T) {
 	ResetToolRegistry()
 
-	RegisterTool("bash", func(cfg Config, _ PreferenceStore, bc testToolConfig) (Tool, error) {
+	RegisterTool("bash", func(cfg Config, _ PreferenceReader, bc testToolConfig) (Tool, error) {
 		return &ToolMock{NameFunc: func() string { return "bash" }}, nil
 	})
 
@@ -227,7 +227,7 @@ func TestRegisterTool_SchemaExtraction(t *testing.T) {
 	ResetToolRegistry()
 	ResetSchemas()
 
-	RegisterTool("bash", func(cfg Config, _ PreferenceStore, bc testToolConfig) (Tool, error) {
+	RegisterTool("bash", func(cfg Config, _ PreferenceReader, bc testToolConfig) (Tool, error) {
 		return &ToolMock{NameFunc: func() string { return "bash" }}, nil
 	})
 
@@ -244,4 +244,62 @@ func TestRegisterTool_SchemaExtraction(t *testing.T) {
 	assert.Equal(t, "120", fieldMap["timeout"].Default)
 	assert.Equal(t, "string", fieldMap["shell"].Type)
 	assert.Equal(t, "bash", fieldMap["shell"].Default)
+}
+
+func TestGetToolFilter(t *testing.T) {
+	ResetToolRegistry()
+
+	// No filter set
+	assert.Nil(t, GetToolFilter())
+
+	// Set a filter
+	SetToolFilter([]string{"read", "bash"})
+	defer SetToolFilter(nil)
+
+	filter := GetToolFilter()
+	assert.Equal(t, []string{"bash", "read"}, filter)
+
+	// Clear filter
+	SetToolFilter(nil)
+	assert.Nil(t, GetToolFilter())
+}
+
+func TestGetTool_FilterBlocksTool(t *testing.T) {
+	ResetToolRegistry()
+
+	RegisterTool[struct{}]("bash", func(Config, PreferenceReader, struct{}) (Tool, error) {
+		return &ToolMock{NameFunc: func() string { return "bash" }}, nil
+	})
+	RegisterTool[struct{}]("edit", func(Config, PreferenceReader, struct{}) (Tool, error) {
+		return &ToolMock{NameFunc: func() string { return "edit" }}, nil
+	})
+
+	SetToolFilter([]string{"bash"})
+	defer SetToolFilter(nil)
+
+	// Allowed tool should succeed
+	got, err := GetTool("bash", nil)
+	require.NoError(t, err)
+	assert.Equal(t, "bash", got.Name())
+
+	// Blocked tool should fail
+	_, err = GetTool("edit", nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not in allowed list")
+}
+
+func TestGetTool_FilterAllowsTool(t *testing.T) {
+	ResetToolRegistry()
+
+	RegisterTool[struct{}]("read", func(Config, PreferenceReader, struct{}) (Tool, error) {
+		return &ToolMock{NameFunc: func() string { return "read" }}, nil
+	})
+
+	SetToolFilter([]string{"read", "bash"}) // bash not registered but in filter
+	defer SetToolFilter(nil)
+
+	// read is both registered and in filter
+	got, err := GetTool("read", nil)
+	require.NoError(t, err)
+	assert.Equal(t, "read", got.Name())
 }

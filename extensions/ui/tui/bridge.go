@@ -25,6 +25,7 @@ const (
 	topicMsgUpdate  = "agent.message_update"
 	topicMsgEnd     = "agent.message_end"
 	topicToolResult = "agent.tool_result"
+	topicUsage      = "agent.usage"
 	topicEnd        = "agent.end"
 
 	topicSessionList       = "session.list"
@@ -128,6 +129,14 @@ type CompactedMsg struct {
 	Error        string
 }
 
+// TokenUsageMsg is sent when the provider reports token usage for a turn.
+type TokenUsageMsg struct {
+	InputTokens         int
+	OutputTokens        int
+	CacheCreationTokens int
+	CacheReadTokens     int
+}
+
 // AgentStateChangeMsg is sent when the agent activity state changes.
 // The UI updates accent colors and editor pulse animation based on this.
 type AgentStateChangeMsg struct {
@@ -155,9 +164,7 @@ func (t *agentStateTracker) update(msg tea.Msg) (palette.State, bool) {
 		t.state = palette.StateStreaming
 		t.toolCount = 0
 	case MessageStartMsg:
-		if t.state == palette.StateStreaming || t.state == palette.StateToolRunning {
-			t.state = palette.StateStreaming
-		}
+		t.state = palette.StateStreaming
 	case ToolResultMsg:
 		if t.toolCount > 0 {
 			t.toolCount--
@@ -236,6 +243,8 @@ func translateEvent(evt sdk.Event) tea.Msg {
 		return translateExtOutdated(evt.Payload)
 	case topicCompacted:
 		return translateCompacted(evt.Payload)
+	case topicUsage:
+		return translateUsage(evt.Payload)
 	default:
 		return nil
 	}
@@ -315,6 +324,25 @@ func translateCompacted(payload any) CompactedMsg {
 		Summarized:   summarized,
 		TokensBefore: tokensBefore,
 		TokensAfter:  tokensAfter,
+	}
+}
+
+func translateUsage(payload any) TokenUsageMsg {
+	m, ok := payload.(map[string]any)
+	if !ok {
+		return TokenUsageMsg{}
+	}
+
+	inputTokens, _ := m["input_tokens"].(int)
+	outputTokens, _ := m["output_tokens"].(int)
+	cacheCreationTokens, _ := m["cache_creation_tokens"].(int)
+	cacheReadTokens, _ := m["cache_read_tokens"].(int)
+
+	return TokenUsageMsg{
+		InputTokens:         inputTokens,
+		OutputTokens:        outputTokens,
+		CacheCreationTokens: cacheCreationTokens,
+		CacheReadTokens:     cacheReadTokens,
 	}
 }
 

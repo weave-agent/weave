@@ -55,7 +55,7 @@ func init() {
 		})
 	})
 
-	sdk.RegisterTool[struct{}]("write", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool[struct{}]("write", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 		return &tool{fileMutex: sdk.GetFileMutex()}, nil
 	})
 }
@@ -127,7 +127,8 @@ func (t *tool) Definition() sdk.ToolDef {
 					"description": "The content to write.",
 				},
 			},
-			"required": []string{ParamPath, ParamContent},
+			"required":             []string{ParamPath, ParamContent},
+			"additionalProperties": false,
 		},
 	}
 }

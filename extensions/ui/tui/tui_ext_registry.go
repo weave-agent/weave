@@ -21,7 +21,10 @@ var tuiExtReg = registry.New[tuiExtEntry](
 // RegisterTUIExtension registers a TUI extension factory.
 // The framework will automatically populate the config struct from settings, env vars,
 // and CLI flags before calling the factory.
-func RegisterTUIExtension[TConfig any](name string, factory func(sdk.Config, sdk.PreferenceStore, TConfig) (TUIExtension, error)) {
+func RegisterTUIExtension[TConfig any](name string, factory func(sdk.Config, sdk.PreferenceReader, TConfig) (TUIExtension, error)) {
+	var zero TConfig
+	sdk.RegisterExtensionSchema("ui_extensions", name, zero)
+
 	wrapper := func(cfg sdk.Config) (TUIExtension, error) {
 		var t TConfig
 
@@ -29,7 +32,7 @@ func RegisterTUIExtension[TConfig any](name string, factory func(sdk.Config, sdk
 			return nil, fmt.Errorf("load tui extension config: %w", err)
 		}
 
-		return factory(sdk.ConfigOrDefault(cfg), sdk.PreferenceStoreFrom(cfg), t)
+		return factory(sdk.ConfigReadOnly(cfg), sdk.PreferenceStoreFrom(cfg), t)
 	}
 
 	tuiExtReg.Register(name, tuiExtEntry{factory: wrapper})

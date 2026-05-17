@@ -56,7 +56,7 @@ func init() {
 		})
 	})
 
-	sdk.RegisterTool[struct{}]("read", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool[struct{}]("read", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 		return &tool{}, nil
 	})
 }
@@ -116,7 +116,8 @@ func (t *tool) Definition() sdk.ToolDef {
 					"description": "Maximum number of lines to read. Defaults to all lines.",
 				},
 			},
-			"required": []string{ParamPath},
+			"required":             []string{ParamPath},
+			"additionalProperties": false,
 		},
 	}
 }

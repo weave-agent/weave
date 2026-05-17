@@ -2,9 +2,12 @@ package anthropic
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,7 +18,19 @@ import (
 
 	"weave/sdk"
 	"weave/sdk/model"
+	"weave/sdk/retry"
 )
+
+func TestMain(m *testing.M) {
+	retryConfig = retry.Config{
+		MaxRetries: 2,
+		BaseDelay:  1 * time.Millisecond,
+		MaxDelay:   10 * time.Millisecond,
+		Multiplier: 2,
+	}
+
+	os.Exit(m.Run())
+}
 
 type sseEvent struct {
 	EventType string
@@ -453,6 +468,42 @@ func TestStream_SplitToolInputJSON(t *testing.T) {
 	assert.Equal(t, map[string]any{"command": "ls"}, toolCalls[0].Arguments)
 }
 
+func TestStream_RetryOn429(t *testing.T) {
+	attemptCount := 0
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attemptCount++
+		if attemptCount < 3 {
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = fmt.Fprint(w, `{"type":"error","error":{"type":"rate_limit_error","message":"Rate limit exceeded"}}`)
+
+			return
+		}
+
+		writeSSE(w, textStreamEvents("Hello after retry!"))
+	}))
+	defer server.Close()
+
+	p := newTestProvider(server)
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("Say hello")},
+	})
+	require.NoError(t, err)
+
+	events := collectEvents(t, ch)
+
+	var textDeltas []string
+
+	for _, evt := range events {
+		if evt.Type == sdk.ProviderEventTextDelta {
+			textDeltas = append(textDeltas, evt.Content.(string))
+		}
+	}
+
+	assert.Equal(t, []string{"Hello after retry!"}, textDeltas)
+	assert.Equal(t, 3, attemptCount, "expected 3 attempts (2 failures + 1 success)")
+}
+
 func TestRegister(t *testing.T) {
 	assert.True(t, sdk.ProviderRegistered("anthropic"))
 }
@@ -574,4 +625,208 @@ func TestStream_ThinkingContentEmitted(t *testing.T) {
 
 	assert.Equal(t, []string{"let me think"}, thinkingDeltas)
 	assert.Equal(t, []string{"answer"}, textDeltas)
+}
+
+func TestStream_UsageEventEmitted(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeSSE(w, textStreamEvents("Hello, world!"))
+	}))
+	defer server.Close()
+
+	p := newTestProvider(server)
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
+		Messages: []sdk.Message{
+			sdk.NewUserMessage("Say hello"),
+		},
+	})
+	require.NoError(t, err)
+
+	events := collectEvents(t, ch)
+
+	var usageEvents []sdk.ProviderUsage
+
+	for _, evt := range events {
+		if evt.Type == sdk.ProviderEventUsage {
+			usageEvents = append(usageEvents, evt.Content.(sdk.ProviderUsage))
+		}
+	}
+
+	require.Len(t, usageEvents, 1)
+	assert.Equal(t, 10, usageEvents[0].InputTokens)
+	assert.Equal(t, 5, usageEvents[0].OutputTokens)
+	assert.Equal(t, 0, usageEvents[0].CacheCreationTokens)
+	assert.Equal(t, 0, usageEvents[0].CacheReadTokens)
+}
+
+func TestStream_UsageEventWithCacheTokens(t *testing.T) {
+	events := []sseEvent{
+		{EventType: "message_start", Data: `{"type":"message_start","message":{"id":"msg_test","type":"message","role":"assistant","content":[],"model":"claude-sonnet-4","stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":100,"output_tokens":1,"cache_creation_input_tokens":50,"cache_read_input_tokens":200}}}`},
+		{EventType: "content_block_start", Data: `{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`},
+		{EventType: "content_block_delta", Data: `{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"cached response"}}`},
+		{EventType: "content_block_stop", Data: `{"type":"content_block_stop","index":0}`},
+		{EventType: "message_delta", Data: `{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":10}}`},
+		{EventType: "message_stop", Data: `{"type":"message_stop"}`},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeSSE(w, events)
+	}))
+	defer server.Close()
+
+	p := newTestProvider(server)
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
+		Messages: []sdk.Message{
+			sdk.NewUserMessage("Say hello"),
+		},
+	})
+	require.NoError(t, err)
+
+	collected := collectEvents(t, ch)
+
+	var usageEvents []sdk.ProviderUsage
+
+	for _, evt := range collected {
+		if evt.Type == sdk.ProviderEventUsage {
+			usageEvents = append(usageEvents, evt.Content.(sdk.ProviderUsage))
+		}
+	}
+
+	require.Len(t, usageEvents, 1)
+	assert.Equal(t, 100, usageEvents[0].InputTokens)
+	assert.Equal(t, 10, usageEvents[0].OutputTokens)
+	assert.Equal(t, 50, usageEvents[0].CacheCreationTokens)
+	assert.Equal(t, 200, usageEvents[0].CacheReadTokens)
+}
+
+func TestAnthropic_CacheControlMarkers(t *testing.T) {
+	var receivedBody string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf := make([]byte, r.ContentLength)
+		_, _ = r.Body.Read(buf)
+		receivedBody = string(buf)
+
+		writeSSE(w, textStreamEvents("response"))
+	}))
+	defer server.Close()
+
+	p := newTestProvider(server)
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
+		SystemPrompt: "You are a helpful assistant.",
+		Messages: []sdk.Message{
+			sdk.NewUserMessage("Hello"),
+			sdk.NewAssistantMessage("Hi there"),
+			sdk.NewUserMessage("What's the weather?"),
+		},
+	})
+	require.NoError(t, err)
+	collectEvents(t, ch)
+
+	var body map[string]any
+
+	err = json.Unmarshal([]byte(receivedBody), &body)
+	require.NoError(t, err)
+
+	// System prompt should have cache_control
+	system, ok := body["system"].([]any)
+	require.True(t, ok)
+	require.Len(t, system, 1)
+
+	sysBlock := system[0].(map[string]any)
+	cacheControl, ok := sysBlock["cache_control"].(map[string]any)
+	require.True(t, ok, "system prompt should have cache_control")
+	assert.Equal(t, "ephemeral", cacheControl["type"])
+
+	// Last user message should have cache_control
+	messages, ok := body["messages"].([]any)
+	require.True(t, ok)
+
+	var lastUserMsg map[string]any
+
+	for _, m := range messages {
+		msg := m.(map[string]any)
+		if msg["role"] == "user" {
+			lastUserMsg = msg
+		}
+	}
+
+	require.NotNil(t, lastUserMsg)
+
+	content := lastUserMsg["content"].([]any)
+	require.GreaterOrEqual(t, len(content), 1)
+
+	firstBlock := content[0].(map[string]any)
+	cacheControl, ok = firstBlock["cache_control"].(map[string]any)
+	require.True(t, ok, "last user message should have cache_control")
+	assert.Equal(t, "ephemeral", cacheControl["type"])
+}
+
+func TestAnthropic_CacheControlOnCompactionSummary(t *testing.T) {
+	var receivedBody string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		buf := make([]byte, r.ContentLength)
+		_, _ = r.Body.Read(buf)
+		receivedBody = string(buf)
+
+		writeSSE(w, textStreamEvents("response"))
+	}))
+	defer server.Close()
+
+	p := newTestProvider(server)
+	ch, err := p.Stream(context.Background(), sdk.ProviderRequest{
+		SystemPrompt: "You are a helpful assistant.",
+		Messages: []sdk.Message{
+			sdk.NewUserMessage("Hello"),
+			sdk.NewAssistantMessage("[Compaction Summary]\nThis is a summary."),
+			sdk.NewUserMessage("What's next?"),
+		},
+	})
+	require.NoError(t, err)
+	collectEvents(t, ch)
+
+	var body map[string]any
+
+	err = json.Unmarshal([]byte(receivedBody), &body)
+	require.NoError(t, err)
+
+	messages, ok := body["messages"].([]any)
+	require.True(t, ok)
+
+	// Find compaction summary message
+	var compactionMsg map[string]any
+
+	for _, m := range messages {
+		msg := m.(map[string]any)
+		if msg["role"] != "assistant" {
+			continue
+		}
+
+		contentBlocks, isArr := msg["content"].([]any)
+		if !isArr {
+			continue
+		}
+
+		for _, c := range contentBlocks {
+			block, isMap := c.(map[string]any)
+			if !isMap {
+				continue
+			}
+
+			text, isStr := block["text"].(string)
+			if isStr && strings.HasPrefix(text, "[Compaction Summary]") {
+				compactionMsg = msg
+
+				break
+			}
+		}
+	}
+
+	require.NotNil(t, compactionMsg, "compaction summary message not found")
+
+	content := compactionMsg["content"].([]any)
+	firstBlock := content[0].(map[string]any)
+	cacheControl, ok := firstBlock["cache_control"].(map[string]any)
+	require.True(t, ok, "compaction summary should have cache_control")
+	assert.Equal(t, "ephemeral", cacheControl["type"])
 }

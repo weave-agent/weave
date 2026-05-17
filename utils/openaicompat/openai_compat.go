@@ -5,8 +5,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"sort"
 	"strconv"
@@ -14,6 +16,7 @@ import (
 
 	"weave/sdk"
 	"weave/sdk/model"
+	"weave/sdk/retry"
 )
 
 // ErrorType categorizes an error from the OpenAI-compatible API.
@@ -37,6 +40,16 @@ type Error struct {
 }
 
 func (e *Error) Error() string { return fmt.Sprintf("openai-compat: %s: %s", e.Type, e.Message) }
+
+// IsRetriable returns true for rate limit, server, and transport errors.
+func (e *Error) IsRetriable() bool {
+	switch e.Type {
+	case ErrorTypeRateLimit, ErrorTypeServer, ErrorTypeTransport:
+		return true
+	default:
+		return false
+	}
+}
 
 func classifyStatus(code int) ErrorType {
 	switch {
@@ -63,11 +76,17 @@ type ProviderConfig struct {
 
 // ChatRequest is the request body sent to the chat completions endpoint.
 type ChatRequest struct {
-	Model     string        `json:"model"`
-	Messages  []ChatMessage `json:"messages"`
-	Stream    bool          `json:"stream"`
-	MaxTokens int           `json:"max_tokens,omitempty"`
-	Tools     []Tool        `json:"tools,omitempty"`
+	Model          string        `json:"model"`
+	Messages       []ChatMessage `json:"messages"`
+	Stream         bool          `json:"stream"`
+	MaxTokens      int           `json:"max_tokens,omitempty"`
+	Tools          []Tool        `json:"tools,omitempty"`
+	StreamOptions  *StreamOptions `json:"stream_options,omitempty"`
+}
+
+// StreamOptions configures streaming behavior.
+type StreamOptions struct {
+	IncludeUsage bool `json:"include_usage"`
 }
 
 // ChatMessage represents a single message in the OpenAI chat format.
@@ -99,6 +118,13 @@ type StreamChunk struct {
 		Delta        ChunkDelta `json:"delta"`
 		FinishReason *string    `json:"finish_reason"`
 	} `json:"choices"`
+	Usage *Usage `json:"usage,omitempty"`
+}
+
+// Usage holds token usage information from a streaming response.
+type Usage struct {
+	InputTokens  int `json:"prompt_tokens"`
+	OutputTokens int `json:"completion_tokens"`
 }
 
 // ChunkDelta represents the delta content in a streaming chunk.
@@ -153,10 +179,11 @@ func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sd
 	}
 
 	chatReq := ChatRequest{
-		Model:    mdl,
-		Messages: ConvertMessages(req.Messages),
-		Stream:   true,
-		Tools:    ConvertTools(req.Tools),
+		Model:         mdl,
+		Messages:      ConvertMessages(req.Messages),
+		Stream:        true,
+		Tools:         ConvertTools(req.Tools),
+		StreamOptions: &StreamOptions{IncludeUsage: true},
 	}
 
 	if so.MaxTokens > 0 {
@@ -210,6 +237,10 @@ func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sd
 		return nil, fmt.Errorf("openai-compat: create request: %w", err)
 	}
 
+	httpReq.GetBody = func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(reqBody)), nil
+	}
+
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+cfg.APIKey)
 
@@ -217,7 +248,7 @@ func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sd
 		httpReq.Header.Set(k, v)
 	}
 
-	respBody, err := doStreamRequest(client, httpReq)
+	respBody, err := doStreamRequestWithRetry(ctx, client, httpReq)
 	if err != nil {
 		return nil, err
 	}
@@ -267,6 +298,54 @@ func doStreamRequest(client *http.Client, req *http.Request) (io.ReadCloser, err
 	}
 
 	return resp.Body, nil
+}
+
+// retryConfig controls retry behavior for stream requests. It is a variable so
+// tests can override it with faster settings.
+var retryConfig = retry.DefaultConfig()
+
+// doStreamRequestWithRetry wraps doStreamRequest with exponential backoff retry.
+func doStreamRequestWithRetry(ctx context.Context, client *http.Client, req *http.Request) (io.ReadCloser, error) {
+	var respBody io.ReadCloser
+
+	err := retry.Do(ctx, retryConfig, isRetriableError, func() error {
+		if respBody != nil {
+			respBody.Close()
+			respBody = nil
+		}
+
+		if req.GetBody != nil {
+			var bodyErr error
+			req.Body, bodyErr = req.GetBody()
+			if bodyErr != nil {
+				return bodyErr
+			}
+		}
+
+		body, doErr := doStreamRequest(client, req)
+		if doErr != nil {
+			return doErr
+		}
+
+		respBody = body
+		return nil
+	})
+
+	return respBody, err
+}
+
+func isRetriableError(err error) bool {
+	var apiErr *Error
+	if errors.As(err, &apiErr) {
+		return apiErr.IsRetriable()
+	}
+
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return netErr.Timeout()
+	}
+
+	return false
 }
 
 // toolCallAccum accumulates partial tool call data across SSE chunks.
@@ -404,6 +483,17 @@ func parseSSE(ctx context.Context, reader io.Reader, ch chan<- sdk.ProviderEvent
 			})
 
 			return
+		}
+
+		// Emit usage event from chunks that carry usage data (typically the final chunk).
+		if chunk.Usage != nil && (chunk.Usage.InputTokens > 0 || chunk.Usage.OutputTokens > 0) {
+			send(sdk.ProviderEvent{
+				Type: sdk.ProviderEventUsage,
+				Content: sdk.ProviderUsage{
+					InputTokens:  chunk.Usage.InputTokens,
+					OutputTokens: chunk.Usage.OutputTokens,
+				},
+			})
 		}
 
 		for _, choice := range chunk.Choices {

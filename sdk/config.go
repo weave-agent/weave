@@ -11,11 +11,22 @@ type Config interface {
 	RespectGitignore() bool
 }
 
-// PreferenceStore provides access to user preferences and provider keys.
-type PreferenceStore interface {
+// PreferenceReader provides read-only access to user preferences.
+type PreferenceReader interface {
 	Preferences(target any) error
+}
+
+// PreferenceWriter extends PreferenceReader with write operations for
+// preferences and provider credentials.
+type PreferenceWriter interface {
+	PreferenceReader
 	SavePreferences(target any) error
 	SaveProviderKey(providerName, apiKey string) error
+}
+
+// PreferenceStore is the full interface for backward compatibility.
+type PreferenceStore interface {
+	PreferenceWriter
 }
 
 // NoopConfig is a nil-safe Config implementation that returns empty/zero values.
@@ -51,12 +62,66 @@ func ConfigOrDefault(cfg Config) Config {
 	return NoopConfig{}
 }
 
-func PreferenceStoreFrom(cfg Config) PreferenceStore {
+// configOnly wraps a Config so it cannot be type-asserted to PreferenceWriter.
+// This prevents tool and extension factories from bypassing the read-only
+// PreferenceReader boundary via the Config parameter.
+type configOnly struct {
+	cfg Config
+}
+
+func (c configOnly) FilePath() string   { return c.cfg.FilePath() }
+func (c configOnly) ProjectDir() string { return c.cfg.ProjectDir() }
+func (c configOnly) ExtensionConfig(s, n string, t any) error {
+	return c.cfg.ExtensionConfig(s, n, t) //nolint:wrapcheck // transparent delegation
+}
+func (c configOnly) IsHeadless() bool       { return c.cfg.IsHeadless() }
+func (c configOnly) RespectGitignore() bool { return c.cfg.RespectGitignore() }
+
+// ConfigReadOnly returns a Config that delegates to the given config but does
+// not expose PreferenceWriter methods, preventing type-assertion to write-capable
+// interfaces.
+func ConfigReadOnly(cfg Config) Config {
+	if cfg == nil {
+		return NoopConfig{}
+	}
+
+	return configOnly{cfg: cfg}
+}
+
+// preferenceReaderOnly wraps a PreferenceReader so it cannot be type-asserted
+// back to PreferenceWriter. This enforces the capability boundary passed to
+// tool and extension factories.
+type preferenceReaderOnly struct {
+	pr PreferenceReader
+}
+
+func (w preferenceReaderOnly) Preferences(target any) error {
+	return w.pr.Preferences(target) //nolint:wrapcheck // transparent delegation
+}
+
+func PreferenceStoreFrom(cfg Config) PreferenceReader {
 	if ps, ok := cfg.(PreferenceStore); ok {
-		return ps
+		return preferenceReaderOnly{pr: ps}
 	}
 
 	return NoopPreferenceStore{}
+}
+
+// asPreferenceWriter extracts the underlying PreferenceWriter from a
+// PreferenceReader when the reader wraps a PreferenceStore. Returns false if
+// no writer is available. Used internally by privileged registration paths
+// (RegisterExtensionWithScopeAndWriter) so that only explicitly declared
+// extensions receive write access.
+func asPreferenceWriter(pr PreferenceReader) (PreferenceWriter, bool) {
+	if wrapped, ok := pr.(preferenceReaderOnly); ok {
+		if pw, ok := wrapped.pr.(PreferenceWriter); ok {
+			return pw, true
+		}
+	}
+
+	pw, ok := pr.(PreferenceWriter)
+
+	return pw, ok
 }
 
 // HeadlessConfig wraps a Config and overrides IsHeadless.

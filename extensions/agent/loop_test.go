@@ -89,7 +89,6 @@ func newMockProvider(responses []providerResponse) *ProviderMock {
 	}
 }
 
-//nolint:unparam // executeFunc is for tests that need custom tool behavior
 func newMockTool(name string, def sdk.ToolDef, executeFunc func(ctx context.Context, args map[string]any) (sdk.ToolResult, error)) *ToolMock {
 	mt := &ToolMock{
 		NameFunc:       func() string { return name },
@@ -124,7 +123,7 @@ func registerMockProvider(_ string, mp *ProviderMock) {
 }
 
 func registerMockTool(mt *ToolMock) {
-	sdk.RegisterTool(mt.NameFunc(), func(sdk.Config, sdk.PreferenceStore, struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool[struct{}](mt.NameFunc(), func(sdk.Config, sdk.PreferenceReader, struct{}) (sdk.Tool, error) {
 		return mt, nil
 	})
 }
@@ -740,9 +739,13 @@ func TestAgent_MultipleToolCalls(t *testing.T) {
 			case TopicMsgEnd:
 				e := evt
 				finalMsgEnd = &e
+				// After both tool results are in, the next msg_end is the
+				// assistant's follow-up response. Close to end cleanly.
+				if len(toolResults) == 2 {
+					require.NoError(t, a.Close())
+				}
 			case TopicTurnEnd:
-				// First turn done; close to trigger TopicEnd
-				require.NoError(t, a.Close())
+				// Let the loop continue to the next turn.
 			case TopicEnd:
 				goto done
 			}
@@ -1118,7 +1121,6 @@ func TestAgent_AmbiguousModelChangeSwitchesProvider(t *testing.T) {
 	// Register gpt-5.5 for both providers to create ambiguity.
 	model.RegisterModel(model.ModelDef{ID: "gpt-5.5", Provider: "openai"})
 	model.RegisterModel(model.ModelDef{ID: "gpt-5.5", Provider: "codex"})
-
 	a, b, cleanup := setupAgent(t, "anthropic")
 	defer cleanup()
 
@@ -1155,6 +1157,188 @@ func TestAgent_AmbiguousModelChangeSwitchesProvider(t *testing.T) {
 	openaiOpts := openaiMock.StreamCalls()[0].Opts
 	so := model.NewStreamOptions(openaiOpts...)
 	assert.Equal(t, "gpt-5.5", so.Model)
+}
+
+func TestAgent_InnerLoopStepLimit(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mt := newMockTool("bash", sdk.ToolDef{Name: "bash", Description: "run commands"}, nil)
+	registerMockTool(mt)
+
+	// Provider always returns a tool call, so the inner loop would run forever
+	// without the step limit.
+	mp := newMockProvider([]providerResponse{
+		{toolCalls: []sdk.ToolCall{{ID: "tc1", Name: "bash", Arguments: map[string]any{"command": "echo hi"}}}},
+		{toolCalls: []sdk.ToolCall{{ID: "tc2", Name: "bash", Arguments: map[string]any{"command": "echo hi"}}}},
+		{toolCalls: []sdk.ToolCall{{ID: "tc3", Name: "bash", Arguments: map[string]any{"command": "echo hi"}}}},
+		{toolCalls: []sdk.ToolCall{{ID: "tc4", Name: "bash", Arguments: map[string]any{"command": "echo hi"}}}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	// Use a low step limit so the test runs fast.
+	a, err := NewAgentExtension(nil, nil, CompactionConfig{MaxSteps: 3})
+	require.NoError(t, err)
+
+	a.providerName = "anthropic"
+
+	b := bus.New()
+	defer b.Close()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "loop test"))
+
+	// Wait for the step-limit exceeded event.
+	var compactedEvt sdk.Event
+
+	found := false
+	deadline := time.After(5 * time.Second)
+
+	for !found {
+		select {
+		case evt, ok := <-allCh:
+			require.True(t, ok, "event channel closed")
+
+			if evt.Topic == TopicCompacted {
+				compactedEvt = evt
+				found = true
+			}
+
+			if evt.Topic == TopicEnd {
+				t.Fatal("got TopicEnd before step-limit exceeded event")
+			}
+		case <-deadline:
+			t.Fatal("timeout waiting for step-limit exceeded event")
+		}
+	}
+
+	payload, ok := compactedEvt.Payload.(map[string]any)
+	require.True(t, ok, "compacted payload type = %T", compactedEvt.Payload)
+	errMsg, ok := payload["error"].(string)
+	require.True(t, ok, "error field type = %T", payload["error"])
+	assert.Contains(t, errMsg, "step limit exceeded")
+	assert.Contains(t, errMsg, "3")
+
+	// The loop should have broken out and eventually ended.
+	require.NoError(t, a.Close())
+
+	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
+
+	// Should have executed 3 tool calls before hitting the limit.
+	assert.Len(t, mt.ExecuteCalls(), 3)
+}
+
+func TestAgent_StepLimitConfigurable(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mt := newMockTool("bash", sdk.ToolDef{Name: "bash", Description: "run commands"}, nil)
+	registerMockTool(mt)
+
+	mp := newMockProvider([]providerResponse{
+		{toolCalls: []sdk.ToolCall{{ID: "tc1", Name: "bash", Arguments: map[string]any{"command": "echo 1"}}}},
+		{toolCalls: []sdk.ToolCall{{ID: "tc2", Name: "bash", Arguments: map[string]any{"command": "echo 2"}}}},
+		{toolCalls: []sdk.ToolCall{{ID: "tc3", Name: "bash", Arguments: map[string]any{"command": "echo 3"}}}},
+		{toolCalls: []sdk.ToolCall{{ID: "tc4", Name: "bash", Arguments: map[string]any{"command": "echo 4"}}}},
+		{toolCalls: []sdk.ToolCall{{ID: "tc5", Name: "bash", Arguments: map[string]any{"command": "echo 5"}}}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	// Custom step limit of 5.
+	a, err := NewAgentExtension(nil, nil, CompactionConfig{MaxSteps: 5})
+	require.NoError(t, err)
+
+	a.providerName = "anthropic"
+
+	b := bus.New()
+	defer b.Close()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "configurable limit test"))
+
+	var compactedEvt sdk.Event
+
+	found := false
+	deadline := time.After(5 * time.Second)
+
+	for !found {
+		select {
+		case evt, ok := <-allCh:
+			require.True(t, ok, "event channel closed")
+
+			if evt.Topic == TopicCompacted {
+				compactedEvt = evt
+				found = true
+			}
+
+			if evt.Topic == TopicEnd {
+				t.Fatal("got TopicEnd before step-limit exceeded event")
+			}
+		case <-deadline:
+			t.Fatal("timeout waiting for step-limit exceeded event")
+		}
+	}
+
+	payload, ok := compactedEvt.Payload.(map[string]any)
+	require.True(t, ok, "compacted payload type = %T", compactedEvt.Payload)
+	errMsg, ok := payload["error"].(string)
+	require.True(t, ok, "error field type = %T", payload["error"])
+	assert.Contains(t, errMsg, "5")
+
+	require.NoError(t, a.Close())
+
+	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
+
+	// Should have executed 5 tool calls before hitting the limit.
+	assert.Len(t, mt.ExecuteCalls(), 5)
+}
+
+func TestExecuteTool_PanicRecovery(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	panicTool := newMockTool("panic-tool", sdk.ToolDef{Name: "panic-tool", Description: "panics"}, func(ctx context.Context, args map[string]any) (sdk.ToolResult, error) {
+		panic("intentional test panic")
+	})
+	registerMockTool(panicTool)
+
+	mp := newMockProvider([]providerResponse{
+		{
+			toolCalls: []sdk.ToolCall{
+				{ID: "tc1", Name: "panic-tool", Arguments: map[string]any{"x": 1}},
+			},
+		},
+		{textDeltas: []string{"recovered"}},
+	})
+	registerMockProvider("anthropic", mp)
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "trigger panic"))
+
+	toolResultEvt, ok := waitForTopic(allCh, TopicToolResult, 2*time.Second)
+	require.True(t, ok, "timeout waiting for tool_result")
+
+	payload := toolResultEvt.Payload.(map[string]any)
+	result := payload["result"].(sdk.ToolResult)
+	assert.True(t, result.IsError)
+	assert.Contains(t, result.Content, "tool panicked:")
+	assert.Contains(t, result.Content, "intentional test panic")
+
+	msgEnd, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for second msg_end")
+	msgEndPayload, ok := msgEnd.Payload.(map[string]any)
+	require.True(t, ok, "msg_end payload type = %T", msgEnd.Payload)
+	assert.Equal(t, "recovered", msgEndPayload["content"])
 }
 
 func TestAgent_InvalidThinkingLevelIgnored(t *testing.T) {
@@ -2087,4 +2271,465 @@ func TestAgent_SessionResume_InvalidPayloadIgnored(t *testing.T) {
 	assert.Equal(t, "prompt", calls[0].Req.Messages[0].Content)
 	assert.False(t, a.resumed)
 	assert.Empty(t, a.sessionID)
+}
+
+func TestExecuteTool_InvalidArgs(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mt := newMockTool("test-tool", sdk.ToolDef{
+		Name:        "test-tool",
+		Description: "a test tool",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"count": map[string]any{"type": "number"},
+			},
+			"additionalProperties": false,
+		},
+	}, nil)
+	registerMockTool(mt)
+
+	mp := newMockProvider([]providerResponse{
+		{
+			toolCalls: []sdk.ToolCall{
+				{ID: "tc1", Name: "test-tool", Arguments: map[string]any{"count": "not-a-number"}},
+			},
+		},
+		{textDeltas: []string{"recovered"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "trigger invalid args"))
+
+	toolResultEvt, ok := waitForTopic(allCh, TopicToolResult, 2*time.Second)
+	require.True(t, ok, "timeout waiting for tool_result")
+
+	payload := toolResultEvt.Payload.(map[string]any)
+	result := payload["result"].(sdk.ToolResult)
+	assert.True(t, result.IsError)
+	assert.Contains(t, result.Content, "invalid arguments:")
+	assert.Contains(t, result.Content, "expected type \"number\", got \"string\"")
+
+	// Tool Execute should NOT have been called
+	assert.Empty(t, mt.ExecuteCalls())
+}
+
+func TestExecuteTool_MissingRequired(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mt := newMockTool("test-tool", sdk.ToolDef{
+		Name:        "test-tool",
+		Description: "a test tool",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"name": map[string]any{"type": "string"},
+			},
+			"required":             []any{"name"},
+			"additionalProperties": false,
+		},
+	}, nil)
+	registerMockTool(mt)
+
+	mp := newMockProvider([]providerResponse{
+		{
+			toolCalls: []sdk.ToolCall{
+				{ID: "tc1", Name: "test-tool", Arguments: map[string]any{}},
+			},
+		},
+		{textDeltas: []string{"recovered"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "trigger missing required"))
+
+	toolResultEvt, ok := waitForTopic(allCh, TopicToolResult, 2*time.Second)
+	require.True(t, ok, "timeout waiting for tool_result")
+
+	payload := toolResultEvt.Payload.(map[string]any)
+	result := payload["result"].(sdk.ToolResult)
+	assert.True(t, result.IsError)
+	assert.Contains(t, result.Content, "invalid arguments:")
+	assert.Contains(t, result.Content, `missing required field: "name"`)
+
+	// Tool Execute should NOT have been called
+	assert.Empty(t, mt.ExecuteCalls())
+}
+
+func TestExecuteTool_UnknownField(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	mt := newMockTool("test-tool", sdk.ToolDef{
+		Name:        "test-tool",
+		Description: "a test tool",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"name": map[string]any{"type": "string"},
+			},
+			"additionalProperties": false,
+		},
+	}, nil)
+	registerMockTool(mt)
+
+	mp := newMockProvider([]providerResponse{
+		{
+			toolCalls: []sdk.ToolCall{
+				{ID: "tc1", Name: "test-tool", Arguments: map[string]any{"name": "alice", "extra": "value"}},
+			},
+		},
+		{textDeltas: []string{"recovered"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "trigger unknown field"))
+
+	toolResultEvt, ok := waitForTopic(allCh, TopicToolResult, 2*time.Second)
+	require.True(t, ok, "timeout waiting for tool_result")
+
+	payload := toolResultEvt.Payload.(map[string]any)
+	result := payload["result"].(sdk.ToolResult)
+	assert.True(t, result.IsError)
+	assert.Contains(t, result.Content, "invalid arguments:")
+	assert.Contains(t, result.Content, `unknown field: "extra"`)
+
+	// Tool Execute should NOT have been called
+	assert.Empty(t, mt.ExecuteCalls())
+}
+
+type toolExecRecord struct {
+	name  string
+	start time.Time
+	end   time.Time
+}
+
+func newRecordingTool(name string, sleep time.Duration, log *[]toolExecRecord, mu *sync.Mutex) *ToolMock {
+	return newMockTool(name, sdk.ToolDef{Name: name}, func(ctx context.Context, args map[string]any) (sdk.ToolResult, error) {
+		start := time.Now()
+
+		time.Sleep(sleep)
+
+		end := time.Now()
+
+		mu.Lock()
+
+		*log = append(*log, toolExecRecord{name: name, start: start, end: end})
+		mu.Unlock()
+
+		return sdk.ToolResult{Content: name + " done"}, nil
+	})
+}
+
+func TestExecuteTools_ParallelReads(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	var (
+		mu      sync.Mutex
+		records []toolExecRecord
+	)
+
+	read1 := newRecordingTool("read", 100*time.Millisecond, &records, &mu)
+	read2 := newRecordingTool("grep", 100*time.Millisecond, &records, &mu)
+
+	registerMockTool(read1)
+	registerMockTool(read2)
+
+	mp := newMockProvider([]providerResponse{
+		{
+			toolCalls: []sdk.ToolCall{
+				{ID: "tc1", Name: "read", Arguments: map[string]any{"path": "a.go"}},
+				{ID: "tc2", Name: "grep", Arguments: map[string]any{"pattern": "foo"}},
+			},
+		},
+		{textDeltas: []string{"done"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	start := time.Now()
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "parallel reads"))
+
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 5*time.Second)
+	require.True(t, ok, "timeout waiting for turn_end")
+
+	duration := time.Since(start)
+
+	require.NoError(t, a.Close())
+
+	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
+
+	mu.Lock()
+	require.Len(t, records, 2)
+	r1, r2 := records[0], records[1]
+	mu.Unlock()
+
+	// Both read tools should have started close together (within 30ms).
+	startDelta := r1.start.Sub(r2.start)
+	if startDelta < 0 {
+		startDelta = -startDelta
+	}
+
+	assert.Less(t, startDelta, 30*time.Millisecond, "read tools should start concurrently")
+
+	// Total duration should be less than 180ms (parallel, not sequential).
+	assert.Less(t, duration, 180*time.Millisecond, "parallel reads should finish faster than sequential")
+
+	// Messages should be in original order.
+	calls := mp.StreamCalls()
+	require.Len(t, calls, 2)
+	require.Len(t, calls[1].Req.Messages, 4) // user prompt + assistant with tool_calls + 2 tool results
+	assert.Equal(t, sdk.RoleToolResult, calls[1].Req.Messages[2].Role)
+	assert.Equal(t, "tc1", calls[1].Req.Messages[2].ToolCallID)
+	assert.Equal(t, sdk.RoleToolResult, calls[1].Req.Messages[3].Role)
+	assert.Equal(t, "tc2", calls[1].Req.Messages[3].ToolCallID)
+}
+
+func TestExecuteTools_WritesSequential(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	var (
+		mu      sync.Mutex
+		records []toolExecRecord
+	)
+
+	editTool := newRecordingTool("edit", 80*time.Millisecond, &records, &mu)
+	writeTool := newRecordingTool("write", 80*time.Millisecond, &records, &mu)
+
+	registerMockTool(editTool)
+	registerMockTool(writeTool)
+
+	mp := newMockProvider([]providerResponse{
+		{
+			toolCalls: []sdk.ToolCall{
+				{ID: "tc1", Name: "edit", Arguments: map[string]any{"path": "a.go", "old_string": "x", "new_string": "y"}},
+				{ID: "tc2", Name: "write", Arguments: map[string]any{"path": "b.go", "content": "hello"}},
+			},
+		},
+		{textDeltas: []string{"done"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	start := time.Now()
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "sequential writes"))
+
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 5*time.Second)
+	require.True(t, ok, "timeout waiting for turn_end")
+
+	duration := time.Since(start)
+
+	require.NoError(t, a.Close())
+
+	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
+
+	mu.Lock()
+	require.Len(t, records, 2)
+	r1, r2 := records[0], records[1]
+	mu.Unlock()
+
+	// Second write should start after first ends (sequential).
+	assert.True(t, r2.start.Equal(r1.end) || r2.start.After(r1.end),
+		"second write should start after first ends: r1.end=%v r2.start=%v", r1.end, r2.start)
+
+	// Total duration should be at least 140ms (sequential, not parallel).
+	assert.GreaterOrEqual(t, duration, 140*time.Millisecond, "sequential writes should take longer than a single write")
+}
+
+func TestExecuteTools_MixedParallelAndSequential(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	var (
+		mu      sync.Mutex
+		records []toolExecRecord
+	)
+
+	read1 := newRecordingTool("read", 80*time.Millisecond, &records, &mu)
+	editTool := newRecordingTool("edit", 50*time.Millisecond, &records, &mu)
+	read2 := newRecordingTool("find", 80*time.Millisecond, &records, &mu)
+
+	registerMockTool(read1)
+	registerMockTool(editTool)
+	registerMockTool(read2)
+
+	mp := newMockProvider([]providerResponse{
+		{
+			toolCalls: []sdk.ToolCall{
+				{ID: "tc1", Name: "read", Arguments: map[string]any{"path": "a.go"}},
+				{ID: "tc2", Name: "edit", Arguments: map[string]any{"path": "a.go", "old_string": "x", "new_string": "y"}},
+				{ID: "tc3", Name: "find", Arguments: map[string]any{"pattern": "*.go"}},
+			},
+		},
+		{textDeltas: []string{"done"}},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	start := time.Now()
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "mixed parallel and sequential"))
+
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 5*time.Second)
+	require.True(t, ok, "timeout waiting for turn_end")
+
+	duration := time.Since(start)
+
+	require.NoError(t, a.Close())
+
+	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
+
+	mu.Lock()
+	require.Len(t, records, 3)
+
+	// Find the record for each tool by name.
+	var rRead, rEdit, rFind toolExecRecord
+
+	for _, r := range records {
+		switch r.name {
+		case "read":
+			rRead = r
+		case "edit":
+			rEdit = r
+		case "find":
+			rFind = r
+		}
+	}
+	mu.Unlock()
+
+	// Both reads should have started close together (concurrent).
+	readStartDelta := rRead.start.Sub(rFind.start)
+	if readStartDelta < 0 {
+		readStartDelta = -readStartDelta
+	}
+
+	assert.Less(t, readStartDelta, 30*time.Millisecond, "read and find should start concurrently")
+
+	// Edit should start after both reads complete.
+	latestReadEnd := rRead.end
+	if rFind.end.After(latestReadEnd) {
+		latestReadEnd = rFind.end
+	}
+
+	assert.True(t, rEdit.start.Equal(latestReadEnd) || rEdit.start.After(latestReadEnd),
+		"edit should start after both reads complete")
+
+	// Total should be less than 250ms (reads parallel ~80ms + edit ~50ms = ~130ms,
+	// not sequential ~210ms).
+	assert.Less(t, duration, 250*time.Millisecond, "mixed execution should be faster than fully sequential")
+
+	// Verify messages are in original tool call order in the next stream request.
+	calls := mp.StreamCalls()
+	require.Len(t, calls, 2)
+	require.Len(t, calls[1].Req.Messages, 5) // user prompt + assistant with tool_calls + 3 tool results
+	assert.Equal(t, "tc1", calls[1].Req.Messages[2].ToolCallID)
+	assert.Equal(t, "tc2", calls[1].Req.Messages[3].ToolCallID)
+	assert.Equal(t, "tc3", calls[1].Req.Messages[4].ToolCallID)
+}
+
+func TestExecuteTools_ContextCancelDuringParallelReads(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	started := make(chan struct{}, 2)
+
+	read1 := newMockTool("read", sdk.ToolDef{Name: "read"}, func(ctx context.Context, _ map[string]any) (sdk.ToolResult, error) {
+		started <- struct{}{}
+
+		select {
+		case <-ctx.Done():
+			return sdk.ToolResult{}, ctx.Err()
+		case <-time.After(5 * time.Second):
+			return sdk.ToolResult{Content: "read done"}, nil
+		}
+	})
+	read2 := newMockTool("grep", sdk.ToolDef{Name: "grep"}, func(ctx context.Context, _ map[string]any) (sdk.ToolResult, error) {
+		started <- struct{}{}
+
+		select {
+		case <-ctx.Done():
+			return sdk.ToolResult{}, ctx.Err()
+		case <-time.After(5 * time.Second):
+			return sdk.ToolResult{Content: "grep done"}, nil
+		}
+	})
+
+	registerMockTool(read1)
+	registerMockTool(read2)
+
+	mp := newMockProvider([]providerResponse{
+		{
+			toolCalls: []sdk.ToolCall{
+				{ID: "tc1", Name: "read", Arguments: map[string]any{"path": "a.go"}},
+				{ID: "tc2", Name: "grep", Arguments: map[string]any{"pattern": "foo"}},
+			},
+		},
+	})
+	registerMockProvider("anthropic", mp)
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "parallel reads"))
+
+	// Wait for both read tools to start executing.
+	<-started
+	<-started
+
+	// Cancel the turn while tools are still running.
+	b.Publish(sdk.NewEvent(TopicInterrupt, "user interrupt"))
+
+	// The turn should end cleanly without panics or data races.
+	_, ok := waitForTopic(allCh, TopicTurnEnd, 3*time.Second)
+	require.True(t, ok, "timeout waiting for turn_end after interrupt during parallel reads")
+
+	require.NoError(t, a.Close())
+
+	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
 }

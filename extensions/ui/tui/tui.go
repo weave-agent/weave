@@ -43,7 +43,7 @@ func init() {
 		})
 	})
 
-	sdk.RegisterExtensionWithScope[TUIConfig]("tui", "ui", func(cfg sdk.Config, ps sdk.PreferenceStore, tuiCfg TUIConfig) (sdk.Extension, error) {
+	sdk.RegisterExtensionWithScopeAndWriter("tui", "ui", func(cfg sdk.Config, ps sdk.PreferenceWriter, tuiCfg TUIConfig) (sdk.Extension, error) {
 		t, err := NewTUI(cfg, ps, tuiCfg)
 		if err != nil {
 			return nil, err
@@ -120,6 +120,7 @@ func (t *TUI) Subscribe(bus sdk.Bus) error {
 		select {
 		case events <- ev:
 		default:
+			sdk.Logger("tui").Warn("dropped event, channel full", "topic", ev.Topic)
 		}
 
 		eventsMu.Unlock()

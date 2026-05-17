@@ -45,7 +45,7 @@ func RegisterProvider[TConfig, TAuth any](name string, factory func(Config, TCon
 			return nil, fmt.Errorf("load provider auth: %w", err)
 		}
 
-		return factory(ConfigOrDefault(cfg), tc, ta)
+		return factory(ConfigReadOnly(cfg), tc, ta)
 	}
 
 	authChecker := makeAuthChecker[TAuth](name)

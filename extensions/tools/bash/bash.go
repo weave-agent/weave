@@ -78,7 +78,7 @@ func init() {
 		})
 	})
 
-	sdk.RegisterTool[BashConfig]("bash", func(cfg sdk.Config, _ sdk.PreferenceStore, bc BashConfig) (sdk.Tool, error) {
+	sdk.RegisterTool[BashConfig]("bash", func(cfg sdk.Config, _ sdk.PreferenceReader, bc BashConfig) (sdk.Tool, error) {
 		timeout := time.Duration(bc.Timeout) * time.Second
 		if timeout <= 0 {
 			timeout = defaultTimeout
@@ -145,6 +145,7 @@ func (t *tool) Definition() sdk.ToolDef {
 					"description": "Kill a background job by ID. When provided, terminates the specified job and returns its final status.",
 				},
 			},
+			"additionalProperties": false,
 		},
 	}
 }

@@ -1,6 +1,7 @@
 package extmanage
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -154,6 +155,37 @@ func TestDeriveNameFromURL(t *testing.T) {
 			assert.Equal(t, tt.want, deriveNameFromURL(tt.url))
 		})
 	}
+}
+
+func TestInstall_PrintsAccessWarning(t *testing.T) {
+	srcDir := t.TempDir()
+	extDir := filepath.Join(srcDir, "my-ext")
+	require.NoError(t, os.MkdirAll(extDir, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, "go.mod"), []byte("module test/ext\n\ngo 1.22\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, "main.go"), []byte("package main\n"), 0o600))
+
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	oldStderr := os.Stderr
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+
+	os.Stderr = w
+
+	code := RunInstall([]string{extDir})
+
+	_ = w.Close()
+	os.Stderr = oldStderr
+
+	assert.Equal(t, 0, code)
+
+	outputBytes, _ := io.ReadAll(r)
+	output := string(outputBytes)
+
+	assert.Contains(t, output, "Extension \"my-ext\"")
+	assert.Contains(t, output, "full access to filesystem, network, and provider credentials")
+	assert.Contains(t, output, "Only install extensions from trusted sources")
 }
 
 func TestRunInstall_MissingSource(t *testing.T) {

@@ -21,7 +21,7 @@ var uiExtReg = registry.New[uiExtEntry](
 // RegisterUIExtension registers a UI extension factory with a typed configuration struct.
 // The framework will automatically populate the config struct from settings, env vars,
 // and CLI flags before calling the factory.
-func RegisterUIExtension[TConfig any](name string, factory func(Config, PreferenceStore, TConfig) (UIExtension, error)) {
+func RegisterUIExtension[TConfig any](name string, factory func(Config, PreferenceReader, TConfig) (UIExtension, error)) {
 	var zero TConfig
 
 	schema := extractSchema(reflect.TypeOf(zero))
@@ -34,7 +34,7 @@ func RegisterUIExtension[TConfig any](name string, factory func(Config, Preferen
 			return nil, fmt.Errorf("load ui extension config: %w", err)
 		}
 
-		return factory(ConfigOrDefault(cfg), PreferenceStoreFrom(cfg), t)
+		return factory(ConfigReadOnly(cfg), PreferenceStoreFrom(cfg), t)
 	}
 
 	uiExtReg.Register(name, uiExtEntry{factory: wrapper})

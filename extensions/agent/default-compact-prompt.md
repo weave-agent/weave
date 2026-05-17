@@ -12,6 +12,20 @@ What has been done so far, including:
 - Current state of any in-progress work
 - Any unresolved issues, errors, or blockers
 
+## Active Constraints
+Preserve ALL user-stated constraints verbatim in this section. Do not paraphrase or summarize constraints.
+- List each constraint exactly as the user stated it
+- Include any architectural patterns, style guides, or requirements the user specified
+- Include performance targets, compatibility requirements, or external dependencies
+- If the user rejected an approach or expressed a preference, record it here exactly
+
+## Current Plan
+Include the current plan state. If the user stated a multi-step goal, list completed and remaining steps as "step X of Y".
+- State the overall plan in 1 sentence
+- List completed steps with brief outcomes
+- List remaining steps in order
+- Note any steps that were modified, skipped, or added during the conversation
+
 ## Key Context
 Important details the agent needs to remember:
 - Architecture or design patterns being followed

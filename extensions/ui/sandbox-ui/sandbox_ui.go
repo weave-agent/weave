@@ -39,7 +39,7 @@ func init() {
 		})
 	})
 
-	sdk.RegisterUIExtension("sandbox-ui", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.UIExtension, error) {
+	sdk.RegisterUIExtension("sandbox-ui", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.UIExtension, error) {
 		return &SandboxUI{}, nil
 	})
 }

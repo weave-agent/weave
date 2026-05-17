@@ -33,6 +33,22 @@ func TestFooterModel_SetTokenUsage(t *testing.T) {
 	assert.InDelta(t, 0.0123, f.Cost(), 0.0001)
 }
 
+func TestFooterModel_SetCacheTokens(t *testing.T) {
+	f := NewFooterModel().SetCacheTokens(500, 2000)
+	assert.Equal(t, 500, f.cacheCreationTokens)
+	assert.Equal(t, 2000, f.cacheReadTokens)
+}
+
+func TestFooterModel_RenderLine2_WithCacheTokens(t *testing.T) {
+	f := NewFooterModel().
+		SetSize(120).
+		SetTokenUsage(1000, 500, 0).
+		SetCacheTokens(200, 800)
+	line2 := f.renderLine2(nil)
+	assert.Contains(t, line2, "in:1000 out:500")
+	assert.Contains(t, line2, "cache:+200 ~800")
+}
+
 func TestFooterModel_SetContextPct(t *testing.T) {
 	f := NewFooterModel().SetContextPct(42.5)
 	assert.InDelta(t, 42.5, f.ContextPct(), 0.01)

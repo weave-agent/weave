@@ -3,11 +3,14 @@ package agent
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 	"slices"
 	"strings"
+	"sync"
 
 	"weave/sdk"
 	"weave/sdk/model"
+	"weave/sdk/validate"
 )
 
 // Bus topics
@@ -26,6 +29,7 @@ const (
 	TopicToolResult        = "agent.tool_result"
 	TopicEnd               = "agent.end"
 	TopicCompacted         = "agent.compacted"
+	TopicUsage             = "agent.usage"
 	TopicModelChange       = "model.change"
 	TopicModelChangeFailed = "model.change_failed"
 	TopicThinkingChange    = "thinking.change"
@@ -45,8 +49,6 @@ func (a *AgentExtension) run(
 	var endPayload any
 
 	defer func() { bus.Publish(sdk.NewEvent(TopicEnd, endPayload)) }()
-
-	toolDefs := collectToolDefs(a.cfg)
 
 	var messages []sdk.Message
 
@@ -180,6 +182,12 @@ func (a *AgentExtension) run(
 		// Inner loop: tool calls. Continues while the provider returns
 		// tool calls that need execution.
 		continueLoop := true
+		step := 0
+
+		maxSteps := a.compactionCfg.MaxSteps
+		if maxSteps <= 0 {
+			maxSteps = 50
+		}
 
 		for continueLoop {
 			// Ensure provider is available before each turn. If the initial
@@ -204,6 +212,15 @@ func (a *AgentExtension) run(
 
 					break
 				}
+			}
+
+			step++
+			if step > maxSteps {
+				bus.Publish(sdk.NewEvent(TopicCompacted, map[string]any{
+					"error": fmt.Sprintf("inner loop step limit exceeded (%d); breaking to prevent runaway tool-calling", maxSteps),
+				}))
+
+				break
 			}
 
 			var (
@@ -237,7 +254,7 @@ func (a *AgentExtension) run(
 
 			opts := a.streamOpts()
 
-			resp, toolCalls, err := streamTurn(turnCtx, bus, provider, messages, toolDefs, systemPrompt, opts...)
+			resp, toolCalls, err := streamTurn(turnCtx, bus, provider, messages, collectToolDefs(a.cfg), systemPrompt, opts...)
 			if err != nil {
 				bus.Publish(sdk.NewEvent(TopicTurnEnd, nil))
 
@@ -251,30 +268,16 @@ func (a *AgentExtension) run(
 				turnCancel()
 				<-turnDone
 
+				a.restoreSkillFilter()
+
 				return
 			}
 
 			messages = append(messages, resp)
 
-			for _, tc := range toolCalls {
-				bus.Publish(sdk.NewEvent(TopicToolCall, map[string]any{
-					"id":   tc.ID,
-					"tool": tc.Name,
-					"args": tc.Arguments,
-				}))
-
-				result, err := executeTool(turnCtx, bus, a.cfg, tc)
-				if err != nil {
-					result = sdk.ToolResult{Content: err.Error(), IsError: true}
-				}
-
-				bus.Publish(sdk.NewEvent(TopicToolResult, map[string]any{
-					"id":     tc.ID,
-					"tool":   tc.Name,
-					"result": result,
-				}))
-
-				messages = append(messages, sdk.NewToolResultMessage(tc.ID, tc.Name, result.Content, result.IsError))
+			results := executeTools(turnCtx, bus, a.cfg, toolCalls)
+			for _, entry := range results {
+				messages = append(messages, sdk.NewToolResultMessage(entry.call.ID, entry.call.Name, entry.result.Content, entry.result.IsError))
 			}
 
 			if len(toolCalls) > 0 {
@@ -311,6 +314,8 @@ func (a *AgentExtension) run(
 		<-turnDone
 
 		drainInterrupts(interruptCh)
+
+		a.restoreSkillFilter()
 
 		turn++
 
@@ -468,6 +473,19 @@ func (a *AgentExtension) run(
 			return
 		}
 	}
+}
+
+// restoreSkillFilter restores the tool filter if a skill had temporarily
+// restricted it. Safe to call multiple times; does nothing if no skill filter
+// is active.
+func (a *AgentExtension) restoreSkillFilter() {
+	a.mu.Lock()
+	if a.skillFilterActive {
+		sdk.SetToolFilter(a.savedToolFilter)
+		a.skillFilterActive = false
+		a.savedToolFilter = nil
+	}
+	a.mu.Unlock()
 }
 
 // buildSystemPrompt discovers context files, skills, and system prompts from disk
@@ -767,8 +785,21 @@ func streamTurn(ctx context.Context, bus sdk.Bus, provider sdk.Provider, message
 			if tc, ok := evt.Content.(sdk.ToolCall); ok {
 				toolCalls = append(toolCalls, tc)
 			}
+		case sdk.ProviderEventUsage:
+			if u, ok := evt.Content.(sdk.ProviderUsage); ok {
+				bus.Publish(sdk.NewEvent(TopicUsage, map[string]any{
+					"input_tokens":          u.InputTokens,
+					"output_tokens":         u.OutputTokens,
+					"cache_creation_tokens": u.CacheCreationTokens,
+					"cache_read_tokens":     u.CacheReadTokens,
+				}))
+			}
 		case sdk.ProviderEventError:
 			bus.Publish(sdk.NewEvent(TopicMsgEnd, map[string]any{"content": content.String(), "tool_calls": toolCalls}))
+			// Drain remaining events to avoid leaking the provider's send goroutine.
+			for range ch { //nolint:revive // empty body is intentional
+			}
+
 			return sdk.Message{}, nil, fmt.Errorf("provider error: %v", evt.Content)
 		}
 	}
@@ -776,6 +807,10 @@ func streamTurn(ctx context.Context, bus sdk.Bus, provider sdk.Provider, message
 	msgEndPayload := map[string]any{"content": content.String(), "tool_calls": toolCalls}
 	if thinking.Len() > 0 {
 		msgEndPayload["thinking"] = thinking.String()
+	}
+
+	if len(redactedThinking) > 0 {
+		msgEndPayload["redacted_thinking"] = redactedThinking
 	}
 
 	bus.Publish(sdk.NewEvent(TopicMsgEnd, msgEndPayload))
@@ -788,20 +823,130 @@ func streamTurn(ctx context.Context, bus sdk.Bus, provider sdk.Provider, message
 	return resp, toolCalls, nil
 }
 
-func executeTool(ctx context.Context, bus sdk.Bus, cfg sdk.Config, tc sdk.ToolCall) (sdk.ToolResult, error) {
-	tool, err := sdk.GetTool(tc.Name, cfg)
-	if err != nil {
-		return sdk.ToolResult{}, fmt.Errorf("tool %q not found: %w", tc.Name, err)
+func executeTool(ctx context.Context, bus sdk.Bus, cfg sdk.Config, tc sdk.ToolCall) (result sdk.ToolResult, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			stack := debug.Stack()
+			sdk.Logger("agent").Error("tool panicked", "tool", tc.Name, "id", tc.ID, "panic", r, "stack", string(stack))
+
+			result = sdk.ToolResult{}
+			err = fmt.Errorf("tool panicked: %v", r)
+		}
+	}()
+
+	tool, getErr := sdk.GetTool(tc.Name, cfg)
+	if getErr != nil {
+		return sdk.ToolResult{}, fmt.Errorf("tool %q not found: %w", tc.Name, getErr)
+	}
+
+	def := tool.Definition()
+	if schema, ok := def.Parameters.(map[string]any); ok {
+		if valErr := validate.Args(tc.Arguments, schema); valErr != nil {
+			return sdk.ToolResult{Content: "invalid arguments: " + valErr.Error(), IsError: true}, nil
+		}
 	}
 
 	ctx = sdk.WithBus(ctx, bus)
 
-	result, err := tool.Execute(ctx, tc.Arguments)
+	result, err = tool.Execute(ctx, tc.Arguments)
 	if err != nil {
 		return sdk.ToolResult{}, fmt.Errorf("tool %q execute: %w", tc.Name, err)
 	}
 
 	return result, nil
+}
+
+type toolExecutionResult struct {
+	call   sdk.ToolCall
+	result sdk.ToolResult
+}
+
+// isReadOnlyTool returns true for tools that only read from the filesystem
+// and do not mutate state. Read-only tools are executed concurrently.
+func isReadOnlyTool(name string) bool {
+	switch name {
+	case toolNameRead, toolNameGrep, toolNameFind, toolNameLs:
+		return true
+	default:
+		return false
+	}
+}
+
+// executeTools runs all tool calls, executing read-only tools concurrently
+// and write tools sequentially. Results are returned in the original tool
+// call order so message ordering is preserved.
+func executeTools(ctx context.Context, bus sdk.Bus, cfg sdk.Config, toolCalls []sdk.ToolCall) []toolExecutionResult {
+	// Publish tool_call events first, preserving order.
+	for _, tc := range toolCalls {
+		bus.Publish(sdk.NewEvent(TopicToolCall, map[string]any{
+			"id":   tc.ID,
+			"tool": tc.Name,
+			"args": tc.Arguments,
+		}))
+	}
+
+	results := make([]toolExecutionResult, len(toolCalls))
+
+	// Execute read-only tools concurrently.
+	var wg sync.WaitGroup
+
+	for i, tc := range toolCalls {
+		if isReadOnlyTool(tc.Name) {
+			wg.Add(1)
+			go func(idx int, call sdk.ToolCall) {
+				defer wg.Done()
+
+				result, err := executeTool(ctx, bus, cfg, call)
+				if err != nil {
+					result = sdk.ToolResult{Content: err.Error(), IsError: true}
+				}
+
+				results[idx] = toolExecutionResult{call: call, result: result}
+			}(i, tc)
+		}
+	}
+
+	// Wait for all read-only goroutines to finish before proceeding.
+	// We must wait unconditionally to avoid a data race on the results
+	// slice — goroutines may still be writing their results when the
+	// context is canceled.
+	wg.Wait()
+
+	// Mark any read-only tools that didn't produce a result (because the
+	// context was canceled mid-execution) as interrupted.
+	for i, tc := range toolCalls {
+		if isReadOnlyTool(tc.Name) && results[i].call.ID == "" {
+			results[i] = toolExecutionResult{call: tc, result: sdk.ToolResult{Content: "interrupted", IsError: true}}
+		}
+	}
+
+	// Execute write tools sequentially after all reads complete.
+	for i, tc := range toolCalls {
+		if !isReadOnlyTool(tc.Name) {
+			if ctx.Err() != nil {
+				results[i] = toolExecutionResult{call: tc, result: sdk.ToolResult{Content: "interrupted", IsError: true}}
+				continue
+			}
+
+			result, err := executeTool(ctx, bus, cfg, tc)
+			if err != nil {
+				result = sdk.ToolResult{Content: err.Error(), IsError: true}
+			}
+
+			results[i] = toolExecutionResult{call: tc, result: result}
+		}
+	}
+
+	// Publish tool_result events in original order.
+	for _, entry := range results {
+		bus.Publish(sdk.NewEvent(TopicToolResult, map[string]any{
+			"id":     entry.call.ID,
+			"tool":   entry.call.Name,
+			"result": entry.result,
+		}))
+	}
+
+	return results
 }
 
 func collectToolDefs(cfg sdk.Config) []sdk.ToolDef {
@@ -811,6 +956,7 @@ func collectToolDefs(cfg sdk.Config) []sdk.ToolDef {
 	for _, name := range names {
 		tool, err := sdk.GetTool(name, cfg)
 		if err != nil {
+			sdk.Logger("agent").Warn("tool not available, skipping", "tool", name, "error", err)
 			continue
 		}
 

@@ -61,7 +61,7 @@ func init() {
 		})
 	})
 
-	sdk.RegisterTool("ls", func(_ sdk.Config, _ sdk.PreferenceStore, cfg LSConfig) (sdk.Tool, error) {
+	sdk.RegisterTool("ls", func(_ sdk.Config, _ sdk.PreferenceReader, cfg LSConfig) (sdk.Tool, error) {
 		limit := cfg.Limit
 		if limit <= 0 {
 			limit = 500
@@ -100,6 +100,7 @@ func (t *tool) Definition() sdk.ToolDef {
 					"description": "Maximum depth for tree output. 0 = flat list (default). > 0 = recursive tree with depth limit.",
 				},
 			},
+			"additionalProperties": false,
 		},
 	}
 }

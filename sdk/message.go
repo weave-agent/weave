@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -41,5 +42,18 @@ func NewAssistantMessage(content any) Message {
 }
 
 func NewToolResultMessage(toolCallID, toolName string, content any, isError bool) Message {
-	return Message{Role: RoleToolResult, Content: content, ToolCallID: toolCallID, ToolName: toolName, IsError: isError, Timestamp: time.Now()}
+	var str string
+
+	switch c := content.(type) {
+	case string:
+		str = c
+	default:
+		str = fmt.Sprintf("%v", c)
+	}
+
+	escaped := strings.ReplaceAll(str, "<tool_output", "<\\tool_output")
+	escaped = strings.ReplaceAll(escaped, "</tool_output>", "<\\/tool_output>")
+	wrapped := fmt.Sprintf("<tool_output name=%q>\n%s\n</tool_output>", toolName, escaped)
+
+	return Message{Role: RoleToolResult, Content: wrapped, ToolCallID: toolCallID, ToolName: toolName, IsError: isError, Timestamp: time.Now()}
 }

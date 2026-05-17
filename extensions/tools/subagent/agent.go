@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"weave/sdk"
 )
 
 // AgentDef defines a subagent's capabilities and behavior.
@@ -83,6 +85,10 @@ func ParseAgent(data []byte) (*AgentDef, error) {
 	}
 
 	tools := parseToolsField(fm.Tools)
+
+	if tools == nil {
+		sdk.Logger("subagent").Warn("agent has no explicit tools declaration", "name", fm.Name, "hint", "add a 'tools' field to explicitly declare which tools this agent should use; omitting 'tools' grants access to all available tools")
+	}
 
 	if fm.Sandbox != "" {
 		allowed := map[string]bool{"off": true, "readonly": true, "ask": true, "auto": true}

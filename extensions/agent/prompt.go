@@ -3,6 +3,7 @@ package agent
 import (
 	_ "embed"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -35,11 +36,11 @@ func newPromptBuilder(cfg sdk.Config) *promptBuilder {
 // Build assembles the full system prompt from all layers.
 // Layers (top to bottom):
 //  1. Default prompt OR SYSTEM.md (if found)
-//  2. Date + CWD (always injected)
-//  3. Available tools (dynamic)
-//  4. Skills XML + usage instructions
-//  5. Context files (CLAUDE.md/AGENTS.md)
-//  6. APPEND_SYSTEM.md
+//  2. Available tools (dynamic)
+//  3. Skills XML + usage instructions
+//  4. Context files (CLAUDE.md/AGENTS.md)
+//  5. APPEND_SYSTEM.md
+//  6. Date + CWD (always injected — placed last for cache friendliness)
 func (pb *promptBuilder) Build(input buildInput) string {
 	var b strings.Builder
 
@@ -52,18 +53,14 @@ func (pb *promptBuilder) Build(input buildInput) string {
 	b.WriteString(strings.TrimSpace(base))
 	b.WriteString("\n\n")
 
-	// Layer 2: date + CWD
-	b.WriteString(pb.buildInjectedSection())
-	b.WriteString("\n\n")
-
-	// Layer 3: available tools
+	// Layer 2: available tools
 	toolsSection := pb.buildToolDescriptions()
 	if toolsSection != "" {
 		b.WriteString(toolsSection)
 		b.WriteString("\n\n")
 	}
 
-	// Layer 4: skills XML + usage instructions
+	// Layer 3: skills XML + usage instructions
 	skillsSection := formatSkillsPrompt(input.skills)
 	if skillsSection != "" {
 		b.WriteString(skillsSection)
@@ -72,18 +69,23 @@ func (pb *promptBuilder) Build(input buildInput) string {
 		b.WriteString("\n\n")
 	}
 
-	// Layer 5: context files
+	// Layer 4: context files
 	contextSection := pb.buildContextSection(input.contextFiles)
 	if contextSection != "" {
 		b.WriteString(contextSection)
 		b.WriteString("\n\n")
 	}
 
-	// Layer 6: APPEND_SYSTEM.md
+	// Layer 5: APPEND_SYSTEM.md
 	if input.systemAppend != "" {
-		b.WriteString(strings.TrimSpace(input.systemAppend))
-		b.WriteString("\n")
+		b.WriteString("<user_appended_context>\n")
+		b.WriteString(sanitizeTrustBoundary(strings.TrimSpace(input.systemAppend), "user_appended_context"))
+		b.WriteString("\n</user_appended_context>")
+		b.WriteString("\n\n")
 	}
+
+	// Layer 6: date + CWD (last for cache friendliness)
+	b.WriteString(pb.buildInjectedSection())
 
 	return strings.TrimSpace(b.String())
 }
@@ -121,8 +123,8 @@ func (pb *promptBuilder) buildToolDescriptions() string {
 
 	for _, name := range toolNames {
 		// Try to get the tool instance for its description.
-		// Use NoopConfig since we only need the definition, not execution.
-		tool, err := sdk.GetTool(name, sdk.NoopConfig{})
+		// Pass the actual config so descriptions reflect runtime settings.
+		tool, err := sdk.GetTool(name, pb.cfg)
 		if err != nil {
 			fmt.Fprintf(&b, "- %s\n", name)
 			continue
@@ -147,6 +149,21 @@ func (pb *promptBuilder) buildSkillsUsage() string {
 		"</skills_usage>"
 }
 
+// sanitizeTrustBoundary escapes wrapper tag sequences in content that could
+// break out of XML trust boundaries. Prevents untrusted files from injecting
+// closing tags that end the trust wrapper prematurely, or opening tags that
+// restart the wrapper with different attributes.
+func sanitizeTrustBoundary(content, tag string) string {
+	// Escape closing tags: </tag> with optional whitespace before >.
+	reClose := regexp.MustCompile(`</` + regexp.QuoteMeta(tag) + `\s*>`)
+	content = reClose.ReplaceAllString(content, "&lt;/"+tag+"&gt;")
+
+	// Escape opening tag prefix: <tag prevents any tag starting with this name.
+	content = strings.ReplaceAll(content, "<"+tag, "&lt;"+tag)
+
+	return content
+}
+
 // buildContextSection formats discovered context files into the prompt.
 // Returns an empty string if no context files are found.
 func (pb *promptBuilder) buildContextSection(files []contextFile) string {
@@ -155,11 +172,16 @@ func (pb *promptBuilder) buildContextSection(files []contextFile) string {
 	}
 
 	var b strings.Builder
+	b.WriteString("<user_context trust=\"untrusted\">\n")
 	b.WriteString("# Project Context\n\n")
 
 	for _, f := range files {
-		fmt.Fprintf(&b, "## %s\n\n%s\n\n", f.Path, strings.TrimSpace(f.Content))
+		safePath := sanitizeTrustBoundary(f.Path, "user_context")
+		safeContent := sanitizeTrustBoundary(strings.TrimSpace(f.Content), "user_context")
+		fmt.Fprintf(&b, "## %s\n\n%s\n\n", safePath, safeContent)
 	}
 
-	return strings.TrimSpace(b.String())
+	b.WriteString("</user_context>")
+
+	return b.String()
 }

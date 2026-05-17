@@ -5,12 +5,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
+	"slices"
+	"strings"
+	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 
 	"weave/sdk"
 	"weave/sdk/model"
+	"weave/sdk/retry"
 )
 
 const (
@@ -34,6 +40,10 @@ type provider struct {
 	model     string
 	maxTokens int
 }
+
+// retryConfig controls retry behavior for stream requests. It is a variable so
+// tests can override it with faster settings.
+var retryConfig = retry.DefaultConfig()
 
 func init() {
 	sdk.RegisterProvider[AnthropicConfig, AuthConfig]("anthropic", func(cfg sdk.Config, ac AnthropicConfig, a AuthConfig) (sdk.Provider, error) {
@@ -91,51 +101,276 @@ func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest, opts ...
 	go func() {
 		defer close(ch)
 
-		stream := p.client.Messages.NewStreaming(ctx, params)
+		acc := &streamAccumulator{
+			seenToolCalls: make(map[string]bool),
+		}
 
-		var message anthropic.Message
+		cfg := retryConfig
 
-		for stream.Next() {
-			event := stream.Current()
-			_ = message.Accumulate(event)
+		var lastErr error
 
-			e, ok := event.AsAny().(anthropic.ContentBlockDeltaEvent)
-			if !ok {
+		success := false
+
+		for attempt := 0; attempt <= cfg.MaxRetries; attempt++ {
+			if attempt > 0 {
+				delay := retry.CalculateDelay(cfg, attempt-1)
+				timer := time.NewTimer(delay)
+
+				select {
+				case <-timer.C:
+				case <-ctx.Done():
+					timer.Stop()
+					send(sdk.ProviderEvent{
+						Type:    sdk.ProviderEventError,
+						Content: ctx.Err().Error(),
+					})
+
+					return
+				}
+			}
+
+			stream := p.client.Messages.NewStreaming(ctx, params)
+
+			var message anthropic.Message
+
+			var curText, curThinking strings.Builder
+
+			for stream.Next() {
+				event := stream.Current()
+				_ = message.Accumulate(event)
+
+				e, ok := event.AsAny().(anthropic.ContentBlockDeltaEvent)
+				if !ok {
+					continue
+				}
+
+				if e.Delta.Text != "" {
+					curText.WriteString(e.Delta.Text)
+
+					if !acc.emitTextIfNew(curText.String(), send) {
+						return
+					}
+				}
+
+				if e.Delta.Thinking != "" {
+					curThinking.WriteString(e.Delta.Thinking)
+
+					if !acc.emitThinkingIfNew(curThinking.String(), send) {
+						return
+					}
+				}
+			}
+
+			if err := stream.Err(); err != nil {
+				if !isRetriableError(err) {
+					send(sdk.ProviderEvent{
+						Type:    sdk.ProviderEventError,
+						Content: err.Error(),
+					})
+
+					return
+				}
+
+				lastErr = err
+
 				continue
 			}
 
-			if e.Delta.Text != "" {
-				if !send(sdk.ProviderEvent{
-					Type:    sdk.ProviderEventTextDelta,
-					Content: e.Delta.Text,
-				}) {
-					return
-				}
-			}
+			success = true
 
-			if e.Delta.Thinking != "" {
-				if !send(sdk.ProviderEvent{
-					Type:    sdk.ProviderEventThinking,
-					Content: e.Delta.Thinking,
-				}) {
-					return
-				}
-			}
+			emitContentBlocksWithAccumulator(message.Content, acc, send)
+			emitUsageEvent(message, send)
+
+			break
 		}
 
-		if err := stream.Err(); err != nil {
+		if !success && lastErr != nil {
 			send(sdk.ProviderEvent{
 				Type:    sdk.ProviderEventError,
-				Content: err.Error(),
+				Content: fmt.Sprintf("max retries exceeded (%d): %v", cfg.MaxRetries, lastErr),
 			})
-
-			return
 		}
-
-		emitContentBlocks(message.Content, send)
 	}()
 
 	return ch, nil
+}
+
+// streamAccumulator tracks content emitted across retry attempts to
+// deduplicate when a retried stream re-emits previously-seen content.
+type streamAccumulator struct {
+	text             strings.Builder
+	thinking         strings.Builder
+	seenToolCalls    map[string]bool
+	signedThinking   []sdk.SignedThinking
+	redactedThinking []sdk.RedactedThinking
+}
+
+//nolint:dupl // text and thinking deduplication follow the same pattern intentionally
+func (a *streamAccumulator) emitTextIfNew(curTotal string, send func(sdk.ProviderEvent) bool) bool {
+	existing := a.text.String()
+
+	if len(curTotal) <= len(existing) {
+		if existing[:len(curTotal)] == curTotal {
+			return true
+		}
+	}
+
+	if strings.HasPrefix(curTotal, existing) {
+		toEmit := curTotal[len(existing):]
+		if toEmit != "" {
+			a.text.WriteString(toEmit)
+			return send(sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: toEmit})
+		}
+
+		return true
+	}
+
+	// Divergence — shouldn't happen for deterministic streams.
+	// Emit an error and stop processing so downstream state isn't corrupted.
+	send(sdk.ProviderEvent{
+		Type:    sdk.ProviderEventError,
+		Content: errors.New("anthropic: stream diverged after retry"),
+	})
+
+	return false
+}
+
+//nolint:dupl // text and thinking deduplication follow the same pattern intentionally
+func (a *streamAccumulator) emitThinkingIfNew(curTotal string, send func(sdk.ProviderEvent) bool) bool {
+	existing := a.thinking.String()
+
+	if len(curTotal) <= len(existing) {
+		if existing[:len(curTotal)] == curTotal {
+			return true
+		}
+	}
+
+	if strings.HasPrefix(curTotal, existing) {
+		toEmit := curTotal[len(existing):]
+		if toEmit != "" {
+			a.thinking.WriteString(toEmit)
+			return send(sdk.ProviderEvent{Type: sdk.ProviderEventThinking, Content: toEmit})
+		}
+
+		return true
+	}
+
+	// Divergence — shouldn't happen for deterministic streams.
+	// Emit an error and stop processing so downstream state isn't corrupted.
+	send(sdk.ProviderEvent{
+		Type:    sdk.ProviderEventError,
+		Content: errors.New("anthropic: stream diverged after retry"),
+	})
+
+	return false
+}
+
+func (a *streamAccumulator) emitThinkingDone(st sdk.SignedThinking, send func(sdk.ProviderEvent) bool) bool {
+	for _, existing := range a.signedThinking {
+		if existing.Signature == st.Signature {
+			return true
+		}
+	}
+
+	a.signedThinking = append(a.signedThinking, st)
+
+	return send(sdk.ProviderEvent{Type: sdk.ProviderEventThinkingDone, Content: st})
+}
+
+func (a *streamAccumulator) emitRedactedThinkingDone(rt sdk.RedactedThinking, send func(sdk.ProviderEvent) bool) bool {
+	for _, existing := range a.redactedThinking {
+		if existing.Data == rt.Data {
+			return true
+		}
+	}
+
+	a.redactedThinking = append(a.redactedThinking, rt)
+
+	return send(sdk.ProviderEvent{Type: sdk.ProviderEventRedactedThinkingDone, Content: rt})
+}
+
+func (a *streamAccumulator) emitToolCall(tc sdk.ToolCall, send func(sdk.ProviderEvent) bool) bool {
+	if a.seenToolCalls[tc.ID] {
+		return true
+	}
+
+	a.seenToolCalls[tc.ID] = true
+
+	return send(sdk.ProviderEvent{Type: sdk.ProviderEventToolCall, Content: tc})
+}
+
+func emitUsageEvent(message anthropic.Message, send func(sdk.ProviderEvent) bool) {
+	if message.Usage.InputTokens > 0 || message.Usage.OutputTokens > 0 {
+		send(sdk.ProviderEvent{
+			Type: sdk.ProviderEventUsage,
+			Content: sdk.ProviderUsage{
+				InputTokens:         int(message.Usage.InputTokens),
+				OutputTokens:        int(message.Usage.OutputTokens),
+				CacheCreationTokens: int(message.Usage.CacheCreationInputTokens),
+				CacheReadTokens:     int(message.Usage.CacheReadInputTokens),
+			},
+		})
+	}
+}
+
+func emitContentBlocksWithAccumulator(blocks []anthropic.ContentBlockUnion, acc *streamAccumulator, send func(sdk.ProviderEvent) bool) {
+	for _, block := range blocks {
+		switch b := block.AsAny().(type) {
+		case anthropic.ThinkingBlock:
+			if !acc.emitThinkingDone(sdk.SignedThinking{Signature: b.Signature, Thinking: b.Thinking}, send) {
+				return
+			}
+		case anthropic.RedactedThinkingBlock:
+			if !acc.emitRedactedThinkingDone(sdk.RedactedThinking{Data: b.Data}, send) {
+				return
+			}
+		case anthropic.ToolUseBlock:
+			args, ok := parseToolArgs(b.Name, b.JSON.Input.Raw(), send)
+			if !ok {
+				return
+			}
+
+			if !acc.emitToolCall(sdk.ToolCall{ID: b.ID, Name: b.Name, Arguments: args}, send) {
+				return
+			}
+		}
+	}
+}
+
+func isRetriableError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return netErr.Timeout()
+	}
+
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		return urlErr.Timeout()
+	}
+
+	msgLower := strings.ToLower(err.Error())
+
+	if strings.Contains(msgLower, "429") || strings.Contains(msgLower, "rate limit") || strings.Contains(msgLower, "too many requests") {
+		return true
+	}
+
+	if strings.Contains(msgLower, "500") || strings.Contains(msgLower, "502") || strings.Contains(msgLower, "503") || strings.Contains(msgLower, "504") {
+		return true
+	}
+
+	if strings.Contains(msgLower, "timeout") || strings.Contains(msgLower, "deadline exceeded") {
+		return true
+	}
+
+	if strings.Contains(msgLower, "connection") && (strings.Contains(msgLower, "reset") || strings.Contains(msgLower, "refused") || strings.Contains(msgLower, "closed")) {
+		return true
+	}
+
+	return false
 }
 
 func (p *provider) buildParams(req sdk.ProviderRequest, mdl string, maxTokens int, thinkingLevel model.ThinkingLevel) anthropic.MessageNewParams {
@@ -147,7 +382,10 @@ func (p *provider) buildParams(req sdk.ProviderRequest, mdl string, maxTokens in
 
 	if req.SystemPrompt != "" {
 		params.System = []anthropic.TextBlockParam{
-			{Text: req.SystemPrompt},
+			{
+				Text:         req.SystemPrompt,
+				CacheControl: anthropic.NewCacheControlEphemeralParam(),
+			},
 		}
 	}
 
@@ -199,48 +437,9 @@ func resolveThinkingLevel(mdl string, level model.ThinkingLevel) model.ThinkingL
 	return level
 }
 
-func emitContentBlocks(blocks []anthropic.ContentBlockUnion, send func(sdk.ProviderEvent) bool) {
-	for _, block := range blocks {
-		switch b := block.AsAny().(type) {
-		case anthropic.ThinkingBlock:
-			if !send(sdk.ProviderEvent{
-				Type: sdk.ProviderEventThinkingDone,
-				Content: sdk.SignedThinking{
-					Signature: b.Signature,
-					Thinking:  b.Thinking,
-				},
-			}) {
-				return
-			}
-		case anthropic.RedactedThinkingBlock:
-			if !send(sdk.ProviderEvent{
-				Type: sdk.ProviderEventRedactedThinkingDone,
-				Content: sdk.RedactedThinking{
-					Data: b.Data,
-				},
-			}) {
-				return
-			}
-		case anthropic.ToolUseBlock:
-			args := parseToolArgs(b.Name, b.JSON.Input.Raw(), send)
-
-			if !send(sdk.ProviderEvent{
-				Type: sdk.ProviderEventToolCall,
-				Content: sdk.ToolCall{
-					ID:        b.ID,
-					Name:      b.Name,
-					Arguments: args,
-				},
-			}) {
-				return
-			}
-		}
-	}
-}
-
-func parseToolArgs(toolName, raw string, send func(sdk.ProviderEvent) bool) map[string]any {
+func parseToolArgs(toolName, raw string, send func(sdk.ProviderEvent) bool) (map[string]any, bool) {
 	if raw == "" {
-		return make(map[string]any)
+		return make(map[string]any), true
 	}
 
 	var args map[string]any
@@ -251,21 +450,24 @@ func parseToolArgs(toolName, raw string, send func(sdk.ProviderEvent) bool) map[
 			Content: fmt.Sprintf("anthropic: parse tool call arguments for %s: %v", toolName, err),
 		})
 
-		return make(map[string]any)
+		return nil, false
 	}
 
-	return args
+	return args, true
 }
 
 func convertMessages(msgs []sdk.Message) []anthropic.MessageParam {
 	var (
-		params             []anthropic.MessageParam
-		pendingToolResults []anthropic.ContentBlockParamUnion
+		params                    []anthropic.MessageParam
+		pendingToolResults        []anthropic.ContentBlockParamUnion
+		lastUserParamIdx          = -1
+		compactionSummaryParamIdx = -1
 	)
 
 	flush := func() {
 		if len(pendingToolResults) > 0 {
 			params = append(params, anthropic.NewUserMessage(pendingToolResults...))
+			lastUserParamIdx = len(params) - 1
 			pendingToolResults = nil
 		}
 	}
@@ -278,6 +480,7 @@ func convertMessages(msgs []sdk.Message) []anthropic.MessageParam {
 			params = append(params, anthropic.NewUserMessage(
 				anthropic.NewTextBlock(fmt.Sprint(msg.Content)),
 			))
+			lastUserParamIdx = len(params) - 1
 		case sdk.RoleAssistant:
 			flush()
 
@@ -292,6 +495,10 @@ func convertMessages(msgs []sdk.Message) []anthropic.MessageParam {
 			}
 
 			if text, ok := msg.Content.(string); ok && text != "" {
+				if strings.HasPrefix(text, "[Compaction Summary]\n") {
+					compactionSummaryParamIdx = len(params)
+				}
+
 				blocks = append(blocks, anthropic.NewTextBlock(text))
 			}
 
@@ -317,7 +524,31 @@ func convertMessages(msgs []sdk.Message) []anthropic.MessageParam {
 
 	flush()
 
+	cacheControl := anthropic.NewCacheControlEphemeralParam()
+
+	if lastUserParamIdx >= 0 && lastUserParamIdx < len(params) {
+		applyCacheControl(&params[lastUserParamIdx], cacheControl)
+	}
+
+	if compactionSummaryParamIdx >= 0 && compactionSummaryParamIdx < len(params) {
+		applyCacheControl(&params[compactionSummaryParamIdx], cacheControl)
+	}
+
 	return params
+}
+
+func applyCacheControl(msg *anthropic.MessageParam, cacheControl anthropic.CacheControlEphemeralParam) {
+	// Apply cache control to the LAST eligible block to maximize caching.
+	for i := range slices.Backward(msg.Content) {
+		switch {
+		case msg.Content[i].OfText != nil:
+			msg.Content[i].OfText.CacheControl = cacheControl
+			return
+		case msg.Content[i].OfToolResult != nil:
+			msg.Content[i].OfToolResult.CacheControl = cacheControl
+			return
+		}
+	}
 }
 
 func convertTools(tools []sdk.ToolDef) []anthropic.ToolUnionParam {

@@ -224,19 +224,25 @@ func TestBridge_ForwardsEventsAndShutdown(t *testing.T) {
 
 	<-done
 
-	require.Len(t, sender.msgs, 4) // 3 events + shutdown
+	require.Len(t, sender.msgs, 6) // state change + msg start + update + state change + turn end + shutdown
 
-	_, ok := sender.msgs[0].(MessageStartMsg)
+	_, ok := sender.msgs[0].(AgentStateChangeMsg)
 	assert.True(t, ok)
 
-	mu, ok := sender.msgs[1].(MessageUpdateMsg)
+	_, ok = sender.msgs[1].(MessageStartMsg)
+	assert.True(t, ok)
+
+	mu, ok := sender.msgs[2].(MessageUpdateMsg)
 	assert.True(t, ok)
 	assert.Equal(t, "hello", mu.Content)
 
-	_, ok = sender.msgs[2].(TurnEndMsg)
+	_, ok = sender.msgs[3].(AgentStateChangeMsg)
 	assert.True(t, ok)
 
-	_, ok = sender.msgs[3].(ShutdownMsg)
+	_, ok = sender.msgs[4].(TurnEndMsg)
+	assert.True(t, ok)
+
+	_, ok = sender.msgs[5].(ShutdownMsg)
 	assert.True(t, ok)
 }
 
@@ -260,12 +266,15 @@ func TestBridge_SkipsUnknownTopics(t *testing.T) {
 
 	<-done
 
-	require.Len(t, sender.msgs, 2) // unknown skipped, msg start + shutdown
+	require.Len(t, sender.msgs, 3) // unknown skipped, state change + msg start + shutdown
 
-	_, ok := sender.msgs[0].(MessageStartMsg)
+	_, ok := sender.msgs[0].(AgentStateChangeMsg)
 	assert.True(t, ok)
 
-	_, ok = sender.msgs[1].(ShutdownMsg)
+	_, ok = sender.msgs[1].(MessageStartMsg)
+	assert.True(t, ok)
+
+	_, ok = sender.msgs[2].(ShutdownMsg)
 	assert.True(t, ok)
 }
 
@@ -616,6 +625,80 @@ func TestTranslateEvent_Compacted_NonMapPayload(t *testing.T) {
 	c, ok := msg.(CompactedMsg)
 	require.True(t, ok)
 	assert.Empty(t, c.Error)
+}
+
+func TestTranslateEvent_Usage(t *testing.T) {
+	payload := map[string]any{
+		"input_tokens":          1000,
+		"output_tokens":         500,
+		"cache_creation_tokens": 50,
+		"cache_read_tokens":     200,
+	}
+
+	msg := translateEvent(sdk.NewEvent(topicUsage, payload))
+	u, ok := msg.(TokenUsageMsg)
+	require.True(t, ok)
+	assert.Equal(t, 1000, u.InputTokens)
+	assert.Equal(t, 500, u.OutputTokens)
+	assert.Equal(t, 50, u.CacheCreationTokens)
+	assert.Equal(t, 200, u.CacheReadTokens)
+}
+
+func TestTranslateEvent_Usage_NilPayload(t *testing.T) {
+	msg := translateEvent(sdk.NewEvent(topicUsage, nil))
+	u, ok := msg.(TokenUsageMsg)
+	require.True(t, ok)
+	assert.Zero(t, u.InputTokens)
+	assert.Zero(t, u.OutputTokens)
+}
+
+func TestTranslateEvent_Usage_NonMapPayload(t *testing.T) {
+	msg := translateEvent(sdk.NewEvent(topicUsage, "not a map"))
+	u, ok := msg.(TokenUsageMsg)
+	require.True(t, ok)
+	assert.Zero(t, u.InputTokens)
+	assert.Zero(t, u.OutputTokens)
+}
+
+func TestBridge_UsageEvent(t *testing.T) {
+	sender := &collectingSender{}
+	events := make(chan sdk.Event, 5)
+
+	done := make(chan struct{})
+
+	go func() {
+		Bridge(sender, events)
+		close(done)
+	}()
+
+	events <- sdk.NewEvent(topicMsgStart, nil)
+
+	events <- sdk.NewEvent(topicMsgUpdate, "hello")
+
+	events <- sdk.NewEvent(topicUsage, map[string]any{
+		"input_tokens":  100,
+		"output_tokens": 50,
+	})
+
+	events <- sdk.NewEvent(topicTurnEnd, nil)
+
+	close(events)
+
+	<-done
+
+	// Find the TokenUsageMsg
+	var found bool
+
+	for _, msg := range sender.msgs {
+		if u, ok := msg.(TokenUsageMsg); ok {
+			found = true
+
+			assert.Equal(t, 100, u.InputTokens)
+			assert.Equal(t, 50, u.OutputTokens)
+		}
+	}
+
+	assert.True(t, found, "expected TokenUsageMsg in sent messages")
 }
 
 func TestCalcTokenRate(t *testing.T) {

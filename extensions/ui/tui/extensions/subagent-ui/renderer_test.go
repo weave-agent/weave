@@ -142,16 +142,16 @@ func TestSubagentRenderer_RenderBackgroundResponse_Failed(t *testing.T) {
 func TestSubagentRenderer_RegisterTUI_RegistersSubagentRenderers(t *testing.T) {
 	// Set up test tools to verify renderer registration.
 	sdk.ResetToolRegistry()
-	sdk.RegisterTool("subagent_general", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool("subagent_general", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 		return &mockTool{name: "subagent_general"}, nil
 	})
-	sdk.RegisterTool("subagent_explore", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool("subagent_explore", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 		return &mockTool{name: "subagent_explore"}, nil
 	})
-	sdk.RegisterTool("subagent_plan", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool("subagent_plan", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 		return &mockTool{name: "subagent_plan"}, nil
 	})
-	sdk.RegisterTool("bash", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool("bash", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Tool, error) {
 		return &mockTool{name: "bash"}, nil
 	})
 	t.Cleanup(sdk.ResetToolRegistry)

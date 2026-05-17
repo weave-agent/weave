@@ -27,7 +27,7 @@ func TestRegisterTUIExtension(t *testing.T) {
 
 	ext := &stubTUIExtension{name: "test-ext"}
 
-	RegisterTUIExtension("test-ext", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (TUIExtension, error) {
+	RegisterTUIExtension("test-ext", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (TUIExtension, error) {
 		return ext, nil
 	})
 
@@ -41,7 +41,7 @@ func TestRegisterTUIExtension_WithConfig(t *testing.T) {
 
 	var receivedCfg stubTUIExtConfig
 
-	RegisterTUIExtension("config-ext", func(_ sdk.Config, _ sdk.PreferenceStore, cfg stubTUIExtConfig) (TUIExtension, error) {
+	RegisterTUIExtension("config-ext", func(_ sdk.Config, _ sdk.PreferenceReader, cfg stubTUIExtConfig) (TUIExtension, error) {
 		receivedCfg = cfg
 		return &stubTUIExtension{name: "config-ext", config: cfg}, nil
 	})
@@ -57,12 +57,12 @@ func TestRegisterTUIExtension_DuplicateWarns(t *testing.T) {
 
 	first := &stubTUIExtension{name: "dup"}
 
-	RegisterTUIExtension("dup", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (TUIExtension, error) {
+	RegisterTUIExtension("dup", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (TUIExtension, error) {
 		return first, nil
 	})
 
 	// Second registration should be a no-op with a warning (no panic).
-	RegisterTUIExtension("dup", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (TUIExtension, error) {
+	RegisterTUIExtension("dup", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (TUIExtension, error) {
 		return &stubTUIExtension{name: "dup"}, nil
 	})
 
@@ -82,13 +82,13 @@ func TestGetTUIExtensions_Empty(t *testing.T) {
 func TestGetTUIExtensions_Multiple(t *testing.T) {
 	ResetTUIExtensionRegistry()
 
-	RegisterTUIExtension("charlie", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (TUIExtension, error) {
+	RegisterTUIExtension("charlie", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (TUIExtension, error) {
 		return &stubTUIExtension{name: "charlie"}, nil
 	})
-	RegisterTUIExtension("alpha", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (TUIExtension, error) {
+	RegisterTUIExtension("alpha", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (TUIExtension, error) {
 		return &stubTUIExtension{name: "alpha"}, nil
 	})
-	RegisterTUIExtension("bravo", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (TUIExtension, error) {
+	RegisterTUIExtension("bravo", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (TUIExtension, error) {
 		return &stubTUIExtension{name: "bravo"}, nil
 	})
 
@@ -103,7 +103,7 @@ func TestGetTUIExtensions_Multiple(t *testing.T) {
 func TestResetTUIExtensionRegistry(t *testing.T) {
 	ResetTUIExtensionRegistry()
 
-	RegisterTUIExtension("temp", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (TUIExtension, error) {
+	RegisterTUIExtension("temp", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (TUIExtension, error) {
 		return &stubTUIExtension{name: "temp"}, nil
 	})
 
@@ -123,10 +123,10 @@ func TestGetTUIExtension_NotRegistered(t *testing.T) {
 func TestListTUIExtensions(t *testing.T) {
 	ResetTUIExtensionRegistry()
 
-	RegisterTUIExtension("beta", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (TUIExtension, error) {
+	RegisterTUIExtension("beta", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (TUIExtension, error) {
 		return &stubTUIExtension{name: "beta"}, nil
 	})
-	RegisterTUIExtension("alpha", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (TUIExtension, error) {
+	RegisterTUIExtension("alpha", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (TUIExtension, error) {
 		return &stubTUIExtension{name: "alpha"}, nil
 	})
 
@@ -141,7 +141,7 @@ func TestTUIExtensionRegistered(t *testing.T) {
 
 	assert.False(t, TUIExtensionRegistered("none"))
 
-	RegisterTUIExtension("exists", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (TUIExtension, error) {
+	RegisterTUIExtension("exists", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (TUIExtension, error) {
 		return &stubTUIExtension{name: "exists"}, nil
 	})
 
@@ -152,10 +152,10 @@ func TestTUIExtensionRegistered(t *testing.T) {
 func TestGetTUIExtensions_FactoryErrorSkipped(t *testing.T) {
 	ResetTUIExtensionRegistry()
 
-	RegisterTUIExtension("good", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (TUIExtension, error) {
+	RegisterTUIExtension("good", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (TUIExtension, error) {
 		return &stubTUIExtension{name: "good"}, nil
 	})
-	RegisterTUIExtension("bad", func(_ sdk.Config, _ sdk.PreferenceStore, _ struct{}) (TUIExtension, error) {
+	RegisterTUIExtension("bad", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (TUIExtension, error) {
 		return nil, assert.AnError
 	})
 
