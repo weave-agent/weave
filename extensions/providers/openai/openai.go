@@ -57,7 +57,7 @@ func modifyRequest(modelName string) func(body map[string]any, so *model.StreamO
 			return
 		}
 
-		if m, ok := model.GetModel(mdl); ok && !m.Reasoning {
+		if m, ok := model.GetModelForProvider(mdl, "openai"); ok && !m.Reasoning {
 			return
 		}
 

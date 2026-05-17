@@ -214,7 +214,7 @@ func (a *AgentExtension) run(
 			messages, _, compactInstr, compactRequested = drainSteering(steerCh, messages)
 
 			// Compaction check: manual (from /compact steering) or auto (token budget exceeded).
-			if compactRequested || shouldCompact(messages, systemPrompt, a.compactionCfg, a.modelName) {
+			if compactRequested || shouldCompact(messages, systemPrompt, a.compactionCfg, a.modelName, a.providerName) {
 				compactPrompt := resolveCompactPrompt(compactInstr, a.projectDir(), globalConfigDir())
 
 				result, err := compact(turnCtx, provider, messages, a.compactionCfg, a.modelName, a.fileOps, compactPrompt)

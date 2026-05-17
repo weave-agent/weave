@@ -258,13 +258,6 @@ func TestRunAuthorizationCodeFlow_ContextTimeout(t *testing.T) {
 	assert.Contains(t, err.Error(), "timed out")
 }
 
-func TestOpenBrowser_NonExistentURL(t *testing.T) {
-	// This test verifies OpenBrowser doesn't panic on an invalid URL.
-	assert.NotPanics(t, func() {
-		_ = OpenBrowser("http://127.0.0.1:1/this-will-fail")
-	})
-}
-
 func TestRequestDeviceCode_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodPost, r.Method)

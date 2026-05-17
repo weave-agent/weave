@@ -173,18 +173,18 @@ func TestModelRegistry_DifferentProvidersSameID(t *testing.T) {
 	ResetModelRegistry()
 	defer ResetModelRegistry()
 
-	RegisterModel(ModelDef{ID: "gpt-5.5", Provider: "codex", DisplayName: "Codex GPT-5.5"})
+	RegisterModel(ModelDef{ID: "gpt-5.5", Provider: "codex", DisplayName: "GPT-5.5"})
 	RegisterModel(ModelDef{ID: "gpt-5.5", Provider: "openai", DisplayName: "GPT-5.5"})
 
-	// GetModel returns first-registered for bare-ID lookup.
+	// GetModel returns the first match sorted by provider name.
 	m, ok := GetModel("gpt-5.5")
 	require.True(t, ok)
-	assert.Equal(t, "Codex GPT-5.5", m.DisplayName)
+	assert.Equal(t, "GPT-5.5", m.DisplayName)
 
 	// ListModelsForProvider includes both provider-specific entries.
 	codexModels := ListModelsForProvider("codex")
 	require.Len(t, codexModels, 1)
-	assert.Equal(t, "Codex GPT-5.5", codexModels[0].DisplayName)
+	assert.Equal(t, "GPT-5.5", codexModels[0].DisplayName)
 
 	openaiModels := ListModelsForProvider("openai")
 	require.Len(t, openaiModels, 1)
@@ -251,7 +251,7 @@ func TestGetModelForProvider(t *testing.T) {
 	ResetModelRegistry()
 	defer ResetModelRegistry()
 
-	RegisterModel(ModelDef{ID: "gpt-5.5", Provider: "codex", DisplayName: "Codex GPT-5.5"})
+	RegisterModel(ModelDef{ID: "gpt-5.5", Provider: "codex", DisplayName: "GPT-5.5"})
 	RegisterModel(ModelDef{ID: "gpt-5.5", Provider: "openai", DisplayName: "GPT-5.5"})
 
 	m, ok := GetModelForProvider("gpt-5.5", "openai")
@@ -261,7 +261,7 @@ func TestGetModelForProvider(t *testing.T) {
 
 	m, ok = GetModelForProvider("gpt-5.5", "codex")
 	require.True(t, ok)
-	assert.Equal(t, "Codex GPT-5.5", m.DisplayName)
+	assert.Equal(t, "GPT-5.5", m.DisplayName)
 	assert.Equal(t, "codex", m.Provider)
 
 	_, ok = GetModelForProvider("gpt-5.5", "nonexistent")

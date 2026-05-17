@@ -275,7 +275,7 @@ const compactionSummaryPrefix = "[Compaction Summary]\n"
 
 // shouldCompact checks whether the current token usage exceeds the context
 // window budget (context window minus reserve tokens).
-func shouldCompact(messages []sdk.Message, systemPrompt string, cfg CompactionConfig, modelName string) bool {
+func shouldCompact(messages []sdk.Message, systemPrompt string, cfg CompactionConfig, modelName, providerName string) bool {
 	if !cfg.Enabled {
 		return false
 	}
@@ -283,7 +283,7 @@ func shouldCompact(messages []sdk.Message, systemPrompt string, cfg CompactionCo
 	contextWindow := 200000 // Conservative default for unknown models.
 
 	if modelName != "" {
-		if m, ok := model.GetModel(modelName); ok && m.ContextWindow > 0 {
+		if m, ok := model.GetModelForProvider(modelName, providerName); ok && m.ContextWindow > 0 {
 			contextWindow = m.ContextWindow
 		}
 	}

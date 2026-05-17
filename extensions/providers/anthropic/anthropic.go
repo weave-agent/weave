@@ -183,7 +183,7 @@ func resolveThinkingLevel(mdl string, level model.ThinkingLevel) model.ThinkingL
 		return model.ThinkingOff
 	}
 
-	m, ok := model.GetModel(mdl)
+	m, ok := model.GetModelForProvider(mdl, "anthropic")
 	if !ok {
 		return level
 	}

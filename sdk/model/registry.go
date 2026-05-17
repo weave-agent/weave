@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"log/slog"
 	"slices"
+	"strings"
 	"sync"
 
 	"weave/sdk/registry"
@@ -16,45 +17,36 @@ var (
 		}),
 	)
 
-	allModels   []ModelDef
-	allModelsMu sync.RWMutex
-
 	authStatus = make(map[string]bool)
 	authMu     sync.RWMutex
 )
 
-// RegisterModel adds a model definition to the global registry.
-// It warns on duplicate ID, keeping the first registration for bare-ID lookup,
-// but preserves all models so that provider-scoped lookups remain correct.
-func RegisterModel(def ModelDef) {
-	modelReg.Register(def.ID, def)
+// modelKey returns the canonical registry key for a provider/model pair.
+func modelKey(provider, id string) string {
+	return provider + "/" + id
+}
 
-	allModelsMu.Lock()
-	defer allModelsMu.Unlock()
-
-	for _, m := range allModels {
-		if m.ID == def.ID && m.Provider == def.Provider {
-			return
-		}
+// ParseModelKey splits a "provider/model" key into its components.
+func ParseModelKey(key string) (provider, id string) {
+	before, after, found := strings.Cut(key, "/")
+	if !found {
+		return "", key
 	}
 
-	allModels = append(allModels, def)
+	return before, after
 }
 
-// GetModel returns a model definition by ID.
-// On duplicate IDs across providers, returns the first-registered one.
+// RegisterModel adds a model definition to the global registry, keyed by
+// provider/model. Same-ID models from different providers are first-class entries.
+func RegisterModel(def ModelDef) {
+	modelReg.Register(modelKey(def.Provider, def.ID), def)
+}
+
+// GetModel returns a model definition by bare ID. When the same ID exists
+// across multiple providers, it returns the first match sorted by provider name.
 func GetModel(id string) (ModelDef, bool) {
-	return modelReg.Get(id)
-}
-
-// GetModelForProvider returns a model definition by ID scoped to a specific
-// provider. Use this when duplicate model IDs exist across providers.
-func GetModelForProvider(id, provider string) (ModelDef, bool) {
-	allModelsMu.RLock()
-	defer allModelsMu.RUnlock()
-
-	for _, m := range allModels {
-		if m.ID == id && m.Provider == provider {
+	for _, m := range modelReg.All() {
+		if m.ID == id {
 			return m, true
 		}
 	}
@@ -62,14 +54,16 @@ func GetModelForProvider(id, provider string) (ModelDef, bool) {
 	return ModelDef{}, false
 }
 
+// GetModelForProvider returns a model definition by ID scoped to a specific provider.
+func GetModelForProvider(id, provider string) (ModelDef, bool) {
+	return modelReg.Get(modelKey(provider, id))
+}
+
 // ListModelsForProvider returns all models for a given provider, sorted by ID.
 func ListModelsForProvider(provider string) []ModelDef {
-	allModelsMu.RLock()
-	defer allModelsMu.RUnlock()
-
 	var result []ModelDef
 
-	for _, m := range allModels {
+	for _, m := range modelReg.All() {
 		if m.Provider == provider {
 			result = append(result, m)
 		}
@@ -80,17 +74,9 @@ func ListModelsForProvider(provider string) []ModelDef {
 	return result
 }
 
-// ListAllModels returns all registered models, sorted by ID.
+// ListAllModels returns all registered models, sorted by provider then ID.
 func ListAllModels() []ModelDef {
-	allModelsMu.RLock()
-	defer allModelsMu.RUnlock()
-
-	result := make([]ModelDef, len(allModels))
-	copy(result, allModels)
-
-	slices.SortFunc(result, func(a, b ModelDef) int { return cmp.Compare(a.ID, b.ID) })
-
-	return result
+	return modelReg.All()
 }
 
 // ListAvailableModels returns models only for providers that have auth,
@@ -99,12 +85,9 @@ func ListAvailableModels() []ModelDef {
 	authMu.RLock()
 	defer authMu.RUnlock()
 
-	allModelsMu.RLock()
-	defer allModelsMu.RUnlock()
-
 	var result []ModelDef
 
-	for _, m := range allModels {
+	for _, m := range modelReg.All() {
 		if authStatus[m.Provider] {
 			result = append(result, m)
 		}
@@ -124,12 +107,9 @@ func ListAvailableModels() []ModelDef {
 // ModelProviderCount returns the number of distinct providers that have
 // registered a model with the given ID. Used to detect ambiguous model overrides.
 func ModelProviderCount(id string) int {
-	allModelsMu.RLock()
-	defer allModelsMu.RUnlock()
-
 	seen := make(map[string]struct{})
 
-	for _, m := range allModels {
+	for _, m := range modelReg.All() {
 		if m.ID == id {
 			seen[m.Provider] = struct{}{}
 		}
@@ -173,10 +153,6 @@ func ProviderHasAuth(provider string) bool {
 // ResetModelRegistry clears all registered models. For testing only.
 func ResetModelRegistry() {
 	modelReg.Reset()
-
-	allModelsMu.Lock()
-	allModels = nil
-	allModelsMu.Unlock()
 }
 
 // ResetAuthRegistry clears all auth status entries. For testing only.

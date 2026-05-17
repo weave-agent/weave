@@ -661,31 +661,31 @@ func TestShouldCompact(t *testing.T) {
 	t.Run("disabled returns false", func(t *testing.T) {
 		msgs := []sdk.Message{sdk.NewUserMessage(makeLongText(100000))}
 		cfg := CompactionConfig{Enabled: false}
-		assert.False(t, shouldCompact(msgs, "", cfg, "test-model"))
+		assert.False(t, shouldCompact(msgs, "", cfg, "test-model", "test"))
 	})
 
 	t.Run("empty model under budget returns false", func(t *testing.T) {
 		msgs := []sdk.Message{sdk.NewUserMessage(makeLongText(100000))}
 		cfg := CompactionConfig{Enabled: true}
-		assert.False(t, shouldCompact(msgs, "", cfg, ""))
+		assert.False(t, shouldCompact(msgs, "", cfg, "", ""))
 	})
 
 	t.Run("empty model over budget returns true", func(t *testing.T) {
 		msgs := []sdk.Message{sdk.NewUserMessage(makeLongText(800000))}
 		cfg := CompactionConfig{Enabled: true, ReserveTokens: 100}
-		assert.True(t, shouldCompact(msgs, "", cfg, ""))
+		assert.True(t, shouldCompact(msgs, "", cfg, "", ""))
 	})
 
 	t.Run("unknown model under budget returns false", func(t *testing.T) {
 		msgs := []sdk.Message{sdk.NewUserMessage(makeLongText(100000))}
 		cfg := CompactionConfig{Enabled: true}
-		assert.False(t, shouldCompact(msgs, "", cfg, "nonexistent-model"))
+		assert.False(t, shouldCompact(msgs, "", cfg, "nonexistent-model", ""))
 	})
 
 	t.Run("unknown model over budget returns true", func(t *testing.T) {
 		msgs := []sdk.Message{sdk.NewUserMessage(makeLongText(800000))}
 		cfg := CompactionConfig{Enabled: true, ReserveTokens: 100}
-		assert.True(t, shouldCompact(msgs, "", cfg, "nonexistent-model"))
+		assert.True(t, shouldCompact(msgs, "", cfg, "nonexistent-model", ""))
 	})
 
 	t.Run("under budget returns false", func(t *testing.T) {
@@ -700,7 +700,7 @@ func TestShouldCompact(t *testing.T) {
 
 		msgs := []sdk.Message{sdk.NewUserMessage("short message")}
 		cfg := CompactionConfig{Enabled: true, ReserveTokens: 16384}
-		assert.False(t, shouldCompact(msgs, "", cfg, "test-model"))
+		assert.False(t, shouldCompact(msgs, "", cfg, "test-model", "test"))
 	})
 
 	t.Run("over budget returns true", func(t *testing.T) {
@@ -715,7 +715,7 @@ func TestShouldCompact(t *testing.T) {
 
 		msgs := []sdk.Message{sdk.NewUserMessage(makeLongText(4000))}
 		cfg := CompactionConfig{Enabled: true, ReserveTokens: 100}
-		assert.True(t, shouldCompact(msgs, "", cfg, "test-model"))
+		assert.True(t, shouldCompact(msgs, "", cfg, "test-model", "test"))
 	})
 
 	t.Run("system prompt included in total", func(t *testing.T) {
@@ -730,9 +730,9 @@ func TestShouldCompact(t *testing.T) {
 
 		msgs := []sdk.Message{sdk.NewUserMessage(makeLongText(2000))} // 500 tokens
 		cfg := CompactionConfig{Enabled: true, ReserveTokens: 100}
-		assert.False(t, shouldCompact(msgs, "", cfg, "test-model"), "500 tokens should fit in 900 budget")
+		assert.False(t, shouldCompact(msgs, "", cfg, "test-model", "test"), "500 tokens should fit in 900 budget")
 		// System prompt of 2000 chars = 500 tokens, total = 1000 > 900
-		assert.True(t, shouldCompact(msgs, makeLongText(2000), cfg, "test-model"), "with system prompt should exceed")
+		assert.True(t, shouldCompact(msgs, makeLongText(2000), cfg, "test-model", "test"), "with system prompt should exceed")
 	})
 
 	t.Run("exact boundary", func(t *testing.T) {
@@ -748,12 +748,12 @@ func TestShouldCompact(t *testing.T) {
 		cfg := CompactionConfig{Enabled: true, ReserveTokens: 100}
 		// 900 tokens exactly at the boundary should NOT compact.
 		msgs := []sdk.Message{sdk.NewUserMessage(makeLongText(900 * tokensPerChar))}
-		assert.False(t, shouldCompact(msgs, "", cfg, "test-model"),
+		assert.False(t, shouldCompact(msgs, "", cfg, "test-model", "test"),
 			"exactly at boundary should not compact")
 
 		// 901 tokens should compact.
 		msgs = []sdk.Message{sdk.NewUserMessage(makeLongText(901 * tokensPerChar))}
-		assert.True(t, shouldCompact(msgs, "", cfg, "test-model"),
+		assert.True(t, shouldCompact(msgs, "", cfg, "test-model", "test"),
 			"one token over boundary should compact")
 	})
 }
@@ -1629,11 +1629,11 @@ func TestShouldCompact_BudgetLessThanOrEqualZero(t *testing.T) {
 	msgs := []sdk.Message{sdk.NewUserMessage(makeLongText(2000))} // 500 tokens
 
 	// 500 tokens < 500 budget (not >), so should not compact
-	assert.False(t, shouldCompact(msgs, "", cfg, "test-model"),
+	assert.False(t, shouldCompact(msgs, "", cfg, "test-model", "test"),
 		"exactly at fallback budget should not compact")
 
 	// 501 tokens > 500 budget, so should compact
 	msgs = []sdk.Message{sdk.NewUserMessage(makeLongText(2004))} // 501 tokens
-	assert.True(t, shouldCompact(msgs, "", cfg, "test-model"),
+	assert.True(t, shouldCompact(msgs, "", cfg, "test-model", "test"),
 		"one token over fallback budget should compact")
 }

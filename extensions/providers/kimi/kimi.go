@@ -191,7 +191,7 @@ func resolveThinkingLevel(mdl string, level model.ThinkingLevel) model.ThinkingL
 		return model.ThinkingOff
 	}
 
-	m, ok := model.GetModel(mdl)
+	m, ok := model.GetModelForProvider(mdl, "kimi")
 	if !ok {
 		return level
 	}
