@@ -97,6 +97,7 @@ const (
 	AgentRunning AgentStatus = iota
 	AgentCompleted
 	AgentFailed
+	AgentCancelled
 )
 
 // TrackedAgent holds the state of a single subagent being tracked.
@@ -210,6 +211,8 @@ func (t *AgentTracker) Done(id, status, result string) {
 		agent.Status = AgentCompleted
 	case statusFailed:
 		agent.Status = AgentFailed
+	case statusCancelled:
+		agent.Status = AgentCancelled
 	default:
 		agent.Status = AgentFailed
 	}

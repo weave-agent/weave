@@ -98,12 +98,12 @@ Upgrade the subagent UI panel from a minimal status indicator to an informative,
 - [x] run tests - must pass before task 7
 
 ### Task 7: Update rich renderer for cancelled status
-- [ ] add `cancelled` status handling in `subagentRenderer.Render()` in `extensions/ui/tui/extensions/subagent-ui/renderer.go`
-- [ ] add `AgentCancelled` status to `AgentStatus` enum in `tracker.go` if not already covered
-- [ ] handle cancelled status in `statusIndicator()` in `panel.go` (e.g. `⊘` icon in `Warning` color)
-- [ ] update `backgroundManager.notifyDone()` to detect context cancellation and set status to `"cancelled"`
-- [ ] write tests for cancelled status rendering in both panel and rich renderer
-- [ ] run tests - must pass before task 8
+- [x] add `cancelled` status handling in `subagentRenderer.Render()` in `extensions/ui/tui/extensions/subagent-ui/renderer.go`
+- [x] add `AgentCancelled` status to `AgentStatus` enum in `tracker.go` if not already covered
+- [x] handle cancelled status in `statusIndicator()` in `panel.go` (e.g. `⊘` icon in `Warning` color)
+- [x] update `backgroundManager.notifyDone()` to detect context cancellation and set status to `"cancelled"`
+- [x] write tests for cancelled status rendering in both panel and rich renderer
+- [x] run tests - must pass before task 8
 
 ### Task 8: Verify acceptance criteria
 - [ ] verify all requirements from Overview are implemented

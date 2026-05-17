@@ -139,6 +139,27 @@ func TestSubagentRenderer_RenderBackgroundResponse_Failed(t *testing.T) {
 	assert.Contains(t, result, "failed")
 }
 
+func TestSubagentRenderer_RenderBackgroundResponse_Cancelled(t *testing.T) {
+	r := &subagentRenderer{}
+	theme := sdk.ThemeInfo{
+		Accent:       "63",
+		AccentBright: "69",
+		MutedBright:  "252",
+		Warning:      "215",
+	}
+
+	content, _ := json.Marshal(map[string]string{
+		"id":     "subagent_researcher_abc123",
+		"status": "cancelled",
+	})
+
+	result := r.Render(string(content), theme, 80)
+
+	assert.Contains(t, result, "subagent_researcher_abc123")
+	assert.Contains(t, result, "cancelled")
+	assert.Contains(t, result, "⊘")
+}
+
 func TestSubagentRenderer_RegisterTUI_RegistersSubagentRenderers(t *testing.T) {
 	// Set up test tools to verify renderer registration.
 	sdk.ResetToolRegistry()

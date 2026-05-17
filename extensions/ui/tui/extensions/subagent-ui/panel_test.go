@@ -215,6 +215,23 @@ func TestAgentPanelDrawer_Draw_FailedAgent(t *testing.T) {
 	assert.Contains(t, rendered, "✗")
 }
 
+func TestAgentPanelDrawer_Draw_CancelledAgent(t *testing.T) {
+	tracker := NewAgentTracker(gracePeriod, nil)
+	tracker.Start("agent-cancel", "researcher", "background")
+	tracker.Done("agent-cancel", "cancelled", "context canceled")
+
+	drawer := newAgentPanelDrawer("agent-cancel", tracker, testTheme(), nil)
+	canvas := uv.NewScreenBuffer(80, 18)
+	area := uv.Rect(0, 0, 80, 18)
+
+	drawer.Draw(canvas, area)
+
+	rendered := canvas.Render()
+	assert.Contains(t, rendered, "researcher")
+	assert.Contains(t, rendered, "⊘")
+	assert.NotContains(t, rendered, "✕ cancel")
+}
+
 func TestAgentPanelDrawer_Draw_AgentRemoved(t *testing.T) {
 	tracker := NewAgentTracker(gracePeriod, nil)
 	tracker.Start("agent-gone", "ghost", "background")
@@ -350,6 +367,10 @@ func TestAgentPanelDrawer_StatusIndicator(t *testing.T) {
 	icon, color = drawer.statusIndicator(AgentFailed)
 	assert.Equal(t, "✗", icon)
 	assert.Equal(t, theme.Error, color)
+
+	icon, color = drawer.statusIndicator(AgentCancelled)
+	assert.Equal(t, "⊘", icon)
+	assert.Equal(t, theme.Warning, color)
 
 	icon, color = drawer.statusIndicator(AgentStatus(99))
 	assert.Equal(t, "●", icon)

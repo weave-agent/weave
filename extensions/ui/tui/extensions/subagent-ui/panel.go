@@ -219,6 +219,8 @@ func (d *agentPanelDrawer) statusIndicator(status AgentStatus) (string, string) 
 		return "✓", d.theme.Success
 	case AgentFailed:
 		return "✗", d.theme.Error
+	case AgentCancelled:
+		return "⊘", d.theme.Warning
 	default:
 		return "●", d.theme.Muted
 	}

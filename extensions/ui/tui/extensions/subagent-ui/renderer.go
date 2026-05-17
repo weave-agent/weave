@@ -15,6 +15,7 @@ const (
 	statusCompleted = "completed"
 	statusFailed    = "failed"
 	statusRunning   = "running"
+	statusCancelled = "cancelled"
 )
 
 // subagentRenderer implements tui.RichToolRenderer for subagent tool output.
@@ -37,7 +38,7 @@ func (r *subagentRenderer) Render(content string, theme sdk.ThemeInfo, width int
 		strings.HasPrefix(bgResp.ID, "subagent_") {
 		// Only treat as background if status is a known background value.
 		switch bgResp.Status {
-		case statusRunning, statusCompleted, statusFailed:
+		case statusRunning, statusCompleted, statusFailed, statusCancelled:
 			return r.renderBackgroundResponse(bgResp.ID, bgResp.Status, theme)
 		}
 	}
@@ -48,12 +49,21 @@ func (r *subagentRenderer) Render(content string, theme sdk.ThemeInfo, width int
 
 // renderBackgroundResponse renders a compact card for a background agent launch.
 func (r *subagentRenderer) renderBackgroundResponse(id, status string, theme sdk.ThemeInfo) string {
-	iconStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Accent))
 	idStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.MutedBright))
 	statusStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.AccentBright))
 
+	icon := "↗"
+	iconColor := theme.Accent
+	if status == statusCancelled {
+		icon = "⊘"
+		iconColor = theme.Warning
+		statusStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Warning))
+	}
+
+	iconStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(iconColor))
+
 	return fmt.Sprintf("%s Agent %s %s",
-		iconStyle.Render("↗"),
+		iconStyle.Render(icon),
 		idStyle.Render(id),
 		statusStyle.Render("("+status+")"),
 	)
