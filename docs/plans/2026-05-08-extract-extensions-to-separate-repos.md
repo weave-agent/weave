@@ -173,10 +173,10 @@ For each:
 
 ### Task 6b: Push main repo
 
-- [ ] Push main `weave` repo to `git@github.com:weave-agent/weave.git`
+- [x] Push main `weave` repo to `git@github.com:weave-agent/weave.git`
   - After all extension code is removed from `extensions/`
-  - `git remote add origin git@github.com:weave-agent/weave.git` (or update existing)
-  - `git push`
+  - `git remote add weave-agent git@github.com:weave-agent/weave.git`
+  - `git push weave-agent extract-extensions-to-separate-repos`
 
 ### Task 7: Implement first-run bootstrap
 
