@@ -110,7 +110,7 @@ func TestReadModulePath_ModuleWithWhitespace(t *testing.T) {
 
 func TestResolveExtName_FullPath(t *testing.T) {
 	assert.Equal(t, "bash", resolveExtName("github.com/weave-agent/weave-bash"))
-	assert.Equal(t, "diff-viewer", resolveExtName("github.com/weave-agent/weave-diff-viewer"))
+	assert.Equal(t, "tui-diffview", resolveExtName("github.com/weave-agent/weave-tui-diffview"))
 	assert.Equal(t, "sandbox-ui", resolveExtName("github.com/weave-agent/weave-sandbox-ui"))
 }
 

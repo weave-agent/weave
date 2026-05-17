@@ -171,10 +171,10 @@ func TestAutoDiscover_TUIExtension(t *testing.T) {
 	homeDir := t.TempDir()
 	moduleRoot := t.TempDir()
 
-	// TUI extension at extensions/ui/tui/extensions/diff-viewer/
-	extDir := filepath.Join(moduleRoot, "extensions", "ui", "tui", "extensions", "diff-viewer")
+	// TUI extension at extensions/ui/tui/extensions/tui-diffview/
+	extDir := filepath.Join(moduleRoot, "extensions", "ui", "tui", "extensions", "tui-diffview")
 	require.NoError(t, os.MkdirAll(extDir, 0o750))
-	require.NoError(t, os.WriteFile(filepath.Join(extDir, "go.mod"), []byte("module test/ext/diff-viewer\n\ngo 1.22\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, "go.mod"), []byte("module test/ext/tui-diffview\n\ngo 1.22\n"), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(extDir, "diff.go"), []byte("package diffviewer\n\nimport \"github.com/weave-agent/weave/sdk\"\n\nfunc init() { sdk.RegisterUIExtension(\"diff\", nil) }\n"), 0o600))
 
 	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
@@ -183,14 +183,14 @@ func TestAutoDiscover_TUIExtension(t *testing.T) {
 	var diffExt *ExtensionInfo
 
 	for i := range exts {
-		if exts[i].Name == "diff-viewer" {
+		if exts[i].Name == "tui-diffview" {
 			diffExt = &exts[i]
 			break
 		}
 	}
 
-	require.NotNil(t, diffExt, "diff-viewer should be discovered")
-	assert.True(t, diffExt.IsUIExt, "diff-viewer should be detected as UI extension")
+	require.NotNil(t, diffExt, "tui-diffview should be discovered")
+	assert.True(t, diffExt.IsUIExt, "tui-diffview should be detected as UI extension")
 }
 
 func TestAutoDiscover_ExcludeList(t *testing.T) {

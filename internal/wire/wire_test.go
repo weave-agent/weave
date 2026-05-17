@@ -117,13 +117,13 @@ func TestWire_SkipsUIExtension(t *testing.T) {
 	sdk.ResetExtensionRegistry()
 	sdk.ResetUIExtensionRegistry()
 
-	sdk.RegisterUIExtension("diff-viewer", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.UIExtension, error) {
-		return stubUIExt{name: "diff-viewer"}, nil
+	sdk.RegisterUIExtension("tui-diffview", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.UIExtension, error) {
+		return stubUIExt{name: "tui-diffview"}, nil
 	})
 
 	bus := &BusMock{}
 
-	_, err := WireExtensions([]string{"diff-viewer"}, bus, nil)
+	_, err := WireExtensions([]string{"tui-diffview"}, bus, nil)
 	require.NoError(t, err, "UI extension should be silently skipped")
 }
 

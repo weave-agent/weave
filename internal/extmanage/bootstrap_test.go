@@ -14,8 +14,8 @@ import (
 
 func TestCoreExtensionRepo(t *testing.T) {
 	assert.Equal(t, "github.com/weave-agent/weave-bash", coreExtensionRepo("bash"))
-	assert.Equal(t, "github.com/weave-agent/weave-diff-viewer", coreExtensionRepo("diff-viewer"))
-	assert.Equal(t, "github.com/weave-agent/weave-subagent-ui", coreExtensionRepo("subagent-ui"))
+	assert.Equal(t, "github.com/weave-agent/weave-tui-diffview", coreExtensionRepo("tui-diffview"))
+	assert.Equal(t, "github.com/weave-agent/weave-tui-subagent", coreExtensionRepo("tui-subagent"))
 }
 
 func TestCoreExtensionNames_ContainsExpected(t *testing.T) {
@@ -23,7 +23,7 @@ func TestCoreExtensionNames_ContainsExpected(t *testing.T) {
 		"bash", "read", "edit", "write", "grep", "find", "ls",
 		"subagent", "anthropic", "openai", "zai", "kimi", "codex",
 		"agent", "sandbox", "sandbox-ui", "jsonl", "tui",
-		"diff-viewer", "subagent-ui",
+		"tui-diffview", "tui-subagent",
 	}
 
 	for _, name := range expected {

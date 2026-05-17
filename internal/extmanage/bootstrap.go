@@ -29,8 +29,8 @@ var CoreExtensionNames = []string{
 	"sandbox-ui",
 	"jsonl",
 	"tui",
-	"diff-viewer",
-	"subagent-ui",
+	"tui-diffview",
+	"tui-subagent",
 }
 
 // coreExtensionRepo returns the GitHub shorthand for a core extension by name.

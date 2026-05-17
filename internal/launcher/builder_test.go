@@ -233,14 +233,14 @@ func TestGenerateMainGo_UIExtFilteredByBuild(t *testing.T) {
 
 	s := string(content)
 	assert.Contains(t, s, `_ "github.com/weave-agent/weave/ext/bash"`)
-	assert.NotContains(t, s, `_ "github.com/weave-agent/weave/ext/diff-viewer"`)
+	assert.NotContains(t, s, `_ "github.com/weave-agent/weave/ext/tui-diffview"`)
 }
 
 func TestGenerateMainGo_UIExtIncludedInInteractive(t *testing.T) {
 	dir := t.TempDir()
 	exts := []ExtensionInfo{
 		{Name: "bash", Dir: "/tmp/exts/bash", ModulePath: "github.com/weave-agent/weave/ext/bash"},
-		{Name: "diff-viewer", Dir: "/tmp/exts/diff-viewer", ModulePath: "github.com/weave-agent/weave/ext/diff-viewer", IsUIExt: true},
+		{Name: "tui-diffview", Dir: "/tmp/exts/tui-diffview", ModulePath: "github.com/weave-agent/weave/ext/tui-diffview", IsUIExt: true},
 	}
 
 	require.NoError(t, GenerateMainGo(dir, exts, "loop"))
@@ -250,7 +250,7 @@ func TestGenerateMainGo_UIExtIncludedInInteractive(t *testing.T) {
 
 	s := string(content)
 	assert.Contains(t, s, `_ "github.com/weave-agent/weave/ext/bash"`)
-	assert.Contains(t, s, `_ "github.com/weave-agent/weave/ext/diff-viewer"`)
+	assert.Contains(t, s, `_ "github.com/weave-agent/weave/ext/tui-diffview"`)
 }
 
 func TestGenerateGoMod_Content(t *testing.T) {
