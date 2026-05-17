@@ -36,22 +36,14 @@ type LoginAuthURLMsg struct {
 // handle to finish the flow.
 func runOAuthFlowCmd(parentCtx context.Context, provider sdk.OAuthProvider, gen int) tea.Cmd {
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(parentCtx, 2*time.Minute)
-
-		authCodeURL, handle, err := sdk.StartAuthorizationCodeFlow(ctx, provider.AuthURL, provider.TokenURL, provider.ClientID, provider.RedirectURI, provider.Scopes, provider.ExtraAuthParams)
+		authCodeURL, handle, err := sdk.StartAuthorizationCodeFlow(parentCtx, provider.AuthURL, provider.TokenURL, provider.ClientID, provider.RedirectURI, provider.Scopes, provider.ExtraAuthParams)
 		if err != nil {
-			cancel()
-
 			return LoginFlowResultMsg{
 				Provider: provider.ID,
 				Error:    err,
 				Gen:      gen,
 			}
 		}
-
-		// On success the context must stay alive for the callback server.
-		// The timeout or CompleteAuthorizationCodeFlow will clean it up.
-		_ = cancel
 
 		return LoginAuthURLMsg{
 			Provider: provider.ID,

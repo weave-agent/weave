@@ -131,23 +131,26 @@ func (p *provider) Stream(ctx context.Context, req sdk.ProviderRequest, opts ...
 
 func (p *provider) refreshToken(ctx context.Context) (string, error) {
 	p.mu.Lock()
-	defer p.mu.Unlock()
+	token := p.oauthToken
+	tokenURL := p.tokenURL
+	p.mu.Unlock()
 
-	if p.oauthToken.AccessToken == "" {
+	if token.AccessToken == "" {
 		return "", errors.New("OAuth token required (use /login codex)")
 	}
 
-	tokenURL := p.tokenURL
 	if tokenURL == "" {
 		tokenURL = codexTokenURL
 	}
 
-	cred, err := sdk.RefreshOAuthTokenIfNeeded(ctx, "codex", tokenURL, codexClientID, p.oauthToken)
+	cred, err := sdk.RefreshOAuthTokenIfNeeded(ctx, "codex", tokenURL, codexClientID, token)
 	if err != nil {
 		return "", fmt.Errorf("refresh oauth token: %w", err)
 	}
 
+	p.mu.Lock()
 	p.oauthToken = cred
+	p.mu.Unlock()
 
 	return cred.AccessToken, nil
 }

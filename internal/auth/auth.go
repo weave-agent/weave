@@ -286,7 +286,7 @@ func RefreshOAuthToken(ctx context.Context, providerName, tokenURL, clientID str
 	}
 
 	if refreshed.AccessToken == "" {
-		return OAuthCredential{}, fmt.Errorf("%s auth expired: refresh response missing access token", providerName)
+		return cred, fmt.Errorf("%s auth expired: refresh response missing access token", providerName)
 	}
 
 	if err := SetOAuthCredential(providerName, refreshed); err != nil {

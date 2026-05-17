@@ -31,13 +31,14 @@ const (
 	TopicThinkingChange    = "thinking.change"
 	TopicSessionResume     = "session.resume"
 	TopicAuthLogout        = "auth.logout"
+	TopicAuthLoginSuccess  = "auth.login.success"
 )
 
 //nolint:gocyclo // central event loop with multiple channel selects
 func (a *AgentExtension) run(
 	ctx context.Context,
 	bus sdk.Bus,
-	promptCh, steerCh, followupCh, interruptCh, modelChangeCh, thinkingCh, sessionResumeCh, authLogoutCh <-chan sdk.Event,
+	promptCh, steerCh, followupCh, interruptCh, modelChangeCh, thinkingCh, sessionResumeCh, authLogoutCh, authLoginSuccessCh <-chan sdk.Event,
 ) {
 	defer close(a.done)
 
@@ -447,6 +448,18 @@ func (a *AgentExtension) run(
 			if m, ok := evt.Payload.(map[string]string); ok {
 				if m["provider"] == a.providerName && provider != nil {
 					provider = nil
+				}
+			}
+
+			goto waitForInput
+		case evt, ok := <-authLoginSuccessCh:
+			if !ok {
+				return
+			}
+
+			if m, ok := evt.Payload.(map[string]string); ok {
+				if m["provider"] == a.providerName && provider == nil {
+					provider, _ = sdk.GetProvider(a.providerName, a.cfg)
 				}
 			}
 

@@ -40,7 +40,9 @@ func LoadProviderAuth(providerName string, target any) error {
 		// the flat access_token/refresh_token/expires_at/token_type fields in
 		// the auth file. This bridges the flat auth.json format to nested
 		// provider auth structs.
-		_ = applyOAuthCredentialFromRaw(raw, target)
+		if err := applyOAuthCredentialFromRaw(raw, target); err != nil {
+			return fmt.Errorf("apply oauth credential: %w", err)
+		}
 	}
 
 	// Apply env vars (no prefix — env tags resolve directly).

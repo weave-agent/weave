@@ -45,7 +45,9 @@ func StartCallbackServer(ctx context.Context, fixedRedirectURI string) (*Callbac
 			return nil, fmt.Errorf("parse redirect URI: %w", err)
 		}
 
-		listenAddr = u.Host
+		if u.Host != "" {
+			listenAddr = u.Host
+		}
 
 		callbackPath = u.Path
 		if callbackPath == "" {
