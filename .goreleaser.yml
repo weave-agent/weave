@@ -1,0 +1,40 @@
+version: 2
+
+builds:
+  - id: weave
+    main: ./cmd/weave
+    binary: weave
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.revision={{.Tag}}-{{.ShortCommit}}-{{.CommitDate}}
+
+archives:
+  - name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+
+nfpms:
+  - package_name: weave
+    vendor: weave-agent
+    homepage: https://github.com/weave-agent/weave
+    maintainer: weave-agent
+    description: A lightweight, extensible coding agent framework
+    license: MIT
+    formats:
+      - deb
+      - rpm
+
+brews:
+  - repository:
+      owner: weave-agent
+      name: homebrew-tap
+    directory: Formula
+    homepage: https://github.com/weave-agent/weave
+    description: A lightweight, extensible coding agent framework
+    license: MIT
