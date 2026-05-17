@@ -75,11 +75,11 @@ Upgrade the subagent UI panel from a minimal status indicator to an informative,
 - [x] run tests - must pass before task 4
 
 ### Task 4: Publish subagent.output and subscribe subagent.cancel in tool extension
-- [ ] add `notifyOutput(id string, evt jsonEvent)` method to `backgroundManager` that publishes `subagent.output` bus event with `{id, type, tool, content}` payload
-- [ ] wire `onEvent` callback in `spawn()` to call `bm.notifyOutput(subagentID, evt)`
-- [ ] add bus subscription for `subagent.cancel` in `backgroundManager.setBus()` or extension Subscribe, calling `bm.cancelAgent(payload["id"])`
-- [ ] write tests verifying `subagent.output` events are published for each parsed JSON line and `subagent.cancel` triggers cancelAgent
-- [ ] run tests - must pass before task 5
+- [x] add `notifyOutput(id string, evt jsonEvent)` method to `backgroundManager` that publishes `subagent.output` bus event with `{id, type, tool, content}` payload
+- [x] wire `onEvent` callback in `spawn()` to call `bm.notifyOutput(subagentID, evt)`
+- [x] add bus subscription for `subagent.cancel` in `backgroundManager.setBus()` or extension Subscribe, calling `bm.cancelAgent(payload["id"])`
+- [x] write tests verifying `subagent.output` events are published for each parsed JSON line and `subagent.cancel` triggers cancelAgent
+- [x] run tests - must pass before task 5
 
 ### Task 5: Subscribe to subagent.output in UI extension and populate ring buffer
 - [ ] add `subagent.output` case to the `OnAll` handler in `extensions/ui/tui/extensions/subagent-ui/subagent_ui.go`

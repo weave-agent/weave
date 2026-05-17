@@ -14,10 +14,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// testBus is a minimal mock of sdk.Bus that captures published events.
+// testBus is a minimal mock of sdk.Bus that captures published events and On handlers.
 type testBus struct {
-	mu     sync.Mutex
-	events []sdk.Event
+	mu       sync.Mutex
+	events   []sdk.Event
+	handlers map[string]sdk.Handler
 }
 
 func (b *testBus) Publish(e sdk.Event) {
@@ -26,7 +27,14 @@ func (b *testBus) Publish(e sdk.Event) {
 	b.mu.Unlock()
 }
 
-func (b *testBus) On(string, sdk.Handler) {}
+func (b *testBus) On(topic string, h sdk.Handler) {
+	b.mu.Lock()
+	if b.handlers == nil {
+		b.handlers = make(map[string]sdk.Handler)
+	}
+	b.handlers[topic] = h
+	b.mu.Unlock()
+}
 func (b *testBus) OnAll(sdk.Handler)      {}
 func (b *testBus) Off(sdk.Handler)        {}
 func (b *testBus) Close() error           { return nil }
@@ -38,6 +46,13 @@ func (b *testBus) getEvents() []sdk.Event {
 	copy(out, b.events)
 
 	return out
+}
+
+func (b *testBus) getHandler(topic string) sdk.Handler {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b.handlers[topic]
 }
 
 func TestBackgroundSpawn_ReturnsImmediately(t *testing.T) {
@@ -829,4 +844,120 @@ func TestCancelAgent_PerAgentContext(t *testing.T) {
 	snap2, ok := mgr.getSnapshot(id2)
 	require.True(t, ok)
 	<-snap2.done
+}
+
+func TestBackgroundManager_NotifyOutput(t *testing.T) {
+	original := testRunSubagent
+
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+		return "result", nil
+	}
+
+	bus := &testBus{}
+	mgr := newBackgroundManager(nil, "", "")
+	mgr.setBus(bus)
+
+	t.Cleanup(func() {
+		mgr.cancel()
+		testRunSubagent = original
+	})
+
+	// Test notifyOutput directly.
+	evt := jsonEvent{
+		Type:    "tool_call",
+		Tool:    "read",
+		Content: "reading file.go",
+	}
+
+	mgr.notifyOutput("agent_123", evt)
+
+	events := bus.getEvents()
+	require.Len(t, events, 1)
+	assert.Equal(t, "subagent.output", events[0].Topic)
+
+	payload, ok := events[0].Payload.(map[string]string)
+	require.True(t, ok)
+	assert.Equal(t, "agent_123", payload["id"])
+	assert.Equal(t, "tool_call", payload["type"])
+	assert.Equal(t, "read", payload["tool"])
+	assert.Equal(t, "reading file.go", payload["content"])
+}
+
+func TestBackgroundManager_NotifyOutput_NoBus(t *testing.T) {
+	mgr := newBackgroundManager(nil, "", "")
+	// No bus set — should not panic.
+
+	evt := jsonEvent{Type: "message_start", Model: "test"}
+	mgr.notifyOutput("agent_123", evt)
+}
+
+func TestBackgroundManager_CancelViaBusEvent(t *testing.T) {
+	original := testRunSubagent
+
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+		<-ctx.Done()
+		return "", ctx.Err()
+	}
+
+	bus := &testBus{}
+	mgr := newBackgroundManager(nil, "", "")
+	mgr.setBus(bus)
+
+	t.Cleanup(func() {
+		mgr.cancel()
+		testRunSubagent = original
+	})
+
+	// Verify the cancel handler was registered.
+	handler := bus.getHandler("subagent.cancel")
+	require.NotNil(t, handler, "expected subagent.cancel handler to be registered")
+
+	id, err := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	require.NoError(t, err)
+
+	// Simulate a cancel bus event.
+	err = handler(sdk.NewEvent("subagent.cancel", map[string]string{propID: id}))
+	require.NoError(t, err)
+
+	// Wait for the agent to finish.
+	snap, ok := mgr.getSnapshot(id)
+	require.True(t, ok)
+	<-snap.done
+
+	// Verify the agent was cancelled.
+	ba, ok := mgr.get(id)
+	require.True(t, ok)
+	assert.Equal(t, statusCancelled, ba.Status)
+}
+
+func TestBackgroundManager_CancelViaBusEvent_NotFound(t *testing.T) {
+	bus := &testBus{}
+	mgr := newBackgroundManager(nil, "", "")
+	mgr.setBus(bus)
+	mgr.cancel()
+
+	handler := bus.getHandler("subagent.cancel")
+	require.NotNil(t, handler)
+
+	// Cancel a nonexistent agent — should not panic, error is swallowed.
+	err := handler(sdk.NewEvent("subagent.cancel", map[string]string{propID: "nonexistent"}))
+	require.NoError(t, err)
+}
+
+func TestBackgroundManager_CancelViaBusEvent_BadPayload(t *testing.T) {
+	bus := &testBus{}
+	mgr := newBackgroundManager(nil, "", "")
+	mgr.setBus(bus)
+	mgr.cancel()
+
+	handler := bus.getHandler("subagent.cancel")
+	require.NotNil(t, handler)
+
+	// Non-map payload — should not panic.
+	err := handler(sdk.NewEvent("subagent.cancel", "bad payload"))
+	require.NoError(t, err)
+
+	// Map without "id" key — should not panic.
+	err = handler(sdk.NewEvent("subagent.cancel", map[string]string{}))
+	require.NoError(t, err)
 }

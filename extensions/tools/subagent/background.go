@@ -56,9 +56,24 @@ func newBackgroundManager(broker *Broker, cfgPath, projectDir string) *backgroun
 
 func (bm *backgroundManager) setBus(bus sdk.Bus) {
 	bm.mu.Lock()
-	defer bm.mu.Unlock()
-
 	bm.bus = bus
+	bm.mu.Unlock()
+
+	bus.On("subagent.cancel", func(ev sdk.Event) error {
+		payload, ok := ev.Payload.(map[string]string)
+		if !ok {
+			return nil
+		}
+
+		id, ok := payload[propID]
+		if !ok {
+			return nil
+		}
+
+		_ = bm.cancelAgent(id)
+
+		return nil
+	})
 }
 
 func (bm *backgroundManager) spawn(agent *AgentDef, prompt, cwd, subagentID string) (string, error) {
@@ -97,7 +112,11 @@ func (bm *backgroundManager) spawn(agent *AgentDef, prompt, cwd, subagentID stri
 	go func() {
 		defer close(ba.done)
 
-		output, err := runSubagent(agentCtx, agent, prompt, cwd, subagentID, bm.broker, bm.cfgPath, bm.projectDir, nil)
+		onEvent := func(evt jsonEvent) {
+			bm.notifyOutput(subagentID, evt)
+		}
+
+		output, err := runSubagent(agentCtx, agent, prompt, cwd, subagentID, bm.broker, bm.cfgPath, bm.projectDir, onEvent)
 
 		bm.mu.Lock()
 		ba.finished = time.Now()
@@ -158,6 +177,25 @@ func (bm *backgroundManager) notifyDone(ba *backgroundAgent) {
 	}
 
 	bus.Publish(sdk.NewEvent("subagent.done", payload))
+}
+
+func (bm *backgroundManager) notifyOutput(id string, evt jsonEvent) {
+	bm.mu.RLock()
+	bus := bm.bus
+	bm.mu.RUnlock()
+
+	if bus == nil {
+		return
+	}
+
+	payload := map[string]string{
+		propID:      id,
+		"type":      evt.Type,
+		"tool":      evt.Tool,
+		keyContent:  evt.Content,
+	}
+
+	bus.Publish(sdk.NewEvent("subagent.output", payload))
 }
 
 func (bm *backgroundManager) get(id string) (*backgroundAgent, bool) {
