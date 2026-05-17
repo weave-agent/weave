@@ -7,9 +7,9 @@ import (
 
 // outputEntry represents a single subagent output event stored in the ring buffer.
 type outputEntry struct {
-	Type    string    // "tool_start", "tool_end", "message_start", "message_update", "message_end"
-	Tool    string    // e.g. "read", "edit"
-	Content string    // truncated content
+	Type    string // "tool_start", "tool_end", "message_start", "message_update", "message_end"
+	Tool    string // e.g. "read", "edit"
+	Content string // truncated content
 	Time    time.Time
 }
 

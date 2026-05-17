@@ -29,15 +29,17 @@ func (b *testBus) Publish(e sdk.Event) {
 
 func (b *testBus) On(topic string, h sdk.Handler) {
 	b.mu.Lock()
+
 	if b.handlers == nil {
 		b.handlers = make(map[string]sdk.Handler)
 	}
+
 	b.handlers[topic] = h
 	b.mu.Unlock()
 }
-func (b *testBus) OnAll(sdk.Handler)      {}
-func (b *testBus) Off(sdk.Handler)        {}
-func (b *testBus) Close() error           { return nil }
+func (b *testBus) OnAll(sdk.Handler) {}
+func (b *testBus) Off(sdk.Handler)   {}
+func (b *testBus) Close() error      { return nil }
 func (b *testBus) getEvents() []sdk.Event {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -676,6 +678,7 @@ func TestCancelAgent_SingleCancellation(t *testing.T) {
 
 	t.Cleanup(func() {
 		mgr.cancel()
+
 		testRunSubagent = original
 	})
 
@@ -701,7 +704,7 @@ func TestCancelAgent_SingleCancellation(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, statusCancelled, ba.Status)
 
-	// Verify bus events: started + done with cancelled status.
+	// Verify bus events: started + done with canceled status.
 	events := bus.getEvents()
 	require.Len(t, events, 2)
 	assert.Equal(t, "subagent.started", events[0].Topic)
@@ -766,6 +769,7 @@ func TestCancelAgent_AlreadyCompleted(t *testing.T) {
 
 	t.Cleanup(func() {
 		mgr.cancel()
+
 		testRunSubagent = original
 	})
 
@@ -784,16 +788,19 @@ func TestCancelAgent_AlreadyCompleted(t *testing.T) {
 func TestCancelAgent_PerAgentContext(t *testing.T) {
 	original := testRunSubagent
 
-	var agent1Ctx context.Context
-	var agent2Ctx context.Context
+	agent1CtxCh := make(chan context.Context, 1)
+
+	agent2CtxCh := make(chan context.Context, 1)
 
 	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
 		if prompt == "agent1" {
-			agent1Ctx = ctx
+			agent1CtxCh <- ctx
 		} else {
-			agent2Ctx = ctx
+			agent2CtxCh <- ctx
 		}
+
 		<-ctx.Done()
+
 		return "", ctx.Err()
 	}
 
@@ -801,6 +808,7 @@ func TestCancelAgent_PerAgentContext(t *testing.T) {
 
 	t.Cleanup(func() {
 		mgr.cancel()
+
 		testRunSubagent = original
 	})
 
@@ -809,8 +817,10 @@ func TestCancelAgent_PerAgentContext(t *testing.T) {
 	id2, err := mgr.spawn(&AgentDef{Name: "test"}, "agent2", "", "")
 	require.NoError(t, err)
 
-	// Wait a bit for goroutines to start and capture contexts.
-	time.Sleep(50 * time.Millisecond)
+	// Wait for goroutines to capture contexts.
+	agent1Ctx := <-agent1CtxCh
+
+	agent2Ctx := <-agent2CtxCh
 
 	require.NotNil(t, agent1Ctx)
 	require.NotNil(t, agent2Ctx)
@@ -825,12 +835,12 @@ func TestCancelAgent_PerAgentContext(t *testing.T) {
 	<-snap.done
 
 	// Agent 1 context should be done.
-	assert.Error(t, agent1Ctx.Err())
+	require.Error(t, agent1Ctx.Err())
 
 	// Agent 2 context should still be alive.
-	assert.NoError(t, agent2Ctx.Err())
+	require.NoError(t, agent2Ctx.Err())
 
-	// Verify agent 1 is cancelled, agent 2 is still running.
+	// Verify agent 1 is canceled, agent 2 is still running.
 	ba1, ok := mgr.get(id1)
 	require.True(t, ok)
 	assert.Equal(t, statusCancelled, ba1.Status)
@@ -841,6 +851,7 @@ func TestCancelAgent_PerAgentContext(t *testing.T) {
 
 	// Clean up agent 2.
 	mgr.cancel()
+
 	snap2, ok := mgr.getSnapshot(id2)
 	require.True(t, ok)
 	<-snap2.done
@@ -859,6 +870,7 @@ func TestBackgroundManager_NotifyOutput(t *testing.T) {
 
 	t.Cleanup(func() {
 		mgr.cancel()
+
 		testRunSubagent = original
 	})
 
@@ -905,6 +917,7 @@ func TestBackgroundManager_CancelViaBusEvent(t *testing.T) {
 
 	t.Cleanup(func() {
 		mgr.cancel()
+
 		testRunSubagent = original
 	})
 
@@ -924,7 +937,7 @@ func TestBackgroundManager_CancelViaBusEvent(t *testing.T) {
 	require.True(t, ok)
 	<-snap.done
 
-	// Verify the agent was cancelled.
+	// Verify the agent was canceled.
 	ba, ok := mgr.get(id)
 	require.True(t, ok)
 	assert.Equal(t, statusCancelled, ba.Status)

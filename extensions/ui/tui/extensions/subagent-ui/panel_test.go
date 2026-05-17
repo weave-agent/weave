@@ -218,7 +218,7 @@ func TestAgentPanelDrawer_Draw_FailedAgent(t *testing.T) {
 func TestAgentPanelDrawer_Draw_CancelledAgent(t *testing.T) {
 	tracker := NewAgentTracker(gracePeriod, nil)
 	tracker.Start("agent-cancel", "researcher", "background")
-	tracker.Done("agent-cancel", "cancelled", "context canceled")
+	tracker.Done("agent-cancel", "canceled", "context canceled")
 
 	drawer := newAgentPanelDrawer("agent-cancel", tracker, testTheme(), nil)
 	canvas := uv.NewScreenBuffer(80, 18)

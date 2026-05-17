@@ -20,7 +20,7 @@ type backgroundAgent struct {
 	Agent    *AgentDef
 	Prompt   string
 	CWD      string
-	Status   string // "running", "completed", "failed", "cancelled"
+	Status   string // "running", "completed", "failed", "canceled"
 	Result   string
 	Err      error
 	cancel   context.CancelFunc
@@ -189,10 +189,10 @@ func (bm *backgroundManager) notifyOutput(id string, evt jsonEvent) {
 	}
 
 	payload := map[string]string{
-		propID:      id,
-		"type":      evt.Type,
-		"tool":      evt.Tool,
-		keyContent:  evt.Content,
+		propID:     id,
+		"type":     evt.Type,
+		"tool":     evt.Tool,
+		keyContent: evt.Content,
 	}
 
 	bus.Publish(sdk.NewEvent("subagent.output", payload))

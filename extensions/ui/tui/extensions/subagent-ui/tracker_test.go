@@ -412,6 +412,7 @@ func TestOutputRing_SnapshotEmpty(t *testing.T) {
 
 func TestOutputRing_ConcurrentAppendRead(t *testing.T) {
 	ring := newOutputRing(100)
+
 	var wg sync.WaitGroup
 
 	// Concurrent writers
@@ -427,9 +428,11 @@ func TestOutputRing_ConcurrentAppendRead(t *testing.T) {
 	}
 
 	// Concurrent readers
-	for r := range 5 {
+	for range 5 {
 		wg.Add(1)
-		go func(r int) {
+
+		//nolint:modernize // standard WaitGroup pattern
+		go func() {
 			defer wg.Done()
 
 			for range 100 {
@@ -438,7 +441,7 @@ func TestOutputRing_ConcurrentAppendRead(t *testing.T) {
 				// Snapshot should always be ordered and at most 100 entries
 				assert.LessOrEqual(t, len(snap), 100)
 			}
-		}(r)
+		}()
 	}
 
 	wg.Wait()
@@ -488,12 +491,12 @@ func TestTrackedAgent_OutputSharedViaGet(t *testing.T) {
 	agent.Output.Append(outputEntry{Content: "before-get"})
 
 	// Get returns a shallow copy — Output pointer should be the same ring
-	copy := tracker.Get("agent-1")
-	require.NotNil(t, copy)
-	require.NotNil(t, copy.Output)
+	got := tracker.Get("agent-1")
+	require.NotNil(t, got)
+	require.NotNil(t, got.Output)
 
 	// Append after Get — both should see it
-	copy.Output.Append(outputEntry{Content: "after-get"})
+	got.Output.Append(outputEntry{Content: "after-get"})
 
 	snap := agent.Output.Snapshot()
 	require.Len(t, snap, 2)

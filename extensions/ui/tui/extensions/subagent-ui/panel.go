@@ -13,6 +13,15 @@ import (
 	uv "github.com/charmbracelet/ultraviolet"
 )
 
+const (
+	panelKeyID       = "id"
+	evtTypeToolStart = "tool_start"
+	evtTypeToolEnd   = "tool_end"
+	evtTypeMsgUpdate = "message_update"
+	evtTypeMsgStart  = "message_start"
+	evtTypeMsgEnd    = "message_end"
+)
+
 // agentPanelDrawer implements tui.PanelDrawer for a single tracked subagent.
 type agentPanelDrawer struct {
 	agentID      string
@@ -48,6 +57,7 @@ func (d *agentPanelDrawer) Draw(scr uv.Screen, area uv.Rectangle) {
 
 	// Line 1: Header row — status icon + name + mode + elapsed + cancel button
 	statusIcon, statusColor := d.statusIndicator(agent.Status)
+
 	elapsed := d.formatElapsed(agent)
 
 	cancelBtn := ""
@@ -55,7 +65,8 @@ func (d *agentPanelDrawer) Draw(scr uv.Screen, area uv.Rectangle) {
 		cancelBtn = "  " + lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Error)).Render("[✕ cancel]")
 	}
 
-	header := fmt.Sprintf("%s %s  %s  %s%s",
+	header := fmt.Sprintf(
+		"%s %s  %s  %s%s",
 		lipgloss.NewStyle().Foreground(lipgloss.Color(statusColor)).Render(statusIcon),
 		lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.ForegroundBright)).Bold(true).Render(agent.Name),
 		lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Muted)).Render(agent.Mode),
@@ -63,28 +74,24 @@ func (d *agentPanelDrawer) Draw(scr uv.Screen, area uv.Rectangle) {
 		cancelBtn,
 	)
 
-	if line < area.Dy() {
-		lineRect := uv.Rect(area.Min.X, area.Min.Y+line, area.Dx(), 1)
-		uv.NewStyledString(header).Draw(scr, lineRect)
-		line++
-	}
+	line = d.drawLine(scr, area, line, header)
 
 	// Line 2: Prompt row (if available)
 	if agent.Prompt != "" && line < area.Dy() {
 		prompt := d.truncate(agent.Prompt, area.Dx()-12)
+
 		promptLine := lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Muted)).Render("  Prompt: " + prompt)
-		lineRect := uv.Rect(area.Min.X, area.Min.Y+line, area.Dx(), 1)
-		uv.NewStyledString(promptLine).Draw(scr, lineRect)
-		line++
+
+		line = d.drawLine(scr, area, line, promptLine)
 	}
 
 	// Line 3: Separator
 	if line < area.Dy() {
 		sep := strings.Repeat("─", area.Dx())
+
 		sepStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Border))
-		lineRect := uv.Rect(area.Min.X, area.Min.Y+line, area.Dx(), 1)
-		uv.NewStyledString(sepStyle.Render(sep)).Draw(scr, lineRect)
-		line++
+
+		line = d.drawLine(scr, area, line, sepStyle.Render(sep))
 	}
 
 	// Remaining lines: Scrollable tool log from ring buffer snapshot
@@ -111,15 +118,25 @@ func (d *agentPanelDrawer) Draw(scr uv.Screen, area uv.Rectangle) {
 
 	for i := start; i < end && line < area.Dy(); i++ {
 		entry := entries[i]
+
 		entryStr := d.formatEntry(entry, area.Dx()-4)
 		if entryStr == "" {
 			continue
 		}
 
-		lineRect := uv.Rect(area.Min.X, area.Min.Y+line, area.Dx(), 1)
-		uv.NewStyledString("  " + entryStr).Draw(scr, lineRect)
-		line++
+		line = d.drawLine(scr, area, line, "  "+entryStr)
 	}
+}
+
+func (d *agentPanelDrawer) drawLine(scr uv.Screen, area uv.Rectangle, line int, content string) int {
+	if line >= area.Dy() {
+		return line
+	}
+
+	lineRect := uv.Rect(area.Min.X, area.Min.Y+line, area.Dx(), 1)
+	uv.NewStyledString(content).Draw(scr, lineRect)
+
+	return line + 1
 }
 
 // Update handles messages for the panel drawer.
@@ -135,7 +152,7 @@ func (d *agentPanelDrawer) Update(msg tea.Msg) (tui.PanelDrawer, tea.Cmd) {
 	if ks == "ctrl+x" || ks == "enter" {
 		if d.bus != nil {
 			d.bus.Publish(sdk.NewEvent("subagent.cancel", map[string]string{
-				"id": d.agentID,
+				panelKeyID: d.agentID,
 			}))
 		}
 
@@ -171,26 +188,36 @@ func (d *agentPanelDrawer) formatEntry(e outputEntry, maxW int) string {
 	maxW = max(maxW, 10)
 
 	switch e.Type {
-	case "tool_start":
+	case evtTypeToolStart:
 		tool := d.truncate(e.Tool, 10)
+
 		content := d.truncate(e.Content, maxW-14)
+
 		return lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Accent)).Render("⚙") + " " +
 			lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Foreground)).Render(tool) +
 			"  " + lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Muted)).Render(content)
-	case "tool_end":
+
+	case evtTypeToolEnd:
 		tool := d.truncate(e.Tool, 10)
+
 		content := d.truncate(e.Content, maxW-14)
+
 		return lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Success)).Render("✓") + " " +
 			lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Foreground)).Render(tool) +
 			"  " + lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Muted)).Render(content)
-	case "message_update", "message_start":
+
+	case evtTypeMsgUpdate, evtTypeMsgStart:
 		content := d.truncate(e.Content, maxW-4)
+
 		return lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.AccentBright)).Render("→") + " " +
 			lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Foreground)).Render(content)
-	case "message_end":
+
+	case evtTypeMsgEnd:
 		return ""
+
 	default:
 		content := d.truncate(e.Content, maxW-4)
+
 		return lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Muted)).Render("·") + " " +
 			lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Muted)).Render(content)
 	}

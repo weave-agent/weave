@@ -15,7 +15,7 @@ const (
 	statusCompleted = "completed"
 	statusFailed    = "failed"
 	statusRunning   = "running"
-	statusCancelled = "cancelled"
+	statusCancelled = "canceled"
 )
 
 // subagentRenderer implements tui.RichToolRenderer for subagent tool output.
@@ -54,6 +54,7 @@ func (r *subagentRenderer) renderBackgroundResponse(id, status string, theme sdk
 
 	icon := "↗"
 	iconColor := theme.Accent
+
 	if status == statusCancelled {
 		icon = "⊘"
 		iconColor = theme.Warning

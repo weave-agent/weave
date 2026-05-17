@@ -106,12 +106,12 @@ Upgrade the subagent UI panel from a minimal status indicator to an informative,
 - [x] run tests - must pass before task 8
 
 ### Task 8: Verify acceptance criteria
-- [ ] verify all requirements from Overview are implemented
-- [ ] verify edge cases: agent completes before panel expand, cancel non-existent agent, multiple agents simultaneously
-- [ ] run full test suite for subagent tool extension: `cd extensions/tools/subagent && go test ./...`
-- [ ] run full test suite for subagent UI extension: `cd extensions/ui/tui/extensions/subagent-ui && go test ./...`
-- [ ] run linter on both modules: `cd extensions/tools/subagent && make lint` and `cd extensions/ui/tui/extensions/subagent-ui && make lint`
-- [ ] fix any linter issues
+- [x] verify all requirements from Overview are implemented
+- [x] verify edge cases: agent completes before panel expand, cancel non-existent agent, multiple agents simultaneously
+- [x] run full test suite for subagent tool extension: `cd extensions/tools/subagent && go test ./...`
+- [x] run full test suite for subagent UI extension: `cd extensions/ui/tui/extensions/subagent-ui && go test ./...`
+- [x] run linter on both modules: `cd extensions/tools/subagent && golangci-lint run --timeout 2m ./...` and `cd extensions/ui/tui/extensions/subagent-ui && golangci-lint run --timeout 2m ./...`
+- [x] fix any linter issues
 
 ### Task 9: Update documentation
 - [ ] update CLAUDE.md with new bus events (`subagent.output`, `subagent.cancel`) and per-agent cancellation

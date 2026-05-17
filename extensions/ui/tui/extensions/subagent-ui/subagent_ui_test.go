@@ -108,6 +108,7 @@ func (m *mockTUIExtAPI) RegisterTheme(name string, theme tui.ThemeDef) error    
 func (m *mockTUIExtAPI) RequestRedraw() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	m.redrawCount++
 }
 

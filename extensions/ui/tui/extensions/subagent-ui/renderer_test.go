@@ -139,7 +139,7 @@ func TestSubagentRenderer_RenderBackgroundResponse_Failed(t *testing.T) {
 	assert.Contains(t, result, "failed")
 }
 
-func TestSubagentRenderer_RenderBackgroundResponse_Cancelled(t *testing.T) {
+func TestSubagentRenderer_RenderBackgroundResponse_Canceled(t *testing.T) {
 	r := &subagentRenderer{}
 	theme := sdk.ThemeInfo{
 		Accent:       "63",
@@ -150,13 +150,13 @@ func TestSubagentRenderer_RenderBackgroundResponse_Cancelled(t *testing.T) {
 
 	content, _ := json.Marshal(map[string]string{
 		"id":     "subagent_researcher_abc123",
-		"status": "cancelled",
+		"status": "canceled",
 	})
 
 	result := r.Render(string(content), theme, 80)
 
 	assert.Contains(t, result, "subagent_researcher_abc123")
-	assert.Contains(t, result, "cancelled")
+	assert.Contains(t, result, "canceled")
 	assert.Contains(t, result, "⊘")
 }
 

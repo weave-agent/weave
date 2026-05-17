@@ -489,12 +489,16 @@ func TestBroker_MonitorStdout_OnEvent_SkipsRoutingEvents(t *testing.T) {
 
 	// Setup two agents so routing targets exist.
 	a2StdinR, a2StdinW := io.Pipe()
+
 	a2Drain := startDrainer(a2StdinR)
+
 	broker.Register("agent2", "coder", a2StdinW)
 	<-a2Drain // roster
 
 	a1StdinR, a1StdinW := io.Pipe()
+
 	a1Drain := startDrainer(a1StdinR)
+
 	broker.Register("agent1", "explore", a1StdinW)
 	<-a1Drain // roster
 
