@@ -41,6 +41,8 @@ func TestListExtensionsDir_PlainDirs(t *testing.T) {
 		names[e.Name] = true
 		assert.Equal(t, sourceLocal, e.Source)
 		assert.NotEmpty(t, e.Dir)
+		// Module path is empty since no go.mod was created.
+		assert.Empty(t, e.ModulePath)
 	}
 
 	assert.True(t, names["tool-a"])
@@ -240,6 +242,53 @@ func TestRunList_OutdatedExtension(t *testing.T) {
 	runGit(t, tmpClone, "commit", "-m", "advance remote")
 	runGit(t, tmpClone, "push", "origin", "HEAD")
 
+	code := RunList(nil)
+	assert.Equal(t, 0, code)
+}
+
+func TestListExtensionsDir_WithModulePath(t *testing.T) {
+	extDir := setupExtensionsDir(t)
+
+	// Create an extension with a go.mod.
+	extA := filepath.Join(extDir, "bash")
+	require.NoError(t, os.MkdirAll(extA, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(extA, "go.mod"),
+		[]byte("module github.com/weave-agent/weave-bash\n\ngo 1.22\n"), 0o600))
+
+	exts, err := listExtensionsDir()
+	require.NoError(t, err)
+	require.Len(t, exts, 1)
+
+	assert.Equal(t, "bash", exts[0].Name)
+	assert.Equal(t, "github.com/weave-agent/weave-bash", exts[0].ModulePath)
+}
+
+func TestListExtensionsDir_ModulePathNoGoMod(t *testing.T) {
+	extDir := setupExtensionsDir(t)
+
+	extA := filepath.Join(extDir, "custom-tool")
+	require.NoError(t, os.MkdirAll(extA, 0o750))
+	// No go.mod — ModulePath should be empty.
+
+	exts, err := listExtensionsDir()
+	require.NoError(t, err)
+	require.Len(t, exts, 1)
+
+	assert.Equal(t, "custom-tool", exts[0].Name)
+	assert.Empty(t, exts[0].ModulePath)
+}
+
+func TestRunList_OutputIncludesModuleColumn(t *testing.T) {
+	extDir := setupExtensionsDir(t)
+
+	// Create extension with go.mod.
+	extA := filepath.Join(extDir, "bash")
+	require.NoError(t, os.MkdirAll(extA, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(extA, "go.mod"),
+		[]byte("module github.com/weave-agent/weave-bash\n\ngo 1.22\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(extA, "main.go"), []byte("package main\n"), 0o600))
+
+	// RunList should succeed and output the MODULE column.
 	code := RunList(nil)
 	assert.Equal(t, 0, code)
 }

@@ -48,7 +48,7 @@ func RunList(args []string) int {
 
 	wg.Wait()
 
-	_, _ = fmt.Fprintf(os.Stdout, "%-20s %-10s %s\n", "NAME", "SOURCE", "STATUS")
+	_, _ = fmt.Fprintf(os.Stdout, "%-20s %-10s %-40s %s\n", "NAME", "SOURCE", "MODULE", "STATUS")
 
 	for _, ext := range exts {
 		sourceLabel := "local"
@@ -67,7 +67,12 @@ func RunList(args []string) int {
 			status = "static"
 		}
 
-		_, _ = fmt.Fprintf(os.Stdout, "%-20s %-10s %s\n", ext.Name, sourceLabel, status)
+		modulePath := ext.ModulePath
+		if modulePath == "" {
+			modulePath = "-"
+		}
+
+		_, _ = fmt.Fprintf(os.Stdout, "%-20s %-10s %-40s %s\n", ext.Name, sourceLabel, modulePath, status)
 	}
 
 	return 0

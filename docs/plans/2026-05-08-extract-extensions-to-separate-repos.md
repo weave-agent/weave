@@ -191,11 +191,11 @@ For each:
 
 ### Task 8: Update extension management commands
 
-- [ ] Update `weave list` to show module path alongside name
-- [ ] Update `weave update` to handle extensions with `github.com/weave-agent/` prefix
-- [ ] Verify `weave uninstall` still works
-- [ ] Write tests for updated commands
-- [ ] Run tests — must pass
+- [x] Update `weave list` to show module path alongside name
+- [x] Update `weave update` to handle extensions with `github.com/weave-agent/` prefix
+- [x] Verify `weave uninstall` still works
+- [x] Write tests for updated commands
+- [x] Run tests — must pass
 
 ### Task 9: Verify acceptance criteria
 

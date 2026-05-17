@@ -71,3 +71,26 @@ func TestRunUninstall_NotFound(t *testing.T) {
 	code := RunUninstall([]string{"nonexistent"})
 	assert.Equal(t, 1, code)
 }
+
+func TestRunUninstall_ModulePathArg(t *testing.T) {
+	extDir := setupExtensionsDir(t)
+
+	extPath := filepath.Join(extDir, "bash")
+	require.NoError(t, os.MkdirAll(extPath, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(extPath, "main.go"), []byte("package main\n"), 0o600))
+
+	// Pass full module path — should resolve to "bash".
+	code := RunUninstall([]string{"github.com/weave-agent/weave-bash"})
+	assert.Equal(t, 0, code)
+
+	_, statErr := os.Stat(extPath)
+	assert.True(t, os.IsNotExist(statErr))
+}
+
+func TestRunUninstall_ModulePathNotFound(t *testing.T) {
+	setupExtensionsDir(t)
+
+	// Pass a full module path for an extension that doesn't exist.
+	code := RunUninstall([]string{"github.com/weave-agent/weave-nonexistent"})
+	assert.Equal(t, 1, code)
+}

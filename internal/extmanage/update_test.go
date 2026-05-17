@@ -131,3 +131,37 @@ func TestRunUpdate_NoGitExtensions(t *testing.T) {
 	code := RunUpdate(nil)
 	assert.Equal(t, 0, code)
 }
+
+func TestRunUpdate_ModulePathArg(t *testing.T) {
+	gitIsAvailable(t)
+	extDir := setupExtensionsDir(t)
+
+	bareDir := initBareRepo(t)
+
+	// Clone from the bare repo with a simple name.
+	localDir := filepath.Join(extDir, "bash")
+	runGit(t, t.TempDir(), "clone", bareDir, localDir)
+
+	// Advance the remote.
+	tmpClone := filepath.Join(t.TempDir(), "advance-clone")
+	runGit(t, t.TempDir(), "clone", bareDir, tmpClone)
+	runGit(t, tmpClone, "config", "user.email", "test@test.com")
+	runGit(t, tmpClone, "config", "user.name", "Test")
+	require.NoError(t, os.WriteFile(filepath.Join(tmpClone, "feature.go"), []byte("package main\n"), 0o600))
+	runGit(t, tmpClone, "add", ".")
+	runGit(t, tmpClone, "commit", "-m", "advance remote")
+	runGit(t, tmpClone, "push", "origin", "HEAD")
+
+	// Update using full module path — should resolve to "bash".
+	code := RunUpdate([]string{"github.com/weave-agent/weave-bash"})
+	assert.Equal(t, 0, code)
+	assert.FileExists(t, filepath.Join(localDir, "feature.go"))
+}
+
+func TestRunUpdate_ModulePathNotFound(t *testing.T) {
+	setupExtensionsDir(t)
+
+	// Pass a full module path for an extension that doesn't exist.
+	code := RunUpdate([]string{"github.com/weave-agent/weave-nonexistent"})
+	assert.Equal(t, 1, code)
+}

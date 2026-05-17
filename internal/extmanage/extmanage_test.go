@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -73,4 +74,57 @@ func setupExtensionsDir(t *testing.T) string {
 	require.NoError(t, os.MkdirAll(extDir, 0o750))
 
 	return extDir
+}
+
+func TestReadModulePath_ValidGoMod(t *testing.T) {
+	dir := t.TempDir()
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"),
+		[]byte("module github.com/weave-agent/weave-bash\n\ngo 1.22\n"), 0o600))
+
+	assert.Equal(t, "github.com/weave-agent/weave-bash", readModulePath(dir))
+}
+
+func TestReadModulePath_NoGoMod(t *testing.T) {
+	dir := t.TempDir()
+
+	assert.Empty(t, readModulePath(dir))
+}
+
+func TestReadModulePath_EmptyGoMod(t *testing.T) {
+	dir := t.TempDir()
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte(""), 0o600))
+
+	assert.Empty(t, readModulePath(dir))
+}
+
+func TestReadModulePath_ModuleWithWhitespace(t *testing.T) {
+	dir := t.TempDir()
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"),
+		[]byte("  module   github.com/weave-agent/weave-bash  \n\ngo 1.22\n"), 0o600))
+
+	assert.Equal(t, "github.com/weave-agent/weave-bash", readModulePath(dir))
+}
+
+func TestResolveExtName_FullPath(t *testing.T) {
+	assert.Equal(t, "bash", resolveExtName("github.com/weave-agent/weave-bash"))
+	assert.Equal(t, "diff-viewer", resolveExtName("github.com/weave-agent/weave-diff-viewer"))
+	assert.Equal(t, "sandbox-ui", resolveExtName("github.com/weave-agent/weave-sandbox-ui"))
+}
+
+func TestResolveExtName_PlainName(t *testing.T) {
+	assert.Equal(t, "bash", resolveExtName("bash"))
+	assert.Equal(t, "my-custom-ext", resolveExtName("my-custom-ext"))
+}
+
+func TestResolveExtName_EmptySuffix(t *testing.T) {
+	// "github.com/weave-agent/weave-" with nothing after — return unchanged.
+	assert.Equal(t, "github.com/weave-agent/weave-", resolveExtName("github.com/weave-agent/weave-"))
+}
+
+func TestResolveExtName_OtherOrg(t *testing.T) {
+	// Different org path — return unchanged.
+	assert.Equal(t, "github.com/other/repo", resolveExtName("github.com/other/repo"))
 }

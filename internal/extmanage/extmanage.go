@@ -22,6 +22,7 @@ const (
 type extensionStatus struct {
 	Name       string
 	Dir        string
+	ModulePath string
 	Source     extensionSource
 	LocalHead  string
 	RemoteHead string
@@ -65,9 +66,10 @@ func listExtensionsDir() ([]extensionStatus, error) {
 		name := entry.Name()
 		extDir := filepath.Join(dir, name)
 		st := extensionStatus{
-			Name:   name,
-			Dir:    extDir,
-			Source: sourceLocal,
+			Name:       name,
+			Dir:        extDir,
+			ModulePath: readModulePath(extDir),
+			Source:     sourceLocal,
 		}
 
 		if _, err := os.Stat(filepath.Join(extDir, ".git")); err == nil {
@@ -142,4 +144,32 @@ func gitLSRemoteHEAD(dir string) (string, error) {
 	}
 
 	return line, nil
+}
+
+// readModulePath reads the module path from a go.mod file in dir.
+// Returns empty string if the file does not exist or has no module line.
+func readModulePath(dir string) string {
+	data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+	if err != nil {
+		return ""
+	}
+
+	for line := range strings.SplitSeq(string(data), "\n") {
+		if after, ok := strings.CutPrefix(strings.TrimSpace(line), "module "); ok {
+			return strings.TrimSpace(after)
+		}
+	}
+
+	return ""
+}
+
+// resolveExtName converts a full module path like "github.com/weave-agent/weave-bash"
+// into the local extension name "bash". If the argument doesn't match the
+// github.com/weave-agent/weave- prefix, it is returned unchanged.
+func resolveExtName(arg string) string {
+	if after, ok := strings.CutPrefix(arg, "github.com/weave-agent/weave-"); ok && after != "" {
+		return after
+	}
+
+	return arg
 }

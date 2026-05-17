@@ -67,7 +67,7 @@ func RunUpdate(args []string) int {
 	}
 
 	if len(args) > 0 {
-		name := args[0]
+		name := resolveExtName(args[0])
 		if err := updateExtension(name); err != nil {
 			fmt.Fprintf(os.Stderr, "weave update: %v\n", err)
 			return 1

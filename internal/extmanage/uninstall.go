@@ -58,6 +58,7 @@ func RunUninstall(args []string) int {
 	}
 
 	name := args[0]
+	name = resolveExtName(name)
 
 	if err := uninstallExtension(name); err != nil {
 		fmt.Fprintf(os.Stderr, "weave uninstall: %v\n", err)
