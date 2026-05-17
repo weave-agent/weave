@@ -110,14 +110,14 @@ For each extension directory (`extensions/agent/`, `extensions/sandbox/`, `exten
 
 ### Task 3: Update builder tests for new module paths
 
-- [ ] Update `internal/launcher/builder_test.go` test cases that reference `weave` module path
-- [ ] Update `internal/launcher/builder_test.go` `GenerateGoMod` tests: verify output contains `github.com/weave-agent/weave`
-- [ ] Update `internal/launcher/builder_test.go` `GenerateMainGo` tests: verify imports use full module path
-- [ ] Update `internal/launcher/builder_test.go` `ensureExtGoMod` tests: verify shim uses new module path
-- [ ] Update `internal/launcher/discovery_test.go` test fixtures that write go.mod files with old module paths
-- [ ] Update `internal/launcher/launcher_test.go` if it references old module paths
-- [ ] Update `internal/wire/run_test.go` `findModuleRoot` tests with new module name
-- [ ] Run `go test ./internal/launcher/... ./internal/wire/...` — must pass
+- [x] Update `internal/launcher/builder_test.go` test cases that reference `weave` module path
+- [x] Update `internal/launcher/builder_test.go` `GenerateGoMod` tests: verify output contains `github.com/weave-agent/weave`
+- [x] Update `internal/launcher/builder_test.go` `GenerateMainGo` tests: verify imports use full module path
+- [x] Update `internal/launcher/builder_test.go` `ensureExtGoMod` tests: verify shim uses new module path
+- [x] Update `internal/launcher/discovery_test.go` test fixtures that write go.mod files with old module paths
+- [x] Update `internal/launcher/launcher_test.go` if it references old module paths
+- [x] Update `internal/wire/run_test.go` `findModuleRoot` tests with new module name
+- [x] Run `go test ./internal/launcher/... ./internal/wire/...` — must pass
 
 ### Task 4: Verify end-to-end build
 

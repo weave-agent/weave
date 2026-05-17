@@ -109,7 +109,7 @@ func TestComputeHash_GoModChangesHash(t *testing.T) {
 	require.NoError(t, err)
 
 	goMod := filepath.Join(dir, "go.mod")
-	require.NoError(t, os.WriteFile(goMod, []byte("module weave/ext/x\ngo 1.22\n"), 0o600))
+	require.NoError(t, os.WriteFile(goMod, []byte("module github.com/weave-agent/weave-ext-test\ngo 1.22\n"), 0o600))
 
 	h2, err := ComputeHash(exts, "", false, "")
 	require.NoError(t, err)
@@ -124,7 +124,7 @@ func TestComputeHash_GoSumChangesHash(t *testing.T) {
 	require.NoError(t, os.WriteFile(f, []byte("package ext"), 0o600))
 
 	goMod := filepath.Join(dir, "go.mod")
-	require.NoError(t, os.WriteFile(goMod, []byte("module weave/ext/x\ngo 1.22\n"), 0o600))
+	require.NoError(t, os.WriteFile(goMod, []byte("module github.com/weave-agent/weave-ext-test\ngo 1.22\n"), 0o600))
 
 	exts := []ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f}}}
 
@@ -147,7 +147,7 @@ func TestComputeHash_GoSumIgnoredForShim(t *testing.T) {
 	require.NoError(t, os.WriteFile(f, []byte("package ext"), 0o600))
 
 	goMod := filepath.Join(dir, "go.mod")
-	require.NoError(t, os.WriteFile(goMod, []byte(shimSentinel+"module weave/ext/x\ngo 1.22\n"), 0o600))
+	require.NoError(t, os.WriteFile(goMod, []byte(shimSentinel+"module github.com/weave-agent/weave/ext/x\ngo 1.22\n"), 0o600))
 
 	exts := []ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{f}}}
 

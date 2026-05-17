@@ -260,7 +260,7 @@ func createModuleRoot(t *testing.T) string {
 		require.NoError(t, os.MkdirAll(filepath.Join(root, dir), 0o750))
 	}
 
-	require.NoError(t, os.WriteFile(filepath.Join(root, "go.mod"), []byte("module weave\n\ngo 1.22\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "go.mod"), []byte("module github.com/weave-agent/weave\n\ngo 1.22\n"), 0o600))
 
 	return root
 }
