@@ -191,7 +191,8 @@ formatters:
 
   settings:
     goimports:
-      local-prefixes: weave
+      local-prefixes:
+        - weave
 
     gofumpt:
       module-path: weave
