@@ -145,23 +145,25 @@ For each extension directory (`extensions/agent/`, `extensions/sandbox/`, `exten
 
 Repeat for each remaining extension:
 
-- [ ] `github.com/weave-agent/weave-read`
-- [ ] `github.com/weave-agent/weave-edit`
-- [ ] `github.com/weave-agent/weave-write`
-- [ ] `github.com/weave-agent/weave-grep`
-- [ ] `github.com/weave-agent/weave-find`
-- [ ] `github.com/weave-agent/weave-ls`
-- [ ] `github.com/weave-agent/weave-subagent`
-- [ ] `github.com/weave-agent/weave-anthropic`
-- [ ] `github.com/weave-agent/weave-openai`
-- [ ] `github.com/weave-agent/weave-zai`
-- [ ] `github.com/weave-agent/weave-kimi`
-- [ ] `github.com/weave-agent/weave-agent`
-- [ ] `github.com/weave-agent/weave-sandbox`
-- [ ] `github.com/weave-agent/weave-sandbox-ui`
-- [ ] `github.com/weave-agent/weave-jsonl`
-- [ ] `github.com/weave-agent/weave-tui`
-- [ ] `github.com/weave-agent/weave-diff-viewer`
+- [x] `github.com/weave-agent/weave-read`
+- [x] `github.com/weave-agent/weave-edit`
+- [x] `github.com/weave-agent/weave-write`
+- [x] `github.com/weave-agent/weave-grep`
+- [x] `github.com/weave-agent/weave-find`
+- [x] `github.com/weave-agent/weave-ls`
+- [x] `github.com/weave-agent/weave-subagent`
+- [x] `github.com/weave-agent/weave-anthropic`
+- [x] `github.com/weave-agent/weave-openai`
+- [x] `github.com/weave-agent/weave-zai`
+- [x] `github.com/weave-agent/weave-kimi`
+- [x] `github.com/weave-agent/weave-agent`
+- [x] `github.com/weave-agent/weave-sandbox`
+- [x] `github.com/weave-agent/weave-sandbox-ui`
+- [x] `github.com/weave-agent/weave-jsonl`
+- [x] `github.com/weave-agent/weave-tui`
+- [x] `github.com/weave-agent/weave-diff-viewer`
+- [x] `github.com/weave-agent/weave-codex` (also extracted, listed in Technical Details table)
+- [x] `github.com/weave-agent/weave-subagent-ui` (also extracted, listed in Technical Details table)
 
 For each:
 - Copy extension contents to temp dir, update go.mod/imports
