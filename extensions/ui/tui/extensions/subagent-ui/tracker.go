@@ -5,6 +5,86 @@ import (
 	"time"
 )
 
+// outputEntry represents a single subagent output event stored in the ring buffer.
+type outputEntry struct {
+	Type    string    // "tool_start", "tool_end", "message_start", "message_update", "message_end"
+	Tool    string    // e.g. "read", "edit"
+	Content string    // truncated content
+	Time    time.Time
+}
+
+// outputRing is a thread-safe ring buffer that retains the last N output entries.
+type outputRing struct {
+	mu    sync.RWMutex
+	items []outputEntry
+	cap   int
+	head  int // next write position
+	full  bool
+}
+
+// newOutputRing creates a ring buffer with the given capacity.
+func newOutputRing(capacity int) *outputRing {
+	if capacity <= 0 {
+		capacity = 200
+	}
+
+	return &outputRing{
+		items: make([]outputEntry, capacity),
+		cap:   capacity,
+	}
+}
+
+// Append adds an entry to the ring buffer.
+func (r *outputRing) Append(entry outputEntry) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.items[r.head] = entry
+	r.head = (r.head + 1) % r.cap
+
+	if r.head == 0 {
+		r.full = true
+	}
+}
+
+// Snapshot returns all entries in insertion order (oldest first).
+func (r *outputRing) Snapshot() []outputEntry {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	n := r.len()
+	if n == 0 {
+		return nil
+	}
+
+	result := make([]outputEntry, n)
+
+	if r.full {
+		copy(result, r.items[r.head:])
+		copy(result[r.cap-r.head:], r.items[:r.head])
+	} else {
+		copy(result, r.items[:r.head])
+	}
+
+	return result
+}
+
+// Len returns the number of entries in the ring buffer.
+func (r *outputRing) Len() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	return r.len()
+}
+
+func (r *outputRing) len() int {
+	if r.full {
+		return r.cap
+	}
+
+	return r.head
+}
+
 // PanelIDForAgent returns the panel ID for a given agent ID.
 func PanelIDForAgent(id string) string {
 	return "subagent-" + id
@@ -29,6 +109,8 @@ type TrackedAgent struct {
 	DoneAt    time.Time
 	Result    string
 	PanelID   string
+	Prompt    string
+	Output    *outputRing
 }
 
 // AgentTracker manages the lifecycle of tracked subagents.
@@ -94,6 +176,7 @@ func (t *AgentTracker) Start(id, name, mode string) *TrackedAgent {
 		Mode:      mode,
 		SpawnedAt: time.Now(),
 		PanelID:   PanelIDForAgent(id),
+		Output:    newOutputRing(200),
 	}
 	t.agents[id] = agent
 	onRemove := t.onRemove

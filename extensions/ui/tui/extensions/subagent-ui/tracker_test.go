@@ -339,3 +339,164 @@ func TestAgentTracker_Close_Idempotent(t *testing.T) {
 		tracker.Close()
 	})
 }
+
+func TestOutputRing_AppendAndSnapshot(t *testing.T) {
+	ring := newOutputRing(5)
+
+	assert.Nil(t, ring.Snapshot())
+	assert.Equal(t, 0, ring.Len())
+
+	now := time.Now()
+	for i := range 3 {
+		ring.Append(outputEntry{Type: "tool_start", Tool: "read", Content: fmt.Sprintf("entry-%d", i), Time: now})
+	}
+
+	assert.Equal(t, 3, ring.Len())
+
+	snap := ring.Snapshot()
+	require.Len(t, snap, 3)
+	assert.Equal(t, "entry-0", snap[0].Content)
+	assert.Equal(t, "entry-1", snap[1].Content)
+	assert.Equal(t, "entry-2", snap[2].Content)
+}
+
+func TestOutputRing_WrapAround(t *testing.T) {
+	ring := newOutputRing(3)
+
+	for i := range 6 {
+		ring.Append(outputEntry{Content: fmt.Sprintf("entry-%d", i)})
+	}
+
+	assert.Equal(t, 3, ring.Len())
+
+	snap := ring.Snapshot()
+	require.Len(t, snap, 3)
+
+	// Should contain last 3 entries (3, 4, 5)
+	assert.Equal(t, "entry-3", snap[0].Content)
+	assert.Equal(t, "entry-4", snap[1].Content)
+	assert.Equal(t, "entry-5", snap[2].Content)
+}
+
+func TestOutputRing_WrapAroundExactMultiple(t *testing.T) {
+	ring := newOutputRing(3)
+
+	for i := range 3 {
+		ring.Append(outputEntry{Content: fmt.Sprintf("entry-%d", i)})
+	}
+
+	assert.Equal(t, 3, ring.Len())
+
+	snap := ring.Snapshot()
+	require.Len(t, snap, 3)
+	assert.Equal(t, "entry-0", snap[0].Content)
+	assert.Equal(t, "entry-1", snap[1].Content)
+	assert.Equal(t, "entry-2", snap[2].Content)
+}
+
+func TestOutputRing_DefaultCapacity(t *testing.T) {
+	ring := newOutputRing(0)
+	assert.Equal(t, 200, ring.cap)
+}
+
+func TestOutputRing_NegativeCapacity(t *testing.T) {
+	ring := newOutputRing(-5)
+	assert.Equal(t, 200, ring.cap)
+}
+
+func TestOutputRing_SnapshotEmpty(t *testing.T) {
+	ring := newOutputRing(10)
+	assert.Nil(t, ring.Snapshot())
+	assert.Equal(t, 0, ring.Len())
+}
+
+func TestOutputRing_ConcurrentAppendRead(t *testing.T) {
+	ring := newOutputRing(100)
+	var wg sync.WaitGroup
+
+	// Concurrent writers
+	for w := range 10 {
+		wg.Add(1)
+		go func(w int) {
+			defer wg.Done()
+
+			for i := range 50 {
+				ring.Append(outputEntry{Content: fmt.Sprintf("w%d-i%d", w, i)})
+			}
+		}(w)
+	}
+
+	// Concurrent readers
+	for r := range 5 {
+		wg.Add(1)
+		go func(r int) {
+			defer wg.Done()
+
+			for range 100 {
+				snap := ring.Snapshot()
+
+				// Snapshot should always be ordered and at most 100 entries
+				assert.LessOrEqual(t, len(snap), 100)
+			}
+		}(r)
+	}
+
+	wg.Wait()
+
+	// Final state: exactly 100 entries (capacity)
+	assert.Equal(t, 100, ring.Len())
+
+	snap := ring.Snapshot()
+	assert.Len(t, snap, 100)
+}
+
+func TestOutputRing_FieldsPreserved(t *testing.T) {
+	ring := newOutputRing(10)
+	ts := time.Date(2026, 5, 17, 12, 0, 0, 0, time.UTC)
+
+	ring.Append(outputEntry{
+		Type:    "tool_start",
+		Tool:    "read",
+		Content: "main.go",
+		Time:    ts,
+	})
+
+	snap := ring.Snapshot()
+	require.Len(t, snap, 1)
+	assert.Equal(t, "tool_start", snap[0].Type)
+	assert.Equal(t, "read", snap[0].Tool)
+	assert.Equal(t, "main.go", snap[0].Content)
+	assert.Equal(t, ts, snap[0].Time)
+}
+
+func TestTrackedAgent_OutputInitialized(t *testing.T) {
+	tracker := NewAgentTracker(0, nil)
+	agent := tracker.Start("agent-1", "researcher", "background")
+
+	require.NotNil(t, agent.Output)
+	assert.Equal(t, 0, agent.Output.Len())
+
+	// Verify Output is usable
+	agent.Output.Append(outputEntry{Type: "message_start", Content: "hello"})
+	assert.Equal(t, 1, agent.Output.Len())
+}
+
+func TestTrackedAgent_OutputSharedViaGet(t *testing.T) {
+	tracker := NewAgentTracker(0, nil)
+	agent := tracker.Start("agent-1", "researcher", "background")
+
+	agent.Output.Append(outputEntry{Content: "before-get"})
+
+	// Get returns a shallow copy — Output pointer should be the same ring
+	copy := tracker.Get("agent-1")
+	require.NotNil(t, copy)
+	require.NotNil(t, copy.Output)
+
+	// Append after Get — both should see it
+	copy.Output.Append(outputEntry{Content: "after-get"})
+
+	snap := agent.Output.Snapshot()
+	require.Len(t, snap, 2)
+	assert.Equal(t, "before-get", snap[0].Content)
+	assert.Equal(t, "after-get", snap[1].Content)
+}

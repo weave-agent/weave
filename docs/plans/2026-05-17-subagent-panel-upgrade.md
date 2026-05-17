@@ -51,11 +51,11 @@ Upgrade the subagent UI panel from a minimal status indicator to an informative,
 ## Implementation Steps
 
 ### Task 1: Add output ring buffer to tracker
-- [ ] create `outputEntry` struct and `outputRing` type in `extensions/ui/tui/extensions/subagent-ui/tracker.go` with `Append(entry)`, `Snapshot() []outputEntry`, and configurable capacity (default 200)
-- [ ] add `Output *outputRing` and `Prompt string` fields to `TrackedAgent`
-- [ ] initialize `outputRing` in `AgentTracker.Start()`
-- [ ] write tests for ring buffer wrap-around, snapshot accuracy, and concurrent append/read in `tracker_test.go`
-- [ ] run tests - must pass before task 2
+- [x] create `outputEntry` struct and `outputRing` type in `extensions/ui/tui/extensions/subagent-ui/tracker.go` with `Append(entry)`, `Snapshot() []outputEntry`, and configurable capacity (default 200)
+- [x] add `Output *outputRing` and `Prompt string` fields to `TrackedAgent`
+- [x] initialize `outputRing` in `AgentTracker.Start()`
+- [x] write tests for ring buffer wrap-around, snapshot accuracy, and concurrent append/read in `tracker_test.go`
+- [x] run tests - must pass before task 2
 
 ### Task 2: Add per-agent cancellation to backgroundManager
 - [ ] add `cancel context.CancelFunc` field to `backgroundAgent` in `extensions/tools/subagent/background.go`
