@@ -109,7 +109,39 @@ func parseWeaveProjectDirFlag(args []string) (string, []string) {
 	return "", args
 }
 
+// runBootstrap installs core extensions on first run when ~/.weave/extensions/
+// is empty. Silently skips if --skip-bootstrap is set or extensions already exist.
+func runBootstrap(ctx context.Context, cf *settings.Settings) {
+	if cf.SkipBootstrap {
+		return
+	}
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+
+	needsBootstrap, err := extmanage.NeedsBootstrap(homeDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "weave: bootstrap check: %v\n", err)
+
+		return
+	}
+
+	if !needsBootstrap {
+		return
+	}
+
+	if _, err = extmanage.BootstrapCoreExtensions(ctx, homeDir, func(msg string) {
+		fmt.Fprintln(os.Stderr, msg)
+	}); err != nil {
+		fmt.Fprintf(os.Stderr, "weave: bootstrap: %v\n", err)
+	}
+}
+
 func buildLauncher(ctx context.Context, cf *settings.Settings, rest []string, configFile string) int {
+	runBootstrap(ctx, cf)
+
 	cacheDir, err := launcher.DefaultCacheDir()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", err)

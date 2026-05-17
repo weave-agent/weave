@@ -37,16 +37,17 @@ type Settings struct {
 	JSONL            JSONLConfig    `json:"jsonl"`
 
 	// CLI-only flags (not persisted).
-	Prompt      string `short:"p" json:"-" description:"Prompt to pass to the agent"`
-	Output      string `flag:"output" json:"-" description:"Output format: text or json"`
-	ToolsFlag   string `flag:"tools" json:"-" description:"Comma-separated tool allowlist"`
-	ToolsSet    bool   `json:"-" description:"True when --tools= was explicitly passed"`
-	SubagentID  string `flag:"subagent-id" json:"-" description:"Subagent ID for inter-agent communication"`
-	SandboxMode string `flag:"sandbox" json:"-" description:"Sandbox mode override"`
-	ModelFlag   string `flag:"model" json:"-" description:"Model override for this session"`
-	Debug       bool   `flag:"debug" json:"-" description:"Enable debug logging"`
-	Continue    bool   `flag:"continue" short:"c" json:"-" description:"Resume most recent session"`
-	Resume      string `flag:"resume" short:"r" json:"-" description:"Resume specific session by ID"`
+	Prompt        string `short:"p" json:"-" description:"Prompt to pass to the agent"`
+	Output        string `flag:"output" json:"-" description:"Output format: text or json"`
+	ToolsFlag     string `flag:"tools" json:"-" description:"Comma-separated tool allowlist"`
+	ToolsSet      bool   `json:"-" description:"True when --tools= was explicitly passed"`
+	SubagentID    string `flag:"subagent-id" json:"-" description:"Subagent ID for inter-agent communication"`
+	SandboxMode   string `flag:"sandbox" json:"-" description:"Sandbox mode override"`
+	ModelFlag     string `flag:"model" json:"-" description:"Model override for this session"`
+	Debug         bool   `flag:"debug" json:"-" description:"Enable debug logging"`
+	Continue      bool   `flag:"continue" short:"c" json:"-" description:"Resume most recent session"`
+	Resume        string `flag:"resume" short:"r" json:"-" description:"Resume specific session by ID"`
+	SkipBootstrap bool   `flag:"skip-bootstrap" json:"-" description:"Skip auto-install of core extensions on first run"`
 }
 
 // SettingsLayer identifies which settings file to read or write.

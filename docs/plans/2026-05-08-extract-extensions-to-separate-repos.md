@@ -180,14 +180,14 @@ For each:
 
 ### Task 7: Implement first-run bootstrap
 
-- [ ] Create `internal/extmanage/bootstrap.go` with `BootstrapCoreExtensions(homeDir string) error`
+- [x] Create `internal/extmanage/bootstrap.go` with `BootstrapCoreExtensions(homeDir string) error`
   - Checks if `~/.weave/extensions/` has core extensions installed
   - If not, runs equivalent of `weave install github.com/weave-agent/weave-<name> --name <name>` for each core extension
   - Core list: bash, read, edit, write, grep, find, ls, subagent, anthropic, openai, zai, kimi, agent, sandbox, sandbox-ui, jsonl, tui, diff-viewer
-- [ ] Call bootstrap in `internal/wire/run.go` before launcher runs, if `~/.weave/extensions/` is empty
-- [ ] Add `--skip-bootstrap` flag to skip auto-install
-- [ ] Write tests for bootstrap logic
-- [ ] Run tests — must pass
+- [x] Call bootstrap in `internal/wire/run.go` before launcher runs, if `~/.weave/extensions/` is empty
+- [x] Add `--skip-bootstrap` flag to skip auto-install
+- [x] Write tests for bootstrap logic
+- [x] Run tests — must pass
 
 ### Task 8: Update extension management commands
 

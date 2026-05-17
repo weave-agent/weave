@@ -156,16 +156,17 @@ func parseConfigFlag(args []string) (configPath string, rest []string) {
 
 // flagSet holds CLI-only flags parsed separately from the settings file.
 type flagSet struct {
-	Prompt      string `flag:"prompt" short:"p" description:"Prompt to pass to the agent"`
-	UI          string `flag:"ui" description:"UI extension name"`
-	Output      string `flag:"output" description:"Output format: text or json"`
-	Tools       string `flag:"tools" description:"Comma-separated tool allowlist"`
-	SubagentID  string `flag:"subagent-id" description:"Subagent ID for inter-agent communication"`
-	SandboxMode string `flag:"sandbox" description:"Sandbox mode override"`
-	Model       string `flag:"model" description:"Model override for this session"`
-	Debug       bool   `flag:"debug" description:"Enable debug logging"`
-	Continue    bool   `flag:"continue" short:"c" description:"Resume most recent session"`
-	Resume      string `flag:"resume" short:"r" description:"Resume specific session by ID"`
+	Prompt        string `flag:"prompt" short:"p" description:"Prompt to pass to the agent"`
+	UI            string `flag:"ui" description:"UI extension name"`
+	Output        string `flag:"output" description:"Output format: text or json"`
+	Tools         string `flag:"tools" description:"Comma-separated tool allowlist"`
+	SubagentID    string `flag:"subagent-id" description:"Subagent ID for inter-agent communication"`
+	SandboxMode   string `flag:"sandbox" description:"Sandbox mode override"`
+	Model         string `flag:"model" description:"Model override for this session"`
+	Debug         bool   `flag:"debug" description:"Enable debug logging"`
+	Continue      bool   `flag:"continue" short:"c" description:"Resume most recent session"`
+	Resume        string `flag:"resume" short:"r" description:"Resume specific session by ID"`
+	SkipBootstrap bool   `flag:"skip-bootstrap" description:"Skip auto-install of core extensions on first run"`
 }
 
 func loadSettingsFromFile(path string) (Settings, error) {
@@ -267,6 +268,7 @@ func LoadFromDir(dir string, args []string) (string, *Settings, []string, error)
 	s.Debug = flags.Debug
 	s.Continue = flags.Continue
 	s.Resume = flags.Resume
+	s.SkipBootstrap = flags.SkipBootstrap
 
 	if s.Continue && s.Resume != "" {
 		return "", nil, nil, errors.New("--continue and --resume are mutually exclusive")
