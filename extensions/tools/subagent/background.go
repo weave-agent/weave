@@ -127,12 +127,12 @@ func (bm *backgroundManager) spawn(agent *AgentDef, prompt, cwd, subagentID stri
 				ba.Err = agentCtx.Err()
 				ba.Result = agentCtx.Err().Error()
 			} else {
-				ba.Status = "failed"
+				ba.Status = statusFailed
 				ba.Err = err
 				ba.Result = err.Error()
 			}
 		} else {
-			ba.Status = "completed"
+			ba.Status = statusCompleted
 			ba.Result = output
 		}
 		bm.mu.Unlock()

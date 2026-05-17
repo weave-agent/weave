@@ -239,16 +239,14 @@ func (t *AgentTracker) Done(id, status, result string) {
 // Returns false if the agent is not found.
 func (t *AgentTracker) AppendOutput(id string, entry outputEntry) bool {
 	t.mu.RLock()
-	a, ok := t.agents[id]
-	t.mu.RUnlock()
+	defer t.mu.RUnlock()
 
-	if !ok {
-		return false
+	a, ok := t.agents[id]
+	if ok {
+		a.Output.Append(entry)
 	}
 
-	a.Output.Append(entry)
-
-	return true
+	return ok
 }
 
 // Get returns a snapshot copy of a tracked agent by ID, or nil if not found.

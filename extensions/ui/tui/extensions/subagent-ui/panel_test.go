@@ -271,21 +271,6 @@ func TestAgentPanelDrawer_Update_CancelWithCtrlX(t *testing.T) {
 	assert.Equal(t, "agent-cancel", payload["id"])
 }
 
-func TestAgentPanelDrawer_Update_CancelWithEnter(t *testing.T) {
-	tracker := NewAgentTracker(gracePeriod, nil)
-	tracker.Start("agent-enter", "test", "background")
-
-	bus := newMockBus()
-	drawer := newAgentPanelDrawer("agent-enter", tracker, testTheme(), bus)
-
-	_, cmd := drawer.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-
-	assert.Nil(t, cmd)
-
-	require.Len(t, bus.published, 1)
-	assert.Equal(t, "subagent.cancel", bus.published[0].Topic)
-}
-
 func TestAgentPanelDrawer_Update_CancelSkipsCompletedAgent(t *testing.T) {
 	tracker := NewAgentTracker(gracePeriod, nil)
 	tracker.Start("agent-done", "test", "background")

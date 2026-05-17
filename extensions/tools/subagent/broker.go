@@ -24,6 +24,8 @@ const (
 	msgTypeCancel         = "cancel"
 	msgTypeMessageEnd     = "message_end"
 	statusRunning         = "running"
+	statusCompleted       = "completed"
+	statusFailed          = "failed"
 	statusCancelled       = "canceled"
 	keyTo                 = "to"
 	keyContent            = "content"

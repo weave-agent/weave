@@ -675,7 +675,7 @@ func TestSubagentExtension_Subscribe_OutputTriggersRedraw(t *testing.T) {
 	initialRedraws := api.getRedrawCount()
 
 	bus.Publish(sdk.NewEvent("subagent.output", map[string]string{
-		"id": "agent-redraw", "type": "tool_start", "tool": "grep", "content": "pattern",
+		"id": "agent-redraw", "type": "tool_call", "tool": "grep", "content": "pattern",
 	}))
 
 	assert.Equal(t, initialRedraws+1, api.getRedrawCount())
@@ -727,7 +727,7 @@ func TestSubagentExtension_Subscribe_OutputIgnoresBadPayload(t *testing.T) {
 	// Empty id — should be ignored
 	assert.NotPanics(t, func() {
 		bus.Publish(sdk.NewEvent("subagent.output", map[string]string{
-			"type": "tool_start",
+			"type": "tool_call",
 		}))
 	})
 
@@ -748,7 +748,7 @@ func TestSubagentExtension_Subscribe_OutputBeforeRegisterTUI(t *testing.T) {
 		"id": "agent-early", "name": "early", "mode": "background",
 	}))
 	bus.Publish(sdk.NewEvent("subagent.output", map[string]string{
-		"id": "agent-early", "type": "tool_start", "tool": "read", "content": "file.go",
+		"id": "agent-early", "type": "tool_call", "tool": "read", "content": "file.go",
 	}))
 
 	// Output should be in ring buffer even without API

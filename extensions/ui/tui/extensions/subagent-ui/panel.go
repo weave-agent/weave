@@ -139,8 +139,8 @@ func (d *agentPanelDrawer) Update(msg tea.Msg) (tui.PanelDrawer, tea.Cmd) {
 
 	ks := keyMsg.Keystroke()
 
-	// Cancel on Ctrl+X or Enter (only for running agents)
-	if ks == "ctrl+x" || ks == "enter" {
+	// Cancel on Ctrl+X (only for running agents)
+	if ks == "ctrl+x" {
 		if d.tracker != nil {
 			agent := d.tracker.Get(d.agentID)
 

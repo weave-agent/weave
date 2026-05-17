@@ -348,7 +348,7 @@ func TestOutputRing_AppendAndSnapshot(t *testing.T) {
 
 	now := time.Now()
 	for i := range 3 {
-		ring.Append(outputEntry{Type: "tool_start", Tool: "read", Content: fmt.Sprintf("entry-%d", i), Time: now})
+		ring.Append(outputEntry{Type: "tool_call", Tool: "read", Content: fmt.Sprintf("entry-%d", i), Time: now})
 	}
 
 	assert.Equal(t, 3, ring.Len())
@@ -458,7 +458,7 @@ func TestOutputRing_FieldsPreserved(t *testing.T) {
 	ts := time.Date(2026, 5, 17, 12, 0, 0, 0, time.UTC)
 
 	ring.Append(outputEntry{
-		Type:    "tool_start",
+		Type:    "tool_call",
 		Tool:    "read",
 		Content: "main.go",
 		Time:    ts,
@@ -466,7 +466,7 @@ func TestOutputRing_FieldsPreserved(t *testing.T) {
 
 	snap := ring.Snapshot()
 	require.Len(t, snap, 1)
-	assert.Equal(t, "tool_start", snap[0].Type)
+	assert.Equal(t, "tool_call", snap[0].Type)
 	assert.Equal(t, "read", snap[0].Tool)
 	assert.Equal(t, "main.go", snap[0].Content)
 	assert.Equal(t, ts, snap[0].Time)
@@ -509,7 +509,7 @@ func TestAgentTracker_AppendOutput(t *testing.T) {
 	tracker.Start("agent-1", "researcher", "background")
 
 	ok := tracker.AppendOutput("agent-1", outputEntry{
-		Type:    "tool_start",
+		Type:    "tool_call",
 		Tool:    "read",
 		Content: "main.go",
 	})
@@ -520,7 +520,7 @@ func TestAgentTracker_AppendOutput(t *testing.T) {
 
 	snap := agent.Output.Snapshot()
 	require.Len(t, snap, 1)
-	assert.Equal(t, "tool_start", snap[0].Type)
+	assert.Equal(t, "tool_call", snap[0].Type)
 	assert.Equal(t, "read", snap[0].Tool)
 	assert.Equal(t, "main.go", snap[0].Content)
 }
@@ -529,7 +529,7 @@ func TestAgentTracker_AppendOutput_MissingAgent(t *testing.T) {
 	tracker := NewAgentTracker(0, nil)
 
 	ok := tracker.AppendOutput("nonexistent", outputEntry{
-		Type:    "tool_start",
+		Type:    "tool_call",
 		Content: "test",
 	})
 	assert.False(t, ok)
@@ -540,8 +540,8 @@ func TestAgentTracker_AppendOutput_MultipleEntries(t *testing.T) {
 	tracker.Start("agent-1", "researcher", "background")
 
 	entries := []outputEntry{
-		{Type: "tool_start", Tool: "read", Content: "a.go"},
-		{Type: "tool_end", Tool: "read", Content: "result"},
+		{Type: "tool_call", Tool: "read", Content: "a.go"},
+		{Type: "tool_result", Tool: "read", Content: "result"},
 		{Type: "message_update", Content: "thinking..."},
 	}
 
@@ -554,7 +554,7 @@ func TestAgentTracker_AppendOutput_MultipleEntries(t *testing.T) {
 
 	snap := agent.Output.Snapshot()
 	require.Len(t, snap, 3)
-	assert.Equal(t, "tool_start", snap[0].Type)
-	assert.Equal(t, "tool_end", snap[1].Type)
+	assert.Equal(t, "tool_call", snap[0].Type)
+	assert.Equal(t, "tool_result", snap[1].Type)
 	assert.Equal(t, "message_update", snap[2].Type)
 }
