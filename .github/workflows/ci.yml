@@ -20,6 +20,9 @@ jobs:
       - name: checkout
         uses: actions/checkout@v6
 
+      - name: generate mocks
+        run: make tools && make gen
+
       - name: build and test
         run: |
           go test -race -timeout=100s -covermode=atomic -coverprofile=$GITHUB_WORKSPACE/profile.cov_tmp ./...
