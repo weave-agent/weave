@@ -627,13 +627,13 @@ func TestSubagentExtension_Subscribe_OutputPopulatesRingBuffer(t *testing.T) {
 	// Send output events
 	bus.Publish(sdk.NewEvent("subagent.output", map[string]string{
 		"id":      "agent-out",
-		"type":    "tool_start",
+		"type":    "tool_call",
 		"tool":    "read",
 		"content": "main.go",
 	}))
 	bus.Publish(sdk.NewEvent("subagent.output", map[string]string{
 		"id":      "agent-out",
-		"type":    "tool_end",
+		"type":    "tool_result",
 		"tool":    "read",
 		"content": "file contents...",
 	}))
@@ -650,10 +650,10 @@ func TestSubagentExtension_Subscribe_OutputPopulatesRingBuffer(t *testing.T) {
 
 	snap := agent.Output.Snapshot()
 	require.Len(t, snap, 3)
-	assert.Equal(t, "tool_start", snap[0].Type)
+	assert.Equal(t, "tool_call", snap[0].Type)
 	assert.Equal(t, "read", snap[0].Tool)
 	assert.Equal(t, "main.go", snap[0].Content)
-	assert.Equal(t, "tool_end", snap[1].Type)
+	assert.Equal(t, "tool_result", snap[1].Type)
 	assert.Equal(t, "message_update", snap[2].Type)
 	assert.WithinDuration(t, time.Now(), snap[0].Time, time.Second)
 }
@@ -695,7 +695,7 @@ func TestSubagentExtension_Subscribe_OutputIgnoresMissingAgent(t *testing.T) {
 	assert.NotPanics(t, func() {
 		bus.Publish(sdk.NewEvent("subagent.output", map[string]string{
 			"id":      "agent-ghost",
-			"type":    "tool_start",
+			"type":    "tool_call",
 			"tool":    "read",
 			"content": "test",
 		}))

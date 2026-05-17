@@ -15,8 +15,8 @@ import (
 
 const (
 	panelKeyID       = "id"
-	evtTypeToolStart = "tool_start"
-	evtTypeToolEnd   = "tool_end"
+	evtTypeToolStart = "tool_call"
+	evtTypeToolEnd   = "tool_result"
 	evtTypeMsgUpdate = "message_update"
 	evtTypeMsgStart  = "message_start"
 	evtTypeMsgEnd    = "message_end"
@@ -76,16 +76,7 @@ func (d *agentPanelDrawer) Draw(scr uv.Screen, area uv.Rectangle) {
 
 	line = d.drawLine(scr, area, line, header)
 
-	// Line 2: Prompt row (if available)
-	if agent.Prompt != "" && line < area.Dy() {
-		prompt := d.truncate(agent.Prompt, area.Dx()-12)
-
-		promptLine := lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Muted)).Render("  Prompt: " + prompt)
-
-		line = d.drawLine(scr, area, line, promptLine)
-	}
-
-	// Line 3: Separator
+	// Separator
 	if line < area.Dy() {
 		sep := strings.Repeat("─", area.Dx())
 
@@ -148,12 +139,16 @@ func (d *agentPanelDrawer) Update(msg tea.Msg) (tui.PanelDrawer, tea.Cmd) {
 
 	ks := keyMsg.Keystroke()
 
-	// Cancel on Ctrl+X or Enter
+	// Cancel on Ctrl+X or Enter (only for running agents)
 	if ks == "ctrl+x" || ks == "enter" {
-		if d.bus != nil {
-			d.bus.Publish(sdk.NewEvent("subagent.cancel", map[string]string{
-				panelKeyID: d.agentID,
-			}))
+		if d.tracker != nil {
+			agent := d.tracker.Get(d.agentID)
+
+			if agent != nil && agent.Status == AgentRunning && d.bus != nil {
+				d.bus.Publish(sdk.NewEvent("subagent.cancel", map[string]string{
+					panelKeyID: d.agentID,
+				}))
+			}
 		}
 
 		return d, nil
@@ -271,40 +266,4 @@ func (d *agentPanelDrawer) formatElapsed(agent *TrackedAgent) string {
 	}
 
 	return fmt.Sprintf("%dm%ds", int(elapsed.Minutes()), int(elapsed.Seconds())%60)
-}
-
-// formatResult truncates and formats the result for display in the panel.
-func (d *agentPanelDrawer) formatResult(result string, maxWidth, maxLines int) string {
-	lines := strings.Split(strings.TrimSpace(result), "\n")
-
-	if maxLines <= 0 {
-		return ""
-	}
-
-	if len(lines) > maxLines {
-		lines = lines[:maxLines]
-	}
-
-	maxRunes := max(maxWidth-4, 10)
-
-	var b strings.Builder
-
-	for i, l := range lines {
-		if i > 0 {
-			b.WriteByte('\n')
-		}
-
-		runes := []rune(l)
-		if len(runes) > maxRunes {
-			if maxRunes <= 3 {
-				b.WriteString(strings.Repeat(".", maxRunes))
-			} else {
-				b.WriteString(string(runes[:maxRunes-3]) + "...")
-			}
-		} else {
-			b.WriteString(l)
-		}
-	}
-
-	return b.String()
 }

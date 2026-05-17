@@ -238,7 +238,7 @@ func TestRunSubagent_Mock(t *testing.T) {
 
 	t.Cleanup(func() { testRunSubagent = original })
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, _ func(jsonEvent)) (string, error) {
 		return "mocked result for " + agent.Name + ": " + prompt, nil
 	}
 
@@ -253,7 +253,7 @@ func TestRunSubagent_MockError(t *testing.T) {
 
 	t.Cleanup(func() { testRunSubagent = original })
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, _ func(jsonEvent)) (string, error) {
 		return "", errors.New("mock failure")
 	}
 
@@ -476,7 +476,7 @@ func TestBuildCommand_MessagingGeneratesID(t *testing.T) {
 
 	var receivedID string
 
-	testRunSubagent = func(_ context.Context, _ *AgentDef, _, _, subagentID string, _ *Broker, _, _ string) (string, error) {
+	testRunSubagent = func(_ context.Context, _ *AgentDef, _, _, subagentID string, _ *Broker, _, _ string, _ func(jsonEvent)) (string, error) {
 		receivedID = subagentID
 
 		return "ok", nil
@@ -500,7 +500,7 @@ func TestBuildCommand_NoMessagingNoID(t *testing.T) {
 
 	var receivedID string
 
-	testRunSubagent = func(_ context.Context, _ *AgentDef, _, _, subagentID string, _ *Broker, _, _ string) (string, error) {
+	testRunSubagent = func(_ context.Context, _ *AgentDef, _, _, subagentID string, _ *Broker, _, _ string, _ func(jsonEvent)) (string, error) {
 		receivedID = subagentID
 
 		return "ok", nil

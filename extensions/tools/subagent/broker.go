@@ -161,8 +161,8 @@ func (b *Broker) monitorStdout(id string, stdout io.Reader, onEvent func(jsonEve
 			continue
 		}
 
-		var msg brokerMessage
-		if err := json.Unmarshal([]byte(line), &msg); err != nil {
+		var evt jsonEvent
+		if err := json.Unmarshal([]byte(line), &evt); err != nil {
 			// Non-JSON lines are ignored (could be log output).
 			continue
 		}
@@ -170,32 +170,35 @@ func (b *Broker) monitorStdout(id string, stdout io.Reader, onEvent func(jsonEve
 		// Forward tool/message events to the onEvent callback,
 		// skipping inter-agent routing types (send, broadcast, list_agents).
 		if onEvent != nil {
-			switch msg.Type {
+			switch evt.Type {
 			case msgTypeSend, msgTypeBroadcast, msgTypeListAgents:
 				// Skip — these are inter-agent routing events.
 			default:
-				var evt jsonEvent
-				if jsonErr := json.Unmarshal([]byte(line), &evt); jsonErr == nil {
-					onEvent(evt)
-				}
+				onEvent(evt)
 			}
 		}
 
-		switch msg.Type {
+		switch evt.Type {
 		case msgTypeSend:
-			if err := b.routeSend(id, msg.To, msg.Content); err != nil {
-				sdk.Logger("subagent").Warn("route send failed", "error", err)
+			var msg brokerMessage
+			if err := json.Unmarshal([]byte(line), &msg); err == nil {
+				if err := b.routeSend(id, msg.To, msg.Content); err != nil {
+					sdk.Logger("subagent").Warn("route send failed", "error", err)
+				}
 			}
 		case msgTypeBroadcast:
-			for _, err := range b.routeBroadcast(id, msg.Content) {
-				sdk.Logger("subagent").Warn("route broadcast failed", "error", err)
+			var msg brokerMessage
+			if err := json.Unmarshal([]byte(line), &msg); err == nil {
+				for _, err := range b.routeBroadcast(id, msg.Content) {
+					sdk.Logger("subagent").Warn("route broadcast failed", "error", err)
+				}
 			}
 		case msgTypeListAgents:
 			if err := b.respondListAgents(id); err != nil {
 				sdk.Logger("subagent").Warn("respond list agents failed", "error", err)
 			}
 		case msgTypeMessageEnd:
-			finalContent = msg.Content
+			finalContent = evt.Content
 			sawMessageEnd = true
 		}
 	}

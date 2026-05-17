@@ -35,7 +35,7 @@ type jsonEvent struct {
 // inter-agent messages and the child gets a stdin pipe for receiving them.
 func runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, onEvent func(jsonEvent)) (string, error) {
 	if testRunSubagent != nil {
-		return testRunSubagent(ctx, agent, prompt, cwd, subagentID, broker, cfgPath, projectDir)
+		return testRunSubagent(ctx, agent, prompt, cwd, subagentID, broker, cfgPath, projectDir, onEvent)
 	}
 
 	cmd, cleanup, err := buildCommand(ctx, agent, prompt, cwd, subagentID, cfgPath, projectDir)
@@ -305,4 +305,4 @@ func parseJSONLines(r io.Reader, onEvent func(jsonEvent)) (string, error) {
 }
 
 // testRunSubagent is swapped out in tests to avoid spawning real subprocesses.
-var testRunSubagent func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error)
+var testRunSubagent func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, onEvent func(jsonEvent)) (string, error)

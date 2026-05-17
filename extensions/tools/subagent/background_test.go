@@ -61,7 +61,7 @@ func TestBackgroundSpawn_ReturnsImmediately(t *testing.T) {
 	original := testRunSubagent
 
 	// Slow mock to prove we return before completion.
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, _ func(jsonEvent)) (string, error) {
 		time.Sleep(200 * time.Millisecond)
 		return "done: " + prompt, nil
 	}
@@ -108,7 +108,7 @@ func TestBackgroundSpawn_ReturnsImmediately(t *testing.T) {
 func TestBackgroundSpawn_CompletesWithError(t *testing.T) {
 	original := testRunSubagent
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, _ func(jsonEvent)) (string, error) {
 		return "", errors.New("mock failure")
 	}
 
@@ -145,7 +145,7 @@ func TestBackgroundSpawn_CompletesWithError(t *testing.T) {
 func TestCheckAgent_Pending(t *testing.T) {
 	original := testRunSubagent
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, _ func(jsonEvent)) (string, error) {
 		<-ctx.Done()
 		return "", ctx.Err()
 	}
@@ -180,7 +180,7 @@ func TestCheckAgent_Pending(t *testing.T) {
 func TestCheckAgent_Completed(t *testing.T) {
 	original := testRunSubagent
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, _ func(jsonEvent)) (string, error) {
 		return "final result", nil
 	}
 
@@ -245,7 +245,7 @@ func TestCheckAgent_InvalidIDType(t *testing.T) {
 func TestAwaitAgent_BlocksUntilDone(t *testing.T) {
 	original := testRunSubagent
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, _ func(jsonEvent)) (string, error) {
 		time.Sleep(100 * time.Millisecond)
 		return "final result", nil
 	}
@@ -284,7 +284,7 @@ func TestAwaitAgent_BlocksUntilDone(t *testing.T) {
 func TestAwaitAgent_ContextCancellation(t *testing.T) {
 	original := testRunSubagent
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, _ func(jsonEvent)) (string, error) {
 		<-ctx.Done()
 		return "", ctx.Err()
 	}
@@ -343,7 +343,7 @@ func TestBackgroundManager_NotifyDone(t *testing.T) {
 
 	original := testRunSubagent
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, _ func(jsonEvent)) (string, error) {
 		return "result", nil
 	}
 
@@ -385,7 +385,7 @@ func TestBackgroundManager_NotifyDoneWithError(t *testing.T) {
 
 	original := testRunSubagent
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, _ func(jsonEvent)) (string, error) {
 		return "", errors.New("failed")
 	}
 
@@ -415,7 +415,7 @@ func TestBackgroundManager_NotifyDoneNoBus(t *testing.T) {
 
 	original := testRunSubagent
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, _ func(jsonEvent)) (string, error) {
 		return "result", nil
 	}
 
@@ -521,7 +521,7 @@ func TestBackgroundManager_NotifyStarted(t *testing.T) {
 
 	original := testRunSubagent
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, _ func(jsonEvent)) (string, error) {
 		<-ctx.Done()
 		return "", ctx.Err()
 	}
@@ -561,7 +561,7 @@ func TestBackgroundManager_NotifyStartedNoBus(t *testing.T) {
 
 	original := testRunSubagent
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, _ func(jsonEvent)) (string, error) {
 		<-ctx.Done()
 		return "", ctx.Err()
 	}
@@ -593,7 +593,7 @@ func TestBackgroundManager_NotifyStartedWithCustomID(t *testing.T) {
 
 	original := testRunSubagent
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, _ func(jsonEvent)) (string, error) {
 		<-ctx.Done()
 		return "", ctx.Err()
 	}
@@ -633,7 +633,7 @@ func TestBackgroundManager_Spawn_IDCollision(t *testing.T) {
 
 	original := testRunSubagent
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, _ func(jsonEvent)) (string, error) {
 		<-ctx.Done()
 		return "", ctx.Err()
 	}
@@ -667,7 +667,7 @@ func TestBackgroundManager_Spawn_IDCollision(t *testing.T) {
 func TestCancelAgent_SingleCancellation(t *testing.T) {
 	original := testRunSubagent
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, _ func(jsonEvent)) (string, error) {
 		<-ctx.Done()
 		return "", ctx.Err()
 	}
@@ -718,7 +718,7 @@ func TestCancelAgent_SingleCancellation(t *testing.T) {
 func TestCancelAgent_ManagerShutdownCancelsAll(t *testing.T) {
 	original := testRunSubagent
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, _ func(jsonEvent)) (string, error) {
 		<-ctx.Done()
 		return "", ctx.Err()
 	}
@@ -761,7 +761,7 @@ func TestCancelAgent_NotFound(t *testing.T) {
 func TestCancelAgent_AlreadyCompleted(t *testing.T) {
 	original := testRunSubagent
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, _ func(jsonEvent)) (string, error) {
 		return "done", nil
 	}
 
@@ -792,7 +792,7 @@ func TestCancelAgent_PerAgentContext(t *testing.T) {
 
 	agent2CtxCh := make(chan context.Context, 1)
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, _ func(jsonEvent)) (string, error) {
 		if prompt == "agent1" {
 			agent1CtxCh <- ctx
 		} else {
@@ -860,7 +860,7 @@ func TestCancelAgent_PerAgentContext(t *testing.T) {
 func TestBackgroundManager_NotifyOutput(t *testing.T) {
 	original := testRunSubagent
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, _ func(jsonEvent)) (string, error) {
 		return "result", nil
 	}
 
@@ -906,7 +906,7 @@ func TestBackgroundManager_NotifyOutput_NoBus(t *testing.T) {
 func TestBackgroundManager_CancelViaBusEvent(t *testing.T) {
 	original := testRunSubagent
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, _ func(jsonEvent)) (string, error) {
 		<-ctx.Done()
 		return "", ctx.Err()
 	}

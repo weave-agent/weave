@@ -7,7 +7,7 @@ import (
 
 // outputEntry represents a single subagent output event stored in the ring buffer.
 type outputEntry struct {
-	Type    string // "tool_start", "tool_end", "message_start", "message_update", "message_end"
+	Type    string // "tool_call", "tool_result", "message_start", "message_update", "message_end"
 	Tool    string // e.g. "read", "edit"
 	Content string // truncated content
 	Time    time.Time
@@ -110,7 +110,6 @@ type TrackedAgent struct {
 	DoneAt    time.Time
 	Result    string
 	PanelID   string
-	Prompt    string
 	Output    *outputRing
 }
 
@@ -253,7 +252,8 @@ func (t *AgentTracker) AppendOutput(id string, entry outputEntry) bool {
 }
 
 // Get returns a snapshot copy of a tracked agent by ID, or nil if not found.
-// Returns a value (not pointer) so callers can read fields without races.
+// Scalar fields are safe to read without races. The Output field is a shared
+// pointer protected by its own mutex — call Output.Snapshot() for a safe copy.
 func (t *AgentTracker) Get(id string) *TrackedAgent {
 	t.mu.RLock()
 	defer t.mu.RUnlock()

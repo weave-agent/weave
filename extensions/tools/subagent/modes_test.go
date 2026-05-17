@@ -16,7 +16,7 @@ func TestRunParallel_Success(t *testing.T) {
 
 	t.Cleanup(func() { testRunSubagent = original })
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, _ func(jsonEvent)) (string, error) {
 		return "result for: " + prompt, nil
 	}
 
@@ -43,7 +43,7 @@ func TestRunParallel_PartialFailure(t *testing.T) {
 
 	t.Cleanup(func() { testRunSubagent = original })
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, _ func(jsonEvent)) (string, error) {
 		if prompt == "fail" {
 			return "", errors.New("task failed")
 		}
@@ -71,7 +71,7 @@ func TestRunParallel_AllFailure(t *testing.T) {
 
 	t.Cleanup(func() { testRunSubagent = original })
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, _ func(jsonEvent)) (string, error) {
 		return "", errors.New("all failed")
 	}
 
@@ -97,7 +97,7 @@ func TestRunParallel_Concurrency(t *testing.T) {
 	maxConcurrent := 0
 	currentConcurrent := 0
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, _ func(jsonEvent)) (string, error) {
 		mu.Lock()
 
 		currentConcurrent++
@@ -165,7 +165,7 @@ func TestRunChain_Success(t *testing.T) {
 
 	t.Cleanup(func() { testRunSubagent = original })
 
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, _ func(jsonEvent)) (string, error) {
 		return "processed: " + prompt, nil
 	}
 
@@ -188,7 +188,7 @@ func TestRunChain_StopsOnError(t *testing.T) {
 	t.Cleanup(func() { testRunSubagent = original })
 
 	callCount := 0
-	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, _ func(jsonEvent)) (string, error) {
 		callCount++
 		if callCount == 2 {
 			return "", errors.New("step 2 failed")

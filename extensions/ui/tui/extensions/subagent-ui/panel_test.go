@@ -75,21 +75,6 @@ func TestAgentPanelDrawer_Draw_NoCancelButtonForCompletedAgent(t *testing.T) {
 	assert.NotContains(t, rendered, "✕ cancel")
 }
 
-func TestAgentPanelDrawer_Draw_PromptRow(t *testing.T) {
-	tracker := NewAgentTracker(gracePeriod, nil)
-	agent := tracker.Start("agent-p", "researcher", "background")
-	agent.Prompt = "Find all API endpoints"
-
-	drawer := newAgentPanelDrawer("agent-p", tracker, testTheme(), nil)
-	canvas := uv.NewScreenBuffer(80, 18)
-	area := uv.Rect(0, 0, 80, 18)
-
-	drawer.Draw(canvas, area)
-
-	rendered := canvas.Render()
-	assert.Contains(t, rendered, "Find all API endpoints")
-}
-
 func TestAgentPanelDrawer_Draw_Separator(t *testing.T) {
 	tracker := NewAgentTracker(gracePeriod, nil)
 	tracker.Start("agent-sep", "test", "background")
@@ -107,8 +92,8 @@ func TestAgentPanelDrawer_Draw_Separator(t *testing.T) {
 func TestAgentPanelDrawer_Draw_ToolLogFromRingBuffer(t *testing.T) {
 	tracker := NewAgentTracker(gracePeriod, nil)
 	tracker.Start("agent-log", "researcher", "background")
-	tracker.AppendOutput("agent-log", outputEntry{Type: "tool_start", Tool: "read", Content: "main.go", Time: time.Now()})
-	tracker.AppendOutput("agent-log", outputEntry{Type: "tool_end", Tool: "read", Content: "done", Time: time.Now()})
+	tracker.AppendOutput("agent-log", outputEntry{Type: "tool_call", Tool: "read", Content: "main.go", Time: time.Now()})
+	tracker.AppendOutput("agent-log", outputEntry{Type: "tool_result", Tool: "read", Content: "done", Time: time.Now()})
 	tracker.AppendOutput("agent-log", outputEntry{Type: "message_update", Content: "streaming text", Time: time.Now()})
 
 	drawer := newAgentPanelDrawer("agent-log", tracker, testTheme(), nil)
@@ -162,7 +147,7 @@ func TestAgentPanelDrawer_Draw_ScrollOffset(t *testing.T) {
 	// Add 20 entries to a small visible area
 	for range 20 {
 		tracker.AppendOutput("agent-scroll", outputEntry{
-			Type:    "tool_start",
+			Type:    "tool_call",
 			Tool:    "read",
 			Content: strings.Repeat("a", 20),
 			Time:    time.Now(),
@@ -268,8 +253,11 @@ func TestAgentPanelDrawer_Handles_ReturnsTrueForKeyPress(t *testing.T) {
 }
 
 func TestAgentPanelDrawer_Update_CancelWithCtrlX(t *testing.T) {
+	tracker := NewAgentTracker(gracePeriod, nil)
+	tracker.Start("agent-cancel", "test", "background")
+
 	bus := newMockBus()
-	drawer := newAgentPanelDrawer("agent-cancel", nil, testTheme(), bus)
+	drawer := newAgentPanelDrawer("agent-cancel", tracker, testTheme(), bus)
 
 	_, cmd := drawer.Update(tea.KeyPressMsg{Code: 'x', Mod: tea.ModCtrl})
 
@@ -284,8 +272,11 @@ func TestAgentPanelDrawer_Update_CancelWithCtrlX(t *testing.T) {
 }
 
 func TestAgentPanelDrawer_Update_CancelWithEnter(t *testing.T) {
+	tracker := NewAgentTracker(gracePeriod, nil)
+	tracker.Start("agent-enter", "test", "background")
+
 	bus := newMockBus()
-	drawer := newAgentPanelDrawer("agent-enter", nil, testTheme(), bus)
+	drawer := newAgentPanelDrawer("agent-enter", tracker, testTheme(), bus)
 
 	_, cmd := drawer.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
@@ -293,6 +284,20 @@ func TestAgentPanelDrawer_Update_CancelWithEnter(t *testing.T) {
 
 	require.Len(t, bus.published, 1)
 	assert.Equal(t, "subagent.cancel", bus.published[0].Topic)
+}
+
+func TestAgentPanelDrawer_Update_CancelSkipsCompletedAgent(t *testing.T) {
+	tracker := NewAgentTracker(gracePeriod, nil)
+	tracker.Start("agent-done", "test", "background")
+	tracker.Done("agent-done", "completed", "done")
+
+	bus := newMockBus()
+	drawer := newAgentPanelDrawer("agent-done", tracker, testTheme(), bus)
+
+	_, cmd := drawer.Update(tea.KeyPressMsg{Code: 'x', Mod: tea.ModCtrl})
+
+	assert.Nil(t, cmd)
+	assert.Empty(t, bus.published, "cancel should not be published for completed agent")
 }
 
 func TestAgentPanelDrawer_Update_CancelWithNilBus(t *testing.T) {
@@ -397,44 +402,6 @@ func TestAgentPanelDrawer_FormatElapsed(t *testing.T) {
 	assert.Contains(t, elapsed, "1m")
 }
 
-func TestAgentPanelDrawer_FormatResult_Empty(t *testing.T) {
-	theme := testTheme()
-	drawer := newAgentPanelDrawer("x", nil, theme, nil)
-
-	result := drawer.formatResult("", 80, 3)
-	assert.Empty(t, result)
-}
-
-func TestAgentPanelDrawer_FormatResult_SmallMaxWidth(t *testing.T) {
-	theme := testTheme()
-	drawer := newAgentPanelDrawer("x", nil, theme, nil)
-
-	longLine := strings.Repeat("a", 50)
-	result := drawer.formatResult(longLine, 5, 3)
-	assert.Contains(t, result, "...")
-}
-
-func TestAgentPanelDrawer_FormatResult(t *testing.T) {
-	theme := testTheme()
-	drawer := newAgentPanelDrawer("x", nil, theme, nil)
-
-	result := drawer.formatResult("hello", 80, 3)
-	assert.Equal(t, "hello", result)
-
-	longLine := strings.Repeat("a", 200)
-	result = drawer.formatResult(longLine, 40, 3)
-	assert.Contains(t, result, "...")
-	assert.Less(t, len(result), 200)
-
-	multi := "line1\nline2\nline3\nline4\nline5"
-	result = drawer.formatResult(multi, 80, 4)
-	lines := strings.Split(result, "\n")
-	assert.Len(t, lines, 4)
-
-	result = drawer.formatResult(multi, 80, 0)
-	assert.Empty(t, result)
-}
-
 func TestAgentPanelDrawer_Integration_WithTracker(t *testing.T) {
 	tracker := NewAgentTracker(gracePeriod, nil)
 	theme := testTheme()
@@ -461,9 +428,9 @@ func TestAgentPanelDrawer_Integration_WithTracker(t *testing.T) {
 func TestAgentPanelDrawer_Draw_MessageEndSkipped(t *testing.T) {
 	tracker := NewAgentTracker(gracePeriod, nil)
 	tracker.Start("agent-msgend", "test", "background")
-	tracker.AppendOutput("agent-msgend", outputEntry{Type: "tool_start", Tool: "read", Content: "file.go", Time: time.Now()})
+	tracker.AppendOutput("agent-msgend", outputEntry{Type: "tool_call", Tool: "read", Content: "file.go", Time: time.Now()})
 	tracker.AppendOutput("agent-msgend", outputEntry{Type: "message_end", Content: "", Time: time.Now()})
-	tracker.AppendOutput("agent-msgend", outputEntry{Type: "tool_start", Tool: "edit", Content: "file.go", Time: time.Now()})
+	tracker.AppendOutput("agent-msgend", outputEntry{Type: "tool_call", Tool: "edit", Content: "file.go", Time: time.Now()})
 
 	drawer := newAgentPanelDrawer("agent-msgend", tracker, testTheme(), nil)
 	canvas := uv.NewScreenBuffer(80, 18)
