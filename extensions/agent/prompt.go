@@ -3,6 +3,7 @@ package agent
 import (
 	_ "embed"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -78,7 +79,7 @@ func (pb *promptBuilder) Build(input buildInput) string {
 	// Layer 5: APPEND_SYSTEM.md
 	if input.systemAppend != "" {
 		b.WriteString("<user_appended_context>\n")
-		b.WriteString(strings.TrimSpace(input.systemAppend))
+		b.WriteString(sanitizeTrustBoundary(strings.TrimSpace(input.systemAppend), "user_appended_context"))
 		b.WriteString("\n</user_appended_context>")
 		b.WriteString("\n\n")
 	}
@@ -148,6 +149,21 @@ func (pb *promptBuilder) buildSkillsUsage() string {
 		"</skills_usage>"
 }
 
+// sanitizeTrustBoundary escapes wrapper tag sequences in content that could
+// break out of XML trust boundaries. Prevents untrusted files from injecting
+// closing tags that end the trust wrapper prematurely, or opening tags that
+// restart the wrapper with different attributes.
+func sanitizeTrustBoundary(content, tag string) string {
+	// Escape closing tags: </tag> with optional whitespace before >.
+	reClose := regexp.MustCompile(`</` + regexp.QuoteMeta(tag) + `\s*>`)
+	content = reClose.ReplaceAllString(content, "&lt;/"+tag+"&gt;")
+
+	// Escape opening tag prefix: <tag prevents any tag starting with this name.
+	content = strings.ReplaceAll(content, "<"+tag, "&lt;"+tag)
+
+	return content
+}
+
 // buildContextSection formats discovered context files into the prompt.
 // Returns an empty string if no context files are found.
 func (pb *promptBuilder) buildContextSection(files []contextFile) string {
@@ -160,7 +176,9 @@ func (pb *promptBuilder) buildContextSection(files []contextFile) string {
 	b.WriteString("# Project Context\n\n")
 
 	for _, f := range files {
-		fmt.Fprintf(&b, "## %s\n\n%s\n\n", f.Path, strings.TrimSpace(f.Content))
+		safePath := sanitizeTrustBoundary(f.Path, "user_context")
+		safeContent := sanitizeTrustBoundary(strings.TrimSpace(f.Content), "user_context")
+		fmt.Fprintf(&b, "## %s\n\n%s\n\n", safePath, safeContent)
 	}
 
 	b.WriteString("</user_context>")

@@ -694,9 +694,13 @@ func TestAgent_MultipleToolCalls(t *testing.T) {
 			case TopicMsgEnd:
 				e := evt
 				finalMsgEnd = &e
+				// After both tool results are in, the next msg_end is the
+				// assistant's follow-up response. Close to end cleanly.
+				if len(toolResults) == 2 {
+					require.NoError(t, a.Close())
+				}
 			case TopicTurnEnd:
-				// First turn done; close to trigger TopicEnd
-				require.NoError(t, a.Close())
+				// Let the loop continue to the next turn.
 			case TopicEnd:
 				goto done
 			}

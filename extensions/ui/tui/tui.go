@@ -43,13 +43,8 @@ func init() {
 		})
 	})
 
-	sdk.RegisterExtensionWithScope[TUIConfig]("tui", "ui", func(cfg sdk.Config, ps sdk.PreferenceReader, tuiCfg TUIConfig) (sdk.Extension, error) {
-		writer, ok := ps.(sdk.PreferenceWriter)
-		if !ok {
-			writer = sdk.NoopPreferenceStore{}
-		}
-
-		t, err := NewTUI(cfg, writer, tuiCfg)
+	sdk.RegisterExtensionWithScopeAndWriter("tui", "ui", func(cfg sdk.Config, ps sdk.PreferenceWriter, tuiCfg TUIConfig) (sdk.Extension, error) {
+		t, err := NewTUI(cfg, ps, tuiCfg)
 		if err != nil {
 			return nil, err
 		}

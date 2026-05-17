@@ -34,7 +34,7 @@ func RegisterUIExtension[TConfig any](name string, factory func(Config, Preferen
 			return nil, fmt.Errorf("load ui extension config: %w", err)
 		}
 
-		return factory(ConfigOrDefault(cfg), PreferenceStoreFrom(cfg), t)
+		return factory(ConfigReadOnly(cfg), PreferenceStoreFrom(cfg), t)
 	}
 
 	uiExtReg.Register(name, uiExtEntry{factory: wrapper})

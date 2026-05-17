@@ -32,7 +32,7 @@ func RegisterTUIExtension[TConfig any](name string, factory func(sdk.Config, sdk
 			return nil, fmt.Errorf("load tui extension config: %w", err)
 		}
 
-		return factory(sdk.ConfigOrDefault(cfg), sdk.PreferenceStoreFrom(cfg), t)
+		return factory(sdk.ConfigReadOnly(cfg), sdk.PreferenceStoreFrom(cfg), t)
 	}
 
 	tuiExtReg.Register(name, tuiExtEntry{factory: wrapper})

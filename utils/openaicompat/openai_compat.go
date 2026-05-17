@@ -237,6 +237,10 @@ func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sd
 		return nil, fmt.Errorf("openai-compat: create request: %w", err)
 	}
 
+	httpReq.GetBody = func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(reqBody)), nil
+	}
+
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+cfg.APIKey)
 
@@ -308,6 +312,14 @@ func doStreamRequestWithRetry(ctx context.Context, client *http.Client, req *htt
 		if respBody != nil {
 			respBody.Close()
 			respBody = nil
+		}
+
+		if req.GetBody != nil {
+			var bodyErr error
+			req.Body, bodyErr = req.GetBody()
+			if bodyErr != nil {
+				return bodyErr
+			}
 		}
 
 		body, doErr := doStreamRequest(client, req)

@@ -48,8 +48,6 @@ func (a *AgentExtension) run(
 
 	defer func() { bus.Publish(sdk.NewEvent(TopicEnd, endPayload)) }()
 
-	toolDefs := collectToolDefs(a.cfg)
-
 	var messages []sdk.Message
 
 	a.fileOps = newFileOperations()
@@ -260,7 +258,7 @@ func (a *AgentExtension) run(
 
 			opts := a.streamOpts()
 
-			resp, toolCalls, err := streamTurn(turnCtx, bus, provider, messages, toolDefs, systemPrompt, opts...)
+			resp, toolCalls, err := streamTurn(turnCtx, bus, provider, messages, collectToolDefs(a.cfg), systemPrompt, opts...)
 			if err != nil {
 				bus.Publish(sdk.NewEvent(TopicTurnEnd, nil))
 

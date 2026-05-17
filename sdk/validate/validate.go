@@ -82,8 +82,10 @@ func validateValue(value any, schema map[string]any) error {
 	}
 
 	if value == nil {
-		// null values are only valid if the schema explicitly allows them
-		// (not implemented; treat as invalid for required fields)
+		if expectedType != "" {
+			return fmt.Errorf("expected type %q, got null", expectedType)
+		}
+
 		return nil
 	}
 

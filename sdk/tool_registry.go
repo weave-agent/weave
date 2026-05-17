@@ -32,7 +32,7 @@ func RegisterTool[T any](name string, factory func(Config, PreferenceReader, T) 
 			return nil, fmt.Errorf("load tool config: %w", err)
 		}
 
-		return factory(ConfigOrDefault(cfg), PreferenceStoreFrom(cfg), t)
+		return factory(ConfigReadOnly(cfg), PreferenceStoreFrom(cfg), t)
 	}
 
 	toolReg.Register(name, wrapper)

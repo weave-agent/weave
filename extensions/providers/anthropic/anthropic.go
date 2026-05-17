@@ -224,10 +224,11 @@ func (a *streamAccumulator) emitTextIfNew(curTotal string, send func(sdk.Provide
 	}
 
 	// Divergence — shouldn't happen for deterministic streams.
-	a.text.Reset()
-	a.text.WriteString(curTotal)
-
-	return send(sdk.ProviderEvent{Type: sdk.ProviderEventTextDelta, Content: curTotal})
+	// Emit an error rather than corrupting downstream state.
+	return send(sdk.ProviderEvent{
+		Type:    sdk.ProviderEventError,
+		Content: errors.New("anthropic: stream diverged after retry"),
+	})
 }
 
 //nolint:dupl // text and thinking deduplication follow the same pattern intentionally
@@ -251,10 +252,11 @@ func (a *streamAccumulator) emitThinkingIfNew(curTotal string, send func(sdk.Pro
 	}
 
 	// Divergence — shouldn't happen for deterministic streams.
-	a.thinking.Reset()
-	a.thinking.WriteString(curTotal)
-
-	return send(sdk.ProviderEvent{Type: sdk.ProviderEventThinking, Content: curTotal})
+	// Emit an error rather than corrupting downstream state.
+	return send(sdk.ProviderEvent{
+		Type:    sdk.ProviderEventError,
+		Content: errors.New("anthropic: stream diverged after retry"),
+	})
 }
 
 func (a *streamAccumulator) emitThinkingDone(st sdk.SignedThinking, send func(sdk.ProviderEvent) bool) bool {

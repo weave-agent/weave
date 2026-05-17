@@ -16,7 +16,7 @@ func TestPreferenceStoreFrom_ReturnsPreferenceReader(t *testing.T) {
 	assert.NotNil(t, reader, "PreferenceStoreFrom should return a PreferenceReader")
 
 	_, ok := reader.(PreferenceWriter)
-	assert.True(t, ok, "PreferenceStoreFrom should return a PreferenceWriter when config implements PreferenceStore")
+	assert.False(t, ok, "PreferenceStoreFrom must NOT allow type assertion to PreferenceWriter")
 }
 
 func TestPreferenceStoreFrom_NilConfigReturnsNoop(t *testing.T) {
@@ -105,14 +105,13 @@ func TestRegisterUIExtension_ReceivesPreferenceReader(t *testing.T) {
 }
 
 func TestPreferenceReader_TypeAssertionToPreferenceWriter(t *testing.T) {
-	// When the underlying config implements PreferenceStore, the returned
-	// PreferenceReader can be type-asserted to PreferenceWriter.
+	// PreferenceStoreFrom wraps the underlying store so it cannot be
+	// type-asserted back to PreferenceWriter.
 	cfg := &mockPrefStoreConfig{}
 	reader := PreferenceStoreFrom(cfg)
 
-	writer, ok := reader.(PreferenceWriter)
-	require.True(t, ok, "PreferenceReader from PreferenceStore should assert to PreferenceWriter")
-	assert.NotNil(t, writer)
+	_, ok := reader.(PreferenceWriter)
+	require.False(t, ok, "PreferenceReader from PreferenceStore must NOT assert to PreferenceWriter")
 }
 
 func TestPreferenceReader_TypeAssertionFailsForNoop(t *testing.T) {
@@ -123,6 +122,90 @@ func TestPreferenceReader_TypeAssertionFailsForNoop(t *testing.T) {
 	assert.True(t, ok)
 	assert.NotNil(t, writer)
 }
+
+func TestConfigReadOnly_PreventsWriterAssertion(t *testing.T) {
+	cfg := &mockPrefStoreConfig{}
+
+	ro := ConfigReadOnly(cfg)
+
+	_, ok := ro.(PreferenceWriter)
+	assert.False(t, ok, "ConfigReadOnly must NOT allow type assertion to PreferenceWriter")
+
+	// But it should still implement Config
+	assertImplementsConfig(ro)
+	assert.Equal(t, cfg.FilePath(), ro.FilePath())
+}
+
+func TestConfigReadOnly_NilReturnsNoop(t *testing.T) {
+	ro := ConfigReadOnly(nil)
+
+	assert.Empty(t, ro.FilePath())
+	assert.True(t, ro.IsHeadless())
+}
+
+func TestAsPreferenceWriter_ExtractsFromWrappedReader(t *testing.T) {
+	cfg := &mockPrefStoreConfig{}
+	reader := PreferenceStoreFrom(cfg)
+
+	writer, ok := asPreferenceWriter(reader)
+	assert.True(t, ok, "asPreferenceWriter should extract writer from wrapped reader")
+	assert.NotNil(t, writer)
+	assert.NoError(t, writer.SaveProviderKey("test", "key"))
+}
+
+func TestAsPreferenceWriter_FallsBackToDirectAssertion(t *testing.T) {
+	var reader PreferenceReader = NoopPreferenceStore{}
+
+	writer, ok := asPreferenceWriter(reader)
+	assert.True(t, ok)
+	assert.NotNil(t, writer)
+}
+
+func TestAsPreferenceWriter_ReturnsFalseForNoopReader(t *testing.T) {
+	// NoopPreferenceStore implements PreferenceWriter, so asPreferenceWriter
+	// should succeed even through the wrapper.
+	trueReader := preferenceReaderOnly{pr: NoopPreferenceStore{}}
+	_, ok := asPreferenceWriter(trueReader)
+	assert.True(t, ok) // NoopPreferenceStore implements PreferenceWriter
+}
+
+func TestRegisterTool_ConfigCannotAssertWriter(t *testing.T) {
+	ResetToolRegistry()
+
+	var receivedCfg Config
+
+	RegisterTool[struct{}]("test-tool-cfg", func(cfg Config, _ PreferenceReader, _ struct{}) (Tool, error) {
+		receivedCfg = cfg
+		return &ToolMock{}, nil
+	})
+
+	_, err := GetTool("test-tool-cfg", &mockPrefStoreConfig{})
+	require.NoError(t, err)
+	require.NotNil(t, receivedCfg)
+
+	_, ok := receivedCfg.(PreferenceWriter)
+	assert.False(t, ok, "tool factory must receive Config that cannot assert to PreferenceWriter")
+}
+
+func TestRegisterExtension_ConfigCannotAssertWriter(t *testing.T) {
+	ResetExtensionRegistry()
+
+	var receivedCfg Config
+
+	RegisterExtension[struct{}]("test-ext-cfg", func(cfg Config, _ PreferenceReader, _ struct{}) (Extension, error) {
+		receivedCfg = cfg
+		return NewExtensionFunc("test-ext-cfg", nil), nil
+	})
+
+	_, err := GetExtension("test-ext-cfg", &mockPrefStoreConfig{})
+	require.NoError(t, err)
+	require.NotNil(t, receivedCfg)
+
+	_, ok := receivedCfg.(PreferenceWriter)
+	assert.False(t, ok, "extension factory must receive Config that cannot assert to PreferenceWriter")
+}
+
+func assertImplementsConfig(_ Config) {}
 
 type mockPrefStoreConfig struct{}
 

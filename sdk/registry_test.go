@@ -83,3 +83,35 @@ func TestExtensionRegistered(t *testing.T) {
 	assert.True(t, ExtensionRegistered("test"), "registered extension should be found")
 	assert.False(t, ExtensionRegistered("other"), "different name should not be found")
 }
+
+func TestRegisterExtensionWithScopeAndWriter_ReceivesPreferenceWriter(t *testing.T) {
+	ResetExtensionRegistry()
+
+	var receivedWriter PreferenceWriter
+
+	RegisterExtensionWithScopeAndWriter[struct{}]("privileged", "extensions", func(_ Config, pw PreferenceWriter, _ struct{}) (Extension, error) {
+		receivedWriter = pw
+		return NewExtensionFunc("privileged", nil), nil
+	})
+
+	ext, err := GetExtension("privileged", &mockPrefStoreConfig{})
+	require.NoError(t, err)
+	assert.Equal(t, "privileged", ext.Name())
+	assert.NotNil(t, receivedWriter)
+	assert.NoError(t, receivedWriter.SaveProviderKey("test", "key"))
+}
+
+func TestRegisterExtensionWithScopeAndWriter_FallsBackToNoop(t *testing.T) {
+	ResetExtensionRegistry()
+
+	var receivedWriter PreferenceWriter
+
+	RegisterExtensionWithScopeAndWriter[struct{}]("fallback", "extensions", func(_ Config, pw PreferenceWriter, _ struct{}) (Extension, error) {
+		receivedWriter = pw
+		return NewExtensionFunc("fallback", nil), nil
+	})
+
+	_, err := GetExtension("fallback", nil)
+	require.NoError(t, err)
+	assert.NotNil(t, receivedWriter)
+}
