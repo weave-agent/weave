@@ -14,7 +14,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"weave/sdk"
 	"weave/sdk/model"
@@ -67,7 +66,7 @@ func init() {
 		}
 
 		return &provider{
-			client:     &http.Client{Timeout: 120 * time.Second},
+			client:     &http.Client{},
 			model:      cc.Model,
 			baseURL:    cc.BaseURL,
 			tokenURL:   codexTokenURL,

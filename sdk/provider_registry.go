@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"reflect"
 	"strings"
+	"time"
 
 	"weave/internal/auth"
 	"weave/sdk/registry"
@@ -64,15 +65,27 @@ func makeAuthChecker[TAuth any](name string) func() (bool, error) {
 			return true, nil
 		}
 
-		// Fallback: check auth file for OAuth or other credentials that may
-		// not be captured by the provider's static auth struct yet (e.g. when
-		// the struct does not yet declare an OAuthToken field).
+		// Fallback: check auth file for OAuth credentials for providers that
+		// explicitly support OAuth. This handles providers whose auth struct
+		// doesn't yet declare an OAuthToken field but are registered in the
+		// OAuth provider registry.
+		_, isOAuthProvider := GetOAuthProvider(name)
+		if !isOAuthProvider {
+			return false, nil
+		}
+
 		authFile, err := auth.Load()
 		if err != nil {
 			return false, fmt.Errorf("load auth file for oauth fallback: %w", err)
 		}
 
-		return authFile.HasProviderAuth(name), nil
+		// Only check for OAuth access_token, not API keys. API-key auth
+		// should be declared in the provider's auth struct.
+		// Treat OAuth auth as usable only when the access token is not
+		// expired, or when a refresh token is present.
+		cred := authFile.GetOAuthCredential(name)
+
+		return cred.AccessToken != "" && (!cred.IsExpired() || cred.RefreshToken != ""), nil
 	}
 }
 
@@ -149,16 +162,22 @@ func checkFieldRequiredAndValue(field reflect.Value, ft reflect.StructField) (is
 		isSet = field.Float() != 0
 	case reflect.Pointer:
 		isRequired = tagContainsRequired(ft.Tag.Get("validate"))
-		isSet = !field.IsNil()
 
-		if field.Type().Elem().Kind() == reflect.Struct && !field.IsNil() {
+		switch {
+		case field.IsNil():
+			isSet = false
+		case field.Elem().Kind() == reflect.Struct:
 			nestedHasRequired := hasRequiredFieldTag(field.Elem())
 			nestedOK := hasAuthFieldSet(field.Elem())
 
 			if nestedHasRequired {
 				isRequired = true
 				isSet = nestedOK
+			} else {
+				isSet = hasAnyFieldSet(field.Elem())
 			}
+		default:
+			isSet = fieldIsSet(field.Elem())
 		}
 	case reflect.Struct:
 		nestedHasRequired := hasRequiredFieldTag(field)
@@ -210,12 +229,67 @@ func hasRequiredFieldTag(v reflect.Value) bool {
 	return false
 }
 
-// hasAnyFieldSet returns true if at least one exported string or pointer field
-// in the struct is non-zero. This handles multi-field auth structs where some
-// fields may be optional.
+// fieldIsSet reports whether a single reflect.Value is non-zero for auth
+// detection purposes.
+func fieldIsSet(field reflect.Value) bool {
+	switch field.Kind() {
+	case reflect.String:
+		return field.String() != ""
+	case reflect.Bool:
+		return field.Bool()
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return field.Int() != 0
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return field.Uint() != 0
+	case reflect.Float32, reflect.Float64:
+		return field.Float() != 0
+	case reflect.Pointer:
+		if field.IsNil() {
+			return false
+		}
+
+		if field.Elem().Kind() == reflect.Struct {
+			return hasAnyFieldSet(field.Elem())
+		}
+
+		return fieldIsSet(field.Elem())
+	case reflect.Struct:
+		return hasAnyFieldSet(field)
+	default:
+		// Other field kinds are not considered for auth detection.
+		return false
+	}
+}
+
+// hasAnyFieldSet returns true if at least one exported field in the struct is
+// non-zero. For OAuthCredential structs, only AccessToken is considered for
+// auth detection; a refresh token alone does not make the provider usable.
 func hasAnyFieldSet(v reflect.Value) bool {
 	if v.Kind() != reflect.Struct {
 		return false
+	}
+
+	if v.Type() == reflect.TypeFor[auth.OAuthCredential]() {
+		accessTokenField := v.FieldByName("AccessToken")
+		if !accessTokenField.IsValid() || accessTokenField.String() == "" {
+			return false
+		}
+
+		// Token is usable if not expired, or if a refresh token is present
+		// to obtain a new access token.
+		cred := auth.OAuthCredential{AccessToken: accessTokenField.String()}
+
+		refreshTokenField := v.FieldByName("RefreshToken")
+		if refreshTokenField.IsValid() {
+			cred.RefreshToken = refreshTokenField.String()
+		}
+
+		expiresAtField := v.FieldByName("ExpiresAt")
+		if expiresAtField.IsValid() {
+			cred.ExpiresAt = expiresAtField.Interface().(time.Time)
+		}
+
+		return !cred.IsExpired() || cred.RefreshToken != ""
 	}
 
 	t := v.Type()
@@ -225,45 +299,8 @@ func hasAnyFieldSet(v reflect.Value) bool {
 			continue
 		}
 
-		field := v.Field(i)
-
-		switch field.Kind() {
-		case reflect.String:
-			if field.String() != "" {
-				return true
-			}
-		case reflect.Bool:
-			if field.Bool() {
-				return true
-			}
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			if field.Int() != 0 {
-				return true
-			}
-		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			if field.Uint() != 0 {
-				return true
-			}
-		case reflect.Float32, reflect.Float64:
-			if field.Float() != 0 {
-				return true
-			}
-		case reflect.Pointer:
-			if !field.IsNil() {
-				return true
-			}
-
-			if field.Elem().Kind() == reflect.Struct {
-				if hasAnyFieldSet(field.Elem()) {
-					return true
-				}
-			}
-		case reflect.Struct:
-			if hasAnyFieldSet(field) {
-				return true
-			}
-		default:
-			// Other field kinds are not considered for auth detection.
+		if fieldIsSet(v.Field(i)) {
+			return true
 		}
 	}
 

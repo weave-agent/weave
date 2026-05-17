@@ -40,7 +40,7 @@ func (e ModelEntry) Display() string {
 // DisplayName returns the human-friendly name from the model registry,
 // falling back to provider/model format.
 func (e ModelEntry) DisplayName() string {
-	if def, ok := sdkmodel.GetModel(e.Model); ok && def.DisplayName != "" {
+	if def, ok := sdkmodel.GetModelForProvider(e.Model, e.Provider); ok && def.DisplayName != "" {
 		return def.DisplayName
 	}
 
@@ -157,9 +157,9 @@ func cycleModel(entries []ModelEntry, current ModelEntry) ModelEntry {
 	return current
 }
 
-// modelReasoning returns whether the given model supports reasoning.
-func modelReasoning(modelID string) bool {
-	if def, ok := sdkmodel.GetModel(modelID); ok {
+// modelReasoning returns whether the given model entry supports reasoning.
+func modelReasoning(entry ModelEntry) bool {
+	if def, ok := sdkmodel.GetModelForProvider(entry.Model, entry.Provider); ok {
 		return def.Reasoning
 	}
 

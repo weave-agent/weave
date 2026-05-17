@@ -706,7 +706,7 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 	b.WriteString("\t}\n")
 	b.WriteString("\tif modelOverride != \"\" {\n")
 	b.WriteString("\t\tpayload := map[string]string{\"model\": modelOverride}\n")
-	b.WriteString("\t\tif m, ok := model.GetModel(modelOverride); ok && m.Provider != \"\" {\n")
+	b.WriteString("\t\tif m, ok := model.GetModel(modelOverride); ok && m.Provider != \"\" && model.ModelProviderCount(modelOverride) == 1 {\n")
 	b.WriteString("\t\t\tpayload[\"provider\"] = m.Provider\n")
 	b.WriteString("\t\t}\n")
 	b.WriteString("\t\tb.Publish(sdk.NewEvent(\"model.change\", payload))\n")

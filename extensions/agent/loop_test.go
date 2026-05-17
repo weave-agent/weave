@@ -118,13 +118,13 @@ func setupAgent(t *testing.T, providerName string) (*AgentExtension, *bus.Bus, f
 }
 
 func registerMockProvider(_ string, mp *ProviderMock) {
-	sdk.RegisterProvider[struct{}, struct{}]("anthropic", func(sdk.Config, struct{}, struct{}) (sdk.Provider, error) {
+	sdk.RegisterProvider("anthropic", func(sdk.Config, struct{}, struct{}) (sdk.Provider, error) {
 		return mp, nil
 	})
 }
 
 func registerMockTool(mt *ToolMock) {
-	sdk.RegisterTool[struct{}](mt.NameFunc(), func(sdk.Config, sdk.PreferenceStore, struct{}) (sdk.Tool, error) {
+	sdk.RegisterTool(mt.NameFunc(), func(sdk.Config, sdk.PreferenceStore, struct{}) (sdk.Tool, error) {
 		return mt, nil
 	})
 }
@@ -531,10 +531,55 @@ func TestAgent_ProviderErrorOnStartup(t *testing.T) {
 
 	b.Publish(sdk.NewEvent(TopicPrompt, "test"))
 
-	endEvts := collectTopic(allCh, TopicEnd, 2*time.Second)
-	require.Len(t, endEvts, 1)
-	payload, ok := endEvts[0].Payload.(string)
-	require.True(t, ok, "end payload should be string, got %T", endEvts[0].Payload)
+	_, ok := waitForTopic(allCh, TopicMsgStart, 2*time.Second)
+	require.True(t, ok, "timeout waiting for msg_start")
+
+	msgEndEvt, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for msg_end")
+
+	payload, ok := msgEndEvt.Payload.(map[string]any)
+	require.True(t, ok, "msg_end payload should be map[string]any")
+	content, ok := payload["content"].(string)
+	require.True(t, ok)
+	assert.Contains(t, content, "No providers configured")
+
+	_, ok = waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for turn_end")
+
+	require.NoError(t, a.Close())
+
+	_, ok = waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
+}
+
+func TestAgent_ProviderErrorOnStartup_SingleTurn(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+
+	t.Setenv("WEAVE_SINGLE_TURN", "1")
+
+	a, b, cleanup := setupAgent(t, "nonexistent")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "test"))
+
+	_, ok := waitForTopic(allCh, TopicMsgStart, 2*time.Second)
+	require.True(t, ok, "timeout waiting for msg_start")
+
+	_, ok = waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for msg_end")
+
+	_, ok = waitForTopic(allCh, TopicTurnEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for turn_end")
+
+	endEvt, ok := waitForTopic(allCh, TopicEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for end")
+
+	payload, ok := endEvt.Payload.(string)
+	require.True(t, ok, "end payload should be string, got %T", endEvt.Payload)
 	assert.Contains(t, payload, "No providers configured")
 }
 
@@ -1004,10 +1049,10 @@ func TestAgent_ModelChangeDifferentProvider(t *testing.T) {
 		{textDeltas: []string{"openai response"}},
 	})
 
-	sdk.RegisterProvider[struct{}, struct{}]("anthropic", func(sdk.Config, struct{}, struct{}) (sdk.Provider, error) {
+	sdk.RegisterProvider("anthropic", func(sdk.Config, struct{}, struct{}) (sdk.Provider, error) {
 		return anthropicMock, nil
 	})
-	sdk.RegisterProvider[struct{}, struct{}]("openai", func(sdk.Config, struct{}, struct{}) (sdk.Provider, error) {
+	sdk.RegisterProvider("openai", func(sdk.Config, struct{}, struct{}) (sdk.Provider, error) {
 		return openaiMock, nil
 	})
 
@@ -1045,6 +1090,67 @@ func TestAgent_ModelChangeDifferentProvider(t *testing.T) {
 	require.NoError(t, a.Close())
 
 	// Verify openai was called and model was passed
+	require.Len(t, openaiMock.StreamCalls(), 1)
+	openaiOpts := openaiMock.StreamCalls()[0].Opts
+	so := model.NewStreamOptions(openaiOpts...)
+	assert.Equal(t, "gpt-5.5", so.Model)
+}
+
+func TestAgent_AmbiguousModelChangeSwitchesProvider(t *testing.T) {
+	resetRegistries()
+	defer resetRegistries()
+	defer model.ResetModelRegistry()
+
+	anthropicMock := newMockProvider([]providerResponse{
+		{textDeltas: []string{"anthropic response"}},
+	})
+	openaiMock := newMockProvider([]providerResponse{
+		{textDeltas: []string{"openai response"}},
+	})
+
+	sdk.RegisterProvider("anthropic", func(sdk.Config, struct{}, struct{}) (sdk.Provider, error) {
+		return anthropicMock, nil
+	})
+	sdk.RegisterProvider("openai", func(sdk.Config, struct{}, struct{}) (sdk.Provider, error) {
+		return openaiMock, nil
+	})
+
+	// Register gpt-5.5 for both providers to create ambiguity.
+	model.RegisterModel(model.ModelDef{ID: "gpt-5.5", Provider: "openai"})
+	model.RegisterModel(model.ModelDef{ID: "gpt-5.5", Provider: "codex"})
+
+	a, b, cleanup := setupAgent(t, "anthropic")
+	defer cleanup()
+
+	allCh := subscribeAllToChan(b)
+	require.NoError(t, a.Subscribe(b))
+
+	b.Publish(sdk.NewEvent(TopicPrompt, "start"))
+
+	msgEnd1, ok := waitForTopic(allCh, TopicMsgEnd, 2*time.Second)
+	require.True(t, ok, "timeout waiting for first msg_end")
+
+	payload1 := msgEnd1.Payload.(map[string]any)
+	assert.Equal(t, "anthropic response", payload1["content"])
+
+	// Model change without provider — gpt-5.5 is not supported by anthropic,
+	// so the agent should switch to a provider that does support it.
+	b.Publish(sdk.NewEvent(TopicModelChange, map[string]string{
+		"model": "gpt-5.5",
+	}))
+
+	// Send a follow-up to trigger a turn with the new provider
+	b.Publish(sdk.NewEvent(TopicFollowup, "after model change"))
+
+	msgEnd2, ok := waitForTopic(allCh, TopicMsgEnd, 4*time.Second)
+	require.True(t, ok, "timeout waiting for openai msg_end")
+
+	payload2 := msgEnd2.Payload.(map[string]any)
+	assert.Equal(t, "openai response", payload2["content"])
+
+	require.NoError(t, a.Close())
+
+	// Verify openai was called with the ambiguous model
 	require.Len(t, openaiMock.StreamCalls(), 1)
 	openaiOpts := openaiMock.StreamCalls()[0].Opts
 	so := model.NewStreamOptions(openaiOpts...)
@@ -1447,7 +1553,7 @@ func TestResolveProviderName_EnvVarHighest(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	sdk.RegisterProvider[struct{}, struct{}]("anthropic", func(sdk.Config, struct{}, struct{}) (sdk.Provider, error) {
+	sdk.RegisterProvider("anthropic", func(sdk.Config, struct{}, struct{}) (sdk.Provider, error) {
 		return &ProviderMock{}, nil
 	})
 
@@ -1461,7 +1567,7 @@ func TestResolveProviderName_SettingsPreference(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	sdk.RegisterProvider[struct{}, struct{}]("anthropic", func(sdk.Config, struct{}, struct{}) (sdk.Provider, error) {
+	sdk.RegisterProvider("anthropic", func(sdk.Config, struct{}, struct{}) (sdk.Provider, error) {
 		return &ProviderMock{}, nil
 	})
 
@@ -1475,10 +1581,10 @@ func TestResolveProviderName_FirstRegistered(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	sdk.RegisterProvider[struct{}, struct{}]("zai", func(sdk.Config, struct{}, struct{}) (sdk.Provider, error) {
+	sdk.RegisterProvider("zai", func(sdk.Config, struct{}, struct{}) (sdk.Provider, error) {
 		return &ProviderMock{}, nil
 	})
-	sdk.RegisterProvider[struct{}, struct{}]("openai", func(sdk.Config, struct{}, struct{}) (sdk.Provider, error) {
+	sdk.RegisterProvider("openai", func(sdk.Config, struct{}, struct{}) (sdk.Provider, error) {
 		return &ProviderMock{}, nil
 	})
 
@@ -1502,7 +1608,7 @@ func TestResolveProviderName_PrefsErrorFallsThrough(t *testing.T) {
 	resetRegistries()
 	defer resetRegistries()
 
-	sdk.RegisterProvider[struct{}, struct{}]("openai", func(sdk.Config, struct{}, struct{}) (sdk.Provider, error) {
+	sdk.RegisterProvider("openai", func(sdk.Config, struct{}, struct{}) (sdk.Provider, error) {
 		return &ProviderMock{}, nil
 	})
 

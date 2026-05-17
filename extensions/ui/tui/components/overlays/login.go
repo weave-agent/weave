@@ -63,6 +63,12 @@ func (m LoginModel) SetStatus(status string) LoginModel {
 	return m
 }
 
+// SetAuthURL updates the authorization URL displayed in the dialog.
+func (m LoginModel) SetAuthURL(authURL string) LoginModel {
+	m.authURL = authURL
+	return m
+}
+
 // Update handles messages for the login dialog.
 func (m LoginModel) Update(msg tea.Msg) (LoginModel, tea.Cmd) {
 	if key, ok := msg.(tea.KeyPressMsg); ok && key.Code == tea.KeyEsc {
@@ -103,8 +109,10 @@ func (m LoginModel) View() string {
 
 	// Wrap URL if it's too long
 	urlText := m.authURL
-	if len(urlText) > boxWidth-6 {
-		urlText = urlText[:boxWidth-9] + "..."
+
+	maxURLLen := boxWidth - 9
+	if maxURLLen > 0 && len(urlText) > boxWidth-6 {
+		urlText = urlText[:maxURLLen] + "..."
 	}
 
 	content := titleStyle.Render("Authenticate with "+m.provider) + "\n" +
@@ -149,6 +157,10 @@ func (d *LoginDialog) ID() string           { return d.id }
 func (d *LoginDialog) Done() bool           { return d.done }
 func (d *LoginDialog) Result() DialogResult { return d.result }
 func (d *LoginDialog) Model() LoginModel    { return d.model }
+
+func (d *LoginDialog) SetAuthURL(url string) {
+	d.model = d.model.SetAuthURL(url)
+}
 
 func (d *LoginDialog) SetSize(width, height int) Dialog {
 	d.model = d.model.SetSize(width, height)

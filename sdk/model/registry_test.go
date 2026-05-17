@@ -168,3 +168,105 @@ func TestListAvailableModels_ProviderSorted(t *testing.T) {
 	assert.Equal(t, "a-prov", available[0].Provider)
 	assert.Equal(t, "z-prov", available[1].Provider)
 }
+
+func TestModelRegistry_DifferentProvidersSameID(t *testing.T) {
+	ResetModelRegistry()
+	defer ResetModelRegistry()
+
+	RegisterModel(ModelDef{ID: "gpt-5.5", Provider: "codex", DisplayName: "Codex GPT-5.5"})
+	RegisterModel(ModelDef{ID: "gpt-5.5", Provider: "openai", DisplayName: "GPT-5.5"})
+
+	// GetModel returns first-registered for bare-ID lookup.
+	m, ok := GetModel("gpt-5.5")
+	require.True(t, ok)
+	assert.Equal(t, "Codex GPT-5.5", m.DisplayName)
+
+	// ListModelsForProvider includes both provider-specific entries.
+	codexModels := ListModelsForProvider("codex")
+	require.Len(t, codexModels, 1)
+	assert.Equal(t, "Codex GPT-5.5", codexModels[0].DisplayName)
+
+	openaiModels := ListModelsForProvider("openai")
+	require.Len(t, openaiModels, 1)
+	assert.Equal(t, "GPT-5.5", openaiModels[0].DisplayName)
+
+	// ListAllModels includes both.
+	all := ListAllModels()
+	require.Len(t, all, 2)
+}
+
+func TestModelProviderCount(t *testing.T) {
+	ResetModelRegistry()
+	defer ResetModelRegistry()
+
+	RegisterModel(ModelDef{ID: "gpt-5.5", Provider: "codex"})
+	RegisterModel(ModelDef{ID: "gpt-5.5", Provider: "openai"})
+	RegisterModel(ModelDef{ID: "unique-model", Provider: "anthropic"})
+
+	assert.Equal(t, 2, ModelProviderCount("gpt-5.5"), "duplicate model should have count 2")
+	assert.Equal(t, 1, ModelProviderCount("unique-model"), "unique model should have count 1")
+	assert.Equal(t, 0, ModelProviderCount("nonexistent"), "unknown model should have count 0")
+}
+
+func TestModelProviderCount_SameProviderDuplicate(t *testing.T) {
+	ResetModelRegistry()
+	defer ResetModelRegistry()
+
+	RegisterModel(ModelDef{ID: "gpt-5.5", Provider: "openai"})
+	RegisterModel(ModelDef{ID: "gpt-5.5", Provider: "openai"})
+
+	assert.Equal(t, 1, ModelProviderCount("gpt-5.5"), "same-provider duplicate should still count as 1")
+}
+
+func TestRegisterModel_DedupesSameProviderID(t *testing.T) {
+	ResetModelRegistry()
+	defer ResetModelRegistry()
+
+	RegisterModel(ModelDef{ID: "gpt-5.5", Provider: "openai", DisplayName: "First"})
+	RegisterModel(ModelDef{ID: "gpt-5.5", Provider: "openai", DisplayName: "Second"})
+
+	all := ListAllModels()
+	require.Len(t, all, 1)
+	assert.Equal(t, "First", all[0].DisplayName)
+
+	models := ListModelsForProvider("openai")
+	require.Len(t, models, 1)
+	assert.Equal(t, "First", models[0].DisplayName)
+}
+
+func TestDefaultModelForProvider_WithDuplicateIDs(t *testing.T) {
+	ResetModelRegistry()
+	defer ResetModelRegistry()
+
+	RegisterModel(ModelDef{ID: "gpt-5.5", Provider: "codex", Default: true})
+	RegisterModel(ModelDef{ID: "gpt-5.5", Provider: "openai", Default: true})
+
+	m, ok := DefaultModelForProvider("openai")
+	require.True(t, ok)
+	assert.Equal(t, "openai", m.Provider)
+	assert.True(t, m.Default)
+}
+
+func TestGetModelForProvider(t *testing.T) {
+	ResetModelRegistry()
+	defer ResetModelRegistry()
+
+	RegisterModel(ModelDef{ID: "gpt-5.5", Provider: "codex", DisplayName: "Codex GPT-5.5"})
+	RegisterModel(ModelDef{ID: "gpt-5.5", Provider: "openai", DisplayName: "GPT-5.5"})
+
+	m, ok := GetModelForProvider("gpt-5.5", "openai")
+	require.True(t, ok)
+	assert.Equal(t, "GPT-5.5", m.DisplayName)
+	assert.Equal(t, "openai", m.Provider)
+
+	m, ok = GetModelForProvider("gpt-5.5", "codex")
+	require.True(t, ok)
+	assert.Equal(t, "Codex GPT-5.5", m.DisplayName)
+	assert.Equal(t, "codex", m.Provider)
+
+	_, ok = GetModelForProvider("gpt-5.5", "nonexistent")
+	assert.False(t, ok)
+
+	_, ok = GetModelForProvider("nonexistent", "openai")
+	assert.False(t, ok)
+}

@@ -125,6 +125,20 @@ func TestGetOAuthCredential_FromAuthFile(t *testing.T) {
 	assert.False(t, cred.ExpiresAt.IsZero())
 }
 
+func TestGetOAuthCredential_NestedFormat(t *testing.T) {
+	auth := &File{
+		Providers: map[string]json.RawMessage{
+			"openai": json.RawMessage(`{"oauth_token":{"access_token":"sk-nested","refresh_token":"rt-nested","expires_at":"2026-05-16T12:00:00Z","token_type":"bearer"}}`),
+		},
+	}
+
+	cred := auth.GetOAuthCredential("openai")
+	assert.Equal(t, "sk-nested", cred.AccessToken)
+	assert.Equal(t, "rt-nested", cred.RefreshToken)
+	assert.Equal(t, "bearer", cred.TokenType)
+	assert.False(t, cred.ExpiresAt.IsZero())
+}
+
 func TestSetOAuthCredential_NewProvider(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)

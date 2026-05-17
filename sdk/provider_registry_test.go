@@ -9,6 +9,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"weave/internal/auth"
 )
 
 func TestRegisterAndRetrieveProvider(t *testing.T) {
@@ -356,6 +358,28 @@ func TestCheckProviderAuth_PointerToStructField(t *testing.T) {
 	assert.True(t, hasAuth, "pointer to struct with set nested field should count as authenticated")
 }
 
+func TestCheckProviderAuth_PointerToStructField_Empty(t *testing.T) {
+	ResetProviderRegistry()
+
+	type Inner struct {
+		APIKey string `json:"api_key" env:"TEST_PTR_EMPTY_API_KEY"`
+	}
+
+	type PtrStructAuth struct {
+		Inner *Inner
+	}
+
+	RegisterProvider[struct{}, PtrStructAuth]("ptr-struct-empty", func(Config, struct{}, PtrStructAuth) (Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	// No env vars set — the pointer will be allocated by applyEnvToStruct
+	// but all nested fields will be empty. It should NOT count as authenticated.
+	hasAuth, err := CheckProviderAuth("ptr-struct-empty")
+	require.NoError(t, err)
+	assert.False(t, hasAuth, "pointer to struct with empty nested fields should not count as authenticated")
+}
+
 func TestCheckProviderAuth_AuthFile(t *testing.T) {
 	ResetProviderRegistry()
 
@@ -382,6 +406,7 @@ func TestCheckProviderAuth_AuthFile(t *testing.T) {
 
 func TestCheckProviderAuth_OAuthFallback(t *testing.T) {
 	ResetProviderRegistry()
+	ResetOAuthRegistry()
 
 	type SimpleAuth struct {
 		APIKey string `json:"api_key" env:"TEST_OAUTH_FB_API_KEY" validate:"required"`
@@ -390,6 +415,9 @@ func TestCheckProviderAuth_OAuthFallback(t *testing.T) {
 	RegisterProvider[struct{}, SimpleAuth]("oauth-fb-provider", func(Config, struct{}, SimpleAuth) (Provider, error) {
 		return &ProviderMock{}, nil
 	})
+
+	// Register as an OAuth provider so the fallback applies.
+	RegisterOAuthProvider(OAuthProvider{ID: "oauth-fb-provider", Name: "OAuth FB"})
 
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
@@ -409,6 +437,7 @@ func TestCheckProviderAuth_OAuthFallback(t *testing.T) {
 
 func TestCheckProviderAuth_OAuthFallback_RefreshTokenOnly(t *testing.T) {
 	ResetProviderRegistry()
+	ResetOAuthRegistry()
 
 	type SimpleAuth struct {
 		APIKey string `json:"api_key" env:"TEST_OAUTH_FB2_API_KEY" validate:"required"`
@@ -417,6 +446,8 @@ func TestCheckProviderAuth_OAuthFallback_RefreshTokenOnly(t *testing.T) {
 	RegisterProvider[struct{}, SimpleAuth]("oauth-fb2-provider", func(Config, struct{}, SimpleAuth) (Provider, error) {
 		return &ProviderMock{}, nil
 	})
+
+	RegisterOAuthProvider(OAuthProvider{ID: "oauth-fb2-provider", Name: "OAuth FB2"})
 
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
@@ -434,6 +465,7 @@ func TestCheckProviderAuth_OAuthFallback_RefreshTokenOnly(t *testing.T) {
 
 func TestCheckProviderAuth_OAuthFallback_NoCredentials(t *testing.T) {
 	ResetProviderRegistry()
+	ResetOAuthRegistry()
 
 	type SimpleAuth struct {
 		APIKey string `json:"api_key" env:"TEST_OAUTH_FB3_API_KEY"`
@@ -442,6 +474,8 @@ func TestCheckProviderAuth_OAuthFallback_NoCredentials(t *testing.T) {
 	RegisterProvider[struct{}, SimpleAuth]("oauth-fb3-provider", func(Config, struct{}, SimpleAuth) (Provider, error) {
 		return &ProviderMock{}, nil
 	})
+
+	RegisterOAuthProvider(OAuthProvider{ID: "oauth-fb3-provider", Name: "OAuth FB3"})
 
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
@@ -459,6 +493,7 @@ func TestCheckProviderAuth_OAuthFallback_NoCredentials(t *testing.T) {
 
 func TestCheckProviderAuth_OAuthFallback_MissingAuthFile(t *testing.T) {
 	ResetProviderRegistry()
+	ResetOAuthRegistry()
 
 	type SimpleAuth struct {
 		APIKey string `json:"api_key" env:"TEST_OAUTH_FB4_API_KEY"`
@@ -468,6 +503,8 @@ func TestCheckProviderAuth_OAuthFallback_MissingAuthFile(t *testing.T) {
 		return &ProviderMock{}, nil
 	})
 
+	RegisterOAuthProvider(OAuthProvider{ID: "oauth-fb4-provider", Name: "OAuth FB4"})
+
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
 
@@ -475,4 +512,160 @@ func TestCheckProviderAuth_OAuthFallback_MissingAuthFile(t *testing.T) {
 	hasAuth, err := CheckProviderAuth("oauth-fb4-provider")
 	require.NoError(t, err)
 	assert.False(t, hasAuth, "Missing auth file should not count as authenticated")
+}
+
+func TestCheckProviderAuth_OAuthFallback_NotOAuthProvider(t *testing.T) {
+	ResetProviderRegistry()
+	ResetOAuthRegistry()
+
+	type SimpleAuth struct {
+		APIKey string `json:"api_key" env:"TEST_OAUTH_FB5_API_KEY"`
+	}
+
+	RegisterProvider[struct{}, SimpleAuth]("non-oauth-provider", func(Config, struct{}, SimpleAuth) (Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	// Do NOT register as an OAuth provider.
+
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".weave"), 0o750))
+
+	// Auth file has OAuth tokens but the provider is not registered as OAuth.
+	authFile := []byte(`{"providers":{"non-oauth-provider":{"access_token":"sk-oauth","refresh_token":"rt-123"}}}`)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".weave", "auth.json"), authFile, 0o600))
+
+	hasAuth, err := CheckProviderAuth("non-oauth-provider")
+	require.NoError(t, err)
+	assert.False(t, hasAuth, "OAuth fallback should not apply to non-OAuth providers")
+}
+
+func TestCheckProviderAuth_OAuthOnlyProvider_APIKeyNotCounted(t *testing.T) {
+	ResetProviderRegistry()
+
+	type OAuthOnlyAuth struct {
+		OAuthToken struct {
+			AccessToken string `json:"access_token"`
+		} `json:"oauth_token"`
+	}
+
+	RegisterProvider[struct{}, OAuthOnlyAuth]("oauth-only-provider", func(Config, struct{}, OAuthOnlyAuth) (Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".weave"), 0o750))
+
+	// Auth file has only an API key (no OAuth token). The provider only
+	// accepts OAuth, so this should NOT count as authenticated.
+	authFile := []byte(`{"providers":{"oauth-only-provider":{"api_key":"sk-only-api-key"}}}`)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".weave", "auth.json"), authFile, 0o600))
+
+	hasAuth, err := CheckProviderAuth("oauth-only-provider")
+	require.NoError(t, err)
+	assert.False(t, hasAuth, "API key alone should not authenticate an OAuth-only provider")
+}
+
+func TestCheckProviderAuth_OAuthCredential_ExpiredNoRefresh(t *testing.T) {
+	ResetProviderRegistry()
+
+	type OAuthAuth struct {
+		OAuthToken auth.OAuthCredential `json:"oauth_token"`
+	}
+
+	RegisterProvider[struct{}, OAuthAuth]("oauth-expired", func(Config, struct{}, OAuthAuth) (Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".weave"), 0o750))
+
+	authFile := []byte(`{"providers":{"oauth-expired":{"access_token":"expired-token","expires_at":"2020-01-01T00:00:00Z"}}}`)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".weave", "auth.json"), authFile, 0o600))
+
+	hasAuth, err := CheckProviderAuth("oauth-expired")
+	require.NoError(t, err)
+	assert.False(t, hasAuth, "expired OAuth token without refresh token should not count as authenticated")
+}
+
+func TestCheckProviderAuth_OAuthCredential_ExpiredWithRefresh(t *testing.T) {
+	ResetProviderRegistry()
+
+	type OAuthAuth struct {
+		OAuthToken auth.OAuthCredential `json:"oauth_token"`
+	}
+
+	RegisterProvider[struct{}, OAuthAuth]("oauth-expired-refresh", func(Config, struct{}, OAuthAuth) (Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".weave"), 0o750))
+
+	authFile := []byte(`{"providers":{"oauth-expired-refresh":{"access_token":"expired-token","refresh_token":"rt-123","expires_at":"2020-01-01T00:00:00Z"}}}`)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".weave", "auth.json"), authFile, 0o600))
+
+	hasAuth, err := CheckProviderAuth("oauth-expired-refresh")
+	require.NoError(t, err)
+	assert.True(t, hasAuth, "expired OAuth token with refresh token should count as authenticated")
+}
+
+func TestCheckProviderAuth_OAuthCredential_ValidNoRefresh(t *testing.T) {
+	ResetProviderRegistry()
+
+	type OAuthAuth struct {
+		OAuthToken auth.OAuthCredential `json:"oauth_token"`
+	}
+
+	RegisterProvider[struct{}, OAuthAuth]("oauth-valid", func(Config, struct{}, OAuthAuth) (Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".weave"), 0o750))
+
+	// Far-future expiry, no refresh token — still usable
+	authFile := []byte(`{"providers":{"oauth-valid":{"access_token":"valid-token","expires_at":"2099-01-01T00:00:00Z"}}}`)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".weave", "auth.json"), authFile, 0o600))
+
+	hasAuth, err := CheckProviderAuth("oauth-valid")
+	require.NoError(t, err)
+	assert.True(t, hasAuth, "non-expired OAuth token without refresh token should count as authenticated")
+}
+
+func TestCheckProviderAuth_OAuthFallback_ExpiredNoRefresh(t *testing.T) {
+	ResetProviderRegistry()
+	ResetOAuthRegistry()
+
+	type SimpleAuth struct {
+		APIKey string `json:"api_key" env:"TEST_OAUTH_FB_EXP_API_KEY" validate:"required"`
+	}
+
+	RegisterProvider[struct{}, SimpleAuth]("oauth-fb-expired", func(Config, struct{}, SimpleAuth) (Provider, error) {
+		return &ProviderMock{}, nil
+	})
+
+	RegisterOAuthProvider(OAuthProvider{ID: "oauth-fb-expired", Name: "OAuth FB Expired"})
+
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".weave"), 0o750))
+
+	authFile := []byte(`{"providers":{"oauth-fb-expired":{"access_token":"expired-token","expires_at":"2020-01-01T00:00:00Z"}}}`)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".weave", "auth.json"), authFile, 0o600))
+
+	hasAuth, err := CheckProviderAuth("oauth-fb-expired")
+	require.NoError(t, err)
+	assert.False(t, hasAuth, "expired OAuth fallback token without refresh token should not count as authenticated")
 }

@@ -301,6 +301,10 @@ func PollDeviceToken(ctx context.Context, tokenURL, clientID, deviceCode string,
 			}
 
 			if !cont {
+				if tokenResp.AccessToken == "" {
+					return TokenResponse{}, errors.New("device code authorization response missing access_token")
+				}
+
 				return tokenResp, nil
 			}
 
@@ -366,25 +370,35 @@ func pollDeviceTokenOnce(ctx context.Context, tokenURL, clientID, deviceCode str
 	return tokenResp, false, nil
 }
 
-// RunAuthorizationCodeFlow executes the full OAuth authorization code flow.
-// It starts a callback server, opens the browser, waits for the callback,
-// exchanges the code for tokens, and returns the credential.
-func RunAuthorizationCodeFlow(ctx context.Context, authURL, tokenURL, clientID, redirectURI string, scopes []string, extraParams map[string]string) (OAuthCredential, error) {
+// AuthorizationFlowHandle holds the state for an in-progress authorization code
+// flow started with StartAuthorizationCodeFlow.
+type AuthorizationFlowHandle struct {
+	cs       *CallbackServer
+	pkce     PKCE
+	state    string
+	tokenURL string
+	clientID string
+}
+
+// StartAuthorizationCodeFlow begins the authorization code flow by generating
+// PKCE parameters, starting a callback server, building the authorization URL,
+// and opening the browser. Returns the full authorization URL to display to the
+// user and a handle to complete the flow.
+func StartAuthorizationCodeFlow(ctx context.Context, authURL, tokenURL, clientID, redirectURI string, scopes []string, extraParams map[string]string) (string, *AuthorizationFlowHandle, error) {
 	pkce, err := GeneratePKCE()
 	if err != nil {
-		return OAuthCredential{}, fmt.Errorf("generate PKCE: %w", err)
+		return "", nil, fmt.Errorf("generate PKCE: %w", err)
 	}
 
 	state, err := GenerateState()
 	if err != nil {
-		return OAuthCredential{}, fmt.Errorf("generate state: %w", err)
+		return "", nil, fmt.Errorf("generate state: %w", err)
 	}
 
 	cs, err := StartCallbackServer(ctx, redirectURI)
 	if err != nil {
-		return OAuthCredential{}, fmt.Errorf("start callback server: %w", err)
+		return "", nil, fmt.Errorf("start callback server: %w", err)
 	}
-	defer cs.shutdown()
 
 	resolvedRedirect := cs.RedirectURI()
 	authCodeURL := AuthorizationCodeURL(authURL, clientID, resolvedRedirect, state, pkce, scopes, extraParams)
@@ -396,10 +410,25 @@ func RunAuthorizationCodeFlow(ctx context.Context, authURL, tokenURL, clientID, 
 		slog.Warn("failed to open browser, please navigate manually", "url", authCodeURL, "error", openErr)
 	}
 
+	return authCodeURL, &AuthorizationFlowHandle{
+		cs:       cs,
+		pkce:     pkce,
+		state:    state,
+		tokenURL: tokenURL,
+		clientID: clientID,
+	}, nil
+}
+
+// CompleteAuthorizationCodeFlow finishes an authorization code flow that was
+// started with StartAuthorizationCodeFlow. It waits for the callback, verifies
+// state, exchanges the code for tokens, and returns the credential.
+func CompleteAuthorizationCodeFlow(ctx context.Context, handle *AuthorizationFlowHandle) (OAuthCredential, error) {
+	defer handle.cs.shutdown()
+
 	// Wait for callback result
 	var result CallbackResult
 	select {
-	case result = <-cs.Result():
+	case result = <-handle.cs.Result():
 		if result.Error != nil {
 			return OAuthCredential{}, result.Error
 		}
@@ -408,13 +437,19 @@ func RunAuthorizationCodeFlow(ctx context.Context, authURL, tokenURL, clientID, 
 	}
 
 	// Verify state matches
-	if result.State != state {
+	if result.State != handle.state {
 		return OAuthCredential{}, errors.New("oauth state mismatch")
 	}
 
-	tokenResp, err := ExchangeAuthorizationCode(ctx, tokenURL, clientID, result.Code, resolvedRedirect, pkce)
+	resolvedRedirect := handle.cs.RedirectURI()
+
+	tokenResp, err := ExchangeAuthorizationCode(ctx, handle.tokenURL, handle.clientID, result.Code, resolvedRedirect, handle.pkce)
 	if err != nil {
 		return OAuthCredential{}, fmt.Errorf("exchange code: %w", err)
+	}
+
+	if tokenResp.AccessToken == "" {
+		return OAuthCredential{}, errors.New("token exchange response missing access_token")
 	}
 
 	cred := OAuthCredential{
@@ -428,4 +463,16 @@ func RunAuthorizationCodeFlow(ctx context.Context, authURL, tokenURL, clientID, 
 	}
 
 	return cred, nil
+}
+
+// RunAuthorizationCodeFlow executes the full OAuth authorization code flow.
+// It starts a callback server, opens the browser, waits for the callback,
+// exchanges the code for tokens, and returns the credential.
+func RunAuthorizationCodeFlow(ctx context.Context, authURL, tokenURL, clientID, redirectURI string, scopes []string, extraParams map[string]string) (OAuthCredential, error) {
+	_, handle, err := StartAuthorizationCodeFlow(ctx, authURL, tokenURL, clientID, redirectURI, scopes, extraParams)
+	if err != nil {
+		return OAuthCredential{}, err
+	}
+
+	return CompleteAuthorizationCodeFlow(ctx, handle)
 }

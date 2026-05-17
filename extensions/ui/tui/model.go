@@ -115,6 +115,7 @@ type Model struct {
 
 	// oauthCancel cancels an in-flight OAuth flow when the user force-dismisses
 	// the login dialog. Nil when no OAuth flow is active.
+	oauthCtx    context.Context
 	oauthCancel context.CancelFunc
 
 	// oauthGen increments on each new OAuth flow start. Used to reject stale
@@ -261,7 +262,7 @@ func newModelWithConfig(bus sdk.Bus, cfg sdk.Config, ps sdk.PreferenceStore, ui 
 		focus:            FocusEditor,
 	}
 	m.footer = m.footer.SetModel(cur.Model, cur.Provider)
-	m.footer = m.footer.SetReasoning(modelReasoning(cur.Model))
+	m.footer = m.footer.SetReasoning(modelReasoning(cur))
 	m.footer = m.footer.SetThinkingLevel(string(m.thinkingLevel))
 	m.editor = m.editor.SetBorderColor(palette.ThinkingBorderColor(m.thinkingLevel))
 
@@ -344,6 +345,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Keep panel tray in sync with panel manager state
 	m.syncPanelTray()
 
+	// Login flow authorization URL must be handled even when the login dialog is open.
+	if authURLMsg, ok := msg.(LoginAuthURLMsg); ok {
+		if m.oauthCancel == nil || authURLMsg.Gen != m.oauthGen {
+			return m, nil
+		}
+
+		if top := m.dialogStack.Peek(); top != nil && top.ID() == dialogLoginOAuth {
+			if dlg, ok := top.(*overlays.LoginDialog); ok {
+				dlg.SetAuthURL(authURLMsg.URL)
+			}
+		}
+
+		return m, completeOAuthFlowCmd(m.oauthCtx, authURLMsg.Handle, authURLMsg.Provider, authURLMsg.Gen)
+	}
+
 	// Login flow completion must be handled even when the login dialog is open.
 	if loginResult, ok := msg.(LoginFlowResultMsg); ok {
 		if m.oauthCancel == nil || loginResult.Gen != m.oauthGen {
@@ -353,6 +369,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		m.oauthCancel = nil
+		m.oauthCtx = nil
 
 		if top := m.dialogStack.Peek(); top != nil && top.ID() == dialogLoginOAuth {
 			m.dialogStack, _ = m.dialogStack.Pop()
@@ -1886,11 +1903,11 @@ func (m Model) onModelChanged(msg ModelChangedMsg) (tea.Model, tea.Cmd) {
 	m.prevThinkingLevel = m.thinkingLevel
 	m.currentModel = msg.Entry
 	m.footer = m.footer.SetModel(msg.Entry.Model, msg.Entry.Provider)
-	m.footer = m.footer.SetReasoning(modelReasoning(msg.Entry.Model))
+	m.footer = m.footer.SetReasoning(modelReasoning(msg.Entry))
 
 	thinkingChanged := false
 
-	if modelDef, ok := sdkmodel.GetModel(msg.Entry.Model); ok {
+	if modelDef, ok := sdkmodel.GetModelForProvider(msg.Entry.Model, msg.Entry.Provider); ok {
 		if !modelDef.Reasoning {
 			thinkingChanged = m.thinkingLevel != sdkmodel.ThinkingOff
 			m.thinkingLevel = sdkmodel.ThinkingOff
@@ -1931,7 +1948,7 @@ func (m Model) onModelChanged(msg ModelChangedMsg) (tea.Model, tea.Cmd) {
 func (m Model) onModelChangeFailed(msg ModelChangeFailedMsg) (tea.Model, tea.Cmd) {
 	m.currentModel = m.prevModel
 	m.footer = m.footer.SetModel(m.prevModel.Model, m.prevModel.Provider)
-	m.footer = m.footer.SetReasoning(modelReasoning(m.prevModel.Model))
+	m.footer = m.footer.SetReasoning(modelReasoning(m.prevModel))
 
 	m.thinkingLevel = m.prevThinkingLevel
 	m.footer = m.footer.SetThinkingLevel(string(m.thinkingLevel))
@@ -2094,6 +2111,19 @@ func (m Model) onKeyInputDialogDone(result overlays.DialogResult, pendingCmd tea
 		return m, pendingCmd
 	}
 
+	// Verify the saved key is actually usable by this provider.
+	// OAuth-only providers (e.g. Codex) do not accept API keys and will
+	// reject them; routing the user to /login instead.
+	if sdk.ProviderRegistered(providerName) {
+		hasAuth, checkErr := sdk.CheckProviderAuth(providerName)
+		if checkErr != nil || !hasAuth {
+			am.Finalize(fmt.Sprintf("API key not recognized for %s. This provider requires OAuth login via /login.", providerName))
+			m.chat = m.chat.AddItem(am)
+
+			return m, pendingCmd
+		}
+	}
+
 	am.Finalize(fmt.Sprintf("API key saved for %s.", providerName))
 	m.chat = m.chat.AddItem(am)
 
@@ -2108,7 +2138,7 @@ func (m Model) onKeyInputDialogDone(result overlays.DialogResult, pendingCmd tea
 			cur := currentModel(models, m.ps)
 			m.currentModel = cur
 			m.footer = m.footer.SetModel(cur.Model, cur.Provider)
-			m.footer = m.footer.SetReasoning(modelReasoning(cur.Model))
+			m.footer = m.footer.SetReasoning(modelReasoning(cur))
 		}
 	}
 
@@ -2167,6 +2197,7 @@ func (m Model) startOAuthLogin(selected LoginProviderEntry, pendingCmd tea.Cmd) 
 	// dialog can stop the background callback server / polling.
 	m.oauthGen++
 	ctx, cancel := context.WithCancel(context.Background())
+	m.oauthCtx = ctx
 	m.oauthCancel = cancel
 
 	if oauthProvider.FlowType == sdk.DeviceCode {
@@ -2251,7 +2282,7 @@ func (m Model) onLogoutDialogDone(result overlays.DialogResult, pendingCmd tea.C
 		cur := currentModel(models, m.ps)
 		m.currentModel = cur
 		m.footer = m.footer.SetModel(cur.Model, cur.Provider)
-		m.footer = m.footer.SetReasoning(modelReasoning(cur.Model))
+		m.footer = m.footer.SetReasoning(modelReasoning(cur))
 	}
 
 	if m.bus != nil && !m.noConfigured && m.currentModel != oldModel {
@@ -2285,6 +2316,7 @@ func (m Model) handleDialogDone(d overlays.Dialog, pendingCmd tea.Cmd) (tea.Mode
 		if m.oauthCancel != nil {
 			m.oauthCancel()
 			m.oauthCancel = nil
+			m.oauthCtx = nil
 		}
 
 		return m, pendingCmd
@@ -2332,6 +2364,7 @@ func (m Model) handleDialogForceCancel(d overlays.Dialog) (tea.Model, tea.Cmd) {
 		if m.oauthCancel != nil {
 			m.oauthCancel()
 			m.oauthCancel = nil
+			m.oauthCtx = nil
 		}
 	default:
 		// Popup dialog cancellation.
@@ -2535,7 +2568,7 @@ func parseToolEntry(raw json.RawMessage) (id, name, content string, isError bool
 // levels that would clamp to the same effective value as the current one.
 func (m Model) cycleThinkingLevel() (tea.Model, tea.Cmd) {
 	cur := m.thinkingLevel
-	if modelDef, ok := sdkmodel.GetModel(m.currentModel.Model); ok && modelDef.Reasoning {
+	if modelDef, ok := sdkmodel.GetModelForProvider(m.currentModel.Model, m.currentModel.Provider); ok && modelDef.Reasoning {
 		cur = sdkmodel.ClampForModel(cur, modelDef)
 	}
 
@@ -2549,7 +2582,7 @@ func (m Model) cycleThinkingLevel() (tea.Model, tea.Cmd) {
 
 			var effective sdkmodel.ThinkingLevel
 
-			if modelDef, ok := sdkmodel.GetModel(m.currentModel.Model); ok {
+			if modelDef, ok := sdkmodel.GetModelForProvider(m.currentModel.Model, m.currentModel.Provider); ok {
 				if modelDef.Reasoning {
 					effective = sdkmodel.ClampForModel(candidate, modelDef)
 				} else {
@@ -2574,7 +2607,7 @@ func (m Model) cycleThinkingLevel() (tea.Model, tea.Cmd) {
 // It clamps xhigh for models that don't support it, updates UI elements,
 // shows a status message, and publishes the bus event.
 func (m Model) applyThinkingLevel(level sdkmodel.ThinkingLevel) (tea.Model, tea.Cmd) {
-	if modelDef, ok := sdkmodel.GetModel(m.currentModel.Model); ok {
+	if modelDef, ok := sdkmodel.GetModelForProvider(m.currentModel.Model, m.currentModel.Provider); ok {
 		if !modelDef.Reasoning {
 			level = sdkmodel.ThinkingOff
 		} else {

@@ -132,6 +132,16 @@ func (a *File) GetOAuthCredential(providerName string) OAuthCredential {
 		return OAuthCredential{}
 	}
 
+	// If flat fields are empty, try nested oauth_token format.
+	if cred.AccessToken == "" && cred.RefreshToken == "" {
+		var nested struct {
+			OAuthToken OAuthCredential `json:"oauth_token"`
+		}
+		if err := json.Unmarshal(raw, &nested); err == nil {
+			cred = nested.OAuthToken
+		}
+	}
+
 	return cred
 }
 

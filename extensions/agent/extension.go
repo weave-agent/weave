@@ -56,8 +56,12 @@ func NewAgentExtension(cfg sdk.Config, ps sdk.PreferenceStore, cc CompactionConf
 
 	modelName := resolveModelName(ps)
 	if modelName != "" {
-		if m, ok := model.GetModel(modelName); ok && m.Provider != provider {
-			modelName = ""
+		if _, ok := model.GetModelForProvider(modelName, provider); !ok {
+			// Not found for this provider. If it exists for any other provider,
+			// clear it. If it's unregistered (custom model), keep it.
+			if _, exists := model.GetModel(modelName); exists {
+				modelName = ""
+			}
 		}
 	}
 

@@ -57,8 +57,11 @@ func (a *AgentExtension) run(
 	// Wait for the first prompt before instantiating the provider.
 	// This gives the TUI time to show "No providers configured" and let the
 	// user set an API key via /providers before we try to connect.
-	// Also drain model/thinking changes from the TUI's Init() so the
-	// initial provider matches what the user sees.
+	//
+	// Model and thinking changes that arrive before the prompt are left in
+	// their channels so that drainChanges (called after the prompt) can
+	// process them through applyModelChange, which properly resolves ambiguous
+	// model names to providers.
 	//
 	// Session resume is checked first (non-blocking, then blocking) to avoid
 	// losing resume events when a prompt arrives concurrently.
@@ -139,26 +142,6 @@ func (a *AgentExtension) run(
 
 			messages = append(messages, sdk.NewUserMessage(evt.Payload))
 			a.resumed = false
-		case evt := <-modelChangeCh:
-			if m, ok := evt.Payload.(map[string]string); ok {
-				if p := m["provider"]; p != "" {
-					a.providerName = p
-				}
-
-				if modelName := m["model"]; modelName != "" {
-					a.modelName = modelName
-				}
-			}
-
-			continue
-		case evt := <-thinkingCh:
-			if m, ok := evt.Payload.(map[string]string); ok {
-				if lvl, err := model.ParseThinkingLevel(m["level"]); err == nil {
-					a.thinkingLevel = lvl
-				}
-			}
-
-			continue
 		case <-ctx.Done():
 			return
 		}
@@ -207,14 +190,16 @@ func (a *AgentExtension) run(
 
 				provider, err = sdk.GetProvider(a.providerName, a.cfg)
 				if err != nil {
-					msg := err.Error()
+					msg := a.providerInitErrorMsg(err)
 
-					if !anyProviderHasKey() {
-						msg = "No providers configured. Set an API key via /providers or the environment variable."
-					}
-
-					bus.Publish(sdk.NewEvent(TopicEnd, msg))
+					bus.Publish(sdk.NewEvent(TopicMsgStart, nil))
+					bus.Publish(sdk.NewEvent(TopicMsgUpdate, msg))
+					bus.Publish(sdk.NewEvent(TopicMsgEnd, map[string]any{"content": msg}))
 					bus.Publish(sdk.NewEvent(TopicTurnEnd, nil))
+
+					if a.singleTurn {
+						endPayload = msg
+					}
 
 					break
 				}
@@ -539,6 +524,29 @@ func drainInterrupts(ch <-chan sdk.Event) {
 	}
 }
 
+// resolveProviderForModel finds a provider that supports the given model when
+// the current provider does not. Returns the new provider, its name, and true
+// on success.
+func (a *AgentExtension) resolveProviderForModel(modelName string) (sdk.Provider, string, bool) {
+	if a.providerName == "" {
+		return nil, "", false
+	}
+
+	if _, ok := model.GetModelForProvider(modelName, a.providerName); ok {
+		return nil, "", false
+	}
+
+	for _, p := range sdk.ListProviders() {
+		if _, ok := model.GetModelForProvider(modelName, p); ok {
+			if newProv, err := sdk.GetProvider(p, a.cfg); err == nil {
+				return newProv, p, true
+			}
+		}
+	}
+
+	return nil, "", false
+}
+
 func (a *AgentExtension) applyModelChange(evt sdk.Event, bus sdk.Bus, currentProv sdk.Provider) sdk.Provider {
 	m, ok := evt.Payload.(map[string]string)
 	if !ok {
@@ -564,9 +572,49 @@ func (a *AgentExtension) applyModelChange(evt sdk.Event, bus sdk.Bus, currentPro
 	}
 
 	if modelName != "" {
-		a.modelName = modelName
+		currentProv = a.trySetModel(modelName, provider, currentProv)
 	}
 
+	return currentProv
+}
+
+// trySetModel updates a.modelName and optionally switches provider when the
+// model name changes. It only applies the change when the current provider
+// supports the model or a usable alternative provider can be found.
+func (a *AgentExtension) trySetModel(modelName, explicitProvider string, currentProv sdk.Provider) sdk.Provider {
+	if explicitProvider != "" {
+		// Explicit provider was given and successfully switched above.
+		a.modelName = modelName
+
+		return currentProv
+	}
+
+	// No provider given — verify the model is supported before applying.
+	if a.providerName == "" {
+		// No current provider yet — accept the model name; provider
+		// will be resolved later before the first turn.
+		a.modelName = modelName
+
+		return currentProv
+	}
+
+	if _, ok := model.GetModelForProvider(modelName, a.providerName); ok {
+		// Current provider already supports this model.
+		a.modelName = modelName
+
+		return currentProv
+	}
+
+	if newProv, p, ok := a.resolveProviderForModel(modelName); ok {
+		// Found another provider that supports this model.
+		a.providerName = p
+		a.modelName = modelName
+
+		return newProv
+	}
+
+	// If no provider supports this model, keep the previous model name
+	// to avoid sending an invalid model to the current provider.
 	return currentProv
 }
 
@@ -608,7 +656,7 @@ func (a *AgentExtension) streamOpts() []model.StreamOption {
 	level := a.thinkingLevel
 
 	if level != model.ThinkingOff && a.modelName != "" {
-		if modelDef, ok := model.GetModel(a.modelName); ok {
+		if modelDef, ok := model.GetModelForProvider(a.modelName, a.providerName); ok {
 			if !modelDef.Reasoning {
 				level = model.ThinkingOff
 			} else {
@@ -757,6 +805,16 @@ func collectToolDefs(cfg sdk.Config) []sdk.ToolDef {
 	}
 
 	return defs
+}
+
+// providerInitErrorMsg returns a user-friendly error message when provider
+// instantiation fails, with a specific message when no providers are configured.
+func (a *AgentExtension) providerInitErrorMsg(err error) string {
+	if !anyProviderHasKey() {
+		return "No providers configured. Set an API key via /providers or the environment variable."
+	}
+
+	return err.Error()
 }
 
 // anyProviderHasKey returns true if at least one registered provider has

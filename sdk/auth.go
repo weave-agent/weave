@@ -55,6 +55,36 @@ func RunAuthorizationCodeFlow(ctx context.Context, authURL, tokenURL, clientID, 
 	return cred, nil
 }
 
+// AuthorizationFlowHandle is an opaque handle for an in-flight authorization
+// code flow. It is returned by StartAuthorizationCodeFlow and must be passed
+// to CompleteAuthorizationCodeFlow to finish the flow.
+type AuthorizationFlowHandle = auth.AuthorizationFlowHandle
+
+// StartAuthorizationCodeFlow begins the authorization code flow by generating
+// PKCE parameters, starting a callback server, building the authorization URL,
+// and opening the browser. Returns the full authorization URL and a handle to
+// complete the flow.
+func StartAuthorizationCodeFlow(ctx context.Context, authURL, tokenURL, clientID, redirectURI string, scopes []string, extraParams map[string]string) (string, *AuthorizationFlowHandle, error) {
+	url, handle, err := auth.StartAuthorizationCodeFlow(ctx, authURL, tokenURL, clientID, redirectURI, scopes, extraParams)
+	if err != nil {
+		return "", nil, fmt.Errorf("start authorization code flow: %w", err)
+	}
+
+	return url, handle, nil
+}
+
+// CompleteAuthorizationCodeFlow finishes an authorization code flow that was
+// started with StartAuthorizationCodeFlow. It waits for the callback, verifies
+// state, exchanges the code for tokens, and returns the credential.
+func CompleteAuthorizationCodeFlow(ctx context.Context, handle *AuthorizationFlowHandle) (OAuthCredential, error) {
+	cred, err := auth.CompleteAuthorizationCodeFlow(ctx, handle)
+	if err != nil {
+		return OAuthCredential{}, fmt.Errorf("complete authorization code flow: %w", err)
+	}
+
+	return cred, nil
+}
+
 // RequestDeviceCode requests a device code from the device authorization
 // endpoint (RFC 8628).
 func RequestDeviceCode(ctx context.Context, deviceCodeURL, clientID string, scopes []string) (DeviceCodeResponse, error) {
