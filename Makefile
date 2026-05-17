@@ -1,7 +1,3 @@
-GO_FILES ?= ./bus/... ./cmd/... ./settings/... ./internal/... ./sdk/...
-GOLANGCI_LINT ?= golangci-lint
-EXT_DIRS := $(sort $(dir $(shell find extensions -name go.mod 2>/dev/null)))
-
 .DEFAULT_GOAL := help
 .PHONY: help tools gen fmt lint tidy fix test bench
 
@@ -20,57 +16,29 @@ gen: ## Regenerate mocks, generated code
 	find . -name "*_mock.go" -delete
 	@echo "Regenerating code..."
 	go generate ./...
-	@for dir in $(EXT_DIRS); do \
-		echo "generate $$dir"; \
-		(cd $$dir && go generate ./...) || exit 1; \
-	done
 
 ##@ Formatting
 fmt: ## Format code (gofumpt, goimports, go fix)
-	@echo "Running golangci-lint formatters (gofumpt, goimports, swaggo)..."
-	$(GOLANGCI_LINT) fmt --config .golangci.yml ./...
-	@for dir in $(EXT_DIRS); do \
-		(cd $$dir && $(GOLANGCI_LINT) fmt --config $(CURDIR)/.golangci.yml ./...) || exit 1; \
-	done
+	@echo "Running golangci-lint formatters (gofumpt, goimports)..."
+	golangci-lint fmt --config .golangci.yml ./...
 	@echo "Running modernize..."
 	go fix ./...
 
 ##@ Linting
 lint: ## Run golangci-lint
-	@echo "lint via golangci-lint"
-	$(GOLANGCI_LINT) run \
-		--config .golangci.yml \
-		$(GO_FILES)
-	@for dir in $(EXT_DIRS); do \
-		echo "lint $$dir"; \
-		(cd $$dir && $(GOLANGCI_LINT) run --config $(CURDIR)/.golangci.yml ./...) || exit 1; \
-	done
+	golangci-lint run --config .golangci.yml ./...
 
 ##@ Dependencies
-tidy: ## Run go mod tidy in root and all extension modules
-	@echo "Running go mod tidy..."
+tidy: ## Run go mod tidy
 	go mod tidy
-	@for dir in $(EXT_DIRS); do \
-		echo "tidy $$dir"; \
-		(cd $$dir && go mod tidy) || exit 1; \
-	done
 
 ##@ Fix (format + auto-fix linter issues)
 fix: ## Auto-fix linter issues
-	@echo "Running golangci-lint with --fix..."
-	$(GOLANGCI_LINT) run --fix --config .golangci.yml $(GO_FILES)
-	@for dir in $(EXT_DIRS); do \
-		echo "fix $$dir"; \
-		(cd $$dir && $(GOLANGCI_LINT) run --fix --config $(CURDIR)/.golangci.yml ./...) || exit 1; \
-	done
+	golangci-lint run --fix --config .golangci.yml ./...
 
 ##@ Testing
-test: ## Run all tests (root + extension modules)
+test: ## Run all tests
 	go test ./...
-	@for dir in $(EXT_DIRS); do \
-		echo "test $$dir"; \
-		(cd $$dir && go test ./...) || exit 1; \
-	done
 
 ##@ Benchmarking
 bench: ## Run build benchmarks (cold/warm/partial, with and without TUI)

@@ -26,6 +26,7 @@ func TestMain(m *testing.M) {
 		MaxDelay:   10 * time.Millisecond,
 		Multiplier: 2,
 	}
+
 	os.Exit(m.Run())
 }
 
@@ -869,6 +870,7 @@ func TestStream_RetryOn429(t *testing.T) {
 		if attemptCount < 3 {
 			w.WriteHeader(http.StatusTooManyRequests)
 			_, _ = fmt.Fprint(w, `{"error":{"message":"Rate limit exceeded","type":"rate_limit_error"}}`)
+
 			return
 		}
 

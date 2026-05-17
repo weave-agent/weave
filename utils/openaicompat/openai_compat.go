@@ -29,6 +29,9 @@ const (
 	ErrorTypeClient    ErrorType = "client"
 	ErrorTypeTransport ErrorType = "transport"
 	ErrorTypeParse     ErrorType = "parse"
+
+	roleAssistant = "assistant"
+	roleFunction  = "function"
 )
 
 // Error represents a structured error from the OpenAI-compatible API.
@@ -268,7 +271,7 @@ func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sd
 // doStreamRequest sends an HTTP request and returns the response body for streaming.
 // It closes the body on non-OK statuses and returns an error.
 func doStreamRequest(client *http.Client, req *http.Request) (io.ReadCloser, error) {
-	resp, err := client.Do(req) //nolint:gosec // G704: URL is constructed from config, not user input
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, &Error{Type: ErrorTypeTransport, Message: err.Error()}
 	}
@@ -310,15 +313,16 @@ func doStreamRequestWithRetry(ctx context.Context, client *http.Client, req *htt
 
 	err := retry.Do(ctx, retryConfig, isRetriableError, func() error {
 		if respBody != nil {
-			respBody.Close()
+			_ = respBody.Close()
 			respBody = nil
 		}
 
 		if req.GetBody != nil {
 			var bodyErr error
+
 			req.Body, bodyErr = req.GetBody()
 			if bodyErr != nil {
-				return bodyErr
+				return fmt.Errorf("get request body for retry: %w", bodyErr)
 			}
 		}
 
@@ -328,10 +332,14 @@ func doStreamRequestWithRetry(ctx context.Context, client *http.Client, req *htt
 		}
 
 		respBody = body
+
 		return nil
 	})
+	if err != nil {
+		return nil, fmt.Errorf("stream request after retry: %w", err)
+	}
 
-	return respBody, err
+	return respBody, nil
 }
 
 func isRetriableError(err error) bool {
@@ -485,49 +493,8 @@ func parseSSE(ctx context.Context, reader io.Reader, ch chan<- sdk.ProviderEvent
 			return
 		}
 
-		// Emit usage event from chunks that carry usage data (typically the final chunk).
-		if chunk.Usage != nil && (chunk.Usage.InputTokens > 0 || chunk.Usage.OutputTokens > 0) {
-			send(sdk.ProviderEvent{
-				Type: sdk.ProviderEventUsage,
-				Content: sdk.ProviderUsage{
-					InputTokens:  chunk.Usage.InputTokens,
-					OutputTokens: chunk.Usage.OutputTokens,
-				},
-			})
-		}
-
-		for _, choice := range chunk.Choices {
-			if choice.Delta.Content != "" {
-				if !send(sdk.ProviderEvent{
-					Type:    sdk.ProviderEventTextDelta,
-					Content: choice.Delta.Content,
-				}) {
-					return
-				}
-			}
-
-			reasoning := choice.Delta.ReasoningContent
-			if reasoning == "" {
-				reasoning = choice.Delta.Reasoning
-			}
-
-			if reasoning != "" {
-				if !send(sdk.ProviderEvent{
-					Type:    sdk.ProviderEventThinking,
-					Content: reasoning,
-				}) {
-					return
-				}
-			}
-
-			for _, tc := range choice.Delta.ToolCalls {
-				accumulateToolCall(toolCalls, tc)
-			}
-
-			if choice.FinishReason != nil && *choice.FinishReason == "tool_calls" {
-				emitToolCalls(toolCalls, send)
-				toolCalls = make(map[int]*toolCallAccum)
-			}
+		if !processChunk(chunk, toolCalls, send) {
+			return
 		}
 	}
 
@@ -545,6 +512,58 @@ func parseSSE(ctx context.Context, reader io.Reader, ch chan<- sdk.ProviderEvent
 	emitToolCalls(toolCalls, send)
 }
 
+// processChunk handles a single SSE chunk. Returns false if the consumer stopped listening.
+func processChunk(chunk StreamChunk, toolCalls map[int]*toolCallAccum, send func(sdk.ProviderEvent) bool) bool {
+	if chunk.Usage != nil && (chunk.Usage.InputTokens > 0 || chunk.Usage.OutputTokens > 0) {
+		send(sdk.ProviderEvent{
+			Type: sdk.ProviderEventUsage,
+			Content: sdk.ProviderUsage{
+				InputTokens:  chunk.Usage.InputTokens,
+				OutputTokens: chunk.Usage.OutputTokens,
+			},
+		})
+	}
+
+	for _, choice := range chunk.Choices {
+		if choice.Delta.Content != "" {
+			if !send(sdk.ProviderEvent{
+				Type:    sdk.ProviderEventTextDelta,
+				Content: choice.Delta.Content,
+			}) {
+				return false
+			}
+		}
+
+		reasoning := choice.Delta.ReasoningContent
+		if reasoning == "" {
+			reasoning = choice.Delta.Reasoning
+		}
+
+		if reasoning != "" {
+			if !send(sdk.ProviderEvent{
+				Type:    sdk.ProviderEventThinking,
+				Content: reasoning,
+			}) {
+				return false
+			}
+		}
+
+		for _, tc := range choice.Delta.ToolCalls {
+			accumulateToolCall(toolCalls, tc)
+		}
+
+		if choice.FinishReason != nil && *choice.FinishReason == "tool_calls" {
+			emitToolCalls(toolCalls, send)
+
+			for k := range toolCalls {
+				delete(toolCalls, k)
+			}
+		}
+	}
+
+	return true
+}
+
 // ConvertMessages converts SDK messages to OpenAI chat format.
 func ConvertMessages(msgs []sdk.Message) []ChatMessage {
 	var result []ChatMessage
@@ -557,7 +576,7 @@ func ConvertMessages(msgs []sdk.Message) []ChatMessage {
 				Content: fmt.Sprint(msg.Content),
 			})
 		case sdk.RoleAssistant:
-			cm := ChatMessage{Role: "assistant"}
+			cm := ChatMessage{Role: roleAssistant}
 			if text, ok := msg.Content.(string); ok && text != "" {
 				cm.Content = text
 			}
@@ -568,7 +587,7 @@ func ConvertMessages(msgs []sdk.Message) []ChatMessage {
 				var st StreamTool
 
 				st.ID = tc.ID
-				st.Type = "function"
+				st.Type = roleFunction
 				st.Function.Name = tc.Name
 				st.Function.Arguments = string(argsJSON)
 				cm.ToolCalls = append(cm.ToolCalls, st)
@@ -602,7 +621,7 @@ func ConvertTools(tools []sdk.ToolDef) []Tool {
 		}
 
 		result[i] = Tool{
-			Type: "function",
+			Type: roleFunction,
 			Function: Function{
 				Name:        t.Name,
 				Description: t.Description,
