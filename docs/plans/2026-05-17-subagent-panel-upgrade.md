@@ -58,12 +58,12 @@ Upgrade the subagent UI panel from a minimal status indicator to an informative,
 - [x] run tests - must pass before task 2
 
 ### Task 2: Add per-agent cancellation to backgroundManager
-- [ ] add `cancel context.CancelFunc` field to `backgroundAgent` in `extensions/tools/subagent/background.go`
-- [ ] create per-agent context via `context.WithCancel(bm.ctx)` in `spawn()`, store cancel func on `backgroundAgent`
-- [ ] add `cancelAgent(id string) error` method to `backgroundManager` that calls `ba.cancel()` for running agents
-- [ ] update `spawn()` to pass per-agent context to `runSubagent` instead of `bm.ctx`
-- [ ] write tests for cancel propagation: single agent cancel, manager shutdown cancels all agents, cancel of already-completed agent returns error
-- [ ] run tests - must pass before task 3
+- [x] add `cancel context.CancelFunc` field to `backgroundAgent` in `extensions/tools/subagent/background.go`
+- [x] create per-agent context via `context.WithCancel(bm.ctx)` in `spawn()`, store cancel func on `backgroundAgent`
+- [x] add `cancelAgent(id string) error` method to `backgroundManager` that calls `ba.cancel()` for running agents
+- [x] update `spawn()` to pass per-agent context to `runSubagent` instead of `bm.ctx`
+- [x] write tests for cancel propagation: single agent cancel, manager shutdown cancels all agents, cancel of already-completed agent returns error
+- [x] run tests - must pass before task 3
 
 ### Task 3: Plumb onEvent callback through stdout parsers
 - [ ] add `onEvent func(jsonEvent)` parameter to `parseJSONLines` in `extensions/tools/subagent/execute.go`, call it for each parsed JSON line

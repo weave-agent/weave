@@ -646,3 +646,187 @@ func TestBackgroundManager_Spawn_IDCollision(t *testing.T) {
 	// Both agents should be tracked.
 	assert.Len(t, bus.getEvents(), 2)
 }
+
+func TestCancelAgent_SingleCancellation(t *testing.T) {
+	original := testRunSubagent
+
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+		<-ctx.Done()
+		return "", ctx.Err()
+	}
+
+	mgr := newBackgroundManager(nil, "", "")
+	bus := &testBus{}
+	mgr.setBus(bus)
+
+	t.Cleanup(func() {
+		mgr.cancel()
+		testRunSubagent = original
+	})
+
+	id, err := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	require.NoError(t, err)
+
+	// Verify agent is running.
+	ba, ok := mgr.get(id)
+	require.True(t, ok)
+	assert.Equal(t, statusRunning, ba.Status)
+
+	// Cancel the agent.
+	err = mgr.cancelAgent(id)
+	require.NoError(t, err)
+
+	// Wait for the goroutine to finish.
+	snap, ok := mgr.getSnapshot(id)
+	require.True(t, ok)
+	<-snap.done
+
+	// Re-fetch to get final status.
+	ba, ok = mgr.get(id)
+	require.True(t, ok)
+	assert.Equal(t, statusCancelled, ba.Status)
+
+	// Verify bus events: started + done with cancelled status.
+	events := bus.getEvents()
+	require.Len(t, events, 2)
+	assert.Equal(t, "subagent.started", events[0].Topic)
+	assert.Equal(t, "subagent.done", events[1].Topic)
+
+	donePayload, ok := events[1].Payload.(map[string]string)
+	require.True(t, ok)
+	assert.Equal(t, statusCancelled, donePayload["status"])
+}
+
+func TestCancelAgent_ManagerShutdownCancelsAll(t *testing.T) {
+	original := testRunSubagent
+
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+		<-ctx.Done()
+		return "", ctx.Err()
+	}
+
+	mgr := newBackgroundManager(nil, "", "")
+
+	t.Cleanup(func() {
+		testRunSubagent = original
+	})
+
+	id1, err := mgr.spawn(&AgentDef{Name: "test"}, "prompt1", "", "")
+	require.NoError(t, err)
+	id2, err := mgr.spawn(&AgentDef{Name: "test"}, "prompt2", "", "")
+	require.NoError(t, err)
+
+	// Cancel the manager (shuts down all agents).
+	mgr.cancel()
+
+	// Wait for both agents to finish.
+	for _, id := range []string{id1, id2} {
+		snap, ok := mgr.getSnapshot(id)
+		require.True(t, ok)
+		<-snap.done
+
+		ba, ok := mgr.get(id)
+		require.True(t, ok)
+		assert.Equal(t, statusCancelled, ba.Status)
+	}
+}
+
+func TestCancelAgent_NotFound(t *testing.T) {
+	mgr := newBackgroundManager(nil, "", "")
+	mgr.cancel()
+
+	err := mgr.cancelAgent("nonexistent")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestCancelAgent_AlreadyCompleted(t *testing.T) {
+	original := testRunSubagent
+
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+		return "done", nil
+	}
+
+	mgr := newBackgroundManager(nil, "", "")
+
+	t.Cleanup(func() {
+		mgr.cancel()
+		testRunSubagent = original
+	})
+
+	id, err := mgr.spawn(&AgentDef{Name: "test"}, "prompt", "", "")
+	require.NoError(t, err)
+
+	// Wait for completion.
+	time.Sleep(50 * time.Millisecond)
+
+	// Try to cancel the already-completed agent.
+	err = mgr.cancelAgent(id)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not running")
+}
+
+func TestCancelAgent_PerAgentContext(t *testing.T) {
+	original := testRunSubagent
+
+	var agent1Ctx context.Context
+	var agent2Ctx context.Context
+
+	testRunSubagent = func(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+		if prompt == "agent1" {
+			agent1Ctx = ctx
+		} else {
+			agent2Ctx = ctx
+		}
+		<-ctx.Done()
+		return "", ctx.Err()
+	}
+
+	mgr := newBackgroundManager(nil, "", "")
+
+	t.Cleanup(func() {
+		mgr.cancel()
+		testRunSubagent = original
+	})
+
+	id1, err := mgr.spawn(&AgentDef{Name: "test"}, "agent1", "", "")
+	require.NoError(t, err)
+	id2, err := mgr.spawn(&AgentDef{Name: "test"}, "agent2", "", "")
+	require.NoError(t, err)
+
+	// Wait a bit for goroutines to start and capture contexts.
+	time.Sleep(50 * time.Millisecond)
+
+	require.NotNil(t, agent1Ctx)
+	require.NotNil(t, agent2Ctx)
+
+	// Cancel only agent 1.
+	err = mgr.cancelAgent(id1)
+	require.NoError(t, err)
+
+	// Wait for agent 1 to finish.
+	snap, ok := mgr.getSnapshot(id1)
+	require.True(t, ok)
+	<-snap.done
+
+	// Agent 1 context should be done.
+	assert.Error(t, agent1Ctx.Err())
+
+	// Agent 2 context should still be alive.
+	assert.NoError(t, agent2Ctx.Err())
+
+	// Verify agent 1 is cancelled, agent 2 is still running.
+	ba1, ok := mgr.get(id1)
+	require.True(t, ok)
+	assert.Equal(t, statusCancelled, ba1.Status)
+
+	ba2, ok := mgr.get(id2)
+	require.True(t, ok)
+	assert.Equal(t, statusRunning, ba2.Status)
+
+	// Clean up agent 2.
+	mgr.cancel()
+	snap2, ok := mgr.getSnapshot(id2)
+	require.True(t, ok)
+	<-snap2.done
+}

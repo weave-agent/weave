@@ -20,9 +20,10 @@ type backgroundAgent struct {
 	Agent    *AgentDef
 	Prompt   string
 	CWD      string
-	Status   string // "running", "completed", "failed"
+	Status   string // "running", "completed", "failed", "cancelled"
 	Result   string
 	Err      error
+	cancel   context.CancelFunc
 	done     chan struct{}
 	started  time.Time
 	finished time.Time
@@ -75,6 +76,8 @@ func (bm *backgroundManager) spawn(agent *AgentDef, prompt, cwd, subagentID stri
 		subagentID = generateAgentID(agent.Name)
 	}
 
+	agentCtx, agentCancel := context.WithCancel(bm.ctx)
+
 	ba := &backgroundAgent{
 		ID:      subagentID,
 		Agent:   agent,
@@ -82,6 +85,7 @@ func (bm *backgroundManager) spawn(agent *AgentDef, prompt, cwd, subagentID stri
 		CWD:     cwd,
 		Status:  statusRunning,
 		done:    make(chan struct{}),
+		cancel:  agentCancel,
 		started: time.Now(),
 	}
 
@@ -93,17 +97,21 @@ func (bm *backgroundManager) spawn(agent *AgentDef, prompt, cwd, subagentID stri
 	go func() {
 		defer close(ba.done)
 
-		// Use the manager's context so background agents are canceled
-		// when the extension is closed.
-		output, err := runSubagent(bm.ctx, agent, prompt, cwd, subagentID, bm.broker, bm.cfgPath, bm.projectDir)
+		output, err := runSubagent(agentCtx, agent, prompt, cwd, subagentID, bm.broker, bm.cfgPath, bm.projectDir)
 
 		bm.mu.Lock()
 		ba.finished = time.Now()
 
 		if err != nil {
-			ba.Status = "failed"
-			ba.Err = err
-			ba.Result = err.Error()
+			if agentCtx.Err() != nil {
+				ba.Status = statusCancelled
+				ba.Err = agentCtx.Err()
+				ba.Result = agentCtx.Err().Error()
+			} else {
+				ba.Status = "failed"
+				ba.Err = err
+				ba.Result = err.Error()
+			}
 		} else {
 			ba.Status = "completed"
 			ba.Result = output
@@ -173,6 +181,26 @@ func (bm *backgroundManager) getSnapshot(id string) (backgroundAgent, bool) {
 	}
 
 	return *ba, true
+}
+
+// cancelAgent cancels a specific running agent by its ID.
+// Returns an error if the agent is not found or not running.
+func (bm *backgroundManager) cancelAgent(id string) error {
+	bm.mu.Lock()
+	defer bm.mu.Unlock()
+
+	ba, ok := bm.agents[id]
+	if !ok {
+		return fmt.Errorf("agent %q not found", id)
+	}
+
+	if ba.Status != statusRunning {
+		return fmt.Errorf("agent %q is not running (status: %s)", id, ba.Status)
+	}
+
+	ba.cancel()
+
+	return nil
 }
 
 func (bm *backgroundManager) await(ctx context.Context, id string) (*backgroundAgent, error) {
