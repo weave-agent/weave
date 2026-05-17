@@ -25,7 +25,7 @@ Most coding agents are monoliths — swapping the LLM provider, adding a tool, o
 
 ```bash
 brew tap weave-agent/tap
-brew install weave
+brew install weave-agent/tap/weave
 ```
 
 ### From source
