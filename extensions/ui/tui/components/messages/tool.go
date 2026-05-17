@@ -8,8 +8,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"weave/ext/ui/tui/palette"
-	"weave/sdk"
+	"github.com/weave-agent/weave-tui/palette"
+	"github.com/weave-agent/weave/sdk"
 
 	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"

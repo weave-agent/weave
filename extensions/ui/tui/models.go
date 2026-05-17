@@ -6,9 +6,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"weave/sdk"
-	sdkmodel "weave/sdk/model"
-	"weave/settings"
+	"github.com/weave-agent/weave/sdk"
+	sdkmodel "github.com/weave-agent/weave/sdk/model"
+	"github.com/weave-agent/weave/settings"
 )
 
 // preferences mirrors the settings fields used by the TUI for model/thinking persistence.

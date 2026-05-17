@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"weave/sdk"
+	"github.com/weave-agent/weave/sdk"
 
 	lipgloss "charm.land/lipgloss/v2"
 )

@@ -1,6 +1,6 @@
 package palette
 
-import "weave/sdk/model"
+import "github.com/weave-agent/weave/sdk/model"
 
 // ThinkingBorderColor returns the ANSI 256-color code for a thinking level.
 // Uses grayscale temperature mapping for intensity.

@@ -1,4 +1,4 @@
-module weave/ext/ui/tui/extensions/diff-viewer
+module github.com/weave-agent/weave-diff-viewer
 
 go 1.26.2
 
@@ -6,8 +6,8 @@ require (
 	charm.land/lipgloss/v2 v2.0.3
 	github.com/mattn/go-runewidth v0.0.23
 	github.com/stretchr/testify v1.11.1
-	weave v0.0.0
-	weave/ext/ui/tui v0.0.0
+	github.com/weave-agent/weave v0.0.0
+	github.com/weave-agent/weave-tui v0.0.0
 )
 
 require (
@@ -40,6 +40,7 @@ require (
 	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/weave-agent/weave-sandbox v0.0.0-00010101000000-000000000000 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/yuin/goldmark v1.7.13 // indirect
 	github.com/yuin/goldmark-emoji v1.0.6 // indirect
@@ -49,11 +50,10 @@ require (
 	golang.org/x/term v0.36.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	weave/extensions/sandbox v0.0.0-00010101000000-000000000000 // indirect
 )
 
-replace weave => ../../../../..
+replace github.com/weave-agent/weave => ../../../../..
 
-replace weave/ext/ui/tui => ../..
+replace github.com/weave-agent/weave-tui => ../..
 
-replace weave/extensions/sandbox => ../../../../../extensions/sandbox
+replace github.com/weave-agent/weave-sandbox => ../../../../../extensions/sandbox

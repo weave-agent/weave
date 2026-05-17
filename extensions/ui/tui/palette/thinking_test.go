@@ -3,7 +3,7 @@ package palette
 import (
 	"testing"
 
-	"weave/sdk/model"
+	"github.com/weave-agent/weave/sdk/model"
 
 	"github.com/stretchr/testify/assert"
 )

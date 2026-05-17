@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"weave/sdk"
+	"github.com/weave-agent/weave/sdk"
 )
 
 var logger = sdk.Logger("sandbox")

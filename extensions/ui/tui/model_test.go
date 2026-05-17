@@ -13,14 +13,14 @@ import (
 	"testing"
 	"time"
 
-	"weave/bus"
-	"weave/ext/ui/tui/components"
-	"weave/ext/ui/tui/components/attachments"
-	"weave/ext/ui/tui/components/messages"
-	"weave/ext/ui/tui/components/overlays"
-	"weave/extensions/sandbox"
-	"weave/sdk"
-	sdkmodel "weave/sdk/model"
+	sandbox "github.com/weave-agent/weave-sandbox"
+	"github.com/weave-agent/weave-tui/components"
+	"github.com/weave-agent/weave-tui/components/attachments"
+	"github.com/weave-agent/weave-tui/components/messages"
+	"github.com/weave-agent/weave-tui/components/overlays"
+	"github.com/weave-agent/weave/bus"
+	"github.com/weave-agent/weave/sdk"
+	sdkmodel "github.com/weave-agent/weave/sdk/model"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -28,7 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave/ext/ui/tui/palette"
+	"github.com/weave-agent/weave-tui/palette"
 )
 
 // executeBatchCmd handles tea.Cmd results that may be tea.BatchMsg.

@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"weave/sdk"
+	"github.com/weave-agent/weave/sdk"
 )
 
 const (

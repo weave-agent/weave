@@ -17,9 +17,9 @@ import (
 	"strings"
 	"sync"
 
-	"weave/sdk"
-	"weave/utils/ripgrep"
-	"weave/utils/truncate"
+	"github.com/weave-agent/weave/sdk"
+	"github.com/weave-agent/weave/utils/ripgrep"
+	"github.com/weave-agent/weave/utils/truncate"
 )
 
 const (

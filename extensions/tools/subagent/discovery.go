@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"weave/sdk"
+	"github.com/weave-agent/weave/sdk"
 )
 
 //go:embed agents/*.md

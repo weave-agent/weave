@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"weave/sdk"
+	"github.com/weave-agent/weave/sdk"
 )
 
 // backgroundAgent tracks the state of a running background subagent.

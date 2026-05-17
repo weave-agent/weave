@@ -7,7 +7,7 @@ import (
 	"github.com/alecthomas/chroma/v2/formatters"
 	"github.com/charmbracelet/glamour"
 
-	"weave/ext/ui/tui/xchroma"
+	"github.com/weave-agent/weave-tui/xchroma"
 )
 
 const chromaFormatterName = "weave"

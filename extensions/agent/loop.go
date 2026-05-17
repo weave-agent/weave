@@ -8,9 +8,9 @@ import (
 	"strings"
 	"sync"
 
-	"weave/sdk"
-	"weave/sdk/model"
-	"weave/sdk/validate"
+	"github.com/weave-agent/weave/sdk"
+	"github.com/weave-agent/weave/sdk/model"
+	"github.com/weave-agent/weave/sdk/validate"
 )
 
 // Bus topics

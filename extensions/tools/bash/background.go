@@ -13,8 +13,8 @@ import (
 	"syscall"
 	"time"
 
-	"weave/sdk"
-	"weave/utils/truncate"
+	"github.com/weave-agent/weave/sdk"
+	"github.com/weave-agent/weave/utils/truncate"
 )
 
 // BackgroundStartPayload is the payload for tool.bash.background_start events.

@@ -1,11 +1,11 @@
-module weave/ext/providers/anthropic
+module github.com/weave-agent/weave-anthropic
 
 go 1.26.2
 
 require (
 	github.com/anthropics/anthropic-sdk-go v1.37.0
 	github.com/stretchr/testify v1.11.1
-	weave v0.0.0
+	github.com/weave-agent/weave v0.0.0
 )
 
 require (
@@ -19,4 +19,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace weave => ../../..
+replace github.com/weave-agent/weave => ../../..

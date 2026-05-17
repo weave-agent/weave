@@ -1,4 +1,4 @@
-module weave/ext/ui/tui
+module github.com/weave-agent/weave-tui
 
 go 1.26.2
 
@@ -12,9 +12,9 @@ require (
 	github.com/charmbracelet/x/ansi v0.11.7
 	github.com/mattn/go-runewidth v0.0.23
 	github.com/stretchr/testify v1.11.1
+	github.com/weave-agent/weave v0.0.0
+	github.com/weave-agent/weave-sandbox v0.0.0-00010101000000-000000000000
 	gopkg.in/yaml.v3 v3.0.1
-	weave v0.0.0
-	weave/extensions/sandbox v0.0.0-00010101000000-000000000000
 )
 
 require (
@@ -51,6 +51,6 @@ require (
 	golang.org/x/text v0.37.0 // indirect
 )
 
-replace weave => ../../..
+replace github.com/weave-agent/weave => ../../..
 
-replace weave/extensions/sandbox => ../../../extensions/sandbox
+replace github.com/weave-agent/weave-sandbox => ../../../extensions/sandbox

@@ -1,7 +1,7 @@
 package sandboxui
 
 import (
-	"weave/sdk"
+	"github.com/weave-agent/weave/sdk"
 )
 
 const (

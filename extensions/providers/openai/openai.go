@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"weave/sdk"
-	"weave/sdk/model"
-	"weave/utils/openaicompat"
+	"github.com/weave-agent/weave/sdk"
+	"github.com/weave-agent/weave/sdk/model"
+	"github.com/weave-agent/weave/utils/openaicompat"
 )
 
 // OpenAIConfig holds per-provider configuration for the OpenAI provider.

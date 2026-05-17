@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"weave/bus"
-	"weave/sdk"
-	"weave/sdk/model"
+	"github.com/weave-agent/weave/bus"
+	"github.com/weave-agent/weave/sdk"
+	"github.com/weave-agent/weave/sdk/model"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1121,6 +1121,7 @@ func TestAgent_AmbiguousModelChangeSwitchesProvider(t *testing.T) {
 	// Register gpt-5.5 for both providers to create ambiguity.
 	model.RegisterModel(model.ModelDef{ID: "gpt-5.5", Provider: "openai"})
 	model.RegisterModel(model.ModelDef{ID: "gpt-5.5", Provider: "codex"})
+
 	a, b, cleanup := setupAgent(t, "anthropic")
 	defer cleanup()
 
@@ -1317,6 +1318,7 @@ func TestExecuteTool_PanicRecovery(t *testing.T) {
 		{textDeltas: []string{"recovered"}},
 	})
 	registerMockProvider("anthropic", mp)
+
 	a, b, cleanup := setupAgent(t, "anthropic")
 	defer cleanup()
 

@@ -3,8 +3,8 @@ package tui
 import (
 	"time"
 
-	"weave/ext/ui/tui/palette"
-	"weave/sdk"
+	"github.com/weave-agent/weave-tui/palette"
+	"github.com/weave-agent/weave/sdk"
 
 	uv "github.com/charmbracelet/ultraviolet"
 )

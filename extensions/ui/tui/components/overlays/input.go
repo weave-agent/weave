@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"weave/ext/ui/tui/palette"
+	"github.com/weave-agent/weave-tui/palette"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"

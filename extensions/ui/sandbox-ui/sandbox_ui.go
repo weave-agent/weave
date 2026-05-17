@@ -3,8 +3,8 @@ package sandboxui
 import (
 	"sync"
 
-	"weave/extensions/sandbox"
-	"weave/sdk"
+	sandbox "github.com/weave-agent/weave-sandbox"
+	"github.com/weave-agent/weave/sdk"
 )
 
 var (

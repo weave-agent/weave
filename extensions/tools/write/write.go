@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"weave/sdk"
+	"github.com/weave-agent/weave/sdk"
 )
 
 // Parameter name constants.

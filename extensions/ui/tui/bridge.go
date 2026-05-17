@@ -5,9 +5,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"weave/ext/ui/tui/palette"
-	"weave/sdk"
-	sdkmodel "weave/sdk/model"
+	"github.com/weave-agent/weave-tui/palette"
+	"github.com/weave-agent/weave/sdk"
+	sdkmodel "github.com/weave-agent/weave/sdk/model"
 
 	tea "charm.land/bubbletea/v2"
 )

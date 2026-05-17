@@ -1,7 +1,7 @@
 package kimi
 
 import (
-	"weave/sdk/model"
+	"github.com/weave-agent/weave/sdk/model"
 )
 
 func init() {

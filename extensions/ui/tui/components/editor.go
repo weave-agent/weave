@@ -3,7 +3,7 @@ package components
 import (
 	"strings"
 
-	"weave/ext/ui/tui/palette"
+	"github.com/weave-agent/weave-tui/palette"
 
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"

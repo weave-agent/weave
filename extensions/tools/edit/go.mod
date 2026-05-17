@@ -1,12 +1,12 @@
-module weave/ext/tools/edit
+module github.com/weave-agent/weave-edit
 
 go 1.26.2
 
 require (
 	github.com/pmezard/go-difflib v1.0.0
 	github.com/stretchr/testify v1.11.1
+	github.com/weave-agent/weave v0.0.0
 	golang.org/x/text v0.37.0
-	weave v0.0.0
 )
 
 require (
@@ -14,4 +14,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace weave => ../../..
+replace github.com/weave-agent/weave => ../../..

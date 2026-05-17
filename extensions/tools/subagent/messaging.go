@@ -11,7 +11,7 @@ import (
 	"strings"
 	"sync"
 
-	"weave/sdk"
+	"github.com/weave-agent/weave/sdk"
 )
 
 // stdoutWriter and stdinReader are swappable for testing.

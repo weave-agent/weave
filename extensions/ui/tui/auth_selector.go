@@ -4,8 +4,8 @@ import (
 	"sort"
 	"strings"
 
-	"weave/sdk"
-	sdkmodel "weave/sdk/model"
+	"github.com/weave-agent/weave/sdk"
+	sdkmodel "github.com/weave-agent/weave/sdk/model"
 )
 
 // LoginProviderEntry describes a provider available for login.

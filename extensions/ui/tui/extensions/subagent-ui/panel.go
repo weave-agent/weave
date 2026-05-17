@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"weave/ext/ui/tui"
-	"weave/sdk"
+	tui "github.com/weave-agent/weave-tui"
+	"github.com/weave-agent/weave/sdk"
 
 	tea "charm.land/bubbletea/v2"
 	lipgloss "charm.land/lipgloss/v2"

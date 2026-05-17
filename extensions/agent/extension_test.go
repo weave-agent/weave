@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"weave/bus"
-	"weave/sdk"
-	"weave/sdk/model"
-	"weave/settings"
+	"github.com/weave-agent/weave/bus"
+	"github.com/weave-agent/weave/sdk"
+	"github.com/weave-agent/weave/sdk/model"
+	"github.com/weave-agent/weave/settings"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

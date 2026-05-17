@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"weave/sdk"
+	"github.com/weave-agent/weave/sdk"
 )
 
 // runParallel executes multiple subagent tasks concurrently and aggregates results.

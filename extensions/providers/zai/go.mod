@@ -1,10 +1,10 @@
-module weave/ext/providers/zai
+module github.com/weave-agent/weave-zai
 
 go 1.26.2
 
 require (
 	github.com/stretchr/testify v1.11.1
-	weave v0.0.0
+	github.com/weave-agent/weave v0.0.0
 )
 
 require (
@@ -13,4 +13,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace weave => ../../..
+replace github.com/weave-agent/weave => ../../..

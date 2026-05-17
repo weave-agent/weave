@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"weave/sdk"
-	sdkmodel "weave/sdk/model"
+	"github.com/weave-agent/weave/sdk"
+	sdkmodel "github.com/weave-agent/weave/sdk/model"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

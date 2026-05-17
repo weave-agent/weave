@@ -1,8 +1,8 @@
-module weave/ext/tools/find
+module github.com/weave-agent/weave-find
 
 go 1.26.2
 
-require weave v0.0.0
+require github.com/weave-agent/weave v0.0.0
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -11,4 +11,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace weave => ../../..
+replace github.com/weave-agent/weave => ../../..

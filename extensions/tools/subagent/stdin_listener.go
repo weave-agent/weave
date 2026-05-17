@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"weave/sdk"
+	"github.com/weave-agent/weave/sdk"
 )
 
 // Bus topic constants for events published by the stdin listener.

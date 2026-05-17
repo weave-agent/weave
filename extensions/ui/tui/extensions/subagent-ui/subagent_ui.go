@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"weave/ext/ui/tui"
-	"weave/sdk"
+	tui "github.com/weave-agent/weave-tui"
+	"github.com/weave-agent/weave/sdk"
 )
 
 const gracePeriod = 3 * time.Second

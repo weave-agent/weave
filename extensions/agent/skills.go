@@ -12,7 +12,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"weave/sdk"
+	"github.com/weave-agent/weave/sdk"
 )
 
 // Skill represents a discovered skill with its metadata and body.

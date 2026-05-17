@@ -1,7 +1,7 @@
 package zai
 
 import (
-	"weave/sdk/model"
+	"github.com/weave-agent/weave/sdk/model"
 )
 
 const providerName = "zai"

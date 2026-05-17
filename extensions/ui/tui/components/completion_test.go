@@ -6,7 +6,7 @@ import (
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/stretchr/testify/assert"
 
-	"weave/ext/ui/tui/palette"
+	"github.com/weave-agent/weave-tui/palette"
 )
 
 func TestNewCompletionModel(t *testing.T) {

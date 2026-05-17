@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"weave/sdk"
+	"github.com/weave-agent/weave/sdk"
 )
 
 //go:embed default-system-prompt.md

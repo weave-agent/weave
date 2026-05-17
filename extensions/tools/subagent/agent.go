@@ -7,7 +7,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"weave/sdk"
+	"github.com/weave-agent/weave/sdk"
 )
 
 // AgentDef defines a subagent's capabilities and behavior.

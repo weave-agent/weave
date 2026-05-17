@@ -1,6 +1,6 @@
 package messages
 
-import "weave/sdk"
+import "github.com/weave-agent/weave/sdk"
 
 // messageRenderers holds custom renderers registered by TUI extensions.
 var messageRenderers = make(map[string]sdk.MessageRenderer)

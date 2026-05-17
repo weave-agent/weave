@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"sync"
 
-	"weave/sdk"
-	"weave/sdk/model"
-	"weave/settings"
+	"github.com/weave-agent/weave/sdk"
+	"github.com/weave-agent/weave/sdk/model"
+	"github.com/weave-agent/weave/settings"
 )
 
 const defaultProviderName = "anthropic"

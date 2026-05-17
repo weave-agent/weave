@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"weave/sdk"
-	sdkmodel "weave/sdk/model"
-	"weave/utils/openaicompat"
+	"github.com/weave-agent/weave/sdk"
+	sdkmodel "github.com/weave-agent/weave/sdk/model"
+	"github.com/weave-agent/weave/utils/openaicompat"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

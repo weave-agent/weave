@@ -9,8 +9,8 @@ import (
 	"strings"
 	"sync"
 
-	"weave/sdk"
-	"weave/utils/truncate"
+	"github.com/weave-agent/weave/sdk"
+	"github.com/weave-agent/weave/utils/truncate"
 )
 
 const (

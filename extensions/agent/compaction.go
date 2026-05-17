@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	"weave/sdk"
-	"weave/sdk/model"
+	"github.com/weave-agent/weave/sdk"
+	"github.com/weave-agent/weave/sdk/model"
 )
 
 const (

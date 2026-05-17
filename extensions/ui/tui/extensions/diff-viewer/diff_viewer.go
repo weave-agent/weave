@@ -7,8 +7,8 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/mattn/go-runewidth"
 
-	"weave/ext/ui/tui"
-	"weave/sdk"
+	tui "github.com/weave-agent/weave-tui"
+	"github.com/weave-agent/weave/sdk"
 )
 
 func init() {

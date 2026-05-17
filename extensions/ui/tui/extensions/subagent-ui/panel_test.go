@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"weave/sdk"
+	"github.com/weave-agent/weave/sdk"
 
 	tea "charm.land/bubbletea/v2"
 	uv "github.com/charmbracelet/ultraviolet"

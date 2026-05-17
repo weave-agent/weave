@@ -97,15 +97,16 @@ Move all extensions from the monorepo into independent repositories under `githu
 
 For each extension directory (`extensions/agent/`, `extensions/sandbox/`, `extensions/instructions/` [merged into agent], `extensions/loop/` [merged into agent], `extensions/skills/` [merged into agent], `extensions/store/jsonl/`, `extensions/tools/{bash,read,edit,write,grep,find,ls,subagent}/`, `extensions/providers/{anthropic,openai,zai,kimi}/`, `extensions/ui/tui/`, `extensions/ui/sandbox-ui/`, `extensions/ui/tui/extensions/diff-viewer/`):
 
-- [ ] Update `go.mod`: change `module weave/ext/...` to `module github.com/weave-agent/weave-<name>`
+- [x] Update `go.mod`: change `module weave/ext/...` to `module github.com/weave-agent/weave-<name>`
   - Naming: `bash` not `tools-bash`, `anthropic` not `providers-anthropic`, `tui` not `ui-tui`
   - `diff-viewer` → `github.com/weave-agent/weave-diff-viewer`
   - `sandbox-ui` → `github.com/weave-agent/weave-sandbox-ui`
-- [ ] Remove `replace weave => ...` line from go.mod
-- [ ] Add `require github.com/weave-agent/weave v0.0.0`
-- [ ] Update ALL imports in extension `.go` files from `weave/...` to `github.com/weave-agent/weave/...`
-- [ ] Run `go mod tidy` in each extension directory
-- [ ] Run `cd <ext-dir> && go test ./...` for each extension — must pass
+  - Also added: `codex` → `github.com/weave-agent/weave-codex`, `subagent-ui` → `github.com/weave-agent/weave-subagent-ui`
+- [x] Remove `replace weave => ...` line from go.mod
+- [x] Add `require github.com/weave-agent/weave v0.0.0`
+- [x] Update ALL imports in extension `.go` files from `weave/...` to `github.com/weave-agent/weave/...`
+- [x] Run `go mod tidy` in each extension directory
+- [x] Run `cd <ext-dir> && go test ./...` for each extension — must pass
 
 ### Task 3: Update builder tests for new module paths
 
@@ -237,6 +238,8 @@ For each:
 | `extensions/store/jsonl` | `weave/ext/store/jsonl` | `github.com/weave-agent/weave-jsonl` |
 | `extensions/ui/tui` | `weave/ext/ui/tui` | `github.com/weave-agent/weave-tui` |
 | `extensions/ui/tui/extensions/diff-viewer` | `weave/ext/ui/tui/extensions/diff-viewer` | `github.com/weave-agent/weave-diff-viewer` |
+| `extensions/providers/codex` | `weave/ext/providers/codex` | `github.com/weave-agent/weave-codex` |
+| `extensions/ui/tui/extensions/subagent-ui` | `weave/ext/ui/tui/extensions/subagent-ui` | `github.com/weave-agent/weave-subagent-ui` |
 
 ### Generated temp go.mod structure
 

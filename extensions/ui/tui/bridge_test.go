@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"weave/bus"
-	"weave/sdk"
+	"github.com/weave-agent/weave/bus"
+	"github.com/weave-agent/weave/sdk"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/assert"

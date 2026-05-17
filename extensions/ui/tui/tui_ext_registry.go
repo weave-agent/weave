@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"weave/sdk"
-	"weave/sdk/registry"
+	"github.com/weave-agent/weave/sdk"
+	"github.com/weave-agent/weave/sdk/registry"
 )
 
 type tuiExtEntry struct {

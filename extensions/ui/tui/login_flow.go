@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"weave/ext/ui/tui/components/messages"
-	"weave/sdk"
-	sdkmodel "weave/sdk/model"
+	"github.com/weave-agent/weave-tui/components/messages"
+	"github.com/weave-agent/weave/sdk"
+	sdkmodel "github.com/weave-agent/weave/sdk/model"
 
 	tea "charm.land/bubbletea/v2"
 )

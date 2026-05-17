@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	eventbus "weave/bus"
+	eventbus "github.com/weave-agent/weave/bus"
 
-	"weave/sdk"
+	"github.com/weave-agent/weave/sdk"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -10,7 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"weave/sdk"
+	"github.com/weave-agent/weave/sdk"
 )
 
 // Protocol message type constants.

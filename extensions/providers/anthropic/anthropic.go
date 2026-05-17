@@ -14,9 +14,9 @@ import (
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 
-	"weave/sdk"
-	"weave/sdk/model"
-	"weave/sdk/retry"
+	"github.com/weave-agent/weave/sdk"
+	"github.com/weave-agent/weave/sdk/model"
+	"github.com/weave-agent/weave/sdk/retry"
 )
 
 const (

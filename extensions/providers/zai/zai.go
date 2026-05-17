@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"weave/sdk"
-	"weave/sdk/model"
-	openaicompat "weave/utils/openaicompat"
+	"github.com/weave-agent/weave/sdk"
+	"github.com/weave-agent/weave/sdk/model"
+	openaicompat "github.com/weave-agent/weave/utils/openaicompat"
 )
 
 // ZaiConfig holds per-provider configuration for the Z.ai provider.

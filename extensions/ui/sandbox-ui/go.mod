@@ -1,11 +1,11 @@
-module weave/ext/ui/sandboxui
+module github.com/weave-agent/weave-sandbox-ui
 
 go 1.26.2
 
 require (
 	github.com/stretchr/testify v1.11.1
-	weave v0.0.0
-	weave/extensions/sandbox v0.0.0-00010101000000-000000000000
+	github.com/weave-agent/weave v0.0.0
+	github.com/weave-agent/weave-sandbox v0.0.0-00010101000000-000000000000
 )
 
 require (
@@ -14,6 +14,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace weave => ../../..
+replace github.com/weave-agent/weave => ../../..
 
-replace weave/extensions/sandbox => ../../../extensions/sandbox
+replace github.com/weave-agent/weave-sandbox => ../../../extensions/sandbox

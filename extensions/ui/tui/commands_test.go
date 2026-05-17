@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"weave/bus"
-	"weave/ext/ui/tui/components/messages"
+	"github.com/weave-agent/weave-tui/components/messages"
+	"github.com/weave-agent/weave/bus"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/assert"

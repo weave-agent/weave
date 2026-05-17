@@ -10,7 +10,7 @@ import (
 	"sync"
 	"syscall"
 
-	"weave/sdk"
+	"github.com/weave-agent/weave/sdk"
 
 	tea "charm.land/bubbletea/v2"
 )

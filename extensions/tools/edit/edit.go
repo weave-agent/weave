@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"weave/sdk"
-	"weave/utils/truncate"
+	"github.com/weave-agent/weave/sdk"
+	"github.com/weave-agent/weave/utils/truncate"
 
 	"github.com/pmezard/go-difflib/difflib"
 )

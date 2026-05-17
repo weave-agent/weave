@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"weave/sdk"
-	"weave/utils/ripgrep"
+	"github.com/weave-agent/weave/sdk"
+	"github.com/weave-agent/weave/utils/ripgrep"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

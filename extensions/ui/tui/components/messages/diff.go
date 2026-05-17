@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"weave/ext/ui/tui/palette"
+	"github.com/weave-agent/weave-tui/palette"
 
 	"charm.land/lipgloss/v2"
 )
