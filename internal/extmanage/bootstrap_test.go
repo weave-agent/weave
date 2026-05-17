@@ -48,7 +48,7 @@ func TestNeedsBootstrap_DirNotExist(t *testing.T) {
 	// Extensions dir does not exist.
 	needs, err := NeedsBootstrap(homeDir)
 	require.NoError(t, err)
-	assert.False(t, needs, "should not bootstrap when dir does not exist")
+	assert.True(t, needs, "should bootstrap when dir does not exist")
 }
 
 func TestNeedsBootstrap_DirEmpty(t *testing.T) {

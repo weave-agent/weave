@@ -812,12 +812,16 @@ func Build(dir, moduleRoot, moduleVersion, agentLoop string, headless bool, exts
 		return "", fmt.Errorf("build: generate main.go: %w", err)
 	}
 
+	fmt.Fprintf(os.Stderr, "  -> resolving dependencies...\n")
+
 	tidyCmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
 
 	tidyCmd.Dir = dir
 	if output, err := tidyCmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("build: go mod tidy: %w\n%s", err, output)
 	}
+
+	fmt.Fprintf(os.Stderr, "  -> compiling...\n")
 
 	binaryPath := filepath.Join(dir, "weave")
 	cmd := exec.CommandContext(context.Background(), "go", "build", "-o", binaryPath, ".")

@@ -60,6 +60,7 @@ func (l *Launcher) Run(ctx context.Context, projectDir string, args []string, co
 
 	binPath, found := l.Cache.Lookup(hash)
 	if !found {
+		fmt.Fprintf(os.Stderr, "weave: building binary with %d extensions...\n", len(exts))
 		binPath, err = l.buildAndCache(hash, agentLoop, headless, exts, l.ModuleVersion)
 		if err != nil {
 			return fmt.Errorf("launcher: build: %w", err)

@@ -45,15 +45,15 @@ func ExtensionsDir(homeDir string) string {
 	return filepath.Join(homeDir, ".weave", "extensions")
 }
 
-// NeedsBootstrap reports whether bootstrap should run. It returns true only
-// when the extensions directory exists but is empty (no non-hidden entries).
+// NeedsBootstrap reports whether bootstrap should run. It returns true when
+// the extensions directory does not exist or exists but is empty (no non-hidden entries).
 func NeedsBootstrap(homeDir string) (bool, error) {
 	dir := ExtensionsDir(homeDir)
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return false, nil // directory does not exist yet — nothing to bootstrap
+			return true, nil // directory does not exist yet — needs bootstrap
 		}
 
 		return false, fmt.Errorf("read extensions dir: %w", err)
