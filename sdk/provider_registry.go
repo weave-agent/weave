@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"weave/internal/auth"
-	"weave/sdk/registry"
+	"github.com/weave-agent/weave/internal/auth"
+	"github.com/weave-agent/weave/sdk/registry"
 )
 
 type providerEntry struct {

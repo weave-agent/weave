@@ -223,7 +223,7 @@ func TestGenerateMainGo_UIExtFilteredByBuild(t *testing.T) {
 	// so GenerateMainGo only receives non-UI extensions.
 	dir := t.TempDir()
 	exts := []ExtensionInfo{
-		{Name: "bash", Dir: "/tmp/exts/bash", ModulePath: "weave/ext/bash"},
+		{Name: "bash", Dir: "/tmp/exts/bash", ModulePath: "github.com/weave-agent/weave/ext/bash"},
 	}
 
 	require.NoError(t, GenerateMainGo(dir, exts, "loop"))
@@ -232,15 +232,15 @@ func TestGenerateMainGo_UIExtFilteredByBuild(t *testing.T) {
 	require.NoError(t, err)
 
 	s := string(content)
-	assert.Contains(t, s, `_ "weave/ext/bash"`)
-	assert.NotContains(t, s, `_ "weave/ext/diff-viewer"`)
+	assert.Contains(t, s, `_ "github.com/weave-agent/weave/ext/bash"`)
+	assert.NotContains(t, s, `_ "github.com/weave-agent/weave/ext/diff-viewer"`)
 }
 
 func TestGenerateMainGo_UIExtIncludedInInteractive(t *testing.T) {
 	dir := t.TempDir()
 	exts := []ExtensionInfo{
-		{Name: "bash", Dir: "/tmp/exts/bash", ModulePath: "weave/ext/bash"},
-		{Name: "diff-viewer", Dir: "/tmp/exts/diff-viewer", ModulePath: "weave/ext/diff-viewer", IsUIExt: true},
+		{Name: "bash", Dir: "/tmp/exts/bash", ModulePath: "github.com/weave-agent/weave/ext/bash"},
+		{Name: "diff-viewer", Dir: "/tmp/exts/diff-viewer", ModulePath: "github.com/weave-agent/weave/ext/diff-viewer", IsUIExt: true},
 	}
 
 	require.NoError(t, GenerateMainGo(dir, exts, "loop"))
@@ -249,14 +249,14 @@ func TestGenerateMainGo_UIExtIncludedInInteractive(t *testing.T) {
 	require.NoError(t, err)
 
 	s := string(content)
-	assert.Contains(t, s, `_ "weave/ext/bash"`)
-	assert.Contains(t, s, `_ "weave/ext/diff-viewer"`)
+	assert.Contains(t, s, `_ "github.com/weave-agent/weave/ext/bash"`)
+	assert.Contains(t, s, `_ "github.com/weave-agent/weave/ext/diff-viewer"`)
 }
 
 func TestGenerateGoMod_Content(t *testing.T) {
 	dir := t.TempDir()
 	exts := []ExtensionInfo{
-		{Name: "noop", Dir: "/tmp/exts/noop", ModulePath: "weave/ext/noop"},
+		{Name: "noop", Dir: "/tmp/exts/noop", ModulePath: "github.com/weave-agent/weave/ext/noop"},
 	}
 
 	require.NoError(t, GenerateGoMod(dir, "/tmp/weave", exts))
@@ -265,18 +265,18 @@ func TestGenerateGoMod_Content(t *testing.T) {
 	require.NoError(t, err)
 
 	s := string(content)
-	assert.Contains(t, s, "module weave/built")
+	assert.Contains(t, s, "module github.com/weave-agent/weave/built")
 	assert.Contains(t, s, goVersion())
-	assert.Contains(t, s, "weave v0.0.0")
-	assert.Contains(t, s, "weave/ext/noop v0.0.0")
-	assert.Contains(t, s, "replace weave => /tmp/weave")
-	assert.Contains(t, s, "replace weave/ext/noop => /tmp/exts/noop")
+	assert.Contains(t, s, "github.com/weave-agent/weave v0.0.0")
+	assert.Contains(t, s, "github.com/weave-agent/weave/ext/noop v0.0.0")
+	assert.Contains(t, s, "replace github.com/weave-agent/weave => /tmp/weave")
+	assert.Contains(t, s, "replace github.com/weave-agent/weave/ext/noop => /tmp/exts/noop")
 }
 
 func TestGenerateGoMod_NestedModulePath(t *testing.T) {
 	dir := t.TempDir()
 	exts := []ExtensionInfo{
-		{Name: "bash", Dir: "/tmp/exts/tools/bash", ModulePath: "weave/ext/tools/bash"},
+		{Name: "bash", Dir: "/tmp/exts/tools/bash", ModulePath: "github.com/weave-agent/weave/ext/tools/bash"},
 	}
 
 	require.NoError(t, GenerateGoMod(dir, "/tmp/weave", exts))
@@ -285,15 +285,15 @@ func TestGenerateGoMod_NestedModulePath(t *testing.T) {
 	require.NoError(t, err)
 
 	s := string(content)
-	assert.Contains(t, s, "weave/ext/tools/bash v0.0.0")
-	assert.Contains(t, s, "replace weave/ext/tools/bash => /tmp/exts/tools/bash")
+	assert.Contains(t, s, "github.com/weave-agent/weave/ext/tools/bash v0.0.0")
+	assert.Contains(t, s, "replace github.com/weave-agent/weave/ext/tools/bash => /tmp/exts/tools/bash")
 }
 
 func TestGenerateMainGo_Content(t *testing.T) {
 	dir := t.TempDir()
 	exts := []ExtensionInfo{
-		{Name: "noop", Dir: "/tmp/exts/noop", ModulePath: "weave/ext/noop"},
-		{Name: "log", Dir: "/tmp/exts/log", ModulePath: "weave/ext/log"},
+		{Name: "noop", Dir: "/tmp/exts/noop", ModulePath: "github.com/weave-agent/weave/ext/noop"},
+		{Name: "log", Dir: "/tmp/exts/log", ModulePath: "github.com/weave-agent/weave/ext/log"},
 	}
 
 	require.NoError(t, GenerateMainGo(dir, exts, "loop"))
@@ -303,13 +303,13 @@ func TestGenerateMainGo_Content(t *testing.T) {
 
 	s := string(content)
 	assert.Contains(t, s, "package main")
-	assert.Contains(t, s, `"weave/sdk"`)
-	assert.Contains(t, s, `"weave/sdk/model"`)
-	assert.Contains(t, s, `"weave/internal/wire"`)
-	assert.Contains(t, s, `"weave/bus"`)
+	assert.Contains(t, s, `"github.com/weave-agent/weave/sdk"`)
+	assert.Contains(t, s, `"github.com/weave-agent/weave/sdk/model"`)
+	assert.Contains(t, s, `"github.com/weave-agent/weave/internal/wire"`)
+	assert.Contains(t, s, `"github.com/weave-agent/weave/bus"`)
 	assert.Contains(t, s, `"strings"`)
-	assert.Contains(t, s, `_ "weave/ext/noop"`)
-	assert.Contains(t, s, `_ "weave/ext/log"`)
+	assert.Contains(t, s, `_ "github.com/weave-agent/weave/ext/noop"`)
+	assert.Contains(t, s, `_ "github.com/weave-agent/weave/ext/log"`)
 	assert.Contains(t, s, "bus.New()")
 	assert.Contains(t, s, "wire.WireWithCore")
 	assert.Contains(t, s, `AgentLoop: "loop"`)
@@ -355,7 +355,7 @@ func TestGenerateMainGo_Content(t *testing.T) {
 	assert.Contains(t, s, `jsonWg.Wait()`)
 	assert.Contains(t, s, `close(jsonQueue)`)
 	assert.Contains(t, s, `"path/filepath"`)
-	assert.Contains(t, s, `"weave/internal/log"`)
+	assert.Contains(t, s, `"github.com/weave-agent/weave/internal/log"`)
 	assert.Contains(t, s, "--weave-debug=")
 	assert.Contains(t, s, "log.Setup(")
 	assert.Contains(t, s, "logDir")
@@ -366,7 +366,7 @@ func TestGenerateMainGo_Content(t *testing.T) {
 func TestGenerateMainGo_AllExtensionsBlankImported(t *testing.T) {
 	dir := t.TempDir()
 	exts := []ExtensionInfo{
-		{Name: "subagent", Dir: "/tmp/exts/custom/subagent", ModulePath: "weave/ext/custom/subagent"},
+		{Name: "subagent", Dir: "/tmp/exts/custom/subagent", ModulePath: "github.com/weave-agent/weave/ext/custom/subagent"},
 	}
 
 	require.NoError(t, GenerateMainGo(dir, exts, "loop"))
@@ -376,7 +376,7 @@ func TestGenerateMainGo_AllExtensionsBlankImported(t *testing.T) {
 
 	s := string(content)
 	// All extensions are blank-imported; no special-casing for subagent.
-	assert.Contains(t, s, `_ "weave/ext/custom/subagent"`)
+	assert.Contains(t, s, `_ "github.com/weave-agent/weave/ext/custom/subagent"`)
 	assert.NotContains(t, s, `subagentext`)
 	assert.Contains(t, s, `sdk.OutputRedirectPayload{Writer: jsonOut}`)
 }
@@ -384,7 +384,7 @@ func TestGenerateMainGo_AllExtensionsBlankImported(t *testing.T) {
 func TestGenerateMainGo_OutputWriterSetterCalled(t *testing.T) {
 	dir := t.TempDir()
 	exts := []ExtensionInfo{
-		{Name: "subagent", Dir: "/tmp/exts/tools/subagent", ModulePath: "weave/ext/tools/subagent"},
+		{Name: "subagent", Dir: "/tmp/exts/tools/subagent", ModulePath: "github.com/weave-agent/weave/ext/tools/subagent"},
 	}
 
 	require.NoError(t, GenerateMainGo(dir, exts, "loop"))
@@ -403,9 +403,9 @@ func TestGenerateMainGo_OutputWriterSetterCalled(t *testing.T) {
 func TestGenerateMainGo_CustomAgentLoopIncludesAllExtensions(t *testing.T) {
 	dir := t.TempDir()
 	exts := []ExtensionInfo{
-		{Name: "loop", Dir: "/tmp/exts/loop", ModulePath: "weave/ext/loop"},
-		{Name: "my-loop", Dir: "/tmp/exts/my-loop", ModulePath: "weave/ext/my-loop"},
-		{Name: "bash", Dir: "/tmp/exts/bash", ModulePath: "weave/ext/bash"},
+		{Name: "loop", Dir: "/tmp/exts/loop", ModulePath: "github.com/weave-agent/weave/ext/loop"},
+		{Name: "my-loop", Dir: "/tmp/exts/my-loop", ModulePath: "github.com/weave-agent/weave/ext/my-loop"},
+		{Name: "bash", Dir: "/tmp/exts/bash", ModulePath: "github.com/weave-agent/weave/ext/bash"},
 	}
 
 	require.NoError(t, GenerateMainGo(dir, exts, "my-loop"))
@@ -417,15 +417,15 @@ func TestGenerateMainGo_CustomAgentLoopIncludesAllExtensions(t *testing.T) {
 	// optExts includes all extensions; filtering happens at runtime in WireWithCore.
 	assert.Contains(t, s, `optExts = []string{"loop", "my-loop", "bash"}`)
 	// Blank imports still include all extensions for registration.
-	assert.Contains(t, s, `_ "weave/ext/loop"`)
-	assert.Contains(t, s, `_ "weave/ext/my-loop"`)
-	assert.Contains(t, s, `_ "weave/ext/bash"`)
+	assert.Contains(t, s, `_ "github.com/weave-agent/weave/ext/loop"`)
+	assert.Contains(t, s, `_ "github.com/weave-agent/weave/ext/my-loop"`)
+	assert.Contains(t, s, `_ "github.com/weave-agent/weave/ext/bash"`)
 }
 
 func TestGenerateMainGo_LogSetupBeforeWire(t *testing.T) {
 	dir := t.TempDir()
 	exts := []ExtensionInfo{
-		{Name: "noop", Dir: "/tmp/exts/noop", ModulePath: "weave/ext/noop"},
+		{Name: "noop", Dir: "/tmp/exts/noop", ModulePath: "github.com/weave-agent/weave/ext/noop"},
 	}
 
 	require.NoError(t, GenerateMainGo(dir, exts, "loop"))
@@ -446,7 +446,7 @@ func TestGenerateMainGo_LogSetupBeforeWire(t *testing.T) {
 func TestGenerateMainGo_LogSetupUsesHomeDir(t *testing.T) {
 	dir := t.TempDir()
 	exts := []ExtensionInfo{
-		{Name: "noop", Dir: "/tmp/exts/noop", ModulePath: "weave/ext/noop"},
+		{Name: "noop", Dir: "/tmp/exts/noop", ModulePath: "github.com/weave-agent/weave/ext/noop"},
 	}
 
 	require.NoError(t, GenerateMainGo(dir, exts, "loop"))
@@ -463,7 +463,7 @@ func TestGenerateMainGo_LogSetupUsesHomeDir(t *testing.T) {
 func TestGenerateMainGo_LogSetupIncludesStderrInHeadless(t *testing.T) {
 	dir := t.TempDir()
 	exts := []ExtensionInfo{
-		{Name: "noop", Dir: "/tmp/exts/noop", ModulePath: "weave/ext/noop"},
+		{Name: "noop", Dir: "/tmp/exts/noop", ModulePath: "github.com/weave-agent/weave/ext/noop"},
 	}
 
 	require.NoError(t, GenerateMainGo(dir, exts, "loop"))
@@ -488,7 +488,7 @@ func TestBuild_WithTrivialExtension(t *testing.T) {
 
 	extCode := `package noop
 
-import "weave/sdk"
+import "github.com/weave-agent/weave/sdk"
 
 func init() {
 	sdk.RegisterExtension[struct{}]("noop", func(cfg sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Extension, error) {
@@ -529,6 +529,49 @@ func findModuleRoot() (string, error) {
 	}
 
 	return "", os.ErrNotExist
+}
+
+func TestExtModulePath_FallbackUsesNewModulePath(t *testing.T) {
+	ext := ExtensionInfo{Name: "bash", Dir: "/tmp/exts/bash"}
+	assert.Equal(t, "github.com/weave-agent/weave/ext/bash", extModulePath(ext))
+}
+
+func TestExtModulePath_ModulePathFromGoMod(t *testing.T) {
+	ext := ExtensionInfo{Name: "bash", Dir: "/tmp/exts/bash", ModulePath: "github.com/weave-agent/weave-bash"}
+	assert.Equal(t, "github.com/weave-agent/weave-bash", extModulePath(ext))
+}
+
+func TestEnsureExtGoMod_UsesNewModulePath(t *testing.T) {
+	dir := t.TempDir()
+	ext := ExtensionInfo{Name: "myext", Dir: dir}
+	moduleRoot := "/tmp/weave-root"
+
+	require.NoError(t, ensureExtGoMod(ext, moduleRoot))
+
+	data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+	require.NoError(t, err)
+
+	s := string(data)
+	assert.Contains(t, s, "module github.com/weave-agent/weave/ext/myext")
+	assert.Contains(t, s, "require github.com/weave-agent/weave v0.0.0")
+	assert.Contains(t, s, "replace github.com/weave-agent/weave => "+moduleRoot)
+}
+
+func TestGenerateGoMod_UsesNewModulePathForRoot(t *testing.T) {
+	dir := t.TempDir()
+	exts := []ExtensionInfo{
+		{Name: "noop", Dir: "/tmp/exts/noop", ModulePath: "github.com/weave-agent/weave-ext-noop"},
+	}
+
+	require.NoError(t, GenerateGoMod(dir, "/tmp/weave-root", exts))
+
+	data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+	require.NoError(t, err)
+
+	s := string(data)
+	assert.Contains(t, s, "module github.com/weave-agent/weave/built")
+	assert.Contains(t, s, "github.com/weave-agent/weave v0.0.0")
+	assert.Contains(t, s, "replace github.com/weave-agent/weave => /tmp/weave-root")
 }
 
 // Suppress unused import warning.

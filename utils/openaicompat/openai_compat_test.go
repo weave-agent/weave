@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"weave/sdk"
-	"weave/sdk/model"
-	"weave/sdk/retry"
+	"github.com/weave-agent/weave/sdk"
+	"github.com/weave-agent/weave/sdk/model"
+	"github.com/weave-agent/weave/sdk/retry"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"slices"
 
-	"weave/sdk/registry"
+	"github.com/weave-agent/weave/sdk/registry"
 )
 
 // OAuthFlowType defines the type of OAuth flow a provider supports.

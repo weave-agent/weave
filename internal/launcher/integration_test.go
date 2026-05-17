@@ -17,8 +17,8 @@ const noopCode = `package noop
 
 import (
 	"context"
-	"weave/sdk"
-	"weave/sdk/model"
+	"github.com/weave-agent/weave/sdk"
+	"github.com/weave-agent/weave/sdk/model"
 )
 
 func init() {
@@ -48,8 +48,8 @@ const noopMarkerCode = `package noop
 import (
 	"context"
 	"os"
-	"weave/sdk"
-	"weave/sdk/model"
+	"github.com/weave-agent/weave/sdk"
+	"github.com/weave-agent/weave/sdk/model"
 )
 
 func init() {
@@ -107,7 +107,7 @@ func setupTestExtension(t *testing.T, extDir, moduleRoot, code string) {
 	require.NoError(t, os.MkdirAll(extDir, 0o750))
 	require.NoError(t, os.WriteFile(filepath.Join(extDir, "noop.go"), []byte(code), 0o600))
 
-	goMod := "module test/ext/noop\n\ngo 1.22\n\nrequire weave v0.0.0\n\nreplace weave => " + moduleRoot + "\n"
+	goMod := "module test/ext/noop\n\ngo 1.22\n\nrequire github.com/weave-agent/weave v0.0.0\n\nreplace github.com/weave-agent/weave => " + moduleRoot + "\n"
 	require.NoError(t, os.WriteFile(filepath.Join(extDir, "go.mod"), []byte(goMod), 0o600))
 }
 

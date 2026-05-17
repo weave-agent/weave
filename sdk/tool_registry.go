@@ -7,7 +7,7 @@ import (
 	"sort"
 	"sync"
 
-	"weave/sdk/registry"
+	"github.com/weave-agent/weave/sdk/registry"
 )
 
 var toolReg = registry.New[func(Config) (Tool, error)](

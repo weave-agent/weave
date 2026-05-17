@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave/sdk"
+	"github.com/weave-agent/weave/sdk"
 )
 
 // busMock is a simple mock of sdk.Bus for testing.

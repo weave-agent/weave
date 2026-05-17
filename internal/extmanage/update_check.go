@@ -5,7 +5,7 @@ import (
 	"os"
 	"sync"
 
-	"weave/sdk"
+	"github.com/weave-agent/weave/sdk"
 )
 
 // FireUpdateCheck scans user-installed extensions for available updates.

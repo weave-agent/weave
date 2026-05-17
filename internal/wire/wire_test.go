@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	eventbus "weave/bus"
-	"weave/sdk"
-	"weave/sdk/model"
+	eventbus "github.com/weave-agent/weave/bus"
+	"github.com/weave-agent/weave/sdk"
+	"github.com/weave-agent/weave/sdk/model"
 )
 
 func coreCfg() CoreWireConfig {

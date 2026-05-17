@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"weave/sdk"
+	"github.com/weave-agent/weave/sdk"
 )
 
 // HelpError is returned when --help or -h is requested.

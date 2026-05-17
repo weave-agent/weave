@@ -5,7 +5,7 @@ package sdk
 import (
 	"context"
 
-	"weave/sdk/model"
+	"github.com/weave-agent/weave/sdk/model"
 )
 
 type ProviderRequest struct {

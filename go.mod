@@ -1,4 +1,4 @@
-module weave
+module github.com/weave-agent/weave
 
 go 1.26.2
 

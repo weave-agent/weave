@@ -14,9 +14,9 @@ import (
 	"strconv"
 	"strings"
 
-	"weave/sdk"
-	"weave/sdk/model"
-	"weave/sdk/retry"
+	"github.com/weave-agent/weave/sdk"
+	"github.com/weave-agent/weave/sdk/model"
+	"github.com/weave-agent/weave/sdk/retry"
 )
 
 // ErrorType categorizes an error from the OpenAI-compatible API.
@@ -76,12 +76,12 @@ type ProviderConfig struct {
 
 // ChatRequest is the request body sent to the chat completions endpoint.
 type ChatRequest struct {
-	Model          string        `json:"model"`
-	Messages       []ChatMessage `json:"messages"`
-	Stream         bool          `json:"stream"`
-	MaxTokens      int           `json:"max_tokens,omitempty"`
-	Tools          []Tool        `json:"tools,omitempty"`
-	StreamOptions  *StreamOptions `json:"stream_options,omitempty"`
+	Model         string         `json:"model"`
+	Messages      []ChatMessage  `json:"messages"`
+	Stream        bool           `json:"stream"`
+	MaxTokens     int            `json:"max_tokens,omitempty"`
+	Tools         []Tool         `json:"tools,omitempty"`
+	StreamOptions *StreamOptions `json:"stream_options,omitempty"`
 }
 
 // StreamOptions configures streaming behavior.

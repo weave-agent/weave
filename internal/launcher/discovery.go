@@ -9,14 +9,14 @@ import (
 	"sort"
 	"strings"
 
-	"weave/settings"
+	"github.com/weave-agent/weave/settings"
 )
 
 type ExtensionInfo struct {
 	Name       string
 	Dir        string
 	GoFiles    []string
-	ModulePath string // e.g. "weave/ext/tools/bash"; populated by builder
+	ModulePath string // e.g. "github.com/weave-agent/weave/ext/tools/bash"; populated by builder
 	IsUIExt    bool   // true if the extension registers UI elements (RegisterUI, RegisterUIExtension, or RegisterTUIExtension)
 }
 

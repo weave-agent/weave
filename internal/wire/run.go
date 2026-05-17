@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"weave/internal/extmanage"
-	"weave/internal/launcher"
-	"weave/settings"
+	"github.com/weave-agent/weave/internal/extmanage"
+	"github.com/weave-agent/weave/internal/launcher"
+	"github.com/weave-agent/weave/settings"
 )
 
 var errNoInput = errors.New("no prompt provided and ui is disabled — use -p to provide a prompt or set ui: tui")
@@ -298,7 +298,7 @@ func isWeaveModule(dir string) bool {
 		}
 
 		if name, ok := strings.CutPrefix(line, "module "); ok {
-			return strings.TrimSpace(name) == "weave"
+			return strings.TrimSpace(name) == "github.com/weave-agent/weave"
 		}
 	}
 

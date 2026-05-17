@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"weave/internal/auth"
+	"github.com/weave-agent/weave/internal/auth"
 )
 
 // OAuthCredential stores OAuth tokens for a provider.

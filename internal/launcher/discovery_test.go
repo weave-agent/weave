@@ -175,7 +175,7 @@ func TestAutoDiscover_TUIExtension(t *testing.T) {
 	extDir := filepath.Join(moduleRoot, "extensions", "ui", "tui", "extensions", "diff-viewer")
 	require.NoError(t, os.MkdirAll(extDir, 0o750))
 	require.NoError(t, os.WriteFile(filepath.Join(extDir, "go.mod"), []byte("module test/ext/diff-viewer\n\ngo 1.22\n"), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(extDir, "diff.go"), []byte("package diffviewer\n\nimport \"weave/sdk\"\n\nfunc init() { sdk.RegisterUIExtension(\"diff\", nil) }\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, "diff.go"), []byte("package diffviewer\n\nimport \"github.com/weave-agent/weave/sdk\"\n\nfunc init() { sdk.RegisterUIExtension(\"diff\", nil) }\n"), 0o600))
 
 	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
 	require.NoError(t, err, "AutoDiscover")

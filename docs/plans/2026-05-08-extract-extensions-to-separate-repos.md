@@ -82,16 +82,16 @@ Move all extensions from the monorepo into independent repositories under `githu
 
 ### Task 1: Update SDK module path in main repo
 
-- [ ] Update `go.mod`: change `module weave` to `module github.com/weave-agent/weave`
-- [ ] Update ALL imports in main repo (`sdk/`, `bus/`, `config/`, `internal/launcher/`, `internal/wire/`, `internal/extmanage/`, `utils/`, `cmd/`, `settings/`) from `weave/...` to `github.com/weave-agent/weave/...`
-- [ ] Update `internal/wire/run.go` `isWeaveModule()`: check for `module github.com/weave-agent/weave`
-- [ ] Update `internal/launcher/builder.go` `extModulePath` fallback: `"github.com/weave-agent/weave/ext/" + ext.Name`
-- [ ] Update `internal/launcher/builder.go` `GenerateGoMod`: use `github.com/weave-agent/weave` instead of `weave`
-- [ ] Update `internal/launcher/builder.go` `GenerateMainGo`: imports use `github.com/weave-agent/weave/...`
-- [ ] Update `internal/launcher/builder.go` `ensureExtGoMod` shim: `module github.com/weave-agent/weave/ext/<name>`, `require github.com/weave-agent/weave`, `replace github.com/weave-agent/weave => <moduleRoot>`
-- [ ] Run `make fmt` and `make fix`
-- [ ] Run `go test ./...` from root — must pass
-- [ ] Run `make test` — must pass
+- [x] Update `go.mod`: change `module weave` to `module github.com/weave-agent/weave`
+- [x] Update ALL imports in main repo (`sdk/`, `bus/`, `config/`, `internal/launcher/`, `internal/wire/`, `internal/extmanage/`, `utils/`, `cmd/`, `settings/`) from `weave/...` to `github.com/weave-agent/weave/...`
+- [x] Update `internal/wire/run.go` `isWeaveModule()`: check for `module github.com/weave-agent/weave`
+- [x] Update `internal/launcher/builder.go` `extModulePath` fallback: `"github.com/weave-agent/weave/ext/" + ext.Name`
+- [x] Update `internal/launcher/builder.go` `GenerateGoMod`: use `github.com/weave-agent/weave` instead of `weave`
+- [x] Update `internal/launcher/builder.go` `GenerateMainGo`: imports use `github.com/weave-agent/weave/...`
+- [x] Update `internal/launcher/builder.go` `ensureExtGoMod` shim: `module github.com/weave-agent/weave/ext/<name>`, `require github.com/weave-agent/weave`, `replace github.com/weave-agent/weave => <moduleRoot>`
+- [x] Run `make fmt` and `make fix`
+- [x] Run `go test ./...` from root — must pass
+- [x] Run `make test` — must pass
 
 ### Task 2: Update extension module paths
 

@@ -3,7 +3,7 @@ package settings
 import (
 	"os"
 
-	"weave/sdk/model"
+	"github.com/weave-agent/weave/sdk/model"
 )
 
 // DefaultThinkingLevel reads the initial thinking level from WEAVE_THINKING_LEVEL,

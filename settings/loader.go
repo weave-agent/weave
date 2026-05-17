@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"strings"
 
-	"weave/sdk"
+	"github.com/weave-agent/weave/sdk"
 )
 
 // Loader loads configuration into a target struct from multiple sources.

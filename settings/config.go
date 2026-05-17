@@ -10,8 +10,8 @@ import (
 	"strings"
 	"sync"
 
-	"weave/internal/auth"
-	"weave/sdk"
+	"github.com/weave-agent/weave/internal/auth"
+	"github.com/weave-agent/weave/sdk"
 )
 
 // DefaultEnvPrefix is the standard environment variable prefix for weave settings.

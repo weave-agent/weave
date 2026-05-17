@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"weave/sdk/registry"
+	"github.com/weave-agent/weave/sdk/registry"
 )
 
 var uiReg = registry.New[UI](

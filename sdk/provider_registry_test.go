@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"weave/internal/auth"
+	"github.com/weave-agent/weave/internal/auth"
 )
 
 func TestRegisterAndRetrieveProvider(t *testing.T) {

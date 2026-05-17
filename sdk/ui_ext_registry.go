@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"reflect"
 
-	"weave/sdk/registry"
+	"github.com/weave-agent/weave/sdk/registry"
 )
 
 type uiExtEntry struct {

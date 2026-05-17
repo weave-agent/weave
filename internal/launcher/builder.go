@@ -243,13 +243,13 @@ func goVersion() string {
 }
 
 // extModulePath returns the module path for an extension, reading it from
-// the extension's go.mod. Falls back to "weave/ext/{name}" if unavailable.
+// the extension's go.mod. Falls back to "github.com/weave-agent/weave/ext/{name}" if unavailable.
 func extModulePath(ext ExtensionInfo) string {
 	if ext.ModulePath != "" {
 		return ext.ModulePath
 	}
 
-	return "weave/ext/" + ext.Name
+	return "github.com/weave-agent/weave/ext/" + ext.Name
 }
 
 // readModulePath reads the module path from a go.mod file in dir.
@@ -272,10 +272,10 @@ func readModulePath(dir string) string {
 // moduleRoot is the path to the weave module root (containing go.mod).
 func GenerateGoMod(dir, moduleRoot string, exts []ExtensionInfo) error {
 	var b strings.Builder
-	b.WriteString("module weave/built\n\n")
+	b.WriteString("module github.com/weave-agent/weave/built\n\n")
 	b.WriteString(goVersion() + "\n\n")
 	b.WriteString("require (\n")
-	b.WriteString("\tweave v0.0.0\n")
+	b.WriteString("\tgithub.com/weave-agent/weave v0.0.0\n")
 
 	for _, ext := range exts {
 		b.WriteString("\t" + extModulePath(ext) + " v0.0.0\n")
@@ -284,7 +284,7 @@ func GenerateGoMod(dir, moduleRoot string, exts []ExtensionInfo) error {
 	// Propagate transitive local dependencies from extension go.mod files.
 	directModulePaths := make(map[string]bool)
 
-	directModulePaths["weave"] = true
+	directModulePaths["github.com/weave-agent/weave"] = true
 	for _, ext := range exts {
 		directModulePaths[extModulePath(ext)] = true
 	}
@@ -315,7 +315,7 @@ func GenerateGoMod(dir, moduleRoot string, exts []ExtensionInfo) error {
 	}
 
 	b.WriteString(")\n\n")
-	b.WriteString("replace weave => " + moduleRoot + "\n")
+	b.WriteString("replace github.com/weave-agent/weave => " + moduleRoot + "\n")
 
 	for _, ext := range exts {
 		b.WriteString("replace " + extModulePath(ext) + " => " + ext.Dir + "\n")
@@ -436,12 +436,12 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 	b.WriteString("\t\"sync\"\n")
 	b.WriteString("\t\"syscall\"\n")
 	b.WriteString("\n")
-	b.WriteString("\t\"weave/bus\"\n")
-	b.WriteString("\t\"weave/internal/log\"\n")
-	b.WriteString("\t\"weave/settings\"\n")
-	b.WriteString("\t\"weave/sdk\"\n")
-	b.WriteString("\t\"weave/sdk/model\"\n")
-	b.WriteString("\t\"weave/internal/wire\"\n")
+	b.WriteString("\t\"github.com/weave-agent/weave/bus\"\n")
+	b.WriteString("\t\"github.com/weave-agent/weave/internal/log\"\n")
+	b.WriteString("\t\"github.com/weave-agent/weave/settings\"\n")
+	b.WriteString("\t\"github.com/weave-agent/weave/sdk\"\n")
+	b.WriteString("\t\"github.com/weave-agent/weave/sdk/model\"\n")
+	b.WriteString("\t\"github.com/weave-agent/weave/internal/wire\"\n")
 
 	for _, ext := range exts {
 		b.WriteString("\n")
@@ -831,7 +831,7 @@ func ensureExtGoMod(ext ExtensionInfo, moduleRoot string) error {
 		}
 	}
 
-	content := shimSentinel + "module weave/ext/" + ext.Name + "\n\n" + goVersion() + "\n\nrequire weave v0.0.0\n\nreplace weave => " + moduleRoot + "\n"
+	content := shimSentinel + "module github.com/weave-agent/weave/ext/" + ext.Name + "\n\n" + goVersion() + "\n\nrequire github.com/weave-agent/weave v0.0.0\n\nreplace github.com/weave-agent/weave => " + moduleRoot + "\n"
 
 	if err := os.WriteFile(goModPath, []byte(content), 0o600); err != nil {
 		return fmt.Errorf("ensure extension go.mod: %w", err)

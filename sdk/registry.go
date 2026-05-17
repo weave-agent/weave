@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"reflect"
 
-	"weave/sdk/registry"
+	"github.com/weave-agent/weave/sdk/registry"
 )
 
 var extReg = registry.New[func(Config) (Extension, error)](

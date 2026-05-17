@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"weave/settings"
+	"github.com/weave-agent/weave/settings"
 )
 
 // uninstallExtension removes an extension directory from ~/.weave/extensions/.

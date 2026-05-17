@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"weave/settings"
+	"github.com/weave-agent/weave/settings"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -133,7 +133,7 @@ func TestFindModuleRootFrom_Invalid(t *testing.T) {
 
 func TestIsWeaveModule(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module weave\n\ngo 1.24\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module github.com/weave-agent/weave\n\ngo 1.24\n"), 0o600))
 	assert.True(t, isWeaveModule(dir))
 
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module other\n\ngo 1.24\n"), 0o600))

@@ -10,11 +10,11 @@ import (
 	"slices"
 	"sort"
 
-	"weave/internal/extmanage"
-	"weave/internal/filemut"
-	"weave/internal/filetracker"
-	"weave/sdk"
-	"weave/sdk/model"
+	"github.com/weave-agent/weave/internal/extmanage"
+	"github.com/weave-agent/weave/internal/filemut"
+	"github.com/weave-agent/weave/internal/filetracker"
+	"github.com/weave-agent/weave/sdk"
+	"github.com/weave-agent/weave/sdk/model"
 )
 
 const defaultAgentLoop = "agent"

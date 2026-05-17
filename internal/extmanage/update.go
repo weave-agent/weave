@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"weave/settings"
+	"github.com/weave-agent/weave/settings"
 )
 
 // updateExtension runs git pull --ff-only in the extension directory.

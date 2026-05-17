@@ -7,7 +7,7 @@ import (
 	"slices"
 	"sync"
 
-	"weave/sdk"
+	"github.com/weave-agent/weave/sdk"
 )
 
 var logger = sdk.Logger("bus")

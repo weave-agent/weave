@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"weave/settings"
+	"github.com/weave-agent/weave/settings"
 )
 
 const cloneTimeout = 5 * time.Minute

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"weave/sdk/registry"
+	"github.com/weave-agent/weave/sdk/registry"
 )
 
 var (
