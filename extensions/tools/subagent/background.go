@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -188,14 +189,45 @@ func (bm *backgroundManager) notifyOutput(id string, evt jsonEvent) {
 		return
 	}
 
+	content := evt.Content
+	if content == "" {
+		switch evt.Type {
+		case "tool_call":
+			if evt.Args != nil {
+				if b, err := json.Marshal(evt.Args); err == nil {
+					content = summarizeArgs(string(b), 200)
+				}
+			}
+		case "tool_result":
+			content = evt.Output
+		}
+	}
+
 	payload := map[string]string{
 		propID:     id,
 		"type":     evt.Type,
 		"tool":     evt.Tool,
-		keyContent: evt.Content,
+		keyContent: content,
 	}
 
 	bus.Publish(sdk.NewEvent("subagent.output", payload))
+}
+
+// summarizeArgs produces a short human-readable summary of a JSON args blob.
+// It strips outer braces and truncates to maxLen runes.
+func summarizeArgs(s string, maxLen int) string {
+	s = strings.TrimSpace(s)
+
+	s = strings.TrimPrefix(s, "{")
+	s = strings.TrimSuffix(s, "}")
+
+	s = strings.TrimSpace(s)
+
+	if len(s) > maxLen {
+		return s[:maxLen] + "..."
+	}
+
+	return s
 }
 
 func (bm *backgroundManager) get(id string) (*backgroundAgent, bool) {
