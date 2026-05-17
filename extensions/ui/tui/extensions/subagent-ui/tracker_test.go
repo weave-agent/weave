@@ -500,3 +500,58 @@ func TestTrackedAgent_OutputSharedViaGet(t *testing.T) {
 	assert.Equal(t, "before-get", snap[0].Content)
 	assert.Equal(t, "after-get", snap[1].Content)
 }
+
+func TestAgentTracker_AppendOutput(t *testing.T) {
+	tracker := NewAgentTracker(0, nil)
+	tracker.Start("agent-1", "researcher", "background")
+
+	ok := tracker.AppendOutput("agent-1", outputEntry{
+		Type:    "tool_start",
+		Tool:    "read",
+		Content: "main.go",
+	})
+	assert.True(t, ok)
+
+	agent := tracker.Get("agent-1")
+	require.NotNil(t, agent)
+
+	snap := agent.Output.Snapshot()
+	require.Len(t, snap, 1)
+	assert.Equal(t, "tool_start", snap[0].Type)
+	assert.Equal(t, "read", snap[0].Tool)
+	assert.Equal(t, "main.go", snap[0].Content)
+}
+
+func TestAgentTracker_AppendOutput_MissingAgent(t *testing.T) {
+	tracker := NewAgentTracker(0, nil)
+
+	ok := tracker.AppendOutput("nonexistent", outputEntry{
+		Type:    "tool_start",
+		Content: "test",
+	})
+	assert.False(t, ok)
+}
+
+func TestAgentTracker_AppendOutput_MultipleEntries(t *testing.T) {
+	tracker := NewAgentTracker(0, nil)
+	tracker.Start("agent-1", "researcher", "background")
+
+	entries := []outputEntry{
+		{Type: "tool_start", Tool: "read", Content: "a.go"},
+		{Type: "tool_end", Tool: "read", Content: "result"},
+		{Type: "message_update", Content: "thinking..."},
+	}
+
+	for _, e := range entries {
+		tracker.AppendOutput("agent-1", e)
+	}
+
+	agent := tracker.Get("agent-1")
+	require.NotNil(t, agent)
+
+	snap := agent.Output.Snapshot()
+	require.Len(t, snap, 3)
+	assert.Equal(t, "tool_start", snap[0].Type)
+	assert.Equal(t, "tool_end", snap[1].Type)
+	assert.Equal(t, "message_update", snap[2].Type)
+}

@@ -134,6 +134,8 @@ func (e *SubagentExtension) subscribe(bus sdk.Bus) {
 			return e.handleStarted(ev)
 		case "subagent.done":
 			return e.handleDone(ev)
+		case "subagent.output":
+			return e.handleOutput(ev)
 		case "agent.end":
 			e.Close()
 			return nil
@@ -192,6 +194,39 @@ func (e *SubagentExtension) handleDone(ev sdk.Event) error {
 	}
 
 	e.tracker.Done(id, status, result)
+
+	e.mu.Lock()
+	api := e.api
+	e.mu.Unlock()
+
+	if api != nil {
+		api.RequestRedraw()
+	}
+
+	return nil
+}
+
+func (e *SubagentExtension) handleOutput(ev sdk.Event) error {
+	payload, ok := ev.Payload.(map[string]string)
+	if !ok {
+		return nil
+	}
+
+	id := payload["id"]
+	if id == "" {
+		return nil
+	}
+
+	entry := outputEntry{
+		Type:    payload["type"],
+		Tool:    payload["tool"],
+		Content: payload["content"],
+		Time:    time.Now(),
+	}
+
+	if !e.tracker.AppendOutput(id, entry) {
+		return nil
+	}
 
 	e.mu.Lock()
 	api := e.api

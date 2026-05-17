@@ -233,6 +233,22 @@ func (t *AgentTracker) Done(id, status, result string) {
 	t.timers[id] = timer
 }
 
+// AppendOutput adds an output entry to the tracked agent's ring buffer.
+// Returns false if the agent is not found.
+func (t *AgentTracker) AppendOutput(id string, entry outputEntry) bool {
+	t.mu.RLock()
+	a, ok := t.agents[id]
+	t.mu.RUnlock()
+
+	if !ok {
+		return false
+	}
+
+	a.Output.Append(entry)
+
+	return true
+}
+
 // Get returns a snapshot copy of a tracked agent by ID, or nil if not found.
 // Returns a value (not pointer) so callers can read fields without races.
 func (t *AgentTracker) Get(id string) *TrackedAgent {

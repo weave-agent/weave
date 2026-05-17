@@ -25,6 +25,7 @@ type mockTUIExtAPI struct {
 	panelDrawers  []tui.PanelDrawer
 	panelsRemoved []string
 	removeCh      chan string
+	redrawCount   int
 }
 
 func newMockTUIExtAPI() *mockTUIExtAPI {
@@ -90,6 +91,13 @@ func (m *mockTUIExtAPI) getPanelsShown() []tui.PanelConfig {
 	return cp
 }
 
+func (m *mockTUIExtAPI) getRedrawCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return m.redrawCount
+}
+
 func (m *mockTUIExtAPI) RegisterMessageRenderer(msgType string, renderer sdk.MessageRenderer) {}
 func (m *mockTUIExtAPI) SetFooter(component tui.TUIComponent)                                 {}
 func (m *mockTUIExtAPI) SetHeader(component tui.TUIComponent)                                 {}
@@ -97,7 +105,11 @@ func (m *mockTUIExtAPI) OnTerminalInput(handler func(tui.KeyEvent))             
 func (m *mockTUIExtAPI) AddAutocomplete(provider tui.AutocompleteProvider)                    {}
 func (m *mockTUIExtAPI) SetWorkingFrames(frames []string, interval time.Duration)             {}
 func (m *mockTUIExtAPI) RegisterTheme(name string, theme tui.ThemeDef) error                  { return nil }
-func (m *mockTUIExtAPI) RequestRedraw()                                                       {}
+func (m *mockTUIExtAPI) RequestRedraw() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.redrawCount++
+}
 
 // mockTool is a minimal sdk.Tool implementation for testing.
 type mockTool struct {
@@ -594,4 +606,152 @@ func TestSubagentExtension_NoPanelLeak_OnDone(t *testing.T) {
 
 	// No agents left in tracker
 	assert.Empty(t, ext.tracker.List())
+}
+
+func TestSubagentExtension_Subscribe_OutputPopulatesRingBuffer(t *testing.T) {
+	ext := &SubagentExtension{tracker: NewAgentTracker(gracePeriod, nil), renderer: &subagentRenderer{}}
+	api := newMockTUIExtAPI()
+	bus := newMockBus()
+
+	ext.RegisterTUI(api)
+	defer ext.Close()
+
+	ext.subscribe(bus)
+
+	// Start an agent
+	bus.Publish(sdk.NewEvent("subagent.started", map[string]string{
+		"id": "agent-out", "name": "researcher", "mode": "background",
+	}))
+
+	// Send output events
+	bus.Publish(sdk.NewEvent("subagent.output", map[string]string{
+		"id":      "agent-out",
+		"type":    "tool_start",
+		"tool":    "read",
+		"content": "main.go",
+	}))
+	bus.Publish(sdk.NewEvent("subagent.output", map[string]string{
+		"id":      "agent-out",
+		"type":    "tool_end",
+		"tool":    "read",
+		"content": "file contents...",
+	}))
+	bus.Publish(sdk.NewEvent("subagent.output", map[string]string{
+		"id":      "agent-out",
+		"type":    "message_update",
+		"tool":    "",
+		"content": "streaming text",
+	}))
+
+	// Verify ring buffer has entries
+	agent := ext.tracker.Get("agent-out")
+	require.NotNil(t, agent)
+
+	snap := agent.Output.Snapshot()
+	require.Len(t, snap, 3)
+	assert.Equal(t, "tool_start", snap[0].Type)
+	assert.Equal(t, "read", snap[0].Tool)
+	assert.Equal(t, "main.go", snap[0].Content)
+	assert.Equal(t, "tool_end", snap[1].Type)
+	assert.Equal(t, "message_update", snap[2].Type)
+	assert.WithinDuration(t, time.Now(), snap[0].Time, time.Second)
+}
+
+func TestSubagentExtension_Subscribe_OutputTriggersRedraw(t *testing.T) {
+	ext := &SubagentExtension{tracker: NewAgentTracker(gracePeriod, nil), renderer: &subagentRenderer{}}
+	api := newMockTUIExtAPI()
+	bus := newMockBus()
+
+	ext.RegisterTUI(api)
+	defer ext.Close()
+
+	ext.subscribe(bus)
+
+	bus.Publish(sdk.NewEvent("subagent.started", map[string]string{
+		"id": "agent-redraw", "name": "test", "mode": "background",
+	}))
+
+	initialRedraws := api.getRedrawCount()
+
+	bus.Publish(sdk.NewEvent("subagent.output", map[string]string{
+		"id": "agent-redraw", "type": "tool_start", "tool": "grep", "content": "pattern",
+	}))
+
+	assert.Equal(t, initialRedraws+1, api.getRedrawCount())
+}
+
+func TestSubagentExtension_Subscribe_OutputIgnoresMissingAgent(t *testing.T) {
+	ext := &SubagentExtension{tracker: NewAgentTracker(gracePeriod, nil), renderer: &subagentRenderer{}}
+	api := newMockTUIExtAPI()
+	bus := newMockBus()
+
+	ext.RegisterTUI(api)
+	defer ext.Close()
+
+	ext.subscribe(bus)
+
+	// Output for an agent that was never started — should not panic
+	assert.NotPanics(t, func() {
+		bus.Publish(sdk.NewEvent("subagent.output", map[string]string{
+			"id":      "agent-ghost",
+			"type":    "tool_start",
+			"tool":    "read",
+			"content": "test",
+		}))
+	})
+
+	// No agents tracked
+	assert.Empty(t, ext.tracker.List())
+}
+
+func TestSubagentExtension_Subscribe_OutputIgnoresBadPayload(t *testing.T) {
+	ext := &SubagentExtension{tracker: NewAgentTracker(gracePeriod, nil), renderer: &subagentRenderer{}}
+	api := newMockTUIExtAPI()
+	bus := newMockBus()
+
+	ext.RegisterTUI(api)
+	defer ext.Close()
+
+	ext.subscribe(bus)
+
+	bus.Publish(sdk.NewEvent("subagent.started", map[string]string{
+		"id": "agent-bad", "name": "test", "mode": "background",
+	}))
+
+	// Non-map payload — should not panic
+	assert.NotPanics(t, func() {
+		bus.Publish(sdk.NewEvent("subagent.output", "bad payload"))
+	})
+
+	// Empty id — should be ignored
+	assert.NotPanics(t, func() {
+		bus.Publish(sdk.NewEvent("subagent.output", map[string]string{
+			"type": "tool_start",
+		}))
+	})
+
+	// Agent should still be running with empty ring buffer
+	agent := ext.tracker.Get("agent-bad")
+	require.NotNil(t, agent)
+	assert.Equal(t, 0, agent.Output.Len())
+}
+
+func TestSubagentExtension_Subscribe_OutputBeforeRegisterTUI(t *testing.T) {
+	ext := &SubagentExtension{tracker: NewAgentTracker(gracePeriod, nil), renderer: &subagentRenderer{}}
+	bus := newMockBus()
+
+	ext.subscribe(bus)
+
+	// Start agent and send output before API is wired
+	bus.Publish(sdk.NewEvent("subagent.started", map[string]string{
+		"id": "agent-early", "name": "early", "mode": "background",
+	}))
+	bus.Publish(sdk.NewEvent("subagent.output", map[string]string{
+		"id": "agent-early", "type": "tool_start", "tool": "read", "content": "file.go",
+	}))
+
+	// Output should be in ring buffer even without API
+	agent := ext.tracker.Get("agent-early")
+	require.NotNil(t, agent)
+	assert.Equal(t, 1, agent.Output.Len())
 }

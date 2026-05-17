@@ -82,11 +82,11 @@ Upgrade the subagent UI panel from a minimal status indicator to an informative,
 - [x] run tests - must pass before task 5
 
 ### Task 5: Subscribe to subagent.output in UI extension and populate ring buffer
-- [ ] add `subagent.output` case to the `OnAll` handler in `extensions/ui/tui/extensions/subagent-ui/subagent_ui.go`
-- [ ] parse payload fields (`id`, `type`, `tool`, `content`) and append `outputEntry` to the agent's ring buffer via tracker method
-- [ ] call `api.RequestRedraw()` after appending to trigger panel update
-- [ ] write tests for ring buffer population from bus events, handling of missing agent ID, and bad payload
-- [ ] run tests - must pass before task 6
+- [x] add `subagent.output` case to the `OnAll` handler in `extensions/ui/tui/extensions/subagent-ui/subagent_ui.go`
+- [x] parse payload fields (`id`, `type`, `tool`, `content`) and append `outputEntry` to the agent's ring buffer via tracker method
+- [x] call `api.RequestRedraw()` after appending to trigger panel update
+- [x] write tests for ring buffer population from bus events, handling of missing agent ID, and bad payload
+- [x] run tests - must pass before task 6
 
 ### Task 6: Rewrite panel drawer with live output and cancel
 - [ ] update `agentPanelDrawer.Draw()` in `extensions/ui/tui/extensions/subagent-ui/panel.go` to render: header row (status + name + mode + elapsed + cancel button), prompt row, separator, scrollable tool log from ring buffer snapshot
