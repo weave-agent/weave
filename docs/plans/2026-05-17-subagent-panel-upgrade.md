@@ -114,8 +114,8 @@ Upgrade the subagent UI panel from a minimal status indicator to an informative,
 - [x] fix any linter issues
 
 ### Task 9: Update documentation
-- [ ] update CLAUDE.md with new bus events (`subagent.output`, `subagent.cancel`) and per-agent cancellation
-- [ ] update CLAUDE.md subagent UI extension description with new panel capabilities
+- [x] update CLAUDE.md with new bus events (`subagent.output`, `subagent.cancel`) and per-agent cancellation
+- [x] update CLAUDE.md subagent UI extension description with new panel capabilities
 
 ## Technical Details
 
