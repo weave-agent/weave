@@ -12,7 +12,7 @@ help: ## Show available targets
 ##@ Tools
 tools: ## Install/update development tools (moq, golangci-lint)
 	go install github.com/matryer/moq@latest
-	@brew install golangci-lint 2>/dev/null || brew upgrade golangci-lint
+	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 
 ##@ Generate code
 gen: ## Regenerate mocks, generated code
