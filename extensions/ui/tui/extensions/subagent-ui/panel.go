@@ -62,7 +62,7 @@ func (d *agentPanelDrawer) Draw(scr uv.Screen, area uv.Rectangle) {
 
 	cancelBtn := ""
 	if agent.Status == AgentRunning {
-		cancelBtn = "  " + lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Error)).Render("[✕ cancel]")
+		cancelBtn = "  " + lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Error)).Render("[✕ cancel Ctrl+X]")
 	}
 
 	header := fmt.Sprintf(
