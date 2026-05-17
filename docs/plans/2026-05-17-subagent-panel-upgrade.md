@@ -66,13 +66,13 @@ Upgrade the subagent UI panel from a minimal status indicator to an informative,
 - [x] run tests - must pass before task 3
 
 ### Task 3: Plumb onEvent callback through stdout parsers
-- [ ] add `onEvent func(jsonEvent)` parameter to `parseJSONLines` in `extensions/tools/subagent/execute.go`, call it for each parsed JSON line
-- [ ] add `onEvent func(jsonEvent)` parameter to `monitorStdout` and `MonitorStdout` in `extensions/tools/subagent/broker.go`, call it for tool/message events (skip inter-agent routing types: send, broadcast, list_agents)
-- [ ] add `onEvent func(jsonEvent)` parameter to `runSubagent` in `execute.go`, pass through to both parser paths
-- [ ] update `testRunSubagent` signature in `execute.go` to match new parameter
-- [ ] update all callers and test files referencing the changed signatures
-- [ ] write tests verifying `onEvent` is called with correct event types for both parseJSONLines and broker.monitorStdout paths
-- [ ] run tests - must pass before task 4
+- [x] add `onEvent func(jsonEvent)` parameter to `parseJSONLines` in `extensions/tools/subagent/execute.go`, call it for each parsed JSON line
+- [x] add `onEvent func(jsonEvent)` parameter to `monitorStdout` and `MonitorStdout` in `extensions/tools/subagent/broker.go`, call it for tool/message events (skip inter-agent routing types: send, broadcast, list_agents)
+- [x] add `onEvent func(jsonEvent)` parameter to `runSubagent` in `execute.go`, pass through to both parser paths
+- [x] update `testRunSubagent` signature in `execute.go` to match new parameter
+- [x] update all callers and test files referencing the changed signatures
+- [x] write tests verifying `onEvent` is called with correct event types for both parseJSONLines and broker.monitorStdout paths
+- [x] run tests - must pass before task 4
 
 ### Task 4: Publish subagent.output and subscribe subagent.cancel in tool extension
 - [ ] add `notifyOutput(id string, evt jsonEvent)` method to `backgroundManager` that publishes `subagent.output` bus event with `{id, type, tool, content}` payload

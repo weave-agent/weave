@@ -119,7 +119,9 @@ func (b *Broker) Unregister(id string, gen uint64) {
 // MonitorStdout reads JSON lines from the agent's stdout, routes inter-agent
 // messages, and captures the final result from the last "message_end" event.
 // When the reader closes (process exits), the agent is automatically unregistered.
-func (b *Broker) MonitorStdout(id string, stdout io.Reader) (string, error) {
+// When onEvent is non-nil, it is called for tool/message events (inter-agent
+// routing types like send, broadcast, list_agents are skipped).
+func (b *Broker) MonitorStdout(id string, stdout io.Reader, onEvent func(jsonEvent)) (string, error) {
 	// Capture the generation of the agent we're about to monitor so that
 	// we only unregister this specific registration, not a newer one
 	// that may have been created concurrently.
@@ -132,13 +134,13 @@ func (b *Broker) MonitorStdout(id string, stdout io.Reader) (string, error) {
 
 	b.mu.RUnlock()
 
-	result, err := b.monitorStdout(id, stdout)
+	result, err := b.monitorStdout(id, stdout, onEvent)
 	b.Unregister(id, gen)
 
 	return result, err
 }
 
-func (b *Broker) monitorStdout(id string, stdout io.Reader) (string, error) {
+func (b *Broker) monitorStdout(id string, stdout io.Reader, onEvent func(jsonEvent)) (string, error) {
 	scanner := bufio.NewScanner(stdout)
 
 	// Increase buffer capacity to handle large JSON lines (e.g. message_end
@@ -163,6 +165,20 @@ func (b *Broker) monitorStdout(id string, stdout io.Reader) (string, error) {
 		if err := json.Unmarshal([]byte(line), &msg); err != nil {
 			// Non-JSON lines are ignored (could be log output).
 			continue
+		}
+
+		// Forward tool/message events to the onEvent callback,
+		// skipping inter-agent routing types (send, broadcast, list_agents).
+		if onEvent != nil {
+			switch msg.Type {
+			case msgTypeSend, msgTypeBroadcast, msgTypeListAgents:
+				// Skip — these are inter-agent routing events.
+			default:
+				var evt jsonEvent
+				if jsonErr := json.Unmarshal([]byte(line), &evt); jsonErr == nil {
+					onEvent(evt)
+				}
+			}
 		}
 
 		switch msg.Type {

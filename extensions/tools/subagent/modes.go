@@ -61,7 +61,7 @@ func runParallel(ctx context.Context, agent *AgentDef, tasks []any, cwd string, 
 					subagentID = generateAgentID(agent.Name)
 				}
 
-				output, err := runSubagent(ctx, agent, t.prompt, cwd, subagentID, broker, cfgPath, projectDir)
+				output, err := runSubagent(ctx, agent, t.prompt, cwd, subagentID, broker, cfgPath, projectDir, nil)
 				results[t.idx] = result{index: t.idx, output: output, err: err}
 			}
 		})
@@ -117,7 +117,7 @@ func runChain(ctx context.Context, agent *AgentDef, chain []any, cwd string, bro
 			subagentID = generateAgentID(agent.Name)
 		}
 
-		output, err := runSubagent(ctx, agent, prompt, cwd, subagentID, broker, cfgPath, projectDir)
+		output, err := runSubagent(ctx, agent, prompt, cwd, subagentID, broker, cfgPath, projectDir, nil)
 		if err != nil {
 			return sdk.ToolResult{
 				Content: fmt.Sprintf("Chain step %d failed: %v", i+1, err),

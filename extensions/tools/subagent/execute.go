@@ -33,7 +33,7 @@ type jsonEvent struct {
 // last "message_end" event is returned as the result.
 // When subagentID is non-empty and broker is provided, the broker routes
 // inter-agent messages and the child gets a stdin pipe for receiving them.
-func runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string) (string, error) {
+func runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID string, broker *Broker, cfgPath, projectDir string, onEvent func(jsonEvent)) (string, error) {
 	if testRunSubagent != nil {
 		return testRunSubagent(ctx, agent, prompt, cwd, subagentID, broker, cfgPath, projectDir)
 	}
@@ -81,9 +81,9 @@ func runSubagent(ctx context.Context, agent *AgentDef, prompt, cwd, subagentID s
 
 	var result string
 	if broker != nil && subagentID != "" {
-		result, err = broker.MonitorStdout(subagentID, stdout)
+		result, err = broker.MonitorStdout(subagentID, stdout, onEvent)
 	} else {
-		result, err = parseJSONLines(stdout)
+		result, err = parseJSONLines(stdout, onEvent)
 	}
 
 	if err != nil {
@@ -248,7 +248,8 @@ func subagentExecutable() (string, error) {
 
 // parseJSONLines reads JSON lines from r and returns the content of the last
 // "message_end" event. Non-JSON lines and unrecognized event types are ignored.
-func parseJSONLines(r io.Reader) (string, error) {
+// When onEvent is non-nil, it is called for each successfully parsed JSON line.
+func parseJSONLines(r io.Reader, onEvent func(jsonEvent)) (string, error) {
 	scanner := bufio.NewScanner(r)
 
 	// Increase buffer capacity to handle large JSON lines (e.g. message_end
@@ -277,6 +278,10 @@ func parseJSONLines(r io.Reader) (string, error) {
 		}
 
 		jsonLines++
+
+		if onEvent != nil {
+			onEvent(evt)
+		}
 
 		if evt.Type == "message_end" {
 			finalContent = evt.Content

@@ -20,7 +20,7 @@ func TestParseJSONLines_MessageEnd(t *testing.T) {
 {"type":"message_update","content":"Thinking..."}
 {"type":"message_end","content":"Final answer here","usage":{"input":150,"output":200}}
 `
-	result, err := parseJSONLines(strings.NewReader(input))
+	result, err := parseJSONLines(strings.NewReader(input), nil)
 	require.NoError(t, err)
 	assert.Equal(t, "Final answer here", result)
 }
@@ -29,19 +29,19 @@ func TestParseJSONLines_MultipleMessageEnd_LastWins(t *testing.T) {
 	input := `{"type":"message_end","content":"First"}
 {"type":"message_end","content":"Second"}
 `
-	result, err := parseJSONLines(strings.NewReader(input))
+	result, err := parseJSONLines(strings.NewReader(input), nil)
 	require.NoError(t, err)
 	assert.Equal(t, "Second", result)
 }
 
 func TestParseJSONLines_EmptyInput(t *testing.T) {
-	_, err := parseJSONLines(strings.NewReader(""))
+	_, err := parseJSONLines(strings.NewReader(""), nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no valid JSON events")
 }
 
 func TestParseJSONLines_OnlyWhitespace(t *testing.T) {
-	_, err := parseJSONLines(strings.NewReader("\n\n  \n"))
+	_, err := parseJSONLines(strings.NewReader("\n\n  \n"), nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no valid JSON events")
 }
@@ -51,7 +51,7 @@ func TestParseJSONLines_NonJSONIgnored(t *testing.T) {
 this is not json
 {"type":"message_update","content":"update"}
 `
-	result, err := parseJSONLines(strings.NewReader(input))
+	result, err := parseJSONLines(strings.NewReader(input), nil)
 	require.NoError(t, err)
 	assert.Equal(t, "Result", result)
 }
@@ -63,7 +63,7 @@ func TestParseJSONLines_AllEventTypes(t *testing.T) {
 {"type":"tool_result","tool":"grep","output":"found"}
 {"type":"message_end","content":"Done","usage":{"input":10,"output":5}}
 `
-	result, err := parseJSONLines(strings.NewReader(input))
+	result, err := parseJSONLines(strings.NewReader(input), nil)
 	require.NoError(t, err)
 	assert.Equal(t, "Done", result)
 }
@@ -243,7 +243,7 @@ func TestRunSubagent_Mock(t *testing.T) {
 	}
 
 	agent := &AgentDef{Name: "explore"}
-	result, err := runSubagent(context.Background(), agent, "find bugs", "", "", nil, "", "")
+	result, err := runSubagent(context.Background(), agent, "find bugs", "", "", nil, "", "", nil)
 	require.NoError(t, err)
 	assert.Equal(t, "mocked result for explore: find bugs", result)
 }
@@ -258,7 +258,7 @@ func TestRunSubagent_MockError(t *testing.T) {
 	}
 
 	agent := &AgentDef{Name: "explore"}
-	_, err := runSubagent(context.Background(), agent, "find bugs", "", "", nil, "", "")
+	_, err := runSubagent(context.Background(), agent, "find bugs", "", "", nil, "", "", nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "mock failure")
 }
@@ -330,7 +330,7 @@ func TestParseJSONLines_InterAgentEvents(t *testing.T) {
 {"type":"list_agents"}
 {"type":"message_end","content":"Final result"}
 `
-	result, err := parseJSONLines(strings.NewReader(input))
+	result, err := parseJSONLines(strings.NewReader(input), nil)
 	require.NoError(t, err)
 	assert.Equal(t, "Final result", result)
 }
@@ -342,7 +342,7 @@ func TestParseJSONLines_MixedContentAndLogLines(t *testing.T) {
 warning: something happened
 {"type":"message_end","content":"Done"}
 `
-	result, err := parseJSONLines(strings.NewReader(input))
+	result, err := parseJSONLines(strings.NewReader(input), nil)
 	require.NoError(t, err)
 	assert.Equal(t, "Done", result)
 }
@@ -353,7 +353,7 @@ func TestParseJSONLines_EmptyLinesBetweenJSON(t *testing.T) {
 {"type":"message_end","content":"Result"}
 
 `
-	result, err := parseJSONLines(strings.NewReader(input))
+	result, err := parseJSONLines(strings.NewReader(input), nil)
 	require.NoError(t, err)
 	assert.Equal(t, "Result", result)
 }
@@ -507,8 +507,72 @@ func TestBuildCommand_NoMessagingNoID(t *testing.T) {
 	}
 
 	agent := &AgentDef{Name: "test", Messaging: false}
-	_, err := runSubagent(context.Background(), agent, "prompt", "", "", nil, "", "")
+	_, err := runSubagent(context.Background(), agent, "prompt", "", "", nil, "", "", nil)
 	require.NoError(t, err)
 
 	assert.Empty(t, receivedID)
+}
+
+func TestParseJSONLines_OnEvent_Callback(t *testing.T) {
+	var captured []jsonEvent
+
+	onEvent := func(evt jsonEvent) {
+		captured = append(captured, evt)
+	}
+
+	input := `{"type":"message_start","model":"claude-haiku-4-5"}
+{"type":"message_update","content":"Thinking..."}
+{"type":"tool_call","tool":"grep","args":{"pattern":"TODO"}}
+{"type":"tool_result","tool":"grep","output":"found"}
+{"type":"message_end","content":"Final answer","usage":{"input":150,"output":200}}
+`
+	result, err := parseJSONLines(strings.NewReader(input), onEvent)
+	require.NoError(t, err)
+	assert.Equal(t, "Final answer", result)
+
+	require.Len(t, captured, 5)
+
+	assert.Equal(t, "message_start", captured[0].Type)
+	assert.Equal(t, "claude-haiku-4-5", captured[0].Model)
+
+	assert.Equal(t, "message_update", captured[1].Type)
+	assert.Equal(t, "Thinking...", captured[1].Content)
+
+	assert.Equal(t, "tool_call", captured[2].Type)
+	assert.Equal(t, "grep", captured[2].Tool)
+
+	assert.Equal(t, "tool_result", captured[3].Type)
+	assert.Equal(t, "grep", captured[3].Tool)
+
+	assert.Equal(t, "message_end", captured[4].Type)
+	assert.Equal(t, "Final answer", captured[4].Content)
+}
+
+func TestParseJSONLines_OnEvent_NilCallback(t *testing.T) {
+	input := `{"type":"message_end","content":"Result"}
+`
+	// Should not panic with nil callback.
+	result, err := parseJSONLines(strings.NewReader(input), nil)
+	require.NoError(t, err)
+	assert.Equal(t, "Result", result)
+}
+
+func TestParseJSONLines_OnEvent_NonJSONNotForwarded(t *testing.T) {
+	var captured []jsonEvent
+
+	onEvent := func(evt jsonEvent) {
+		captured = append(captured, evt)
+	}
+
+	input := `log line
+{"type":"message_end","content":"Done"}
+more log
+`
+	result, err := parseJSONLines(strings.NewReader(input), onEvent)
+	require.NoError(t, err)
+	assert.Equal(t, "Done", result)
+
+	// Only the JSON line should have been forwarded.
+	require.Len(t, captured, 1)
+	assert.Equal(t, "message_end", captured[0].Type)
 }

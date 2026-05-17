@@ -234,7 +234,7 @@ func (t *subagentTool) Execute(ctx context.Context, args map[string]any) (sdk.To
 			return sdk.ToolResult{Content: string(jsonBytes)}, nil
 		}
 
-		output, err := runSubagent(ctx, t.agent, prompt, cwd, subagentID, t.broker, t.cfgPath, t.projectDir)
+		output, err := runSubagent(ctx, t.agent, prompt, cwd, subagentID, t.broker, t.cfgPath, t.projectDir, nil)
 		if err != nil {
 			//nolint:nilerr // tool protocol: errors in Content, not return
 			return sdk.ToolResult{Content: err.Error(), IsError: true}, nil

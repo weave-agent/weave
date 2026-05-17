@@ -68,7 +68,7 @@ func TestBroker_RouteSend(t *testing.T) {
 		_ = a1StdoutW.Close()
 	}()
 
-	result, err := broker.MonitorStdout("agent1", a1StdoutR)
+	result, err := broker.MonitorStdout("agent1", a1StdoutR, nil)
 	require.NoError(t, err)
 	assert.Empty(t, result)
 
@@ -96,7 +96,7 @@ func TestBroker_RouteSend_TargetNotFound(t *testing.T) {
 	}()
 
 	// Should not panic when target is missing.
-	result, err := broker.MonitorStdout("agent1", a1StdoutR)
+	result, err := broker.MonitorStdout("agent1", a1StdoutR, nil)
 	require.NoError(t, err)
 	assert.Empty(t, result)
 }
@@ -131,7 +131,7 @@ func TestBroker_Broadcast(t *testing.T) {
 		_ = a1StdoutW.Close()
 	}()
 
-	_, err := broker.MonitorStdout("agent1", a1StdoutR)
+	_, err := broker.MonitorStdout("agent1", a1StdoutR, nil)
 	require.NoError(t, err)
 
 	// Agent2 and agent3 should receive the broadcast.
@@ -174,7 +174,7 @@ func TestBroker_Broadcast_NoOthers(t *testing.T) {
 	}()
 
 	// Should not panic when there are no other agents.
-	_, err := broker.MonitorStdout("agent1", a1StdoutR)
+	_, err := broker.MonitorStdout("agent1", a1StdoutR, nil)
 	require.NoError(t, err)
 }
 
@@ -201,7 +201,7 @@ func TestBroker_ListAgents(t *testing.T) {
 		_ = a1StdoutW.Close()
 	}()
 
-	_, err := broker.MonitorStdout("agent1", a1StdoutR)
+	_, err := broker.MonitorStdout("agent1", a1StdoutR, nil)
 	require.NoError(t, err)
 
 	// Agent1 should receive list_agents_response.
@@ -287,7 +287,7 @@ func TestBroker_MonitorStdout_CapturesResult(t *testing.T) {
 		_ = a1StdoutW.Close()
 	}()
 
-	result, err := broker.MonitorStdout("agent1", a1StdoutR)
+	result, err := broker.MonitorStdout("agent1", a1StdoutR, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "final answer", result)
 }
@@ -306,7 +306,7 @@ func TestBroker_MonitorStdout_MultipleMessageEnd_LastWins(t *testing.T) {
 		_ = a1StdoutW.Close()
 	}()
 
-	result, err := broker.MonitorStdout("agent1", a1StdoutR)
+	result, err := broker.MonitorStdout("agent1", a1StdoutR, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "second", result)
 }
@@ -326,7 +326,7 @@ func TestBroker_MonitorStdout_NonJSONIgnored(t *testing.T) {
 		_ = a1StdoutW.Close()
 	}()
 
-	result, err := broker.MonitorStdout("agent1", a1StdoutR)
+	result, err := broker.MonitorStdout("agent1", a1StdoutR, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "result", result)
 }
@@ -348,7 +348,7 @@ func TestBroker_MonitorStdout_UnregistersOnDone(t *testing.T) {
 		_ = a1StdoutW.Close()
 	}()
 
-	_, err := broker.MonitorStdout("agent1", a1StdoutR)
+	_, err := broker.MonitorStdout("agent1", a1StdoutR, nil)
 	require.NoError(t, err)
 
 	// Verify agent is unregistered.
@@ -404,7 +404,7 @@ func TestBroker_MonitorStdout_WithRoutingEvents(t *testing.T) {
 		_ = a1StdoutW.Close()
 	}()
 
-	result, err := broker.MonitorStdout("agent1", a1StdoutR)
+	result, err := broker.MonitorStdout("agent1", a1StdoutR, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "final result", result)
 
@@ -445,4 +445,103 @@ func TestFormatRoster_Populated(t *testing.T) {
 	result := formatRoster(agents)
 	assert.Contains(t, result, "agent1 (explore)")
 	assert.Contains(t, result, "agent2 (coder)")
+}
+
+func TestBroker_MonitorStdout_OnEvent_Callback(t *testing.T) {
+	broker := NewBroker()
+
+	a1StdinR, a1StdinW := io.Pipe()
+	discardReader(a1StdinR)
+	broker.Register("agent1", "explore", a1StdinW)
+
+	var captured []jsonEvent
+
+	onEvent := func(evt jsonEvent) {
+		captured = append(captured, evt)
+	}
+
+	a1StdoutR, a1StdoutW := io.Pipe()
+	go func() {
+		_, _ = fmt.Fprintln(a1StdoutW, `{"type":"message_start","model":"gpt-5"}`)
+		_, _ = fmt.Fprintln(a1StdoutW, `{"type":"message_update","content":"working..."}`)
+		_, _ = fmt.Fprintln(a1StdoutW, `{"type":"tool_call","tool":"read","args":{"path":"main.go"}}`)
+		_, _ = fmt.Fprintln(a1StdoutW, `{"type":"message_end","content":"final answer"}`)
+		_ = a1StdoutW.Close()
+	}()
+
+	result, err := broker.MonitorStdout("agent1", a1StdoutR, onEvent)
+	require.NoError(t, err)
+	assert.Equal(t, "final answer", result)
+
+	require.Len(t, captured, 4)
+	assert.Equal(t, "message_start", captured[0].Type)
+	assert.Equal(t, "gpt-5", captured[0].Model)
+	assert.Equal(t, "message_update", captured[1].Type)
+	assert.Equal(t, "working...", captured[1].Content)
+	assert.Equal(t, "tool_call", captured[2].Type)
+	assert.Equal(t, "read", captured[2].Tool)
+	assert.Equal(t, "message_end", captured[3].Type)
+	assert.Equal(t, "final answer", captured[3].Content)
+}
+
+func TestBroker_MonitorStdout_OnEvent_SkipsRoutingEvents(t *testing.T) {
+	broker := NewBroker()
+
+	// Setup two agents so routing targets exist.
+	a2StdinR, a2StdinW := io.Pipe()
+	a2Drain := startDrainer(a2StdinR)
+	broker.Register("agent2", "coder", a2StdinW)
+	<-a2Drain // roster
+
+	a1StdinR, a1StdinW := io.Pipe()
+	a1Drain := startDrainer(a1StdinR)
+	broker.Register("agent1", "explore", a1StdinW)
+	<-a1Drain // roster
+
+	var captured []jsonEvent
+
+	onEvent := func(evt jsonEvent) {
+		captured = append(captured, evt)
+	}
+
+	a1StdoutR, a1StdoutW := io.Pipe()
+	go func() {
+		_, _ = fmt.Fprintln(a1StdoutW, `{"type":"message_start"}`)
+		_, _ = fmt.Fprintln(a1StdoutW, `{"type":"send","to":"agent2","content":"hello"}`)
+		_, _ = fmt.Fprintln(a1StdoutW, `{"type":"broadcast","content":"all hello"}`)
+		_, _ = fmt.Fprintln(a1StdoutW, `{"type":"list_agents"}`)
+		_, _ = fmt.Fprintln(a1StdoutW, `{"type":"message_update","content":"progress"}`)
+		_, _ = fmt.Fprintln(a1StdoutW, `{"type":"message_end","content":"done"}`)
+		_ = a1StdoutW.Close()
+	}()
+
+	result, err := broker.MonitorStdout("agent1", a1StdoutR, onEvent)
+	require.NoError(t, err)
+	assert.Equal(t, "done", result)
+
+	// Only message_start, message_update, and message_end should be forwarded.
+	// send, broadcast, and list_agents should be skipped.
+	require.Len(t, captured, 3)
+	assert.Equal(t, "message_start", captured[0].Type)
+	assert.Equal(t, "message_update", captured[1].Type)
+	assert.Equal(t, "message_end", captured[2].Type)
+}
+
+func TestBroker_MonitorStdout_OnEvent_NilCallback(t *testing.T) {
+	broker := NewBroker()
+
+	a1StdinR, a1StdinW := io.Pipe()
+	discardReader(a1StdinR)
+	broker.Register("agent1", "explore", a1StdinW)
+
+	a1StdoutR, a1StdoutW := io.Pipe()
+	go func() {
+		_, _ = fmt.Fprintln(a1StdoutW, `{"type":"message_end","content":"result"}`)
+		_ = a1StdoutW.Close()
+	}()
+
+	// Should not panic with nil callback.
+	result, err := broker.MonitorStdout("agent1", a1StdoutR, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "result", result)
 }

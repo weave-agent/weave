@@ -97,7 +97,7 @@ func (bm *backgroundManager) spawn(agent *AgentDef, prompt, cwd, subagentID stri
 	go func() {
 		defer close(ba.done)
 
-		output, err := runSubagent(agentCtx, agent, prompt, cwd, subagentID, bm.broker, bm.cfgPath, bm.projectDir)
+		output, err := runSubagent(agentCtx, agent, prompt, cwd, subagentID, bm.broker, bm.cfgPath, bm.projectDir, nil)
 
 		bm.mu.Lock()
 		ba.finished = time.Now()
