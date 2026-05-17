@@ -8,6 +8,8 @@ import (
 	"github.com/weave-agent/weave/internal/wire"
 )
 
+// revision is set by goreleaser: -X main.revision={{.Tag}}-{{.ShortCommit}}-{{.CommitDate}}
+// Dev builds leave it as "unknown".
 var revision = "unknown"
 
 func main() {
@@ -18,5 +20,5 @@ func main() {
 		}
 	}
 
-	os.Exit(wire.Run(context.Background(), os.Args[1:]))
+	os.Exit(wire.Run(context.Background(), os.Args[1:], revision))
 }

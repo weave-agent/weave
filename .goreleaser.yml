@@ -29,6 +29,8 @@ nfpms:
     formats:
       - deb
       - rpm
+    dependencies:
+      - golang
 
 brews:
   - repository:
@@ -38,3 +40,5 @@ brews:
     homepage: https://github.com/weave-agent/weave
     description: A lightweight, extensible coding agent framework
     license: MIT
+    dependencies:
+      - name: go

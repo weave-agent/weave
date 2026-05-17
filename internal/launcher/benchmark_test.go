@@ -44,7 +44,7 @@ func buildExtensionsFromExts(b *testing.B, moduleRoot string, exts []ExtensionIn
 
 	buildDir := b.TempDir()
 
-	binPath, err := Build(buildDir, moduleRoot, "noop", false, exts)
+	binPath, err := Build(buildDir, moduleRoot, "", "noop", false, exts)
 	if err != nil {
 		b.Fatalf("Build: %v", err)
 	}
@@ -155,7 +155,7 @@ func warmPipelineNoop(b *testing.B, moduleRoot string) {
 
 		exts := discoverNoopExtension(b, projectDir)
 
-		hash, err := ComputeHash(exts, "", false, "")
+		hash, err := ComputeHash(exts, "", "", false, "")
 		if err != nil {
 			b.Fatalf("ComputeHash: %v", err)
 		}
@@ -163,7 +163,7 @@ func warmPipelineNoop(b *testing.B, moduleRoot string) {
 		// Cache miss (fresh cache) -> buildAndCache
 		buildDir := b.TempDir()
 
-		binPath, buildErr := Build(buildDir, moduleRoot, "noop", false, exts)
+		binPath, buildErr := Build(buildDir, moduleRoot, "", "noop", false, exts)
 		if buildErr != nil {
 			b.Fatalf("Build: %v", buildErr)
 		}

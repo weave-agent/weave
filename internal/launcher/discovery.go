@@ -34,7 +34,10 @@ func AutoDiscover(projectDir, homeDir, moduleRoot string, exclude []string) ([]E
 	roots := []string{
 		filepath.Join(projectDir, ".weave", "extensions"),
 		filepath.Join(homeDir, ".weave", "extensions"),
-		filepath.Join(moduleRoot, "extensions"),
+	}
+
+	if moduleRoot != "" {
+		roots = append(roots, filepath.Join(moduleRoot, "extensions"))
 	}
 
 	for _, root := range roots {

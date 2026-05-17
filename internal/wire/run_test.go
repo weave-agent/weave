@@ -32,7 +32,7 @@ func TestRunFlagParsing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.wantCode, run(context.Background(), tt.args...))
+			assert.Equal(t, tt.wantCode, run(context.Background(), tt.args, "unknown"))
 		})
 	}
 }
@@ -45,7 +45,7 @@ func TestRunMissingConfig(t *testing.T) {
 
 	defer func() { _ = os.Chdir(origWd) }()
 
-	assert.Equal(t, 1, run(context.Background()))
+	assert.Equal(t, 1, run(context.Background(), nil, "unknown"))
 }
 
 func TestRunCoreDefaultsUsed(t *testing.T) {
@@ -103,7 +103,7 @@ func TestRun_InstallSubcommand(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 
-	code := Run(context.Background(), []string{"install", extDir})
+	code := Run(context.Background(), []string{"install", extDir}, "unknown")
 	assert.Equal(t, 0, code)
 }
 
@@ -115,13 +115,60 @@ func TestRun_DefaultRoute(t *testing.T) {
 
 	defer func() { _ = os.Chdir(origWd) }()
 
-	code := Run(context.Background(), []string{"-xyz"})
+	code := Run(context.Background(), []string{"-xyz"}, "unknown")
 	assert.Equal(t, 1, code)
 }
 
 func TestFindModuleRoot(t *testing.T) {
-	_, err := findModuleRoot()
+	_, err := findModuleRoot("unknown")
 	require.NoError(t, err, "should find module root from the weave project directory")
+}
+
+func TestFindModuleRoot_ReleaseMode(t *testing.T) {
+	// When running from a temp dir (no source tree) with a versioned revision,
+	// findModuleRoot should return "" instead of erroring.
+	dir := t.TempDir()
+
+	origWd, _ := os.Getwd()
+
+	require.NoError(t, os.Chdir(dir))
+
+	defer func() { _ = os.Chdir(origWd) }()
+
+	root, err := findModuleRoot("v0.0.1-abc0123-2026-05-17")
+	require.NoError(t, err)
+	assert.Empty(t, root, "release mode should return empty module root")
+}
+
+func TestFindModuleRoot_UnknownRevisionFails(t *testing.T) {
+	dir := t.TempDir()
+
+	origWd, _ := os.Getwd()
+
+	require.NoError(t, os.Chdir(dir))
+
+	defer func() { _ = os.Chdir(origWd) }()
+
+	_, err := findModuleRoot("unknown")
+	require.Error(t, err, "dev build without source tree should error")
+}
+
+func TestTagFromRevision(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"v0.0.1-abc0123-2026-05-17", "v0.0.1"},
+		{"v1.2.3-def4567-2026-01-01", "v1.2.3"},
+		{"v0.1.0-beta-abc0123-2026-05-17", "v0.1.0-beta"},
+		{"v2.0.0-rc1-a1b2c3d4-2025-12-31", "v2.0.0-rc1"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			assert.Equal(t, tt.want, tagFromRevision(tt.input))
+		})
+	}
 }
 
 func TestFindModuleRootFrom_Invalid(t *testing.T) {
@@ -154,7 +201,7 @@ func TestRun_HelpFlagBypassesNoInputCheck(t *testing.T) {
 	// --help should bypass the no-input check and proceed to the launcher.
 	// The launcher will fail because there's no module root in a temp dir,
 	// but we verify it's not the "no prompt provided" error.
-	code := run(context.Background(), "--help")
+	code := run(context.Background(), []string{"--help"}, "unknown")
 	// Exit code may be 1 (launcher failure in temp dir) but should NOT be
 	// the no-input error path. We verify by checking stderr isn't the no-input message.
 	// Since we can't easily capture stderr here, we rely on the fact that the launcher
@@ -175,7 +222,7 @@ func TestRun_HelpShortFlagBypassesNoInputCheck(t *testing.T) {
 	require.NoError(t, os.Chdir(dir))
 	defer func() { _ = os.Chdir(origWd) }()
 
-	code := run(context.Background(), "-h")
+	code := run(context.Background(), []string{"-h"}, "unknown")
 	assert.NotEqual(t, 0, code, "should fail due to launcher/module root, not no-input")
 }
 

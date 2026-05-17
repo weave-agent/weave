@@ -12,22 +12,27 @@ import (
 )
 
 // BuildFunc builds a binary from extension infos and returns its path.
-type BuildFunc func(dir, moduleRoot, agentLoop string, headless bool, exts []ExtensionInfo) (string, error)
+type BuildFunc func(dir, moduleRoot, moduleVersion, agentLoop string, headless bool, exts []ExtensionInfo) (string, error)
 
 // Launcher orchestrates the full pipeline: discover -> hash -> cache -> build -> exec.
 type Launcher struct {
-	Cache       *Cache
-	Build       BuildFunc
-	ModuleRoot  string
-	BuildTmpDir string
+	Cache         *Cache
+	Build         BuildFunc
+	ModuleRoot    string
+	ModuleVersion string // semver tag for release mode (e.g. "v0.0.1"); empty in dev mode
+	BuildTmpDir   string
 }
 
 // NewLauncher creates a Launcher with the default Build function.
-func NewLauncher(cache *Cache, moduleRoot string) *Launcher {
+// moduleVersion is the semver tag extracted from the binary revision; it is used
+// in release mode (moduleRoot == "") to generate require directives against the
+// Go module proxy. Pass empty string in dev mode.
+func NewLauncher(cache *Cache, moduleRoot, moduleVersion string) *Launcher {
 	return &Launcher{
-		Cache:      cache,
-		Build:      Build,
-		ModuleRoot: moduleRoot,
+		Cache:         cache,
+		Build:         Build,
+		ModuleRoot:    moduleRoot,
+		ModuleVersion: moduleVersion,
 	}
 }
 
@@ -48,14 +53,14 @@ func (l *Launcher) Run(ctx context.Context, projectDir string, args []string, co
 		return fmt.Errorf("launcher: auto-discover: %w", err)
 	}
 
-	hash, err := ComputeHash(exts, l.ModuleRoot, headless, agentLoop, l.coreDirs()...)
+	hash, err := ComputeHash(exts, l.ModuleRoot, l.ModuleVersion, headless, agentLoop, l.coreDirs()...)
 	if err != nil {
 		return fmt.Errorf("launcher: hash: %w", err)
 	}
 
 	binPath, found := l.Cache.Lookup(hash)
 	if !found {
-		binPath, err = l.buildAndCache(hash, agentLoop, headless, exts)
+		binPath, err = l.buildAndCache(hash, agentLoop, headless, exts, l.ModuleVersion)
 		if err != nil {
 			return fmt.Errorf("launcher: build: %w", err)
 		}
@@ -64,7 +69,7 @@ func (l *Launcher) Run(ctx context.Context, projectDir string, args []string, co
 	return l.exec(ctx, binPath, configPath, agentLoop, headless, projectDir, args)
 }
 
-func (l *Launcher) buildAndCache(hash, agentLoop string, headless bool, exts []ExtensionInfo) (string, error) {
+func (l *Launcher) buildAndCache(hash, agentLoop string, headless bool, exts []ExtensionInfo, moduleVersion string) (string, error) {
 	unlock, lockErr := lockBuildDir(hash)
 	if lockErr != nil {
 		return "", fmt.Errorf("acquire build lock: %w", lockErr)
@@ -83,7 +88,7 @@ func (l *Launcher) buildAndCache(hash, agentLoop string, headless bool, exts []E
 
 	defer func() { _ = os.RemoveAll(buildDir) }()
 
-	binPath, err := l.Build(buildDir, l.ModuleRoot, agentLoop, headless, exts)
+	binPath, err := l.Build(buildDir, l.ModuleRoot, moduleVersion, agentLoop, headless, exts)
 	if err != nil {
 		return "", err
 	}
@@ -101,6 +106,10 @@ func (l *Launcher) buildAndCache(hash, agentLoop string, headless bool, exts []E
 }
 
 func (l *Launcher) coreDirs() []string {
+	if l.ModuleRoot == "" {
+		return nil
+	}
+
 	return []string{
 		filepath.Join(l.ModuleRoot, "sdk"),
 		filepath.Join(l.ModuleRoot, "bus"),
@@ -159,7 +168,7 @@ func (l *Launcher) exec(_ context.Context, binPath, configPath, agentLoop string
 	// regardless of the user's current working directory.
 	// Prepend our vars before os.Environ() so they override any stale values
 	// that may already exist in the parent environment.
-	env := buildExecEnv(os.Environ(), launcherPath, hash, string(origArgs), l.ModuleRoot)
+	env := buildExecEnv(os.Environ(), launcherPath, hash, string(origArgs), l.ModuleRoot, l.ModuleVersion)
 
 	return fmt.Errorf("exec binary: %w", syscall.Exec(binPath, argv, env))
 }
@@ -167,13 +176,22 @@ func (l *Launcher) exec(_ context.Context, binPath, configPath, agentLoop string
 // buildExecEnv constructs the environment for the exec'd binary.
 // Weave-specific vars are prepended before the parent environment so they
 // override any stale values that may already be present.
-func buildExecEnv(parentEnv []string, launcherPath, hash, origArgs, moduleRoot string) []string {
-	return append([]string{
+func buildExecEnv(parentEnv []string, launcherPath, hash, origArgs, moduleRoot, moduleVersion string) []string {
+	env := []string{
 		"WEAVE_LAUNCHER_PATH=" + launcherPath,
 		"WEAVE_BUILD_HASH=" + hash,
 		"WEAVE_ORIG_ARGS=" + origArgs,
-		"WEAVE_MODULE_ROOT=" + moduleRoot,
-	}, parentEnv...)
+	}
+
+	if moduleRoot != "" {
+		env = append(env, "WEAVE_MODULE_ROOT="+moduleRoot)
+	}
+
+	if moduleVersion != "" {
+		env = append(env, "WEAVE_MODULE_VERSION="+moduleVersion)
+	}
+
+	return append(env, parentEnv...)
 }
 
 // lockBuildDir acquires a file-based lock for the given build hash to prevent

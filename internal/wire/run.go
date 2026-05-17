@@ -17,12 +17,14 @@ var errNoInput = errors.New("no prompt provided and ui is disabled — use -p to
 
 // Run is the main entry point for the weave CLI. It parses args, loads config,
 // discovers extensions, and runs the launcher pipeline.
-func Run(ctx context.Context, args []string) int {
+// revision is the binary version set via ldflags (e.g. "v0.0.1-abc0123-2026-05-17"),
+// or "unknown" for dev builds.
+func Run(ctx context.Context, args []string, revision string) int {
 	if code, ok := handleSubcommand(args); ok {
 		return code
 	}
 
-	return run(ctx, args...)
+	return run(ctx, args, revision)
 }
 
 func handleSubcommand(args []string) (int, bool) {
@@ -139,7 +141,7 @@ func runBootstrap(ctx context.Context, cf *settings.Settings) {
 	}
 }
 
-func buildLauncher(ctx context.Context, cf *settings.Settings, rest []string, configFile string) int {
+func buildLauncher(ctx context.Context, cf *settings.Settings, rest []string, configFile, revision string) int {
 	runBootstrap(ctx, cf)
 
 	cacheDir, err := launcher.DefaultCacheDir()
@@ -148,10 +150,16 @@ func buildLauncher(ctx context.Context, cf *settings.Settings, rest []string, co
 		return 1
 	}
 
-	moduleRoot, err := findModuleRoot()
+	moduleRoot, err := findModuleRoot(revision)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", err)
 		return 1
+	}
+
+	// In release mode (no source tree), extract the semver tag for go.mod require.
+	var moduleVersion string
+	if moduleRoot == "" {
+		moduleVersion = tagFromRevision(revision)
 	}
 
 	projectDir, err := os.Getwd()
@@ -196,7 +204,7 @@ func buildLauncher(ctx context.Context, cf *settings.Settings, rest []string, co
 	rest = append(rest, cf.WeaveFlags()...)
 
 	cache := launcher.NewCache(cacheDir)
-	l := launcher.NewLauncher(cache, moduleRoot)
+	l := launcher.NewLauncher(cache, moduleRoot, moduleVersion)
 
 	if err := l.Run(ctx, projectDir, rest, configFile, cf.AgentLoop, headless, cf.ExcludeExtensions); err != nil {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", err)
@@ -230,7 +238,7 @@ func weaveProjectDirFromRest(args []string) string {
 	return ""
 }
 
-func run(ctx context.Context, args ...string) (exitCode int) {
+func run(ctx context.Context, args []string, revision string) (exitCode int) {
 	configFile, cf, rest, err := loadConfig(args)
 	if err != nil {
 		var helpErr *settings.HelpError
@@ -246,7 +254,7 @@ func run(ctx context.Context, args ...string) (exitCode int) {
 		return 1
 	}
 
-	return buildLauncher(ctx, cf, rest, configFile)
+	return buildLauncher(ctx, cf, rest, configFile, revision)
 }
 
 func writePromptFile(prompt string) (path string, cleanup func(), ok bool) {
@@ -272,7 +280,7 @@ func writePromptFile(prompt string) (path string, cleanup func(), ok bool) {
 	return promptFile, func() { _ = os.Remove(promptFile) }, true
 }
 
-func findModuleRoot() (string, error) {
+func findModuleRoot(revision string) (string, error) {
 	if root, err := findModuleRootFrom(os.Executable); err == nil {
 		return root, nil
 	}
@@ -281,7 +289,39 @@ func findModuleRoot() (string, error) {
 		return root, nil
 	}
 
+	// Pre-built binary (e.g. Homebrew) — no local source tree. The launcher
+	// will use the Go module proxy to resolve the published version instead
+	// of a local replace directive.
+	if revision != "unknown" {
+		return "", nil
+	}
+
 	return "", errors.New("cannot find module root: go.mod not found walking up from executable or working directory")
+}
+
+// tagFromRevision extracts the semver tag from a goreleaser revision string.
+// Revision format: <tag>-<shortCommit>-<commitDate> (e.g. "v0.0.1-abc0123-2026-05-17").
+// The shortCommit is 7+ hex chars, so we split on the first hex-only segment.
+func tagFromRevision(rev string) string {
+	parts := strings.Split(rev, "-")
+
+	for i, p := range parts {
+		if isHexString(p) && len(p) >= 7 {
+			return strings.Join(parts[:i], "-")
+		}
+	}
+
+	return rev
+}
+
+func isHexString(s string) bool {
+	for _, c := range s {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+
+	return s != ""
 }
 
 // hasHelpFlag reports whether args contains --help or -h.

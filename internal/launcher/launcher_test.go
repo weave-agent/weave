@@ -19,7 +19,7 @@ func TestRun_BuildFails(t *testing.T) {
 	buildErr := error(fmtError("mock build failure"))
 	l := &Launcher{
 		Cache: NewCache(t.TempDir()),
-		Build: func(string, string, string, bool, []ExtensionInfo) (string, error) {
+		Build: func(string, string, string, string, bool, []ExtensionInfo) (string, error) {
 			return "", buildErr
 		},
 		ModuleRoot:  "/fake",
@@ -41,7 +41,7 @@ func TestRun_CacheHit(t *testing.T) {
 	exts, err := AutoDiscover(projectDir, t.TempDir(), "", nil)
 	require.NoError(t, err)
 
-	hash, err := ComputeHash(exts, "", false, "")
+	hash, err := ComputeHash(exts, "", "", false, "")
 	require.NoError(t, err)
 
 	fakeBin := filepath.Join(cacheDir, hash, "weave")
@@ -63,7 +63,7 @@ func TestRun_FullPipelineWithMockBuild(t *testing.T) {
 
 	l := &Launcher{
 		Cache: NewCache(cacheDir),
-		Build: func(dir, _, _ string, _ bool, _ []ExtensionInfo) (string, error) {
+		Build: func(dir, _, _, _ string, _ bool, _ []ExtensionInfo) (string, error) {
 			binPath := filepath.Join(dir, "weave")
 			if err := os.WriteFile(binPath, []byte("fake-binary"), 0o750); err != nil {
 				return "", fmt.Errorf("write fake binary: %w", err)
@@ -78,13 +78,13 @@ func TestRun_FullPipelineWithMockBuild(t *testing.T) {
 	exts, err := AutoDiscover(projectDir, t.TempDir(), "", nil)
 	require.NoError(t, err, "AutoDiscover")
 
-	hash, err := ComputeHash(exts, "", false, "")
+	hash, err := ComputeHash(exts, "", "", false, "")
 	require.NoError(t, err, "ComputeHash")
 
 	_, found := l.Cache.Lookup(hash)
 	assert.False(t, found, "expected cache miss for new extension")
 
-	binPath, err := l.buildAndCache(hash, "loop", false, exts)
+	binPath, err := l.buildAndCache(hash, "loop", false, exts, "")
 	require.NoError(t, err, "buildAndCache")
 	require.NotEmpty(t, binPath)
 
@@ -108,7 +108,7 @@ func TestRun_SecondRunUsesCache(t *testing.T) {
 	buildCount := 0
 	l := &Launcher{
 		Cache: NewCache(cacheDir),
-		Build: func(dir, _, _ string, _ bool, _ []ExtensionInfo) (string, error) {
+		Build: func(dir, _, _, _ string, _ bool, _ []ExtensionInfo) (string, error) {
 			buildCount++
 
 			binPath := filepath.Join(dir, "weave")
@@ -125,10 +125,10 @@ func TestRun_SecondRunUsesCache(t *testing.T) {
 	exts, err := AutoDiscover(projectDir, t.TempDir(), "", nil)
 	require.NoError(t, err)
 
-	hash, err := ComputeHash(exts, "", false, "")
+	hash, err := ComputeHash(exts, "", "", false, "")
 	require.NoError(t, err)
 
-	_, err = l.buildAndCache(hash, "loop", false, exts)
+	_, err = l.buildAndCache(hash, "loop", false, exts, "")
 	require.NoError(t, err)
 	assert.Equal(t, 1, buildCount)
 
@@ -154,7 +154,7 @@ func TestBuildExecEnv_PrependsWeaveVars(t *testing.T) {
 		"HOME=/home/user",
 	}
 
-	env := buildExecEnv(parent, "/launcher", "abc123", "[\"weave\"]", "/correct")
+	env := buildExecEnv(parent, "/launcher", "abc123", "[\"weave\"]", "/correct", "")
 
 	// Our vars should come first so they override stale parent values.
 	require.Len(t, env, 7)
@@ -184,7 +184,7 @@ func TestRun_ExcludeExtensions(t *testing.T) {
 
 	l := &Launcher{
 		Cache: NewCache(t.TempDir()),
-		Build: func(_, _, _ string, _ bool, exts []ExtensionInfo) (string, error) {
+		Build: func(_, _, _, _ string, _ bool, exts []ExtensionInfo) (string, error) {
 			capturedExts = exts
 
 			return "", fmtError("captured")
@@ -209,7 +209,7 @@ func TestRun_HeadlessPassedToBuild(t *testing.T) {
 
 	l := &Launcher{
 		Cache: NewCache(t.TempDir()),
-		Build: func(_, _, _ string, headless bool, _ []ExtensionInfo) (string, error) {
+		Build: func(_, _, _, _ string, headless bool, _ []ExtensionInfo) (string, error) {
 			capturedHeadless = headless
 
 			return "", fmtError("captured")
@@ -233,7 +233,7 @@ func TestRun_NilExclude(t *testing.T) {
 
 	l := &Launcher{
 		Cache: NewCache(t.TempDir()),
-		Build: func(_, _, _ string, _ bool, exts []ExtensionInfo) (string, error) {
+		Build: func(_, _, _, _ string, _ bool, exts []ExtensionInfo) (string, error) {
 			capturedExts = exts
 
 			return "", fmtError("captured")
