@@ -15,17 +15,21 @@ import (
 
 // agentPanelDrawer implements tui.PanelDrawer for a single tracked subagent.
 type agentPanelDrawer struct {
-	agentID string
-	tracker *AgentTracker
-	theme   sdk.ThemeInfo
+	agentID      string
+	tracker      *AgentTracker
+	theme        sdk.ThemeInfo
+	bus          sdk.Bus
+	scrollOffset int
 }
 
 // newAgentPanelDrawer creates a panel drawer for the given agent.
-func newAgentPanelDrawer(agentID string, tracker *AgentTracker, theme sdk.ThemeInfo) *agentPanelDrawer {
+// The bus is used to publish cancel events; may be nil in tests.
+func newAgentPanelDrawer(agentID string, tracker *AgentTracker, theme sdk.ThemeInfo, bus sdk.Bus) *agentPanelDrawer {
 	return &agentPanelDrawer{
 		agentID: agentID,
 		tracker: tracker,
 		theme:   theme,
+		bus:     bus,
 	}
 }
 
@@ -42,61 +46,179 @@ func (d *agentPanelDrawer) Draw(scr uv.Screen, area uv.Rectangle) {
 
 	line := 0
 
-	// Line 1: status indicator + name + mode + elapsed time
+	// Line 1: Header row — status icon + name + mode + elapsed + cancel button
 	statusIcon, statusColor := d.statusIndicator(agent.Status)
 	elapsed := d.formatElapsed(agent)
 
-	header := fmt.Sprintf("%s %s  %s  %s",
+	cancelBtn := ""
+	if agent.Status == AgentRunning {
+		cancelBtn = "  " + lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Error)).Render("[✕ cancel]")
+	}
+
+	header := fmt.Sprintf("%s %s  %s  %s%s",
 		lipgloss.NewStyle().Foreground(lipgloss.Color(statusColor)).Render(statusIcon),
 		lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.ForegroundBright)).Bold(true).Render(agent.Name),
 		lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Muted)).Render(agent.Mode),
 		lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.MutedBright)).Render(elapsed),
+		cancelBtn,
 	)
 
 	if line < area.Dy() {
 		lineRect := uv.Rect(area.Min.X, area.Min.Y+line, area.Dx(), 1)
 		uv.NewStyledString(header).Draw(scr, lineRect)
-
 		line++
 	}
 
-	// Remaining lines: result preview
-	if agent.Result != "" && line < area.Dy() {
-		result := d.formatResult(agent.Result, area.Dx(), area.Dy()-line)
-		resultStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Muted))
+	// Line 2: Prompt row (if available)
+	if agent.Prompt != "" && line < area.Dy() {
+		prompt := d.truncate(agent.Prompt, area.Dx()-12)
+		promptLine := lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Muted)).Render("  Prompt: " + prompt)
+		lineRect := uv.Rect(area.Min.X, area.Min.Y+line, area.Dx(), 1)
+		uv.NewStyledString(promptLine).Draw(scr, lineRect)
+		line++
+	}
 
-		for rLine := range strings.SplitSeq(result, "\n") {
-			if line >= area.Dy() {
-				break
-			}
+	// Line 3: Separator
+	if line < area.Dy() {
+		sep := strings.Repeat("─", area.Dx())
+		sepStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Border))
+		lineRect := uv.Rect(area.Min.X, area.Min.Y+line, area.Dx(), 1)
+		uv.NewStyledString(sepStyle.Render(sep)).Draw(scr, lineRect)
+		line++
+	}
 
-			lineRect := uv.Rect(area.Min.X, area.Min.Y+line, area.Dx(), 1)
-			uv.NewStyledString(resultStyle.Render(rLine)).Draw(scr, lineRect)
+	// Remaining lines: Scrollable tool log from ring buffer snapshot
+	if agent.Output == nil {
+		return
+	}
 
-			line++
+	entries := agent.Output.Snapshot()
+	if len(entries) == 0 {
+		return
+	}
+
+	visibleLines := area.Dy() - line
+	if visibleLines <= 0 {
+		return
+	}
+
+	// Clamp scroll offset
+	maxScroll := max(len(entries)-visibleLines, 0)
+	d.scrollOffset = max(min(d.scrollOffset, maxScroll), 0)
+
+	start := d.scrollOffset
+	end := min(start+visibleLines, len(entries))
+
+	for i := start; i < end && line < area.Dy(); i++ {
+		entry := entries[i]
+		entryStr := d.formatEntry(entry, area.Dx()-4)
+		if entryStr == "" {
+			continue
 		}
+
+		lineRect := uv.Rect(area.Min.X, area.Min.Y+line, area.Dx(), 1)
+		uv.NewStyledString("  " + entryStr).Draw(scr, lineRect)
+		line++
 	}
 }
 
 // Update handles messages for the panel drawer.
 func (d *agentPanelDrawer) Update(msg tea.Msg) (tui.PanelDrawer, tea.Cmd) {
+	keyMsg, ok := msg.(tea.KeyPressMsg)
+	if !ok {
+		return d, nil
+	}
+
+	ks := keyMsg.Keystroke()
+
+	// Cancel on Ctrl+X or Enter
+	if ks == "ctrl+x" || ks == "enter" {
+		if d.bus != nil {
+			d.bus.Publish(sdk.NewEvent("subagent.cancel", map[string]string{
+				"id": d.agentID,
+			}))
+		}
+
+		return d, nil
+	}
+
+	// Scroll up
+	if ks == "up" {
+		if d.scrollOffset > 0 {
+			d.scrollOffset--
+		}
+
+		return d, nil
+	}
+
+	// Scroll down
+	if ks == "down" {
+		d.scrollOffset++
+		return d, nil
+	}
+
 	return d, nil
 }
 
-// Handles returns true for messages this drawer should process.
+// Handles returns true for key press messages.
 func (d *agentPanelDrawer) Handles(msg tea.Msg) bool {
-	return false
+	_, ok := msg.(tea.KeyPressMsg)
+	return ok
+}
+
+// formatEntry renders a single output entry as a styled string.
+func (d *agentPanelDrawer) formatEntry(e outputEntry, maxW int) string {
+	maxW = max(maxW, 10)
+
+	switch e.Type {
+	case "tool_start":
+		tool := d.truncate(e.Tool, 10)
+		content := d.truncate(e.Content, maxW-14)
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Accent)).Render("⚙") + " " +
+			lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Foreground)).Render(tool) +
+			"  " + lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Muted)).Render(content)
+	case "tool_end":
+		tool := d.truncate(e.Tool, 10)
+		content := d.truncate(e.Content, maxW-14)
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Success)).Render("✓") + " " +
+			lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Foreground)).Render(tool) +
+			"  " + lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Muted)).Render(content)
+	case "message_update", "message_start":
+		content := d.truncate(e.Content, maxW-4)
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.AccentBright)).Render("→") + " " +
+			lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Foreground)).Render(content)
+	case "message_end":
+		return ""
+	default:
+		content := d.truncate(e.Content, maxW-4)
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Muted)).Render("·") + " " +
+			lipgloss.NewStyle().Foreground(lipgloss.Color(d.theme.Muted)).Render(content)
+	}
+}
+
+// truncate shortens a string to maxRunes, appending "..." if truncated.
+func (d *agentPanelDrawer) truncate(s string, maxRunes int) string {
+	runes := []rune(s)
+	if len(runes) <= maxRunes {
+		return s
+	}
+
+	if maxRunes <= 3 {
+		return strings.Repeat(".", maxRunes)
+	}
+
+	return string(runes[:maxRunes-3]) + "..."
 }
 
 // statusIndicator returns the icon and color for the agent's current status.
 func (d *agentPanelDrawer) statusIndicator(status AgentStatus) (string, string) {
 	switch status {
 	case AgentRunning:
-		return "●", d.theme.Accent // ●
+		return "●", d.theme.Accent
 	case AgentCompleted:
-		return "✓", d.theme.Success // ✓
+		return "✓", d.theme.Success
 	case AgentFailed:
-		return "✗", d.theme.Error // ✗
+		return "✗", d.theme.Error
 	default:
 		return "●", d.theme.Muted
 	}

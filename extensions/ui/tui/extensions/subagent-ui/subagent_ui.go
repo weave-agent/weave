@@ -16,6 +16,7 @@ const gracePeriod = 3 * time.Second
 type SubagentExtension struct {
 	mu          sync.Mutex
 	api         tui.TUIExtAPI
+	bus         sdk.Bus
 	tracker     *AgentTracker
 	renderer    *subagentRenderer
 	done        chan struct{}
@@ -128,6 +129,10 @@ func (e *SubagentExtension) tickLoop() {
 // subscribe sets up bus event handlers for subagent lifecycle events.
 // Uses a single OnAll handler so started and done are processed in order.
 func (e *SubagentExtension) subscribe(bus sdk.Bus) {
+	e.mu.Lock()
+	e.bus = bus
+	e.mu.Unlock()
+
 	bus.OnAll(func(ev sdk.Event) error {
 		switch ev.Topic {
 		case "subagent.started":
@@ -166,10 +171,10 @@ func (e *SubagentExtension) handleStarted(ev sdk.Event) error {
 	e.mu.Unlock()
 
 	if api != nil {
-		drawer := newAgentPanelDrawer(agent.ID, e.tracker, api.Theme())
+		drawer := newAgentPanelDrawer(agent.ID, e.tracker, api.Theme(), e.bus)
 		api.ShowPanel(tui.PanelConfig{
 			ID:        agent.PanelID,
-			Placement: tui.TrayOnly,
+			Placement: tui.AboveEditor,
 			Title:     name,
 			Width:     96,
 			Height:    18,

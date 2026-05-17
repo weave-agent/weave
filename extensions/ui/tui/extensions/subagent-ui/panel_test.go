@@ -25,6 +25,7 @@ func testTheme() sdk.ThemeInfo {
 		MutedBright:      "246",
 		Foreground:       "252",
 		ForegroundBright: "15",
+		Border:           "240",
 	}
 }
 
@@ -32,9 +33,9 @@ func TestAgentPanelDrawer_Draw_RunningAgent(t *testing.T) {
 	tracker := NewAgentTracker(gracePeriod, nil)
 	agent := tracker.Start("agent-1", "researcher", "background")
 
-	drawer := newAgentPanelDrawer(agent.ID, tracker, testTheme())
-	canvas := uv.NewScreenBuffer(80, 6)
-	area := uv.Rect(0, 0, 80, 6)
+	drawer := newAgentPanelDrawer(agent.ID, tracker, testTheme(), nil)
+	canvas := uv.NewScreenBuffer(80, 18)
+	area := uv.Rect(0, 0, 80, 18)
 
 	drawer.Draw(canvas, area)
 
@@ -42,8 +43,142 @@ func TestAgentPanelDrawer_Draw_RunningAgent(t *testing.T) {
 	assert.Contains(t, rendered, "researcher")
 	assert.Contains(t, rendered, "background")
 	assert.Contains(t, rendered, "●")
-	// Elapsed time should be a small number of seconds (pattern match, not exact).
 	assert.Regexp(t, `\d+s`, rendered)
+}
+
+func TestAgentPanelDrawer_Draw_ShowsCancelButtonForRunningAgent(t *testing.T) {
+	tracker := NewAgentTracker(gracePeriod, nil)
+	tracker.Start("agent-1", "researcher", "background")
+
+	drawer := newAgentPanelDrawer("agent-1", tracker, testTheme(), nil)
+	canvas := uv.NewScreenBuffer(80, 18)
+	area := uv.Rect(0, 0, 80, 18)
+
+	drawer.Draw(canvas, area)
+
+	rendered := canvas.Render()
+	assert.Contains(t, rendered, "✕ cancel")
+}
+
+func TestAgentPanelDrawer_Draw_NoCancelButtonForCompletedAgent(t *testing.T) {
+	tracker := NewAgentTracker(gracePeriod, nil)
+	tracker.Start("agent-2", "planner", "background")
+	tracker.Done("agent-2", "completed", "done")
+
+	drawer := newAgentPanelDrawer("agent-2", tracker, testTheme(), nil)
+	canvas := uv.NewScreenBuffer(80, 18)
+	area := uv.Rect(0, 0, 80, 18)
+
+	drawer.Draw(canvas, area)
+
+	rendered := canvas.Render()
+	assert.NotContains(t, rendered, "✕ cancel")
+}
+
+func TestAgentPanelDrawer_Draw_PromptRow(t *testing.T) {
+	tracker := NewAgentTracker(gracePeriod, nil)
+	agent := tracker.Start("agent-p", "researcher", "background")
+	agent.Prompt = "Find all API endpoints"
+
+	drawer := newAgentPanelDrawer("agent-p", tracker, testTheme(), nil)
+	canvas := uv.NewScreenBuffer(80, 18)
+	area := uv.Rect(0, 0, 80, 18)
+
+	drawer.Draw(canvas, area)
+
+	rendered := canvas.Render()
+	assert.Contains(t, rendered, "Find all API endpoints")
+}
+
+func TestAgentPanelDrawer_Draw_Separator(t *testing.T) {
+	tracker := NewAgentTracker(gracePeriod, nil)
+	tracker.Start("agent-sep", "test", "background")
+
+	drawer := newAgentPanelDrawer("agent-sep", tracker, testTheme(), nil)
+	canvas := uv.NewScreenBuffer(80, 18)
+	area := uv.Rect(0, 0, 80, 18)
+
+	drawer.Draw(canvas, area)
+
+	rendered := canvas.Render()
+	assert.Contains(t, rendered, "───")
+}
+
+func TestAgentPanelDrawer_Draw_ToolLogFromRingBuffer(t *testing.T) {
+	tracker := NewAgentTracker(gracePeriod, nil)
+	tracker.Start("agent-log", "researcher", "background")
+	tracker.AppendOutput("agent-log", outputEntry{Type: "tool_start", Tool: "read", Content: "main.go", Time: time.Now()})
+	tracker.AppendOutput("agent-log", outputEntry{Type: "tool_end", Tool: "read", Content: "done", Time: time.Now()})
+	tracker.AppendOutput("agent-log", outputEntry{Type: "message_update", Content: "streaming text", Time: time.Now()})
+
+	drawer := newAgentPanelDrawer("agent-log", tracker, testTheme(), nil)
+	canvas := uv.NewScreenBuffer(80, 18)
+	area := uv.Rect(0, 0, 80, 18)
+
+	drawer.Draw(canvas, area)
+
+	rendered := canvas.Render()
+	assert.Contains(t, rendered, "⚙")
+	assert.Contains(t, rendered, "read")
+	assert.Contains(t, rendered, "main.go")
+	assert.Contains(t, rendered, "✓")
+	assert.Contains(t, rendered, "→")
+	assert.Contains(t, rendered, "streaming text")
+}
+
+func TestAgentPanelDrawer_Draw_EmptyRingBuffer(t *testing.T) {
+	tracker := NewAgentTracker(gracePeriod, nil)
+	tracker.Start("agent-empty", "test", "background")
+
+	drawer := newAgentPanelDrawer("agent-empty", tracker, testTheme(), nil)
+	canvas := uv.NewScreenBuffer(80, 18)
+	area := uv.Rect(0, 0, 80, 18)
+
+	assert.NotPanics(t, func() {
+		drawer.Draw(canvas, area)
+	})
+
+	// Header and separator should still be there
+	rendered := canvas.Render()
+	assert.Contains(t, rendered, "test")
+}
+
+func TestAgentPanelDrawer_Draw_NilRingBuffer(t *testing.T) {
+	tracker := NewAgentTracker(gracePeriod, nil)
+
+	drawer := newAgentPanelDrawer("agent-nil", tracker, testTheme(), nil)
+	canvas := uv.NewScreenBuffer(80, 18)
+	area := uv.Rect(0, 0, 80, 18)
+
+	assert.NotPanics(t, func() {
+		drawer.Draw(canvas, area)
+	})
+}
+
+func TestAgentPanelDrawer_Draw_ScrollOffset(t *testing.T) {
+	tracker := NewAgentTracker(gracePeriod, nil)
+	tracker.Start("agent-scroll", "test", "background")
+
+	// Add 20 entries to a small visible area
+	for range 20 {
+		tracker.AppendOutput("agent-scroll", outputEntry{
+			Type:    "tool_start",
+			Tool:    "read",
+			Content: strings.Repeat("a", 20),
+			Time:    time.Now(),
+		})
+	}
+
+	drawer := newAgentPanelDrawer("agent-scroll", tracker, testTheme(), nil)
+	drawer.scrollOffset = 15
+
+	canvas := uv.NewScreenBuffer(80, 8) // small area, only ~4 lines for output
+	area := uv.Rect(0, 0, 80, 8)
+
+	drawer.Draw(canvas, area)
+
+	// Should not panic and scroll offset should be clamped
+	assert.LessOrEqual(t, drawer.scrollOffset, 20)
 }
 
 func TestAgentPanelDrawer_Draw_CompletedAgent(t *testing.T) {
@@ -53,17 +188,15 @@ func TestAgentPanelDrawer_Draw_CompletedAgent(t *testing.T) {
 
 	tracker.Done("agent-2", "completed", "Task completed successfully")
 
-	// Re-fetch to get updated state
-	drawer := newAgentPanelDrawer("agent-2", tracker, testTheme())
-	canvas := uv.NewScreenBuffer(80, 6)
-	area := uv.Rect(0, 0, 80, 6)
+	drawer := newAgentPanelDrawer("agent-2", tracker, testTheme(), nil)
+	canvas := uv.NewScreenBuffer(80, 18)
+	area := uv.Rect(0, 0, 80, 18)
 
 	drawer.Draw(canvas, area)
 
 	rendered := canvas.Render()
 	assert.Contains(t, rendered, "planner")
 	assert.Contains(t, rendered, "✓")
-	assert.Contains(t, rendered, "Task completed successfully")
 }
 
 func TestAgentPanelDrawer_Draw_FailedAgent(t *testing.T) {
@@ -71,31 +204,15 @@ func TestAgentPanelDrawer_Draw_FailedAgent(t *testing.T) {
 	tracker.Start("agent-3", "explorer", "background")
 	tracker.Done("agent-3", "failed", "Error: timeout")
 
-	drawer := newAgentPanelDrawer("agent-3", tracker, testTheme())
-	canvas := uv.NewScreenBuffer(80, 6)
-	area := uv.Rect(0, 0, 80, 6)
+	drawer := newAgentPanelDrawer("agent-3", tracker, testTheme(), nil)
+	canvas := uv.NewScreenBuffer(80, 18)
+	area := uv.Rect(0, 0, 80, 18)
 
 	drawer.Draw(canvas, area)
 
 	rendered := canvas.Render()
 	assert.Contains(t, rendered, "explorer")
 	assert.Contains(t, rendered, "✗")
-	assert.Contains(t, rendered, "Error: timeout")
-}
-
-func TestAgentPanelDrawer_Draw_NoResultWhenRunning(t *testing.T) {
-	tracker := NewAgentTracker(gracePeriod, nil)
-	tracker.Start("agent-4", "coder", "background")
-
-	drawer := newAgentPanelDrawer("agent-4", tracker, testTheme())
-	canvas := uv.NewScreenBuffer(80, 6)
-	area := uv.Rect(0, 0, 80, 6)
-
-	drawer.Draw(canvas, area)
-
-	rendered := canvas.Render()
-	assert.Contains(t, rendered, "coder")
-	assert.NotContains(t, rendered, "result")
 }
 
 func TestAgentPanelDrawer_Draw_AgentRemoved(t *testing.T) {
@@ -103,11 +220,10 @@ func TestAgentPanelDrawer_Draw_AgentRemoved(t *testing.T) {
 	tracker.Start("agent-gone", "ghost", "background")
 	tracker.Remove("agent-gone")
 
-	drawer := newAgentPanelDrawer("agent-gone", tracker, testTheme())
-	canvas := uv.NewScreenBuffer(80, 6)
-	area := uv.Rect(0, 0, 80, 6)
+	drawer := newAgentPanelDrawer("agent-gone", tracker, testTheme(), nil)
+	canvas := uv.NewScreenBuffer(80, 18)
+	area := uv.Rect(0, 0, 80, 18)
 
-	// Should not panic when agent is gone
 	drawer.Draw(canvas, area)
 
 	rendered := strings.TrimSpace(canvas.Render())
@@ -118,9 +234,8 @@ func TestAgentPanelDrawer_Draw_ZeroSize(t *testing.T) {
 	tracker := NewAgentTracker(gracePeriod, nil)
 	tracker.Start("agent-5", "test", "background")
 
-	drawer := newAgentPanelDrawer("agent-5", tracker, testTheme())
+	drawer := newAgentPanelDrawer("agent-5", tracker, testTheme(), nil)
 
-	// Zero-area should not panic
 	canvas := uv.NewScreenBuffer(0, 0)
 	area := uv.Rect(0, 0, 0, 0)
 
@@ -129,62 +244,88 @@ func TestAgentPanelDrawer_Draw_ZeroSize(t *testing.T) {
 	})
 }
 
-func TestAgentPanelDrawer_Draw_ResultTruncated(t *testing.T) {
-	tracker := NewAgentTracker(gracePeriod, nil)
-	longResult := strings.Repeat("abcdefghij", 50) // 500 chars
-
-	tracker.Start("agent-6", "writer", "background")
-	tracker.Done("agent-6", "completed", longResult)
-
-	drawer := newAgentPanelDrawer("agent-6", tracker, testTheme())
-	canvas := uv.NewScreenBuffer(30, 6)
-	area := uv.Rect(0, 0, 30, 6)
-
-	drawer.Draw(canvas, area)
-
-	rendered := canvas.Render()
-	// Result should be truncated (not the full 500 chars)
-	assert.Contains(t, rendered, "...")
-}
-
-func TestAgentPanelDrawer_Draw_MultilineResult(t *testing.T) {
-	tracker := NewAgentTracker(gracePeriod, nil)
-	result := "line 1\nline 2\nline 3\nline 4\nline 5"
-
-	tracker.Start("agent-7", "multi", "background")
-	tracker.Done("agent-7", "completed", result)
-
-	drawer := newAgentPanelDrawer("agent-7", tracker, testTheme())
-	canvas := uv.NewScreenBuffer(80, 6)
-	area := uv.Rect(0, 0, 80, 6)
-
-	drawer.Draw(canvas, area)
-
-	rendered := canvas.Render()
-	assert.Contains(t, rendered, "line 1")
-	assert.Contains(t, rendered, "line 2")
-	assert.Contains(t, rendered, "line 3")
-	assert.Contains(t, rendered, "line 5")
-}
-
-func TestAgentPanelDrawer_Handles_AlwaysFalse(t *testing.T) {
-	drawer := newAgentPanelDrawer("x", nil, testTheme())
-	assert.False(t, drawer.Handles(tea.KeyPressMsg{}))
+func TestAgentPanelDrawer_Handles_ReturnsTrueForKeyPress(t *testing.T) {
+	drawer := newAgentPanelDrawer("x", nil, testTheme(), nil)
+	assert.True(t, drawer.Handles(tea.KeyPressMsg{}))
 	assert.False(t, drawer.Handles(tea.WindowSizeMsg{}))
 }
 
-func TestAgentPanelDrawer_Update_ReturnsSelf(t *testing.T) {
-	drawer := newAgentPanelDrawer("x", nil, testTheme())
-	newDrawer, cmd := drawer.Update(tea.KeyPressMsg{})
+func TestAgentPanelDrawer_Update_CancelWithCtrlX(t *testing.T) {
+	bus := newMockBus()
+	drawer := newAgentPanelDrawer("agent-cancel", nil, testTheme(), bus)
+
+	_, cmd := drawer.Update(tea.KeyPressMsg{Code: 'x', Mod: tea.ModCtrl})
+
+	assert.Nil(t, cmd)
+
+	require.Len(t, bus.published, 1)
+	assert.Equal(t, "subagent.cancel", bus.published[0].Topic)
+
+	payload, ok := bus.published[0].Payload.(map[string]string)
+	require.True(t, ok)
+	assert.Equal(t, "agent-cancel", payload["id"])
+}
+
+func TestAgentPanelDrawer_Update_CancelWithEnter(t *testing.T) {
+	bus := newMockBus()
+	drawer := newAgentPanelDrawer("agent-enter", nil, testTheme(), bus)
+
+	_, cmd := drawer.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	assert.Nil(t, cmd)
+
+	require.Len(t, bus.published, 1)
+	assert.Equal(t, "subagent.cancel", bus.published[0].Topic)
+}
+
+func TestAgentPanelDrawer_Update_CancelWithNilBus(t *testing.T) {
+	drawer := newAgentPanelDrawer("agent-nil-bus", nil, testTheme(), nil)
+
+	assert.NotPanics(t, func() {
+		drawer.Update(tea.KeyPressMsg{Code: 'x', Mod: tea.ModCtrl})
+	})
+}
+
+func TestAgentPanelDrawer_Update_ScrollUp(t *testing.T) {
+	drawer := newAgentPanelDrawer("agent-scroll", nil, testTheme(), nil)
+	drawer.scrollOffset = 5
+
+	_, cmd := drawer.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+
+	assert.Nil(t, cmd)
+	assert.Equal(t, 4, drawer.scrollOffset)
+}
+
+func TestAgentPanelDrawer_Update_ScrollUpClamped(t *testing.T) {
+	drawer := newAgentPanelDrawer("agent-scroll", nil, testTheme(), nil)
+	drawer.scrollOffset = 0
+
+	drawer.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+
+	assert.Equal(t, 0, drawer.scrollOffset)
+}
+
+func TestAgentPanelDrawer_Update_ScrollDown(t *testing.T) {
+	drawer := newAgentPanelDrawer("agent-scroll", nil, testTheme(), nil)
+	drawer.scrollOffset = 3
+
+	drawer.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+
+	assert.Equal(t, 4, drawer.scrollOffset)
+}
+
+func TestAgentPanelDrawer_Update_IgnoresOtherMessages(t *testing.T) {
+	drawer := newAgentPanelDrawer("x", nil, testTheme(), nil)
+
+	newDrawer, cmd := drawer.Update(tea.WindowSizeMsg{})
 	assert.Nil(t, cmd)
 	assert.Same(t, drawer, newDrawer)
 }
 
 func TestAgentPanelDrawer_FormatElapsed_Negative(t *testing.T) {
 	theme := testTheme()
-	drawer := newAgentPanelDrawer("x", nil, theme)
+	drawer := newAgentPanelDrawer("x", nil, theme, nil)
 
-	// Clock skew: DoneAt before SpawnedAt should be clamped to 0.
 	agent := &TrackedAgent{
 		Status:    AgentCompleted,
 		SpawnedAt: time.Now(),
@@ -196,7 +337,7 @@ func TestAgentPanelDrawer_FormatElapsed_Negative(t *testing.T) {
 
 func TestAgentPanelDrawer_StatusIndicator(t *testing.T) {
 	theme := testTheme()
-	drawer := newAgentPanelDrawer("x", nil, theme)
+	drawer := newAgentPanelDrawer("x", nil, theme, nil)
 
 	icon, color := drawer.statusIndicator(AgentRunning)
 	assert.Equal(t, "●", icon)
@@ -210,7 +351,6 @@ func TestAgentPanelDrawer_StatusIndicator(t *testing.T) {
 	assert.Equal(t, "✗", icon)
 	assert.Equal(t, theme.Error, color)
 
-	// Unknown status should default to muted dot.
 	icon, color = drawer.statusIndicator(AgentStatus(99))
 	assert.Equal(t, "●", icon)
 	assert.Equal(t, theme.Muted, color)
@@ -218,9 +358,8 @@ func TestAgentPanelDrawer_StatusIndicator(t *testing.T) {
 
 func TestAgentPanelDrawer_FormatElapsed(t *testing.T) {
 	theme := testTheme()
-	drawer := newAgentPanelDrawer("x", nil, theme)
+	drawer := newAgentPanelDrawer("x", nil, theme, nil)
 
-	// Running agent: elapsed since spawned
 	agent := &TrackedAgent{
 		Status:    AgentRunning,
 		SpawnedAt: time.Now().Add(-30 * time.Second),
@@ -228,7 +367,6 @@ func TestAgentPanelDrawer_FormatElapsed(t *testing.T) {
 	elapsed := drawer.formatElapsed(agent)
 	assert.Contains(t, elapsed, "30s")
 
-	// Completed agent: time between spawn and done
 	agent = &TrackedAgent{
 		Status:    AgentCompleted,
 		SpawnedAt: time.Now().Add(-125 * time.Second),
@@ -240,7 +378,7 @@ func TestAgentPanelDrawer_FormatElapsed(t *testing.T) {
 
 func TestAgentPanelDrawer_FormatResult_Empty(t *testing.T) {
 	theme := testTheme()
-	drawer := newAgentPanelDrawer("x", nil, theme)
+	drawer := newAgentPanelDrawer("x", nil, theme, nil)
 
 	result := drawer.formatResult("", 80, 3)
 	assert.Empty(t, result)
@@ -248,9 +386,8 @@ func TestAgentPanelDrawer_FormatResult_Empty(t *testing.T) {
 
 func TestAgentPanelDrawer_FormatResult_SmallMaxWidth(t *testing.T) {
 	theme := testTheme()
-	drawer := newAgentPanelDrawer("x", nil, theme)
+	drawer := newAgentPanelDrawer("x", nil, theme, nil)
 
-	// maxWidth=5 should be clamped to 10 runes minimum.
 	longLine := strings.Repeat("a", 50)
 	result := drawer.formatResult(longLine, 5, 3)
 	assert.Contains(t, result, "...")
@@ -258,19 +395,16 @@ func TestAgentPanelDrawer_FormatResult_SmallMaxWidth(t *testing.T) {
 
 func TestAgentPanelDrawer_FormatResult(t *testing.T) {
 	theme := testTheme()
-	drawer := newAgentPanelDrawer("x", nil, theme)
+	drawer := newAgentPanelDrawer("x", nil, theme, nil)
 
-	// Short result
 	result := drawer.formatResult("hello", 80, 3)
 	assert.Equal(t, "hello", result)
 
-	// Long result truncated
 	longLine := strings.Repeat("a", 200)
 	result = drawer.formatResult(longLine, 40, 3)
 	assert.Contains(t, result, "...")
 	assert.Less(t, len(result), 200)
 
-	// Multi-line result limited by available height
 	multi := "line1\nline2\nline3\nline4\nline5"
 	result = drawer.formatResult(multi, 80, 4)
 	lines := strings.Split(result, "\n")
@@ -281,30 +415,42 @@ func TestAgentPanelDrawer_FormatResult(t *testing.T) {
 }
 
 func TestAgentPanelDrawer_Integration_WithTracker(t *testing.T) {
-	// Test that the drawer works with a real tracker through its lifecycle
 	tracker := NewAgentTracker(gracePeriod, nil)
 	theme := testTheme()
 
-	// Start
 	tracker.Start("int-agent", "researcher", "background")
 
-	drawer := newAgentPanelDrawer("int-agent", tracker, theme)
-	canvas := uv.NewScreenBuffer(80, 6)
-	area := uv.Rect(0, 0, 80, 6)
+	drawer := newAgentPanelDrawer("int-agent", tracker, theme, nil)
+	canvas := uv.NewScreenBuffer(80, 18)
+	area := uv.Rect(0, 0, 80, 18)
 
-	// Draw while running
 	drawer.Draw(canvas, area)
 	rendered := canvas.Render()
 	require.Contains(t, rendered, "researcher")
 	require.Contains(t, rendered, "●")
 
-	// Complete
 	tracker.Done("int-agent", "completed", "Found 3 files")
 
-	// Redraw after completion
-	canvas = uv.NewScreenBuffer(80, 6)
+	canvas = uv.NewScreenBuffer(80, 18)
 	drawer.Draw(canvas, area)
 	rendered = canvas.Render()
 	require.Contains(t, rendered, "✓")
-	require.Contains(t, rendered, "Found 3 files")
+}
+
+func TestAgentPanelDrawer_Draw_MessageEndSkipped(t *testing.T) {
+	tracker := NewAgentTracker(gracePeriod, nil)
+	tracker.Start("agent-msgend", "test", "background")
+	tracker.AppendOutput("agent-msgend", outputEntry{Type: "tool_start", Tool: "read", Content: "file.go", Time: time.Now()})
+	tracker.AppendOutput("agent-msgend", outputEntry{Type: "message_end", Content: "", Time: time.Now()})
+	tracker.AppendOutput("agent-msgend", outputEntry{Type: "tool_start", Tool: "edit", Content: "file.go", Time: time.Now()})
+
+	drawer := newAgentPanelDrawer("agent-msgend", tracker, testTheme(), nil)
+	canvas := uv.NewScreenBuffer(80, 18)
+	area := uv.Rect(0, 0, 80, 18)
+
+	drawer.Draw(canvas, area)
+
+	rendered := canvas.Render()
+	assert.Contains(t, rendered, "read")
+	assert.Contains(t, rendered, "edit")
 }

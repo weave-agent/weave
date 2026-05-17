@@ -89,13 +89,13 @@ Upgrade the subagent UI panel from a minimal status indicator to an informative,
 - [x] run tests - must pass before task 6
 
 ### Task 6: Rewrite panel drawer with live output and cancel
-- [ ] update `agentPanelDrawer.Draw()` in `extensions/ui/tui/extensions/subagent-ui/panel.go` to render: header row (status + name + mode + elapsed + cancel button), prompt row, separator, scrollable tool log from ring buffer snapshot
-- [ ] update `agentPanelDrawer.Update()` to handle cancel keypress (Ctrl+X or Enter) — publish `subagent.cancel` bus event with agent ID
-- [ ] update `agentPanelDrawer.Handles()` to return true for `tea.KeyPressMsg`
-- [ ] change panel config in `handleStarted()` from `TrayOnly` to `AboveEditor` (or keep TrayOnly with expand-to-overlay on Enter)
-- [ ] update `TrackedAgent` to store `SubagentID` for cancel payload (extract from panel ID or store directly)
-- [ ] write tests for panel rendering with populated ring buffer, cancel keypress behavior, and empty/nil buffer handling
-- [ ] run tests - must pass before task 7
+- [x] update `agentPanelDrawer.Draw()` in `extensions/ui/tui/extensions/subagent-ui/panel.go` to render: header row (status + name + mode + elapsed + cancel button), prompt row, separator, scrollable tool log from ring buffer snapshot
+- [x] update `agentPanelDrawer.Update()` to handle cancel keypress (Ctrl+X or Enter) — publish `subagent.cancel` bus event with agent ID
+- [x] update `agentPanelDrawer.Handles()` to return true for `tea.KeyPressMsg`
+- [x] change panel config in `handleStarted()` from `TrayOnly` to `AboveEditor` (or keep TrayOnly with expand-to-overlay on Enter)
+- [x] update `TrackedAgent` to store `SubagentID` for cancel payload (extract from panel ID or store directly)
+- [x] write tests for panel rendering with populated ring buffer, cancel keypress behavior, and empty/nil buffer handling
+- [x] run tests - must pass before task 7
 
 ### Task 7: Update rich renderer for cancelled status
 - [ ] add `cancelled` status handling in `subagentRenderer.Render()` in `extensions/ui/tui/extensions/subagent-ui/renderer.go`
