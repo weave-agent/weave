@@ -427,6 +427,11 @@ func parseSingleReplace(s, dir string, result map[string]string) {
 		absPath = filepath.Join(dir, localPath)
 	}
 
+	// Skip resolved paths without a go.mod — not a valid Go module.
+	if _, statErr := os.Stat(filepath.Join(absPath, "go.mod")); statErr != nil {
+		return
+	}
+
 	result[modPath] = absPath
 }
 
