@@ -191,6 +191,7 @@ func TestRun_ExcludeExtensions(t *testing.T) {
 		},
 		ModuleRoot:  moduleRoot,
 		BuildTmpDir: t.TempDir(),
+		HomeDir:     t.TempDir(), // isolate from real ~/.weave/extensions
 	}
 
 	err := l.Run(context.Background(), projectDir, nil, "", "loop", false, []string{"alpha"})
@@ -240,6 +241,7 @@ func TestRun_NilExclude(t *testing.T) {
 		},
 		ModuleRoot:  moduleRoot,
 		BuildTmpDir: t.TempDir(),
+		HomeDir:     t.TempDir(), // isolate from real ~/.weave/extensions
 	}
 
 	err := l.Run(context.Background(), projectDir, nil, "", "loop", false, nil)

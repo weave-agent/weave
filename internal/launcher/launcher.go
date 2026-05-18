@@ -21,6 +21,7 @@ type Launcher struct {
 	ModuleRoot    string
 	ModuleVersion string // semver tag for release mode (e.g. "v0.0.1"); empty in dev mode
 	BuildTmpDir   string
+	HomeDir       string // overrides os.UserHomeDir() when set (for testing)
 }
 
 // NewLauncher creates a Launcher with the default Build function.
@@ -43,9 +44,13 @@ func NewLauncher(cache *Cache, moduleRoot, moduleVersion string) *Launcher {
 //  4. Build if cache miss
 //  5. Exec the binary
 func (l *Launcher) Run(ctx context.Context, projectDir string, args []string, configPath, agentLoop string, headless bool, exclude []string) error {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("launcher: get home dir: %w", err)
+	homeDir := l.HomeDir
+	if homeDir == "" {
+		var err error
+		homeDir, err = os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("launcher: get home dir: %w", err)
+		}
 	}
 
 	exts, err := AutoDiscover(projectDir, homeDir, l.ModuleRoot, exclude)
