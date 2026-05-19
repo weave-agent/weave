@@ -1,10 +1,22 @@
 package sdk
 
+// Sandbox event topics shared by sandbox-related extensions.
+const (
+	// SandboxRegisteredTopic publishes an sdk.Sandboxer payload.
+	SandboxRegisteredTopic = "sandbox.registered"
+
+	// SandboxModeChangeTopic publishes a string mode payload.
+	SandboxModeChangeTopic = "sandbox.mode.change"
+
+	// SandboxCycleTopic requests cycling to the next sandbox mode; payload is ignored.
+	SandboxCycleTopic = "sandbox.cycle"
+)
+
 //go:generate moq -fmt goimports -out sandbox_mock_test.go . Sandboxer
 
 // Sandboxer wraps tool execution with OS-level sandboxing and path-based
 // access policy. Extensions register a Sandboxer by publishing a
-// "sandbox.registered" event with the Sandboxer as payload; tools and UI
+// SandboxRegisteredTopic event with the Sandboxer as payload; tools and UI
 // extensions receive it via bus subscription instead of calling GetSandboxer.
 type Sandboxer interface {
 	// WrapCommand wraps a bash command string in an OS sandbox profile.
