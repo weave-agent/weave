@@ -15,10 +15,10 @@ Add the event types and utilities that enable tools to stream partial output and
 ## Implementation Steps
 
 ### Task 1: Add tool event types and topics
-- [ ] Create `sdk/tool_events.go` with `ToolProgress` struct and event topic constants
-- [ ] Topics: `tool.start`, `tool.progress`, `tool.complete`, `tool.error`, `tool.interrupted`
-- [ ] Write tests for ToolProgress JSON marshal/unmarshal
-- [ ] Run `go test ./sdk/...` — must pass
+- [x] Create `sdk/tool_events.go` with `ToolProgress` struct and event topic constants
+- [x] Topics: `tool.start`, `tool.progress`, `tool.complete`, `tool.error`, `tool.interrupted`
+- [x] Write tests for ToolProgress JSON marshal/unmarshal
+- [x] Run `go test ./sdk/...` — must pass
 
 ### Task 2: Add throttle helper
 - [ ] Create `sdk/throttle.go` with `Throttle(fn func(), interval time.Duration)` helper
