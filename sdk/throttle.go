@@ -13,7 +13,6 @@ import (
 func Throttle(ctx context.Context, fn func(), interval time.Duration) func() {
 	var (
 		mu       sync.Mutex
-		pending  bool
 		lastExec time.Time
 		timer    *time.Timer
 		gen      int
@@ -21,22 +20,21 @@ func Throttle(ctx context.Context, fn func(), interval time.Duration) func() {
 
 	return func() {
 		mu.Lock()
+		defer mu.Unlock()
 
 		if ctx.Err() != nil {
-			mu.Unlock()
 			return
 		}
 
-		if lastExec.IsZero() || time.Since(lastExec) >= interval {
+		elapsed := time.Since(lastExec)
+		if lastExec.IsZero() || elapsed >= interval {
 			lastExec = time.Now()
-			pending = false
-			mu.Unlock()
+
 			fn()
 
 			return
 		}
 
-		pending = true
 		gen++
 		myGen := gen
 
@@ -44,20 +42,24 @@ func Throttle(ctx context.Context, fn func(), interval time.Duration) func() {
 			timer.Stop()
 		}
 
-		timer = time.AfterFunc(interval-time.Since(lastExec), func() {
+		timer = time.AfterFunc(interval-elapsed, func() {
 			mu.Lock()
 			defer mu.Unlock()
 
-			if ctx.Err() != nil || !pending || gen != myGen {
+			if ctx.Err() != nil || gen != myGen {
 				return
 			}
 
-			pending = false
+			defer func() {
+				if r := recover(); r != nil {
+					_ = r // Swallow panic to prevent crashing the process
+					// from a timer goroutine.
+				}
+			}()
+
 			lastExec = time.Now()
 
 			fn()
 		})
-
-		mu.Unlock()
 	}
 }

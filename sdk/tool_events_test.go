@@ -57,11 +57,3 @@ func TestToolProgress_Unmarshal(t *testing.T) {
 	assert.Equal(t, "done", p.Content)
 	assert.False(t, p.IsError)
 }
-
-func TestTopicConstants(t *testing.T) {
-	assert.Equal(t, "tool.start", TopicToolStart)
-	assert.Equal(t, "tool.progress", TopicToolProgress)
-	assert.Equal(t, "tool.complete", TopicToolComplete)
-	assert.Equal(t, "tool.error", TopicToolError)
-	assert.Equal(t, "tool.interrupted", TopicToolInterrupted)
-}

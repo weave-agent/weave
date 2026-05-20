@@ -132,7 +132,7 @@ func TestThrottle_LatestCallWins(t *testing.T) {
 	throttled()
 	assert.Equal(t, int32(1), fireCount.Load())
 
-	// Multiple calls — only one should fire after interval.
+	// Multiple calls spaced within the interval — only one deferred execution.
 	for range 5 {
 		throttled()
 		time.Sleep(10 * time.Millisecond)
@@ -145,27 +145,45 @@ func TestThrottle_LatestCallWins(t *testing.T) {
 	assert.Equal(t, int32(2), fireCount.Load())
 }
 
-func TestThrottle_MultipleCallsWithinInterval_FiresOnce(t *testing.T) {
+func TestThrottle_ZeroInterval(t *testing.T) {
 	ctx := t.Context()
 
 	var count atomic.Int32
 
 	throttled := Throttle(ctx, func() {
 		count.Add(1)
-	}, 100*time.Millisecond)
+	}, 0)
 
-	throttled() // fires at t=0
+	throttled()
+	throttled()
+	throttled()
+
+	assert.Equal(t, int32(3), count.Load())
+}
+
+func TestThrottle_PanicInTimerCallback(t *testing.T) {
+	ctx := t.Context()
+
+	var count atomic.Int32
+
+	throttled := Throttle(ctx, func() {
+		count.Add(1)
+
+		if count.Load() == 2 {
+			panic("intentional panic")
+		}
+	}, 50*time.Millisecond)
+
+	throttled() // fires immediately, count=1
 	assert.Equal(t, int32(1), count.Load())
 
-	// Multiple calls within the interval — only one deferred execution.
-	throttled()
-	time.Sleep(20 * time.Millisecond)
-	throttled()
-	time.Sleep(20 * time.Millisecond)
-	throttled()
-	assert.Equal(t, int32(1), count.Load())
+	throttled() // scheduled, will panic when fired
+	time.Sleep(200 * time.Millisecond)
 
-	// Wait for the single deferred execution.
-	time.Sleep(150 * time.Millisecond)
+	// The panic was swallowed; throttle should still work.
 	assert.Equal(t, int32(2), count.Load())
+
+	// Enough time has passed; should fire immediately.
+	throttled()
+	assert.Equal(t, int32(3), count.Load())
 }
