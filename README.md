@@ -138,6 +138,8 @@ Providers declare an auth struct with `json` and `env` tags, then register with 
 | `sdk/registry/` | Generic `Registry[T]` used by all registries |
 | `sdk/retry/` | Shared retry with exponential backoff |
 | `sdk/validate/` | JSON schema validator for tool arguments |
+| `sdk/throttle.go` | Context-aware throttling helper for event streaming |
+| `sdk/tool_events.go` | Tool progress events for streaming output over the bus |
 | `bus/` | Callback-based event bus (`Publish`/`On`/`OnAll`/`Off`) with per-handler goroutines and panic recovery |
 | `settings/` | JSON config system with `Loader` (defaults → JSON → env → CLI flags → validation) |
 | `internal/wire/` | Composition root: `WireExtensions()`, `WireWithCore()`, `Run()` |

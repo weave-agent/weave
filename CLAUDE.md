@@ -46,6 +46,8 @@ Standard library as much as possible. Every replaceable component is an extensio
 - `sdk/registry/` — generic `Registry[T]` used by all registries
 - `sdk/retry/` — shared retry with exponential backoff (used by providers)
 - `sdk/validate/` — JSON schema validator for tool arguments
+- `sdk/throttle.go` — context-aware throttling helper for event streaming (first call immediate, subsequent calls deduplicated within interval)
+- `sdk/tool_events.go` — `ToolProgress` struct and event topic constants (`tool.start`, `tool.progress`, `tool.complete`, `tool.error`, `tool.interrupted`) for streaming tool output over the bus
 - `bus/` — callback-based event bus (`Publish`/`On`/`OnAll`/`Off`) with per-handler goroutines and panic recovery
 - `settings/` — JSON-only config system with `Loader` (defaults → JSON → env → CLI flags → validation), layered settings (global → local), `FullConfig` implementing `sdk.Config`
 - `internal/wire/` — composition root: `WireExtensions()`/`WireWithCore()`, `Run()` (full entry-point pipeline)
