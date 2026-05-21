@@ -23,7 +23,7 @@ Balance principle: the extension API covers common operations. Extensions that n
 - `extensions/ui/tui/components/overlays/confirm.go` — `ConfirmModel`, `ConfirmDialog`
 - `extensions/ui/tui/components/overlays/input.go` — `InputModel`, `InputDialog`
 - `extensions/ui/tui/layout.go` — `LayoutEngine` for screen region computation
-- `extensions/ui/sandbox-ui/sandbox_ui.go` — existing UI extension using `RegisterUIExtension`
+- `extensions/ui/tui-sandbox/tui_sandbox.go` — existing UI extension using `RegisterUIExtension`
 - `extensions/ui/tui/extensions/diff-viewer/diff_viewer.go` — existing UI extension using `RegisterRenderer`
 - `launcher/auto_discover.go` — extension discovery, UI extension detection
 
@@ -298,7 +298,7 @@ When active, overlay dialogs dock at bottom of chat area instead of centered ove
 
 ### Task 10: Update existing extensions to use new API
 
-- [x] update `sandbox-ui` extension to use `NotifyTyped` for mode change messages
+- [x] update `tui-sandbox` extension to use `NotifyTyped` for mode change messages
 - [x] update `diff-viewer` extension to use `RegisterRichRenderer` for themed diff output
 - [x] write tests verifying updated extensions still register correctly
 - [x] run `make test` — must pass before next task

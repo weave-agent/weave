@@ -141,7 +141,7 @@ Four sandbox modes: `off` → `readonly` → `ask` → `auto` (default). The des
 
 ### Task 9: Create TUI sandbox extension
 - [x] create `extensions/ui/sandbox/` directory with `go.mod` (module: `weave/ext/ui/sandbox`)
-- [x] implement `init()` with `sdk.RegisterUIExtension(&SandboxUI{})`
+- [x] implement `init()` with `sdk.RegisterUIExtension(&TUISandbox{})`
 - [x] `Register(ui)`: call `ui.SetStatus("sandbox", "SB:auto")` for initial mode display
 - [x] `Register(ui)`: call `ui.RegisterKeybinding(sdk.Keybinding{Name: "sandbox.cycle", Keys: []string{"ctrl+s"}, Description: "Cycle sandbox mode"})`
 - [x] listen for `sandbox.mode.change` events to update footer status pill

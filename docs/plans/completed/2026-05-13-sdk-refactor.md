@@ -100,7 +100,7 @@ Address architectural, API design, and code quality findings from the SDK review
 - [x] Add `output.redirect` event type for output writer hooks instead of global setters
 - [x] Keep `app.started` for lifecycle (already event-based); remove `OnAppStarted` global
 - [x] Update tool extensions (bash, read, edit, write, ls, grep, find) to subscribe to bus for sandboxer
-- [x] Update TUI and sandbox-ui to subscribe to bus for sandboxer
+- [x] Update TUI and tui-sandbox to subscribe to bus for sandboxer
 - [x] Update generated main builder to publish `output.redirect` instead of calling `RegisterOutputWriterSetter`
 - [x] Update sandbox extension to publish `sandbox.registered` during Subscribe
 - [x] Remove `SetSandboxer`/`GetSandboxer`, `RegisterOutputWriterSetter`, `OnAppStarted` from `sdk/`
@@ -111,7 +111,7 @@ Address architectural, API design, and code quality findings from the SDK review
 
 - [x] Change `RegisterUIExtension(name string, ext UIExtension)` to `RegisterUIExtension[TConfig](name string, factory func(Config, TConfig) (UIExtension, error))`
 - [x] Add schema extraction for UI extension configs
-- [x] Update existing UI extensions (sandbox-ui, diff-viewer) to use new signature
+- [x] Update existing UI extensions (tui-sandbox, diff-viewer) to use new signature
 - [x] Update `sdk/wire/` to wire UI extensions with config
 - [x] Write tests
 - [x] Run `go test ./sdk/...` — must pass

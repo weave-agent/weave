@@ -22,7 +22,7 @@ func TestCoreExtensionNames_ContainsExpected(t *testing.T) {
 	expected := []string{
 		"bash", "read", "edit", "write", "grep", "find", "ls",
 		"search", "webfetch", "subagent", "anthropic", "openai", "zai", "kimi", "codex",
-		"agent", "sandbox", "sandbox-ui", "jsonl", "tui",
+		"agent", "sandbox", "tui-sandbox", "jsonl", "tui",
 		"tui-diffview", "tui-subagent",
 	}
 

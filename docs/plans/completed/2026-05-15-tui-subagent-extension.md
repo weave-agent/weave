@@ -22,7 +22,7 @@ A TUI extension that visualizes running subagents as per-agent panels in the pan
   - `extensions/ui/tui/extensions/subagent/*_test.go` — tests
 - **Related patterns found:**
   - diff-viewer (`extensions/ui/tui/extensions/diff-viewer/`) uses `tui.RegisterTUIExtension`
-  - sandbox-ui uses `sdk.RegisterUIExtension` with bus subscription
+  - tui-sandbox uses `sdk.RegisterUIExtension` with bus subscription
   - Panel system: `PanelManager.Register/Show/Remove`, `PanelTray.syncPanelTray()`
 - **Dependencies identified:**
   - `weave/ext/ui/tui` for TUIExtAPI

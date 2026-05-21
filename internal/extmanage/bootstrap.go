@@ -28,7 +28,7 @@ var CoreExtensionNames = []string{
 	"codex",
 	"agent",
 	"sandbox",
-	"sandbox-ui",
+	"tui-sandbox",
 	"jsonl",
 	"tui",
 	"tui-diffview",
