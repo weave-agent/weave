@@ -142,7 +142,7 @@ func resolveSession(continueFlag bool, resumeID string, bus sdk.Bus, cfg sdk.Con
 	return sessionID, messages, nil
 }
 
-func resolveSessionFromStore(store sdk.SessionStore, continueFlag bool, resumeID string, cwd string) (string, []sdk.Message, error) {
+func resolveSessionFromStore(store sdk.SessionStore, continueFlag bool, resumeID, cwd string) (string, []sdk.Message, error) {
 	if resumeID != "" {
 		messages, err := store.LoadHistory(resumeID)
 		if err != nil {
