@@ -1,7 +1,7 @@
 package extmanage
 
 import (
-	"fmt"
+	"log/slog"
 	"os"
 	"sync"
 
@@ -14,15 +14,15 @@ import (
 // Skipped entirely when WEAVE_OFFLINE=1 is set.
 func FireUpdateCheck(bus sdk.Bus) {
 	if os.Getenv("WEAVE_OFFLINE") == "1" {
-		fmt.Fprintln(os.Stderr, "weave: skipping update check (offline mode)")
+		slog.Info("skipping update check", "reason", "offline mode")
 		return
 	}
 
-	fmt.Fprintln(os.Stderr, "weave: checking for extension updates...")
+	slog.Info("checking for extension updates")
 
 	exts, err := listExtensionsDir()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "weave: update check: %v\n", err)
+		slog.Warn("extension update check failed", "error", err)
 		return
 	}
 
@@ -43,7 +43,7 @@ func FireUpdateCheck(bus sdk.Bus) {
 			defer wg.Done()
 
 			if err := checkOutdated(&exts[i]); err != nil {
-				fmt.Fprintf(os.Stderr, "weave: update check: %v\n", err)
+				slog.Warn("extension update check failed", "extension", exts[i].Name, "error", err)
 				return
 			}
 
@@ -66,5 +66,5 @@ func FireUpdateCheck(bus sdk.Bus) {
 		bus.Publish(sdk.NewEvent("extension.outdated", sdk.OutdatedEvent{Extensions: outdated}))
 	}
 
-	fmt.Fprintf(os.Stderr, "weave: update check complete (%d outdated)\n", len(outdated))
+	slog.Info("extension update check complete", "outdated", len(outdated))
 }
