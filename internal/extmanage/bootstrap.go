@@ -18,6 +18,8 @@ var CoreExtensionNames = []string{
 	"grep",
 	"find",
 	"ls",
+	"search",
+	"webfetch",
 	"subagent",
 	"anthropic",
 	"openai",
