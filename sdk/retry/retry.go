@@ -44,6 +44,10 @@ func Do(ctx context.Context, cfg Config, isRetriable func(error) bool, fn func()
 
 		lastErr = err
 
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return fmt.Errorf("retry canceled: %w", ctxErr)
+		}
+
 		if attempt < cfg.MaxRetries {
 			delay := CalculateDelay(cfg, attempt)
 			timer := time.NewTimer(delay)
