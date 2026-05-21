@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logos/weave-monochrome.svg" alt="Weave logo" width="160">
+</p>
+
 # Weave
 
 [![build](https://github.com/weave-agent/weave/actions/workflows/ci.yml/badge.svg)](https://github.com/weave-agent/weave/actions/workflows/ci.yml) [![Coverage Status](https://coveralls.io/repos/github/weave-agent/weave/badge.svg?branch=main)](https://coveralls.io/github/weave-agent/weave?branch=main) [![Go Report Card](https://goreportcard.com/badge/github.com/weave-agent/weave)](https://goreportcard.com/report/github.com/weave-agent/weave)

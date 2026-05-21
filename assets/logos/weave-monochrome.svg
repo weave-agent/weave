@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Weave Symbol Badge Monochrome</title>
+  <desc id="desc">A compact monochrome badge with the woven prompt symbol on a solid background.</desc>
+  <rect width="512" height="512" rx="128" fill="#111827"/>
+  <g transform="translate(256 256) scale(1.45) translate(-245.5 -280)" fill="none" stroke="#F8FAFC" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M124 232l48 48-48 48" stroke-width="28"/>
+    <path d="M212 220c38 0 38 88 76 88s38-88 76-88" stroke-width="34"/>
+    <path d="M212 340c38 0 38-88 76-88s38 88 76 88" stroke-width="34" opacity="0.72"/>
+  </g>
+</svg>
