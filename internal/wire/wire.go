@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"slices"
 	"sort"
 
@@ -75,7 +76,7 @@ func subscribeExtensions(exts []sdk.Extension, bus sdk.Bus) error {
 	return nil
 }
 
-func WireExtensions(extNames []string, bus sdk.Bus, cfg sdk.Config) (*Wired, error) {
+func prepareExtensions(extNames []string, cfg sdk.Config) ([]sdk.Extension, error) {
 	exts, err := resolveExtensions(extNames, cfg)
 	if err != nil {
 		return nil, err
@@ -102,6 +103,15 @@ func WireExtensions(extNames []string, bus sdk.Bus, cfg sdk.Config) (*Wired, err
 		}
 	}
 
+	return exts, nil
+}
+
+func WireExtensions(extNames []string, bus sdk.Bus, cfg sdk.Config) (*Wired, error) {
+	exts, err := prepareExtensions(extNames, cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	if err := subscribeExtensions(exts, bus); err != nil {
 		return nil, err
 	}
@@ -109,28 +119,30 @@ func WireExtensions(extNames []string, bus sdk.Bus, cfg sdk.Config) (*Wired, err
 	return &Wired{extensions: exts, bus: bus}, nil
 }
 
-func resolveSession(continueFlag bool, resumeID string, bus sdk.Bus) (string, []sdk.Message, error) {
+func resolveSession(continueFlag bool, resumeID string, bus sdk.Bus, cfg sdk.Config) (string, []sdk.Message, error) {
 	store := sdk.GetSessionStore()
 	if store == nil {
 		return "", nil, errors.New("no session store available")
 	}
 
-	sessionID, messages, err := resolveSessionFromStore(store, continueFlag, resumeID)
+	sessionID, messages, err := resolveSessionFromStore(store, continueFlag, resumeID, continueCWD(cfg))
 	if err != nil {
 		return "", nil, err
 	}
 
 	if sessionID != "" {
-		bus.Publish(sdk.NewEvent("session.resume", sdk.SessionResumePayload{
+		payload := sdk.SessionResumePayload{
 			SessionID: sessionID,
 			Messages:  messages,
-		}))
+		}
+		sdk.SetInitialSession(payload)
+		bus.Publish(sdk.NewEvent("session.resume", payload))
 	}
 
 	return sessionID, messages, nil
 }
 
-func resolveSessionFromStore(store sdk.SessionStore, continueFlag bool, resumeID string) (string, []sdk.Message, error) {
+func resolveSessionFromStore(store sdk.SessionStore, continueFlag bool, resumeID string, cwd string) (string, []sdk.Message, error) {
 	if resumeID != "" {
 		messages, err := store.LoadHistory(resumeID)
 		if err != nil {
@@ -141,19 +153,27 @@ func resolveSessionFromStore(store sdk.SessionStore, continueFlag bool, resumeID
 	}
 
 	if continueFlag {
-		return resolveContinueSession(store)
+		return resolveContinueSession(store, cwd)
 	}
 
 	return "", nil, nil
 }
 
-func resolveContinueSession(store sdk.SessionStore) (string, []sdk.Message, error) {
+func resolveContinueSession(store sdk.SessionStore, cwd string) (string, []sdk.Message, error) {
 	sessions, err := store.ListSessions()
 	if err != nil {
 		return "", nil, fmt.Errorf("list sessions: %w", err)
 	}
 
+	if cwd != "" {
+		sessions = sessionsForCWD(sessions, cwd)
+	}
+
 	if len(sessions) == 0 {
+		if cwd != "" {
+			return "", nil, fmt.Errorf("no sessions found for %s", cwd)
+		}
+
 		return "", nil, errors.New("no sessions found")
 	}
 
@@ -171,7 +191,41 @@ func resolveContinueSession(store sdk.SessionStore) (string, []sdk.Message, erro
 	return sessionID, messages, nil
 }
 
+func continueCWD(cfg sdk.Config) string {
+	if cfg != nil {
+		if projectDir := cfg.ProjectDir(); projectDir != "" {
+			return filepath.Clean(projectDir)
+		}
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+
+	return filepath.Clean(cwd)
+}
+
+func sessionsForCWD(sessions []sdk.SessionInfo, cwd string) []sdk.SessionInfo {
+	cleanCWD := filepath.Clean(cwd)
+	filtered := make([]sdk.SessionInfo, 0, len(sessions))
+
+	for _, session := range sessions {
+		if session.CWD == "" {
+			continue
+		}
+
+		if filepath.Clean(session.CWD) == cleanCWD {
+			filtered = append(filtered, session)
+		}
+	}
+
+	return filtered
+}
+
 func WireWithCore(core CoreWireConfig, optExts []string, bus sdk.Bus, cfg sdk.Config) (*Wired, error) {
+	sdk.ResetInitialSession()
+
 	if sdk.GetFileTracker() == nil {
 		sdk.SetFileTracker(filetracker.New())
 	}
@@ -198,13 +252,13 @@ func WireWithCore(core CoreWireConfig, optExts []string, bus sdk.Bus, cfg sdk.Co
 	// publish their registration events (e.g. sandbox.registered).
 	sdk.InvokeBusSubscribers(bus)
 
-	wired, err := WireExtensions(extNames, bus, cfg)
+	exts, err := prepareExtensions(extNames, cfg)
 	if err != nil {
 		return nil, err
 	}
 
 	if core.Continue || core.Resume != "" {
-		if _, _, err := resolveSession(core.Continue, core.Resume, bus); err != nil {
+		if _, _, err := resolveSession(core.Continue, core.Resume, bus, cfg); err != nil {
 			if cfg != nil && cfg.IsHeadless() {
 				return nil, fmt.Errorf("session resume: %w", err)
 			}
@@ -212,6 +266,12 @@ func WireWithCore(core CoreWireConfig, optExts []string, bus sdk.Bus, cfg sdk.Co
 			slog.Warn("session resume failed", "error", err)
 		}
 	}
+
+	if err := subscribeExtensions(exts, bus); err != nil {
+		return nil, err
+	}
+
+	wired := &Wired{extensions: exts, bus: bus}
 
 	go func() {
 		bus.Publish(sdk.NewEvent("app.started", nil))

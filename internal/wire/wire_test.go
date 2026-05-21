@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -838,6 +839,13 @@ func TestSetSingleTurnEnv_NoOpWhenFalse(t *testing.T) {
 
 // ---- Session store test helpers ----
 
+type projectDirConfig struct {
+	sdk.NoopConfig
+	projectDir string
+}
+
+func (c projectDirConfig) ProjectDir() string { return c.projectDir }
+
 type mockSessionStore struct {
 	listFunc func() ([]sdk.SessionInfo, error)
 	loadFunc func(string) ([]sdk.Message, error)
@@ -906,7 +914,7 @@ func TestResolveSession_NoStore(t *testing.T) {
 	sdk.ResetSessionStore()
 
 	bus := &BusMock{}
-	_, _, err := resolveSession(true, "", bus)
+	_, _, err := resolveSession(true, "", bus, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no session store available")
 }
@@ -922,7 +930,7 @@ func TestResolveSession_ContinueNoSessions(t *testing.T) {
 	sdk.SetSessionStore(store)
 
 	bus := &BusMock{}
-	_, _, err := resolveSession(true, "", bus)
+	_, _, err := resolveSession(true, "", bus, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no sessions found")
 }
@@ -930,12 +938,14 @@ func TestResolveSession_ContinueNoSessions(t *testing.T) {
 func TestResolveSession_ContinuePicksMostRecent(t *testing.T) {
 	sdk.ResetSessionStore()
 
+	cwd := continueCWD(nil)
+
 	store := &mockSessionStore{
 		listFunc: func() ([]sdk.SessionInfo, error) {
 			return []sdk.SessionInfo{
-				{ID: "older", UpdatedAt: time.Now().Add(-2 * time.Hour)},
-				{ID: "newer", UpdatedAt: time.Now().Add(-1 * time.Hour)},
-				{ID: "latest", UpdatedAt: time.Now()},
+				{ID: "older", CWD: cwd, UpdatedAt: time.Now().Add(-2 * time.Hour)},
+				{ID: "newer", CWD: cwd, UpdatedAt: time.Now().Add(-1 * time.Hour)},
+				{ID: "latest", CWD: cwd, UpdatedAt: time.Now()},
 			}, nil
 		},
 		loadFunc: func(id string) ([]sdk.Message, error) {
@@ -959,7 +969,7 @@ func TestResolveSession_ContinuePicksMostRecent(t *testing.T) {
 		},
 	}
 
-	sessionID, messages, err := resolveSession(true, "", bus)
+	sessionID, messages, err := resolveSession(true, "", bus, sdk.FilePathConfig(""))
 	require.NoError(t, err)
 	assert.Equal(t, "latest", sessionID)
 	require.Len(t, messages, 2)
@@ -971,6 +981,60 @@ func TestResolveSession_ContinuePicksMostRecent(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "latest", payload.SessionID)
 	assert.Len(t, payload.Messages, 2)
+}
+
+func TestResolveSession_ContinuePicksMostRecentForCurrentCWD(t *testing.T) {
+	sdk.ResetSessionStore()
+
+	projectDir := filepath.Clean("/tmp/weave-project")
+
+	store := &mockSessionStore{
+		listFunc: func() ([]sdk.SessionInfo, error) {
+			return []sdk.SessionInfo{
+				{ID: "global-latest", CWD: "/tmp/other-project", UpdatedAt: time.Now()},
+				{ID: "project-older", CWD: projectDir, UpdatedAt: time.Now().Add(-2 * time.Hour)},
+				{ID: "project-latest", CWD: projectDir, UpdatedAt: time.Now().Add(-1 * time.Hour)},
+			}, nil
+		},
+		loadFunc: func(id string) ([]sdk.Message, error) {
+			if id == "project-latest" {
+				return []sdk.Message{{Role: sdk.RoleUser, Content: "project"}}, nil
+			}
+
+			return nil, fmt.Errorf("unexpected id: %s", id)
+		},
+	}
+	sdk.SetSessionStore(store)
+
+	bus := &BusMock{}
+	cfg := projectDirConfig{projectDir: projectDir}
+
+	sessionID, messages, err := resolveSession(true, "", bus, cfg)
+	require.NoError(t, err)
+	assert.Equal(t, "project-latest", sessionID)
+	require.Len(t, messages, 1)
+	assert.Equal(t, "project", messages[0].Content)
+}
+
+func TestResolveSession_ContinueNoSessionsForCurrentCWD(t *testing.T) {
+	sdk.ResetSessionStore()
+
+	projectDir := filepath.Clean("/tmp/current-project")
+
+	store := &mockSessionStore{
+		listFunc: func() ([]sdk.SessionInfo, error) {
+			return []sdk.SessionInfo{{ID: "other", CWD: "/tmp/other-project", UpdatedAt: time.Now()}}, nil
+		},
+	}
+	sdk.SetSessionStore(store)
+
+	bus := &BusMock{}
+	cfg := projectDirConfig{projectDir: projectDir}
+
+	_, _, err := resolveSession(true, "", bus, cfg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no sessions found for")
+	assert.Contains(t, err.Error(), projectDir)
 }
 
 func TestResolveSession_ResumeValidID(t *testing.T) {
@@ -997,7 +1061,7 @@ func TestResolveSession_ResumeValidID(t *testing.T) {
 		},
 	}
 
-	sessionID, messages, err := resolveSession(false, "abc123", bus)
+	sessionID, messages, err := resolveSession(false, "abc123", bus, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "abc123", sessionID)
 	require.Len(t, messages, 1)
@@ -1019,7 +1083,7 @@ func TestResolveSession_ResumeInvalidID(t *testing.T) {
 	sdk.SetSessionStore(store)
 
 	bus := &BusMock{}
-	_, _, err := resolveSession(false, "bad-id", bus)
+	_, _, err := resolveSession(false, "bad-id", bus, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "load session bad-id")
 }
@@ -1027,6 +1091,7 @@ func TestResolveSession_ResumeInvalidID(t *testing.T) {
 func TestWireWithCore_ResumePublishesSessionEvent(t *testing.T) {
 	sdk.ResetExtensionRegistry()
 	sdk.ResetSessionStore()
+	sdk.ResetInitialSession()
 
 	sdk.ResetBusSubscribers()
 	defer sdk.ResetBusSubscribers()
@@ -1037,7 +1102,7 @@ func TestWireWithCore_ResumePublishesSessionEvent(t *testing.T) {
 
 	store := &mockStoreExt{name: "jsonl"}
 	store.listFunc = func() ([]sdk.SessionInfo, error) {
-		return []sdk.SessionInfo{{ID: "sess1", UpdatedAt: time.Now()}}, nil
+		return []sdk.SessionInfo{{ID: "sess1", CWD: continueCWD(nil), UpdatedAt: time.Now()}}, nil
 	}
 	store.loadFunc = func(id string) ([]sdk.Message, error) {
 		return []sdk.Message{{Role: sdk.RoleUser, Content: "hi"}}, nil
@@ -1075,6 +1140,41 @@ func TestWireWithCore_ResumePublishesSessionEvent(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return sessionReceived.Load() && appStartedReceived.Load()
 	}, time.Second, 10*time.Millisecond, "both events should be published")
+}
+
+func TestWireWithCore_ResumeSetsInitialSession(t *testing.T) {
+	sdk.ResetExtensionRegistry()
+	sdk.ResetSessionStore()
+	sdk.ResetInitialSession()
+
+	sdk.RegisterExtension("agent", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("agent", func(sdk.Bus) error { return nil }), nil
+	})
+
+	store := &mockStoreExt{name: "jsonl"}
+	store.listFunc = func() ([]sdk.SessionInfo, error) {
+		return []sdk.SessionInfo{{ID: "sess-initial", CWD: continueCWD(nil), UpdatedAt: time.Now()}}, nil
+	}
+	store.loadFunc = func(id string) ([]sdk.Message, error) {
+		return []sdk.Message{{Role: sdk.RoleUser, Content: "restored"}}, nil
+	}
+
+	sdk.RegisterExtension("jsonl", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Extension, error) {
+		return store, nil
+	})
+
+	bus := eventbus.New()
+	defer bus.Close()
+
+	wired, err := WireWithCore(CoreWireConfig{AgentLoop: "agent", Continue: true}, []string{"jsonl"}, bus, nil)
+	require.NoError(t, err)
+	require.NotNil(t, wired)
+
+	payload, ok := sdk.GetInitialSession()
+	require.True(t, ok)
+	assert.Equal(t, "sess-initial", payload.SessionID)
+	require.Len(t, payload.Messages, 1)
+	assert.Equal(t, "restored", payload.Messages[0].Content)
 }
 
 func TestWireWithCore_ResumeErrorHeadless(t *testing.T) {

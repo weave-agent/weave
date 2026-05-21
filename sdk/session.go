@@ -31,6 +31,9 @@ type SessionResumePayload struct {
 var (
 	sessionStoreMu sync.RWMutex
 	sessionStore   SessionStore
+
+	initialSessionMu sync.RWMutex
+	initialSession   SessionResumePayload
 )
 
 // SetSessionStore registers the global SessionStore instance.
@@ -53,6 +56,32 @@ func ResetSessionStore() {
 	sessionStoreMu.Lock()
 	sessionStore = nil
 	sessionStoreMu.Unlock()
+}
+
+// SetInitialSession stores the session restored during startup.
+func SetInitialSession(payload SessionResumePayload) {
+	initialSessionMu.Lock()
+	initialSession = payload
+	initialSessionMu.Unlock()
+}
+
+// GetInitialSession returns the startup session payload, if one is set.
+func GetInitialSession() (SessionResumePayload, bool) {
+	initialSessionMu.RLock()
+	defer initialSessionMu.RUnlock()
+
+	if initialSession.SessionID == "" {
+		return SessionResumePayload{}, false
+	}
+
+	return initialSession, true
+}
+
+// ResetInitialSession clears the startup session payload. Used only in tests.
+func ResetInitialSession() {
+	initialSessionMu.Lock()
+	initialSession = SessionResumePayload{}
+	initialSessionMu.Unlock()
 }
 
 // NoopSessionStore is a zero-value SessionStore that returns empty results.
