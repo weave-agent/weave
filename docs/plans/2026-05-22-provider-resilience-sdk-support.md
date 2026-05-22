@@ -55,12 +55,12 @@ The first pass configures transport deadlines only. It intentionally does not ad
 ## Implementation Steps
 
 ### Task 1: Add provider HTTP config model and parsing
-- [ ] create `sdk/providerhttp` package with exported `Config` type using duration string fields
-- [ ] define code defaults for `dial_timeout`, `tls_handshake_timeout`, `response_header_timeout`, and `idle_conn_timeout`
-- [ ] add parsing into an internal resolved duration struct
-- [ ] write tests for code defaults and successful duration parsing
-- [ ] write tests for invalid and negative duration values
-- [ ] run `go test ./sdk/providerhttp` - must pass before next task
+- [x] create `sdk/providerhttp` package with exported `Config` type using duration string fields
+- [x] define code defaults for `dial_timeout`, `tls_handshake_timeout`, `response_header_timeout`, and `idle_conn_timeout`
+- [x] add parsing into an internal resolved duration struct
+- [x] write tests for code defaults and successful duration parsing
+- [x] write tests for invalid and negative duration values
+- [x] run `go test ./sdk/providerhttp` - must pass before next task
 
 ### Task 2: Implement provider HTTP deep-merge resolution
 - [ ] implement resolution order: code defaults, `providers.defaults.http`, `providers.<name>.http`
