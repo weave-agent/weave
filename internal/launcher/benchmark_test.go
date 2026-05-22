@@ -6,7 +6,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
+	"strings"
 	"testing"
+	"time"
 )
 
 // NOTE: Built-in extensions have been extracted to separate repos.
@@ -22,19 +25,58 @@ func setupNoopExtensionB(b *testing.B, extDir, moduleRoot string) {
 	createGoFileB(b, extDir, "go.mod", "module test/ext/noop\n\ngo 1.22\n\nrequire github.com/weave-agent/weave v0.0.0\n\nreplace github.com/weave-agent/weave => "+moduleRoot+"\n")
 }
 
+func setupNamedNoopExtensionB(b *testing.B, extDir, moduleRoot, name string) {
+	b.Helper()
+
+	code := fmt.Sprintf(`package %s
+
+import "github.com/weave-agent/weave/sdk"
+
+func init() {
+	sdk.RegisterExtension[struct{}](%q, func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc(%q, func(_ sdk.Bus) error {
+			return nil
+		}), nil
+	})
+}
+`, name, name, name)
+
+	createGoFileB(b, extDir, name+".go", code)
+	createGoFileB(b, extDir, "go.mod", "module test/ext/"+name+"\n\ngo 1.22\n\nrequire github.com/weave-agent/weave v0.0.0\n\nreplace github.com/weave-agent/weave => "+moduleRoot+"\n")
+}
+
+func setupBenchmarkExtensionsB(b *testing.B, projectDir, moduleRoot string, count int) {
+	b.Helper()
+
+	for i := range count {
+		name := fmt.Sprintf("noop%03d", i)
+		extDir := filepath.Join(projectDir, ".weave", "extensions", name)
+
+		setupNamedNoopExtensionB(b, extDir, moduleRoot, name)
+	}
+}
+
 // discoverNoopExtension discovers a single noop extension from a project-local dir.
 func discoverNoopExtension(b *testing.B, projectDir string) []ExtensionInfo {
 	b.Helper()
 
 	homeDir := b.TempDir()
 
-	exts, err := AutoDiscover(projectDir, homeDir, "", nil)
-	if err != nil {
-		b.Fatalf("AutoDiscover noop: %v", err)
-	}
+	exts := discoverExtensionsB(b, projectDir, homeDir, "")
 
 	if len(exts) == 0 {
 		b.Fatal("no extensions discovered")
+	}
+
+	return exts
+}
+
+func discoverExtensionsB(b *testing.B, projectDir, homeDir, moduleRoot string) []ExtensionInfo {
+	b.Helper()
+
+	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	if err != nil {
+		b.Fatalf("AutoDiscover: %v", err)
 	}
 
 	return exts
@@ -84,6 +126,90 @@ func withGoCache(b *testing.B, cacheDir string, fn func()) {
 	fn()
 }
 
+func seedCacheEntryB(b *testing.B, cache *Cache, hash string) {
+	b.Helper()
+
+	src := filepath.Join(b.TempDir(), "weave")
+	if err := os.WriteFile(src, []byte("cached launcher binary"), 0o750); err != nil {
+		b.Fatalf("write cached binary: %v", err)
+	}
+
+	if err := cache.Store(hash, src); err != nil {
+		b.Fatalf("Cache.Store seed: %v", err)
+	}
+}
+
+func computeLauncherHashB(b *testing.B, exts []ExtensionInfo, moduleRoot string, coreDirs []string) string {
+	b.Helper()
+
+	hash, err := ComputeHash(deriveBuildInputs(exts, false), moduleRoot, "", false, "", coreDirs...)
+	if err != nil {
+		b.Fatalf("ComputeHash: %v", err)
+	}
+
+	return hash
+}
+
+func reportDurationMetric(b *testing.B, total time.Duration, count int, unit string) {
+	b.Helper()
+
+	if count == 0 {
+		return
+	}
+
+	b.ReportMetric(float64(total.Nanoseconds())/float64(count), unit)
+}
+
+func runGoCommandB(b *testing.B, dir string, args ...string) {
+	b.Helper()
+
+	cmd := exec.CommandContext(context.Background(), "go", args...)
+	cmd.Dir = dir
+
+	if output, err := cmd.CombinedOutput(); err != nil {
+		b.Fatalf("go %s failed: %v\n%s", strings.Join(args, " "), err, output)
+	}
+}
+
+func generateBuildFilesB(b *testing.B, buildDir, moduleRoot, moduleVersion, agentLoop string, headless bool, exts []ExtensionInfo) {
+	b.Helper()
+
+	sorted := make([]ExtensionInfo, len(exts))
+	copy(sorted, exts)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Name < sorted[j].Name
+	})
+
+	if headless {
+		filtered := make([]ExtensionInfo, 0, len(sorted))
+		for _, ext := range sorted {
+			if !ext.IsUIExt {
+				filtered = append(filtered, ext)
+			}
+		}
+
+		sorted = filtered
+	}
+
+	for _, ext := range sorted {
+		if err := ensureExtGoMod(ext, moduleRoot, moduleVersion); err != nil {
+			b.Fatalf("ensure extension go.mod for %s: %v", ext.Name, err)
+		}
+	}
+
+	for i := range sorted {
+		sorted[i].ModulePath = readModulePath(sorted[i].Dir)
+	}
+
+	if err := GenerateGoMod(buildDir, moduleRoot, moduleVersion, sorted); err != nil {
+		b.Fatalf("GenerateGoMod: %v", err)
+	}
+
+	if err := GenerateMainGo(buildDir, sorted, agentLoop); err != nil {
+		b.Fatalf("GenerateMainGo: %v", err)
+	}
+}
+
 func createGoFileB(b *testing.B, dir, name, content string) {
 	b.Helper()
 
@@ -120,6 +246,134 @@ func findModuleRootB(b *testing.B) string {
 	b.Skip("cannot find module root")
 
 	return ""
+}
+
+func benchmarkLauncherCacheHit(b *testing.B, extensionCount int) {
+	moduleRoot := findModuleRootB(b)
+	projectDir := b.TempDir()
+	homeDir := b.TempDir()
+
+	setupBenchmarkExtensionsB(b, projectDir, moduleRoot, extensionCount)
+
+	cache := NewCache(b.TempDir())
+	cache.MaxSizeBytes = -1
+
+	coreDirs := NewLauncher(cache, moduleRoot, "").coreDirs()
+	initialExts := discoverExtensionsB(b, projectDir, homeDir, moduleRoot)
+	initialHash := computeLauncherHashB(b, initialExts, moduleRoot, coreDirs)
+	seedCacheEntryB(b, cache, initialHash)
+
+	var (
+		discoveryTotal time.Duration
+		hashTotal      time.Duration
+		cacheTotal     time.Duration
+		count          int
+	)
+
+	b.ReportMetric(float64(extensionCount), "extensions")
+	b.ResetTimer()
+
+	for b.Loop() {
+		count++
+
+		start := time.Now()
+		exts := discoverExtensionsB(b, projectDir, homeDir, moduleRoot)
+		discoveryTotal += time.Since(start)
+
+		start = time.Now()
+		hash := computeLauncherHashB(b, exts, moduleRoot, coreDirs)
+		hashTotal += time.Since(start)
+
+		start = time.Now()
+		if _, found := cache.Lookup(hash); !found {
+			b.Fatal("expected launcher cache hit")
+		}
+
+		cacheTotal += time.Since(start)
+	}
+
+	reportDurationMetric(b, discoveryTotal, count, "discovery_ns/op")
+	reportDurationMetric(b, hashTotal, count, "hash_ns/op")
+	reportDurationMetric(b, cacheTotal, count, "cache_lookup_ns/op")
+}
+
+func BenchmarkLauncherCacheHit_NoExtensions(b *testing.B) {
+	benchmarkLauncherCacheHit(b, 0)
+}
+
+func BenchmarkLauncherCacheHit_OneExtension(b *testing.B) {
+	benchmarkLauncherCacheHit(b, 1)
+}
+
+func BenchmarkLauncherCacheHit_ManyExtensions(b *testing.B) {
+	benchmarkLauncherCacheHit(b, 20)
+}
+
+func BenchmarkLauncherBuildPhases_OneExtension(b *testing.B) {
+	moduleRoot := findModuleRootB(b)
+	projectDir := b.TempDir()
+	homeDir := b.TempDir()
+	coreDirs := NewLauncher(nil, moduleRoot, "").coreDirs()
+
+	setupBenchmarkExtensionsB(b, projectDir, moduleRoot, 1)
+
+	var (
+		discoveryTotal      time.Duration
+		hashTotal           time.Duration
+		generatedFilesTotal time.Duration
+		tidyTotal           time.Duration
+		buildTotal          time.Duration
+		cacheStoreTotal     time.Duration
+		count               int
+	)
+
+	b.ResetTimer()
+
+	for b.Loop() {
+		count++
+
+		cache := NewCache(b.TempDir())
+		cache.MaxSizeBytes = -1
+
+		start := time.Now()
+		exts := discoverExtensionsB(b, projectDir, homeDir, moduleRoot)
+		discoveryTotal += time.Since(start)
+
+		start = time.Now()
+		hash := computeLauncherHashB(b, exts, moduleRoot, coreDirs)
+		hashTotal += time.Since(start)
+
+		buildDir := b.TempDir()
+
+		start = time.Now()
+		generateBuildFilesB(b, buildDir, moduleRoot, "", "", false, deriveBuildInputs(exts, false))
+		generatedFilesTotal += time.Since(start)
+
+		start = time.Now()
+		runGoCommandB(b, buildDir, "mod", "tidy")
+		tidyTotal += time.Since(start)
+
+		binaryPath := filepath.Join(buildDir, "weave")
+
+		start = time.Now()
+		runGoCommandB(b, buildDir, "build", "-o", binaryPath, ".")
+		buildTotal += time.Since(start)
+
+		start = time.Now()
+		if err := cache.Store(hash, binaryPath); err != nil {
+			b.Fatalf("Cache.Store: %v", err)
+		}
+
+		cacheStoreTotal += time.Since(start)
+		reportBinarySize(b, binaryPath)
+	}
+
+	reportDurationMetric(b, discoveryTotal, count, "discovery_ns/op")
+	reportDurationMetric(b, hashTotal, count, "hash_ns/op")
+	reportDurationMetric(b, generatedFilesTotal, count, "generated_files_ns/op")
+	reportDurationMetric(b, tidyTotal, count, "go_mod_tidy_ns/op")
+	reportDurationMetric(b, buildTotal, count, "go_build_ns/op")
+	reportDurationMetric(b, cacheStoreTotal, count, "cache_store_ns/op")
 }
 
 // Cold builds: empty Go build cache. Full compilation from scratch.
@@ -193,21 +447,18 @@ func BenchmarkWarmBuild_NoopExtension(b *testing.B) {
 
 // End-to-end: measures the full `go run ./cmd/weave/ -p "hello"` path.
 // Includes go run compilation + launcher pipeline (discover -> hash -> build -> cache).
-// Uses a project-local .weave/settings.json to control extensions.
+// Uses temp HOME, project config, and launcher cache directories so it does not
+// mutate the repository .weave directory or the user's ~/.weave/bin cache.
 // This is what you actually experience at the terminal.
 
-func goRunEndToEnd(b *testing.B, extYAML string) {
+func goRunEndToEnd(b *testing.B, settingsJSON string) {
 	b.Helper()
 
 	moduleRoot := findModuleRootB(b)
 
-	cacheDir, err := DefaultCacheDir()
-	if err != nil {
-		b.Fatalf("DefaultCacheDir: %v", err)
-	}
-
 	// Create a project-local config to control which extensions are built.
-	configDir := filepath.Join(moduleRoot, ".weave")
+	projectDir := b.TempDir()
+	configDir := filepath.Join(projectDir, ".weave")
 
 	if err := os.MkdirAll(configDir, 0o750); err != nil {
 		b.Fatalf("mkdir .weave: %v", err)
@@ -215,21 +466,23 @@ func goRunEndToEnd(b *testing.B, extYAML string) {
 
 	configPath := filepath.Join(configDir, "settings.json")
 
-	if err := os.WriteFile(configPath, []byte(extYAML), 0o600); err != nil {
+	if err := os.WriteFile(configPath, []byte(settingsJSON), 0o600); err != nil {
 		b.Fatalf("write config: %v", err)
 	}
 
-	defer func() {
-		_ = os.Remove(configPath)
-		_ = os.Remove(configDir)
-	}()
+	homeDir := b.TempDir()
+	cacheDir := filepath.Join(homeDir, ".weave", "bin")
+	env := benchmarkEnvWithHomeB(b, homeDir)
+
+	b.ResetTimer()
 
 	for b.Loop() {
 		// Clear launcher cache to force a full build each iteration.
 		_ = os.RemoveAll(cacheDir)
 
-		cmd := exec.Command("go", "run", "./cmd/weave/", "-p", "hello")
+		cmd := exec.Command("go", "run", "./cmd/weave/", "--config", configPath, "--skip-bootstrap", "-p", "hello")
 		cmd.Dir = moduleRoot
+		cmd.Env = env
 
 		output, err := cmd.CombinedOutput()
 		if err == nil {
@@ -237,18 +490,67 @@ func goRunEndToEnd(b *testing.B, extYAML string) {
 		}
 
 		// Accept exit code 1 (provider error, stdin error) but not other failures.
-		if cmd.ProcessState.ExitCode() != 1 {
+		exitCode := -1
+		if cmd.ProcessState != nil {
+			exitCode = cmd.ProcessState.ExitCode()
+		}
+
+		if exitCode != 1 {
 			b.Fatalf("go run failed: %v\n%s", err, output)
 		}
 	}
 }
 
+func benchmarkEnvWithHomeB(b *testing.B, homeDir string) []string {
+	b.Helper()
+
+	env := upsertEnv(os.Environ(), "HOME", homeDir)
+
+	for _, key := range []string{"GOCACHE", "GOMODCACHE"} {
+		if os.Getenv(key) != "" {
+			continue
+		}
+
+		value := goEnvValueB(b, key)
+		if value != "" {
+			env = upsertEnv(env, key, value)
+		}
+	}
+
+	return env
+}
+
+func goEnvValueB(b *testing.B, key string) string {
+	b.Helper()
+
+	cmd := exec.Command("go", "env", key)
+	output, err := cmd.Output()
+	if err != nil {
+		b.Fatalf("go env %s: %v", key, err)
+	}
+
+	return strings.TrimSpace(string(output))
+}
+
+func upsertEnv(env []string, key, value string) []string {
+	prefix := key + "="
+	for i, entry := range env {
+		if strings.HasPrefix(entry, prefix) {
+			env[i] = prefix + value
+
+			return env
+		}
+	}
+
+	return append(env, prefix+value)
+}
+
 func BenchmarkGoRun_NoTUI(b *testing.B) {
-	goRunEndToEnd(b, `{"core":{"agent_loop":"loop"},"ui":"none"}`)
+	goRunEndToEnd(b, `{"agent_loop":"loop","ui_extension":"none"}`)
 }
 
 func BenchmarkGoRun_TUI(b *testing.B) {
-	goRunEndToEnd(b, `{"core":{"agent_loop":"loop"},"ui":"tui"}`)
+	goRunEndToEnd(b, `{"agent_loop":"loop","ui_extension":"tui"}`)
 }
 
 // Partial builds: Go cache primed with full build, but one extension source changed.

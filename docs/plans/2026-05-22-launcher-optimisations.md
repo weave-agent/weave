@@ -111,11 +111,11 @@ The changes integrate with the existing launcher flow in `internal/wire/run.go` 
 - [x] run `go test ./internal/launcher ./internal/wire ./internal/extmanage` - must pass before task 7
 
 ### Task 7: Add launcher performance measurement before changing tidy behavior
-- [ ] add or update benchmarks for cache-hit startup paths: no extensions, one extension, many extensions
-- [ ] add benchmark phase metrics for discovery, hash, generated files, `go mod tidy`, `go build`, and cache store
-- [ ] make end-to-end launcher benchmarks hermetic by avoiding real repo `.weave/settings.json` and real `~/.weave/bin`
-- [ ] keep `go mod tidy` behavior unchanged in this plan
-- [ ] run `go test ./internal/launcher -run '^$' -bench 'Benchmark' -benchtime=1x` - must pass before task 8
+- [x] add or update benchmarks for cache-hit startup paths: no extensions, one extension, many extensions
+- [x] add benchmark phase metrics for discovery, hash, generated files, `go mod tidy`, `go build`, and cache store
+- [x] make end-to-end launcher benchmarks hermetic by avoiding real repo `.weave/settings.json` and real `~/.weave/bin`
+- [x] keep `go mod tidy` behavior unchanged in this plan
+- [x] run `go test ./internal/launcher -run '^$' -bench 'Benchmark' -benchtime=1x` - must pass before task 8
 
 ### Task 8: Verify acceptance criteria
 - [ ] verify stale dev-cache risk is reduced for generated-binary dependencies
