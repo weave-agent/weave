@@ -113,13 +113,13 @@ The first pass configures transport deadlines only. It intentionally does not ad
 - [x] run `go test ./utils/openaicompat` - must pass before next task
 
 ### Task 8: Verify acceptance criteria
-- [ ] verify config shape supports `providers.defaults.http` and `providers.defaults.retry`
-- [ ] verify invalid HTTP/retry config fails fast through resolver errors
-- [ ] verify no total stream timeout is introduced
-- [ ] verify retry supports only `full` and `none` jitter modes
-- [ ] verify OpenAI-compatible error bodies are capped at 64 KiB
-- [ ] run `go test ./sdk/... ./utils/openaicompat`
-- [ ] run `make lint`
+- [x] verify config shape supports `providers.defaults.http` and `providers.defaults.retry`
+- [x] verify invalid HTTP/retry config fails fast through resolver errors
+- [x] verify no total stream timeout is introduced
+- [x] verify retry supports only `full` and `none` jitter modes
+- [x] verify OpenAI-compatible error bodies are capped at 64 KiB
+- [x] run `go test ./sdk/... ./utils/openaicompat`
+- [x] run `make lint`
 
 ### Task 9: Update documentation if needed
 - [ ] update provider configuration documentation if an appropriate docs location exists
