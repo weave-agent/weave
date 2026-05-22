@@ -14,7 +14,7 @@ Most coding agents are monoliths — swapping the LLM provider, adding a tool, o
 
 - **Everything is an extension** — agent loop, LLM providers, tools, and TUI are all independent modules
 - **Event bus architecture** — extensions communicate through events, never import each other directly
-- **Dynamic compilation** — extensions are discovered, compiled into a cached binary, and exec'd on launch
+- **Dynamic compilation** — extensions are discovered, compiled into a hash-cached binary, and exec'd on launch
 - **First-run bootstrap** — core extensions clone automatically from separate repos on first use
 - **JSON configuration** — layered settings (global → local), with env var and CLI flag overrides
 - **Declarative auth** — providers declare credential structs with `json`/`env` tags, framework handles the rest
@@ -47,8 +47,10 @@ Download the appropriate binary from [releases](https://github.com/weave-agent/w
 1. **Resolve config** — load settings from `.weave/settings.json` (walked up from cwd), fallback `~/.weave/settings.json`.
 2. **Bootstrap** — on first run, clone core extensions into `~/.weave/extensions/`. Skip with `--skip-bootstrap`.
 3. **Discover** — scan for extensions in project and home directories.
-4. **Build** — generate a custom binary with blank imports for all discovered extensions, cached by hash so unchanged configurations start instantly.
+4. **Build** — generate a custom binary with blank imports for discovered build inputs, cached by hash so unchanged configurations start instantly. Headless prompt runs exclude UI-only extensions from build inputs.
 5. **Exec** — run the compiled binary. Extensions self-register via `init()` and wire up through the event bus.
+
+Help and no-input error paths return before first-run bootstrap or launcher build work.
 
 ## Extension Management
 
@@ -58,9 +60,12 @@ weave install <source> --name foo
 weave list                          # name, source, module path, status
 weave update [<name>]               # git pull --ff-only; no args = all
 weave uninstall <name>
+weave cache clean                    # remove launcher binary cache entries
 ```
 
-Use `/reload` at runtime to invalidate the cache, rebuild, and re-exec.
+Generated launcher binaries live under `~/.weave/bin/<hash>/weave`. Cache keys include the Go runtime version, OS/arch, headless mode, agent loop, root module graph, extension Go files, embedded `//go:embed` resources, extension module files, selected core source directories, and local replace dependencies. The cache is size-bounded with LRU-style eviction based on access metadata. `weave cache clean` removes only launcher binary cache entries under `~/.weave/bin`.
+
+Use `/reload` at runtime to invalidate the current cache entry, rebuild, and re-exec.
 
 ## Configuration
 
@@ -234,8 +239,14 @@ make fmt      # format code (gofumpt, goimports, go fix)
 make fix      # auto-fix linter issues
 make lint     # run golangci-lint
 make test     # run root module tests
-make bench    # run build benchmarks
+make bench    # run launcher/build benchmarks
 make tidy     # run go mod tidy
+```
+
+Launcher benchmarks live in `internal/launcher/benchmark_test.go`. They cover cache-hit startup paths for no, one, and many extensions, and report phase metrics for discovery, hash computation, generated files, `go mod tidy`, `go build`, and cache store. For a quick sanity pass, run:
+
+```bash
+go test ./internal/launcher -run '^$' -bench 'Benchmark' -benchtime=1x
 ```
 
 ### Testing

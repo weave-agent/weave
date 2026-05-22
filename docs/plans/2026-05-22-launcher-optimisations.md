@@ -128,9 +128,9 @@ The changes integrate with the existing launcher flow in `internal/wire/run.go` 
 - [x] run linter if available for the project
 
 ### Task 9: Update documentation
-- [ ] update `CLAUDE.md` or relevant project docs if launcher/cache behavior documentation exists
-- [ ] document `weave cache clean` usage if user-facing command documentation exists
-- [ ] update benchmark notes if existing benchmark docs mention launcher behavior
+- [x] update `CLAUDE.md` or relevant project docs if launcher/cache behavior documentation exists
+- [x] document `weave cache clean` usage if user-facing command documentation exists
+- [x] update benchmark notes if existing benchmark docs mention launcher behavior
 
 ## Technical Details
 

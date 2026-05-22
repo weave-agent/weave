@@ -14,7 +14,7 @@ make fmt           # Format code (gofumpt, goimports, go fix) ALWAYS use make fi
 make fix           # Auto-fix linter issues
 make gen           # Regenerate mocks (moq)
 make tools         # Install dev tools (moq, golangci-lint)
-make bench         # Run build benchmarks
+make bench         # Run launcher/build benchmarks
 make test          # Run root module tests
 make tidy          # Run go mod tidy
 go test ./sdk/...  # Run tests for a single package
@@ -37,7 +37,9 @@ Standard library as much as possible. Every replaceable component is an extensio
 
 **Module boundaries** — Root-module `internal/` packages are not importable by extensions. Anything extensions need to share must live in `sdk/`. Never place event payload types in `internal/` packages.
 
-**Launcher pattern:** resolve config → bootstrap core extensions (first run) → auto-discover extensions → build a custom binary (cached per hash) → exec it.
+**Launcher pattern:** resolve config → handle help/no-input fast paths → bootstrap core extensions (first launch only) → auto-discover extensions → derive build inputs (headless excludes UI-only extensions) → build a custom binary (cached per hash) → exec it.
+
+**Launcher cache:** Generated binaries are cached under `~/.weave/bin/<hash>/weave`. Cache keys include the Go runtime version, OS/arch, headless mode, agent loop, root module graph, extension Go files, embedded `//go:embed` resources, extension module files, selected core source directories, and local replace dependencies. The cache is size-bounded with LRU-style eviction based on access metadata.
 
 ## Key Packages
 
@@ -53,7 +55,7 @@ Standard library as much as possible. Every replaceable component is an extensio
 - `bus/` — callback-based event bus (`Publish`/`On`/`OnAll`/`Off`) with per-handler goroutines and panic recovery
 - `settings/` — JSON-only config system with `Loader` (defaults → JSON → env → CLI flags → validation), layered settings (global → local), `FullConfig` implementing `sdk.Config`
 - `internal/wire/` — composition root: `WireExtensions()`/`WireWithCore()`, `Run()` (full entry-point pipeline)
-- `internal/launcher/` — auto-discovery, hash-based caching, binary generation with blank imports
+- `internal/launcher/` — auto-discovery, hash-based caching, size-bounded launcher binary cache, binary generation with blank imports
 - `internal/auth/` — provider credential storage in `~/.weave/auth.json` (API keys + OAuth)
 - `internal/extmanage/` — extension lifecycle (`install`/`list`/`update`/`uninstall`) and first-run bootstrap
 - `internal/log/` — rotating file logging via `slog`
@@ -83,7 +85,7 @@ The `agent` extension owns the conversation lifecycle: prompt assembly, turn loo
 
 ## First-Run Bootstrap
 
-When `~/.weave/extensions/` is empty, the framework clones 20 core extensions from `github.com/weave-agent/weave-<name>`. Triggered in `internal/wire/run.go`. Skip with `--skip-bootstrap`.
+When `~/.weave/extensions/` is empty, the framework clones 20 core extensions from `github.com/weave-agent/weave-<name>`. Triggered in `internal/wire/run.go` only for commands that proceed to launch; `--help` and no-input failures do not bootstrap or build. Skip with `--skip-bootstrap`.
 
 ## Configuration
 
@@ -106,4 +108,7 @@ Key env vars: `WEAVE_PROVIDER` (override active provider), `WEAVE_THINKING_LEVEL
 - `weave list` — show name, source, module path, status
 - `weave update [<name>]` — `git pull --ff-only`; no args updates all
 - `weave uninstall <name>` — remove from `~/.weave/extensions/`
+- `weave cache clean` — remove launcher binary cache entries under `~/.weave/bin`
 - `/reload` — invalidate cache, rebuild, re-exec
+
+**Launcher benchmarks:** `internal/launcher/benchmark_test.go` covers cache-hit startup paths for no, one, and many extensions, plus phase metrics for discovery, hash computation, generated files, `go mod tidy`, `go build`, and cache store. Use `go test ./internal/launcher -run '^$' -bench 'Benchmark' -benchtime=1x` for a quick benchmark sanity check.
