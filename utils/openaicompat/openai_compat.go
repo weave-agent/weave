@@ -466,10 +466,12 @@ func emitToolCalls(toolCalls map[int]*toolCallAccum, send func(sdk.ProviderEvent
 
 		if tc.argsBuffer != "" {
 			if err := json.Unmarshal([]byte(tc.argsBuffer), &args); err != nil {
-				send(sdk.ProviderEvent{
+				if !send(sdk.ProviderEvent{
 					Type:    sdk.ProviderEventError,
 					Content: &Error{Type: ErrorTypeParse, Message: fmt.Sprintf("parse tool call arguments for %s: %v", tc.name, err)},
-				})
+				}) {
+					return
+				}
 
 				continue
 			}
@@ -561,13 +563,15 @@ func parseSSE(ctx context.Context, reader io.Reader, ch chan<- sdk.ProviderEvent
 // processChunk handles a single SSE chunk. Returns false if the consumer stopped listening.
 func processChunk(chunk StreamChunk, toolCalls map[int]*toolCallAccum, send func(sdk.ProviderEvent) bool) bool {
 	if chunk.Usage != nil && (chunk.Usage.InputTokens > 0 || chunk.Usage.OutputTokens > 0) {
-		send(sdk.ProviderEvent{
+		if !send(sdk.ProviderEvent{
 			Type: sdk.ProviderEventUsage,
 			Content: sdk.ProviderUsage{
 				InputTokens:  chunk.Usage.InputTokens,
 				OutputTokens: chunk.Usage.OutputTokens,
 			},
-		})
+		}) {
+			return false
+		}
 	}
 
 	for _, choice := range chunk.Choices {

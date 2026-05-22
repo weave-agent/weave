@@ -116,27 +116,31 @@ func ForProvider(cfg sdk.Config, provider string) (retry.Config, Config, error) 
 // replace the corresponding fields in base. Nil pointers and empty strings mean
 // "not set" and do not override.
 func mergeConfig(base, override Config) Config {
+	result := base
+
 	if override.MaxRetries != nil {
-		base.MaxRetries = override.MaxRetries
+		v := *override.MaxRetries
+		result.MaxRetries = &v
 	}
 
 	if override.BaseDelay != "" {
-		base.BaseDelay = override.BaseDelay
+		result.BaseDelay = override.BaseDelay
 	}
 
 	if override.MaxDelay != "" {
-		base.MaxDelay = override.MaxDelay
+		result.MaxDelay = override.MaxDelay
 	}
 
 	if override.Multiplier != nil {
-		base.Multiplier = override.Multiplier
+		v := *override.Multiplier
+		result.Multiplier = &v
 	}
 
 	if override.Jitter != "" {
-		base.Jitter = override.Jitter
+		result.Jitter = override.Jitter
 	}
 
-	return base
+	return result
 }
 
 func parseDurationField(field, value string) (time.Duration, error) {

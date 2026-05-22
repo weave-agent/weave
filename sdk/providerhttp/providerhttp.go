@@ -70,9 +70,11 @@ func (c Config) Resolve(provider string) (resolved, error) {
 // NewClient creates an *http.Client with an http.Transport configured from
 // the provided Config. The client-level Timeout is intentionally left at zero
 // to preserve streaming compatibility. All timeouts are set on the transport
-// only.
+// only. Any unset fields inherit from DefaultConfig().
 func NewClient(cfg Config) (*http.Client, error) {
-	r, err := cfg.Resolve("")
+	merged := mergeConfig(DefaultConfig(), cfg)
+
+	r, err := merged.Resolve("")
 	if err != nil {
 		return nil, err
 	}
@@ -132,23 +134,25 @@ func ForProvider(cfg sdk.Config, provider string) (*http.Client, Config, error) 
 // replace the corresponding fields in base. Empty string means "not set"
 // and does not override.
 func mergeConfig(base, override Config) Config {
+	result := base
+
 	if override.DialTimeout != "" {
-		base.DialTimeout = override.DialTimeout
+		result.DialTimeout = override.DialTimeout
 	}
 
 	if override.TLSHandshakeTimeout != "" {
-		base.TLSHandshakeTimeout = override.TLSHandshakeTimeout
+		result.TLSHandshakeTimeout = override.TLSHandshakeTimeout
 	}
 
 	if override.ResponseHeaderTimeout != "" {
-		base.ResponseHeaderTimeout = override.ResponseHeaderTimeout
+		result.ResponseHeaderTimeout = override.ResponseHeaderTimeout
 	}
 
 	if override.IdleConnTimeout != "" {
-		base.IdleConnTimeout = override.IdleConnTimeout
+		result.IdleConnTimeout = override.IdleConnTimeout
 	}
 
-	return base
+	return result
 }
 
 func formatError(provider string, err error) error {
