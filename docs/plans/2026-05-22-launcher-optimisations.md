@@ -68,11 +68,11 @@ The changes integrate with the existing launcher flow in `internal/wire/run.go` 
 ## Implementation Steps
 
 ### Task 1: Make launcher cache keys cover real build inputs
-- [ ] update `internal/launcher/launcher.go` so `coreDirs()` hashes broader `internal/` instead of a partial manual list
-- [ ] add `runtime.GOOS` and `runtime.GOARCH` to `ComputeHash` in `internal/launcher/builder.go`
-- [ ] update hash tests in `internal/launcher/builder_test.go` for OS/arch cache-key participation
-- [ ] update launcher tests in `internal/launcher/launcher_test.go` for the broader `internal/` core-dir set
-- [ ] run `go test ./internal/launcher` - must pass before task 2
+- [x] update `internal/launcher/launcher.go` so `coreDirs()` hashes broader `internal/` instead of a partial manual list
+- [x] add `runtime.GOOS` and `runtime.GOARCH` to `ComputeHash` in `internal/launcher/builder.go`
+- [x] update hash tests in `internal/launcher/builder_test.go` for OS/arch cache-key participation
+- [x] update launcher tests in `internal/launcher/launcher_test.go` for the broader `internal/` core-dir set
+- [x] run `go test ./internal/launcher` - must pass before task 2
 
 ### Task 2: Match headless hash inputs to compiled inputs
 - [ ] add a small helper in `internal/launcher/launcher.go` to derive build inputs from discovered extensions and `headless`

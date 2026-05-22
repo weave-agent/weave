@@ -1,9 +1,12 @@
 package launcher
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -28,6 +31,21 @@ func TestComputeHash_Deterministic(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, h1, h2)
+}
+
+func TestComputeHash_IncludesRuntimePlatform(t *testing.T) {
+	got, err := ComputeHash(nil, "", "", false, "")
+	require.NoError(t, err)
+
+	payload := "go" + runtime.Version() + "\n" +
+		"os:" + runtime.GOOS + "\n" +
+		"arch:" + runtime.GOARCH + "\n" +
+		"headless:false\n" +
+		"agentLoop:\n" +
+		"version:\n"
+	sum := sha256.Sum256([]byte(payload))
+
+	assert.Equal(t, hex.EncodeToString(sum[:]), got)
 }
 
 func TestComputeHash_SortedByName(t *testing.T) {

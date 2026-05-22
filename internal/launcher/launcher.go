@@ -123,9 +123,7 @@ func (l *Launcher) coreDirs() []string {
 		filepath.Join(l.ModuleRoot, "bus"),
 		filepath.Join(l.ModuleRoot, "settings"),
 		filepath.Join(l.ModuleRoot, "utils", "truncate"),
-		filepath.Join(l.ModuleRoot, "internal", "launcher"),
-		filepath.Join(l.ModuleRoot, "internal", "auth"),
-		filepath.Join(l.ModuleRoot, "internal", "extmanage"),
+		filepath.Join(l.ModuleRoot, "internal"),
 	}
 }
 

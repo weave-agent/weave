@@ -167,6 +167,31 @@ func TestBuildExecEnv_PrependsWeaveVars(t *testing.T) {
 	assert.Equal(t, "HOME=/home/user", env[6])
 }
 
+func TestCoreDirsHashesEntireInternalTree(t *testing.T) {
+	moduleRoot := createModuleRoot(t)
+	l := &Launcher{ModuleRoot: moduleRoot}
+
+	coreDirs := l.coreDirs()
+	assert.Contains(t, coreDirs, filepath.Join(moduleRoot, "internal"))
+	assert.NotContains(t, coreDirs, filepath.Join(moduleRoot, "internal", "launcher"))
+	assert.NotContains(t, coreDirs, filepath.Join(moduleRoot, "internal", "auth"))
+	assert.NotContains(t, coreDirs, filepath.Join(moduleRoot, "internal", "extmanage"))
+
+	wireFile := filepath.Join(moduleRoot, "internal", "wire", "wire.go")
+	require.NoError(t, os.MkdirAll(filepath.Dir(wireFile), 0o750))
+	require.NoError(t, os.WriteFile(wireFile, []byte("package wire\nconst Value = 1\n"), 0o600))
+
+	h1, err := ComputeHash(nil, moduleRoot, "", false, "", coreDirs...)
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(wireFile, []byte("package wire\nconst Value = 2\n"), 0o600))
+
+	h2, err := ComputeHash(nil, moduleRoot, "", false, "", coreDirs...)
+	require.NoError(t, err)
+
+	assert.NotEqual(t, h1, h2, "changes anywhere under internal/ should affect the launcher hash")
+}
+
 // fmtError wraps a string as an error for test use.
 type fmtError string
 
