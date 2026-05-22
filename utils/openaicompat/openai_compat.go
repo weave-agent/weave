@@ -352,7 +352,7 @@ func doStreamRequestWithRetry(ctx context.Context, client *http.Client, req *htt
 		if doErr != nil {
 			if attempt < rc.MaxRetries && isRetriableError(doErr) {
 				logger.Debug("stream request retry",
-					"attempt", attempt,
+					"attempt", attempt+1,
 					"max_retries", rc.MaxRetries,
 					"error_type", errorTypeString(doErr),
 					"jitter", string(rc.Jitter),

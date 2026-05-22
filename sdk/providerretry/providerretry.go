@@ -46,6 +46,10 @@ func (c Config) Resolve(provider string) (retry.Config, error) {
 		return retry.Config{}, fmt.Errorf("provider %s: %w", provider, err)
 	}
 
+	if c.MaxRetries < 0 {
+		return retry.Config{}, fmt.Errorf("provider %s: invalid max_retries: negative value %d", provider, c.MaxRetries)
+	}
+
 	r.MaxRetries = c.MaxRetries
 
 	if c.Multiplier < 0 {

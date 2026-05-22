@@ -46,22 +46,22 @@ func (c Config) Resolve(provider string) (resolved, error) {
 
 	r.dialTimeout, err = parseDurationField("dial_timeout", c.DialTimeout)
 	if err != nil {
-		return resolved{}, fmt.Errorf("provider %s: %w", provider, err)
+		return resolved{}, formatError(provider, err)
 	}
 
 	r.tlsHandshakeTimeout, err = parseDurationField("tls_handshake_timeout", c.TLSHandshakeTimeout)
 	if err != nil {
-		return resolved{}, fmt.Errorf("provider %s: %w", provider, err)
+		return resolved{}, formatError(provider, err)
 	}
 
 	r.responseHeaderTimeout, err = parseDurationField("response_header_timeout", c.ResponseHeaderTimeout)
 	if err != nil {
-		return resolved{}, fmt.Errorf("provider %s: %w", provider, err)
+		return resolved{}, formatError(provider, err)
 	}
 
 	r.idleConnTimeout, err = parseDurationField("idle_conn_timeout", c.IdleConnTimeout)
 	if err != nil {
-		return resolved{}, fmt.Errorf("provider %s: %w", provider, err)
+		return resolved{}, formatError(provider, err)
 	}
 
 	return r, nil
@@ -150,6 +150,14 @@ func mergeConfig(base, override Config) Config {
 	}
 
 	return base
+}
+
+func formatError(provider string, err error) error {
+	if provider != "" {
+		return fmt.Errorf("provider %s: %w", provider, err)
+	}
+
+	return err
 }
 
 func parseDurationField(field, value string) (time.Duration, error) {

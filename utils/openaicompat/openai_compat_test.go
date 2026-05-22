@@ -468,8 +468,10 @@ func TestStream_ContextCancellation(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Wait for the server to send the first chunk, then cancel.
+	// Wait for the server to send the first chunk, then give the
+	// parseSSE goroutine time to read it before canceling.
 	<-firstChunkSent
+	time.Sleep(50 * time.Millisecond)
 	cancel()
 
 	events := collectEvents(ch)
