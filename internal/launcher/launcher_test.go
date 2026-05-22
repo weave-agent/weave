@@ -18,8 +18,11 @@ func TestRun_BuildFails(t *testing.T) {
 	moduleRoot := createModuleRoot(t)
 
 	buildErr := error(fmtError("mock build failure"))
+
 	type contextKey string
+
 	ctx := context.WithValue(context.Background(), contextKey("build"), "sentinel")
+
 	var capturedContext bool
 
 	l := &Launcher{
@@ -293,8 +296,10 @@ func TestRun_HeadlessPassedToBuild(t *testing.T) {
 	createExtension(t, filepath.Join(projectDir, ".weave", "extensions"), "noop", "package noop")
 	createExtension(t, filepath.Join(projectDir, ".weave", "extensions"), "tui", "package tui\n\nfunc init() { RegisterUIExtension(\"tui\", nil) }")
 
-	var capturedHeadless bool
-	var capturedExts []ExtensionInfo
+	var (
+		capturedHeadless bool
+		capturedExts     []ExtensionInfo
+	)
 
 	l := &Launcher{
 		Cache: NewCache(t.TempDir()),

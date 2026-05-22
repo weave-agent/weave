@@ -285,6 +285,7 @@ func benchmarkLauncherCacheHit(b *testing.B, extensionCount int) {
 		hashTotal += time.Since(start)
 
 		start = time.Now()
+
 		if _, found := cache.Lookup(hash); !found {
 			b.Fatal("expected launcher cache hit")
 		}
@@ -346,25 +347,33 @@ func BenchmarkLauncherBuildPhases_OneExtension(b *testing.B) {
 		buildDir := b.TempDir()
 
 		start = time.Now()
+
 		generateBuildFilesB(b, buildDir, moduleRoot, "", "", false, deriveBuildInputs(exts, false))
+
 		generatedFilesTotal += time.Since(start)
 
 		start = time.Now()
+
 		runGoCommandB(b, buildDir, "mod", "tidy")
+
 		tidyTotal += time.Since(start)
 
 		binaryPath := filepath.Join(buildDir, "weave")
 
 		start = time.Now()
+
 		runGoCommandB(b, buildDir, "build", "-o", binaryPath, ".")
+
 		buildTotal += time.Since(start)
 
 		start = time.Now()
+
 		if err := cache.Store(hash, binaryPath); err != nil {
 			b.Fatalf("Cache.Store: %v", err)
 		}
 
 		cacheStoreTotal += time.Since(start)
+
 		reportBinarySize(b, binaryPath)
 	}
 
@@ -524,6 +533,7 @@ func goEnvValueB(b *testing.B, key string) string {
 	b.Helper()
 
 	cmd := exec.Command("go", "env", key)
+
 	output, err := cmd.Output()
 	if err != nil {
 		b.Fatalf("go env %s: %v", key, err)

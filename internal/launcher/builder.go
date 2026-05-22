@@ -185,6 +185,7 @@ func embeddedResourceFiles(ext ExtensionInfo) ([]string, error) {
 	}
 
 	seen := make(map[string]struct{})
+
 	for _, goFile := range goFiles {
 		if strings.HasSuffix(goFile, "_test.go") {
 			continue
@@ -228,6 +229,7 @@ func embeddedResourceFiles(ext ExtensionInfo) ([]string, error) {
 
 func embedPatternsFromGoFile(goFile string) ([]string, error) {
 	fileSet := token.NewFileSet()
+
 	parsed, err := parser.ParseFile(fileSet, goFile, nil, parser.ParseComments)
 	if err != nil {
 		return nil, fmt.Errorf("parse %s: %w", goFile, err)
@@ -266,6 +268,7 @@ func embedPatternsFromGoFile(goFile string) ([]string, error) {
 		}
 
 		appendFromDoc(decl.Doc)
+
 		for _, spec := range decl.Specs {
 			valueSpec, ok := spec.(*ast.ValueSpec)
 			if !ok {
@@ -277,6 +280,7 @@ func embedPatternsFromGoFile(goFile string) ([]string, error) {
 
 		return false
 	})
+
 	if parseErr != nil {
 		return nil, parseErr
 	}
@@ -328,6 +332,7 @@ func splitEmbedPatterns(s string) ([]string, error) {
 			}
 
 			lit := s[:end+2]
+
 			pattern, err := strconv.Unquote(lit)
 			if err != nil {
 				return nil, fmt.Errorf("unquote go:embed pattern %s: %w", lit, err)
@@ -342,6 +347,7 @@ func splitEmbedPatterns(s string) ([]string, error) {
 			}
 
 			lit := s[:end]
+
 			pattern, unquoteErr := strconv.Unquote(lit)
 			if unquoteErr != nil {
 				return nil, fmt.Errorf("unquote go:embed pattern %s: %w", lit, unquoteErr)
@@ -366,6 +372,7 @@ func splitEmbedPatterns(s string) ([]string, error) {
 
 func quotedStringEnd(s string) (int, error) {
 	escaped := false
+
 	for i := 1; i < len(s); i++ {
 		switch {
 		case escaped:
@@ -382,6 +389,7 @@ func quotedStringEnd(s string) (int, error) {
 
 func matchEmbedPattern(moduleRoot, pkgDir, rawPattern string) ([]string, error) {
 	original := rawPattern
+
 	all := false
 	if after, ok := strings.CutPrefix(rawPattern, "all:"); ok {
 		all = true
@@ -400,6 +408,7 @@ func matchEmbedPattern(moduleRoot, pkgDir, rawPattern string) ([]string, error) 
 	sort.Strings(matches)
 
 	var files []string
+
 	for _, match := range matches {
 		absMatch, absErr := filepath.Abs(match)
 		if absErr != nil {
@@ -451,7 +460,7 @@ func validateEmbedPattern(pattern string) error {
 		return errors.New("pattern must not begin or end with slash")
 	}
 
-	for _, elem := range strings.Split(pattern, "/") {
+	for elem := range strings.SplitSeq(pattern, "/") {
 		if elem == "" || elem == "." || elem == ".." {
 			return fmt.Errorf("invalid path element %q", elem)
 		}

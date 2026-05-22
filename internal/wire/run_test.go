@@ -210,6 +210,7 @@ func TestRun_HelpFlagPrintsFullHelpWithoutBootstrapOrLauncher(t *testing.T) {
 			defer func() { _ = os.Chdir(origWd) }()
 
 			var bootstrapCalls, launcherCalls int
+
 			withRunHooks(t,
 				func(context.Context, *settings.Settings) {
 					bootstrapCalls++
@@ -222,6 +223,7 @@ func TestRun_HelpFlagPrintsFullHelpWithoutBootstrapOrLauncher(t *testing.T) {
 			)
 
 			var code int
+
 			stderr := captureStderr(t, func() {
 				code = run(context.Background(), tt.args, "unknown")
 			})
@@ -246,6 +248,7 @@ func TestRun_NoInputSkipsBootstrapAndLauncher(t *testing.T) {
 	defer func() { _ = os.Chdir(origWd) }()
 
 	var bootstrapCalls, launcherCalls int
+
 	withRunHooks(t,
 		func(context.Context, *settings.Settings) {
 			bootstrapCalls++
@@ -258,6 +261,7 @@ func TestRun_NoInputSkipsBootstrapAndLauncher(t *testing.T) {
 	)
 
 	var code int
+
 	stderr := captureStderr(t, func() {
 		code = run(context.Background(), nil, "unknown")
 	})
@@ -273,9 +277,12 @@ func TestRun_NormalLaunchRunsBootstrapBeforeLauncher(t *testing.T) {
 	cfgFile := filepath.Join(dir, ".weave", "settings.json")
 	require.NoError(t, os.MkdirAll(filepath.Dir(cfgFile), 0o750))
 	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"tui","agent_loop":"agent"}`), 0o600))
+
 	realDir, err := filepath.EvalSymlinks(dir)
 	require.NoError(t, err)
+
 	realCfgFile := filepath.Join(realDir, ".weave", "settings.json")
+
 	t.Setenv("HOME", t.TempDir())
 
 	origWd, _ := os.Getwd()
@@ -284,12 +291,14 @@ func TestRun_NormalLaunchRunsBootstrapBeforeLauncher(t *testing.T) {
 	defer func() { _ = os.Chdir(origWd) }()
 
 	var events []string
+
 	withRunHooks(t,
 		func(context.Context, *settings.Settings) {
 			events = append(events, "bootstrap")
 		},
-		func(_ context.Context, _ string, _ string, _ string, projectDir string, _ []string, gotConfigFile, agentLoop string, headless bool, _ []string) error {
+		func(_ context.Context, _, _, _, projectDir string, _ []string, gotConfigFile, agentLoop string, headless bool, _ []string) error {
 			events = append(events, "launcher")
+
 			assert.Equal(t, realDir, projectDir)
 			assert.Equal(t, realCfgFile, gotConfigFile)
 			assert.Equal(t, "agent", agentLoop)
@@ -398,8 +407,10 @@ func TestHandleSubcommand_CacheClean(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(extensionFile), 0o750))
 	require.NoError(t, os.WriteFile(extensionFile, []byte("package main\n"), 0o600))
 
-	var code int
-	var ok bool
+	var (
+		code int
+		ok   bool
+	)
 
 	stdout := captureStdout(t, func() {
 		code, ok = handleSubcommand([]string{"cache", "clean"})
@@ -414,8 +425,10 @@ func TestHandleSubcommand_CacheClean(t *testing.T) {
 }
 
 func TestHandleSubcommand_CacheCleanRejectsExtraArgs(t *testing.T) {
-	var code int
-	var ok bool
+	var (
+		code int
+		ok   bool
+	)
 
 	stderr := captureStderr(t, func() {
 		code, ok = handleSubcommand([]string{"cache", "clean", "extra"})

@@ -118,14 +118,14 @@ The changes integrate with the existing launcher flow in `internal/wire/run.go` 
 - [x] run `go test ./internal/launcher -run '^$' -bench 'Benchmark' -benchtime=1x` - must pass before task 8
 
 ### Task 8: Verify acceptance criteria
-- [ ] verify stale dev-cache risk is reduced for generated-binary dependencies
-- [ ] verify headless cache keys exclude UI-only extension content
-- [ ] verify embedded non-`.md` resources invalidate cache when changed
-- [ ] verify `--help` does not build/exec generated binary
-- [ ] verify cache eviction and `weave cache clean` affect only launcher binary cache
-- [ ] run `go test ./internal/launcher ./internal/wire ./internal/extmanage`
-- [ ] run `go test ./...`
-- [ ] run linter if available for the project
+- [x] verify stale dev-cache risk is reduced for generated-binary dependencies
+- [x] verify headless cache keys exclude UI-only extension content
+- [x] verify embedded non-`.md` resources invalidate cache when changed
+- [x] verify `--help` does not build/exec generated binary
+- [x] verify cache eviction and `weave cache clean` affect only launcher binary cache
+- [x] run `go test ./internal/launcher ./internal/wire ./internal/extmanage`
+- [x] run `go test ./...`
+- [x] run linter if available for the project
 
 ### Task 9: Update documentation
 - [ ] update `CLAUDE.md` or relevant project docs if launcher/cache behavior documentation exists

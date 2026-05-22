@@ -271,6 +271,7 @@ func (c *Cache) cacheEntries() ([]cacheEntry, error) {
 		}
 
 		accessed := binInfo.ModTime()
+
 		accessInfo, err := os.Stat(filepath.Join(dir, accessMetadataName))
 		if err == nil && !accessInfo.IsDir() {
 			accessed = accessInfo.ModTime()

@@ -277,7 +277,11 @@ func runLauncher(
 	cache := launcher.NewCache(cacheDir)
 	l := launcher.NewLauncher(cache, moduleRoot, moduleVersion)
 
-	return l.Run(ctx, projectDir, args, configFile, agentLoop, headless, exclude)
+	if err := l.Run(ctx, projectDir, args, configFile, agentLoop, headless, exclude); err != nil {
+		return fmt.Errorf("run launcher: %w", err)
+	}
+
+	return nil
 }
 
 func hasWeavePromptFileFlag(args []string) bool {

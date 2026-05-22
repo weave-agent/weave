@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -378,13 +377,13 @@ func TestComputeHash_EmbedPatternMustMatchFiles(t *testing.T) {
 			dir := t.TempDir()
 
 			goFile := filepath.Join(dir, "ext.go")
-			require.NoError(t, os.WriteFile(goFile, []byte(fmt.Sprintf(`package ext
+			require.NoError(t, os.WriteFile(goFile, fmt.Appendf(nil, `package ext
 
 import "embed"
 
 //go:embed %s
 var files embed.FS
-`, tt.pattern)), 0o600))
+`, tt.pattern), 0o600))
 
 			if strings.HasPrefix(tt.pattern, "assets/") {
 				require.NoError(t, os.MkdirAll(filepath.Join(dir, "assets"), 0o750))
@@ -707,7 +706,7 @@ func TestBuild_UsesContextForGoCommands(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "build: go mod tidy")
-	assert.True(t, errors.Is(err, context.Canceled), "expected canceled context error, got %v", err)
+	assert.ErrorIs(t, err, context.Canceled, "expected canceled context error, got %v", err)
 }
 
 func findModuleRoot() (string, error) {
