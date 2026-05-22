@@ -63,13 +63,13 @@ The first pass configures transport deadlines only. It intentionally does not ad
 - [x] run `go test ./sdk/providerhttp` - must pass before next task
 
 ### Task 2: Implement provider HTTP deep-merge resolution
-- [ ] implement resolution order: code defaults, `providers.defaults.http`, `providers.<name>.http`
-- [ ] support deep partial merge so provider overrides inherit unspecified default fields
-- [ ] return clear errors that include provider name and invalid field
-- [ ] write tests for global defaults merge
-- [ ] write tests for provider-specific partial override merge
-- [ ] write tests for invalid override failure
-- [ ] run `go test ./sdk/providerhttp` - must pass before next task
+- [x] implement resolution order: code defaults, `providers.defaults.http`, `providers.<name>.http`
+- [x] support deep partial merge so provider overrides inherit unspecified default fields
+- [x] return clear errors that include provider name and invalid field
+- [x] write tests for global defaults merge
+- [x] write tests for provider-specific partial override merge
+- [x] write tests for invalid override failure
+- [x] run `go test ./sdk/providerhttp` - must pass before next task
 
 ### Task 3: Build explicit provider HTTP client factory
 - [ ] add factory returning `*http.Client` with configured `http.Transport`

@@ -3,6 +3,8 @@ package providerhttp
 import (
 	"fmt"
 	"time"
+
+	"github.com/weave-agent/weave/sdk"
 )
 
 // Config holds provider HTTP transport configuration as duration strings.
@@ -61,6 +63,61 @@ func (c Config) Resolve(provider string) (resolved, error) {
 	}
 
 	return r, nil
+}
+
+// ForProvider resolves HTTP transport configuration for a named provider.
+// Resolution order: code defaults → providers.defaults.http → providers.<name>.http.
+// Partial overrides are supported: a provider only needs to specify the fields
+// it wants to override; all other fields inherit from defaults.
+func ForProvider(cfg sdk.Config, provider string) (Config, error) {
+	result := DefaultConfig()
+
+	var defaults struct {
+		HTTP Config `json:"http"`
+	}
+	if err := cfg.ExtensionConfig("providers", "defaults", &defaults); err != nil {
+		return Config{}, fmt.Errorf("load provider defaults: %w", err)
+	}
+
+	result = mergeConfig(result, defaults.HTTP)
+
+	var specific struct {
+		HTTP Config `json:"http"`
+	}
+	if err := cfg.ExtensionConfig("providers", provider, &specific); err != nil {
+		return Config{}, fmt.Errorf("load provider %s: %w", provider, err)
+	}
+
+	result = mergeConfig(result, specific.HTTP)
+
+	if _, err := result.Resolve(provider); err != nil {
+		return Config{}, err
+	}
+
+	return result, nil
+}
+
+// mergeConfig returns a new Config where non-empty fields from override
+// replace the corresponding fields in base. Empty string means "not set"
+// and does not override.
+func mergeConfig(base, override Config) Config {
+	if override.DialTimeout != "" {
+		base.DialTimeout = override.DialTimeout
+	}
+
+	if override.TLSHandshakeTimeout != "" {
+		base.TLSHandshakeTimeout = override.TLSHandshakeTimeout
+	}
+
+	if override.ResponseHeaderTimeout != "" {
+		base.ResponseHeaderTimeout = override.ResponseHeaderTimeout
+	}
+
+	if override.IdleConnTimeout != "" {
+		base.IdleConnTimeout = override.IdleConnTimeout
+	}
+
+	return base
 }
 
 func parseDurationField(field, value string) (time.Duration, error) {
