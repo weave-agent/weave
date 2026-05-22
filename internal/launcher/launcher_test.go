@@ -192,6 +192,58 @@ func TestCoreDirsHashesEntireInternalTree(t *testing.T) {
 	assert.NotEqual(t, h1, h2, "changes anywhere under internal/ should affect the launcher hash")
 }
 
+func TestDeriveBuildInputs_FiltersUIExtensionsInHeadless(t *testing.T) {
+	exts := []ExtensionInfo{
+		{Name: "agent"},
+		{Name: "tui", IsUIExt: true},
+	}
+
+	headlessInputs := deriveBuildInputs(exts, true)
+	require.Len(t, headlessInputs, 1)
+	assert.Equal(t, "agent", headlessInputs[0].Name)
+
+	interactiveInputs := deriveBuildInputs(exts, false)
+	require.Len(t, interactiveInputs, 2)
+	assert.Equal(t, exts, interactiveInputs)
+}
+
+func TestDeriveBuildInputs_HeadlessHashIgnoresUIOnlyChanges(t *testing.T) {
+	root := t.TempDir()
+
+	agentDir := filepath.Join(root, "agent")
+	require.NoError(t, os.MkdirAll(agentDir, 0o750))
+	agentFile := filepath.Join(agentDir, "agent.go")
+	require.NoError(t, os.WriteFile(agentFile, []byte("package agent\nconst Version = 1\n"), 0o600))
+
+	uiDir := filepath.Join(root, "tui")
+	require.NoError(t, os.MkdirAll(uiDir, 0o750))
+	uiFile := filepath.Join(uiDir, "tui.go")
+	require.NoError(t, os.WriteFile(uiFile, []byte("package tui\nconst Version = 1\n"), 0o600))
+
+	exts := []ExtensionInfo{
+		{Name: "agent", Dir: agentDir, GoFiles: []string{agentFile}},
+		{Name: "tui", Dir: uiDir, GoFiles: []string{uiFile}, IsUIExt: true},
+	}
+
+	headlessHash1, err := ComputeHash(deriveBuildInputs(exts, true), "", "", true, "loop")
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(uiFile, []byte("package tui\nconst Version = 2\n"), 0o600))
+
+	headlessHash2, err := ComputeHash(deriveBuildInputs(exts, true), "", "", true, "loop")
+	require.NoError(t, err)
+	assert.Equal(t, headlessHash1, headlessHash2, "headless hash should ignore UI-only extension changes")
+
+	interactiveHash1, err := ComputeHash(deriveBuildInputs(exts, false), "", "", false, "loop")
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(uiFile, []byte("package tui\nconst Version = 3\n"), 0o600))
+
+	interactiveHash2, err := ComputeHash(deriveBuildInputs(exts, false), "", "", false, "loop")
+	require.NoError(t, err)
+	assert.NotEqual(t, interactiveHash1, interactiveHash2, "interactive hash should include UI extension changes")
+}
+
 // fmtError wraps a string as an error for test use.
 type fmtError string
 
@@ -230,23 +282,29 @@ func TestRun_HeadlessPassedToBuild(t *testing.T) {
 	projectDir := t.TempDir()
 	moduleRoot := createModuleRoot(t)
 	createExtension(t, filepath.Join(projectDir, ".weave", "extensions"), "noop", "package noop")
+	createExtension(t, filepath.Join(projectDir, ".weave", "extensions"), "tui", "package tui\n\nfunc init() { RegisterUIExtension(\"tui\", nil) }")
 
 	var capturedHeadless bool
+	var capturedExts []ExtensionInfo
 
 	l := &Launcher{
 		Cache: NewCache(t.TempDir()),
-		Build: func(_, _, _, _ string, headless bool, _ []ExtensionInfo) (string, error) {
+		Build: func(_, _, _, _ string, headless bool, exts []ExtensionInfo) (string, error) {
 			capturedHeadless = headless
+			capturedExts = exts
 
 			return "", fmtError("captured")
 		},
 		ModuleRoot:  moduleRoot,
 		BuildTmpDir: t.TempDir(),
+		HomeDir:     t.TempDir(),
 	}
 
 	err := l.Run(context.Background(), projectDir, nil, "", "loop", true, nil)
 	require.Error(t, err) // Build returns error to prevent exec
 	assert.True(t, capturedHeadless)
+	require.Len(t, capturedExts, 1)
+	assert.Equal(t, "noop", capturedExts[0].Name)
 }
 
 func TestRun_NilExclude(t *testing.T) {

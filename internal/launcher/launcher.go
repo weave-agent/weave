@@ -59,22 +59,37 @@ func (l *Launcher) Run(ctx context.Context, projectDir string, args []string, co
 		return fmt.Errorf("launcher: auto-discover: %w", err)
 	}
 
-	hash, err := ComputeHash(exts, l.ModuleRoot, l.ModuleVersion, headless, agentLoop, l.coreDirs()...)
+	buildInputs := deriveBuildInputs(exts, headless)
+
+	hash, err := ComputeHash(buildInputs, l.ModuleRoot, l.ModuleVersion, headless, agentLoop, l.coreDirs()...)
 	if err != nil {
 		return fmt.Errorf("launcher: hash: %w", err)
 	}
 
 	binPath, found := l.Cache.Lookup(hash)
 	if !found {
-		fmt.Fprintf(os.Stderr, "weave: building binary with %d extensions...\n", len(exts))
+		fmt.Fprintf(os.Stderr, "weave: building binary with %d extensions...\n", len(buildInputs))
 
-		binPath, err = l.buildAndCache(hash, agentLoop, headless, exts, l.ModuleVersion)
+		binPath, err = l.buildAndCache(hash, agentLoop, headless, buildInputs, l.ModuleVersion)
 		if err != nil {
 			return fmt.Errorf("launcher: build: %w", err)
 		}
 	}
 
 	return l.exec(ctx, binPath, configPath, agentLoop, headless, projectDir, args)
+}
+
+func deriveBuildInputs(exts []ExtensionInfo, headless bool) []ExtensionInfo {
+	inputs := make([]ExtensionInfo, 0, len(exts))
+	for _, ext := range exts {
+		if headless && ext.IsUIExt {
+			continue
+		}
+
+		inputs = append(inputs, ext)
+	}
+
+	return inputs
 }
 
 func (l *Launcher) buildAndCache(hash, agentLoop string, headless bool, exts []ExtensionInfo, moduleVersion string) (string, error) {

@@ -75,11 +75,11 @@ The changes integrate with the existing launcher flow in `internal/wire/run.go` 
 - [x] run `go test ./internal/launcher` - must pass before task 2
 
 ### Task 2: Match headless hash inputs to compiled inputs
-- [ ] add a small helper in `internal/launcher/launcher.go` to derive build inputs from discovered extensions and `headless`
-- [ ] use the derived build inputs for both `ComputeHash` and `buildAndCache`
-- [ ] keep `Build()` defensive UI filtering for direct callers
-- [ ] add/update tests proving headless hash ignores UI-only extension changes while interactive hash includes them
-- [ ] run `go test ./internal/launcher` - must pass before task 3
+- [x] add a small helper in `internal/launcher/launcher.go` to derive build inputs from discovered extensions and `headless`
+- [x] use the derived build inputs for both `ComputeHash` and `buildAndCache`
+- [x] keep `Build()` defensive UI filtering for direct callers
+- [x] add/update tests proving headless hash ignores UI-only extension changes while interactive hash includes them
+- [x] run `go test ./internal/launcher` - must pass before task 3
 
 ### Task 3: Hash embedded resources from `//go:embed`
 - [ ] replace `.md`-only resource hashing in `internal/launcher/builder.go` with `//go:embed` directive parsing
