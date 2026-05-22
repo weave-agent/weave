@@ -19,8 +19,8 @@ const (
 // DefaultMaxCacheSizeBytes is the default launcher binary cache size cap.
 const DefaultMaxCacheSizeBytes int64 = 1 << 30
 
-// DefaultAccessLeaseDuration keeps just-used cache entries out of best-effort
-// eviction so a concurrent launch can exec the path it just looked up.
+// DefaultAccessLeaseDuration makes eviction prefer older inactive entries before
+// recently accessed entries. The newly stored entry is always protected.
 const DefaultAccessLeaseDuration = 30 * time.Second
 
 // Cache manages per-hash binary caching under a root directory.
@@ -216,25 +216,31 @@ func (c *Cache) evictToSize(protectHash string) error {
 	})
 
 	now := c.timeNow()
+	removed := make(map[string]bool)
 
-	for _, entry := range entries {
-		if total <= limit {
-			break
+	for pass := range 2 {
+		evictLeased := pass == 1
+
+		for _, entry := range entries {
+			if total <= limit {
+				break
+			}
+
+			if entry.hash == protectHash || removed[entry.hash] {
+				continue
+			}
+
+			if !evictLeased && c.accessLeaseActive(now, entry.accessed) {
+				continue
+			}
+
+			if err := os.RemoveAll(entry.dir); err != nil {
+				return fmt.Errorf("remove %s: %w", entry.hash, err)
+			}
+
+			removed[entry.hash] = true
+			total -= entry.size
 		}
-
-		if entry.hash == protectHash {
-			continue
-		}
-
-		if c.accessLeaseActive(now, entry.accessed) {
-			continue
-		}
-
-		if err := os.RemoveAll(entry.dir); err != nil {
-			return fmt.Errorf("remove %s: %w", entry.hash, err)
-		}
-
-		total -= entry.size
 	}
 
 	return nil

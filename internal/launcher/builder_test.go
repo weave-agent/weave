@@ -398,6 +398,33 @@ replace example.com/shared => %s
 	assert.NotEqual(t, h1, h2, "recursive local replace modules should affect the launcher hash")
 }
 
+func TestComputeHash_RootLocalReplaceChangesHash(t *testing.T) {
+	sharedDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(sharedDir, "go.mod"), []byte("module example.com/shared\n\ngo 1.22\n"), 0o600))
+	sharedFile := filepath.Join(sharedDir, "shared.go")
+	require.NoError(t, os.WriteFile(sharedFile, []byte("package shared\n\nconst Value = 1\n"), 0o600))
+
+	moduleRoot := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(moduleRoot, "go.mod"), fmt.Appendf(nil, `module github.com/weave-agent/weave
+
+go 1.22
+
+require example.com/shared v0.0.0
+
+replace example.com/shared => %s
+`, sharedDir), 0o600))
+
+	h1, err := ComputeHash(nil, moduleRoot, "", false, "")
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(sharedFile, []byte("package shared\n\nconst Value = 2\n"), 0o600))
+
+	h2, err := ComputeHash(nil, moduleRoot, "", false, "")
+	require.NoError(t, err)
+
+	assert.NotEqual(t, h1, h2, "root module local replace contents should affect the launcher hash")
+}
+
 func TestComputeHash_EmbeddedGlobPatternChangesHash(t *testing.T) {
 	dir := t.TempDir()
 
@@ -846,6 +873,31 @@ replace example.com/shared => %s
 	assert.Contains(t, s, "replace example.com/nested => "+nestedDir)
 }
 
+func TestGenerateGoMod_IncludesRootLocalReplaces(t *testing.T) {
+	sharedDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(sharedDir, "go.mod"), []byte("module example.com/shared\n\ngo 1.22\n"), 0o600))
+
+	moduleRoot := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(moduleRoot, "go.mod"), fmt.Appendf(nil, `module github.com/weave-agent/weave
+
+go 1.22
+
+require example.com/shared v0.0.0
+
+replace example.com/shared => %s
+`, sharedDir), 0o600))
+
+	dir := t.TempDir()
+	require.NoError(t, GenerateGoMod(dir, moduleRoot, "", nil))
+
+	content, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+	require.NoError(t, err)
+
+	s := string(content)
+	assert.Contains(t, s, "example.com/shared v0.0.0")
+	assert.Contains(t, s, "replace example.com/shared => "+sharedDir)
+}
+
 func TestGenerateMainGo_Content(t *testing.T) {
 	dir := t.TempDir()
 	exts := []ExtensionInfo{
@@ -871,6 +923,7 @@ func TestGenerateMainGo_Content(t *testing.T) {
 	assert.Contains(t, s, "wire.WireWithCore")
 	assert.Contains(t, s, `AgentLoop: "loop"`)
 	assert.Contains(t, s, "strings.CutPrefix")
+	assert.Contains(t, s, `if a == "--"`)
 	assert.Contains(t, s, "settings.LoadFullConfig")
 	assert.Contains(t, s, "fullCfg.SetArgs(filtered)")
 	assert.Contains(t, s, "settings.EnsureLocalSettingsExcluded")

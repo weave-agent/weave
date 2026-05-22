@@ -193,8 +193,8 @@ func TestRun_HelpFlagPrintsFullHelpWithoutBootstrapOrLauncher(t *testing.T) {
 		name string
 		args []string
 	}{
-		{"long", []string{"--help"}},
-		{"short", []string{"-h"}},
+		{"long", []string{helpFlagLong}},
+		{"short", []string{helpFlagShort}},
 	}
 
 	for _, tt := range tests {
@@ -263,7 +263,7 @@ func TestRun_HelpFlagBypassesConfigLoading(t *testing.T) {
 	var code int
 
 	stderr := captureStderr(t, func() {
-		code = runWithDeps(context.Background(), []string{"--help"}, "unknown", deps)
+		code = runWithDeps(context.Background(), []string{helpFlagLong}, "unknown", deps)
 	})
 
 	assert.Equal(t, 0, code)
@@ -285,11 +285,126 @@ func TestRun_HelpFlagDoesNotGenerateDefaultConfig(t *testing.T) {
 	var code int
 
 	_ = captureStderr(t, func() {
-		code = runWithDeps(context.Background(), []string{"--help"}, "unknown", runDeps{})
+		code = runWithDeps(context.Background(), []string{helpFlagLong}, "unknown", runDeps{})
 	})
 
 	assert.Equal(t, 0, code)
 	assert.NoFileExists(t, filepath.Join(homeDir, ".weave", "settings.json"))
+}
+
+func TestHasHelpFlagRespectsFlagValuesAndDoubleDash(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want bool
+	}{
+		{name: "long help", args: []string{helpFlagLong}, want: true},
+		{name: "short help", args: []string{helpFlagShort}, want: true},
+		{name: "help after boolean flag", args: []string{"--debug", helpFlagLong}, want: true},
+		{name: "long prompt value", args: []string{"--prompt", helpFlagLong}, want: false},
+		{name: "short prompt value", args: []string{promptFlagShort, helpFlagShort}, want: false},
+		{name: "equals prompt value", args: []string{"--prompt=" + helpFlagLong}, want: false},
+		{name: "double dash", args: []string{"--", helpFlagLong}, want: false},
+		{name: "help after prompt value", args: []string{promptFlagShort, "hello", helpFlagLong}, want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, hasHelpFlag(tt.args))
+		})
+	}
+}
+
+func TestRun_HelpFlagAsPromptValueLaunches(t *testing.T) {
+	dir := t.TempDir()
+	cfgFile := filepath.Join(dir, ".weave", "settings.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(cfgFile), 0o750))
+	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"none","agent_loop":"agent"}`), 0o600))
+
+	t.Setenv("HOME", t.TempDir())
+
+	origWd, _ := os.Getwd()
+
+	require.NoError(t, os.Chdir(dir))
+	defer func() { _ = os.Chdir(origWd) }()
+
+	var bootstrapCalls, launcherCalls int
+
+	deps := runDeps{
+		runBootstrap: func(context.Context, *settings.Settings) {
+			bootstrapCalls++
+		},
+		runLauncher: func(_ context.Context, _, _, _, _ string, args []string, _, _ string, headless bool, _ []string) error {
+			launcherCalls++
+
+			assert.True(t, headless)
+
+			var prompt string
+
+			for _, arg := range args {
+				if promptFile, ok := strings.CutPrefix(arg, "--weave-prompt-file="); ok {
+					data, err := os.ReadFile(promptFile)
+					require.NoError(t, err)
+
+					prompt = string(data)
+				}
+			}
+
+			assert.Equal(t, helpFlagLong, prompt)
+
+			return nil
+		},
+	}
+
+	var code int
+
+	stderr := captureStderr(t, func() {
+		code = runWithDeps(context.Background(), []string{promptFlagShort, helpFlagLong}, "v0.0.1-abc0123-2026-05-17", deps)
+	})
+
+	assert.Equal(t, 0, code)
+	assert.NotContains(t, stderr, "Usage: weave [options] [command]")
+	assert.Equal(t, 1, bootstrapCalls)
+	assert.Equal(t, 1, launcherCalls)
+}
+
+func TestRun_DoubleDashStopsHelpFastPath(t *testing.T) {
+	dir := t.TempDir()
+	cfgFile := filepath.Join(dir, ".weave", "settings.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(cfgFile), 0o750))
+	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"none","agent_loop":"agent"}`), 0o600))
+
+	t.Setenv("HOME", t.TempDir())
+
+	origWd, _ := os.Getwd()
+
+	require.NoError(t, os.Chdir(dir))
+	defer func() { _ = os.Chdir(origWd) }()
+
+	var launcherCalls int
+
+	deps := runDeps{
+		runBootstrap: func(context.Context, *settings.Settings) {},
+		runLauncher: func(_ context.Context, _, _, _, _ string, args []string, _, _ string, headless bool, _ []string) error {
+			launcherCalls++
+
+			assert.True(t, headless)
+			assert.Contains(t, args, "--")
+			assert.Contains(t, args, helpFlagLong)
+
+			return nil
+		},
+	}
+
+	var code int
+
+	stderr := captureStderr(t, func() {
+		code = runWithDeps(context.Background(), []string{promptFlagShort, "hello", "--", helpFlagLong}, "v0.0.1-abc0123-2026-05-17", deps)
+	})
+
+	assert.Equal(t, 0, code)
+	assert.NotContains(t, stderr, "Usage: weave [options] [command]")
+	assert.Equal(t, 1, launcherCalls)
 }
 
 func TestRun_NoInputSkipsBootstrapAndLauncher(t *testing.T) {
@@ -590,7 +705,7 @@ func TestRun_SubagentFlagsParsed(t *testing.T) {
 	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"none","agent_loop":"agent"}`), 0o600))
 
 	_, cf, rest, err := settings.LoadFromDir(dir, []string{
-		"-p", "test",
+		promptFlagShort, "test",
 		"--output", "json",
 		"--tools", "read,grep",
 		"--subagent-id", "abc123",
@@ -615,7 +730,7 @@ func TestRun_DebugFlagParsed(t *testing.T) {
 	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"none","agent_loop":"agent"}`), 0o600))
 
 	_, cf, rest, err := settings.LoadFromDir(dir, []string{
-		"-p", "test",
+		promptFlagShort, "test",
 		"--debug",
 	})
 	require.NoError(t, err)
@@ -631,7 +746,7 @@ func TestRun_EmptyToolsFlagForwarded(t *testing.T) {
 	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"none","agent_loop":"agent"}`), 0o600))
 
 	_, cf, rest, err := settings.LoadFromDir(dir, []string{
-		"-p", "test",
+		promptFlagShort, "test",
 		"--tools=",
 	})
 	require.NoError(t, err)
@@ -652,7 +767,7 @@ func TestRun_ProjectDirFromConfig(t *testing.T) {
 	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"none","agent_loop":"agent"}`), 0o600))
 
 	// Loading from subdir should find the config at project root.
-	_, cf, _, err := settings.LoadFromDir(subDir, []string{"-p", "hello"})
+	_, cf, _, err := settings.LoadFromDir(subDir, []string{promptFlagShort, "hello"})
 	require.NoError(t, err)
 	assert.Equal(t, projectDir, settings.ProjectDirFromConfig(cfgFile))
 

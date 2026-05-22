@@ -103,12 +103,7 @@ func ComputeHash(exts []ExtensionInfo, moduleRoot, moduleVersion string, headles
 		absModuleRoot, _ = filepath.Abs(moduleRoot)
 	}
 
-	extDirs := make([]string, 0, len(sorted))
-	for _, ext := range sorted {
-		extDirs = append(extDirs, ext.Dir)
-	}
-
-	transitiveDeps := collectLocalReplaceDeps(extDirs, absModuleRoot)
+	transitiveDeps := collectLocalReplaceDeps(localReplaceSeedDirs(sorted, absModuleRoot), absModuleRoot)
 
 	for _, dep := range transitiveDeps {
 		h.Write([]byte("transitive:" + dep.modPath + "\n"))
@@ -760,7 +755,7 @@ func GenerateGoMod(dir, moduleRoot, moduleVersion string, exts []ExtensionInfo) 
 		b.WriteString("\t" + extModulePath(ext) + " v0.0.0\n")
 	}
 
-	// Propagate transitive local dependencies from extension go.mod files.
+	// Propagate transitive local dependencies from root and extension go.mod files.
 	directModulePaths := make(map[string]bool)
 
 	directModulePaths["github.com/weave-agent/weave"] = true
@@ -773,17 +768,12 @@ func GenerateGoMod(dir, moduleRoot, moduleVersion string, exts []ExtensionInfo) 
 		extraReplaces []string
 	)
 
-	extDirs := make([]string, 0, len(exts))
-	for _, ext := range exts {
-		extDirs = append(extDirs, ext.Dir)
-	}
-
 	var absModuleRoot string
 	if moduleRoot != "" {
 		absModuleRoot, _ = filepath.Abs(moduleRoot)
 	}
 
-	for _, dep := range collectLocalReplaceDeps(extDirs, absModuleRoot) {
+	for _, dep := range collectLocalReplaceDeps(localReplaceSeedDirs(exts, absModuleRoot), absModuleRoot) {
 		if directModulePaths[dep.modPath] {
 			continue
 		}
@@ -871,12 +861,43 @@ type localReplaceDep struct {
 	dir     string
 }
 
+func localReplaceSeedDirs(exts []ExtensionInfo, moduleRoot string) []string {
+	seedDirs := make([]string, 0, len(exts)+1)
+	if moduleRoot != "" {
+		seedDirs = append(seedDirs, moduleRoot)
+	}
+
+	for _, ext := range exts {
+		seedDirs = append(seedDirs, ext.Dir)
+	}
+
+	return seedDirs
+}
+
 func collectLocalReplaceDeps(seedDirs []string, moduleRoot string) []localReplaceDep {
 	var deps []localReplaceDep
 
-	queue := append([]string(nil), seedDirs...)
+	var queue []string
+
 	seenDeps := make(map[string]bool)
 	queuedDirs := make(map[string]bool)
+
+	for _, seedDir := range seedDirs {
+		if seedDir == "" {
+			continue
+		}
+
+		if absDir, err := filepath.Abs(seedDir); err == nil {
+			seedDir = filepath.Clean(absDir)
+		}
+
+		if queuedDirs[seedDir] {
+			continue
+		}
+
+		queuedDirs[seedDir] = true
+		queue = append(queue, seedDir)
+	}
 
 	for len(queue) > 0 {
 		dir := queue[0]
@@ -1059,6 +1080,9 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 	b.WriteString("\tos.Args = append([]string{os.Args[0]}, filtered...)\n\n")
 
 	b.WriteString("\tfor _, a := range filtered {\n")
+	b.WriteString("\t\tif a == \"--\" {\n")
+	b.WriteString("\t\t\tbreak\n")
+	b.WriteString("\t\t}\n")
 	b.WriteString("\t\tif a == \"--help\" || a == \"-h\" {\n")
 	b.WriteString("\t\t\tfmt.Fprint(os.Stderr, settings.GenerateFullHelp())\n")
 	b.WriteString("\t\t\tos.Exit(0)\n")

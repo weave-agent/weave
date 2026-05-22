@@ -15,7 +15,12 @@ import (
 
 var errNoInput = errors.New("no prompt provided and ui is disabled — use -p to provide a prompt or set ui: tui")
 
-const cacheCommand = "cache"
+const (
+	cacheCommand    = "cache"
+	helpFlagLong    = "--help"
+	helpFlagShort   = "-h"
+	promptFlagShort = "-p"
+)
 
 type runDeps struct {
 	runBootstrap func(context.Context, *settings.Settings)
@@ -421,11 +426,51 @@ func isHexString(s string) bool {
 	return s != ""
 }
 
-// hasHelpFlag reports whether args contains --help or -h.
+var helpValueFlags = map[string]struct{}{
+	"--config":             {},
+	"--model":              {},
+	"--output":             {},
+	"--prompt":             {},
+	"--resume":             {},
+	"--sandbox":            {},
+	"--subagent-id":        {},
+	"--tools":              {},
+	"--ui":                 {},
+	"--weave-agent-loop":   {},
+	"--weave-config":       {},
+	"--weave-headless":     {},
+	"--weave-model":        {},
+	"--weave-output":       {},
+	"--weave-project-dir":  {},
+	"--weave-prompt-file":  {},
+	"--weave-resume":       {},
+	"--weave-sandbox-mode": {},
+	"--weave-subagent-id":  {},
+	"--weave-tools":        {},
+	promptFlagShort:        {},
+	"-r":                   {},
+}
+
+// hasHelpFlag reports whether args contains a real --help or -h flag, respecting
+// -- and known flags whose next argument is a value.
 func hasHelpFlag(args []string) bool {
-	for _, a := range args {
-		if a == "--help" || a == "-h" {
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" {
+			return false
+		}
+
+		flagName := arg
+		if before, _, ok := strings.Cut(arg, "="); ok {
+			flagName = before
+		}
+
+		if (flagName == helpFlagLong || flagName == helpFlagShort) && flagName == arg {
 			return true
+		}
+
+		if _, takesValue := helpValueFlags[flagName]; takesValue && flagName == arg && i+1 < len(args) {
+			i++
 		}
 	}
 
