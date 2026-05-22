@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -41,12 +42,31 @@ func TestComputeHash_IncludesRuntimePlatform(t *testing.T) {
 	payload := "go" + runtime.Version() + "\n" +
 		"os:" + runtime.GOOS + "\n" +
 		"arch:" + runtime.GOARCH + "\n" +
+		"cgo:" + strconv.FormatBool(launcherBuildContext().CgoEnabled) + "\n" +
 		"headless:false\n" +
 		"agentLoop:\n" +
 		"version:\n"
 	sum := sha256.Sum256([]byte(payload))
 
 	assert.Equal(t, hex.EncodeToString(sum[:]), got)
+}
+
+func TestGoCommandEnv_ForcesHostBuildTarget(t *testing.T) {
+	got := envMap(goCommandEnv([]string{
+		"GOOS=plan9",
+		"GOARCH=386",
+		"GOFLAGS=-tags=custom",
+		"CGO_ENABLED=0",
+		"GOPRIVATE=example.com/private",
+		"PATH=/bin",
+	}))
+
+	assert.Equal(t, runtime.GOOS, got["GOOS"])
+	assert.Equal(t, runtime.GOARCH, got["GOARCH"])
+	assert.Empty(t, got["GOFLAGS"])
+	assert.Equal(t, launcherCGOEnabledEnv(), got["CGO_ENABLED"])
+	assert.Equal(t, "example.com/private", got["GOPRIVATE"])
+	assert.Equal(t, "/bin", got["PATH"])
 }
 
 func TestComputeHash_SortedByName(t *testing.T) {
@@ -266,6 +286,75 @@ var policy string
 	assert.NotEqual(t, h1, h2, "embedded .sbpl file changes should produce different hash")
 }
 
+func TestComputeHash_CoreDirEmbeddedResourceChangesHash(t *testing.T) {
+	dir := t.TempDir()
+
+	goFile := filepath.Join(dir, "policy.go")
+	require.NoError(t, os.WriteFile(goFile, []byte(`package core
+
+import _ "embed"
+
+//go:embed policies/default.sbpl
+var policy string
+`), 0o600))
+
+	policyFile := filepath.Join(dir, "policies", "default.sbpl")
+	require.NoError(t, os.MkdirAll(filepath.Dir(policyFile), 0o750))
+	require.NoError(t, os.WriteFile(policyFile, []byte("(version 1)\n"), 0o600))
+
+	h1, err := ComputeHash(nil, "", "", false, "", dir)
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(policyFile, []byte("(version 2)\n"), 0o600))
+
+	h2, err := ComputeHash(nil, "", "", false, "", dir)
+	require.NoError(t, err)
+
+	assert.NotEqual(t, h1, h2, "embedded files under core dirs should affect the launcher hash")
+}
+
+func TestComputeHash_LocalReplaceEmbeddedResourceChangesHash(t *testing.T) {
+	depDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(depDir, "go.mod"), []byte("module example.com/shared\n\ngo 1.22\n"), 0o600))
+
+	depGoFile := filepath.Join(depDir, "shared.go")
+	require.NoError(t, os.WriteFile(depGoFile, []byte(`package shared
+
+import _ "embed"
+
+//go:embed templates/prompt.txt
+var prompt string
+`), 0o600))
+
+	templateFile := filepath.Join(depDir, "templates", "prompt.txt")
+	require.NoError(t, os.MkdirAll(filepath.Dir(templateFile), 0o750))
+	require.NoError(t, os.WriteFile(templateFile, []byte("prompt v1\n"), 0o600))
+
+	extDir := t.TempDir()
+	extFile := filepath.Join(extDir, "ext.go")
+	require.NoError(t, os.WriteFile(extFile, []byte("package ext\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, "go.mod"), fmt.Appendf(nil, `module example.com/ext
+
+go 1.22
+
+require example.com/shared v0.0.0
+
+replace example.com/shared => %s
+`, depDir), 0o600))
+
+	exts := []ExtensionInfo{{Name: "x", Dir: extDir, GoFiles: []string{extFile}}}
+
+	h1, err := ComputeHash(exts, "", "", false, "")
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(templateFile, []byte("prompt v2\n"), 0o600))
+
+	h2, err := ComputeHash(exts, "", "", false, "")
+	require.NoError(t, err)
+
+	assert.NotEqual(t, h1, h2, "embedded files in local replace modules should affect the launcher hash")
+}
+
 func TestComputeHash_EmbeddedGlobPatternChangesHash(t *testing.T) {
 	dir := t.TempDir()
 
@@ -394,6 +483,27 @@ var files embed.FS
 			assert.Contains(t, err.Error(), "matched no files")
 		})
 	}
+}
+
+func TestComputeHash_BuildTaggedEmbedFileIgnored(t *testing.T) {
+	dir := t.TempDir()
+
+	goFile := filepath.Join(dir, "ext.go")
+	require.NoError(t, os.WriteFile(goFile, []byte("package ext\n"), 0o600))
+
+	taggedFile := filepath.Join(dir, "tagged.go")
+	require.NoError(t, os.WriteFile(taggedFile, []byte(`//go:build inactive_launcher_hash_test
+
+package ext
+
+import "embed"
+
+//go:embed missing.txt
+var files embed.FS
+`), 0o600))
+
+	_, err := ComputeHash([]ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{goFile, taggedFile}}}, "", "", false, "")
+	require.NoError(t, err)
 }
 
 func TestComputeHash_EmbeddedQuotedAndRawPatternsChangeHash(t *testing.T) {
@@ -957,6 +1067,20 @@ func TestGenerateGoMod_UsesNewModulePathForRoot(t *testing.T) {
 	assert.Contains(t, s, "module github.com/weave-agent/weave/built")
 	assert.Contains(t, s, "github.com/weave-agent/weave v0.0.0")
 	assert.Contains(t, s, "replace github.com/weave-agent/weave => /tmp/weave-root")
+}
+
+func envMap(env []string) map[string]string {
+	result := make(map[string]string, len(env))
+	for _, entry := range env {
+		key, value, ok := strings.Cut(entry, "=")
+		if !ok {
+			continue
+		}
+
+		result[key] = value
+	}
+
+	return result
 }
 
 // Suppress unused import warning.

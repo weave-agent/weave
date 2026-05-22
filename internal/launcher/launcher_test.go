@@ -215,9 +215,11 @@ func TestCoreDirsHashesEntireInternalTree(t *testing.T) {
 
 	coreDirs := l.coreDirs()
 	assert.Contains(t, coreDirs, filepath.Join(moduleRoot, "internal"))
+	assert.Contains(t, coreDirs, filepath.Join(moduleRoot, "utils"))
 	assert.NotContains(t, coreDirs, filepath.Join(moduleRoot, "internal", "launcher"))
 	assert.NotContains(t, coreDirs, filepath.Join(moduleRoot, "internal", "auth"))
 	assert.NotContains(t, coreDirs, filepath.Join(moduleRoot, "internal", "extmanage"))
+	assert.NotContains(t, coreDirs, filepath.Join(moduleRoot, "utils", "truncate"))
 
 	wireFile := filepath.Join(moduleRoot, "internal", "wire", "wire.go")
 	require.NoError(t, os.MkdirAll(filepath.Dir(wireFile), 0o750))
@@ -232,6 +234,27 @@ func TestCoreDirsHashesEntireInternalTree(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEqual(t, h1, h2, "changes anywhere under internal/ should affect the launcher hash")
+}
+
+func TestCoreDirsHashesUtilsTree(t *testing.T) {
+	moduleRoot := createModuleRoot(t)
+	l := &Launcher{ModuleRoot: moduleRoot}
+
+	coreDirs := l.coreDirs()
+
+	utilFile := filepath.Join(moduleRoot, "utils", "openaicompat", "sse.go")
+	require.NoError(t, os.MkdirAll(filepath.Dir(utilFile), 0o750))
+	require.NoError(t, os.WriteFile(utilFile, []byte("package openaicompat\nconst Value = 1\n"), 0o600))
+
+	h1, err := ComputeHash(nil, moduleRoot, "", false, "", coreDirs...)
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(utilFile, []byte("package openaicompat\nconst Value = 2\n"), 0o600))
+
+	h2, err := ComputeHash(nil, moduleRoot, "", false, "", coreDirs...)
+	require.NoError(t, err)
+
+	assert.NotEqual(t, h1, h2, "changes anywhere under utils/ should affect the launcher hash")
 }
 
 func TestDeriveBuildInputs_FiltersUIExtensionsInHeadless(t *testing.T) {
@@ -385,7 +408,7 @@ func createModuleRoot(t *testing.T) string {
 	t.Helper()
 
 	root := t.TempDir()
-	for _, dir := range []string{"sdk", "bus", "settings", "utils/truncate", "internal/launcher", "internal/auth", "internal/extmanage"} {
+	for _, dir := range []string{"sdk", "bus", "settings", "utils/truncate", "utils/openaicompat", "internal/launcher", "internal/auth", "internal/extmanage"} {
 		require.NoError(t, os.MkdirAll(filepath.Join(root, dir), 0o750))
 	}
 

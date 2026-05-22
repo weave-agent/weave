@@ -137,7 +137,7 @@ func (l *Launcher) coreDirs() []string {
 		filepath.Join(l.ModuleRoot, "sdk"),
 		filepath.Join(l.ModuleRoot, "bus"),
 		filepath.Join(l.ModuleRoot, "settings"),
-		filepath.Join(l.ModuleRoot, "utils", "truncate"),
+		filepath.Join(l.ModuleRoot, "utils"),
 		filepath.Join(l.ModuleRoot, "internal"),
 	}
 }

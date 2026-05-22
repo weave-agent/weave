@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
+	"go/build"
 	"go/parser"
 	"go/token"
 	"hash"
@@ -33,6 +34,7 @@ func ComputeHash(exts []ExtensionInfo, moduleRoot, moduleVersion string, headles
 	h.Write([]byte("go" + runtime.Version() + "\n"))
 	h.Write([]byte("os:" + runtime.GOOS + "\n"))
 	h.Write([]byte("arch:" + runtime.GOARCH + "\n"))
+	h.Write([]byte("cgo:" + strconv.FormatBool(launcherBuildContext().CgoEnabled) + "\n"))
 	h.Write([]byte("headless:" + strconv.FormatBool(headless) + "\n"))
 	h.Write([]byte("agentLoop:" + agentLoop + "\n"))
 
@@ -187,7 +189,12 @@ func embeddedResourceFiles(ext ExtensionInfo) ([]string, error) {
 	seen := make(map[string]struct{})
 
 	for _, goFile := range goFiles {
-		if strings.HasSuffix(goFile, "_test.go") {
+		shouldScan, scanErr := shouldScanEmbedFile(goFile)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+
+		if !shouldScan {
 			continue
 		}
 
@@ -225,6 +232,21 @@ func embeddedResourceFiles(ext ExtensionInfo) ([]string, error) {
 	sort.Strings(files)
 
 	return files, nil
+}
+
+func shouldScanEmbedFile(goFile string) (bool, error) {
+	if strings.HasSuffix(goFile, "_test.go") {
+		return false, nil
+	}
+
+	ctx := launcherBuildContext()
+
+	match, err := ctx.MatchFile(filepath.Dir(goFile), filepath.Base(goFile))
+	if err != nil {
+		return false, fmt.Errorf("match build constraints for %s: %w", goFile, err)
+	}
+
+	return match, nil
 }
 
 func embedPatternsFromGoFile(goFile string) ([]string, error) {
@@ -642,7 +664,10 @@ func HashModuleGraph(h hash.Hash, moduleRoot, moduleVersion string) {
 }
 
 func hashDir(h hash.Hash, dir string) error {
-	var files []string
+	var (
+		files   []string
+		goFiles []string
+	)
 
 	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -654,7 +679,10 @@ func hashDir(h hash.Hash, dir string) error {
 		}
 
 		name := d.Name()
-		if (strings.HasSuffix(name, ".go") && !strings.HasSuffix(name, "_test.go")) || name == "go.mod" || name == "go.sum" {
+		if strings.HasSuffix(name, ".go") && !strings.HasSuffix(name, "_test.go") {
+			files = append(files, path)
+			goFiles = append(goFiles, path)
+		} else if name == "go.mod" || name == "go.sum" {
 			files = append(files, path)
 		}
 
@@ -680,6 +708,10 @@ func hashDir(h hash.Hash, dir string) error {
 		}
 
 		h.Write(data)
+	}
+
+	if err := hashEmbeddedFiles(h, ExtensionInfo{Dir: dir, GoFiles: goFiles}); err != nil {
+		return fmt.Errorf("embedded files: %w", err)
 	}
 
 	return nil
@@ -1239,9 +1271,12 @@ func Build(ctx context.Context, dir, moduleRoot, moduleVersion, agentLoop string
 
 	fmt.Fprintf(os.Stderr, "  -> resolving dependencies...\n")
 
+	goEnv := goCommandEnv(os.Environ())
 	tidyCmd := exec.CommandContext(ctx, "go", "mod", "tidy")
 
 	tidyCmd.Dir = dir
+
+	tidyCmd.Env = goEnv
 	if output, err := tidyCmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("build: go mod tidy: %w\n%s", err, output)
 	}
@@ -1252,11 +1287,65 @@ func Build(ctx context.Context, dir, moduleRoot, moduleVersion, agentLoop string
 	cmd := exec.CommandContext(ctx, "go", "build", "-o", binaryPath, ".")
 
 	cmd.Dir = dir
+
+	cmd.Env = goEnv
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("build: go build: %w\n%s", err, output)
 	}
 
 	return binaryPath, nil
+}
+
+func goCommandEnv(parent []string) []string {
+	overrides := map[string]string{
+		"GOOS":        runtime.GOOS,
+		"GOARCH":      runtime.GOARCH,
+		"GOFLAGS":     "",
+		"CGO_ENABLED": launcherCGOEnabledEnv(),
+	}
+
+	env := make([]string, 0, len(parent)+len(overrides))
+	for _, entry := range parent {
+		key, _, ok := strings.Cut(entry, "=")
+		if ok {
+			if _, override := overrides[key]; override {
+				continue
+			}
+		}
+
+		env = append(env, entry)
+	}
+
+	keys := make([]string, 0, len(overrides))
+	for key := range overrides {
+		keys = append(keys, key)
+	}
+
+	sort.Strings(keys)
+
+	for _, key := range keys {
+		env = append(env, key+"="+overrides[key])
+	}
+
+	return env
+}
+
+func launcherBuildContext() build.Context {
+	ctx := build.Default
+	ctx.GOOS = runtime.GOOS
+	ctx.GOARCH = runtime.GOARCH
+	ctx.BuildTags = nil
+	ctx.CgoEnabled = build.Default.CgoEnabled
+
+	return ctx
+}
+
+func launcherCGOEnabledEnv() string {
+	if launcherBuildContext().CgoEnabled {
+		return "1"
+	}
+
+	return "0"
 }
 
 func prepareBuildFiles(dir, moduleRoot, moduleVersion, agentLoop string, headless bool, exts []ExtensionInfo) error {
