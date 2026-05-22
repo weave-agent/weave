@@ -3,6 +3,7 @@ package providerhttp
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -191,8 +192,9 @@ func TestResolve_MinuteDuration(t *testing.T) {
 func TestForProvider_UsesCodeDefaults(t *testing.T) {
 	cfg := &stubConfig{providers: map[string]map[string]any{}}
 
-	got, err := ForProvider(cfg, "openai")
+	client, got, err := ForProvider(cfg, "openai")
 	require.NoError(t, err)
+	require.NotNil(t, client)
 
 	assert.Equal(t, "10s", got.DialTimeout)
 	assert.Equal(t, "10s", got.TLSHandshakeTimeout)
@@ -212,8 +214,9 @@ func TestForProvider_GlobalDefaultsMerge(t *testing.T) {
 		},
 	}
 
-	got, err := ForProvider(cfg, "openai")
+	client, got, err := ForProvider(cfg, "openai")
 	require.NoError(t, err)
+	require.NotNil(t, client)
 
 	assert.Equal(t, "20s", got.DialTimeout, "global default should override code default")
 	assert.Equal(t, "10s", got.TLSHandshakeTimeout, "unspecified field should inherit code default")
@@ -238,8 +241,9 @@ func TestForProvider_ProviderSpecificPartialOverride(t *testing.T) {
 		},
 	}
 
-	got, err := ForProvider(cfg, "openai")
+	client, got, err := ForProvider(cfg, "openai")
 	require.NoError(t, err)
+	require.NotNil(t, client)
 
 	assert.Equal(t, "20s", got.DialTimeout, "should inherit from global defaults")
 	assert.Equal(t, "10s", got.TLSHandshakeTimeout, "should inherit code default")
@@ -261,8 +265,9 @@ func TestForProvider_ProviderSpecificFullOverride(t *testing.T) {
 		},
 	}
 
-	got, err := ForProvider(cfg, "openai")
+	client, got, err := ForProvider(cfg, "openai")
 	require.NoError(t, err)
+	require.NotNil(t, client)
 
 	assert.Equal(t, "5s", got.DialTimeout)
 	assert.Equal(t, "15s", got.TLSHandshakeTimeout)
@@ -281,8 +286,9 @@ func TestForProvider_InvalidDefaultDuration(t *testing.T) {
 		},
 	}
 
-	_, err := ForProvider(cfg, "openai")
+	client, _, err := ForProvider(cfg, "openai")
 	require.Error(t, err)
+	require.Nil(t, client)
 	assert.Contains(t, err.Error(), "provider openai")
 	assert.Contains(t, err.Error(), "invalid dial_timeout")
 }
@@ -298,8 +304,9 @@ func TestForProvider_InvalidProviderDuration(t *testing.T) {
 		},
 	}
 
-	_, err := ForProvider(cfg, "openai")
+	client, _, err := ForProvider(cfg, "openai")
 	require.Error(t, err)
+	require.Nil(t, client)
 	assert.Contains(t, err.Error(), "provider openai")
 	assert.Contains(t, err.Error(), "invalid idle_conn_timeout")
 }
@@ -315,10 +322,71 @@ func TestForProvider_NegativeProviderDuration(t *testing.T) {
 		},
 	}
 
-	_, err := ForProvider(cfg, "openai")
+	client, _, err := ForProvider(cfg, "openai")
 	require.Error(t, err)
+	require.Nil(t, client)
 	assert.Contains(t, err.Error(), "provider openai")
 	assert.Contains(t, err.Error(), "negative duration")
+}
+
+func TestNewClient_DefaultConfig(t *testing.T) {
+	cfg := DefaultConfig()
+
+	client, err := NewClient(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
+	assert.Zero(t, client.Timeout, "client-level timeout should be zero for streaming compatibility")
+
+	transport, ok := client.Transport.(*http.Transport)
+	require.True(t, ok, "transport should be *http.Transport")
+
+	assert.NotNil(t, transport.DialContext, "DialContext should be set")
+	assert.Equal(t, 10*time.Second, transport.TLSHandshakeTimeout)
+	assert.Equal(t, 60*time.Second, transport.ResponseHeaderTimeout)
+	assert.Equal(t, 90*time.Second, transport.IdleConnTimeout)
+}
+
+func TestNewClient_CustomValues(t *testing.T) {
+	cfg := Config{
+		DialTimeout:           "5s",
+		TLSHandshakeTimeout:   "15s",
+		ResponseHeaderTimeout: "120s",
+		IdleConnTimeout:       "180s",
+	}
+
+	client, err := NewClient(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
+	assert.Zero(t, client.Timeout)
+
+	transport, ok := client.Transport.(*http.Transport)
+	require.True(t, ok)
+
+	assert.NotNil(t, transport.DialContext, "DialContext should be set")
+	assert.Equal(t, 15*time.Second, transport.TLSHandshakeTimeout)
+	assert.Equal(t, 120*time.Second, transport.ResponseHeaderTimeout)
+	assert.Equal(t, 180*time.Second, transport.IdleConnTimeout)
+}
+
+func TestNewClient_InvalidDuration(t *testing.T) {
+	cfg := Config{DialTimeout: "not-a-duration"}
+
+	client, err := NewClient(cfg)
+	require.Error(t, err)
+	require.Nil(t, client)
+	assert.Contains(t, err.Error(), "invalid dial_timeout")
+}
+
+func TestNewClient_ZeroClientTimeout(t *testing.T) {
+	cfg := DefaultConfig()
+
+	client, err := NewClient(cfg)
+	require.NoError(t, err)
+
+	// http.Client.Timeout is a time.Duration, zero value means no timeout
+	assert.Equal(t, time.Duration(0), client.Timeout)
 }
 
 func TestMergeConfig(t *testing.T) {

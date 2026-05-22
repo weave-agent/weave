@@ -2,6 +2,8 @@ package providerhttp
 
 import (
 	"fmt"
+	"net"
+	"net/http"
 	"time"
 
 	"github.com/weave-agent/weave/sdk"
@@ -65,18 +67,47 @@ func (c Config) Resolve(provider string) (resolved, error) {
 	return r, nil
 }
 
-// ForProvider resolves HTTP transport configuration for a named provider.
+// NewClient creates an *http.Client with an http.Transport configured from
+// the provided Config. The client-level Timeout is intentionally left at zero
+// to preserve streaming compatibility. All timeouts are set on the transport
+// only.
+func NewClient(cfg Config) (*http.Client, error) {
+	r, err := cfg.Resolve("")
+	if err != nil {
+		return nil, err
+	}
+
+	return newClientFromResolved(r), nil
+}
+
+func newClientFromResolved(r resolved) *http.Client {
+	transport := &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout: r.dialTimeout,
+		}).DialContext,
+		TLSHandshakeTimeout:   r.tlsHandshakeTimeout,
+		ResponseHeaderTimeout: r.responseHeaderTimeout,
+		IdleConnTimeout:       r.idleConnTimeout,
+	}
+
+	return &http.Client{
+		Transport: transport,
+	}
+}
+
+// ForProvider resolves HTTP transport configuration for a named provider and
+// returns a configured *http.Client alongside the raw Config.
 // Resolution order: code defaults → providers.defaults.http → providers.<name>.http.
 // Partial overrides are supported: a provider only needs to specify the fields
 // it wants to override; all other fields inherit from defaults.
-func ForProvider(cfg sdk.Config, provider string) (Config, error) {
+func ForProvider(cfg sdk.Config, provider string) (*http.Client, Config, error) {
 	result := DefaultConfig()
 
 	var defaults struct {
 		HTTP Config `json:"http"`
 	}
 	if err := cfg.ExtensionConfig("providers", "defaults", &defaults); err != nil {
-		return Config{}, fmt.Errorf("load provider defaults: %w", err)
+		return nil, Config{}, fmt.Errorf("load provider defaults: %w", err)
 	}
 
 	result = mergeConfig(result, defaults.HTTP)
@@ -85,16 +116,17 @@ func ForProvider(cfg sdk.Config, provider string) (Config, error) {
 		HTTP Config `json:"http"`
 	}
 	if err := cfg.ExtensionConfig("providers", provider, &specific); err != nil {
-		return Config{}, fmt.Errorf("load provider %s: %w", provider, err)
+		return nil, Config{}, fmt.Errorf("load provider %s: %w", provider, err)
 	}
 
 	result = mergeConfig(result, specific.HTTP)
 
-	if _, err := result.Resolve(provider); err != nil {
-		return Config{}, err
+	r, err := result.Resolve(provider)
+	if err != nil {
+		return nil, Config{}, err
 	}
 
-	return result, nil
+	return newClientFromResolved(r), result, nil
 }
 
 // mergeConfig returns a new Config where non-empty fields from override

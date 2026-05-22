@@ -72,12 +72,12 @@ The first pass configures transport deadlines only. It intentionally does not ad
 - [x] run `go test ./sdk/providerhttp` - must pass before next task
 
 ### Task 3: Build explicit provider HTTP client factory
-- [ ] add factory returning `*http.Client` with configured `http.Transport`
-- [ ] set `DialContext`, `TLSHandshakeTimeout`, `ResponseHeaderTimeout`, and `IdleConnTimeout`
-- [ ] keep `http.Client.Timeout` unset for streaming compatibility
-- [ ] write tests verifying transport timeout fields
-- [ ] write tests verifying client total timeout remains zero
-- [ ] run `go test ./sdk/providerhttp` - must pass before next task
+- [x] add factory returning `*http.Client` with configured `http.Transport`
+- [x] set `DialContext`, `TLSHandshakeTimeout`, `ResponseHeaderTimeout`, and `IdleConnTimeout`
+- [x] keep `http.Client.Timeout` unset for streaming compatibility
+- [x] write tests verifying transport timeout fields
+- [x] write tests verifying client total timeout remains zero
+- [x] run `go test ./sdk/providerhttp` - must pass before next task
 
 ### Task 4: Add jitter support to generic retry
 - [ ] extend `sdk/retry.Config` with jitter mode support for `full` and `none`
