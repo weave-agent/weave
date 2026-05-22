@@ -22,7 +22,7 @@ The changes integrate with the existing launcher flow in `internal/wire/run.go` 
 - Related patterns found:
   - Launcher hash already includes Go version, headless flag, agent loop, extension `.go` files, extension `.md` files, extension module files, selected core dirs, and one-hop local replaces.
   - Build already filters UI extensions in headless mode, but hashing happens before that filter.
-  - Generated `main.go` prints full help after build/exec; `internal/wire/run.go` only bypasses no-input validation for help.
+  - Generated `main.go` prints full extension help after build/exec; `internal/wire/run.go` only bypasses no-input validation for help.
   - Cache store uses temp file + atomic rename and has no eviction.
 - Dependencies identified:
   - Generated binaries import `internal/wire` and `internal/log`; `internal/wire` imports `internal/filemut` and `internal/filetracker`.
@@ -105,7 +105,7 @@ Final verification completed during implementation:
 
 ### Task 5: Add no-build help path and delay bootstrap
 - [x] restructure `internal/wire/run.go` so help/no-input early exits happen before `runBootstrap`
-- [x] implement `--help` / `-h` handling that prints full help without invoking `launcher.Run`
+- [x] implement `--help` / `-h` handling that prints global launcher help without invoking `launcher.Run`
 - [x] preserve existing no-input behavior and normal-run bootstrap behavior
 - [x] add/update tests in `internal/wire/run_test.go` for help fast path, no-input no-bootstrap behavior, and normal bootstrap positioning where feasible
 - [x] run `go test ./internal/wire ./internal/launcher` - must pass before task 6

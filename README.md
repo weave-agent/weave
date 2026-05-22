@@ -50,7 +50,7 @@ Download the appropriate binary from [releases](https://github.com/weave-agent/w
 4. **Build** — generate a custom binary with blank imports for discovered build inputs, cached by hash so unchanged configurations start instantly. Headless prompt runs exclude UI-only extensions from build inputs.
 5. **Exec** — run the compiled binary. Extensions self-register via `init()` and wire up through the event bus.
 
-Help and no-input error paths return before first-run bootstrap or launcher build work. Use `weave --help` or `weave -h` to print full help without bootstrapping extensions or building a launcher binary.
+Help and no-input error paths return before first-run bootstrap or launcher build work. Use `weave --help` or `weave -h` to print global launcher help without bootstrapping extensions or building a launcher binary. Extension-specific help is available from generated binaries that have imported those extensions.
 
 ## Extension Management
 

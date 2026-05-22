@@ -205,7 +205,7 @@ func runBootstrap(ctx context.Context, cf *settings.Settings) {
 
 func buildLauncherWithDeps(ctx context.Context, cf *settings.Settings, rest []string, configFile, revision string, deps runDeps) int {
 	if hasHelpFlag(rest) {
-		fmt.Fprint(os.Stderr, settings.GenerateFullHelp())
+		fmt.Fprint(os.Stderr, settings.GenerateLauncherHelp())
 
 		return 0
 	}
@@ -336,7 +336,7 @@ func run(ctx context.Context, args []string, revision string) (exitCode int) {
 
 func runWithDeps(ctx context.Context, args []string, revision string, deps runDeps) (exitCode int) {
 	if hasHelpFlag(args) {
-		fmt.Fprint(os.Stderr, settings.GenerateFullHelp())
+		fmt.Fprint(os.Stderr, settings.GenerateLauncherHelp())
 
 		return 0
 	}

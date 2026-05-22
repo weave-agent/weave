@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"go/ast"
@@ -37,7 +38,10 @@ func ComputeHash(exts []ExtensionInfo, moduleRoot, moduleVersion string, headles
 	h.Write([]byte("cgo:" + strconv.FormatBool(launcherBuildContext().CgoEnabled) + "\n"))
 	h.Write([]byte("headless:" + strconv.FormatBool(headless) + "\n"))
 	h.Write([]byte("agentLoop:" + agentLoop + "\n"))
-	hashLauncherBuildEnv(h)
+
+	if err := hashLauncherBuildEnv(h); err != nil {
+		return "", fmt.Errorf("hash: go build environment: %w", err)
+	}
 
 	HashModuleGraph(h, moduleRoot, moduleVersion)
 
@@ -253,17 +257,44 @@ var launcherBuildEnvKeys = []string{
 	"PKG_CONFIG",
 }
 
-func hashLauncherBuildEnv(h hash.Hash) {
-	for _, entry := range launcherBuildEnvInputs(os.Environ()) {
+var launcherGoEnvHashKeys = append([]string{
+	"CGO_ENABLED",
+	"GOARCH",
+	"GOENV",
+	"GOOS",
+	"GOROOT",
+	"GOTOOLCHAIN",
+	"GOVERSION",
+}, launcherBuildEnvKeys...)
+
+func hashLauncherBuildEnv(h hash.Hash) error {
+	goPath, err := exec.LookPath("go")
+	if err != nil {
+		return fmt.Errorf("find go command: %w", err)
+	}
+
+	h.Write([]byte("goPath:" + goPath + "\n"))
+
+	inputs, err := launcherBuildEnvInputs(os.Environ())
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range inputs {
 		h.Write([]byte("env:" + entry + "\n"))
 	}
+
+	return nil
 }
 
-func launcherBuildEnvInputs(parent []string) []string {
-	values := envValues(parent)
+func launcherBuildEnvInputs(parent []string) ([]string, error) {
+	values, err := effectiveGoEnv(parent, launcherGoEnvHashKeys)
+	if err != nil {
+		return nil, err
+	}
 
-	inputs := make([]string, 0, len(launcherBuildEnvKeys))
-	for _, key := range launcherBuildEnvKeys {
+	inputs := make([]string, 0, len(launcherGoEnvHashKeys))
+	for _, key := range launcherGoEnvHashKeys {
 		value := values[key]
 		if value == "" {
 			continue
@@ -274,7 +305,25 @@ func launcherBuildEnvInputs(parent []string) []string {
 
 	sort.Strings(inputs)
 
-	return inputs
+	return inputs, nil
+}
+
+func effectiveGoEnv(parent, keys []string) (map[string]string, error) {
+	args := append([]string{"env", "-json"}, keys...)
+	cmd := exec.CommandContext(context.Background(), "go", args...)
+	cmd.Env = goCommandEnv(parent)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("go env: %w\n%s", err, output)
+	}
+
+	values := make(map[string]string)
+	if err := json.Unmarshal(output, &values); err != nil {
+		return nil, fmt.Errorf("decode go env: %w", err)
+	}
+
+	return values, nil
 }
 
 func envValues(parent []string) map[string]string {
@@ -861,11 +910,11 @@ func GenerateGoMod(dir, moduleRoot, moduleVersion string, exts []ExtensionInfo) 
 	}
 
 	// Propagate transitive local dependencies from root and extension go.mod files.
-	directModulePaths := make(map[string]bool)
+	baseDirectModulePaths := make(map[string]bool)
 
-	directModulePaths["github.com/weave-agent/weave"] = true
+	baseDirectModulePaths["github.com/weave-agent/weave"] = true
 	for _, ext := range exts {
-		directModulePaths[extModulePath(ext)] = true
+		baseDirectModulePaths[extModulePath(ext)] = true
 	}
 
 	var (
@@ -878,14 +927,25 @@ func GenerateGoMod(dir, moduleRoot, moduleVersion string, exts []ExtensionInfo) 
 		absModuleRoot, _ = filepath.Abs(moduleRoot)
 	}
 
+	extraRequiredModulePaths := make(map[string]bool)
+	seenExtraReplaces := make(map[string]bool)
+
 	for _, dep := range collectLocalReplaceDeps(localReplaceSeedDirs(exts, absModuleRoot), absModuleRoot) {
-		if directModulePaths[dep.modPath] {
+		if baseDirectModulePaths[dep.modPath] {
 			continue
 		}
 
-		directModulePaths[dep.modPath] = true
-		extraRequires = append(extraRequires, dep.modPath+" "+dep.version)
-		extraReplaces = append(extraReplaces, "replace "+dep.modPath+" => "+dep.dir)
+		if !extraRequiredModulePaths[dep.modPath] {
+			extraRequiredModulePaths[dep.modPath] = true
+			extraRequires = append(extraRequires, dep.modPath+" "+dep.version)
+		}
+
+		replaceKey := dep.modPath + "\x00" + dep.replaceVersion + "\x00" + dep.dir
+		if !seenExtraReplaces[replaceKey] {
+			seenExtraReplaces[replaceKey] = true
+
+			extraReplaces = append(extraReplaces, localReplaceDirective(dep))
+		}
 	}
 
 	sort.Strings(extraRequires)
@@ -917,16 +977,17 @@ func GenerateGoMod(dir, moduleRoot, moduleVersion string, exts []ExtensionInfo) 
 }
 
 // readLocalReplaces parses a go.mod file and returns replace directives that
-// point to local paths (relative or absolute). The returned map keys are
-// module paths and values are resolved absolute paths.
-func readLocalReplaces(dir string) map[string]string {
+// point to local paths (relative or absolute).
+func readLocalReplaces(dir string) []localReplace {
 	data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
 	if err != nil {
 		return nil
 	}
 
-	result := make(map[string]string)
-	inReplaceBlock := false
+	var (
+		result         []localReplace
+		inReplaceBlock bool
+	)
 
 	for line := range strings.SplitSeq(string(data), "\n") {
 		trimmed := stripGoModComment(strings.TrimSpace(line))
@@ -937,7 +998,9 @@ func readLocalReplaces(dir string) map[string]string {
 
 		if strings.HasPrefix(trimmed, "replace ") {
 			if strings.Contains(trimmed, "=>") {
-				parseSingleReplace(trimmed[len("replace "):], dir, result)
+				if replace, ok := parseSingleReplace(trimmed[len("replace "):], dir); ok {
+					result = append(result, replace)
+				}
 			} else {
 				inReplaceBlock = true
 			}
@@ -953,7 +1016,9 @@ func readLocalReplaces(dir string) map[string]string {
 			}
 
 			if strings.Contains(trimmed, "=>") {
-				parseSingleReplace(trimmed, dir, result)
+				if replace, ok := parseSingleReplace(trimmed, dir); ok {
+					result = append(result, replace)
+				}
 			}
 		}
 	}
@@ -961,10 +1026,17 @@ func readLocalReplaces(dir string) map[string]string {
 	return result
 }
 
+type localReplace struct {
+	modPath    string
+	oldVersion string
+	dir        string
+}
+
 type localReplaceDep struct {
-	modPath string
-	version string
-	dir     string
+	modPath        string
+	version        string
+	replaceVersion string
+	dir            string
 }
 
 func localReplaceSeedDirs(exts []ExtensionInfo, moduleRoot string) []string {
@@ -1012,29 +1084,39 @@ func collectLocalReplaceDeps(seedDirs []string, moduleRoot string) []localReplac
 		requires := readRequireVersions(dir)
 		replaces := readLocalReplaces(dir)
 
-		modPaths := make([]string, 0, len(replaces))
-		for modPath := range replaces {
-			modPaths = append(modPaths, modPath)
-		}
+		sort.Slice(replaces, func(i, j int) bool {
+			if replaces[i].modPath == replaces[j].modPath {
+				if replaces[i].oldVersion == replaces[j].oldVersion {
+					return replaces[i].dir < replaces[j].dir
+				}
 
-		sort.Strings(modPaths)
+				return replaces[i].oldVersion < replaces[j].oldVersion
+			}
 
-		for _, modPath := range modPaths {
-			depDir := replaces[modPath]
+			return replaces[i].modPath < replaces[j].modPath
+		})
+
+		for _, replace := range replaces {
+			requiredVersion := requires[replace.modPath]
+			if !localReplaceMatchesRequire(replace, requiredVersion) {
+				continue
+			}
+
+			depDir := replace.dir
 			if moduleRoot != "" && samePath(depDir, moduleRoot) {
 				continue
 			}
 
-			version := requires[modPath]
-			if version == "" {
-				version = placeholderModuleVersion(modPath)
-			}
-
-			depKey := modPath + "\x00" + depDir
+			depKey := replace.modPath + "\x00" + replace.oldVersion + "\x00" + depDir
 			if !seenDeps[depKey] {
 				seenDeps[depKey] = true
 
-				deps = append(deps, localReplaceDep{modPath: modPath, version: version, dir: depDir})
+				deps = append(deps, localReplaceDep{
+					modPath:        replace.modPath,
+					version:        requiredVersion,
+					replaceVersion: replace.oldVersion,
+					dir:            depDir,
+				})
 			}
 
 			if !queuedDirs[depDir] {
@@ -1046,17 +1128,37 @@ func collectLocalReplaceDeps(seedDirs []string, moduleRoot string) []localReplac
 
 	sort.Slice(deps, func(i, j int) bool {
 		if deps[i].modPath == deps[j].modPath {
-			if deps[i].dir == deps[j].dir {
-				return deps[i].version < deps[j].version
+			if deps[i].replaceVersion == deps[j].replaceVersion {
+				if deps[i].dir == deps[j].dir {
+					return deps[i].version < deps[j].version
+				}
+
+				return deps[i].dir < deps[j].dir
 			}
 
-			return deps[i].dir < deps[j].dir
+			return deps[i].replaceVersion < deps[j].replaceVersion
 		}
 
 		return deps[i].modPath < deps[j].modPath
 	})
 
 	return deps
+}
+
+func localReplaceMatchesRequire(replace localReplace, requiredVersion string) bool {
+	if requiredVersion == "" {
+		return false
+	}
+
+	return replace.oldVersion == "" || replace.oldVersion == requiredVersion
+}
+
+func localReplaceDirective(dep localReplaceDep) string {
+	if dep.replaceVersion != "" {
+		return "replace " + dep.modPath + " " + dep.replaceVersion + " => " + dep.dir
+	}
+
+	return "replace " + dep.modPath + " => " + dep.dir
 }
 
 func readRequireVersions(dir string) map[string]string {
@@ -1165,24 +1267,33 @@ func stripGoModComment(line string) string {
 	return line
 }
 
-func parseSingleReplace(s, dir string, result map[string]string) {
+func parseSingleReplace(s, dir string) (localReplace, bool) {
 	before, after, ok := strings.Cut(s, "=>")
 	if !ok {
-		return
+		return localReplace{}, false
 	}
 
-	// The left side may include a version (e.g. "example.com/lib v1.2.3").
-	// Strip it so modPath is just the module path.
-	modPath, _, _ := strings.Cut(strings.TrimSpace(before), " ")
+	beforeFields := strings.Fields(strings.TrimSpace(before))
+	if len(beforeFields) == 0 {
+		return localReplace{}, false
+	}
+
+	modPath := beforeFields[0]
+
+	oldVersion := ""
+	if len(beforeFields) > 1 {
+		oldVersion = beforeFields[1]
+	}
+
 	localPath := strings.TrimSpace(after)
 
 	if localPath == "" {
-		return
+		return localReplace{}, false
 	}
 
 	// Only capture local paths (relative or absolute), not version queries.
 	if !strings.HasPrefix(localPath, ".") && !strings.HasPrefix(localPath, "/") {
-		return
+		return localReplace{}, false
 	}
 
 	absPath := localPath
@@ -1192,17 +1303,17 @@ func parseSingleReplace(s, dir string, result map[string]string) {
 
 	absPath, absErr := filepath.Abs(absPath)
 	if absErr != nil {
-		return
+		return localReplace{}, false
 	}
 
 	absPath = filepath.Clean(absPath)
 
 	// Skip resolved paths without a go.mod — not a valid Go module.
 	if _, statErr := os.Stat(filepath.Join(absPath, "go.mod")); statErr != nil {
-		return
+		return localReplace{}, false
 	}
 
-	result[modPath] = absPath
+	return localReplace{modPath: modPath, oldVersion: oldVersion, dir: absPath}, true
 }
 
 // GenerateMainGo creates a main.go that creates a bus, wires all extensions, and blocks on signal.

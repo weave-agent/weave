@@ -14,6 +14,7 @@ import (
 
 const (
 	cacheBinaryName = "weave"
+	cacheHashLength = 64
 )
 
 // DefaultMaxCacheSizeBytes is the default launcher binary cache size cap.
@@ -267,6 +268,10 @@ func (c *Cache) cacheEntries() ([]cacheEntry, error) {
 			continue
 		}
 
+		if !isCacheHash(entry.Name()) {
+			continue
+		}
+
 		dir := filepath.Join(c.Root, entry.Name())
 		binPath := filepath.Join(dir, cacheBinaryName)
 
@@ -314,11 +319,28 @@ func (c *Cache) touchAccess(hash string) error {
 }
 
 func (c *Cache) entryDir(hash string) (string, error) {
-	if hash == "" || hash == "." || hash == ".." || strings.ContainsAny(hash, `/\`) {
+	if !isCacheHash(hash) || strings.ContainsAny(hash, `/\`) {
 		return "", fmt.Errorf("invalid cache hash %q", hash)
 	}
 
 	return filepath.Join(c.Root, hash), nil
+}
+
+func isCacheHash(hash string) bool {
+	if len(hash) != cacheHashLength {
+		return false
+	}
+
+	for _, r := range hash {
+		switch {
+		case r >= '0' && r <= '9':
+		case r >= 'a' && r <= 'f':
+		default:
+			return false
+		}
+	}
+
+	return true
 }
 
 func (c *Cache) sizeLimit() (int64, bool) {

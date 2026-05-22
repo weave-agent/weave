@@ -92,6 +92,20 @@ func TestGenerateFullHelp_NoSchemas(t *testing.T) {
 	assert.NotContains(t, text, "Tool options:")
 }
 
+func TestGenerateLauncherHelp_OmitsDynamicSchemas(t *testing.T) {
+	resetAllRegistries(t)
+
+	sdk.RegisterTool("bash", func(_ sdk.Config, _ sdk.PreferenceReader, _ testToolConfig) (sdk.Tool, error) {
+		return dummyTool{name: "bash"}, nil
+	})
+
+	text := GenerateLauncherHelp()
+	assert.Contains(t, text, "Usage: weave")
+	assert.Contains(t, text, "Global flags:")
+	assert.NotContains(t, text, "Tool options:")
+	assert.NotContains(t, text, "--bash-timeout")
+}
+
 func TestGenerateFullHelp_WithToolSchemas(t *testing.T) {
 	resetAllRegistries(t)
 

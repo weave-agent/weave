@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,7 +22,7 @@ func TestLookup_Miss(t *testing.T) {
 
 func TestLookup_Hit(t *testing.T) {
 	root := t.TempDir()
-	hash := "abc123"
+	hash := cacheTestHash("a")
 
 	dir := filepath.Join(root, hash)
 	require.NoError(t, os.MkdirAll(dir, 0o750))
@@ -38,7 +39,7 @@ func TestLookup_Hit(t *testing.T) {
 
 func TestLookup_DirInsteadOfFile(t *testing.T) {
 	root := t.TempDir()
-	hash := "abc123"
+	hash := cacheTestHash("a")
 
 	dir := filepath.Join(root, hash, "weave")
 	require.NoError(t, os.MkdirAll(dir, 0o750))
@@ -58,9 +59,10 @@ func TestStore_CreatesDirAndCopies(t *testing.T) {
 	require.NoError(t, os.WriteFile(src, content, 0o755))
 
 	c := NewCache(root)
-	require.NoError(t, c.Store("deadbeef", src))
+	hash := cacheTestHash("a")
+	require.NoError(t, c.Store(hash, src))
 
-	cached, found := c.Lookup("deadbeef")
+	cached, found := c.Lookup(hash)
 	require.True(t, found)
 
 	got, err := os.ReadFile(cached)
@@ -80,14 +82,15 @@ func TestStore_OverwriteExisting(t *testing.T) {
 	require.NoError(t, os.WriteFile(src1, []byte("v1"), 0o750))
 
 	c := NewCache(root)
-	require.NoError(t, c.Store("hash1", src1))
+	hash := cacheTestHash("a")
+	require.NoError(t, c.Store(hash, src1))
 
 	src2 := filepath.Join(srcDir, "v2")
 	require.NoError(t, os.WriteFile(src2, []byte("v2"), 0o750))
 
-	require.NoError(t, c.Store("hash1", src2))
+	require.NoError(t, c.Store(hash, src2))
 
-	cached, _ := c.Lookup("hash1")
+	cached, _ := c.Lookup(hash)
 
 	got, _ := os.ReadFile(cached)
 	assert.Equal(t, "v2", string(got))
@@ -96,7 +99,7 @@ func TestStore_OverwriteExisting(t *testing.T) {
 func TestStore_MissingSource(t *testing.T) {
 	c := NewCache(t.TempDir())
 
-	err := c.Store("hash", "/nonexistent/path/binary")
+	err := c.Store(cacheTestHash("a"), "/nonexistent/path/binary")
 	require.Error(t, err)
 }
 
@@ -110,6 +113,7 @@ func TestStoreAndLookup_UpdateAccessTime(t *testing.T) {
 	}
 
 	c := NewCache(root)
+	hash := cacheTestHash("a")
 	c.now = func() time.Time {
 		require.NotEmpty(t, times)
 
@@ -119,12 +123,12 @@ func TestStoreAndLookup_UpdateAccessTime(t *testing.T) {
 		return next
 	}
 
-	require.NoError(t, c.Store("hash1", src))
-	assert.True(t, cacheEntryModTime(t, c, "hash1").Equal(time.Unix(10, 0)))
+	require.NoError(t, c.Store(hash, src))
+	assert.True(t, cacheEntryModTime(t, c, hash).Equal(time.Unix(10, 0)))
 
-	_, found := c.Lookup("hash1")
+	_, found := c.Lookup(hash)
 	require.True(t, found)
-	assert.True(t, cacheEntryModTime(t, c, "hash1").Equal(time.Unix(20, 0)))
+	assert.True(t, cacheEntryModTime(t, c, hash).Equal(time.Unix(20, 0)))
 }
 
 func TestStore_EvictsLeastRecentlyUsedEntry(t *testing.T) {
@@ -134,22 +138,26 @@ func TestStore_EvictsLeastRecentlyUsedEntry(t *testing.T) {
 	c.MaxSizeBytes = -1
 	c.AccessLeaseDuration = -1
 
-	require.NoError(t, c.Store("old", src))
-	require.NoError(t, c.Store("recent", src))
+	oldHash := cacheTestHash("a")
+	recentHash := cacheTestHash("b")
+	newestHash := cacheTestHash("c")
 
-	_, found := c.Lookup("old")
+	require.NoError(t, c.Store(oldHash, src))
+	require.NoError(t, c.Store(recentHash, src))
+
+	_, found := c.Lookup(oldHash)
 	require.True(t, found)
 
 	c.MaxSizeBytes = cacheTotalSize(t, c)
-	require.NoError(t, c.Store("newest", src))
+	require.NoError(t, c.Store(newestHash, src))
 
-	_, found = c.Lookup("recent")
+	_, found = c.Lookup(recentHash)
 	assert.False(t, found, "least recently used entry should be evicted")
 
-	_, found = c.Lookup("old")
+	_, found = c.Lookup(oldHash)
 	assert.True(t, found, "lookup should refresh access metadata")
 
-	_, found = c.Lookup("newest")
+	_, found = c.Lookup(newestHash)
 	assert.True(t, found, "newly stored entry should be protected from eviction")
 }
 
@@ -167,25 +175,29 @@ func TestStore_PrefersInactiveEntriesDuringEviction(t *testing.T) {
 
 	now = now.Add(-time.Hour)
 
-	require.NoError(t, c.Store("old", src))
-	require.NoError(t, c.Store("active", src))
+	oldHash := cacheTestHash("a")
+	activeHash := cacheTestHash("b")
+	newestHash := cacheTestHash("c")
+
+	require.NoError(t, c.Store(oldHash, src))
+	require.NoError(t, c.Store(activeHash, src))
 
 	now = time.Unix(1000, 0)
-	_, found := c.Lookup("active")
+	_, found := c.Lookup(activeHash)
 	require.True(t, found)
 
 	c.MaxSizeBytes = 20
 	now = now.Add(time.Second)
 
-	require.NoError(t, c.Store("newest", src))
+	require.NoError(t, c.Store(newestHash, src))
 
-	_, found = c.Lookup("old")
+	_, found = c.Lookup(oldHash)
 	assert.False(t, found, "old inactive entry should be evicted")
 
-	_, found = c.Lookup("active")
+	_, found = c.Lookup(activeHash)
 	assert.True(t, found, "recently accessed entry should be kept when inactive entries satisfy the limit")
 
-	_, found = c.Lookup("newest")
+	_, found = c.Lookup(newestHash)
 	assert.True(t, found, "newly stored entry should be protected from eviction")
 }
 
@@ -203,25 +215,29 @@ func TestStore_EvictsRecentlyAccessedEntriesWhenNeededForSizeLimit(t *testing.T)
 
 	now = now.Add(-time.Hour)
 
-	require.NoError(t, c.Store("old", src))
-	require.NoError(t, c.Store("active", src))
+	oldHash := cacheTestHash("a")
+	activeHash := cacheTestHash("b")
+	newestHash := cacheTestHash("c")
+
+	require.NoError(t, c.Store(oldHash, src))
+	require.NoError(t, c.Store(activeHash, src))
 
 	now = time.Unix(1000, 0)
-	_, found := c.Lookup("active")
+	_, found := c.Lookup(activeHash)
 	require.True(t, found)
 
 	c.MaxSizeBytes = 15
 	now = now.Add(time.Second)
 
-	require.NoError(t, c.Store("newest", src))
+	require.NoError(t, c.Store(newestHash, src))
 
-	_, found = c.Lookup("old")
+	_, found = c.Lookup(oldHash)
 	assert.False(t, found, "old inactive entry should be evicted first")
 
-	_, found = c.Lookup("active")
+	_, found = c.Lookup(activeHash)
 	assert.False(t, found, "recently accessed entry should be evicted when needed to satisfy the size limit")
 
-	_, found = c.Lookup("newest")
+	_, found = c.Lookup(newestHash)
 	assert.True(t, found, "newly stored entry should be protected from eviction")
 }
 
@@ -229,10 +245,11 @@ func TestStore_KeepsNewEntryWhenEntryExceedsLimit(t *testing.T) {
 	src := writeCacheTestBinary(t, "this binary is larger than the cache limit")
 	c := NewCache(t.TempDir())
 	c.MaxSizeBytes = 1
+	hash := cacheTestHash("a")
 
-	require.NoError(t, c.Store("oversized", src))
+	require.NoError(t, c.Store(hash, src))
 
-	_, found := c.Lookup("oversized")
+	_, found := c.Lookup(hash)
 	assert.True(t, found, "store should not evict the entry it just wrote")
 }
 
@@ -240,20 +257,23 @@ func TestClean_RemovesOnlyLauncherCacheEntries(t *testing.T) {
 	root := t.TempDir()
 	src := writeCacheTestBinary(t, "binary")
 	c := NewCache(root)
+	hash := cacheTestHash("a")
 
-	require.NoError(t, c.Store("hash1", src))
+	require.NoError(t, c.Store(hash, src))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "notes.txt"), []byte("keep"), 0o600))
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "not-cache"), 0o750))
 	require.NoError(t, os.WriteFile(filepath.Join(root, "not-cache", "file"), []byte("keep"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "not-cache", "weave"), []byte("keep"), 0o600))
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "missing-binary"), 0o750))
 
 	removed, err := c.Clean()
 	require.NoError(t, err)
 	assert.Equal(t, 1, removed)
 
-	assert.NoFileExists(t, filepath.Join(root, "hash1", "weave"))
+	assert.NoFileExists(t, filepath.Join(root, hash, "weave"))
 	assert.FileExists(t, filepath.Join(root, "notes.txt"))
 	assert.FileExists(t, filepath.Join(root, "not-cache", "file"))
+	assert.FileExists(t, filepath.Join(root, "not-cache", "weave"))
 	assert.DirExists(t, filepath.Join(root, "missing-binary"))
 }
 
@@ -309,4 +329,8 @@ func cacheTotalSize(t *testing.T, c *Cache) int64 {
 	}
 
 	return total
+}
+
+func cacheTestHash(char string) string {
+	return strings.Repeat(char, cacheHashLength)
 }

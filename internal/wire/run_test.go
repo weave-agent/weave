@@ -188,7 +188,7 @@ func TestIsWeaveModule(t *testing.T) {
 	assert.False(t, isWeaveModule(dir))
 }
 
-func TestRun_HelpFlagPrintsFullHelpWithoutBootstrapOrLauncher(t *testing.T) {
+func TestRun_HelpFlagPrintsGlobalHelpWithoutBootstrapOrLauncher(t *testing.T) {
 	tests := []struct {
 		name string
 		args []string
@@ -570,9 +570,12 @@ func TestHandleSubcommand_CacheClean(t *testing.T) {
 	t.Setenv("HOME", homeDir)
 
 	cacheDir := filepath.Join(homeDir, ".weave", "bin")
-	require.NoError(t, os.MkdirAll(filepath.Join(cacheDir, "hash1"), 0o750))
-	require.NoError(t, os.WriteFile(filepath.Join(cacheDir, "hash1", "weave"), []byte("binary"), 0o750))
+	hash := strings.Repeat("a", 64)
+	require.NoError(t, os.MkdirAll(filepath.Join(cacheDir, hash), 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(cacheDir, hash, "weave"), []byte("binary"), 0o750))
 	require.NoError(t, os.WriteFile(filepath.Join(cacheDir, "notes.txt"), []byte("keep"), 0o600))
+	require.NoError(t, os.MkdirAll(filepath.Join(cacheDir, "not-cache"), 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(cacheDir, "not-cache", "weave"), []byte("keep"), 0o600))
 
 	extensionFile := filepath.Join(homeDir, ".weave", "extensions", "keep", "main.go")
 	require.NoError(t, os.MkdirAll(filepath.Dir(extensionFile), 0o750))
@@ -590,8 +593,9 @@ func TestHandleSubcommand_CacheClean(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, 0, code)
 	assert.Contains(t, stdout, "removed 1 launcher cache entries")
-	assert.NoFileExists(t, filepath.Join(cacheDir, "hash1", "weave"))
+	assert.NoFileExists(t, filepath.Join(cacheDir, hash, "weave"))
 	assert.FileExists(t, filepath.Join(cacheDir, "notes.txt"))
+	assert.FileExists(t, filepath.Join(cacheDir, "not-cache", "weave"))
 	assert.FileExists(t, extensionFile)
 }
 

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -41,14 +42,29 @@ func TestComputeHash_IncludesRuntimePlatform(t *testing.T) {
 	got, err := ComputeHash(nil, "", "", false, "")
 	require.NoError(t, err)
 
-	payload := "go" + runtime.Version() + "\n" +
-		"os:" + runtime.GOOS + "\n" +
-		"arch:" + runtime.GOARCH + "\n" +
-		"cgo:" + strconv.FormatBool(launcherBuildContext().CgoEnabled) + "\n" +
-		"headless:false\n" +
-		"agentLoop:\n" +
-		"version:\n"
-	sum := sha256.Sum256([]byte(payload))
+	envInputs, err := launcherBuildEnvInputs(os.Environ())
+	require.NoError(t, err)
+
+	var payload strings.Builder
+
+	payload.WriteString("go" + runtime.Version() + "\n")
+	payload.WriteString("os:" + runtime.GOOS + "\n")
+	payload.WriteString("arch:" + runtime.GOARCH + "\n")
+	payload.WriteString("cgo:" + strconv.FormatBool(launcherBuildContext().CgoEnabled) + "\n")
+	payload.WriteString("headless:false\n")
+	payload.WriteString("agentLoop:\n")
+
+	goPath, err := exec.LookPath("go")
+	require.NoError(t, err)
+
+	payload.WriteString("goPath:" + goPath + "\n")
+
+	for _, input := range envInputs {
+		payload.WriteString("env:" + input + "\n")
+	}
+
+	payload.WriteString("version:\n")
+	sum := sha256.Sum256([]byte(payload.String()))
 
 	assert.Equal(t, hex.EncodeToString(sum[:]), got)
 }
@@ -1031,7 +1047,51 @@ replace example.com/shared/v3 => %s
 	assert.Contains(t, s, "replace example.com/nested/v2 => "+nestedDir)
 }
 
-func TestGenerateGoMod_SynthesizesSemanticVersionForReplaceWithoutRequire(t *testing.T) {
+func TestGenerateGoMod_PreservesVersionSpecificLocalReplaces(t *testing.T) {
+	libV1Dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(libV1Dir, "go.mod"), []byte("module example.com/lib\n\ngo 1.22\n"), 0o600))
+
+	libV2Dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(libV2Dir, "go.mod"), []byte("module example.com/lib\n\ngo 1.22\n"), 0o600))
+
+	extOneDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(extOneDir, "go.mod"), fmt.Appendf(nil, `module example.com/ext-one
+
+go 1.22
+
+require example.com/lib v1.0.0
+
+replace example.com/lib v1.0.0 => %s
+`, libV1Dir), 0o600))
+
+	extTwoDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(extTwoDir, "go.mod"), fmt.Appendf(nil, `module example.com/ext-two
+
+go 1.22
+
+require example.com/lib v1.1.0
+
+replace example.com/lib v1.1.0 => %s
+`, libV2Dir), 0o600))
+
+	dir := t.TempDir()
+	exts := []ExtensionInfo{
+		{Name: "ext-one", Dir: extOneDir, ModulePath: "example.com/ext-one"},
+		{Name: "ext-two", Dir: extTwoDir, ModulePath: "example.com/ext-two"},
+	}
+
+	require.NoError(t, GenerateGoMod(dir, "/tmp/weave", "", exts))
+
+	content, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+	require.NoError(t, err)
+
+	s := string(content)
+	assert.Contains(t, s, "replace example.com/lib v1.0.0 => "+libV1Dir)
+	assert.Contains(t, s, "replace example.com/lib v1.1.0 => "+libV2Dir)
+	assert.NotContains(t, s, "replace example.com/lib => ")
+}
+
+func TestGenerateGoMod_SkipsLocalReplaceWithoutRequire(t *testing.T) {
 	sharedDir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(sharedDir, "go.mod"), []byte("module example.com/shared/v2\n\ngo 1.22\n"), 0o600))
 
@@ -1053,7 +1113,9 @@ replace example.com/shared/v2 => %s
 	content, err := os.ReadFile(filepath.Join(dir, "go.mod"))
 	require.NoError(t, err)
 
-	assert.Contains(t, string(content), "example.com/shared/v2 v2.0.0")
+	s := string(content)
+	assert.NotContains(t, s, "example.com/shared/v2 v2.0.0")
+	assert.NotContains(t, s, "replace example.com/shared/v2 => "+sharedDir)
 }
 
 func TestGenerateGoMod_IncludesRootLocalReplaces(t *testing.T) {

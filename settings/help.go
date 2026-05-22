@@ -22,9 +22,9 @@ func (e *HelpError) Is(target error) bool {
 	return target == flag.ErrHelp
 }
 
-// GenerateFullHelp returns the complete help text for weave, including
-// global flags and all registered extension schemas.
-func GenerateFullHelp() string {
+// GenerateLauncherHelp returns static CLI help that is available before the
+// generated binary imports extension packages.
+func GenerateLauncherHelp() string {
 	var b strings.Builder
 
 	b.WriteString("Usage: weave [options] [command]\n\n")
@@ -37,6 +37,16 @@ func GenerateFullHelp() string {
 	b.WriteString("\n")
 
 	writeGlobalFlags(&b)
+
+	return b.String()
+}
+
+// GenerateFullHelp returns the complete help text for weave, including
+// global flags and all registered extension schemas.
+func GenerateFullHelp() string {
+	var b strings.Builder
+
+	b.WriteString(GenerateLauncherHelp())
 	writeExtensionFlags(&b)
 
 	return b.String()
@@ -48,7 +58,7 @@ type globalFlag struct {
 }
 
 var globalFlags = []globalFlag{
-	{"--help", "-h", "Print full help without bootstrapping or building"},
+	{"--help", "-h", "Print global help without bootstrapping or building"},
 	{"--prompt", "-p", "Prompt to pass to the agent"},
 	{"--ui", "", "UI extension name"},
 	{"--output", "", "Output format: text or json"},
