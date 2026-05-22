@@ -36,6 +36,8 @@ func TestComputeHash_Deterministic(t *testing.T) {
 }
 
 func TestComputeHash_IncludesRuntimePlatform(t *testing.T) {
+	clearLauncherBuildEnv(t)
+
 	got, err := ComputeHash(nil, "", "", false, "")
 	require.NoError(t, err)
 
@@ -51,10 +53,25 @@ func TestComputeHash_IncludesRuntimePlatform(t *testing.T) {
 	assert.Equal(t, hex.EncodeToString(sum[:]), got)
 }
 
+func TestComputeHash_IncludesBuildEnvironmentInputs(t *testing.T) {
+	clearLauncherBuildEnv(t)
+
+	h1, err := ComputeHash(nil, "", "", false, "")
+	require.NoError(t, err)
+
+	t.Setenv("GOFLAGS", "-tags=custom")
+
+	h2, err := ComputeHash(nil, "", "", false, "")
+	require.NoError(t, err)
+
+	assert.NotEqual(t, h1, h2)
+}
+
 func TestGoCommandEnv_ForcesHostBuildTarget(t *testing.T) {
 	got := envMap(goCommandEnv([]string{
 		"GOOS=plan9",
 		"GOARCH=386",
+		"GOAMD64=v3",
 		"GOFLAGS=-tags=custom",
 		"CGO_ENABLED=0",
 		"GOPRIVATE=example.com/private",
@@ -63,7 +80,8 @@ func TestGoCommandEnv_ForcesHostBuildTarget(t *testing.T) {
 
 	assert.Equal(t, runtime.GOOS, got["GOOS"])
 	assert.Equal(t, runtime.GOARCH, got["GOARCH"])
-	assert.Empty(t, got["GOFLAGS"])
+	assert.Equal(t, "v3", got["GOAMD64"])
+	assert.Equal(t, "-tags=custom", got["GOFLAGS"])
 	assert.Equal(t, launcherCGOEnabledEnv(), got["CGO_ENABLED"])
 	assert.Equal(t, "example.com/private", got["GOPRIVATE"])
 	assert.Equal(t, "/bin", got["PATH"])
@@ -313,6 +331,38 @@ var policy string
 	assert.NotEqual(t, h1, h2, "embedded files under core dirs should affect the launcher hash")
 }
 
+func TestComputeHash_CoreDirSkipsNestedModules(t *testing.T) {
+	dir := t.TempDir()
+	coreFile := filepath.Join(dir, "core.go")
+	require.NoError(t, os.WriteFile(coreFile, []byte("package core\nconst Version = 1\n"), 0o600))
+
+	nestedDir := filepath.Join(dir, "example")
+	require.NoError(t, os.MkdirAll(nestedDir, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(nestedDir, "go.mod"), []byte("module example.com/nested\n\ngo 1.22\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(nestedDir, "bad.go"), []byte(`package nested
+
+import "embed"
+
+//go:embed missing.txt
+var files embed.FS
+`), 0o600))
+
+	h1, err := ComputeHash(nil, "", "", false, "", dir)
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(filepath.Join(nestedDir, "bad.go"), []byte("package nested\nconst Ignored = 2\n"), 0o600))
+
+	h2, err := ComputeHash(nil, "", "", false, "", dir)
+	require.NoError(t, err)
+	assert.Equal(t, h1, h2, "nested modules under core dirs are not parent module build inputs")
+
+	require.NoError(t, os.WriteFile(coreFile, []byte("package core\nconst Version = 2\n"), 0o600))
+
+	h3, err := ComputeHash(nil, "", "", false, "", dir)
+	require.NoError(t, err)
+	assert.NotEqual(t, h2, h3)
+}
+
 func TestComputeHash_LocalReplaceEmbeddedResourceChangesHash(t *testing.T) {
 	depDir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(depDir, "go.mod"), []byte("module example.com/shared\n\ngo 1.22\n"), 0o600))
@@ -556,6 +606,8 @@ var files embed.FS
 }
 
 func TestComputeHash_BuildTaggedEmbedFileIgnored(t *testing.T) {
+	clearLauncherBuildEnv(t)
+
 	dir := t.TempDir()
 
 	goFile := filepath.Join(dir, "ext.go")
@@ -574,6 +626,37 @@ var files embed.FS
 
 	_, err := ComputeHash([]ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{goFile, taggedFile}}}, "", "", false, "")
 	require.NoError(t, err)
+}
+
+func TestComputeHash_GOFLAGSBuildTagsAffectEmbeddedScanning(t *testing.T) {
+	clearLauncherBuildEnv(t)
+
+	dir := t.TempDir()
+
+	goFile := filepath.Join(dir, "ext.go")
+	require.NoError(t, os.WriteFile(goFile, []byte("package ext\n"), 0o600))
+
+	taggedFile := filepath.Join(dir, "tagged.go")
+	require.NoError(t, os.WriteFile(taggedFile, []byte(`//go:build custom
+
+package ext
+
+import "embed"
+
+//go:embed missing.txt
+var files embed.FS
+`), 0o600))
+
+	exts := []ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{goFile, taggedFile}}}
+
+	_, err := ComputeHash(exts, "", "", false, "")
+	require.NoError(t, err)
+
+	t.Setenv("GOFLAGS", "-tags=custom")
+
+	_, err = ComputeHash(exts, "", "", false, "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "matched no files")
 }
 
 func TestComputeHash_EmbeddedQuotedAndRawPatternsChangeHash(t *testing.T) {
@@ -832,6 +915,40 @@ func TestGenerateGoMod_NestedModulePath(t *testing.T) {
 	assert.Contains(t, s, "replace github.com/weave-agent/weave/ext/tools/bash => /tmp/exts/tools/bash")
 }
 
+func TestGenerateGoMod_SemanticImportVersionExtension(t *testing.T) {
+	dir := t.TempDir()
+	exts := []ExtensionInfo{
+		{Name: "ext", Dir: "/tmp/exts/ext", ModulePath: "example.com/ext/v2"},
+	}
+
+	require.NoError(t, GenerateGoMod(dir, "/tmp/weave", "", exts))
+
+	content, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+	require.NoError(t, err)
+
+	s := string(content)
+	assert.Contains(t, s, "example.com/ext/v2 v2.0.0")
+	assert.Contains(t, s, "replace example.com/ext/v2 => /tmp/exts/ext")
+}
+
+func TestPlaceholderModuleVersion(t *testing.T) {
+	tests := []struct {
+		modPath string
+		want    string
+	}{
+		{modPath: "example.com/ext", want: "v0.0.0"},
+		{modPath: "example.com/ext/v2", want: "v2.0.0"},
+		{modPath: "gopkg.in/yaml.v3", want: "v3.0.0"},
+		{modPath: "example.com/ext.v2", want: "v0.0.0"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.modPath, func(t *testing.T) {
+			assert.Equal(t, tt.want, placeholderModuleVersion(tt.modPath))
+		})
+	}
+}
+
 func TestGenerateGoMod_IncludesRecursiveLocalReplaces(t *testing.T) {
 	nestedDir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(nestedDir, "go.mod"), []byte("module example.com/nested\n\ngo 1.22\n"), 0o600))
@@ -871,6 +988,72 @@ replace example.com/shared => %s
 	assert.Contains(t, s, "example.com/nested v0.0.0")
 	assert.Contains(t, s, "replace example.com/shared => "+sharedDir)
 	assert.Contains(t, s, "replace example.com/nested => "+nestedDir)
+}
+
+func TestGenerateGoMod_PreservesLocalReplaceSemanticVersions(t *testing.T) {
+	nestedDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(nestedDir, "go.mod"), []byte("module example.com/nested/v2\n\ngo 1.22\n"), 0o600))
+
+	sharedDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(sharedDir, "go.mod"), fmt.Appendf(nil, `module example.com/shared/v3
+
+go 1.22
+
+require example.com/nested/v2 v2.3.4
+
+replace example.com/nested/v2 => %s
+`, nestedDir), 0o600))
+
+	extDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, "go.mod"), fmt.Appendf(nil, `module example.com/ext
+
+go 1.22
+
+require example.com/shared/v3 v3.2.1
+
+replace example.com/shared/v3 => %s
+`, sharedDir), 0o600))
+
+	dir := t.TempDir()
+	exts := []ExtensionInfo{
+		{Name: "ext", Dir: extDir, ModulePath: "example.com/ext"},
+	}
+
+	require.NoError(t, GenerateGoMod(dir, "/tmp/weave", "", exts))
+
+	content, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+	require.NoError(t, err)
+
+	s := string(content)
+	assert.Contains(t, s, "example.com/shared/v3 v3.2.1")
+	assert.Contains(t, s, "example.com/nested/v2 v2.3.4")
+	assert.Contains(t, s, "replace example.com/shared/v3 => "+sharedDir)
+	assert.Contains(t, s, "replace example.com/nested/v2 => "+nestedDir)
+}
+
+func TestGenerateGoMod_SynthesizesSemanticVersionForReplaceWithoutRequire(t *testing.T) {
+	sharedDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(sharedDir, "go.mod"), []byte("module example.com/shared/v2\n\ngo 1.22\n"), 0o600))
+
+	extDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, "go.mod"), fmt.Appendf(nil, `module example.com/ext
+
+go 1.22
+
+replace example.com/shared/v2 => %s
+`, sharedDir), 0o600))
+
+	dir := t.TempDir()
+	exts := []ExtensionInfo{
+		{Name: "ext", Dir: extDir, ModulePath: "example.com/ext"},
+	}
+
+	require.NoError(t, GenerateGoMod(dir, "/tmp/weave", "", exts))
+
+	content, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+	require.NoError(t, err)
+
+	assert.Contains(t, string(content), "example.com/shared/v2 v2.0.0")
 }
 
 func TestGenerateGoMod_IncludesRootLocalReplaces(t *testing.T) {
@@ -1218,6 +1401,14 @@ func envMap(env []string) map[string]string {
 	}
 
 	return result
+}
+
+func clearLauncherBuildEnv(t *testing.T) {
+	t.Helper()
+
+	for _, key := range launcherBuildEnvKeys {
+		t.Setenv(key, "")
+	}
 }
 
 // Suppress unused import warning.

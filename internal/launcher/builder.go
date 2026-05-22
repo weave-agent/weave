@@ -37,6 +37,7 @@ func ComputeHash(exts []ExtensionInfo, moduleRoot, moduleVersion string, headles
 	h.Write([]byte("cgo:" + strconv.FormatBool(launcherBuildContext().CgoEnabled) + "\n"))
 	h.Write([]byte("headless:" + strconv.FormatBool(headless) + "\n"))
 	h.Write([]byte("agentLoop:" + agentLoop + "\n"))
+	hashLauncherBuildEnv(h)
 
 	HashModuleGraph(h, moduleRoot, moduleVersion)
 
@@ -227,6 +228,103 @@ func shouldScanEmbedFile(goFile string) (bool, error) {
 	}
 
 	return match, nil
+}
+
+var launcherBuildEnvKeys = []string{
+	"AR",
+	"CC",
+	"CGO_CFLAGS",
+	"CGO_CPPFLAGS",
+	"CGO_CXXFLAGS",
+	"CGO_FFLAGS",
+	"CGO_LDFLAGS",
+	"CXX",
+	"GO386",
+	"GOAMD64",
+	"GOARM",
+	"GOARM64",
+	"GOEXPERIMENT",
+	"GOFLAGS",
+	"GOMIPS",
+	"GOMIPS64",
+	"GOPPC64",
+	"GORISCV64",
+	"GOWASM",
+	"PKG_CONFIG",
+}
+
+func hashLauncherBuildEnv(h hash.Hash) {
+	for _, entry := range launcherBuildEnvInputs(os.Environ()) {
+		h.Write([]byte("env:" + entry + "\n"))
+	}
+}
+
+func launcherBuildEnvInputs(parent []string) []string {
+	values := envValues(parent)
+
+	inputs := make([]string, 0, len(launcherBuildEnvKeys))
+	for _, key := range launcherBuildEnvKeys {
+		value := values[key]
+		if value == "" {
+			continue
+		}
+
+		inputs = append(inputs, key+"="+value)
+	}
+
+	sort.Strings(inputs)
+
+	return inputs
+}
+
+func envValues(parent []string) map[string]string {
+	values := make(map[string]string, len(parent))
+	for _, entry := range parent {
+		key, value, ok := strings.Cut(entry, "=")
+		if !ok {
+			continue
+		}
+
+		values[key] = value
+	}
+
+	return values
+}
+
+func launcherBuildTagsFromGOFLAGS() []string {
+	var tags []string
+
+	fields := strings.Fields(os.Getenv("GOFLAGS"))
+	for i := 0; i < len(fields); i++ {
+		field := fields[i]
+		switch {
+		case field == "-tags" && i+1 < len(fields):
+			tags = appendGOFLAGSBuildTags(tags, fields[i+1])
+			i++
+		case strings.HasPrefix(field, "-tags="):
+			tags = appendGOFLAGSBuildTags(tags, strings.TrimPrefix(field, "-tags="))
+		case field == "-race":
+			tags = append(tags, "race")
+		case field == "-msan":
+			tags = append(tags, "msan")
+		case field == "-asan":
+			tags = append(tags, "asan")
+		}
+	}
+
+	return tags
+}
+
+func appendGOFLAGSBuildTags(tags []string, value string) []string {
+	for _, tag := range strings.FieldsFunc(value, func(r rune) bool {
+		return r == ',' || unicode.IsSpace(r)
+	}) {
+		if tag != "" {
+			tags = append(tags, tag)
+		}
+	}
+
+	return tags
 }
 
 func embedPatternsFromGoFile(goFile string) ([]string, error) {
@@ -655,6 +753,12 @@ func hashDir(h hash.Hash, dir string) error {
 		}
 
 		if d.IsDir() {
+			if path != dir {
+				if _, statErr := os.Stat(filepath.Join(path, "go.mod")); statErr == nil {
+					return fs.SkipDir
+				}
+			}
+
 			return nil
 		}
 
@@ -752,7 +856,8 @@ func GenerateGoMod(dir, moduleRoot, moduleVersion string, exts []ExtensionInfo) 
 	}
 
 	for _, ext := range exts {
-		b.WriteString("\t" + extModulePath(ext) + " v0.0.0\n")
+		modPath := extModulePath(ext)
+		b.WriteString("\t" + modPath + " " + placeholderModuleVersion(modPath) + "\n")
 	}
 
 	// Propagate transitive local dependencies from root and extension go.mod files.
@@ -779,7 +884,7 @@ func GenerateGoMod(dir, moduleRoot, moduleVersion string, exts []ExtensionInfo) 
 		}
 
 		directModulePaths[dep.modPath] = true
-		extraRequires = append(extraRequires, dep.modPath+" v0.0.0")
+		extraRequires = append(extraRequires, dep.modPath+" "+dep.version)
 		extraReplaces = append(extraReplaces, "replace "+dep.modPath+" => "+dep.dir)
 	}
 
@@ -858,6 +963,7 @@ func readLocalReplaces(dir string) map[string]string {
 
 type localReplaceDep struct {
 	modPath string
+	version string
 	dir     string
 }
 
@@ -903,16 +1009,32 @@ func collectLocalReplaceDeps(seedDirs []string, moduleRoot string) []localReplac
 		dir := queue[0]
 		queue = queue[1:]
 
-		for modPath, depDir := range readLocalReplaces(dir) {
+		requires := readRequireVersions(dir)
+		replaces := readLocalReplaces(dir)
+
+		modPaths := make([]string, 0, len(replaces))
+		for modPath := range replaces {
+			modPaths = append(modPaths, modPath)
+		}
+
+		sort.Strings(modPaths)
+
+		for _, modPath := range modPaths {
+			depDir := replaces[modPath]
 			if moduleRoot != "" && samePath(depDir, moduleRoot) {
 				continue
+			}
+
+			version := requires[modPath]
+			if version == "" {
+				version = placeholderModuleVersion(modPath)
 			}
 
 			depKey := modPath + "\x00" + depDir
 			if !seenDeps[depKey] {
 				seenDeps[depKey] = true
 
-				deps = append(deps, localReplaceDep{modPath: modPath, dir: depDir})
+				deps = append(deps, localReplaceDep{modPath: modPath, version: version, dir: depDir})
 			}
 
 			if !queuedDirs[depDir] {
@@ -924,6 +1046,10 @@ func collectLocalReplaceDeps(seedDirs []string, moduleRoot string) []localReplac
 
 	sort.Slice(deps, func(i, j int) bool {
 		if deps[i].modPath == deps[j].modPath {
+			if deps[i].dir == deps[j].dir {
+				return deps[i].version < deps[j].version
+			}
+
 			return deps[i].dir < deps[j].dir
 		}
 
@@ -931,6 +1057,102 @@ func collectLocalReplaceDeps(seedDirs []string, moduleRoot string) []localReplac
 	})
 
 	return deps
+}
+
+func readRequireVersions(dir string) map[string]string {
+	data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+	if err != nil {
+		return nil
+	}
+
+	result := make(map[string]string)
+	inRequireBlock := false
+
+	for line := range strings.SplitSeq(string(data), "\n") {
+		trimmed := stripGoModComment(strings.TrimSpace(line))
+		if trimmed == "" {
+			continue
+		}
+
+		if after, ok := strings.CutPrefix(trimmed, "require "); ok {
+			rest := strings.TrimSpace(after)
+			if rest == "(" {
+				inRequireBlock = true
+
+				continue
+			}
+
+			parseRequire(rest, result)
+
+			continue
+		}
+
+		if inRequireBlock {
+			if trimmed == ")" {
+				inRequireBlock = false
+
+				continue
+			}
+
+			parseRequire(trimmed, result)
+		}
+	}
+
+	return result
+}
+
+func parseRequire(s string, result map[string]string) {
+	fields := strings.Fields(s)
+	if len(fields) < 2 {
+		return
+	}
+
+	result[fields[0]] = fields[1]
+}
+
+func placeholderModuleVersion(modPath string) string {
+	if major, ok := semanticImportMajor(modPath); ok && major >= 2 {
+		return fmt.Sprintf("v%d.0.0", major)
+	}
+
+	return "v0.0.0"
+}
+
+func semanticImportMajor(modPath string) (int, bool) {
+	base := path.Base(modPath)
+
+	if strings.HasPrefix(base, "v") {
+		if major, ok := parseMajorVersion(base[1:]); ok {
+			return major, true
+		}
+	}
+
+	if before, after, ok := strings.Cut(base, ".v"); ok && before != "" && strings.HasPrefix(modPath, "gopkg.in/") {
+		if major, majorOK := parseMajorVersion(after); majorOK {
+			return major, true
+		}
+	}
+
+	return 0, false
+}
+
+func parseMajorVersion(s string) (int, bool) {
+	if s == "" {
+		return 0, false
+	}
+
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return 0, false
+		}
+	}
+
+	major, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, false
+	}
+
+	return major, true
 }
 
 // stripGoModComment removes any "//"-prefixed inline comment from a go.mod
@@ -1366,11 +1588,15 @@ func Build(ctx context.Context, dir, moduleRoot, moduleVersion, agentLoop string
 }
 
 func goCommandEnv(parent []string) []string {
+	values := envValues(parent)
+
 	overrides := map[string]string{
 		"GOOS":        runtime.GOOS,
 		"GOARCH":      runtime.GOARCH,
-		"GOFLAGS":     "",
 		"CGO_ENABLED": launcherCGOEnabledEnv(),
+	}
+	for _, key := range launcherBuildEnvKeys {
+		overrides[key] = values[key]
 	}
 
 	env := make([]string, 0, len(parent)+len(overrides))
@@ -1403,7 +1629,7 @@ func launcherBuildContext() build.Context {
 	ctx := build.Default
 	ctx.GOOS = runtime.GOOS
 	ctx.GOARCH = runtime.GOARCH
-	ctx.BuildTags = nil
+	ctx.BuildTags = launcherBuildTagsFromGOFLAGS()
 	ctx.CgoEnabled = build.Default.CgoEnabled
 
 	return ctx
