@@ -82,11 +82,11 @@ The changes integrate with the existing launcher flow in `internal/wire/run.go` 
 - [x] run `go test ./internal/launcher` - must pass before task 3
 
 ### Task 3: Hash embedded resources from `//go:embed`
-- [ ] replace `.md`-only resource hashing in `internal/launcher/builder.go` with `//go:embed` directive parsing
-- [ ] support single files, multiple patterns, glob patterns, and embedded directories deterministically
-- [ ] preserve module-boundary and deterministic relative-path hashing behavior
-- [ ] add tests for `.sbpl` embedded files, glob patterns, multiple patterns, directory embeds, and missing/unmatched patterns
-- [ ] run `go test ./internal/launcher` - must pass before task 4
+- [x] replace `.md`-only resource hashing in `internal/launcher/builder.go` with `//go:embed` directive parsing
+- [x] support single files, multiple patterns, glob patterns, and embedded directories deterministically
+- [x] preserve module-boundary and deterministic relative-path hashing behavior
+- [x] add tests for `.sbpl` embedded files, glob patterns, multiple patterns, directory embeds, and missing/unmatched patterns
+- [x] run `go test ./internal/launcher` - must pass before task 4
 
 ### Task 4: Make launcher build cancellation context-aware
 - [ ] update `BuildFunc` in `internal/launcher/launcher.go` to accept `context.Context`

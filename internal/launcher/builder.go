@@ -4,17 +4,23 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"hash"
 	"io/fs"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // ComputeHash returns a deterministic SHA256 hex string for the given extensions.
@@ -59,8 +65,8 @@ func ComputeHash(exts []ExtensionInfo, moduleRoot, moduleVersion string, headles
 
 		// Hash embedded resource files (e.g., go:embed agents/*.md).
 		// These affect the compiled binary but are not .go files.
-		if err := hashMdFiles(h, ext); err != nil {
-			return "", fmt.Errorf("hash: md files for %s: %w", ext.Name, err)
+		if err := hashEmbeddedFiles(h, ext); err != nil {
+			return "", fmt.Errorf("hash: embedded files for %s: %w", ext.Name, err)
 		}
 
 		goModPath := filepath.Join(ext.Dir, "go.mod")
@@ -128,48 +134,445 @@ func ComputeHash(exts []ExtensionInfo, moduleRoot, moduleVersion string, headles
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-// hashMdFiles walks the extension directory and hashes any .md files that
-// are embedded into the binary via go:embed. These files affect the compiled
-// output but are not .go files, so they must be included in the cache hash.
-func hashMdFiles(h hash.Hash, ext ExtensionInfo) error {
-	if err := filepath.WalkDir(ext.Dir, func(path string, d fs.DirEntry, entryErr error) error {
-		skip := entryErr != nil || d.IsDir()
-		if skip {
-			return nil
-		}
+// hashEmbeddedFiles hashes resources referenced by //go:embed directives in
+// extension source files. The Go compiler treats these resources as build
+// inputs, so launcher cache keys must include them too.
+func hashEmbeddedFiles(h hash.Hash, ext ExtensionInfo) error {
+	files, err := embeddedResourceFiles(ext)
+	if err != nil {
+		return err
+	}
 
-		if !strings.HasSuffix(d.Name(), ".md") {
-			return nil
-		}
+	absRoot, err := filepath.Abs(ext.Dir)
+	if err != nil {
+		return fmt.Errorf("abs extension dir: %w", err)
+	}
 
-		// Skip files already hashed as .go files.
-		if slices.Contains(ext.GoFiles, path) {
-			return nil
-		}
+	for _, rel := range files {
+		h.Write([]byte("embed:" + rel + "\n"))
 
-		rel, relErr := filepath.Rel(ext.Dir, path)
-		if relErr != nil {
-			rel = path
-		}
-
-		h.Write([]byte(rel + "\n"))
-
-		// Build root-scoped path to avoid symlink TOCTOU (gosec G122).
-		data, readErr := os.ReadFile(filepath.Join(ext.Dir, rel))
-
-		readOK := readErr == nil
-		if !readOK {
-			return nil
+		data, readErr := os.ReadFile(filepath.Join(absRoot, filepath.FromSlash(rel)))
+		if readErr != nil {
+			return fmt.Errorf("read %s: %w", rel, readErr)
 		}
 
 		h.Write(data)
-
-		return nil
-	}); err != nil {
-		return fmt.Errorf("hash md files in %s: %w", ext.Dir, err)
 	}
 
 	return nil
+}
+
+func embeddedResourceFiles(ext ExtensionInfo) ([]string, error) {
+	absRoot, err := filepath.Abs(ext.Dir)
+	if err != nil {
+		return nil, fmt.Errorf("abs extension dir: %w", err)
+	}
+
+	goFiles := append([]string(nil), ext.GoFiles...)
+	sort.Strings(goFiles)
+
+	goFileSet := make(map[string]struct{}, len(goFiles))
+	for _, goFile := range goFiles {
+		absGoFile, absErr := filepath.Abs(goFile)
+		if absErr != nil {
+			return nil, fmt.Errorf("abs go file %s: %w", goFile, absErr)
+		}
+
+		rel, relErr := filepath.Rel(absRoot, absGoFile)
+		if relErr == nil && !isRelOutside(rel) {
+			goFileSet[filepath.ToSlash(rel)] = struct{}{}
+		}
+	}
+
+	seen := make(map[string]struct{})
+	for _, goFile := range goFiles {
+		if strings.HasSuffix(goFile, "_test.go") {
+			continue
+		}
+
+		absGoFile, absErr := filepath.Abs(goFile)
+		if absErr != nil {
+			return nil, fmt.Errorf("abs go file %s: %w", goFile, absErr)
+		}
+
+		patterns, parseErr := embedPatternsFromGoFile(absGoFile)
+		if parseErr != nil {
+			return nil, parseErr
+		}
+
+		for _, pattern := range patterns {
+			matches, matchErr := matchEmbedPattern(absRoot, filepath.Dir(absGoFile), pattern)
+			if matchErr != nil {
+				return nil, fmt.Errorf("%s: %w", goFile, matchErr)
+			}
+
+			for _, rel := range matches {
+				if _, alreadyGoFile := goFileSet[rel]; alreadyGoFile {
+					continue
+				}
+
+				seen[rel] = struct{}{}
+			}
+		}
+	}
+
+	files := make([]string, 0, len(seen))
+	for rel := range seen {
+		files = append(files, rel)
+	}
+
+	sort.Strings(files)
+
+	return files, nil
+}
+
+func embedPatternsFromGoFile(goFile string) ([]string, error) {
+	fileSet := token.NewFileSet()
+	parsed, err := parser.ParseFile(fileSet, goFile, nil, parser.ParseComments)
+	if err != nil {
+		return nil, fmt.Errorf("parse %s: %w", goFile, err)
+	}
+
+	var (
+		patterns []string
+		parseErr error
+	)
+
+	appendFromDoc := func(doc *ast.CommentGroup) {
+		if doc == nil || parseErr != nil {
+			return
+		}
+
+		for _, comment := range doc.List {
+			found, err := parseEmbedComment(comment.Text)
+			if err != nil {
+				parseErr = fmt.Errorf("%s: %w", goFile, err)
+
+				return
+			}
+
+			patterns = append(patterns, found...)
+		}
+	}
+
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		if parseErr != nil {
+			return false
+		}
+
+		decl, ok := n.(*ast.GenDecl)
+		if !ok || decl.Tok != token.VAR {
+			return true
+		}
+
+		appendFromDoc(decl.Doc)
+		for _, spec := range decl.Specs {
+			valueSpec, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+
+			appendFromDoc(valueSpec.Doc)
+		}
+
+		return false
+	})
+	if parseErr != nil {
+		return nil, parseErr
+	}
+
+	return patterns, nil
+}
+
+func parseEmbedComment(text string) ([]string, error) {
+	const prefix = "//go:embed"
+
+	if !strings.HasPrefix(text, prefix) {
+		return nil, nil
+	}
+
+	rest := strings.TrimPrefix(text, prefix)
+	if rest != "" {
+		r, _ := utf8.DecodeRuneInString(rest)
+		if !unicode.IsSpace(r) {
+			return nil, nil
+		}
+	}
+
+	patterns, err := splitEmbedPatterns(strings.TrimSpace(rest))
+	if err != nil {
+		return nil, err
+	}
+
+	if len(patterns) == 0 {
+		return nil, errors.New("go:embed directive has no patterns")
+	}
+
+	return patterns, nil
+}
+
+func splitEmbedPatterns(s string) ([]string, error) {
+	var patterns []string
+
+	for {
+		s = strings.TrimLeftFunc(s, unicode.IsSpace)
+		if s == "" {
+			break
+		}
+
+		switch s[0] {
+		case '`':
+			end := strings.IndexByte(s[1:], '`')
+			if end == -1 {
+				return nil, errors.New("unterminated raw string in go:embed directive")
+			}
+
+			lit := s[:end+2]
+			pattern, err := strconv.Unquote(lit)
+			if err != nil {
+				return nil, fmt.Errorf("unquote go:embed pattern %s: %w", lit, err)
+			}
+
+			patterns = append(patterns, pattern)
+			s = s[len(lit):]
+		case '"':
+			end, err := quotedStringEnd(s)
+			if err != nil {
+				return nil, err
+			}
+
+			lit := s[:end]
+			pattern, unquoteErr := strconv.Unquote(lit)
+			if unquoteErr != nil {
+				return nil, fmt.Errorf("unquote go:embed pattern %s: %w", lit, unquoteErr)
+			}
+
+			patterns = append(patterns, pattern)
+			s = s[len(lit):]
+		default:
+			end := strings.IndexFunc(s, unicode.IsSpace)
+			if end == -1 {
+				patterns = append(patterns, s)
+				s = ""
+			} else {
+				patterns = append(patterns, s[:end])
+				s = s[end:]
+			}
+		}
+	}
+
+	return patterns, nil
+}
+
+func quotedStringEnd(s string) (int, error) {
+	escaped := false
+	for i := 1; i < len(s); i++ {
+		switch {
+		case escaped:
+			escaped = false
+		case s[i] == '\\':
+			escaped = true
+		case s[i] == '"':
+			return i + 1, nil
+		}
+	}
+
+	return 0, errors.New("unterminated string in go:embed directive")
+}
+
+func matchEmbedPattern(moduleRoot, pkgDir, rawPattern string) ([]string, error) {
+	original := rawPattern
+	all := false
+	if after, ok := strings.CutPrefix(rawPattern, "all:"); ok {
+		all = true
+		rawPattern = after
+	}
+
+	if err := validateEmbedPattern(rawPattern); err != nil {
+		return nil, fmt.Errorf("embed pattern %q: %w", original, err)
+	}
+
+	matches, err := filepath.Glob(filepath.Join(pkgDir, filepath.FromSlash(rawPattern)))
+	if err != nil {
+		return nil, fmt.Errorf("embed pattern %q: %w", original, err)
+	}
+
+	sort.Strings(matches)
+
+	var files []string
+	for _, match := range matches {
+		absMatch, absErr := filepath.Abs(match)
+		if absErr != nil {
+			return nil, fmt.Errorf("abs match %s: %w", match, absErr)
+		}
+
+		if !isWithinDir(moduleRoot, absMatch) || !withinModuleBoundary(moduleRoot, absMatch) {
+			continue
+		}
+
+		info, statErr := os.Lstat(absMatch)
+		if statErr != nil {
+			return nil, fmt.Errorf("stat %s: %w", match, statErr)
+		}
+
+		switch {
+		case info.IsDir():
+			dirFiles, dirErr := embeddedDirFiles(moduleRoot, absMatch, all)
+			if dirErr != nil {
+				return nil, fmt.Errorf("directory %s: %w", match, dirErr)
+			}
+
+			files = append(files, dirFiles...)
+		case info.Mode().IsRegular():
+			rel, relErr := filepath.Rel(moduleRoot, absMatch)
+			if relErr != nil {
+				return nil, fmt.Errorf("rel %s: %w", match, relErr)
+			}
+
+			files = append(files, filepath.ToSlash(rel))
+		}
+	}
+
+	if len(files) == 0 {
+		return nil, fmt.Errorf("embed pattern %q matched no files", original)
+	}
+
+	sort.Strings(files)
+
+	return files, nil
+}
+
+func validateEmbedPattern(pattern string) error {
+	if pattern == "" {
+		return errors.New("empty pattern")
+	}
+
+	if strings.HasPrefix(pattern, "/") || strings.HasSuffix(pattern, "/") {
+		return errors.New("pattern must not begin or end with slash")
+	}
+
+	for _, elem := range strings.Split(pattern, "/") {
+		if elem == "" || elem == "." || elem == ".." {
+			return fmt.Errorf("invalid path element %q", elem)
+		}
+	}
+
+	if path.Clean(pattern) != pattern {
+		return errors.New("pattern must be clean")
+	}
+
+	return nil
+}
+
+func embeddedDirFiles(moduleRoot, dir string, all bool) ([]string, error) {
+	var files []string
+
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, entryErr error) error {
+		if entryErr != nil {
+			return entryErr
+		}
+
+		if path == dir {
+			return nil
+		}
+
+		name := d.Name()
+		if d.IsDir() {
+			if _, statErr := os.Stat(filepath.Join(path, "go.mod")); statErr == nil {
+				return fs.SkipDir
+			}
+
+			if !all && (strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_")) {
+				return fs.SkipDir
+			}
+
+			return nil
+		}
+
+		if !d.Type().IsRegular() {
+			return nil
+		}
+
+		if !all && (strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_")) {
+			return nil
+		}
+
+		if !withinModuleBoundary(moduleRoot, path) {
+			return nil
+		}
+
+		rel, relErr := filepath.Rel(moduleRoot, path)
+		if relErr != nil {
+			return fmt.Errorf("rel %s: %w", path, relErr)
+		}
+
+		files = append(files, filepath.ToSlash(rel))
+
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("walk: %w", err)
+	}
+
+	sort.Strings(files)
+
+	return files, nil
+}
+
+func withinModuleBoundary(moduleRoot, candidate string) bool {
+	absRoot, rootErr := filepath.Abs(moduleRoot)
+	if rootErr != nil {
+		return false
+	}
+
+	absCandidate, candidateErr := filepath.Abs(candidate)
+	if candidateErr != nil {
+		return false
+	}
+
+	if !isWithinDir(absRoot, absCandidate) {
+		return false
+	}
+
+	info, err := os.Lstat(absCandidate)
+	if err == nil && !info.IsDir() {
+		absCandidate = filepath.Dir(absCandidate)
+	}
+
+	for {
+		if samePath(absCandidate, absRoot) {
+			return true
+		}
+
+		if _, statErr := os.Stat(filepath.Join(absCandidate, "go.mod")); statErr == nil {
+			return false
+		}
+
+		parent := filepath.Dir(absCandidate)
+		if parent == absCandidate {
+			return false
+		}
+
+		absCandidate = parent
+	}
+}
+
+func isWithinDir(root, candidate string) bool {
+	rel, err := filepath.Rel(root, candidate)
+	if err != nil {
+		return false
+	}
+
+	return !isRelOutside(rel)
+}
+
+func isRelOutside(rel string) bool {
+	return rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel)
+}
+
+func samePath(a, b string) bool {
+	rel, err := filepath.Rel(a, b)
+	return err == nil && rel == "."
 }
 
 // HashModuleGraph writes the root go.mod and go.sum contents into the hash,

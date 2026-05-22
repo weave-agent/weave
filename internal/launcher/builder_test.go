@@ -215,7 +215,7 @@ func TestComputeHash_AgentLoopDiffers(t *testing.T) {
 	assert.NotEqual(t, h1, h2, "agent loop must affect hash")
 }
 
-func TestComputeHash_MdFilesChangeHash(t *testing.T) {
+func TestComputeHash_UnreferencedMdFilesIgnored(t *testing.T) {
 	dir := t.TempDir()
 
 	f := filepath.Join(dir, "ext.go")
@@ -233,7 +233,166 @@ func TestComputeHash_MdFilesChangeHash(t *testing.T) {
 	h2, err := ComputeHash(exts, "", "", false, "")
 	require.NoError(t, err)
 
-	assert.NotEqual(t, h1, h2, ".md file change should produce different hash")
+	assert.Equal(t, h1, h2, "unreferenced .md files should not affect the launcher hash")
+}
+
+func TestComputeHash_EmbeddedSbplFileChangesHash(t *testing.T) {
+	dir := t.TempDir()
+
+	goFile := filepath.Join(dir, "ext.go")
+	require.NoError(t, os.WriteFile(goFile, []byte(`package ext
+
+import _ "embed"
+
+//go:embed policies/default.sbpl
+var policy string
+`), 0o600))
+
+	policyFile := filepath.Join(dir, "policies", "default.sbpl")
+	require.NoError(t, os.MkdirAll(filepath.Dir(policyFile), 0o750))
+	require.NoError(t, os.WriteFile(policyFile, []byte("(version 1)\n"), 0o600))
+
+	exts := []ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{goFile}}}
+
+	h1, err := ComputeHash(exts, "", "", false, "")
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(policyFile, []byte("(version 2)\n"), 0o600))
+
+	h2, err := ComputeHash(exts, "", "", false, "")
+	require.NoError(t, err)
+
+	assert.NotEqual(t, h1, h2, "embedded .sbpl file changes should produce different hash")
+}
+
+func TestComputeHash_EmbeddedGlobPatternChangesHash(t *testing.T) {
+	dir := t.TempDir()
+
+	goFile := filepath.Join(dir, "ext.go")
+	require.NoError(t, os.WriteFile(goFile, []byte(`package ext
+
+import "embed"
+
+//go:embed prompts/*.txt
+var prompts embed.FS
+`), 0o600))
+
+	promptsDir := filepath.Join(dir, "prompts")
+	require.NoError(t, os.MkdirAll(promptsDir, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(promptsDir, "a.txt"), []byte("alpha\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(promptsDir, "b.txt"), []byte("beta\n"), 0o600))
+
+	exts := []ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{goFile}}}
+
+	h1, err := ComputeHash(exts, "", "", false, "")
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(filepath.Join(promptsDir, "b.txt"), []byte("beta updated\n"), 0o600))
+
+	h2, err := ComputeHash(exts, "", "", false, "")
+	require.NoError(t, err)
+
+	assert.NotEqual(t, h1, h2, "embedded glob matches should affect the launcher hash")
+}
+
+func TestComputeHash_EmbeddedMultiplePatternsChangeHash(t *testing.T) {
+	dir := t.TempDir()
+
+	goFile := filepath.Join(dir, "ext.go")
+	require.NoError(t, os.WriteFile(goFile, []byte(`package ext
+
+import "embed"
+
+//go:embed one.txt two.txt
+var files embed.FS
+`), 0o600))
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "one.txt"), []byte("one\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "two.txt"), []byte("two\n"), 0o600))
+
+	exts := []ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{goFile}}}
+
+	h1, err := ComputeHash(exts, "", "", false, "")
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "two.txt"), []byte("two updated\n"), 0o600))
+
+	h2, err := ComputeHash(exts, "", "", false, "")
+	require.NoError(t, err)
+
+	assert.NotEqual(t, h1, h2, "all embedded patterns on a directive should affect the launcher hash")
+}
+
+func TestComputeHash_EmbeddedDirectoryChangesHashAndRespectsModuleBoundary(t *testing.T) {
+	dir := t.TempDir()
+
+	goFile := filepath.Join(dir, "ext.go")
+	require.NoError(t, os.WriteFile(goFile, []byte(`package ext
+
+import "embed"
+
+//go:embed assets
+var assets embed.FS
+`), 0o600))
+
+	nestedFile := filepath.Join(dir, "assets", "nested", "value.txt")
+	require.NoError(t, os.MkdirAll(filepath.Dir(nestedFile), 0o750))
+	require.NoError(t, os.WriteFile(nestedFile, []byte("nested v1\n"), 0o600))
+
+	submoduleDir := filepath.Join(dir, "assets", "submodule")
+	require.NoError(t, os.MkdirAll(submoduleDir, 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(submoduleDir, "go.mod"), []byte("module example.com/submodule\n\ngo 1.22\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(submoduleDir, "ignored.txt"), []byte("ignored v1\n"), 0o600))
+
+	exts := []ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{goFile}}}
+
+	h1, err := ComputeHash(exts, "", "", false, "")
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(filepath.Join(submoduleDir, "ignored.txt"), []byte("ignored v2\n"), 0o600))
+
+	h2, err := ComputeHash(exts, "", "", false, "")
+	require.NoError(t, err)
+	assert.Equal(t, h1, h2, "embedded directory hashing should not cross nested module boundaries")
+
+	require.NoError(t, os.WriteFile(nestedFile, []byte("nested v2\n"), 0o600))
+
+	h3, err := ComputeHash(exts, "", "", false, "")
+	require.NoError(t, err)
+	assert.NotEqual(t, h2, h3, "embedded directory file changes should affect the launcher hash")
+}
+
+func TestComputeHash_EmbedPatternMustMatchFiles(t *testing.T) {
+	tests := []struct {
+		name    string
+		pattern string
+	}{
+		{name: "missing file", pattern: "missing.txt"},
+		{name: "unmatched glob", pattern: "assets/*.txt"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+
+			goFile := filepath.Join(dir, "ext.go")
+			require.NoError(t, os.WriteFile(goFile, []byte(fmt.Sprintf(`package ext
+
+import "embed"
+
+//go:embed %s
+var files embed.FS
+`, tt.pattern)), 0o600))
+
+			if strings.HasPrefix(tt.pattern, "assets/") {
+				require.NoError(t, os.MkdirAll(filepath.Join(dir, "assets"), 0o750))
+			}
+
+			_, err := ComputeHash([]ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{goFile}}}, "", "", false, "")
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "matched no files")
+		})
+	}
 }
 
 func TestGenerateMainGo_UIExtFilteredByBuild(t *testing.T) {
