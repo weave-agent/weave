@@ -88,13 +88,13 @@ The first pass configures transport deadlines only. It intentionally does not ad
 - [x] run `go test ./sdk/retry` - must pass before next task
 
 ### Task 5: Add provider retry config resolver
-- [ ] create `sdk/providerretry` package with provider-facing config type
-- [ ] define defaults for `max_retries`, `base_delay`, `max_delay`, `multiplier`, and `jitter`
-- [ ] implement duration string parsing for retry delays
-- [ ] implement resolution order: code defaults, `providers.defaults.retry`, `providers.<name>.retry`
-- [ ] expose `ForProvider(cfg sdk.Config, provider string)` returning `retry.Config` plus raw config if useful
-- [ ] write tests for defaults, deep merge, invalid jitter, invalid durations, and invalid retry values
-- [ ] run `go test ./sdk/providerretry` - must pass before next task
+- [x] create `sdk/providerretry` package with provider-facing config type
+- [x] define defaults for `max_retries`, `base_delay`, `max_delay`, `multiplier`, and `jitter`
+- [x] implement duration string parsing for retry delays
+- [x] implement resolution order: code defaults, `providers.defaults.retry`, `providers.<name>.retry`
+- [x] expose `ForProvider(cfg sdk.Config, provider string)` returning `retry.Config` plus raw config if useful
+- [x] write tests for defaults, deep merge, invalid jitter, invalid durations, and invalid retry values
+- [x] run `go test ./sdk/providerretry` - must pass before next task
 
 ### Task 6: Make OpenAI-compatible retry explicit
 - [ ] update `utils/openaicompat.Stream` to accept retry config or an options/runtime struct
