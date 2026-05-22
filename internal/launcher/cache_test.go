@@ -132,6 +132,7 @@ func TestStore_EvictsLeastRecentlyUsedEntry(t *testing.T) {
 	src := writeCacheTestBinary(t, "0123456789")
 	c := newTickingCache(root)
 	c.MaxSizeBytes = -1
+	c.AccessLeaseDuration = -1
 
 	require.NoError(t, c.Store("old", src))
 	require.NoError(t, c.Store("recent", src))
@@ -147,6 +148,42 @@ func TestStore_EvictsLeastRecentlyUsedEntry(t *testing.T) {
 
 	_, found = c.Lookup("old")
 	assert.True(t, found, "lookup should refresh access metadata")
+
+	_, found = c.Lookup("newest")
+	assert.True(t, found, "newly stored entry should be protected from eviction")
+}
+
+func TestStore_SkipsRecentlyAccessedEntriesDuringEviction(t *testing.T) {
+	root := t.TempDir()
+	src := writeCacheTestBinary(t, "0123456789")
+	c := NewCache(root)
+	c.MaxSizeBytes = -1
+	c.AccessLeaseDuration = time.Minute
+
+	now := time.Unix(1000, 0)
+	c.now = func() time.Time {
+		return now
+	}
+
+	now = now.Add(-time.Hour)
+
+	require.NoError(t, c.Store("old", src))
+	require.NoError(t, c.Store("active", src))
+
+	now = time.Unix(1000, 0)
+	_, found := c.Lookup("active")
+	require.True(t, found)
+
+	c.MaxSizeBytes = 15
+	now = now.Add(time.Second)
+
+	require.NoError(t, c.Store("newest", src))
+
+	_, found = c.Lookup("old")
+	assert.False(t, found, "old inactive entry should be evicted")
+
+	_, found = c.Lookup("active")
+	assert.True(t, found, "recently accessed entry should be protected from best-effort eviction")
 
 	_, found = c.Lookup("newest")
 	assert.True(t, found, "newly stored entry should be protected from eviction")

@@ -355,6 +355,49 @@ replace example.com/shared => %s
 	assert.NotEqual(t, h1, h2, "embedded files in local replace modules should affect the launcher hash")
 }
 
+func TestComputeHash_RecursiveLocalReplaceChangesHash(t *testing.T) {
+	nestedDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(nestedDir, "go.mod"), []byte("module example.com/nested\n\ngo 1.22\n"), 0o600))
+
+	nestedFile := filepath.Join(nestedDir, "nested.go")
+	require.NoError(t, os.WriteFile(nestedFile, []byte("package nested\nconst Version = 1\n"), 0o600))
+
+	sharedDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(sharedDir, "go.mod"), fmt.Appendf(nil, `module example.com/shared
+
+go 1.22
+
+require example.com/nested v0.0.0
+
+replace example.com/nested => %s
+`, nestedDir), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(sharedDir, "shared.go"), []byte("package shared\n"), 0o600))
+
+	extDir := t.TempDir()
+	extFile := filepath.Join(extDir, "ext.go")
+	require.NoError(t, os.WriteFile(extFile, []byte("package ext\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, "go.mod"), fmt.Appendf(nil, `module example.com/ext
+
+go 1.22
+
+require example.com/shared v0.0.0
+
+replace example.com/shared => %s
+`, sharedDir), 0o600))
+
+	exts := []ExtensionInfo{{Name: "x", Dir: extDir, GoFiles: []string{extFile}}}
+
+	h1, err := ComputeHash(exts, "", "", false, "")
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(nestedFile, []byte("package nested\nconst Version = 2\n"), 0o600))
+
+	h2, err := ComputeHash(exts, "", "", false, "")
+	require.NoError(t, err)
+
+	assert.NotEqual(t, h1, h2, "recursive local replace modules should affect the launcher hash")
+}
+
 func TestComputeHash_EmbeddedGlobPatternChangesHash(t *testing.T) {
 	dir := t.TempDir()
 
@@ -760,6 +803,47 @@ func TestGenerateGoMod_NestedModulePath(t *testing.T) {
 	s := string(content)
 	assert.Contains(t, s, "github.com/weave-agent/weave/ext/tools/bash v0.0.0")
 	assert.Contains(t, s, "replace github.com/weave-agent/weave/ext/tools/bash => /tmp/exts/tools/bash")
+}
+
+func TestGenerateGoMod_IncludesRecursiveLocalReplaces(t *testing.T) {
+	nestedDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(nestedDir, "go.mod"), []byte("module example.com/nested\n\ngo 1.22\n"), 0o600))
+
+	sharedDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(sharedDir, "go.mod"), fmt.Appendf(nil, `module example.com/shared
+
+go 1.22
+
+require example.com/nested v0.0.0
+
+replace example.com/nested => %s
+`, nestedDir), 0o600))
+
+	extDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, "go.mod"), fmt.Appendf(nil, `module example.com/ext
+
+go 1.22
+
+require example.com/shared v0.0.0
+
+replace example.com/shared => %s
+`, sharedDir), 0o600))
+
+	dir := t.TempDir()
+	exts := []ExtensionInfo{
+		{Name: "ext", Dir: extDir, ModulePath: "example.com/ext"},
+	}
+
+	require.NoError(t, GenerateGoMod(dir, "/tmp/weave", "", exts))
+
+	content, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+	require.NoError(t, err)
+
+	s := string(content)
+	assert.Contains(t, s, "example.com/shared v0.0.0")
+	assert.Contains(t, s, "example.com/nested v0.0.0")
+	assert.Contains(t, s, "replace example.com/shared => "+sharedDir)
+	assert.Contains(t, s, "replace example.com/nested => "+nestedDir)
 }
 
 func TestGenerateMainGo_Content(t *testing.T) {

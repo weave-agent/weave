@@ -236,6 +236,62 @@ func TestRun_HelpFlagPrintsFullHelpWithoutBootstrapOrLauncher(t *testing.T) {
 	}
 }
 
+func TestRun_HelpFlagBypassesConfigLoading(t *testing.T) {
+	dir := t.TempDir()
+	cfgFile := filepath.Join(dir, ".weave", "settings.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(cfgFile), 0o750))
+	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":`), 0o600))
+
+	origWd, _ := os.Getwd()
+
+	require.NoError(t, os.Chdir(dir))
+	defer func() { _ = os.Chdir(origWd) }()
+
+	var bootstrapCalls, launcherCalls int
+
+	deps := runDeps{
+		runBootstrap: func(context.Context, *settings.Settings) {
+			bootstrapCalls++
+		},
+		runLauncher: func(context.Context, string, string, string, string, []string, string, string, bool, []string) error {
+			launcherCalls++
+
+			return nil
+		},
+	}
+
+	var code int
+
+	stderr := captureStderr(t, func() {
+		code = runWithDeps(context.Background(), []string{"--help"}, "unknown", deps)
+	})
+
+	assert.Equal(t, 0, code)
+	assert.Contains(t, stderr, "Usage: weave [options] [command]")
+	assert.Equal(t, 0, bootstrapCalls)
+	assert.Equal(t, 0, launcherCalls)
+}
+
+func TestRun_HelpFlagDoesNotGenerateDefaultConfig(t *testing.T) {
+	dir := t.TempDir()
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	origWd, _ := os.Getwd()
+
+	require.NoError(t, os.Chdir(dir))
+	defer func() { _ = os.Chdir(origWd) }()
+
+	var code int
+
+	_ = captureStderr(t, func() {
+		code = runWithDeps(context.Background(), []string{"--help"}, "unknown", runDeps{})
+	})
+
+	assert.Equal(t, 0, code)
+	assert.NoFileExists(t, filepath.Join(homeDir, ".weave", "settings.json"))
+}
+
 func TestRun_NoInputSkipsBootstrapAndLauncher(t *testing.T) {
 	dir := t.TempDir()
 	cfgFile := filepath.Join(dir, ".weave", "settings.json")

@@ -98,32 +98,17 @@ func ComputeHash(exts []ExtensionInfo, moduleRoot, moduleVersion string, headles
 	// These are shared libraries (e.g. openaicompat) that extensions depend on
 	// via replace directives. Without this, changes to shared libs don't
 	// invalidate the cache.
-	absModuleRoot, _ := filepath.Abs(moduleRoot)
-
-	var transitiveDeps []struct{ modPath, dir string }
-
-	transitiveSeen := make(map[string]bool)
-
-	for _, ext := range sorted {
-		for depModPath, depDir := range readLocalReplaces(ext.Dir) {
-			if transitiveSeen[depDir] {
-				continue
-			}
-
-			// Skip the root module — already hashed via HashModuleGraph and
-			// coreDirs. Only applicable in dev mode where moduleRoot is non-empty.
-			if moduleRoot != "" && depDir == absModuleRoot {
-				continue
-			}
-
-			transitiveSeen[depDir] = true
-			transitiveDeps = append(transitiveDeps, struct{ modPath, dir string }{depModPath, depDir})
-		}
+	var absModuleRoot string
+	if moduleRoot != "" {
+		absModuleRoot, _ = filepath.Abs(moduleRoot)
 	}
 
-	sort.Slice(transitiveDeps, func(i, j int) bool {
-		return transitiveDeps[i].modPath < transitiveDeps[j].modPath
-	})
+	extDirs := make([]string, 0, len(sorted))
+	for _, ext := range sorted {
+		extDirs = append(extDirs, ext.Dir)
+	}
+
+	transitiveDeps := collectLocalReplaceDeps(extDirs, absModuleRoot)
 
 	for _, dep := range transitiveDeps {
 		h.Write([]byte("transitive:" + dep.modPath + "\n"))
@@ -788,17 +773,24 @@ func GenerateGoMod(dir, moduleRoot, moduleVersion string, exts []ExtensionInfo) 
 		extraReplaces []string
 	)
 
+	extDirs := make([]string, 0, len(exts))
 	for _, ext := range exts {
-		localReplaces := readLocalReplaces(ext.Dir)
-		for modPath, localPath := range localReplaces {
-			if directModulePaths[modPath] {
-				continue
-			}
+		extDirs = append(extDirs, ext.Dir)
+	}
 
-			directModulePaths[modPath] = true
-			extraRequires = append(extraRequires, modPath+" v0.0.0")
-			extraReplaces = append(extraReplaces, "replace "+modPath+" => "+localPath)
+	var absModuleRoot string
+	if moduleRoot != "" {
+		absModuleRoot, _ = filepath.Abs(moduleRoot)
+	}
+
+	for _, dep := range collectLocalReplaceDeps(extDirs, absModuleRoot) {
+		if directModulePaths[dep.modPath] {
+			continue
 		}
+
+		directModulePaths[dep.modPath] = true
+		extraRequires = append(extraRequires, dep.modPath+" v0.0.0")
+		extraReplaces = append(extraReplaces, "replace "+dep.modPath+" => "+dep.dir)
 	}
 
 	sort.Strings(extraRequires)
@@ -874,6 +866,52 @@ func readLocalReplaces(dir string) map[string]string {
 	return result
 }
 
+type localReplaceDep struct {
+	modPath string
+	dir     string
+}
+
+func collectLocalReplaceDeps(seedDirs []string, moduleRoot string) []localReplaceDep {
+	var deps []localReplaceDep
+
+	queue := append([]string(nil), seedDirs...)
+	seenDeps := make(map[string]bool)
+	queuedDirs := make(map[string]bool)
+
+	for len(queue) > 0 {
+		dir := queue[0]
+		queue = queue[1:]
+
+		for modPath, depDir := range readLocalReplaces(dir) {
+			if moduleRoot != "" && samePath(depDir, moduleRoot) {
+				continue
+			}
+
+			depKey := modPath + "\x00" + depDir
+			if !seenDeps[depKey] {
+				seenDeps[depKey] = true
+
+				deps = append(deps, localReplaceDep{modPath: modPath, dir: depDir})
+			}
+
+			if !queuedDirs[depDir] {
+				queuedDirs[depDir] = true
+				queue = append(queue, depDir)
+			}
+		}
+	}
+
+	sort.Slice(deps, func(i, j int) bool {
+		if deps[i].modPath == deps[j].modPath {
+			return deps[i].dir < deps[j].dir
+		}
+
+		return deps[i].modPath < deps[j].modPath
+	})
+
+	return deps
+}
+
 // stripGoModComment removes any "//"-prefixed inline comment from a go.mod
 // line. go.mod has no escape syntax so anything after "//" is comment text.
 func stripGoModComment(line string) string {
@@ -908,6 +946,13 @@ func parseSingleReplace(s, dir string, result map[string]string) {
 	if !strings.HasPrefix(localPath, "/") {
 		absPath = filepath.Join(dir, localPath)
 	}
+
+	absPath, absErr := filepath.Abs(absPath)
+	if absErr != nil {
+		return
+	}
+
+	absPath = filepath.Clean(absPath)
 
 	// Skip resolved paths without a go.mod — not a valid Go module.
 	if _, statErr := os.Stat(filepath.Join(absPath, "go.mod")); statErr != nil {

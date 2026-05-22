@@ -330,6 +330,12 @@ func run(ctx context.Context, args []string, revision string) (exitCode int) {
 }
 
 func runWithDeps(ctx context.Context, args []string, revision string, deps runDeps) (exitCode int) {
+	if hasHelpFlag(args) {
+		fmt.Fprint(os.Stderr, settings.GenerateFullHelp())
+
+		return 0
+	}
+
 	configFile, cf, rest, err := loadConfig(args)
 	if err != nil {
 		var helpErr *settings.HelpError

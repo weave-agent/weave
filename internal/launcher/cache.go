@@ -19,6 +19,10 @@ const (
 // DefaultMaxCacheSizeBytes is the default launcher binary cache size cap.
 const DefaultMaxCacheSizeBytes int64 = 1 << 30
 
+// DefaultAccessLeaseDuration keeps just-used cache entries out of best-effort
+// eviction so a concurrent launch can exec the path it just looked up.
+const DefaultAccessLeaseDuration = 30 * time.Second
+
 // Cache manages per-hash binary caching under a root directory.
 type Cache struct {
 	// Root is the directory containing per-hash launcher binary cache entries.
@@ -26,15 +30,19 @@ type Cache struct {
 
 	// MaxSizeBytes caps the cache after successful stores; zero uses the default, negative disables eviction.
 	MaxSizeBytes int64
-	now          func() time.Time
+
+	// AccessLeaseDuration protects recently accessed entries from eviction; zero uses the default, negative disables protection.
+	AccessLeaseDuration time.Duration
+	now                 func() time.Time
 }
 
 // NewCache creates a Cache rooted at rootDir (typically ~/.weave/bin/).
 func NewCache(rootDir string) *Cache {
 	return &Cache{
-		Root:         rootDir,
-		MaxSizeBytes: DefaultMaxCacheSizeBytes,
-		now:          time.Now,
+		Root:                rootDir,
+		MaxSizeBytes:        DefaultMaxCacheSizeBytes,
+		AccessLeaseDuration: DefaultAccessLeaseDuration,
+		now:                 time.Now,
 	}
 }
 
@@ -207,12 +215,18 @@ func (c *Cache) evictToSize(protectHash string) error {
 		return entries[i].accessed.Before(entries[j].accessed)
 	})
 
+	now := c.timeNow()
+
 	for _, entry := range entries {
 		if total <= limit {
 			break
 		}
 
 		if entry.hash == protectHash {
+			continue
+		}
+
+		if c.accessLeaseActive(now, entry.accessed) {
 			continue
 		}
 
@@ -311,6 +325,27 @@ func (c *Cache) sizeLimit() (int64, bool) {
 	}
 
 	return c.MaxSizeBytes, true
+}
+
+func (c *Cache) accessLeaseActive(now, accessed time.Time) bool {
+	lease := c.accessLeaseDuration()
+	if lease <= 0 {
+		return false
+	}
+
+	return now.Sub(accessed) < lease
+}
+
+func (c *Cache) accessLeaseDuration() time.Duration {
+	if c.AccessLeaseDuration < 0 {
+		return 0
+	}
+
+	if c.AccessLeaseDuration == 0 {
+		return DefaultAccessLeaseDuration
+	}
+
+	return c.AccessLeaseDuration
 }
 
 func (c *Cache) timeNow() time.Time {
