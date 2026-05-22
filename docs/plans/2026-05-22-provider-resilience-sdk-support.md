@@ -105,12 +105,12 @@ The first pass configures transport deadlines only. It intentionally does not ad
 - [x] run `go test ./utils/openaicompat` - must pass before next task
 
 ### Task 7: Cap OpenAI-compatible error response bodies
-- [ ] add 64 KiB cap for non-OK response body reads in `utils/openaicompat`
-- [ ] append or expose a truncation marker when the error body exceeds the cap
-- [ ] preserve existing structured API error parsing when body is under cap
-- [ ] write tests for capped oversized error body
-- [ ] write tests for normal structured error parsing after cap change
-- [ ] run `go test ./utils/openaicompat` - must pass before next task
+- [x] add 64 KiB cap for non-OK response body reads in `utils/openaicompat`
+- [x] append or expose a truncation marker when the error body exceeds the cap
+- [x] preserve existing structured API error parsing when body is under cap
+- [x] write tests for capped oversized error body
+- [x] write tests for normal structured error parsing after cap change
+- [x] run `go test ./utils/openaicompat` - must pass before next task
 
 ### Task 8: Verify acceptance criteria
 - [ ] verify config shape supports `providers.defaults.http` and `providers.defaults.retry`

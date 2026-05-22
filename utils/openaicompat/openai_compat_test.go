@@ -957,3 +957,57 @@ func TestStream_RateLimitError(t *testing.T) {
 	assert.Equal(t, ErrorTypeRateLimit, apiErr.Type)
 	assert.Equal(t, 429, apiErr.StatusCode)
 }
+
+func TestStream_OversizedErrorBodyIsCapped(t *testing.T) {
+	oversizedBody := strings.Repeat("x", maxErrorBodySize+100)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = fmt.Fprint(w, oversizedBody)
+	}))
+	defer server.Close()
+
+	_, err := Stream(context.Background(), server.Client(), ProviderConfig{
+		BaseURL: server.URL,
+		APIKey:  "test-key",
+		RetryConfig: &retry.Config{
+			MaxRetries: 0,
+		},
+	}, sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("hi")},
+	})
+	require.Error(t, err)
+
+	var apiErr *Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, ErrorTypeServer, apiErr.Type)
+	assert.Equal(t, 500, apiErr.StatusCode)
+	assert.Contains(t, apiErr.Body, "... (truncated)")
+	assert.Len(t, apiErr.Body, maxErrorBodySize+len("... (truncated)"))
+}
+
+func TestStream_StructuredErrorParsingUnderCap(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = fmt.Fprint(w, `{"error":{"message":"Model not found","type":"invalid_request_error"}}`)
+	}))
+	defer server.Close()
+
+	_, err := Stream(context.Background(), server.Client(), ProviderConfig{
+		BaseURL: server.URL,
+		APIKey:  "test-key",
+		RetryConfig: &retry.Config{
+			MaxRetries: 0,
+		},
+	}, sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("hi")},
+	})
+	require.Error(t, err)
+
+	var apiErr *Error
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, ErrorTypeClient, apiErr.Type)
+	assert.Equal(t, 400, apiErr.StatusCode)
+	assert.Equal(t, "Model not found", apiErr.Message)
+	assert.NotContains(t, apiErr.Body, "truncated")
+}

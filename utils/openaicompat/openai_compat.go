@@ -32,6 +32,8 @@ const (
 
 	roleAssistant = "assistant"
 	roleFunction  = "function"
+
+	maxErrorBodySize = 64 * 1024
 )
 
 // Error represents a structured error from the OpenAI-compatible API.
@@ -285,8 +287,18 @@ func doStreamRequest(client *http.Client, req *http.Request) (io.ReadCloser, err
 	if resp.StatusCode != http.StatusOK {
 		defer resp.Body.Close()
 
-		errBody, _ := io.ReadAll(resp.Body)
+		limited := io.LimitReader(resp.Body, maxErrorBodySize+1)
+		errBody, _ := io.ReadAll(limited)
+
+		truncated := len(errBody) > maxErrorBodySize
+		if truncated {
+			errBody = errBody[:maxErrorBodySize]
+		}
+
 		bodyStr := string(errBody)
+		if truncated {
+			bodyStr += "... (truncated)"
+		}
 
 		var errResp ErrorResponse
 		if json.Unmarshal(errBody, &errResp) == nil && errResp.Error.Message != "" {
