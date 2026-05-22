@@ -122,9 +122,9 @@ The first pass configures transport deadlines only. It intentionally does not ad
 - [x] run `make lint`
 
 ### Task 9: Update documentation if needed
-- [ ] update provider configuration documentation if an appropriate docs location exists
-- [ ] document `providers.defaults.http`, `providers.defaults.retry`, and provider override examples
-- [ ] document that no stream-idle timeout and no `max_elapsed` are supported in this pass
+- [x] update provider configuration documentation if an appropriate docs location exists
+- [x] document `providers.defaults.http`, `providers.defaults.retry`, and provider override examples
+- [x] document that no stream-idle timeout and no `max_elapsed` are supported in this pass
 
 ## Technical Details
 Config shape:

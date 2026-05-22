@@ -77,6 +77,70 @@ Config structs use tags: `json`, `default`, `env`, `flag`, `short`, `validate`, 
 | Sandbox mode | `off`, `readonly`, `ask`, `auto` (default) |
 | Step limit | Max tool calls per turn (default: 50) |
 
+### Provider HTTP and Retry Configuration
+
+Providers support per-provider HTTP transport and retry overrides through the `providers.defaults` and `providers.<name>` config keys.
+
+#### HTTP Transport
+
+Set under `providers.defaults.http` or `providers.<name>.http`:
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `dial_timeout` | duration string | `10s` | TCP dial timeout |
+| `tls_handshake_timeout` | duration string | `10s` | TLS handshake timeout |
+| `response_header_timeout` | duration string | `60s` | Wait for response headers |
+| `idle_conn_timeout` | duration string | `90s` | Idle connection timeout |
+
+#### Retry
+
+Set under `providers.defaults.retry` or `providers.<name>.retry`:
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `max_retries` | int | `5` | Maximum retry attempts |
+| `base_delay` | duration string | `1s` | Initial retry delay |
+| `max_delay` | duration string | `30s` | Maximum retry delay |
+| `multiplier` | float | `2.0` | Exponential backoff multiplier |
+| `jitter` | string | `full` | Jitter mode: `full` or `none` |
+
+#### Example
+
+```json
+{
+  "providers": {
+    "defaults": {
+      "http": {
+        "dial_timeout": "10s",
+        "tls_handshake_timeout": "10s",
+        "response_header_timeout": "60s",
+        "idle_conn_timeout": "90s"
+      },
+      "retry": {
+        "max_retries": 5,
+        "base_delay": "1s",
+        "max_delay": "30s",
+        "multiplier": 2.0,
+        "jitter": "full"
+      }
+    },
+    "openai": {
+      "http": {
+        "response_header_timeout": "120s"
+      },
+      "retry": {
+        "max_retries": 3,
+        "jitter": "none"
+      }
+    }
+  }
+}
+```
+
+Provider-specific values override defaults. Unspecified fields inherit from defaults. Invalid duration strings or jitter values cause a clear initialization error.
+
+Note: This pass does not support a per-stream idle timeout or a `max_elapsed` retry limit.
+
 ### Environment Variables
 
 | Variable | Description |
