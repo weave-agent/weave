@@ -39,7 +39,9 @@ Standard library as much as possible. Every replaceable component is an extensio
 
 **Launcher pattern:** resolve config → handle help/no-input fast paths → bootstrap core extensions (first launch only) → auto-discover extensions → derive build inputs (headless excludes UI-only extensions) → build a custom binary (cached per hash) → exec it.
 
-**Launcher cache:** Generated binaries are cached under `~/.weave/bin/<hash>/weave`. Cache keys include the Go runtime version, OS/arch, headless mode, agent loop, root module graph, extension Go files, embedded `//go:embed` resources, extension module files, selected core source directories, and local replace dependencies. The cache is size-bounded with LRU-style eviction based on access metadata.
+**Launcher cache:** Generated binaries are cached under `~/.weave/bin/<hash>/weave`. Cache keys include the Go runtime version, OS/arch, headless mode, agent loop, root module graph, extension Go files, embedded `//go:embed` resources, extension module files, selected core source directories, and local replace dependencies. Non-Go resource files only participate when referenced by `//go:embed`; unembedded `.md` files and assets do not invalidate the generated binary cache. The cache is capped at 1 GiB by default and evicts least-recently-used entries after successful stores, protecting the newly stored entry even if it exceeds the cap.
+
+**Launcher cancellation:** Launcher build paths must propagate `context.Context`. `BuildFunc`, `Launcher.Run`, `buildAndCache`, `Build`, build locking, and build subprocesses share the same context; subprocesses must use `exec.CommandContext`.
 
 ## Key Packages
 

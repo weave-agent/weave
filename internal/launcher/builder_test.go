@@ -396,6 +396,191 @@ var files embed.FS
 	}
 }
 
+func TestComputeHash_EmbeddedQuotedAndRawPatternsChangeHash(t *testing.T) {
+	dir := t.TempDir()
+
+	goFile := filepath.Join(dir, "ext.go")
+	require.NoError(t, os.WriteFile(goFile, []byte("package ext\n\nimport \"embed\"\n\n//go:embed \"space file.txt\" `raw.txt`\nvar files embed.FS\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "space file.txt"), []byte("space v1\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "raw.txt"), []byte("raw v1\n"), 0o600))
+
+	exts := []ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{goFile}}}
+
+	h1, err := ComputeHash(exts, "", "", false, "")
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "space file.txt"), []byte("space v2\n"), 0o600))
+
+	h2, err := ComputeHash(exts, "", "", false, "")
+	require.NoError(t, err)
+	assert.NotEqual(t, h1, h2, "quoted go:embed pattern matches should affect the launcher hash")
+}
+
+func TestComputeHash_EmbeddedDirectoryHiddenFilesRequireAllPrefix(t *testing.T) {
+	dir := t.TempDir()
+
+	goFile := filepath.Join(dir, "ext.go")
+	require.NoError(t, os.WriteFile(goFile, []byte(`package ext
+
+import "embed"
+
+//go:embed assets
+var assets embed.FS
+`), 0o600))
+
+	visibleFile := filepath.Join(dir, "assets", "visible.txt")
+	hiddenFile := filepath.Join(dir, "assets", ".secret")
+
+	require.NoError(t, os.MkdirAll(filepath.Dir(visibleFile), 0o750))
+	require.NoError(t, os.WriteFile(visibleFile, []byte("visible v1\n"), 0o600))
+	require.NoError(t, os.WriteFile(hiddenFile, []byte("hidden v1\n"), 0o600))
+
+	exts := []ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{goFile}}}
+
+	h1, err := ComputeHash(exts, "", "", false, "")
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(hiddenFile, []byte("hidden v2\n"), 0o600))
+
+	h2, err := ComputeHash(exts, "", "", false, "")
+	require.NoError(t, err)
+	assert.Equal(t, h1, h2, "directory embeds without all: should ignore hidden files")
+
+	require.NoError(t, os.WriteFile(goFile, []byte(`package ext
+
+import "embed"
+
+//go:embed all:assets
+var assets embed.FS
+`), 0o600))
+
+	h3, err := ComputeHash(exts, "", "", false, "")
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(hiddenFile, []byte("hidden v3\n"), 0o600))
+
+	h4, err := ComputeHash(exts, "", "", false, "")
+	require.NoError(t, err)
+	assert.NotEqual(t, h3, h4, "directory embeds with all: should include hidden files")
+}
+
+func TestComputeHash_EmbeddedGlobAndDirectoryAddRemoveFiles(t *testing.T) {
+	tests := []struct {
+		name      string
+		directive string
+		addPath   string
+		removeDir bool
+	}{
+		{name: "glob", directive: "assets/*.txt", addPath: filepath.Join("assets", "b.txt")},
+		{name: "directory", directive: "assets", addPath: filepath.Join("assets", "nested", "b.txt"), removeDir: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+
+			goFile := filepath.Join(dir, "ext.go")
+			require.NoError(t, os.WriteFile(goFile, fmt.Appendf(nil, `package ext
+
+import "embed"
+
+//go:embed %s
+var assets embed.FS
+`, tt.directive), 0o600))
+
+			initialFile := filepath.Join(dir, "assets", "a.txt")
+			require.NoError(t, os.MkdirAll(filepath.Dir(initialFile), 0o750))
+			require.NoError(t, os.WriteFile(initialFile, []byte("a\n"), 0o600))
+
+			exts := []ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{goFile}}}
+
+			h1, err := ComputeHash(exts, "", "", false, "")
+			require.NoError(t, err)
+
+			addedFile := filepath.Join(dir, tt.addPath)
+			require.NoError(t, os.MkdirAll(filepath.Dir(addedFile), 0o750))
+			require.NoError(t, os.WriteFile(addedFile, []byte("b\n"), 0o600))
+
+			h2, err := ComputeHash(exts, "", "", false, "")
+			require.NoError(t, err)
+			assert.NotEqual(t, h1, h2, "adding embedded files should affect the launcher hash")
+
+			if tt.removeDir {
+				require.NoError(t, os.RemoveAll(filepath.Dir(addedFile)))
+			} else {
+				require.NoError(t, os.Remove(addedFile))
+			}
+
+			h3, err := ComputeHash(exts, "", "", false, "")
+			require.NoError(t, err)
+			assert.Equal(t, h1, h3, "removing the added embedded file should restore the original hash")
+		})
+	}
+}
+
+func TestComputeHash_EmbeddedPatternRelativeToPackageDirectory(t *testing.T) {
+	dir := t.TempDir()
+
+	pkgDir := filepath.Join(dir, "pkg")
+	goFile := filepath.Join(pkgDir, "ext.go")
+	require.NoError(t, os.MkdirAll(filepath.Join(pkgDir, "templates"), 0o750))
+	require.NoError(t, os.WriteFile(goFile, []byte(`package pkg
+
+import "embed"
+
+//go:embed templates/*.txt
+var templates embed.FS
+`), 0o600))
+
+	templateFile := filepath.Join(pkgDir, "templates", "prompt.txt")
+	require.NoError(t, os.WriteFile(templateFile, []byte("prompt v1\n"), 0o600))
+
+	exts := []ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{goFile}}}
+
+	h1, err := ComputeHash(exts, "", "", false, "")
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(templateFile, []byte("prompt v2\n"), 0o600))
+
+	h2, err := ComputeHash(exts, "", "", false, "")
+	require.NoError(t, err)
+	assert.NotEqual(t, h1, h2, "go:embed patterns should be resolved relative to their package directory")
+}
+
+func TestComputeHash_EmbeddedInvalidMatchesReturnError(t *testing.T) {
+	tests := []struct {
+		name     string
+		filePath string
+		want     string
+	}{
+		{name: "vendor", filePath: filepath.Join("assets", "vendor", "value.txt"), want: "vendor directory"},
+		{name: "invalid name", filePath: filepath.Join("assets", "bad'name.txt"), want: "invalid name"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+
+			goFile := filepath.Join(dir, "ext.go")
+			require.NoError(t, os.WriteFile(goFile, []byte(`package ext
+
+import "embed"
+
+//go:embed assets
+var assets embed.FS
+`), 0o600))
+
+			embeddedFile := filepath.Join(dir, tt.filePath)
+			require.NoError(t, os.MkdirAll(filepath.Dir(embeddedFile), 0o750))
+			require.NoError(t, os.WriteFile(embeddedFile, []byte("value\n"), 0o600))
+
+			_, err := ComputeHash([]ExtensionInfo{{Name: "x", Dir: dir, GoFiles: []string{goFile}}}, "", "", false, "")
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.want)
+		})
+	}
+}
+
 func TestGenerateMainGo_UIExtFilteredByBuild(t *testing.T) {
 	// Build() filters UI extensions before calling GenerateMainGo,
 	// so GenerateMainGo only receives non-UI extensions.

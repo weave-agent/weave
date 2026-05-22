@@ -1,5 +1,7 @@
 # Launcher Optimisations
 
+Status: Completed 2026-05-22
+
 ## Overview
 
 Implement launcher correctness fixes, startup UX improvements, cache management, and performance measurement for the generated-binary launcher pipeline. The work reduces stale-cache risk, avoids unnecessary headless rebuilds, prevents help/no-input commands from doing build/bootstrap work, bounds launcher cache growth, and adds measurement before changing `go mod tidy` behavior.
@@ -64,6 +66,11 @@ The changes integrate with the existing launcher flow in `internal/wire/run.go` 
 - **Implementation Steps** (`[ ]` checkboxes): tasks achievable within this codebase - code changes, tests, documentation updates
 - **Post-Completion** (no checkboxes): items requiring external action - manual testing, changes in consuming projects, deployment configs, third-party verifications
 - **Checkbox placement**: Checkboxes belong only in Task sections (`### Task N:` or `### Iteration N:`). Do not put checkboxes in Success criteria, Overview, or Context — they cause extra loop iterations.
+
+Final verification completed during implementation:
+- `go test ./internal/launcher ./internal/wire ./internal/extmanage`
+- `go test ./...`
+- `make lint`
 
 ## Implementation Steps
 

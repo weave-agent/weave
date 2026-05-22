@@ -100,7 +100,7 @@ func TestStore_MissingSource(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestStoreAndLookup_UpdateAccessMetadata(t *testing.T) {
+func TestStoreAndLookup_UpdateAccessTime(t *testing.T) {
 	root := t.TempDir()
 	src := writeCacheTestBinary(t, "binary")
 
@@ -120,11 +120,11 @@ func TestStoreAndLookup_UpdateAccessMetadata(t *testing.T) {
 	}
 
 	require.NoError(t, c.Store("hash1", src))
-	assert.Equal(t, "10000000000\n", readAccessMetadata(t, c, "hash1"))
+	assert.True(t, cacheEntryModTime(t, c, "hash1").Equal(time.Unix(10, 0)))
 
 	_, found := c.Lookup("hash1")
 	require.True(t, found)
-	assert.Equal(t, "20000000000\n", readAccessMetadata(t, c, "hash1"))
+	assert.True(t, cacheEntryModTime(t, c, "hash1").Equal(time.Unix(20, 0)))
 }
 
 func TestStore_EvictsLeastRecentlyUsedEntry(t *testing.T) {
@@ -215,13 +215,13 @@ func newTickingCache(root string) *Cache {
 	return c
 }
 
-func readAccessMetadata(t *testing.T, c *Cache, hash string) string {
+func cacheEntryModTime(t *testing.T, c *Cache, hash string) time.Time {
 	t.Helper()
 
-	data, err := os.ReadFile(filepath.Join(c.Root, hash, accessMetadataName))
+	info, err := os.Stat(filepath.Join(c.Root, hash))
 	require.NoError(t, err)
 
-	return string(data)
+	return info.ModTime()
 }
 
 func cacheTotalSize(t *testing.T, c *Cache) int64 {

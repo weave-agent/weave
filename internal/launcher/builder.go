@@ -438,6 +438,10 @@ func matchEmbedPattern(moduleRoot, pkgDir, rawPattern string) ([]string, error) 
 				return nil, fmt.Errorf("rel %s: %w", match, relErr)
 			}
 
+			if err := validateEmbeddedPath(moduleRoot, absMatch); err != nil {
+				return nil, err
+			}
+
 			files = append(files, filepath.ToSlash(rel))
 		}
 	}
@@ -495,6 +499,10 @@ func embeddedDirFiles(moduleRoot, dir string, all bool) ([]string, error) {
 				return fs.SkipDir
 			}
 
+			if err := validateEmbeddedPath(moduleRoot, path); err != nil {
+				return err
+			}
+
 			return nil
 		}
 
@@ -508,6 +516,10 @@ func embeddedDirFiles(moduleRoot, dir string, all bool) ([]string, error) {
 
 		if !withinModuleBoundary(moduleRoot, path) {
 			return nil
+		}
+
+		if err := validateEmbeddedPath(moduleRoot, path); err != nil {
+			return err
 		}
 
 		rel, relErr := filepath.Rel(moduleRoot, path)
@@ -526,6 +538,30 @@ func embeddedDirFiles(moduleRoot, dir string, all bool) ([]string, error) {
 	sort.Strings(files)
 
 	return files, nil
+}
+
+func validateEmbeddedPath(moduleRoot, absPath string) error {
+	rel, err := filepath.Rel(moduleRoot, absPath)
+	if err != nil {
+		return fmt.Errorf("rel %s: %w", absPath, err)
+	}
+
+	slashRel := filepath.ToSlash(rel)
+	for elem := range strings.SplitSeq(slashRel, "/") {
+		if elem == "vendor" {
+			return fmt.Errorf("embedded file %s is in vendor directory", slashRel)
+		}
+
+		if elem == ".git" {
+			return fmt.Errorf("embedded file %s is in .git directory", slashRel)
+		}
+
+		if strings.ContainsAny(elem, "\"*<>?`'|\\:") {
+			return fmt.Errorf("embedded file %s has invalid name %q", slashRel, elem)
+		}
+	}
+
+	return nil
 }
 
 func withinModuleBoundary(moduleRoot, candidate string) bool {
@@ -1197,42 +1233,8 @@ func Build(ctx context.Context, dir, moduleRoot, moduleVersion, agentLoop string
 		ctx = context.Background()
 	}
 
-	sorted := make([]ExtensionInfo, len(exts))
-	copy(sorted, exts)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].Name < sorted[j].Name
-	})
-
-	// Filter out UI extensions in headless mode before generating go.mod/main.go.
-	if headless {
-		filtered := make([]ExtensionInfo, 0, len(sorted))
-		for _, ext := range sorted {
-			if !ext.IsUIExt {
-				filtered = append(filtered, ext)
-			}
-		}
-
-		sorted = filtered
-	}
-
-	// Ensure each extension dir has a go.mod so Go treats it as a module
-	for _, ext := range sorted {
-		if err := ensureExtGoMod(ext, moduleRoot, moduleVersion); err != nil {
-			return "", fmt.Errorf("build: extension %s go.mod: %w", ext.Name, err)
-		}
-	}
-
-	// Read actual module paths from extension go.mods
-	for i := range sorted {
-		sorted[i].ModulePath = readModulePath(sorted[i].Dir)
-	}
-
-	if err := GenerateGoMod(dir, moduleRoot, moduleVersion, sorted); err != nil {
-		return "", fmt.Errorf("build: generate go.mod: %w", err)
-	}
-
-	if err := GenerateMainGo(dir, sorted, agentLoop); err != nil {
-		return "", fmt.Errorf("build: generate main.go: %w", err)
+	if err := prepareBuildFiles(dir, moduleRoot, moduleVersion, agentLoop, headless, exts); err != nil {
+		return "", err
 	}
 
 	fmt.Fprintf(os.Stderr, "  -> resolving dependencies...\n")
@@ -1255,6 +1257,48 @@ func Build(ctx context.Context, dir, moduleRoot, moduleVersion, agentLoop string
 	}
 
 	return binaryPath, nil
+}
+
+func prepareBuildFiles(dir, moduleRoot, moduleVersion, agentLoop string, headless bool, exts []ExtensionInfo) error {
+	sorted := make([]ExtensionInfo, len(exts))
+	copy(sorted, exts)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Name < sorted[j].Name
+	})
+
+	// Filter out UI extensions in headless mode before generating go.mod/main.go.
+	if headless {
+		filtered := make([]ExtensionInfo, 0, len(sorted))
+		for _, ext := range sorted {
+			if !ext.IsUIExt {
+				filtered = append(filtered, ext)
+			}
+		}
+
+		sorted = filtered
+	}
+
+	// Ensure each extension dir has a go.mod so Go treats it as a module
+	for _, ext := range sorted {
+		if err := ensureExtGoMod(ext, moduleRoot, moduleVersion); err != nil {
+			return fmt.Errorf("build: extension %s go.mod: %w", ext.Name, err)
+		}
+	}
+
+	// Read actual module paths from extension go.mods
+	for i := range sorted {
+		sorted[i].ModulePath = readModulePath(sorted[i].Dir)
+	}
+
+	if err := GenerateGoMod(dir, moduleRoot, moduleVersion, sorted); err != nil {
+		return fmt.Errorf("build: generate go.mod: %w", err)
+	}
+
+	if err := GenerateMainGo(dir, sorted, agentLoop); err != nil {
+		return fmt.Errorf("build: generate main.go: %w", err)
+	}
+
+	return nil
 }
 
 // ensureExtGoMod writes a go.mod in the extension dir only if one does not

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -14,8 +13,7 @@ import (
 )
 
 const (
-	cacheBinaryName    = "weave"
-	accessMetadataName = ".last_access"
+	cacheBinaryName = "weave"
 )
 
 // DefaultMaxCacheSizeBytes is the default launcher binary cache size cap.
@@ -265,57 +263,20 @@ func (c *Cache) cacheEntries() ([]cacheEntry, error) {
 			continue
 		}
 
-		size, err := dirSize(dir)
-		if err != nil {
-			return nil, fmt.Errorf("cache: size %s: %w", entry.Name(), err)
-		}
-
 		accessed := binInfo.ModTime()
-
-		accessInfo, err := os.Stat(filepath.Join(dir, accessMetadataName))
-		if err == nil && !accessInfo.IsDir() {
-			accessed = accessInfo.ModTime()
+		if dirInfo, statErr := os.Stat(dir); statErr == nil {
+			accessed = dirInfo.ModTime()
 		}
 
 		result = append(result, cacheEntry{
 			hash:     entry.Name(),
 			dir:      dir,
-			size:     size,
+			size:     binInfo.Size(),
 			accessed: accessed,
 		})
 	}
 
 	return result, nil
-}
-
-func dirSize(dir string) (int64, error) {
-	var size int64
-
-	err := filepath.WalkDir(dir, func(_ string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-
-		if entry.IsDir() {
-			return nil
-		}
-
-		info, err := entry.Info()
-		if err != nil {
-			return fmt.Errorf("entry info: %w", err)
-		}
-
-		if info.Mode().IsRegular() {
-			size += info.Size()
-		}
-
-		return nil
-	})
-	if err != nil {
-		return 0, fmt.Errorf("walk dir: %w", err)
-	}
-
-	return size, nil
 }
 
 func (c *Cache) touchAccess(hash string) error {
@@ -325,26 +286,8 @@ func (c *Cache) touchAccess(hash string) error {
 	}
 
 	now := c.timeNow()
-	path := filepath.Join(dir, accessMetadataName)
-
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
-	if err != nil {
-		return fmt.Errorf("open access metadata: %w", err)
-	}
-
-	_, writeErr := fmt.Fprintln(f, now.UnixNano())
-	closeErr := f.Close()
-
-	if writeErr != nil {
-		return fmt.Errorf("write access metadata: %w", writeErr)
-	}
-
-	if closeErr != nil {
-		return fmt.Errorf("close access metadata: %w", closeErr)
-	}
-
-	if err := os.Chtimes(path, now, now); err != nil {
-		return fmt.Errorf("update access metadata times: %w", err)
+	if err := os.Chtimes(dir, now, now); err != nil {
+		return fmt.Errorf("update access time: %w", err)
 	}
 
 	return nil

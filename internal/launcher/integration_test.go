@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"os/exec"
@@ -111,6 +112,32 @@ func setupTestExtension(t *testing.T, extDir, moduleRoot, code string) {
 	require.NoError(t, os.WriteFile(filepath.Join(extDir, "go.mod"), []byte(goMod), 0o600))
 }
 
+func assertBinaryKeepsRunning(t *testing.T, cmd *exec.Cmd, startupWindow time.Duration) {
+	t.Helper()
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	require.NoError(t, cmd.Start(), "start built binary")
+
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	select {
+	case err := <-done:
+		t.Fatalf("built binary exited during startup check: %v\nstdout:\n%s\nstderr:\n%s", err, stdout.String(), stderr.String())
+	case <-time.After(startupWindow):
+	}
+
+	_ = cmd.Process.Kill()
+
+	<-done
+}
+
 func TestIntegration_FullPipeline(t *testing.T) {
 	moduleRoot := findModuleRootHelper(t)
 
@@ -143,14 +170,9 @@ func TestIntegration_FullPipeline(t *testing.T) {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, cachedPath)
-	cmd.Env = os.Environ()
-	require.NoError(t, cmd.Start(), "start built binary")
 
-	// Allow extra time for startup — auto-discovery compiles in all extensions including TUI.
-	time.Sleep(2 * time.Second)
-
-	_ = cmd.Process.Kill()
-	_ = cmd.Wait()
+	cmd.Env = append(os.Environ(), "HOME="+homeDir)
+	assertBinaryKeepsRunning(t, cmd, 500*time.Millisecond)
 }
 
 func TestIntegration_CacheHitOnSecondRun(t *testing.T) {
@@ -183,13 +205,9 @@ func TestIntegration_CacheHitOnSecondRun(t *testing.T) {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, cachedPath)
-	cmd.Env = os.Environ()
-	require.NoError(t, cmd.Start(), "start cached binary")
 
-	time.Sleep(500 * time.Millisecond)
-
-	_ = cmd.Process.Kill()
-	_ = cmd.Wait()
+	cmd.Env = append(os.Environ(), "HOME="+homeDir)
+	assertBinaryKeepsRunning(t, cmd, 500*time.Millisecond)
 }
 
 func TestIntegration_ExtensionInitAndWireInBuiltBinary(t *testing.T) {

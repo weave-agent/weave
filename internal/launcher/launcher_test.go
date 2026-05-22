@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,6 +41,35 @@ func TestRun_BuildFails(t *testing.T) {
 	require.Error(t, err, "expected error for build failure")
 	require.ErrorIs(t, err, buildErr)
 	assert.True(t, capturedContext, "launcher should pass Run context to Build")
+}
+
+func TestBuildAndCache_ReturnsWhenContextCanceledWhileWaitingForLock(t *testing.T) {
+	hash := fmt.Sprintf("lock-cancel-%d", time.Now().UnixNano())
+
+	unlock, err := lockBuildDir(context.Background(), hash)
+	require.NoError(t, err)
+
+	defer unlock()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	l := &Launcher{
+		Cache:       NewCache(t.TempDir()),
+		BuildTmpDir: t.TempDir(),
+		Build: func(context.Context, string, string, string, string, bool, []ExtensionInfo) (string, error) {
+			t.Fatal("Build should not run while the build lock is held and context is canceled")
+
+			return "", nil
+		},
+	}
+
+	start := time.Now()
+	_, err = l.buildAndCache(ctx, hash, "loop", false, nil, "")
+
+	require.Error(t, err)
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Less(t, time.Since(start), time.Second)
 }
 
 func TestRun_CacheHit(t *testing.T) {

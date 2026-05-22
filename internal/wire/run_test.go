@@ -211,21 +211,21 @@ func TestRun_HelpFlagPrintsFullHelpWithoutBootstrapOrLauncher(t *testing.T) {
 
 			var bootstrapCalls, launcherCalls int
 
-			withRunHooks(t,
-				func(context.Context, *settings.Settings) {
+			deps := runDeps{
+				runBootstrap: func(context.Context, *settings.Settings) {
 					bootstrapCalls++
 				},
-				func(context.Context, string, string, string, string, []string, string, string, bool, []string) error {
+				runLauncher: func(context.Context, string, string, string, string, []string, string, string, bool, []string) error {
 					launcherCalls++
 
 					return nil
 				},
-			)
+			}
 
 			var code int
 
 			stderr := captureStderr(t, func() {
-				code = run(context.Background(), tt.args, "unknown")
+				code = runWithDeps(context.Background(), tt.args, "unknown", deps)
 			})
 
 			assert.Equal(t, 0, code)
@@ -249,21 +249,21 @@ func TestRun_NoInputSkipsBootstrapAndLauncher(t *testing.T) {
 
 	var bootstrapCalls, launcherCalls int
 
-	withRunHooks(t,
-		func(context.Context, *settings.Settings) {
+	deps := runDeps{
+		runBootstrap: func(context.Context, *settings.Settings) {
 			bootstrapCalls++
 		},
-		func(context.Context, string, string, string, string, []string, string, string, bool, []string) error {
+		runLauncher: func(context.Context, string, string, string, string, []string, string, string, bool, []string) error {
 			launcherCalls++
 
 			return nil
 		},
-	)
+	}
 
 	var code int
 
 	stderr := captureStderr(t, func() {
-		code = run(context.Background(), nil, "unknown")
+		code = runWithDeps(context.Background(), nil, "unknown", deps)
 	})
 
 	assert.Equal(t, 1, code)
@@ -292,11 +292,11 @@ func TestRun_NormalLaunchRunsBootstrapBeforeLauncher(t *testing.T) {
 
 	var events []string
 
-	withRunHooks(t,
-		func(context.Context, *settings.Settings) {
+	deps := runDeps{
+		runBootstrap: func(context.Context, *settings.Settings) {
 			events = append(events, "bootstrap")
 		},
-		func(_ context.Context, _, _, _, projectDir string, _ []string, gotConfigFile, agentLoop string, headless bool, _ []string) error {
+		runLauncher: func(_ context.Context, _, _, _, projectDir string, _ []string, gotConfigFile, agentLoop string, headless bool, _ []string) error {
 			events = append(events, "launcher")
 
 			assert.Equal(t, realDir, projectDir)
@@ -306,9 +306,9 @@ func TestRun_NormalLaunchRunsBootstrapBeforeLauncher(t *testing.T) {
 
 			return nil
 		},
-	)
+	}
 
-	code := run(context.Background(), nil, "v0.0.1-abc0123-2026-05-17")
+	code := runWithDeps(context.Background(), nil, "v0.0.1-abc0123-2026-05-17", deps)
 
 	assert.Equal(t, 0, code)
 	assert.Equal(t, []string{"bootstrap", "launcher"}, events)
@@ -413,7 +413,7 @@ func TestHandleSubcommand_CacheClean(t *testing.T) {
 	)
 
 	stdout := captureStdout(t, func() {
-		code, ok = handleSubcommand([]string{"cache", "clean"})
+		code, ok = handleSubcommand([]string{cacheCommand, "clean"})
 	})
 
 	assert.True(t, ok)
@@ -424,6 +424,38 @@ func TestHandleSubcommand_CacheClean(t *testing.T) {
 	assert.FileExists(t, extensionFile)
 }
 
+func TestHandleSubcommand_CacheMissingCommand(t *testing.T) {
+	var (
+		code int
+		ok   bool
+	)
+
+	stderr := captureStderr(t, func() {
+		code, ok = handleSubcommand([]string{cacheCommand})
+	})
+
+	assert.True(t, ok)
+	assert.Equal(t, 1, code)
+	assert.Contains(t, stderr, "weave cache: missing command")
+	assert.Contains(t, stderr, "usage: weave cache clean")
+}
+
+func TestHandleSubcommand_CacheUnknownCommand(t *testing.T) {
+	var (
+		code int
+		ok   bool
+	)
+
+	stderr := captureStderr(t, func() {
+		code, ok = handleSubcommand([]string{cacheCommand, "prune"})
+	})
+
+	assert.True(t, ok)
+	assert.Equal(t, 1, code)
+	assert.Contains(t, stderr, `weave cache: unknown command "prune"`)
+	assert.Contains(t, stderr, "usage: weave cache clean")
+}
+
 func TestHandleSubcommand_CacheCleanRejectsExtraArgs(t *testing.T) {
 	var (
 		code int
@@ -431,12 +463,50 @@ func TestHandleSubcommand_CacheCleanRejectsExtraArgs(t *testing.T) {
 	)
 
 	stderr := captureStderr(t, func() {
-		code, ok = handleSubcommand([]string{"cache", "clean", "extra"})
+		code, ok = handleSubcommand([]string{cacheCommand, "clean", "extra"})
 	})
 
 	assert.True(t, ok)
 	assert.Equal(t, 1, code)
 	assert.Contains(t, stderr, "usage: weave cache clean")
+}
+
+func TestHandleSubcommand_CacheCleanReportsHomeDirError(t *testing.T) {
+	t.Setenv("HOME", "")
+
+	var (
+		code int
+		ok   bool
+	)
+
+	stderr := captureStderr(t, func() {
+		code, ok = handleSubcommand([]string{cacheCommand, "clean"})
+	})
+
+	assert.True(t, ok)
+	assert.Equal(t, 1, code)
+	assert.Contains(t, stderr, "weave cache clean: cache: get home dir")
+}
+
+func TestHandleSubcommand_CacheCleanReportsCleanError(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	require.NoError(t, os.MkdirAll(filepath.Join(homeDir, ".weave"), 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(homeDir, ".weave", "bin"), []byte("not a directory"), 0o600))
+
+	var (
+		code int
+		ok   bool
+	)
+
+	stderr := captureStderr(t, func() {
+		code, ok = handleSubcommand([]string{cacheCommand, "clean"})
+	})
+
+	assert.True(t, ok)
+	assert.Equal(t, 1, code)
+	assert.Contains(t, stderr, "weave cache clean: cache: read root")
 }
 
 func TestHandleSubcommand_Unknown(t *testing.T) {
@@ -563,30 +633,6 @@ func TestRun_ProjectDirNotUsedForGlobalConfig(t *testing.T) {
 
 	// Verify ProjectDirFromConfig gives the right directory for each.
 	assert.Equal(t, projectDir, settings.ProjectDirFromConfig(localConfigPath))
-}
-
-func withRunHooks(
-	t *testing.T,
-	bootstrap func(context.Context, *settings.Settings),
-	runLauncher func(context.Context, string, string, string, string, []string, string, string, bool, []string) error,
-) {
-	t.Helper()
-
-	origBootstrap := runBootstrapFunc
-	origRunLauncher := runLauncherFunc
-
-	if bootstrap != nil {
-		runBootstrapFunc = bootstrap
-	}
-
-	if runLauncher != nil {
-		runLauncherFunc = runLauncher
-	}
-
-	t.Cleanup(func() {
-		runBootstrapFunc = origBootstrap
-		runLauncherFunc = origRunLauncher
-	})
 }
 
 func captureStderr(t *testing.T, fn func()) string {

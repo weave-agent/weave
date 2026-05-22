@@ -50,7 +50,7 @@ Download the appropriate binary from [releases](https://github.com/weave-agent/w
 4. **Build** — generate a custom binary with blank imports for discovered build inputs, cached by hash so unchanged configurations start instantly. Headless prompt runs exclude UI-only extensions from build inputs.
 5. **Exec** — run the compiled binary. Extensions self-register via `init()` and wire up through the event bus.
 
-Help and no-input error paths return before first-run bootstrap or launcher build work.
+Help and no-input error paths return before first-run bootstrap or launcher build work. Use `weave --help` or `weave -h` to print full help without bootstrapping extensions or building a launcher binary.
 
 ## Extension Management
 
@@ -63,7 +63,7 @@ weave uninstall <name>
 weave cache clean                    # remove launcher binary cache entries
 ```
 
-Generated launcher binaries live under `~/.weave/bin/<hash>/weave`. Cache keys include the Go runtime version, OS/arch, headless mode, agent loop, root module graph, extension Go files, embedded `//go:embed` resources, extension module files, selected core source directories, and local replace dependencies. The cache is size-bounded with LRU-style eviction based on access metadata. `weave cache clean` removes only launcher binary cache entries under `~/.weave/bin`.
+Generated launcher binaries live under `~/.weave/bin/<hash>/weave`. Cache keys include the Go runtime version, OS/arch, headless mode, agent loop, root module graph, extension Go files, embedded `//go:embed` resources, extension module files, selected core source directories, and local replace dependencies. The cache is capped at 1 GiB by default and evicts least-recently-used entries after successful stores; the newly stored entry is protected even if it exceeds the cap. `weave cache clean` removes only launcher binary cache entries under `~/.weave/bin`.
 
 Use `/reload` at runtime to invalidate the current cache entry, rebuild, and re-exec.
 
@@ -195,6 +195,7 @@ sdk.RegisterTUIExtension("my-tui", NewTUI)
 - Extensions communicate exclusively through **bus events** — never import or call each other directly
 - `internal/` packages are not importable by extensions; anything extensions need must live in `sdk/`
 - Event payload types must live in `sdk/`
+- Non-Go resource files only invalidate the launcher cache when referenced by `//go:embed`; unembedded `.md` files and assets do not affect generated binary cache keys
 - Never write to `stdout`/`stderr` — use `sdk.Logger(name)` for structured logging to `~/.weave/logs/weave.log`
 
 ### Declarative Provider Auth

@@ -93,7 +93,7 @@ func deriveBuildInputs(exts []ExtensionInfo, headless bool) []ExtensionInfo {
 }
 
 func (l *Launcher) buildAndCache(ctx context.Context, hash, agentLoop string, headless bool, exts []ExtensionInfo, moduleVersion string) (string, error) {
-	unlock, lockErr := lockBuildDir(hash)
+	unlock, lockErr := lockBuildDir(ctx, hash)
 	if lockErr != nil {
 		return "", fmt.Errorf("acquire build lock: %w", lockErr)
 	}
@@ -217,7 +217,11 @@ func buildExecEnv(parentEnv []string, launcherPath, hash, origArgs, moduleRoot, 
 
 // lockBuildDir acquires a file-based lock for the given build hash to prevent
 // concurrent builds from racing on the shared build directory.
-func lockBuildDir(hash string) (unlock func(), err error) {
+func lockBuildDir(ctx context.Context, hash string) (unlock func(), err error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	lockPath := filepath.Join(os.TempDir(), "weave-build-"+hash+".lock")
 
 	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o600)
@@ -228,20 +232,28 @@ func lockBuildDir(hash string) (unlock func(), err error) {
 	fd := int(f.Fd())
 
 	// Retry with backoff for up to 30s — another process may be building.
-	deadline := time.Now().Add(30 * time.Second)
+	deadline := time.NewTimer(30 * time.Second)
+	defer deadline.Stop()
+
+	retry := time.NewTicker(100 * time.Millisecond)
+	defer retry.Stop()
 
 	for {
 		if lockErr := syscall.Flock(fd, syscall.LOCK_EX|syscall.LOCK_NB); lockErr == nil {
 			break
 		}
 
-		if time.Now().After(deadline) {
+		select {
+		case <-ctx.Done():
+			_ = f.Close()
+
+			return nil, fmt.Errorf("context canceled while waiting for build lock: %w", ctx.Err())
+		case <-deadline.C:
 			_ = f.Close()
 
 			return nil, fmt.Errorf("timed out waiting for build lock %s", lockPath)
+		case <-retry.C:
 		}
-
-		time.Sleep(100 * time.Millisecond)
 	}
 
 	return func() {

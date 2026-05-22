@@ -48,6 +48,7 @@ type globalFlag struct {
 }
 
 var globalFlags = []globalFlag{
+	{"--help", "-h", "Print full help without bootstrapping or building"},
 	{"--prompt", "-p", "Prompt to pass to the agent"},
 	{"--ui", "", "UI extension name"},
 	{"--output", "", "Output format: text or json"},

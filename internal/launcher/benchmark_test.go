@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -174,39 +173,8 @@ func runGoCommandB(b *testing.B, dir string, args ...string) {
 func generateBuildFilesB(b *testing.B, buildDir, moduleRoot, moduleVersion, agentLoop string, headless bool, exts []ExtensionInfo) {
 	b.Helper()
 
-	sorted := make([]ExtensionInfo, len(exts))
-	copy(sorted, exts)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].Name < sorted[j].Name
-	})
-
-	if headless {
-		filtered := make([]ExtensionInfo, 0, len(sorted))
-		for _, ext := range sorted {
-			if !ext.IsUIExt {
-				filtered = append(filtered, ext)
-			}
-		}
-
-		sorted = filtered
-	}
-
-	for _, ext := range sorted {
-		if err := ensureExtGoMod(ext, moduleRoot, moduleVersion); err != nil {
-			b.Fatalf("ensure extension go.mod for %s: %v", ext.Name, err)
-		}
-	}
-
-	for i := range sorted {
-		sorted[i].ModulePath = readModulePath(sorted[i].Dir)
-	}
-
-	if err := GenerateGoMod(buildDir, moduleRoot, moduleVersion, sorted); err != nil {
-		b.Fatalf("GenerateGoMod: %v", err)
-	}
-
-	if err := GenerateMainGo(buildDir, sorted, agentLoop); err != nil {
-		b.Fatalf("GenerateMainGo: %v", err)
+	if err := prepareBuildFiles(buildDir, moduleRoot, moduleVersion, agentLoop, headless, exts); err != nil {
+		b.Fatalf("prepare build files: %v", err)
 	}
 }
 

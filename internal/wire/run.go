@@ -15,10 +15,19 @@ import (
 
 var errNoInput = errors.New("no prompt provided and ui is disabled — use -p to provide a prompt or set ui: tui")
 
-var (
-	runBootstrapFunc = runBootstrap
-	runLauncherFunc  = runLauncher
-)
+const cacheCommand = "cache"
+
+type runDeps struct {
+	runBootstrap func(context.Context, *settings.Settings)
+	runLauncher  func(context.Context, string, string, string, string, []string, string, string, bool, []string) error
+}
+
+func defaultRunDeps() runDeps {
+	return runDeps{
+		runBootstrap: runBootstrap,
+		runLauncher:  runLauncher,
+	}
+}
 
 // Run is the main entry point for the weave CLI. It parses args, loads config,
 // discovers extensions, and runs the launcher pipeline.
@@ -38,7 +47,7 @@ func handleSubcommand(args []string) (int, bool) {
 	}
 
 	switch args[0] {
-	case "cache":
+	case cacheCommand:
 		return runCacheSubcommand(args[1:]), true
 	case "install":
 		return extmanage.RunInstall(args[1:]), true
@@ -189,7 +198,7 @@ func runBootstrap(ctx context.Context, cf *settings.Settings) {
 	}
 }
 
-func buildLauncher(ctx context.Context, cf *settings.Settings, rest []string, configFile, revision string) int {
+func buildLauncherWithDeps(ctx context.Context, cf *settings.Settings, rest []string, configFile, revision string, deps runDeps) int {
 	if hasHelpFlag(rest) {
 		fmt.Fprint(os.Stderr, settings.GenerateFullHelp())
 
@@ -202,7 +211,15 @@ func buildLauncher(ctx context.Context, cf *settings.Settings, rest []string, co
 		return 1
 	}
 
-	runBootstrapFunc(ctx, cf)
+	if deps.runBootstrap == nil {
+		deps.runBootstrap = runBootstrap
+	}
+
+	if deps.runLauncher == nil {
+		deps.runLauncher = runLauncher
+	}
+
+	deps.runBootstrap(ctx, cf)
 
 	cacheDir, err := launcher.DefaultCacheDir()
 	if err != nil {
@@ -258,7 +275,7 @@ func buildLauncher(ctx context.Context, cf *settings.Settings, rest []string, co
 	// Forward CLI flags to the generated binary.
 	rest = append(rest, cf.WeaveFlags()...)
 
-	if err := runLauncherFunc(ctx, cacheDir, moduleRoot, moduleVersion, projectDir, rest, configFile, cf.AgentLoop, headless, cf.ExcludeExtensions); err != nil {
+	if err := deps.runLauncher(ctx, cacheDir, moduleRoot, moduleVersion, projectDir, rest, configFile, cf.AgentLoop, headless, cf.ExcludeExtensions); err != nil {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", err)
 		return 1
 	}
@@ -309,6 +326,10 @@ func weaveProjectDirFromRest(args []string) string {
 }
 
 func run(ctx context.Context, args []string, revision string) (exitCode int) {
+	return runWithDeps(ctx, args, revision, defaultRunDeps())
+}
+
+func runWithDeps(ctx context.Context, args []string, revision string, deps runDeps) (exitCode int) {
 	configFile, cf, rest, err := loadConfig(args)
 	if err != nil {
 		var helpErr *settings.HelpError
@@ -324,7 +345,7 @@ func run(ctx context.Context, args []string, revision string) (exitCode int) {
 		return 1
 	}
 
-	return buildLauncher(ctx, cf, rest, configFile, revision)
+	return buildLauncherWithDeps(ctx, cf, rest, configFile, revision, deps)
 }
 
 func writePromptFile(prompt string) (path string, cleanup func(), ok bool) {
