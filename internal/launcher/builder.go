@@ -1183,7 +1183,11 @@ func GenerateMainGo(dir string, exts []ExtensionInfo, agentLoop string) error {
 // agentLoop identifies the core agent loop extension for WireWithCore.
 // When headless is true, UI extensions (IsUIExt) are excluded from compilation.
 // Extensions are sorted by name to match the hash computation order.
-func Build(dir, moduleRoot, moduleVersion, agentLoop string, headless bool, exts []ExtensionInfo) (string, error) {
+func Build(ctx context.Context, dir, moduleRoot, moduleVersion, agentLoop string, headless bool, exts []ExtensionInfo) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	sorted := make([]ExtensionInfo, len(exts))
 	copy(sorted, exts)
 	sort.Slice(sorted, func(i, j int) bool {
@@ -1224,7 +1228,7 @@ func Build(dir, moduleRoot, moduleVersion, agentLoop string, headless bool, exts
 
 	fmt.Fprintf(os.Stderr, "  -> resolving dependencies...\n")
 
-	tidyCmd := exec.CommandContext(context.Background(), "go", "mod", "tidy")
+	tidyCmd := exec.CommandContext(ctx, "go", "mod", "tidy")
 
 	tidyCmd.Dir = dir
 	if output, err := tidyCmd.CombinedOutput(); err != nil {
@@ -1234,7 +1238,7 @@ func Build(dir, moduleRoot, moduleVersion, agentLoop string, headless bool, exts
 	fmt.Fprintf(os.Stderr, "  -> compiling...\n")
 
 	binaryPath := filepath.Join(dir, "weave")
-	cmd := exec.CommandContext(context.Background(), "go", "build", "-o", binaryPath, ".")
+	cmd := exec.CommandContext(ctx, "go", "build", "-o", binaryPath, ".")
 
 	cmd.Dir = dir
 	if output, err := cmd.CombinedOutput(); err != nil {

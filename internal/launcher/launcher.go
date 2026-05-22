@@ -12,7 +12,7 @@ import (
 )
 
 // BuildFunc builds a binary from extension infos and returns its path.
-type BuildFunc func(dir, moduleRoot, moduleVersion, agentLoop string, headless bool, exts []ExtensionInfo) (string, error)
+type BuildFunc func(ctx context.Context, dir, moduleRoot, moduleVersion, agentLoop string, headless bool, exts []ExtensionInfo) (string, error)
 
 // Launcher orchestrates the full pipeline: discover -> hash -> cache -> build -> exec.
 type Launcher struct {
@@ -70,7 +70,7 @@ func (l *Launcher) Run(ctx context.Context, projectDir string, args []string, co
 	if !found {
 		fmt.Fprintf(os.Stderr, "weave: building binary with %d extensions...\n", len(buildInputs))
 
-		binPath, err = l.buildAndCache(hash, agentLoop, headless, buildInputs, l.ModuleVersion)
+		binPath, err = l.buildAndCache(ctx, hash, agentLoop, headless, buildInputs, l.ModuleVersion)
 		if err != nil {
 			return fmt.Errorf("launcher: build: %w", err)
 		}
@@ -92,7 +92,7 @@ func deriveBuildInputs(exts []ExtensionInfo, headless bool) []ExtensionInfo {
 	return inputs
 }
 
-func (l *Launcher) buildAndCache(hash, agentLoop string, headless bool, exts []ExtensionInfo, moduleVersion string) (string, error) {
+func (l *Launcher) buildAndCache(ctx context.Context, hash, agentLoop string, headless bool, exts []ExtensionInfo, moduleVersion string) (string, error) {
 	unlock, lockErr := lockBuildDir(hash)
 	if lockErr != nil {
 		return "", fmt.Errorf("acquire build lock: %w", lockErr)
@@ -111,7 +111,7 @@ func (l *Launcher) buildAndCache(hash, agentLoop string, headless bool, exts []E
 
 	defer func() { _ = os.RemoveAll(buildDir) }()
 
-	binPath, err := l.Build(buildDir, l.ModuleRoot, moduleVersion, agentLoop, headless, exts)
+	binPath, err := l.Build(ctx, buildDir, l.ModuleRoot, moduleVersion, agentLoop, headless, exts)
 	if err != nil {
 		return "", err
 	}

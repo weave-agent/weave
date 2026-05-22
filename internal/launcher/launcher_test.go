@@ -15,19 +15,28 @@ func TestRun_BuildFails(t *testing.T) {
 	projectDir := t.TempDir()
 	extDir := filepath.Join(projectDir, ".weave", "extensions", "noop")
 	createExtension(t, extDir, "noop", "package noop")
+	moduleRoot := createModuleRoot(t)
 
 	buildErr := error(fmtError("mock build failure"))
+	type contextKey string
+	ctx := context.WithValue(context.Background(), contextKey("build"), "sentinel")
+	var capturedContext bool
+
 	l := &Launcher{
 		Cache: NewCache(t.TempDir()),
-		Build: func(string, string, string, string, bool, []ExtensionInfo) (string, error) {
+		Build: func(gotCtx context.Context, _, _, _, _ string, _ bool, _ []ExtensionInfo) (string, error) {
+			capturedContext = gotCtx.Value(contextKey("build")) == "sentinel"
 			return "", buildErr
 		},
-		ModuleRoot:  "/fake",
+		ModuleRoot:  moduleRoot,
 		BuildTmpDir: t.TempDir(),
+		HomeDir:     t.TempDir(),
 	}
 
-	err := l.Run(context.Background(), projectDir, nil, "", "loop", false, nil)
+	err := l.Run(ctx, projectDir, nil, "", "loop", false, nil)
 	require.Error(t, err, "expected error for build failure")
+	require.ErrorIs(t, err, buildErr)
+	assert.True(t, capturedContext, "launcher should pass Run context to Build")
 }
 
 func TestRun_CacheHit(t *testing.T) {
@@ -63,7 +72,7 @@ func TestRun_FullPipelineWithMockBuild(t *testing.T) {
 
 	l := &Launcher{
 		Cache: NewCache(cacheDir),
-		Build: func(dir, _, _, _ string, _ bool, _ []ExtensionInfo) (string, error) {
+		Build: func(_ context.Context, dir, _, _, _ string, _ bool, _ []ExtensionInfo) (string, error) {
 			binPath := filepath.Join(dir, "weave")
 			if err := os.WriteFile(binPath, []byte("fake-binary"), 0o750); err != nil {
 				return "", fmt.Errorf("write fake binary: %w", err)
@@ -84,7 +93,7 @@ func TestRun_FullPipelineWithMockBuild(t *testing.T) {
 	_, found := l.Cache.Lookup(hash)
 	assert.False(t, found, "expected cache miss for new extension")
 
-	binPath, err := l.buildAndCache(hash, "loop", false, exts, "")
+	binPath, err := l.buildAndCache(context.Background(), hash, "loop", false, exts, "")
 	require.NoError(t, err, "buildAndCache")
 	require.NotEmpty(t, binPath)
 
@@ -108,7 +117,7 @@ func TestRun_SecondRunUsesCache(t *testing.T) {
 	buildCount := 0
 	l := &Launcher{
 		Cache: NewCache(cacheDir),
-		Build: func(dir, _, _, _ string, _ bool, _ []ExtensionInfo) (string, error) {
+		Build: func(_ context.Context, dir, _, _, _ string, _ bool, _ []ExtensionInfo) (string, error) {
 			buildCount++
 
 			binPath := filepath.Join(dir, "weave")
@@ -128,7 +137,7 @@ func TestRun_SecondRunUsesCache(t *testing.T) {
 	hash, err := ComputeHash(exts, "", "", false, "")
 	require.NoError(t, err)
 
-	_, err = l.buildAndCache(hash, "loop", false, exts, "")
+	_, err = l.buildAndCache(context.Background(), hash, "loop", false, exts, "")
 	require.NoError(t, err)
 	assert.Equal(t, 1, buildCount)
 
@@ -261,7 +270,7 @@ func TestRun_ExcludeExtensions(t *testing.T) {
 
 	l := &Launcher{
 		Cache: NewCache(t.TempDir()),
-		Build: func(_, _, _, _ string, _ bool, exts []ExtensionInfo) (string, error) {
+		Build: func(_ context.Context, _, _, _, _ string, _ bool, exts []ExtensionInfo) (string, error) {
 			capturedExts = exts
 
 			return "", fmtError("captured")
@@ -289,7 +298,7 @@ func TestRun_HeadlessPassedToBuild(t *testing.T) {
 
 	l := &Launcher{
 		Cache: NewCache(t.TempDir()),
-		Build: func(_, _, _, _ string, headless bool, exts []ExtensionInfo) (string, error) {
+		Build: func(_ context.Context, _, _, _, _ string, headless bool, exts []ExtensionInfo) (string, error) {
 			capturedHeadless = headless
 			capturedExts = exts
 
@@ -317,7 +326,7 @@ func TestRun_NilExclude(t *testing.T) {
 
 	l := &Launcher{
 		Cache: NewCache(t.TempDir()),
-		Build: func(_, _, _, _ string, _ bool, exts []ExtensionInfo) (string, error) {
+		Build: func(_ context.Context, _, _, _, _ string, _ bool, exts []ExtensionInfo) (string, error) {
 			capturedExts = exts
 
 			return "", fmtError("captured")

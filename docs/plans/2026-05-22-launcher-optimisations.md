@@ -89,12 +89,12 @@ The changes integrate with the existing launcher flow in `internal/wire/run.go` 
 - [x] run `go test ./internal/launcher` - must pass before task 4
 
 ### Task 4: Make launcher build cancellation context-aware
-- [ ] update `BuildFunc` in `internal/launcher/launcher.go` to accept `context.Context`
-- [ ] thread `ctx` through `Launcher.Run`, `buildAndCache`, and `Build`
-- [ ] use `exec.CommandContext(ctx, ...)` for `go mod tidy` and `go build` in `internal/launcher/builder.go`
-- [ ] update affected launcher tests/mocks for the new build signature
-- [ ] add a cancellation-focused test for build command context handling where practical
-- [ ] run `go test ./internal/launcher` - must pass before task 5
+- [x] update `BuildFunc` in `internal/launcher/launcher.go` to accept `context.Context`
+- [x] thread `ctx` through `Launcher.Run`, `buildAndCache`, and `Build`
+- [x] use `exec.CommandContext(ctx, ...)` for `go mod tidy` and `go build` in `internal/launcher/builder.go`
+- [x] update affected launcher tests/mocks for the new build signature
+- [x] add a cancellation-focused test for build command context handling where practical
+- [x] run `go test ./internal/launcher` - must pass before task 5
 
 ### Task 5: Add no-build help path and delay bootstrap
 - [ ] restructure `internal/wire/run.go` so help/no-input early exits happen before `runBootstrap`

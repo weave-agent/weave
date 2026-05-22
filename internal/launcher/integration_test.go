@@ -131,7 +131,7 @@ func TestIntegration_FullPipeline(t *testing.T) {
 	require.False(t, found, "expected cache miss before build")
 
 	buildDir := t.TempDir()
-	binPath, err := Build(buildDir, moduleRoot, "", "noop", false, exts)
+	binPath, err := Build(context.Background(), buildDir, moduleRoot, "", "noop", false, exts)
 	require.NoError(t, err, "Build")
 
 	require.NoError(t, cache.Store(hash, binPath), "Cache.Store")
@@ -171,7 +171,7 @@ func TestIntegration_CacheHitOnSecondRun(t *testing.T) {
 	cache := NewCache(cacheDir)
 
 	buildDir := t.TempDir()
-	binPath, err := Build(buildDir, moduleRoot, "", "noop", false, exts)
+	binPath, err := Build(context.Background(), buildDir, moduleRoot, "", "noop", false, exts)
 	require.NoError(t, err, "first build")
 
 	require.NoError(t, cache.Store(hash, binPath), "cache store")
@@ -204,7 +204,7 @@ func TestIntegration_ExtensionInitAndWireInBuiltBinary(t *testing.T) {
 	require.NoError(t, err)
 
 	buildDir := t.TempDir()
-	binPath, err := Build(buildDir, moduleRoot, "", "noop", true, exts)
+	binPath, err := Build(context.Background(), buildDir, moduleRoot, "", "noop", true, exts)
 	require.NoError(t, err, "Build")
 
 	markerFile := filepath.Join(t.TempDir(), "marker.txt")

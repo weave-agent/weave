@@ -1,8 +1,10 @@
 package launcher
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -679,11 +681,33 @@ func init() {
 		{Name: "noop", Dir: extDir, GoFiles: []string{filepath.Join(extDir, "noop.go")}},
 	}
 
-	binaryPath, err := Build(buildDir, moduleRoot, "", "noop", false, exts)
+	binaryPath, err := Build(context.Background(), buildDir, moduleRoot, "", "noop", false, exts)
 	require.NoError(t, err, "Build failed")
 
 	_, err = os.Stat(binaryPath)
 	assert.NoError(t, err, "binary not found at %s", binaryPath)
+}
+
+func TestBuild_UsesContextForGoCommands(t *testing.T) {
+	moduleRoot, err := findModuleRoot()
+	if err != nil {
+		t.Skipf("cannot locate module root: %v", err)
+	}
+
+	buildDir := t.TempDir()
+	extDir := t.TempDir()
+	extFile := filepath.Join(extDir, "noop.go")
+	require.NoError(t, os.WriteFile(extFile, []byte("package noop\n"), 0o600))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err = Build(ctx, buildDir, moduleRoot, "", "noop", false, []ExtensionInfo{
+		{Name: "noop", Dir: extDir, GoFiles: []string{extFile}},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "build: go mod tidy")
+	assert.True(t, errors.Is(err, context.Canceled), "expected canceled context error, got %v", err)
 }
 
 func findModuleRoot() (string, error) {
