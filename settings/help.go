@@ -29,6 +29,7 @@ func GenerateFullHelp() string {
 
 	b.WriteString("Usage: weave [options] [command]\n\n")
 	b.WriteString("Commands:\n")
+	b.WriteString("  cache clean          Remove generated launcher binaries\n")
 	b.WriteString("  install <source>     Install an extension\n")
 	b.WriteString("  list                 List installed extensions\n")
 	b.WriteString("  update [<name>]      Update installed extensions\n")

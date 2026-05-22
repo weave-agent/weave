@@ -1,21 +1,43 @@
 package launcher
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
+	"strings"
+	"time"
 )
+
+const (
+	cacheBinaryName    = "weave"
+	accessMetadataName = ".last_access"
+)
+
+// DefaultMaxCacheSizeBytes is the default launcher binary cache size cap.
+const DefaultMaxCacheSizeBytes int64 = 1 << 30
 
 // Cache manages per-hash binary caching under a root directory.
 type Cache struct {
+	// Root is the directory containing per-hash launcher binary cache entries.
 	Root string
+
+	// MaxSizeBytes caps the cache after successful stores; zero uses the default, negative disables eviction.
+	MaxSizeBytes int64
+	now          func() time.Time
 }
 
 // NewCache creates a Cache rooted at rootDir (typically ~/.weave/bin/).
 func NewCache(rootDir string) *Cache {
-	return &Cache{Root: rootDir}
+	return &Cache{
+		Root:         rootDir,
+		MaxSizeBytes: DefaultMaxCacheSizeBytes,
+		now:          time.Now,
+	}
 }
 
 // DefaultCacheDir returns ~/.weave/bin/.
@@ -31,7 +53,12 @@ func DefaultCacheDir() (string, error) {
 // Lookup checks whether a cached binary exists for the given hash.
 // Returns the binary path and true if found, or ("", false) otherwise.
 func (c *Cache) Lookup(hash string) (string, bool) {
-	binPath := filepath.Join(c.Root, hash, "weave")
+	dir, err := c.entryDir(hash)
+	if err != nil {
+		return "", false
+	}
+
+	binPath := filepath.Join(dir, cacheBinaryName)
 
 	info, err := os.Stat(binPath)
 	if err != nil {
@@ -42,6 +69,8 @@ func (c *Cache) Lookup(hash string) (string, bool) {
 		return "", false
 	}
 
+	_ = c.touchAccess(hash)
+
 	return binPath, true
 }
 
@@ -50,9 +79,13 @@ func (c *Cache) Lookup(hash string) (string, bool) {
 // avoid concurrent readers seeing a partial binary.
 // Falls back to copy+delete when src and dst are on different filesystems.
 func (c *Cache) Store(hash, src string) error {
-	dir := filepath.Join(c.Root, hash)
-	if err := os.MkdirAll(dir, 0o750); err != nil {
-		return fmt.Errorf("cache: mkdir %s: %w", dir, err)
+	dir, err := c.entryDir(hash)
+	if err != nil {
+		return fmt.Errorf("cache: %w", err)
+	}
+
+	if mkdirErr := os.MkdirAll(dir, 0o750); mkdirErr != nil {
+		return fmt.Errorf("cache: mkdir %s: %w", dir, mkdirErr)
 	}
 
 	srcFile, err := os.Open(src)
@@ -61,7 +94,7 @@ func (c *Cache) Store(hash, src string) error {
 	}
 	defer srcFile.Close()
 
-	dst := filepath.Join(dir, "weave")
+	dst := filepath.Join(dir, cacheBinaryName)
 	tmp := dst + ".tmp." + strconv.Itoa(os.Getpid())
 
 	// Remove stale temp file from a crashed previous run.
@@ -110,7 +143,238 @@ func (c *Cache) Store(hash, src string) error {
 		_ = os.Remove(tmp)
 	}
 
+	if err := c.touchAccess(hash); err != nil {
+		return fmt.Errorf("cache: update access metadata: %w", err)
+	}
+
+	if err := c.evictToSize(hash); err != nil {
+		return fmt.Errorf("cache: evict: %w", err)
+	}
+
 	return nil
+}
+
+// Clean removes all launcher binary cache entries under the cache root.
+func (c *Cache) Clean() (int, error) {
+	entries, err := c.cacheEntries()
+	if err != nil {
+		return 0, err
+	}
+
+	removed := 0
+
+	for _, entry := range entries {
+		if err := os.RemoveAll(entry.dir); err != nil {
+			return removed, fmt.Errorf("cache: remove %s: %w", entry.hash, err)
+		}
+
+		removed++
+	}
+
+	return removed, nil
+}
+
+type cacheEntry struct {
+	hash     string
+	dir      string
+	size     int64
+	accessed time.Time
+}
+
+func (c *Cache) evictToSize(protectHash string) error {
+	limit, ok := c.sizeLimit()
+	if !ok {
+		return nil
+	}
+
+	entries, err := c.cacheEntries()
+	if err != nil {
+		return err
+	}
+
+	var total int64
+	for _, entry := range entries {
+		total += entry.size
+	}
+
+	if total <= limit {
+		return nil
+	}
+
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].accessed.Equal(entries[j].accessed) {
+			return entries[i].hash < entries[j].hash
+		}
+
+		return entries[i].accessed.Before(entries[j].accessed)
+	})
+
+	for _, entry := range entries {
+		if total <= limit {
+			break
+		}
+
+		if entry.hash == protectHash {
+			continue
+		}
+
+		if err := os.RemoveAll(entry.dir); err != nil {
+			return fmt.Errorf("remove %s: %w", entry.hash, err)
+		}
+
+		total -= entry.size
+	}
+
+	return nil
+}
+
+func (c *Cache) cacheEntries() ([]cacheEntry, error) {
+	if c.Root == "" {
+		return nil, errors.New("cache root is empty")
+	}
+
+	entries, err := os.ReadDir(c.Root)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+
+		return nil, fmt.Errorf("cache: read root: %w", err)
+	}
+
+	result := make([]cacheEntry, 0, len(entries))
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		dir := filepath.Join(c.Root, entry.Name())
+		binPath := filepath.Join(dir, cacheBinaryName)
+
+		binInfo, err := os.Stat(binPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+
+			return nil, fmt.Errorf("cache: stat %s: %w", binPath, err)
+		}
+
+		if binInfo.IsDir() {
+			continue
+		}
+
+		size, err := dirSize(dir)
+		if err != nil {
+			return nil, fmt.Errorf("cache: size %s: %w", entry.Name(), err)
+		}
+
+		accessed := binInfo.ModTime()
+		accessInfo, err := os.Stat(filepath.Join(dir, accessMetadataName))
+		if err == nil && !accessInfo.IsDir() {
+			accessed = accessInfo.ModTime()
+		}
+
+		result = append(result, cacheEntry{
+			hash:     entry.Name(),
+			dir:      dir,
+			size:     size,
+			accessed: accessed,
+		})
+	}
+
+	return result, nil
+}
+
+func dirSize(dir string) (int64, error) {
+	var size int64
+
+	err := filepath.WalkDir(dir, func(_ string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+
+		if entry.IsDir() {
+			return nil
+		}
+
+		info, err := entry.Info()
+		if err != nil {
+			return fmt.Errorf("entry info: %w", err)
+		}
+
+		if info.Mode().IsRegular() {
+			size += info.Size()
+		}
+
+		return nil
+	})
+	if err != nil {
+		return 0, fmt.Errorf("walk dir: %w", err)
+	}
+
+	return size, nil
+}
+
+func (c *Cache) touchAccess(hash string) error {
+	dir, err := c.entryDir(hash)
+	if err != nil {
+		return err
+	}
+
+	now := c.timeNow()
+	path := filepath.Join(dir, accessMetadataName)
+
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		return fmt.Errorf("open access metadata: %w", err)
+	}
+
+	_, writeErr := fmt.Fprintln(f, now.UnixNano())
+	closeErr := f.Close()
+
+	if writeErr != nil {
+		return fmt.Errorf("write access metadata: %w", writeErr)
+	}
+
+	if closeErr != nil {
+		return fmt.Errorf("close access metadata: %w", closeErr)
+	}
+
+	if err := os.Chtimes(path, now, now); err != nil {
+		return fmt.Errorf("update access metadata times: %w", err)
+	}
+
+	return nil
+}
+
+func (c *Cache) entryDir(hash string) (string, error) {
+	if hash == "" || hash == "." || hash == ".." || strings.ContainsAny(hash, `/\`) {
+		return "", fmt.Errorf("invalid cache hash %q", hash)
+	}
+
+	return filepath.Join(c.Root, hash), nil
+}
+
+func (c *Cache) sizeLimit() (int64, bool) {
+	if c.MaxSizeBytes < 0 {
+		return 0, false
+	}
+
+	if c.MaxSizeBytes == 0 {
+		return DefaultMaxCacheSizeBytes, true
+	}
+
+	return c.MaxSizeBytes, true
+}
+
+func (c *Cache) timeNow() time.Time {
+	if c.now != nil {
+		return c.now()
+	}
+
+	return time.Now()
 }
 
 // copyFile copies the contents of src to dst, preserving permissions.

@@ -385,6 +385,47 @@ func TestHandleSubcommand_List(t *testing.T) {
 	assert.Equal(t, 0, code)
 }
 
+func TestHandleSubcommand_CacheClean(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	cacheDir := filepath.Join(homeDir, ".weave", "bin")
+	require.NoError(t, os.MkdirAll(filepath.Join(cacheDir, "hash1"), 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(cacheDir, "hash1", "weave"), []byte("binary"), 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(cacheDir, "notes.txt"), []byte("keep"), 0o600))
+
+	extensionFile := filepath.Join(homeDir, ".weave", "extensions", "keep", "main.go")
+	require.NoError(t, os.MkdirAll(filepath.Dir(extensionFile), 0o750))
+	require.NoError(t, os.WriteFile(extensionFile, []byte("package main\n"), 0o600))
+
+	var code int
+	var ok bool
+
+	stdout := captureStdout(t, func() {
+		code, ok = handleSubcommand([]string{"cache", "clean"})
+	})
+
+	assert.True(t, ok)
+	assert.Equal(t, 0, code)
+	assert.Contains(t, stdout, "removed 1 launcher cache entries")
+	assert.NoFileExists(t, filepath.Join(cacheDir, "hash1", "weave"))
+	assert.FileExists(t, filepath.Join(cacheDir, "notes.txt"))
+	assert.FileExists(t, extensionFile)
+}
+
+func TestHandleSubcommand_CacheCleanRejectsExtraArgs(t *testing.T) {
+	var code int
+	var ok bool
+
+	stderr := captureStderr(t, func() {
+		code, ok = handleSubcommand([]string{"cache", "clean", "extra"})
+	})
+
+	assert.True(t, ok)
+	assert.Equal(t, 1, code)
+	assert.Contains(t, stderr, "usage: weave cache clean")
+}
+
 func TestHandleSubcommand_Unknown(t *testing.T) {
 	code, ok := handleSubcommand([]string{"unknown"})
 	assert.False(t, ok)
@@ -545,6 +586,29 @@ func captureStderr(t *testing.T, fn func()) string {
 	os.Stderr = w
 	defer func() {
 		os.Stderr = orig
+	}()
+
+	fn()
+
+	require.NoError(t, w.Close())
+
+	out, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.NoError(t, r.Close())
+
+	return string(out)
+}
+
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+
+	orig := os.Stdout
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+
+	os.Stdout = w
+	defer func() {
+		os.Stdout = orig
 	}()
 
 	fn()

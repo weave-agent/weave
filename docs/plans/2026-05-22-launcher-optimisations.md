@@ -104,11 +104,11 @@ The changes integrate with the existing launcher flow in `internal/wire/run.go` 
 - [x] run `go test ./internal/wire ./internal/launcher` - must pass before task 6
 
 ### Task 6: Add size-based launcher cache eviction and cache clean command
-- [ ] add size-based LRU eviction support to `internal/launcher/cache.go` after successful cache store
-- [ ] update cache access metadata on successful lookup/store without breaking existing cache layout
-- [ ] add a `weave cache clean` subcommand in the CLI dispatch path, scoped to `~/.weave/bin`
-- [ ] add tests for eviction ordering, size limit behavior, lookup access updates, and `cache clean`
-- [ ] run `go test ./internal/launcher ./internal/wire ./internal/extmanage` - must pass before task 7
+- [x] add size-based LRU eviction support to `internal/launcher/cache.go` after successful cache store
+- [x] update cache access metadata on successful lookup/store without breaking existing cache layout
+- [x] add a `weave cache clean` subcommand in the CLI dispatch path, scoped to `~/.weave/bin`
+- [x] add tests for eviction ordering, size limit behavior, lookup access updates, and `cache clean`
+- [x] run `go test ./internal/launcher ./internal/wire ./internal/extmanage` - must pass before task 7
 
 ### Task 7: Add launcher performance measurement before changing tidy behavior
 - [ ] add or update benchmarks for cache-hit startup paths: no extensions, one extension, many extensions

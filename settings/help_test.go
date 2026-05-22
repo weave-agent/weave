@@ -81,6 +81,7 @@ func TestGenerateFullHelp_NoSchemas(t *testing.T) {
 
 	text := GenerateFullHelp()
 	assert.Contains(t, text, "Usage: weave")
+	assert.Contains(t, text, "cache clean")
 	assert.Contains(t, text, "Global flags:")
 	assert.Contains(t, text, "--prompt")
 	assert.Contains(t, text, "-p")

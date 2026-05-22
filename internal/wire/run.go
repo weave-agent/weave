@@ -38,6 +38,8 @@ func handleSubcommand(args []string) (int, bool) {
 	}
 
 	switch args[0] {
+	case "cache":
+		return runCacheSubcommand(args[1:]), true
 	case "install":
 		return extmanage.RunInstall(args[1:]), true
 	case "list":
@@ -49,6 +51,47 @@ func handleSubcommand(args []string) (int, bool) {
 	}
 
 	return 0, false
+}
+
+func runCacheSubcommand(args []string) int {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "weave cache: missing command")
+		fmt.Fprintln(os.Stderr, "usage: weave cache clean")
+
+		return 1
+	}
+
+	if args[0] != "clean" {
+		fmt.Fprintf(os.Stderr, "weave cache: unknown command %q\n", args[0])
+		fmt.Fprintln(os.Stderr, "usage: weave cache clean")
+
+		return 1
+	}
+
+	if len(args) > 1 {
+		fmt.Fprintln(os.Stderr, "weave cache clean: too many arguments")
+		fmt.Fprintln(os.Stderr, "usage: weave cache clean")
+
+		return 1
+	}
+
+	cacheDir, err := launcher.DefaultCacheDir()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "weave cache clean: %v\n", err)
+
+		return 1
+	}
+
+	removed, err := launcher.NewCache(cacheDir).Clean()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "weave cache clean: %v\n", err)
+
+		return 1
+	}
+
+	_, _ = fmt.Fprintf(os.Stdout, "removed %d launcher cache entries\n", removed)
+
+	return 0
 }
 
 func loadConfig(args []string) (configFile string, cf *settings.Settings, rest []string, err error) {

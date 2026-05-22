@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -99,10 +100,140 @@ func TestStore_MissingSource(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestStoreAndLookup_UpdateAccessMetadata(t *testing.T) {
+	root := t.TempDir()
+	src := writeCacheTestBinary(t, "binary")
+
+	times := []time.Time{
+		time.Unix(10, 0),
+		time.Unix(20, 0),
+	}
+
+	c := NewCache(root)
+	c.now = func() time.Time {
+		require.NotEmpty(t, times)
+
+		next := times[0]
+		times = times[1:]
+
+		return next
+	}
+
+	require.NoError(t, c.Store("hash1", src))
+	assert.Equal(t, "10000000000\n", readAccessMetadata(t, c, "hash1"))
+
+	_, found := c.Lookup("hash1")
+	require.True(t, found)
+	assert.Equal(t, "20000000000\n", readAccessMetadata(t, c, "hash1"))
+}
+
+func TestStore_EvictsLeastRecentlyUsedEntry(t *testing.T) {
+	root := t.TempDir()
+	src := writeCacheTestBinary(t, "0123456789")
+	c := newTickingCache(root)
+	c.MaxSizeBytes = -1
+
+	require.NoError(t, c.Store("old", src))
+	require.NoError(t, c.Store("recent", src))
+
+	_, found := c.Lookup("old")
+	require.True(t, found)
+
+	c.MaxSizeBytes = cacheTotalSize(t, c)
+	require.NoError(t, c.Store("newest", src))
+
+	_, found = c.Lookup("recent")
+	assert.False(t, found, "least recently used entry should be evicted")
+
+	_, found = c.Lookup("old")
+	assert.True(t, found, "lookup should refresh access metadata")
+
+	_, found = c.Lookup("newest")
+	assert.True(t, found, "newly stored entry should be protected from eviction")
+}
+
+func TestStore_KeepsNewEntryWhenEntryExceedsLimit(t *testing.T) {
+	src := writeCacheTestBinary(t, "this binary is larger than the cache limit")
+	c := NewCache(t.TempDir())
+	c.MaxSizeBytes = 1
+
+	require.NoError(t, c.Store("oversized", src))
+
+	_, found := c.Lookup("oversized")
+	assert.True(t, found, "store should not evict the entry it just wrote")
+}
+
+func TestClean_RemovesOnlyLauncherCacheEntries(t *testing.T) {
+	root := t.TempDir()
+	src := writeCacheTestBinary(t, "binary")
+	c := NewCache(root)
+
+	require.NoError(t, c.Store("hash1", src))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "notes.txt"), []byte("keep"), 0o600))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "not-cache"), 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "not-cache", "file"), []byte("keep"), 0o600))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "missing-binary"), 0o750))
+
+	removed, err := c.Clean()
+	require.NoError(t, err)
+	assert.Equal(t, 1, removed)
+
+	assert.NoFileExists(t, filepath.Join(root, "hash1", "weave"))
+	assert.FileExists(t, filepath.Join(root, "notes.txt"))
+	assert.FileExists(t, filepath.Join(root, "not-cache", "file"))
+	assert.DirExists(t, filepath.Join(root, "missing-binary"))
+}
+
 func TestDefaultCacheDir(t *testing.T) {
 	dir, err := DefaultCacheDir()
 	require.NoError(t, err)
 
 	home, _ := os.UserHomeDir()
 	assert.Equal(t, filepath.Join(home, ".weave", "bin"), dir)
+}
+
+func writeCacheTestBinary(t *testing.T, content string) string {
+	t.Helper()
+
+	src := filepath.Join(t.TempDir(), "weave")
+	require.NoError(t, os.WriteFile(src, []byte(content), 0o750))
+
+	return src
+}
+
+func newTickingCache(root string) *Cache {
+	c := NewCache(root)
+
+	var tick int64
+
+	c.now = func() time.Time {
+		tick++
+
+		return time.Unix(tick, 0)
+	}
+
+	return c
+}
+
+func readAccessMetadata(t *testing.T, c *Cache, hash string) string {
+	t.Helper()
+
+	data, err := os.ReadFile(filepath.Join(c.Root, hash, accessMetadataName))
+	require.NoError(t, err)
+
+	return string(data)
+}
+
+func cacheTotalSize(t *testing.T, c *Cache) int64 {
+	t.Helper()
+
+	entries, err := c.cacheEntries()
+	require.NoError(t, err)
+
+	var total int64
+	for _, entry := range entries {
+		total += entry.size
+	}
+
+	return total
 }
