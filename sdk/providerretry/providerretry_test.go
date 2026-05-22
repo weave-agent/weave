@@ -44,10 +44,10 @@ func (s *stubConfig) ExtensionConfig(scope, name string, target any) error {
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 
-	assert.Equal(t, 5, cfg.MaxRetries)
+	assert.Equal(t, 5, *cfg.MaxRetries)
 	assert.Equal(t, "1s", cfg.BaseDelay)
 	assert.Equal(t, "30s", cfg.MaxDelay)
-	assert.InDelta(t, 2.0, cfg.Multiplier, 0.0001)
+	assert.InDelta(t, 2.0, *cfg.Multiplier, 0.0001)
 	assert.Equal(t, "full", cfg.Jitter)
 }
 
@@ -66,10 +66,10 @@ func TestResolve_Defaults(t *testing.T) {
 
 func TestResolve_CustomValues(t *testing.T) {
 	cfg := Config{
-		MaxRetries: 3,
+		MaxRetries: new(3),
 		BaseDelay:  "500ms",
 		MaxDelay:   "10s",
-		Multiplier: 1.5,
+		Multiplier: new(1.5),
 		Jitter:     "none",
 	}
 
@@ -142,7 +142,7 @@ func TestResolve_InvalidJitter(t *testing.T) {
 }
 
 func TestResolve_NegativeMultiplier(t *testing.T) {
-	cfg := Config{Multiplier: -1}
+	cfg := Config{Multiplier: new(-1.0)}
 
 	_, err := cfg.Resolve("openai")
 	require.Error(t, err)
@@ -154,7 +154,7 @@ func TestResolve_NegativeMultiplier(t *testing.T) {
 func TestResolve_ZeroMultiplier(t *testing.T) {
 	cfg := Config{
 		BaseDelay:  "1s",
-		Multiplier: 0,
+		Multiplier: new(0.0),
 	}
 
 	r, err := cfg.Resolve("openai")
@@ -199,7 +199,7 @@ func TestForProvider_GlobalDefaultsMerge(t *testing.T) {
 	assert.InDelta(t, 2.0, r.Multiplier, 0.0001, "unspecified field should inherit code default")
 	assert.Equal(t, retry.JitterFull, r.Jitter, "unspecified field should inherit code default")
 
-	assert.Equal(t, 10, raw.MaxRetries)
+	assert.Equal(t, 10, *raw.MaxRetries)
 	assert.Equal(t, "2s", raw.BaseDelay)
 	assert.Equal(t, "30s", raw.MaxDelay)
 }
@@ -257,10 +257,10 @@ func TestForProvider_ProviderSpecificFullOverride(t *testing.T) {
 	assert.InDelta(t, 1.5, r.Multiplier, 0.0001)
 	assert.Equal(t, retry.JitterNone, r.Jitter)
 
-	assert.Equal(t, 3, raw.MaxRetries)
+	assert.Equal(t, 3, *raw.MaxRetries)
 	assert.Equal(t, "500ms", raw.BaseDelay)
 	assert.Equal(t, "5s", raw.MaxDelay)
-	assert.InDelta(t, 1.5, raw.Multiplier, 0.0001)
+	assert.InDelta(t, 1.5, *raw.Multiplier, 0.0001)
 	assert.Equal(t, "none", raw.Jitter)
 }
 
@@ -334,10 +334,10 @@ func TestForProvider_NegativeProviderMultiplier(t *testing.T) {
 
 func TestMergeConfig(t *testing.T) {
 	base := Config{
-		MaxRetries: 5,
+		MaxRetries: new(5),
 		BaseDelay:  "1s",
 		MaxDelay:   "30s",
-		Multiplier: 2.0,
+		Multiplier: new(2.0),
 		Jitter:     "full",
 	}
 
@@ -347,38 +347,52 @@ func TestMergeConfig(t *testing.T) {
 	})
 
 	t.Run("partial override merges only set fields", func(t *testing.T) {
-		override := Config{MaxRetries: 10, Jitter: "none"}
+		override := Config{MaxRetries: new(10), Jitter: "none"}
 		got := mergeConfig(base, override)
-		assert.Equal(t, 10, got.MaxRetries)
+		assert.Equal(t, 10, *got.MaxRetries)
 		assert.Equal(t, "1s", got.BaseDelay)
 		assert.Equal(t, "30s", got.MaxDelay)
-		assert.InDelta(t, 2.0, got.Multiplier, 0.0001)
+		assert.InDelta(t, 2.0, *got.Multiplier, 0.0001)
 		assert.Equal(t, "none", got.Jitter)
 	})
 
 	t.Run("full override replaces all", func(t *testing.T) {
 		override := Config{
-			MaxRetries: 3,
+			MaxRetries: new(3),
 			BaseDelay:  "500ms",
 			MaxDelay:   "5s",
-			Multiplier: 1.5,
+			Multiplier: new(1.5),
 			Jitter:     "none",
 		}
 		got := mergeConfig(base, override)
 		assert.Equal(t, override, got)
 	})
 
-	t.Run("zero max_retries does not override", func(t *testing.T) {
-		override := Config{MaxRetries: 0, BaseDelay: "2s"}
+	t.Run("nil max_retries does not override", func(t *testing.T) {
+		override := Config{BaseDelay: "2s"}
 		got := mergeConfig(base, override)
-		assert.Equal(t, 5, got.MaxRetries)
+		assert.Equal(t, 5, *got.MaxRetries)
 		assert.Equal(t, "2s", got.BaseDelay)
 	})
 
-	t.Run("zero multiplier does not override", func(t *testing.T) {
-		override := Config{Multiplier: 0, Jitter: "none"}
+	t.Run("explicit zero max_retries overrides", func(t *testing.T) {
+		override := Config{MaxRetries: new(0), BaseDelay: "2s"}
 		got := mergeConfig(base, override)
-		assert.InDelta(t, 2.0, got.Multiplier, 0.0001)
+		assert.Equal(t, 0, *got.MaxRetries)
+		assert.Equal(t, "2s", got.BaseDelay)
+	})
+
+	t.Run("nil multiplier does not override", func(t *testing.T) {
+		override := Config{Jitter: "none"}
+		got := mergeConfig(base, override)
+		assert.InDelta(t, 2.0, *got.Multiplier, 0.0001)
+		assert.Equal(t, "none", got.Jitter)
+	})
+
+	t.Run("explicit zero multiplier overrides", func(t *testing.T) {
+		override := Config{Multiplier: new(0.0), Jitter: "none"}
+		got := mergeConfig(base, override)
+		assert.InDelta(t, 0.0, *got.Multiplier, 0.0001)
 		assert.Equal(t, "none", got.Jitter)
 	})
 }

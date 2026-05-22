@@ -10,21 +10,26 @@ import (
 
 // Config holds provider retry configuration. Duration fields are strings
 // parsed by Resolve; Jitter is a string validated against retry.JitterMode.
+// MaxRetries and Multiplier use pointer types so that zero values can be
+// distinguished from "not set" during config merging.
 type Config struct {
-	MaxRetries int     `json:"max_retries,omitempty" env:"MAX_RETRIES" description:"Maximum retry attempts"`
-	BaseDelay  string  `json:"base_delay,omitempty" env:"BASE_DELAY" description:"Base delay between retries"`
-	MaxDelay   string  `json:"max_delay,omitempty" env:"MAX_DELAY" description:"Maximum delay between retries"`
-	Multiplier float64 `json:"multiplier,omitempty" env:"MULTIPLIER" description:"Exponential backoff multiplier"`
-	Jitter     string  `json:"jitter,omitempty" env:"JITTER" description:"Jitter mode: full or none"`
+	MaxRetries *int     `json:"max_retries,omitempty" env:"MAX_RETRIES" description:"Maximum retry attempts"`
+	BaseDelay  string   `json:"base_delay,omitempty" env:"BASE_DELAY" description:"Base delay between retries"`
+	MaxDelay   string   `json:"max_delay,omitempty" env:"MAX_DELAY" description:"Maximum delay between retries"`
+	Multiplier *float64 `json:"multiplier,omitempty" env:"MULTIPLIER" description:"Exponential backoff multiplier"`
+	Jitter     string   `json:"jitter,omitempty" env:"JITTER" description:"Jitter mode: full or none"`
 }
 
 // DefaultConfig returns the default retry configuration.
 func DefaultConfig() Config {
+	maxRetries := 5
+	multiplier := 2.0
+
 	return Config{
-		MaxRetries: 5,
+		MaxRetries: &maxRetries,
 		BaseDelay:  "1s",
 		MaxDelay:   "30s",
-		Multiplier: 2,
+		Multiplier: &multiplier,
 		Jitter:     "full",
 	}
 }
@@ -46,17 +51,21 @@ func (c Config) Resolve(provider string) (retry.Config, error) {
 		return retry.Config{}, fmt.Errorf("provider %s: %w", provider, err)
 	}
 
-	if c.MaxRetries < 0 {
-		return retry.Config{}, fmt.Errorf("provider %s: invalid max_retries: negative value %d", provider, c.MaxRetries)
+	if c.MaxRetries != nil {
+		if *c.MaxRetries < 0 {
+			return retry.Config{}, fmt.Errorf("provider %s: invalid max_retries: negative value %d", provider, *c.MaxRetries)
+		}
+
+		r.MaxRetries = *c.MaxRetries
 	}
 
-	r.MaxRetries = c.MaxRetries
+	if c.Multiplier != nil {
+		if *c.Multiplier < 0 {
+			return retry.Config{}, fmt.Errorf("provider %s: invalid multiplier: negative value %v", provider, *c.Multiplier)
+		}
 
-	if c.Multiplier < 0 {
-		return retry.Config{}, fmt.Errorf("provider %s: invalid multiplier: negative value %v", provider, c.Multiplier)
+		r.Multiplier = *c.Multiplier
 	}
-
-	r.Multiplier = c.Multiplier
 
 	if c.Jitter != "" && c.Jitter != string(retry.JitterNone) && c.Jitter != string(retry.JitterFull) {
 		return retry.Config{}, fmt.Errorf("provider %s: invalid jitter: %q", provider, c.Jitter)
@@ -103,11 +112,11 @@ func ForProvider(cfg sdk.Config, provider string) (retry.Config, Config, error) 
 	return r, result, nil
 }
 
-// mergeConfig returns a new Config where non-zero fields from override replace
-// the corresponding fields in base. For strings, empty means "not set".
-// For float64, zero means "not set" because multiplier=0 is not useful.
+// mergeConfig returns a new Config where non-nil/non-empty fields from override
+// replace the corresponding fields in base. Nil pointers and empty strings mean
+// "not set" and do not override.
 func mergeConfig(base, override Config) Config {
-	if override.MaxRetries != 0 {
+	if override.MaxRetries != nil {
 		base.MaxRetries = override.MaxRetries
 	}
 
@@ -119,7 +128,7 @@ func mergeConfig(base, override Config) Config {
 		base.MaxDelay = override.MaxDelay
 	}
 
-	if override.Multiplier != 0 {
+	if override.Multiplier != nil {
 		base.Multiplier = override.Multiplier
 	}
 

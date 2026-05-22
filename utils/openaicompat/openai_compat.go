@@ -288,7 +288,7 @@ func doStreamRequest(client *http.Client, req *http.Request) (io.ReadCloser, err
 		defer resp.Body.Close()
 
 		limited := io.LimitReader(resp.Body, maxErrorBodySize+1)
-		errBody, _ := io.ReadAll(limited)
+		errBody, readErr := io.ReadAll(limited)
 
 		truncated := len(errBody) > maxErrorBodySize
 		if truncated {
@@ -308,6 +308,10 @@ func doStreamRequest(client *http.Client, req *http.Request) (io.ReadCloser, err
 				Message:    errResp.Error.Message,
 				Body:       bodyStr,
 			}
+		}
+
+		if readErr != nil {
+			bodyStr = fmt.Sprintf("error reading response body: %v; partial body: %s", readErr, bodyStr)
 		}
 
 		return nil, &Error{
