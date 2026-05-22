@@ -2,6 +2,7 @@ package wire
 
 import (
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -187,33 +188,55 @@ func TestIsWeaveModule(t *testing.T) {
 	assert.False(t, isWeaveModule(dir))
 }
 
-func TestRun_HelpFlagBypassesNoInputCheck(t *testing.T) {
-	dir := t.TempDir()
-	cfgFile := dir + "/.weave/settings.json"
-	require.NoError(t, os.MkdirAll(filepath.Dir(cfgFile), 0o750))
-	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"none","agent_loop":"agent"}`), 0o600))
+func TestRun_HelpFlagPrintsFullHelpWithoutBootstrapOrLauncher(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{"long", []string{"--help"}},
+		{"short", []string{"-h"}},
+	}
 
-	origWd, _ := os.Getwd()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			cfgFile := filepath.Join(dir, ".weave", "settings.json")
+			require.NoError(t, os.MkdirAll(filepath.Dir(cfgFile), 0o750))
+			require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"none","agent_loop":"agent"}`), 0o600))
 
-	require.NoError(t, os.Chdir(dir))
-	defer func() { _ = os.Chdir(origWd) }()
+			origWd, _ := os.Getwd()
 
-	// --help should bypass the no-input check and proceed to the launcher.
-	// The launcher will fail because there's no module root in a temp dir,
-	// but we verify it's not the "no prompt provided" error.
-	code := run(context.Background(), []string{"--help"}, "unknown")
-	// Exit code may be 1 (launcher failure in temp dir) but should NOT be
-	// the no-input error path. We verify by checking stderr isn't the no-input message.
-	// Since we can't easily capture stderr here, we rely on the fact that the launcher
-	// path fails differently (module root not found) vs the no-input check which returns 1.
-	// The test above in TestRunMissingConfig shows no-config returns 1 too, but the
-	// key assertion is that --help does not trigger the errNoInput path.
-	assert.NotEqual(t, 0, code, "should fail due to launcher/module root, not no-input")
+			require.NoError(t, os.Chdir(dir))
+			defer func() { _ = os.Chdir(origWd) }()
+
+			var bootstrapCalls, launcherCalls int
+			withRunHooks(t,
+				func(context.Context, *settings.Settings) {
+					bootstrapCalls++
+				},
+				func(context.Context, string, string, string, string, []string, string, string, bool, []string) error {
+					launcherCalls++
+
+					return nil
+				},
+			)
+
+			var code int
+			stderr := captureStderr(t, func() {
+				code = run(context.Background(), tt.args, "unknown")
+			})
+
+			assert.Equal(t, 0, code)
+			assert.Contains(t, stderr, "Usage: weave [options] [command]")
+			assert.Equal(t, 0, bootstrapCalls)
+			assert.Equal(t, 0, launcherCalls)
+		})
+	}
 }
 
-func TestRun_HelpShortFlagBypassesNoInputCheck(t *testing.T) {
+func TestRun_NoInputSkipsBootstrapAndLauncher(t *testing.T) {
 	dir := t.TempDir()
-	cfgFile := dir + "/.weave/settings.json"
+	cfgFile := filepath.Join(dir, ".weave", "settings.json")
 	require.NoError(t, os.MkdirAll(filepath.Dir(cfgFile), 0o750))
 	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"none","agent_loop":"agent"}`), 0o600))
 
@@ -222,8 +245,64 @@ func TestRun_HelpShortFlagBypassesNoInputCheck(t *testing.T) {
 	require.NoError(t, os.Chdir(dir))
 	defer func() { _ = os.Chdir(origWd) }()
 
-	code := run(context.Background(), []string{"-h"}, "unknown")
-	assert.NotEqual(t, 0, code, "should fail due to launcher/module root, not no-input")
+	var bootstrapCalls, launcherCalls int
+	withRunHooks(t,
+		func(context.Context, *settings.Settings) {
+			bootstrapCalls++
+		},
+		func(context.Context, string, string, string, string, []string, string, string, bool, []string) error {
+			launcherCalls++
+
+			return nil
+		},
+	)
+
+	var code int
+	stderr := captureStderr(t, func() {
+		code = run(context.Background(), nil, "unknown")
+	})
+
+	assert.Equal(t, 1, code)
+	assert.Contains(t, stderr, errNoInput.Error())
+	assert.Equal(t, 0, bootstrapCalls)
+	assert.Equal(t, 0, launcherCalls)
+}
+
+func TestRun_NormalLaunchRunsBootstrapBeforeLauncher(t *testing.T) {
+	dir := t.TempDir()
+	cfgFile := filepath.Join(dir, ".weave", "settings.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(cfgFile), 0o750))
+	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"tui","agent_loop":"agent"}`), 0o600))
+	realDir, err := filepath.EvalSymlinks(dir)
+	require.NoError(t, err)
+	realCfgFile := filepath.Join(realDir, ".weave", "settings.json")
+	t.Setenv("HOME", t.TempDir())
+
+	origWd, _ := os.Getwd()
+
+	require.NoError(t, os.Chdir(dir))
+	defer func() { _ = os.Chdir(origWd) }()
+
+	var events []string
+	withRunHooks(t,
+		func(context.Context, *settings.Settings) {
+			events = append(events, "bootstrap")
+		},
+		func(_ context.Context, _ string, _ string, _ string, projectDir string, _ []string, gotConfigFile, agentLoop string, headless bool, _ []string) error {
+			events = append(events, "launcher")
+			assert.Equal(t, realDir, projectDir)
+			assert.Equal(t, realCfgFile, gotConfigFile)
+			assert.Equal(t, "agent", agentLoop)
+			assert.False(t, headless)
+
+			return nil
+		},
+	)
+
+	code := run(context.Background(), nil, "v0.0.1-abc0123-2026-05-17")
+
+	assert.Equal(t, 0, code)
+	assert.Equal(t, []string{"bootstrap", "launcher"}, events)
 }
 
 func TestWritePromptFile(t *testing.T) {
@@ -430,4 +509,51 @@ func TestRun_ProjectDirNotUsedForGlobalConfig(t *testing.T) {
 
 	// Verify ProjectDirFromConfig gives the right directory for each.
 	assert.Equal(t, projectDir, settings.ProjectDirFromConfig(localConfigPath))
+}
+
+func withRunHooks(
+	t *testing.T,
+	bootstrap func(context.Context, *settings.Settings),
+	runLauncher func(context.Context, string, string, string, string, []string, string, string, bool, []string) error,
+) {
+	t.Helper()
+
+	origBootstrap := runBootstrapFunc
+	origRunLauncher := runLauncherFunc
+
+	if bootstrap != nil {
+		runBootstrapFunc = bootstrap
+	}
+
+	if runLauncher != nil {
+		runLauncherFunc = runLauncher
+	}
+
+	t.Cleanup(func() {
+		runBootstrapFunc = origBootstrap
+		runLauncherFunc = origRunLauncher
+	})
+}
+
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+
+	orig := os.Stderr
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+
+	os.Stderr = w
+	defer func() {
+		os.Stderr = orig
+	}()
+
+	fn()
+
+	require.NoError(t, w.Close())
+
+	out, err := io.ReadAll(r)
+	require.NoError(t, err)
+	require.NoError(t, r.Close())
+
+	return string(out)
 }

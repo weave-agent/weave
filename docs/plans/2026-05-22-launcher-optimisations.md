@@ -97,11 +97,11 @@ The changes integrate with the existing launcher flow in `internal/wire/run.go` 
 - [x] run `go test ./internal/launcher` - must pass before task 5
 
 ### Task 5: Add no-build help path and delay bootstrap
-- [ ] restructure `internal/wire/run.go` so help/no-input early exits happen before `runBootstrap`
-- [ ] implement `--help` / `-h` handling that prints full help without invoking `launcher.Run`
-- [ ] preserve existing no-input behavior and normal-run bootstrap behavior
-- [ ] add/update tests in `internal/wire/run_test.go` for help fast path, no-input no-bootstrap behavior, and normal bootstrap positioning where feasible
-- [ ] run `go test ./internal/wire ./internal/launcher` - must pass before task 6
+- [x] restructure `internal/wire/run.go` so help/no-input early exits happen before `runBootstrap`
+- [x] implement `--help` / `-h` handling that prints full help without invoking `launcher.Run`
+- [x] preserve existing no-input behavior and normal-run bootstrap behavior
+- [x] add/update tests in `internal/wire/run_test.go` for help fast path, no-input no-bootstrap behavior, and normal bootstrap positioning where feasible
+- [x] run `go test ./internal/wire ./internal/launcher` - must pass before task 6
 
 ### Task 6: Add size-based launcher cache eviction and cache clean command
 - [ ] add size-based LRU eviction support to `internal/launcher/cache.go` after successful cache store

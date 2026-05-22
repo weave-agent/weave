@@ -15,6 +15,11 @@ import (
 
 var errNoInput = errors.New("no prompt provided and ui is disabled — use -p to provide a prompt or set ui: tui")
 
+var (
+	runBootstrapFunc = runBootstrap
+	runLauncherFunc  = runLauncher
+)
+
 // Run is the main entry point for the weave CLI. It parses args, loads config,
 // discovers extensions, and runs the launcher pipeline.
 // revision is the binary version set via ldflags (e.g. "v0.0.1-abc0123-2026-05-17"),
@@ -142,7 +147,19 @@ func runBootstrap(ctx context.Context, cf *settings.Settings) {
 }
 
 func buildLauncher(ctx context.Context, cf *settings.Settings, rest []string, configFile, revision string) int {
-	runBootstrap(ctx, cf)
+	if hasHelpFlag(rest) {
+		fmt.Fprint(os.Stderr, settings.GenerateFullHelp())
+
+		return 0
+	}
+
+	if cf.Prompt == "" && (cf.UIExtension == "" || cf.UIExtension == "none") {
+		fmt.Fprintf(os.Stderr, "weave: %v\n", errNoInput)
+
+		return 1
+	}
+
+	runBootstrapFunc(ctx, cf)
 
 	cacheDir, err := launcher.DefaultCacheDir()
 	if err != nil {
@@ -182,11 +199,6 @@ func buildLauncher(ctx context.Context, cf *settings.Settings, rest []string, co
 		projectDir = override
 	}
 
-	if cf.Prompt == "" && (cf.UIExtension == "" || cf.UIExtension == "none") && !hasHelpFlag(rest) {
-		fmt.Fprintf(os.Stderr, "weave: %v\n", errNoInput)
-		return 1
-	}
-
 	headless := cf.Prompt != ""
 
 	if cf.Prompt != "" && !hasWeavePromptFileFlag(rest) {
@@ -203,15 +215,26 @@ func buildLauncher(ctx context.Context, cf *settings.Settings, rest []string, co
 	// Forward CLI flags to the generated binary.
 	rest = append(rest, cf.WeaveFlags()...)
 
-	cache := launcher.NewCache(cacheDir)
-	l := launcher.NewLauncher(cache, moduleRoot, moduleVersion)
-
-	if err := l.Run(ctx, projectDir, rest, configFile, cf.AgentLoop, headless, cf.ExcludeExtensions); err != nil {
+	if err := runLauncherFunc(ctx, cacheDir, moduleRoot, moduleVersion, projectDir, rest, configFile, cf.AgentLoop, headless, cf.ExcludeExtensions); err != nil {
 		fmt.Fprintf(os.Stderr, "weave: %v\n", err)
 		return 1
 	}
 
 	return 0
+}
+
+func runLauncher(
+	ctx context.Context,
+	cacheDir, moduleRoot, moduleVersion, projectDir string,
+	args []string,
+	configFile, agentLoop string,
+	headless bool,
+	exclude []string,
+) error {
+	cache := launcher.NewCache(cacheDir)
+	l := launcher.NewLauncher(cache, moduleRoot, moduleVersion)
+
+	return l.Run(ctx, projectDir, args, configFile, agentLoop, headless, exclude)
 }
 
 func hasWeavePromptFileFlag(args []string) bool {
