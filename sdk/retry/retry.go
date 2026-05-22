@@ -4,7 +4,16 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"math/rand"
 	"time"
+)
+
+// JitterMode controls how randomness is applied to retry delays.
+type JitterMode string
+
+const (
+	JitterNone JitterMode = "none"
+	JitterFull JitterMode = "full"
 )
 
 // Config holds retry configuration.
@@ -13,16 +22,18 @@ type Config struct {
 	BaseDelay  time.Duration
 	MaxDelay   time.Duration
 	Multiplier float64
+	Jitter     JitterMode
 }
 
 // DefaultConfig returns a default retry configuration with 10 retries,
-// 1-second base delay, 30-second cap, and 2x exponential multiplier.
+// 1-second base delay, 30-second cap, 2x exponential multiplier, and no jitter.
 func DefaultConfig() Config {
 	return Config{
 		MaxRetries: 10,
 		BaseDelay:  1 * time.Second,
 		MaxDelay:   30 * time.Second,
 		Multiplier: 2,
+		Jitter:     JitterNone,
 	}
 }
 
@@ -49,7 +60,7 @@ func Do(ctx context.Context, cfg Config, isRetriable func(error) bool, fn func()
 		}
 
 		if attempt < cfg.MaxRetries {
-			delay := CalculateDelay(cfg, attempt)
+			delay := JitteredDelay(CalculateDelay(cfg, attempt), cfg.Jitter)
 			timer := time.NewTimer(delay)
 
 			select {
@@ -77,4 +88,16 @@ func CalculateDelay(cfg Config, attempt int) time.Duration {
 	}
 
 	return time.Duration(delay)
+}
+
+// JitteredDelay applies jitter to a calculated delay based on the jitter mode.
+// JitterNone returns the delay unchanged. JitterFull returns a random delay
+// in the range [0, delay].
+func JitteredDelay(delay time.Duration, jitter JitterMode) time.Duration {
+	if jitter != JitterFull || delay <= 0 {
+		return delay
+	}
+
+	//nolint:gosec // math/rand is sufficient for retry jitter; not used for cryptography.
+	return time.Duration(rand.Float64() * float64(delay))
 }

@@ -139,3 +139,77 @@ func TestCalculateDelay_ZeroBase(t *testing.T) {
 	assert.Equal(t, 0*time.Second, CalculateDelay(cfg, 0))
 	assert.Equal(t, 0*time.Second, CalculateDelay(cfg, 5))
 }
+
+func TestJitteredDelay_None_ReturnsDelayUnchanged(t *testing.T) {
+	assert.Equal(t, 1*time.Second, JitteredDelay(1*time.Second, JitterNone))
+	assert.Equal(t, 30*time.Second, JitteredDelay(30*time.Second, JitterNone))
+	assert.Equal(t, time.Duration(0), JitteredDelay(0, JitterNone))
+}
+
+func TestJitteredDelay_EmptyString_ReturnsDelayUnchanged(t *testing.T) {
+	assert.Equal(t, 1*time.Second, JitteredDelay(1*time.Second, ""))
+	assert.Equal(t, 30*time.Second, JitteredDelay(30*time.Second, ""))
+}
+
+func TestJitteredDelay_Full_ReturnsDelayInRange(t *testing.T) {
+	calculated := 1 * time.Second
+
+	for range 100 {
+		jittered := JitteredDelay(calculated, JitterFull)
+		assert.GreaterOrEqual(t, jittered, time.Duration(0))
+		assert.LessOrEqual(t, jittered, calculated)
+	}
+}
+
+func TestJitteredDelay_Full_ProducesVariation(t *testing.T) {
+	calculated := 1 * time.Second
+
+	var seenLower bool
+
+	for range 200 {
+		jittered := JitteredDelay(calculated, JitterFull)
+		if jittered < calculated {
+			seenLower = true
+			break
+		}
+	}
+
+	assert.True(t, seenLower, "expected at least one jittered delay to be strictly less than calculated over 200 iterations")
+}
+
+func TestJitteredDelay_Full_ZeroOrNegativeDelay(t *testing.T) {
+	assert.Equal(t, time.Duration(0), JitteredDelay(0, JitterFull))
+	assert.Equal(t, -1*time.Second, JitteredDelay(-1*time.Second, JitterFull))
+}
+
+func TestDo_JitterNone_PreservesDelays(t *testing.T) {
+	cfg := Config{MaxRetries: 3, BaseDelay: 1 * time.Millisecond, Jitter: JitterNone}
+	callCount := 0
+
+	err := Do(context.Background(), cfg,
+		func(error) bool { return true },
+		func() error {
+			callCount++
+			return errors.New("transient")
+		},
+	)
+
+	require.Error(t, err)
+	assert.Equal(t, 4, callCount)
+}
+
+func TestDo_JitterFull_Completes(t *testing.T) {
+	cfg := Config{MaxRetries: 3, BaseDelay: 1 * time.Millisecond, Jitter: JitterFull}
+	callCount := 0
+
+	err := Do(context.Background(), cfg,
+		func(error) bool { return true },
+		func() error {
+			callCount++
+			return errors.New("transient")
+		},
+	)
+
+	require.Error(t, err)
+	assert.Equal(t, 4, callCount)
+}

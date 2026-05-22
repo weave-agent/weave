@@ -80,12 +80,12 @@ The first pass configures transport deadlines only. It intentionally does not ad
 - [x] run `go test ./sdk/providerhttp` - must pass before next task
 
 ### Task 4: Add jitter support to generic retry
-- [ ] extend `sdk/retry.Config` with jitter mode support for `full` and `none`
-- [ ] keep deterministic behavior available through `none`
-- [ ] implement full jitter as random delay in `[0, calculatedDelay]`
-- [ ] write tests proving `none` preserves existing calculated delays
-- [ ] write tests proving `full` returns delays inside the expected range
-- [ ] run `go test ./sdk/retry` - must pass before next task
+- [x] extend `sdk/retry.Config` with jitter mode support for `full` and `none`
+- [x] keep deterministic behavior available through `none`
+- [x] implement full jitter as random delay in `[0, calculatedDelay]`
+- [x] write tests proving `none` preserves existing calculated delays
+- [x] write tests proving `full` returns delays inside the expected range
+- [x] run `go test ./sdk/retry` - must pass before next task
 
 ### Task 5: Add provider retry config resolver
 - [ ] create `sdk/providerretry` package with provider-facing config type
