@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -18,17 +17,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestMain(m *testing.M) {
-	retryConfig = retry.Config{
-		MaxRetries: 2,
-		BaseDelay:  1 * time.Millisecond,
-		MaxDelay:   10 * time.Millisecond,
-		Multiplier: 2,
-	}
-
-	os.Exit(m.Run())
-}
 
 func TestConvertMessages(t *testing.T) {
 	tests := []struct {
@@ -437,6 +425,9 @@ func TestStream_UnexpectedStatus(t *testing.T) {
 	_, err := Stream(context.Background(), server.Client(), ProviderConfig{
 		BaseURL: server.URL,
 		APIKey:  "test-key",
+		RetryConfig: &retry.Config{
+			MaxRetries: 0,
+		},
 	}, sdk.ProviderRequest{
 		Messages: []sdk.Message{sdk.NewUserMessage("hi")},
 	})
@@ -886,6 +877,12 @@ func TestStream_RetryOn429(t *testing.T) {
 	ch, err := Stream(context.Background(), server.Client(), ProviderConfig{
 		BaseURL: server.URL,
 		APIKey:  "test-key",
+		RetryConfig: &retry.Config{
+			MaxRetries: 2,
+			BaseDelay:  1 * time.Millisecond,
+			MaxDelay:   10 * time.Millisecond,
+			Multiplier: 2,
+		},
 	}, sdk.ProviderRequest{
 		Messages: []sdk.Message{sdk.NewUserMessage("hi")},
 	})
@@ -894,6 +891,47 @@ func TestStream_RetryOn429(t *testing.T) {
 	events := collectEvents(ch)
 	require.NotEmpty(t, events)
 	assert.Equal(t, 3, attemptCount, "expected 3 attempts (2 failures + 1 success)")
+}
+
+func TestStream_RetryDeterministicWithJitterNone(t *testing.T) {
+	attemptCount := 0
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attemptCount++
+		if attemptCount < 3 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = fmt.Fprint(w, `{"error":{"message":"Server unavailable","type":"server_error"}}`)
+
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = fmt.Fprint(w, sseStream(
+			sseChunk(ChunkDelta{Content: "ok"}, nil),
+			sseChunk(ChunkDelta{}, new("stop")),
+			sseDone(),
+		))
+	}))
+	defer server.Close()
+
+	ch, err := Stream(context.Background(), server.Client(), ProviderConfig{
+		BaseURL: server.URL,
+		APIKey:  "test-key",
+		RetryConfig: &retry.Config{
+			MaxRetries: 3,
+			BaseDelay:  5 * time.Millisecond,
+			MaxDelay:   50 * time.Millisecond,
+			Multiplier: 2,
+			Jitter:     retry.JitterNone,
+		},
+	}, sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("hi")},
+	})
+	require.NoError(t, err)
+
+	events := collectEvents(ch)
+	require.NotEmpty(t, events)
+	assert.Equal(t, 3, attemptCount, "expected 3 attempts with jitter=none")
 }
 
 func TestStream_RateLimitError(t *testing.T) {
@@ -906,6 +944,9 @@ func TestStream_RateLimitError(t *testing.T) {
 	_, err := Stream(context.Background(), server.Client(), ProviderConfig{
 		BaseURL: server.URL,
 		APIKey:  "test-key",
+		RetryConfig: &retry.Config{
+			MaxRetries: 0,
+		},
 	}, sdk.ProviderRequest{
 		Messages: []sdk.Message{sdk.NewUserMessage("hi")},
 	})

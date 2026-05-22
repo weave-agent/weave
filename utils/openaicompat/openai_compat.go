@@ -75,6 +75,7 @@ type ProviderConfig struct {
 	ExtraHeaders  map[string]string
 	ExtraBody     map[string]any
 	ModifyRequest func(body map[string]any, so *model.StreamOptions)
+	RetryConfig   *retry.Config // explicit retry config; nil falls back to retry.DefaultConfig()
 }
 
 // ChatRequest is the request body sent to the chat completions endpoint.
@@ -251,7 +252,12 @@ func Stream(ctx context.Context, client *http.Client, cfg ProviderConfig, req sd
 		httpReq.Header.Set(k, v)
 	}
 
-	respBody, err := doStreamRequestWithRetry(ctx, client, httpReq)
+	rc := retry.DefaultConfig()
+	if cfg.RetryConfig != nil {
+		rc = *cfg.RetryConfig
+	}
+
+	respBody, err := doStreamRequestWithRetry(ctx, client, httpReq, rc)
 	if err != nil {
 		return nil, err
 	}
@@ -303,15 +309,19 @@ func doStreamRequest(client *http.Client, req *http.Request) (io.ReadCloser, err
 	return resp.Body, nil
 }
 
-// retryConfig controls retry behavior for stream requests. It is a variable so
-// tests can override it with faster settings.
-var retryConfig = retry.DefaultConfig()
-
 // doStreamRequestWithRetry wraps doStreamRequest with exponential backoff retry.
-func doStreamRequestWithRetry(ctx context.Context, client *http.Client, req *http.Request) (io.ReadCloser, error) {
+// rc controls retry behavior; callers (providers) should resolve it via
+// sdk/providerretry and pass it in ProviderConfig.RetryConfig.
+func doStreamRequestWithRetry(ctx context.Context, client *http.Client, req *http.Request, rc retry.Config) (io.ReadCloser, error) {
+	logger := sdk.Logger("openaicompat")
+
 	var respBody io.ReadCloser
 
-	err := retry.Do(ctx, retryConfig, isRetriableError, func() error {
+	attempt := 0
+
+	err := retry.Do(ctx, rc, isRetriableError, func() error {
+		defer func() { attempt++ }()
+
 		if respBody != nil {
 			_ = respBody.Close()
 			respBody = nil
@@ -328,6 +338,15 @@ func doStreamRequestWithRetry(ctx context.Context, client *http.Client, req *htt
 
 		body, doErr := doStreamRequest(client, req)
 		if doErr != nil {
+			if attempt < rc.MaxRetries && isRetriableError(doErr) {
+				logger.Debug("stream request retry",
+					"attempt", attempt,
+					"max_retries", rc.MaxRetries,
+					"error_type", errorTypeString(doErr),
+					"jitter", string(rc.Jitter),
+				)
+			}
+
 			return doErr
 		}
 
@@ -340,6 +359,17 @@ func doStreamRequestWithRetry(ctx context.Context, client *http.Client, req *htt
 	}
 
 	return respBody, nil
+}
+
+// errorTypeString returns a safe, provider-agnostic string for the error type.
+// It never includes secrets, prompts, headers, or bodies.
+func errorTypeString(err error) string {
+	var apiErr *Error
+	if errors.As(err, &apiErr) {
+		return string(apiErr.Type)
+	}
+
+	return "transport"
 }
 
 func isRetriableError(err error) bool {

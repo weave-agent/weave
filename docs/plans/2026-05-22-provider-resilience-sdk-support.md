@@ -97,12 +97,12 @@ The first pass configures transport deadlines only. It intentionally does not ad
 - [x] run `go test ./sdk/providerretry` - must pass before next task
 
 ### Task 6: Make OpenAI-compatible retry explicit
-- [ ] update `utils/openaicompat.Stream` to accept retry config or an options/runtime struct
-- [ ] remove runtime dependency on package-global retry config while preserving testability
-- [ ] add structured debug logging for retry attempts with provider/operation-safe fields only
-- [ ] update existing retry tests to pass explicit retry config
-- [ ] write tests for jitter-disabled deterministic retry path
-- [ ] run `go test ./utils/openaicompat` - must pass before next task
+- [x] update `utils/openaicompat.Stream` to accept retry config or an options/runtime struct
+- [x] remove runtime dependency on package-global retry config while preserving testability
+- [x] add structured debug logging for retry attempts with provider/operation-safe fields only
+- [x] update existing retry tests to pass explicit retry config
+- [x] write tests for jitter-disabled deterministic retry path
+- [x] run `go test ./utils/openaicompat` - must pass before next task
 
 ### Task 7: Cap OpenAI-compatible error response bodies
 - [ ] add 64 KiB cap for non-OK response body reads in `utils/openaicompat`
