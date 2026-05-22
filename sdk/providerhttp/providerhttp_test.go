@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"reflect"
 	"testing"
 	"time"
 
@@ -379,6 +380,20 @@ func TestNewClient_InvalidDuration(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid dial_timeout")
 }
 
+func TestNewClient_PreservesDefaultTransportSettings(t *testing.T) {
+	cfg := DefaultConfig()
+
+	client, err := NewClient(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
+	transport, ok := client.Transport.(*http.Transport)
+	require.True(t, ok)
+
+	assert.NotNil(t, transport.Proxy, "Proxy should be preserved from http.DefaultTransport")
+	assert.True(t, transport.ForceAttemptHTTP2, "ForceAttemptHTTP2 should be preserved from http.DefaultTransport")
+}
+
 func TestNewClient_ZeroClientTimeout(t *testing.T) {
 	cfg := DefaultConfig()
 
@@ -421,4 +436,10 @@ func TestMergeConfig(t *testing.T) {
 		got := mergeConfig(base, override)
 		assert.Equal(t, override, got)
 	})
+}
+
+func TestConfig_NoEnvTags(t *testing.T) {
+	for field := range reflect.TypeFor[Config]().Fields() {
+		assert.Empty(t, field.Tag.Get("env"), "field %s should not have an env tag", field.Name)
+	}
 }

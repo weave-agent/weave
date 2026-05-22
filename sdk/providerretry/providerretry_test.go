@@ -3,6 +3,7 @@ package providerretry
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -426,4 +427,10 @@ func TestResolve_MinuteDuration(t *testing.T) {
 	r, err := cfg.Resolve("openai")
 	require.NoError(t, err)
 	assert.Equal(t, 150*time.Second, r.MaxDelay)
+}
+
+func TestConfig_NoEnvTags(t *testing.T) {
+	for field := range reflect.TypeFor[Config]().Fields() {
+		assert.Empty(t, field.Tag.Get("env"), "field %s should not have an env tag", field.Name)
+	}
 }

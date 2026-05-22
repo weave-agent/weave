@@ -12,10 +12,10 @@ import (
 // Config holds provider HTTP transport configuration as duration strings.
 // These values are parsed and converted into time.Duration by Resolve.
 type Config struct {
-	DialTimeout           string `json:"dial_timeout,omitempty" env:"DIAL_TIMEOUT" description:"Dial context timeout"`
-	TLSHandshakeTimeout   string `json:"tls_handshake_timeout,omitempty" env:"TLS_HANDSHAKE_TIMEOUT" description:"TLS handshake timeout"`
-	ResponseHeaderTimeout string `json:"response_header_timeout,omitempty" env:"RESPONSE_HEADER_TIMEOUT" description:"Response header timeout"`
-	IdleConnTimeout       string `json:"idle_conn_timeout,omitempty" env:"IDLE_CONN_TIMEOUT" description:"Idle connection timeout"`
+	DialTimeout           string `json:"dial_timeout,omitempty" description:"Dial context timeout"`
+	TLSHandshakeTimeout   string `json:"tls_handshake_timeout,omitempty" description:"TLS handshake timeout"`
+	ResponseHeaderTimeout string `json:"response_header_timeout,omitempty" description:"Response header timeout"`
+	IdleConnTimeout       string `json:"idle_conn_timeout,omitempty" description:"Idle connection timeout"`
 }
 
 // resolved holds parsed time.Duration values from Config.
@@ -81,14 +81,13 @@ func NewClient(cfg Config) (*http.Client, error) {
 }
 
 func newClientFromResolved(r resolved) *http.Client {
-	transport := &http.Transport{
-		DialContext: (&net.Dialer{
-			Timeout: r.dialTimeout,
-		}).DialContext,
-		TLSHandshakeTimeout:   r.tlsHandshakeTimeout,
-		ResponseHeaderTimeout: r.responseHeaderTimeout,
-		IdleConnTimeout:       r.idleConnTimeout,
-	}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.DialContext = (&net.Dialer{
+		Timeout: r.dialTimeout,
+	}).DialContext
+	transport.TLSHandshakeTimeout = r.tlsHandshakeTimeout
+	transport.ResponseHeaderTimeout = r.responseHeaderTimeout
+	transport.IdleConnTimeout = r.idleConnTimeout
 
 	return &http.Client{
 		Transport: transport,

@@ -13,11 +13,11 @@ import (
 // MaxRetries and Multiplier use pointer types so that zero values can be
 // distinguished from "not set" during config merging.
 type Config struct {
-	MaxRetries *int     `json:"max_retries,omitempty" env:"MAX_RETRIES" description:"Maximum retry attempts"`
-	BaseDelay  string   `json:"base_delay,omitempty" env:"BASE_DELAY" description:"Base delay between retries"`
-	MaxDelay   string   `json:"max_delay,omitempty" env:"MAX_DELAY" description:"Maximum delay between retries"`
-	Multiplier *float64 `json:"multiplier,omitempty" env:"MULTIPLIER" description:"Exponential backoff multiplier"`
-	Jitter     string   `json:"jitter,omitempty" env:"JITTER" description:"Jitter mode: full or none"`
+	MaxRetries *int     `json:"max_retries,omitempty" description:"Maximum retry attempts"`
+	BaseDelay  string   `json:"base_delay,omitempty" description:"Base delay between retries"`
+	MaxDelay   string   `json:"max_delay,omitempty" description:"Maximum delay between retries"`
+	Multiplier *float64 `json:"multiplier,omitempty" description:"Exponential backoff multiplier"`
+	Jitter     string   `json:"jitter,omitempty" description:"Jitter mode: full or none"`
 }
 
 // DefaultConfig returns the default retry configuration.
