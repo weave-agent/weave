@@ -95,6 +95,45 @@ func TestDo_ContextCancellation(t *testing.T) {
 	assert.ErrorIs(t, err, context.Canceled)
 }
 
+func TestDo_MaxRetriesZero(t *testing.T) {
+	callCount := 0
+
+	err := Do(context.Background(), Config{MaxRetries: 0, BaseDelay: 1 * time.Millisecond},
+		func(error) bool { return true },
+		func() error {
+			callCount++
+			return errors.New("transient")
+		},
+	)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "max retries exceeded")
+	assert.Equal(t, 1, callCount, "expected exactly one attempt when MaxRetries is 0")
+}
+
+func TestDo_ContextCancellationBetweenAttempts(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	callCount := 0
+
+	// Use a long delay so cancellation happens during the timer wait.
+	err := Do(ctx, Config{MaxRetries: 5, BaseDelay: 1 * time.Hour},
+		func(error) bool { return true },
+		func() error {
+			callCount++
+			if callCount == 1 {
+				// Cancel after first failed attempt returns.
+				cancel()
+			}
+
+			return errors.New("transient")
+		},
+	)
+
+	require.Error(t, err)
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Equal(t, 1, callCount, "expected only one attempt before cancellation")
+}
+
 func TestDo_RetriablePredicate(t *testing.T) {
 	callCount := 0
 

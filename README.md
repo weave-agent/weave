@@ -204,7 +204,9 @@ Providers declare an auth struct with `json` and `env` tags, then register with 
 | `sdk/` | Public API — `Extension`, `Bus`, `Config`, `UI`, `Provider`, `Tool` interfaces; global registries; `Logger(name)`; auth helpers |
 | `sdk/model/` | Model types, model registry, `StreamOptions` |
 | `sdk/registry/` | Generic `Registry[T]` used by all registries |
-| `sdk/retry/` | Shared retry with exponential backoff |
+| `sdk/providerhttp/` | Provider HTTP transport config and client factory |
+| `sdk/providerretry/` | Provider retry config resolver with deep-merge |
+| `sdk/retry/` | Shared retry with exponential backoff and jitter support |
 | `sdk/validate/` | JSON schema validator for tool arguments |
 | `sdk/throttle.go` | Context-aware throttling helper for event streaming |
 | `sdk/tool_events.go` | Tool progress events for streaming output over the bus |

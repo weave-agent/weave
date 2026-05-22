@@ -441,29 +441,24 @@ func TestStream_UnexpectedStatus(t *testing.T) {
 }
 
 func TestStream_ContextCancellation(t *testing.T) {
+	firstChunkSent := make(chan struct{})
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
-		// Slowly drip data so the stream stays open
-		for range 100 {
-			_, _ = fmt.Fprint(w, sseChunk(ChunkDelta{Content: "x"}, nil))
 
-			if f, ok := w.(http.Flusher); ok {
-				f.Flush()
-			}
-
-			time.Sleep(10 * time.Millisecond)
+		_, _ = fmt.Fprint(w, sseChunk(ChunkDelta{Content: "x"}, nil))
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
 		}
 
-		sseDone()
+		close(firstChunkSent)
+
+		// Block until client disconnects.
+		<-r.Context().Done()
 	}))
 	defer server.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
-
-	go func() {
-		time.Sleep(30 * time.Millisecond)
-		cancel()
-	}()
 
 	ch, err := Stream(ctx, server.Client(), ProviderConfig{
 		BaseURL: server.URL,
@@ -472,6 +467,10 @@ func TestStream_ContextCancellation(t *testing.T) {
 		Messages: []sdk.Message{sdk.NewUserMessage("hi")},
 	})
 	require.NoError(t, err)
+
+	// Wait for the server to send the first chunk, then cancel.
+	<-firstChunkSent
+	cancel()
 
 	events := collectEvents(ch)
 	// Verify the channel closed and we got at least some events before cancellation.

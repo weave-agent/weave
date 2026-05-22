@@ -44,7 +44,9 @@ Standard library as much as possible. Every replaceable component is an extensio
 - `sdk/` — `Extension`, `Bus`, `Config`, `UI`, `PreferenceReader`/`Writer`, `SessionStore`, `FileTracker`, `FileMuter`, `Sandboxer` interfaces; global registries for extensions/providers/tools/UIs; `Logger(name)` for structured logging; `WithBus`/`BusFromContext` for context-based bus access; auth and OAuth helpers
 - `sdk/model/` — model types, model registry, `StreamOptions` for per-request options
 - `sdk/registry/` — generic `Registry[T]` used by all registries
-- `sdk/retry/` — shared retry with exponential backoff (used by providers)
+- `sdk/providerhttp/` — provider HTTP transport config resolver and client factory with configurable timeouts
+- `sdk/providerretry/` — provider retry config resolver with deep-merge support for defaults and per-provider overrides
+- `sdk/retry/` — shared retry with exponential backoff and jitter support (`full`/`none` modes)
 - `sdk/validate/` — JSON schema validator for tool arguments
 - `sdk/throttle.go` — context-aware throttling helper for event streaming (first call immediate, subsequent calls deduplicated within interval)
 - `sdk/tool_events.go` — `ToolProgress` struct and event topic constants (`tool.start`, `tool.progress`, `tool.complete`, `tool.error`, `tool.interrupted`) for streaming tool output over the bus
