@@ -60,11 +60,11 @@ The new model separates policy from containment:
 ## Implementation Steps
 
 ### Task 1: Add guardian SDK contracts
-- [ ] create `sdk/guardian.go` with `Guardian`, request, decision, approval, profile, grant, and snapshot types
-- [ ] add typed guardian event topic constants for registration, decisions, approval requests, resolutions, profile changes, snapshots, and grant clearing
-- [ ] add `//go:generate moq` directive for `Guardian`
-- [ ] write SDK tests for guardian mock generation and event topic constants
-- [ ] run `make gen` and `go test ./sdk/...` - must pass before task 2
+- [x] create `sdk/guardian.go` with `Guardian`, request, decision, approval, profile, grant, and snapshot types
+- [x] add typed guardian event topic constants for registration, decisions, approval requests, resolutions, profile changes, snapshots, and grant clearing
+- [x] add `//go:generate moq` directive for `Guardian`
+- [x] write SDK tests for guardian mock generation and event topic constants
+- [x] run `make gen` and `go test ./sdk/...` - must pass before task 2
 
 ### Task 2: Replace sandbox SDK contract with containment-only API
 - [ ] update `sdk/sandbox.go` to remove mode, file read/write, and string approval concepts
