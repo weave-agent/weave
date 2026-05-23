@@ -12,6 +12,14 @@ import (
 	"github.com/weave-agent/weave/sdk"
 )
 
+type configTestExtension struct{}
+
+func (configTestExtension) Name() string { return "config-test" }
+func (configTestExtension) Subscribe(sdk.Bus) error {
+	return nil
+}
+func (configTestExtension) Close() error { return nil }
+
 func TestSettingsWeaveFlags(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -461,6 +469,85 @@ func TestExtensionConfig_GuardianScope(t *testing.T) {
 	assert.True(t, *target.AskFallback)
 	require.Contains(t, target.Profiles, "team")
 	assert.Equal(t, sdk.GuardianDecisionAsk, target.Profiles["team"].Rules[0].Decision)
+}
+
+func TestExtensionConfig_GuardianScopeRegisteredExtensionUsesRootEnv(t *testing.T) {
+	sdk.ResetExtensionRegistry()
+	t.Cleanup(sdk.ResetExtensionRegistry)
+	t.Setenv("WEAVE_GUARDIAN_PROFILE", "env-team")
+	t.Setenv("WEAVE_GUARDIAN_ASK_FALLBACK", "true")
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".weave", "settings.json")
+	writeFile(t, dir, ".weave/settings.json", `{
+		"guardian":{
+			"profile":"file-team",
+			"profiles":{
+				"file-team":{"name":"file-team","description":"from file"}
+			}
+		}
+	}`)
+
+	cfg := &FullConfig{
+		filePath: path,
+		settings: mustLoadSettings(t, path),
+	}
+
+	var got GuardianFileConfig
+
+	sdk.RegisterExtensionWithScope("guardian", "guardian", func(_ sdk.Config, _ sdk.PreferenceReader, c GuardianFileConfig) (sdk.Extension, error) {
+		got = c
+		return configTestExtension{}, nil
+	})
+
+	_, err := sdk.GetExtension("guardian", cfg)
+	require.NoError(t, err)
+
+	assert.Equal(t, "env-team", got.Profile)
+	require.NotNil(t, got.AskFallback)
+	assert.True(t, *got.AskFallback)
+	require.Contains(t, got.Profiles, "file-team")
+}
+
+func TestExtensionConfig_SandboxScopeRegisteredExtensionUsesRootEnv(t *testing.T) {
+	sdk.ResetExtensionRegistry()
+	t.Cleanup(sdk.ResetExtensionRegistry)
+	t.Setenv("WEAVE_SANDBOX_ENABLED", "false")
+	t.Setenv("WEAVE_SANDBOX_FAIL_IF_UNAVAILABLE", "true")
+	t.Setenv("WEAVE_SANDBOX_ALLOW_UNSANDBOXED_FALLBACK", "false")
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".weave", "settings.json")
+	writeFile(t, dir, ".weave/settings.json", `{
+		"sandbox":{
+			"enabled":true,
+			"allow_unsandboxed_fallback":true,
+			"filesystem":{"read_only":["/repo"]}
+		}
+	}`)
+
+	cfg := &FullConfig{
+		filePath: path,
+		settings: mustLoadSettings(t, path),
+	}
+
+	var got SandboxFileConfig
+
+	sdk.RegisterExtensionWithScope("sandbox", "sandbox", func(_ sdk.Config, _ sdk.PreferenceReader, c SandboxFileConfig) (sdk.Extension, error) {
+		got = c
+		return configTestExtension{}, nil
+	})
+
+	_, err := sdk.GetExtension("sandbox", cfg)
+	require.NoError(t, err)
+
+	require.NotNil(t, got.Enabled)
+	assert.False(t, *got.Enabled)
+	require.NotNil(t, got.FailIfUnavailable)
+	assert.True(t, *got.FailIfUnavailable)
+	require.NotNil(t, got.AllowUnsandboxedFallback)
+	assert.False(t, *got.AllowUnsandboxedFallback)
+	assert.Equal(t, []string{"/repo"}, got.Filesystem.ReadOnly)
 }
 
 func TestExtensionConfig_JSONLScope(t *testing.T) {

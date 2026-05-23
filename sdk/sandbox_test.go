@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -91,4 +92,57 @@ func TestSandboxEventTopics(t *testing.T) {
 	assert.Equal(t, "sandbox.status", SandboxStatusTopic)
 	assert.Equal(t, "sandbox.expansion.request", SandboxExpansionRequestTopic)
 	assert.Equal(t, "sandbox.expansion.resolution", SandboxExpansionResolutionTopic)
+}
+
+func TestSandboxPayloadsJSONRoundTrip(t *testing.T) {
+	payload := SandboxExpansionRequest{
+		ID:         "expansion-req-1",
+		ToolCallID: "tool-1",
+		Command:    "go test ./...",
+		WorkingDir: "/work",
+		Reason:     "needs module cache",
+		Filesystem: []SandboxFilesystemExpansion{
+			{Path: "/go/pkg/mod", Access: SandboxFilesystemReadWrite},
+			{Path: "/repo", Access: SandboxFilesystemRead},
+		},
+		Network: []SandboxNetworkExpansion{
+			{Host: "proxy.example.com", Ports: []string{"443"}, Access: SandboxNetworkConnect},
+			{Ports: []string{"127.0.0.1:0"}, Access: SandboxNetworkListen},
+		},
+		Metadata: map[string]any{
+			"provider": "seatbelt",
+		},
+	}
+
+	data, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	var got SandboxExpansionRequest
+	require.NoError(t, json.Unmarshal(data, &got))
+
+	assert.Equal(t, payload.ID, got.ID)
+	assert.Equal(t, SandboxFilesystemReadWrite, got.Filesystem[0].Access)
+	assert.Equal(t, "/repo", got.Filesystem[1].Path)
+	assert.Equal(t, SandboxNetworkConnect, got.Network[0].Access)
+	assert.Equal(t, []string{"127.0.0.1:0"}, got.Network[1].Ports)
+
+	resolution := SandboxExpansion{
+		ID:        "expansion-1",
+		RequestID: payload.ID,
+		State:     SandboxExpansionAllowed,
+		Resolution: &SandboxExpansionResolution{
+			State:     SandboxExpansionAllowed,
+			Reason:    "approved once",
+			ExpiresAt: "2026-05-23T10:00:00Z",
+		},
+	}
+	data, err = json.Marshal(resolution)
+	require.NoError(t, err)
+
+	var expansion SandboxExpansion
+	require.NoError(t, json.Unmarshal(data, &expansion))
+
+	assert.Equal(t, SandboxExpansionAllowed, expansion.State)
+	require.NotNil(t, expansion.Resolution)
+	assert.Equal(t, "approved once", expansion.Resolution.Reason)
 }

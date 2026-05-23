@@ -99,6 +99,36 @@ is ready to run, the sandbox extension wraps it with filesystem and network
 boundaries. Requests to expand those boundaries are surfaced through the
 guardian UI extension for approval and history.
 
+The old sandbox-mode API is removed. `--sandbox`, `--weave-sandbox-mode`,
+`WEAVE_SANDBOX_MODE`, `sandbox.mode`, `sandbox.writable`,
+`sandbox.deny_read`, and `sandbox.deny_write` are no longer supported. Use
+`--guardian-profile` for policy selection and the containment settings below
+for sandbox boundaries.
+
+Guardian settings:
+
+| Field | Type | Description |
+|---|---|---|
+| `guardian.profile` | string | Active profile: `ask`, `auto`, `yolo`, or a custom profile name |
+| `guardian.ask_fallback` | bool | Ask instead of blocking when no policy matches |
+| `guardian.profiles` | object | Custom profile definitions keyed by profile name |
+
+Sandbox settings:
+
+| Field | Type | Description |
+|---|---|---|
+| `sandbox.enabled` | bool | Enable OS-level containment for approved shell commands |
+| `sandbox.fail_if_unavailable` | bool | Fail commands when sandbox containment is unavailable |
+| `sandbox.allow_unsandboxed_fallback` | bool | Allow approved commands to run without containment when sandboxing is unavailable |
+| `sandbox.filesystem.read_only` | string[] | Paths mounted read-only inside the sandbox |
+| `sandbox.filesystem.read_write` | string[] | Paths mounted read-write inside the sandbox |
+| `sandbox.filesystem.blocked` | string[] | Paths blocked inside the sandbox |
+| `sandbox.network.enabled` | bool | Allow network access from sandboxed processes |
+| `sandbox.network.allow_hosts` | string[] | Hosts allowed from sandboxed processes |
+| `sandbox.network.allow_ports` | string[] | Ports allowed from sandboxed processes |
+| `sandbox.network.block_hosts` | string[] | Hosts blocked from sandboxed processes |
+| `sandbox.network.allow_listen` | bool | Allow sandboxed processes to listen on local ports |
+
 ### Provider HTTP and Retry Configuration
 
 Providers support per-provider HTTP transport and retry overrides through the `providers.defaults` and `providers.<name>` config keys.
@@ -170,6 +200,11 @@ Note: This pass does not support a per-stream idle timeout or a `max_elapsed` re
 | `WEAVE_PROVIDER` | Override active provider |
 | `WEAVE_THINKING_LEVEL` | Control reasoning depth |
 | `WEAVE_OFFLINE` | Offline mode |
+| `WEAVE_GUARDIAN_PROFILE` | Override active guardian profile |
+| `WEAVE_GUARDIAN_ASK_FALLBACK` | Override guardian ask fallback behavior |
+| `WEAVE_SANDBOX_ENABLED` | Enable or disable sandbox containment |
+| `WEAVE_SANDBOX_FAIL_IF_UNAVAILABLE` | Fail commands when containment is unavailable |
+| `WEAVE_SANDBOX_ALLOW_UNSANDBOXED_FALLBACK` | Allow unsandboxed fallback when containment is unavailable |
 
 Provider env vars resolve without the `WEAVE_` prefix. Tools and extensions use `WEAVE_<NAME>`.
 
@@ -212,6 +247,8 @@ sdk.RegisterTUIExtension("my-tui", NewTUI)
 - Extensions communicate exclusively through **bus events** — never import or call each other directly
 - `internal/` packages are not importable by extensions; anything extensions need must live in `sdk/`
 - Event payload types must live in `sdk/`
+- Guardian policy integrations use `sdk.Guardian` and guardian event topics; sandbox containment integrations use `sdk.Sandboxer` and sandbox event topics
+- Approval and sandbox expansion flows are ID-based; do not match requests or resolutions by command string
 - Non-Go resource files only invalidate the launcher cache when referenced by `//go:embed`; unembedded `.md` files and assets do not affect generated binary cache keys
 - Never write to `stdout`/`stderr` — use `sdk.Logger(name)` for structured logging to `~/.weave/logs/weave.log`
 
@@ -224,7 +261,7 @@ Providers declare an auth struct with `json` and `env` tags, then register with 
 
 | Package | Description |
 |---|---|
-| `sdk/` | Public API — `Extension`, `Bus`, `Config`, `UI`, `Provider`, `Tool` interfaces; global registries; `Logger(name)`; auth helpers |
+| `sdk/` | Public API — `Extension`, `Bus`, `Config`, `UI`, `Provider`, `Tool`, `Guardian`, `Sandboxer` interfaces; global registries; guardian/sandbox event topics; `Logger(name)`; auth helpers |
 | `sdk/model/` | Model types, model registry, `StreamOptions` |
 | `sdk/registry/` | Generic `Registry[T]` used by all registries |
 | `sdk/providerhttp/` | Provider HTTP transport config and client factory |

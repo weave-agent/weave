@@ -210,31 +210,44 @@ func TestMergeSettings_GuardianProfilesMergeByName(t *testing.T) {
 
 func TestMergeSettings_SandboxContainmentSettings(t *testing.T) {
 	enabled := true
-	networkEnabled := false
+	failUnavailable := true
 	allowFallback := true
+	networkEnabled := true
+	allowListen := true
 	global := &Settings{
 		Sandbox: SandboxFileConfig{
 			Enabled:                  &enabled,
+			FailIfUnavailable:        &failUnavailable,
 			AllowUnsandboxedFallback: &allowFallback,
 			Filesystem: SandboxFilesystemConfig{
-				ReadOnly: []string{"/"},
+				ReadOnly:  []string{"/"},
+				ReadWrite: []string{"/var/tmp"},
+				Blocked:   []string{"/private"},
 			},
 			Network: SandboxNetworkConfig{
-				Enabled:    &networkEnabled,
-				AllowHosts: []string{"example.com"},
+				Enabled:     &networkEnabled,
+				AllowHosts:  []string{"example.com"},
+				AllowPorts:  []string{"443"},
+				BlockHosts:  []string{"global.blocked"},
+				AllowListen: &allowListen,
 			},
 		},
 	}
 
-	fail := true
+	disabled := false
+	noListen := false
 	local := &Settings{
 		Sandbox: SandboxFileConfig{
-			FailIfUnavailable: &fail,
+			Enabled: &disabled,
 			Filesystem: SandboxFilesystemConfig{
 				ReadWrite: []string{"/tmp"},
+				Blocked:   []string{"/secret"},
 			},
 			Network: SandboxNetworkConfig{
-				BlockHosts: []string{"metadata.google.internal"},
+				Enabled:     &disabled,
+				AllowPorts:  []string{"8443"},
+				BlockHosts:  []string{"metadata.google.internal"},
+				AllowListen: &noListen,
 			},
 		},
 	}
@@ -242,17 +255,21 @@ func TestMergeSettings_SandboxContainmentSettings(t *testing.T) {
 	result := MergeSettings(global, local)
 
 	require.NotNil(t, result.Sandbox.Enabled)
-	assert.True(t, *result.Sandbox.Enabled)
+	assert.False(t, *result.Sandbox.Enabled)
 	require.NotNil(t, result.Sandbox.FailIfUnavailable)
 	assert.True(t, *result.Sandbox.FailIfUnavailable)
 	require.NotNil(t, result.Sandbox.AllowUnsandboxedFallback)
 	assert.True(t, *result.Sandbox.AllowUnsandboxedFallback)
 	assert.Equal(t, []string{"/"}, result.Sandbox.Filesystem.ReadOnly)
 	assert.Equal(t, []string{"/tmp"}, result.Sandbox.Filesystem.ReadWrite)
+	assert.Equal(t, []string{"/secret"}, result.Sandbox.Filesystem.Blocked)
 	require.NotNil(t, result.Sandbox.Network.Enabled)
 	assert.False(t, *result.Sandbox.Network.Enabled)
 	assert.Equal(t, []string{"example.com"}, result.Sandbox.Network.AllowHosts)
+	assert.Equal(t, []string{"8443"}, result.Sandbox.Network.AllowPorts)
 	assert.Equal(t, []string{"metadata.google.internal"}, result.Sandbox.Network.BlockHosts)
+	require.NotNil(t, result.Sandbox.Network.AllowListen)
+	assert.False(t, *result.Sandbox.Network.AllowListen)
 }
 
 func TestLoadLayeredSettings_NoFiles(t *testing.T) {

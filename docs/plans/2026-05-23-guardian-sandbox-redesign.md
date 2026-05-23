@@ -122,9 +122,6 @@ All approval and expansion flows are ID-based. Matching by command string is for
 
 ## Post-Completion
 
-**Manual verification**:
-- Start Weave after clearing extension cache and verify bootstrap expects `guardian`, `sandbox`, and `tui-guardian`.
-- Confirm old `--sandbox readonly` style behavior is not documented as supported.
-
-**External system updates**:
-- New `github.com/weave-agent/weave-guardian` and `github.com/weave-agent/weave-tui-guardian` repositories need to be created upstream before bootstrap works from GitHub.
+- [ ] Manual verification: start Weave after clearing extension cache and verify bootstrap expects `guardian`, `sandbox`, and `tui-guardian`.
+- [x] Manual verification: confirm old `--sandbox readonly` style behavior is not documented as supported.
+- [ ] External system update: create or publish `github.com/weave-agent/weave-guardian` and `github.com/weave-agent/weave-tui-guardian` before bootstrap works from GitHub.

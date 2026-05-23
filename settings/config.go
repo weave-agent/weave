@@ -476,12 +476,7 @@ func (c *FullConfig) ExtensionConfig(scope, name string, target any) error {
 		return fmt.Errorf("convert config for %s.%s: %w", scope, name, err)
 	}
 
-	var envPrefix string
-	if scope == "providers" {
-		envPrefix = ""
-	} else {
-		envPrefix = "WEAVE_" + strings.ReplaceAll(strings.ToUpper(name), "-", "_")
-	}
+	envPrefix := extensionEnvPrefix(scope, name)
 
 	loader := Loader{
 		Data:      data,
@@ -490,6 +485,17 @@ func (c *FullConfig) ExtensionConfig(scope, name string, target any) error {
 	}
 
 	return loader.Load(target)
+}
+
+func extensionEnvPrefix(scope, name string) string {
+	switch scope {
+	case "providers":
+		return ""
+	case "tools", "extensions", "ui_extensions":
+		return "WEAVE_" + strings.ReplaceAll(strings.ToUpper(name), "-", "_")
+	default:
+		return DefaultEnvPrefix
+	}
 }
 
 // filterExtensionArgs strips extension-specific prefixes from CLI args.

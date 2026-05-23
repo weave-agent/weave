@@ -45,7 +45,7 @@ Standard library as much as possible. Every replaceable component is an extensio
 
 ## Key Packages
 
-- `sdk/` — `Extension`, `Bus`, `Config`, `UI`, `PreferenceReader`/`Writer`, `SessionStore`, `FileTracker`, `FileMuter`, `Sandboxer` interfaces; global registries for extensions/providers/tools/UIs; `Logger(name)` for structured logging; `WithBus`/`BusFromContext` for context-based bus access; auth and OAuth helpers
+- `sdk/` — `Extension`, `Bus`, `Config`, `UI`, `PreferenceReader`/`Writer`, `SessionStore`, `FileTracker`, `FileMuter`, `Guardian`, `Sandboxer` interfaces; global registries for extensions/providers/tools/UIs; `Logger(name)` for structured logging; `WithBus`/`BusFromContext` for context-based bus access; auth and OAuth helpers
 - `sdk/model/` — model types, model registry, `StreamOptions` for per-request options
 - `sdk/registry/` — generic `Registry[T]` used by all registries
 - `sdk/providerhttp/` — provider HTTP transport config resolver and client factory with configurable timeouts
@@ -53,6 +53,8 @@ Standard library as much as possible. Every replaceable component is an extensio
 - `sdk/retry/` — shared retry with exponential backoff and jitter support (`full`/`none` modes)
 - `sdk/validate/` — JSON schema validator for tool arguments
 - `sdk/throttle.go` — context-aware throttling helper for event streaming (first call immediate, subsequent calls deduplicated within interval)
+- `sdk/guardian.go` — guardian policy contract, approval/profile/grant payloads, and guardian event topic constants
+- `sdk/sandbox.go` — sandbox containment contract, status/expansion payloads, and sandbox event topic constants
 - `sdk/tool_events.go` — `ToolProgress` struct and event topic constants (`tool.start`, `tool.progress`, `tool.complete`, `tool.error`, `tool.interrupted`) for streaming tool output over the bus
 - `bus/` — callback-based event bus (`Publish`/`On`/`OnAll`/`Off`) with per-handler goroutines and panic recovery
 - `settings/` — JSON-only config system with `Loader` (defaults → JSON → env → CLI flags → validation), layered settings (global → local), `FullConfig` implementing `sdk.Config`
@@ -87,7 +89,7 @@ The `agent` extension owns the conversation lifecycle: prompt assembly, turn loo
 
 ## First-Run Bootstrap
 
-When `~/.weave/extensions/` is empty, the framework clones 20 core extensions from `github.com/weave-agent/weave-<name>`. Triggered in `internal/wire/run.go` only for commands that proceed to launch; `--help` and no-input failures do not bootstrap or build. Skip with `--skip-bootstrap`.
+When `~/.weave/extensions/` is empty, the framework clones the core extensions from `github.com/weave-agent/weave-<name>`. Triggered in `internal/wire/run.go` only for commands that proceed to launch; `--help` and no-input failures do not bootstrap or build. Skip with `--skip-bootstrap`.
 
 ## Configuration
 
@@ -99,7 +101,7 @@ Built-in config scopes: `tools`, `providers`, `ui`, `guardian`, `sandbox`, `json
 
 Key env vars: `WEAVE_PROVIDER` (override active provider), `WEAVE_THINKING_LEVEL`, `WEAVE_OFFLINE`. Session resume: `--continue`/`-c`, `--resume <id>`/`-r`.
 
-**Keybindings**: `.weave/keybindings.yaml`. Built-in: Esc=interrupt, Ctrl+C=double-press exit, Ctrl+L=model select, Ctrl+P=model cycle, Ctrl+N=new session, Shift+Tab=cycle thinking, Ctrl+O=expand output, Ctrl+G=external editor.
+**Keybindings**: `.weave/keybindings.yaml`. Built-in: Esc=interrupt, Ctrl+C=double-press exit, Ctrl+L=model select, Ctrl+P=model cycle, Ctrl+N=new session, Shift+Tab=cycle thinking, Ctrl+S=cycle guardian profile, Ctrl+O=expand output, Ctrl+G=external editor.
 
 **Thinking levels**: off, minimal, low, medium (default), high, xhigh. Models that don't support xhigh clamp to high.
 
