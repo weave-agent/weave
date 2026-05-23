@@ -30,7 +30,10 @@ Most coding agents are monoliths — swapping the LLM provider, adding a tool, o
 ```bash
 brew tap weave-agent/tap
 brew install weave-agent/tap/weave
+weave --version
 ```
+
+The Homebrew formula installs `go` and `ripgrep` as dependencies.
 
 ### From source
 
@@ -258,7 +261,7 @@ go test ./internal/launcher -run '^$' -bench 'Benchmark' -benchtime=1x
 ## Requirements
 
 - Go 1.26+
-- ripgrep (for search tools)
+- ripgrep (installed automatically by Homebrew)
 
 ## License
 
