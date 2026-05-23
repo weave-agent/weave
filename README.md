@@ -113,6 +113,10 @@ Guardian settings:
 | `guardian.ask_fallback` | bool | Ask instead of blocking when no policy matches |
 | `guardian.profiles` | object | Custom profile definitions keyed by profile name |
 
+Generated binaries also accept scoped CLI overrides for guardian settings,
+including `--guardian-ask_fallback`. The launcher-level
+`--guardian-profile` flag forwards the active profile into generated binaries.
+
 Sandbox settings:
 
 | Field | Type | Description |
@@ -128,6 +132,10 @@ Sandbox settings:
 | `sandbox.network.allow_ports` | string[] | Ports allowed from sandboxed processes |
 | `sandbox.network.block_hosts` | string[] | Hosts blocked from sandboxed processes |
 | `sandbox.network.allow_listen` | bool | Allow sandboxed processes to listen on local ports |
+
+Generated binaries also accept scoped CLI overrides for sandbox settings,
+including `--sandbox-enabled`, `--sandbox-fail_if_unavailable`, and
+`--sandbox-allow_unsandboxed_fallback`.
 
 ### Provider HTTP and Retry Configuration
 
@@ -249,6 +257,8 @@ sdk.RegisterTUIExtension("my-tui", NewTUI)
 - Event payload types must live in `sdk/`
 - Guardian policy integrations use `sdk.Guardian` and guardian event topics; sandbox containment integrations use `sdk.Sandboxer` and sandbox event topics
 - Approval and sandbox expansion flows are ID-based; do not match requests or resolutions by command string
+- `sdk.Guardian` exposes `Decide`, `Resolve`, and `Snapshot`; key topics include `guardian.registered`, `guardian.approval.request`, `guardian.approval.resolution`, and `guardian.profile.change`
+- `sdk.Sandboxer` exposes `WrapCommand`, `Status`, `RequestExpansion`, and `ResolveExpansion`; key topics include `sandbox.registered`, `sandbox.status`, `sandbox.expansion.request`, and `sandbox.expansion.resolution`
 - Non-Go resource files only invalidate the launcher cache when referenced by `//go:embed`; unembedded `.md` files and assets do not affect generated binary cache keys
 - Never write to `stdout`/`stderr` — use `sdk.Logger(name)` for structured logging to `~/.weave/logs/weave.log`
 

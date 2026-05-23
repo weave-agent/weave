@@ -2,7 +2,6 @@ package settings
 
 import (
 	"errors"
-	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -118,27 +117,6 @@ func TestLoader_DataNested(t *testing.T) {
 	assert.Equal(t, 45, cfg.Timeout)
 	assert.Equal(t, "test-key", cfg.Inner.Key)
 	assert.Equal(t, 10, cfg.Inner.Count)
-}
-
-func TestLoader_DataRejectsDeprecatedSandboxKeys(t *testing.T) {
-	for _, key := range []string{"mode", "writable", "deny_read", "deny_write"} {
-		t.Run(key, func(t *testing.T) {
-			l := Loader{
-				Data: map[string]any{
-					"sandbox": map[string]any{
-						key: "old-value",
-					},
-				},
-			}
-
-			var cfg Settings
-
-			err := l.Load(&cfg)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "unsupported sandbox config key "+strconv.Quote(key))
-			assert.Contains(t, err.Error(), "sandbox mode API was removed")
-		})
-	}
 }
 
 func TestLoader_DataNestedDefaults(t *testing.T) {

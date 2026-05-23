@@ -266,6 +266,10 @@ func loadSettingsFile(path string) (*Settings, error) {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
 	}
 
+	if err := rejectRemovedSandboxKeys(raw); err != nil {
+		return nil, err
+	}
+
 	var s Settings
 
 	loader := Loader{

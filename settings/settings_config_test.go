@@ -554,6 +554,26 @@ func TestExtensionConfig_GuardianScopeRegisteredExtensionUsesCLI(t *testing.T) {
 	assert.False(t, *got.AskFallback)
 }
 
+func TestExtensionConfig_GuardianScopeRejectsInvalidBoolCLI(t *testing.T) {
+	isolateHome(t)
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".weave", "settings.json")
+	writeFile(t, dir, ".weave/settings.json", `{"guardian":{"ask_fallback":true}}`)
+
+	cfg := &FullConfig{
+		filePath: path,
+		settings: mustLoadSettings(t, path),
+	}
+	cfg.SetArgs([]string{"--guardian-ask_fallback=not-bool"})
+
+	var target GuardianFileConfig
+
+	err := cfg.ExtensionConfig("guardian", "", &target)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid boolean value")
+}
+
 func TestExtensionConfig_SandboxScopeRegisteredExtensionUsesRootEnv(t *testing.T) {
 	isolateHome(t)
 	sdk.ResetExtensionRegistry()
@@ -637,6 +657,34 @@ func TestExtensionConfig_SandboxScopeRegisteredExtensionUsesCLI(t *testing.T) {
 	assert.True(t, *got.FailIfUnavailable)
 	require.NotNil(t, got.AllowUnsandboxedFallback)
 	assert.False(t, *got.AllowUnsandboxedFallback)
+}
+
+func TestExtensionConfig_SandboxScopeRejectsInvalidBoolCLI(t *testing.T) {
+	isolateHome(t)
+
+	for _, flag := range []string{
+		"--sandbox-enabled=not-bool",
+		"--sandbox-fail_if_unavailable=not-bool",
+		"--sandbox-allow_unsandboxed_fallback=not-bool",
+	} {
+		t.Run(flag, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, ".weave", "settings.json")
+			writeFile(t, dir, ".weave/settings.json", `{"sandbox":{"enabled":true}}`)
+
+			cfg := &FullConfig{
+				filePath: path,
+				settings: mustLoadSettings(t, path),
+			}
+			cfg.SetArgs([]string{flag})
+
+			var target SandboxFileConfig
+
+			err := cfg.ExtensionConfig("sandbox", "", &target)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "invalid boolean value")
+		})
+	}
 }
 
 func TestExtensionConfig_JSONLScope(t *testing.T) {

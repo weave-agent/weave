@@ -203,6 +203,10 @@ func loadSettingsFromFile(path string) (Settings, error) {
 		return Settings{}, fmt.Errorf("parse config %s: %w", path, err)
 	}
 
+	if err := rejectRemovedSandboxKeys(raw); err != nil {
+		return Settings{}, err
+	}
+
 	var s Settings
 
 	loader := Loader{
@@ -214,6 +218,26 @@ func loadSettingsFromFile(path string) (Settings, error) {
 	}
 
 	return s, nil
+}
+
+func rejectRemovedSandboxKeys(raw map[string]any) error {
+	sandboxRaw, ok := raw["sandbox"]
+	if !ok || sandboxRaw == nil {
+		return nil
+	}
+
+	sandbox, ok := sandboxRaw.(map[string]any)
+	if !ok {
+		return nil
+	}
+
+	for _, key := range []string{"mode", "writable", "deny_read", "deny_write"} {
+		if _, ok := sandbox[key]; ok {
+			return fmt.Errorf("unsupported sandbox config key %q: the sandbox mode API was removed; use guardian.profile and sandbox containment settings", key)
+		}
+	}
+
+	return nil
 }
 
 func resolveConfigPath(dir, configPath string) (string, error) {
@@ -323,6 +347,10 @@ func LoadFromFile(path string) (*Settings, error) {
 	var raw map[string]any
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return nil, fmt.Errorf("parse config %s: %w", path, err)
+	}
+
+	if err := rejectRemovedSandboxKeys(raw); err != nil {
+		return nil, err
 	}
 
 	var s Settings
@@ -481,10 +509,18 @@ func (c *FullConfig) ExtensionConfig(scope, name string, target any) error {
 	loader := Loader{
 		Data:      data,
 		EnvPrefix: envPrefix,
-		Args:      filterExtensionArgs(c.args, name),
+		Args:      filterExtensionArgs(c.args, extensionFlagPrefixName(scope, name)),
 	}
 
 	return loader.Load(target)
+}
+
+func extensionFlagPrefixName(scope, name string) string {
+	if name != "" {
+		return name
+	}
+
+	return scope
 }
 
 func extensionEnvPrefix(scope, name string) string {

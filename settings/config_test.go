@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -176,6 +177,32 @@ func TestLoad_ToolsFlagEmpty(t *testing.T) {
 
 	assert.Empty(t, cf.ToolsFlag)
 	assert.True(t, cf.ToolsSet, "ToolsSet should be true for explicit --tools=")
+}
+
+func TestLoadFromDir_RejectsDeprecatedSandboxKeys(t *testing.T) {
+	for _, key := range []string{"mode", "writable", "deny_read", "deny_write"} {
+		t.Run(key, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui","sandbox":{`+strconv.Quote(key)+`:"old-value"}}`)
+
+			_, _, _, err := LoadFromDir(dir, nil)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "unsupported sandbox config key "+strconv.Quote(key))
+			assert.Contains(t, err.Error(), "sandbox mode API was removed")
+		})
+	}
+}
+
+func TestLoadFromDir_DeprecatedSandboxRuntimeInputsAreNotForwarded(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
+	t.Setenv("WEAVE_SANDBOX_MODE", "readonly")
+
+	_, cf, rest, err := LoadFromDir(dir, []string{"--sandbox", "readonly", "--weave-sandbox-mode=auto"})
+	require.NoError(t, err)
+
+	assert.Empty(t, cf.WeaveFlags())
+	assert.Equal(t, []string{"--sandbox", "readonly", "--weave-sandbox-mode=auto"}, rest)
 }
 
 func TestLoad_ToolsFlagNotSet(t *testing.T) {

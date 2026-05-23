@@ -1,5 +1,7 @@
 # Subagent Tool Extension
 
+Superseded by guardian/sandbox redesign on 2026-05-23: subagent sandbox mode passthrough via `--sandbox` is removed. Use guardian profile propagation (`--guardian-profile`) and sandbox containment settings instead.
+
 ## Overview
 
 Add a subagent system to Weave as a tool extension (`extensions/tools/subagent/`). Each subagent runs as an isolated `weave -p` subprocess with restricted tools, optional sandbox mode, and JSON streaming results. Agent definitions are markdown files with YAML frontmatter, discovered from `.weave/agents/` and `~/.weave/agents/`. Three built-in agents ship with the extension: general-purpose, explore, and plan.

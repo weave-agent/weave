@@ -109,6 +109,10 @@ Key env vars: `WEAVE_PROVIDER` (override active provider), `WEAVE_THINKING_LEVEL
 
 **Sandbox containment**: sandbox is containment-only for approved shell commands. The guardian decides allow/ask/block before execution; sandbox wraps approved commands with OS-level filesystem and network boundaries. Expansion requests are ID-based and are handled through the guardian UI extension.
 
+The old sandbox mode API is removed: no `--sandbox`, `--weave-sandbox-mode`, `WEAVE_SANDBOX_MODE`, `sandbox.mode`, `sandbox.writable`, `sandbox.deny_read`, or `sandbox.deny_write`. Use guardian profiles for policy and sandbox containment settings for boundaries.
+
+Guardian env/CLI: `WEAVE_GUARDIAN_PROFILE`, `WEAVE_GUARDIAN_ASK_FALLBACK`, `--guardian-profile`, and generated extension flags such as `--guardian-ask_fallback`. Sandbox env/CLI: `WEAVE_SANDBOX_ENABLED`, `WEAVE_SANDBOX_FAIL_IF_UNAVAILABLE`, `WEAVE_SANDBOX_ALLOW_UNSANDBOXED_FALLBACK`, plus generated flags `--sandbox-enabled`, `--sandbox-fail_if_unavailable`, `--sandbox-allow_unsandboxed_fallback`.
+
 **Extension management:**
 - `weave install <source> [--name <name>]` — from git URL, GitHub shorthand, or local path
 - `weave list` — show name, source, module path, status
