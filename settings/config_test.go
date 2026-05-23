@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/weave-agent/weave/sdk"
 )
 
 func TestFindConfigPath_WeaveYaml(t *testing.T) {
@@ -197,14 +199,77 @@ func TestLoad_SubagentIDFlag(t *testing.T) {
 	assert.Equal(t, "subagent_explore_abc123", cf.SubagentID)
 }
 
-func TestLoad_SandboxModeFlag(t *testing.T) {
+func TestLoad_GuardianProfileFlag(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
 
-	_, cf, _, err := LoadFromDir(dir, []string{"--sandbox", "readonly"})
+	_, cf, _, err := LoadFromDir(dir, []string{"--guardian-profile", "auto"})
 	require.NoError(t, err)
 
-	assert.Equal(t, "readonly", cf.SandboxMode)
+	assert.Equal(t, "auto", cf.GuardianProfile)
+}
+
+func TestLoad_GuardianAndSandboxJSON(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".weave/settings.json", `{
+		"ui_extension":"tui",
+		"guardian":{
+			"profile":"team",
+			"ask_fallback":true,
+			"profiles":{
+				"team":{
+					"name":"team",
+					"rules":[{"actions":["exec"],"decision":"ask"}]
+				}
+			}
+		},
+		"sandbox":{
+			"enabled":true,
+			"fail_if_unavailable":true,
+			"allow_unsandboxed_fallback":false,
+			"filesystem":{"read_only":["/"],"read_write":["/tmp"],"blocked":["/private"]},
+			"network":{"enabled":false,"allow_hosts":["proxy.local"],"allow_ports":["443"],"block_hosts":["169.254.169.254"],"allow_listen":false}
+		}
+	}`)
+
+	_, cf, _, err := LoadFromDir(dir, nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, "team", cf.Guardian.Profile)
+	require.NotNil(t, cf.Guardian.AskFallback)
+	assert.True(t, *cf.Guardian.AskFallback)
+	require.Contains(t, cf.Guardian.Profiles, "team")
+	assert.Equal(t, sdk.GuardianDecisionAsk, cf.Guardian.Profiles["team"].Rules[0].Decision)
+	require.NotNil(t, cf.Sandbox.Enabled)
+	assert.True(t, *cf.Sandbox.Enabled)
+	require.NotNil(t, cf.Sandbox.FailIfUnavailable)
+	assert.True(t, *cf.Sandbox.FailIfUnavailable)
+	require.NotNil(t, cf.Sandbox.AllowUnsandboxedFallback)
+	assert.False(t, *cf.Sandbox.AllowUnsandboxedFallback)
+	assert.Equal(t, []string{"/tmp"}, cf.Sandbox.Filesystem.ReadWrite)
+	require.NotNil(t, cf.Sandbox.Network.Enabled)
+	assert.False(t, *cf.Sandbox.Network.Enabled)
+	assert.Equal(t, []string{"proxy.local"}, cf.Sandbox.Network.AllowHosts)
+}
+
+func TestLoad_GuardianAndSandboxEnvOverrides(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui","guardian":{"profile":"ask"},"sandbox":{"enabled":false}}`)
+	t.Setenv("WEAVE_GUARDIAN_PROFILE", "yolo")
+	t.Setenv("WEAVE_GUARDIAN_ASK_FALLBACK", "true")
+	t.Setenv("WEAVE_SANDBOX_ENABLED", "true")
+	t.Setenv("WEAVE_SANDBOX_FAIL_IF_UNAVAILABLE", "true")
+
+	_, cf, _, err := LoadFromDir(dir, nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, "yolo", cf.Guardian.Profile)
+	require.NotNil(t, cf.Guardian.AskFallback)
+	assert.True(t, *cf.Guardian.AskFallback)
+	require.NotNil(t, cf.Sandbox.Enabled)
+	assert.True(t, *cf.Sandbox.Enabled)
+	require.NotNil(t, cf.Sandbox.FailIfUnavailable)
+	assert.True(t, *cf.Sandbox.FailIfUnavailable)
 }
 
 func TestLoad_ModelFlag(t *testing.T) {

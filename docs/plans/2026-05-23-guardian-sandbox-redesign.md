@@ -74,11 +74,11 @@ The new model separates policy from containment:
 - [x] run `make gen` and `go test ./sdk/...` - must pass before task 3
 
 ### Task 3: Add guardian and sandbox configuration shapes
-- [ ] add `GuardianFileConfig` with `profile`, `ask_fallback`, and custom profile map fields in `settings/config.go`
-- [ ] replace old sandbox file config fields with containment settings: `enabled`, `fail_if_unavailable`, `allow_unsandboxed_fallback`, filesystem, and network
-- [ ] update settings merge behavior for guardian profiles and new sandbox settings
-- [ ] write settings tests for JSON loading, layering, env/CLI overrides, and generated config propagation
-- [ ] run `go test ./settings/...` - must pass before task 4
+- [x] add `GuardianFileConfig` with `profile`, `ask_fallback`, and custom profile map fields in `settings/config.go`
+- [x] replace old sandbox file config fields with containment settings: `enabled`, `fail_if_unavailable`, `allow_unsandboxed_fallback`, filesystem, and network
+- [x] update settings merge behavior for guardian profiles and new sandbox settings
+- [x] write settings tests for JSON loading, layering, env/CLI overrides, and generated config propagation
+- [x] run `go test ./settings/...` - must pass before task 4
 
 ### Task 4: Update launcher and bootstrap metadata
 - [ ] update core extension bootstrap list to include `guardian` and `tui-guardian`

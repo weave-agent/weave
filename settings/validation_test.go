@@ -133,18 +133,24 @@ func TestValidate_SandboxDefaultsValid(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestValidate_SandboxAnyModeAccepted(t *testing.T) {
+func TestValidate_GuardianAndSandboxDefaultsValid(t *testing.T) {
 	f := validSettings()
-	f.Sandbox.Mode = "strict"
+	f.Guardian.Profile = "custom-team"
+	askFallback := true
+	f.Guardian.AskFallback = &askFallback
+	enabled := true
+	f.Sandbox.Enabled = &enabled
+	f.Sandbox.FailIfUnavailable = &enabled
+	f.Sandbox.AllowUnsandboxedFallback = &enabled
 	err := Validate(f)
 	assert.NoError(t, err)
 }
 
-func TestValidate_SandboxEmptyPathsAccepted(t *testing.T) {
+func TestValidate_SandboxContainmentPathsAccepted(t *testing.T) {
 	f := validSettings()
-	f.Sandbox.Writable = []string{""}
-	f.Sandbox.DenyWrite = []string{"  "}
-	f.Sandbox.DenyRead = []string{" "}
+	f.Sandbox.Filesystem.ReadOnly = []string{""}
+	f.Sandbox.Filesystem.ReadWrite = []string{"  "}
+	f.Sandbox.Filesystem.Blocked = []string{" "}
 	err := Validate(f)
 	assert.NoError(t, err)
 }

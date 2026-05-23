@@ -6,6 +6,8 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+
+	"github.com/weave-agent/weave/sdk"
 )
 
 // MergeSettings deep-merges multiple Settings layers. Later layers override
@@ -33,6 +35,7 @@ func MergeSettings(layers ...*Settings) *Settings {
 
 		mergeProviders(result, layer)
 		mergeTools(result, layer)
+		mergeGuardian(result, layer)
 		mergeSandbox(result, layer)
 		mergeJSONL(result, layer)
 		mergeExtensions(result, layer)
@@ -118,25 +121,67 @@ func mergeTools(result, layer *Settings) {
 	}
 }
 
+func mergeGuardian(result, layer *Settings) {
+	if layer.Guardian.Profile != "" {
+		result.Guardian.Profile = layer.Guardian.Profile
+	}
+
+	if layer.Guardian.AskFallback != nil {
+		result.Guardian.AskFallback = layer.Guardian.AskFallback
+	}
+
+	if layer.Guardian.Profiles != nil {
+		if result.Guardian.Profiles == nil {
+			result.Guardian.Profiles = make(map[string]sdk.GuardianProfile, len(layer.Guardian.Profiles))
+		}
+
+		maps.Copy(result.Guardian.Profiles, layer.Guardian.Profiles)
+	}
+}
+
 func mergeSandbox(result, layer *Settings) {
-	if layer.Sandbox.Mode != "" {
-		result.Sandbox.Mode = layer.Sandbox.Mode
+	if layer.Sandbox.Enabled != nil {
+		result.Sandbox.Enabled = layer.Sandbox.Enabled
 	}
 
-	if layer.Sandbox.Writable != nil {
-		result.Sandbox.Writable = layer.Sandbox.Writable
+	if layer.Sandbox.FailIfUnavailable != nil {
+		result.Sandbox.FailIfUnavailable = layer.Sandbox.FailIfUnavailable
 	}
 
-	if layer.Sandbox.DenyWrite != nil {
-		result.Sandbox.DenyWrite = layer.Sandbox.DenyWrite
+	if layer.Sandbox.AllowUnsandboxedFallback != nil {
+		result.Sandbox.AllowUnsandboxedFallback = layer.Sandbox.AllowUnsandboxedFallback
 	}
 
-	if layer.Sandbox.DenyRead != nil {
-		result.Sandbox.DenyRead = layer.Sandbox.DenyRead
+	if layer.Sandbox.Filesystem.ReadOnly != nil {
+		result.Sandbox.Filesystem.ReadOnly = layer.Sandbox.Filesystem.ReadOnly
 	}
 
-	if layer.Sandbox.Network != nil {
-		result.Sandbox.Network = layer.Sandbox.Network
+	if layer.Sandbox.Filesystem.ReadWrite != nil {
+		result.Sandbox.Filesystem.ReadWrite = layer.Sandbox.Filesystem.ReadWrite
+	}
+
+	if layer.Sandbox.Filesystem.Blocked != nil {
+		result.Sandbox.Filesystem.Blocked = layer.Sandbox.Filesystem.Blocked
+	}
+
+	if layer.Sandbox.Network.Enabled != nil {
+		result.Sandbox.Network.Enabled = layer.Sandbox.Network.Enabled
+	}
+
+	if layer.Sandbox.Network.AllowHosts != nil {
+		result.Sandbox.Network.AllowHosts = layer.Sandbox.Network.AllowHosts
+	}
+
+	if layer.Sandbox.Network.AllowPorts != nil {
+		result.Sandbox.Network.AllowPorts = layer.Sandbox.Network.AllowPorts
+	}
+
+	if layer.Sandbox.Network.BlockHosts != nil {
+		result.Sandbox.Network.BlockHosts = layer.Sandbox.Network.BlockHosts
+	}
+
+	if layer.Sandbox.Network.AllowListen != nil {
+		result.Sandbox.Network.AllowListen = layer.Sandbox.Network.AllowListen
 	}
 }
 

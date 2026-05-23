@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/weave-agent/weave/sdk"
 )
 
 func TestMergeSettings_EmptyLayers(t *testing.T) {
@@ -164,6 +166,95 @@ func TestMergeSettings_RespectGitignore(t *testing.T) {
 	})
 }
 
+func TestMergeSettings_GuardianProfilesMergeByName(t *testing.T) {
+	askFallback := true
+	global := &Settings{
+		Guardian: GuardianFileConfig{
+			Profile:     "ask",
+			AskFallback: &askFallback,
+			Profiles: map[string]sdk.GuardianProfile{
+				"team": {
+					Name:        "team",
+					Description: "global team profile",
+					Rules: []sdk.GuardianProfileRule{
+						{Actions: []sdk.GuardianAction{sdk.GuardianActionRead}, Decision: sdk.GuardianDecisionAllow},
+					},
+				},
+			},
+		},
+	}
+	local := &Settings{
+		Guardian: GuardianFileConfig{
+			Profile: "team",
+			Profiles: map[string]sdk.GuardianProfile{
+				"team": {
+					Name:        "team",
+					Description: "local team profile",
+					Rules: []sdk.GuardianProfileRule{
+						{Actions: []sdk.GuardianAction{sdk.GuardianActionWrite}, Decision: sdk.GuardianDecisionAsk},
+					},
+				},
+			},
+		},
+	}
+
+	result := MergeSettings(global, local)
+
+	assert.Equal(t, "team", result.Guardian.Profile)
+	require.NotNil(t, result.Guardian.AskFallback)
+	assert.True(t, *result.Guardian.AskFallback)
+	require.Contains(t, result.Guardian.Profiles, "team")
+	assert.Equal(t, "local team profile", result.Guardian.Profiles["team"].Description)
+	assert.Equal(t, sdk.GuardianDecisionAsk, result.Guardian.Profiles["team"].Rules[0].Decision)
+}
+
+func TestMergeSettings_SandboxContainmentSettings(t *testing.T) {
+	enabled := true
+	networkEnabled := false
+	allowFallback := true
+	global := &Settings{
+		Sandbox: SandboxFileConfig{
+			Enabled:                  &enabled,
+			AllowUnsandboxedFallback: &allowFallback,
+			Filesystem: SandboxFilesystemConfig{
+				ReadOnly: []string{"/"},
+			},
+			Network: SandboxNetworkConfig{
+				Enabled:    &networkEnabled,
+				AllowHosts: []string{"example.com"},
+			},
+		},
+	}
+
+	fail := true
+	local := &Settings{
+		Sandbox: SandboxFileConfig{
+			FailIfUnavailable: &fail,
+			Filesystem: SandboxFilesystemConfig{
+				ReadWrite: []string{"/tmp"},
+			},
+			Network: SandboxNetworkConfig{
+				BlockHosts: []string{"metadata.google.internal"},
+			},
+		},
+	}
+
+	result := MergeSettings(global, local)
+
+	require.NotNil(t, result.Sandbox.Enabled)
+	assert.True(t, *result.Sandbox.Enabled)
+	require.NotNil(t, result.Sandbox.FailIfUnavailable)
+	assert.True(t, *result.Sandbox.FailIfUnavailable)
+	require.NotNil(t, result.Sandbox.AllowUnsandboxedFallback)
+	assert.True(t, *result.Sandbox.AllowUnsandboxedFallback)
+	assert.Equal(t, []string{"/"}, result.Sandbox.Filesystem.ReadOnly)
+	assert.Equal(t, []string{"/tmp"}, result.Sandbox.Filesystem.ReadWrite)
+	require.NotNil(t, result.Sandbox.Network.Enabled)
+	assert.False(t, *result.Sandbox.Network.Enabled)
+	assert.Equal(t, []string{"example.com"}, result.Sandbox.Network.AllowHosts)
+	assert.Equal(t, []string{"metadata.google.internal"}, result.Sandbox.Network.BlockHosts)
+}
+
 func TestLoadLayeredSettings_NoFiles(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -225,6 +316,56 @@ func TestLoadLayeredSettings_AllLayers(t *testing.T) {
 	require.NotNil(t, result.UI)
 	assert.Equal(t, "dark", result.UI["theme"])
 	assert.InDelta(t, float64(20), result.UI["editor_max_lines"], 0)
+}
+
+func TestLoadLayeredSettings_GuardianAndSandbox(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	globalDir := filepath.Join(home, ".weave")
+	require.NoError(t, os.MkdirAll(globalDir, 0o750))
+
+	enabled := true
+	writeJSON(t, filepath.Join(globalDir, "settings.json"), &Settings{
+		Guardian: GuardianFileConfig{
+			Profile: "ask",
+			Profiles: map[string]sdk.GuardianProfile{
+				"team": {Name: "team", Description: "global team profile"},
+			},
+		},
+		Sandbox: SandboxFileConfig{
+			Enabled: &enabled,
+			Filesystem: SandboxFilesystemConfig{
+				ReadOnly: []string{"/"},
+			},
+		},
+	})
+
+	projectDir := t.TempDir()
+	projectWeave := filepath.Join(projectDir, ".weave")
+	require.NoError(t, os.MkdirAll(projectWeave, 0o750))
+
+	fail := true
+	writeJSON(t, filepath.Join(projectWeave, "settings.local.json"), &Settings{
+		Guardian: GuardianFileConfig{Profile: "team"},
+		Sandbox: SandboxFileConfig{
+			FailIfUnavailable: &fail,
+			Filesystem: SandboxFilesystemConfig{
+				ReadWrite: []string{"/tmp"},
+			},
+		},
+	})
+
+	result, err := LoadLayeredSettings(projectDir)
+	require.NoError(t, err)
+
+	assert.Equal(t, "team", result.Guardian.Profile)
+	require.Contains(t, result.Guardian.Profiles, "team")
+	require.NotNil(t, result.Sandbox.Enabled)
+	assert.True(t, *result.Sandbox.Enabled)
+	require.NotNil(t, result.Sandbox.FailIfUnavailable)
+	assert.True(t, *result.Sandbox.FailIfUnavailable)
+	assert.Equal(t, []string{"/"}, result.Sandbox.Filesystem.ReadOnly)
+	assert.Equal(t, []string{"/tmp"}, result.Sandbox.Filesystem.ReadWrite)
 }
 
 func TestLoadLayeredSettings_LocalOverridesGlobal(t *testing.T) {

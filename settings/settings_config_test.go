@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/weave-agent/weave/sdk"
 )
 
 func TestSettingsWeaveFlags(t *testing.T) {
@@ -42,9 +44,9 @@ func TestSettingsWeaveFlags(t *testing.T) {
 			want:     []string{"--weave-subagent-id=abc123"},
 		},
 		{
-			name:     "sandbox mode flag",
-			settings: Settings{SandboxMode: "readonly"},
-			want:     []string{"--weave-sandbox-mode=readonly"},
+			name:     "guardian profile flag",
+			settings: Settings{GuardianProfile: "auto"},
+			want:     []string{"--weave-guardian-profile=auto"},
 		},
 		{
 			name:     "model flag",
@@ -59,19 +61,19 @@ func TestSettingsWeaveFlags(t *testing.T) {
 		{
 			name: "multiple flags",
 			settings: Settings{
-				Output:      "json",
-				ToolsFlag:   "read",
-				SubagentID:  "id1",
-				SandboxMode: "auto",
-				ModelFlag:   "gpt-5.5",
-				Debug:       true,
+				Output:          "json",
+				ToolsFlag:       "read",
+				SubagentID:      "id1",
+				GuardianProfile: "yolo",
+				ModelFlag:       "gpt-5.5",
+				Debug:           true,
 			},
 			want: []string{
 				"--weave-debug=true",
 				"--weave-output=json",
 				"--weave-tools=read",
 				"--weave-subagent-id=id1",
-				"--weave-sandbox-mode=auto",
+				"--weave-guardian-profile=yolo",
 				"--weave-model=gpt-5.5",
 			},
 		},
@@ -408,7 +410,7 @@ func TestExtensionConfig_ToolLocalOnlyFromWeaveDir(t *testing.T) {
 func TestExtensionConfig_SandboxScope(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".weave", "settings.json")
-	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui","sandbox":{"mode":"readonly","writable":["/tmp"]}}`)
+	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui","sandbox":{"enabled":true,"fail_if_unavailable":true,"filesystem":{"read_write":["/tmp"]},"network":{"enabled":false}}}`)
 
 	cfg := &FullConfig{
 		filePath: path,
@@ -416,12 +418,49 @@ func TestExtensionConfig_SandboxScope(t *testing.T) {
 	}
 
 	var target struct {
-		Mode     string   `json:"mode" default:"auto"`
-		Writable []string `json:"writable"`
+		Enabled           bool                    `json:"enabled"`
+		FailIfUnavailable bool                    `json:"fail_if_unavailable"`
+		Filesystem        SandboxFilesystemConfig `json:"filesystem"`
+		Network           SandboxNetworkConfig    `json:"network"`
 	}
 	require.NoError(t, cfg.ExtensionConfig("sandbox", "", &target))
-	assert.Equal(t, "readonly", target.Mode)
-	assert.Equal(t, []string{"/tmp"}, target.Writable)
+	assert.True(t, target.Enabled)
+	assert.True(t, target.FailIfUnavailable)
+	assert.Equal(t, []string{"/tmp"}, target.Filesystem.ReadWrite)
+	require.NotNil(t, target.Network.Enabled)
+	assert.False(t, *target.Network.Enabled)
+}
+
+func TestExtensionConfig_GuardianScope(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".weave", "settings.json")
+	writeFile(t, dir, ".weave/settings.json", `{
+		"ui_extension":"tui",
+		"guardian":{
+			"profile":"team",
+			"ask_fallback":true,
+			"profiles":{
+				"team":{
+					"name":"team",
+					"description":"team defaults",
+					"rules":[{"actions":["write"],"decision":"ask"}]
+				}
+			}
+		}
+	}`)
+
+	cfg := &FullConfig{
+		filePath: path,
+		settings: mustLoadSettings(t, path),
+	}
+
+	var target GuardianFileConfig
+	require.NoError(t, cfg.ExtensionConfig("guardian", "", &target))
+	assert.Equal(t, "team", target.Profile)
+	require.NotNil(t, target.AskFallback)
+	assert.True(t, *target.AskFallback)
+	require.Contains(t, target.Profiles, "team")
+	assert.Equal(t, sdk.GuardianDecisionAsk, target.Profiles["team"].Rules[0].Decision)
 }
 
 func TestExtensionConfig_JSONLScope(t *testing.T) {

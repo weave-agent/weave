@@ -713,7 +713,7 @@ func TestRun_SubagentFlagsParsed(t *testing.T) {
 		"--output", "json",
 		"--tools", "read,grep",
 		"--subagent-id", "abc123",
-		"--sandbox", "readonly",
+		"--guardian-profile", "auto",
 		"--model", "claude-haiku-4-5",
 	})
 	require.NoError(t, err)
@@ -722,7 +722,7 @@ func TestRun_SubagentFlagsParsed(t *testing.T) {
 	assert.Equal(t, "read,grep", cf.ToolsFlag)
 	assert.True(t, cf.ToolsSet)
 	assert.Equal(t, "abc123", cf.SubagentID)
-	assert.Equal(t, "readonly", cf.SandboxMode)
+	assert.Equal(t, "auto", cf.GuardianProfile)
 	assert.Equal(t, "claude-haiku-4-5", cf.ModelFlag)
 	assert.Empty(t, rest, "all flags should be consumed by loader")
 }

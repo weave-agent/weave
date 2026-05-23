@@ -157,6 +157,9 @@ func applyData(target any, data map[string]any) error {
 		if !ok {
 			continue
 		}
+		if raw == nil {
+			continue
+		}
 
 		if field.Kind() == reflect.Struct {
 			subMap, ok := raw.(map[string]any)
@@ -896,6 +899,13 @@ func setFieldFromAny(field reflect.Value, raw any) error {
 		return setSliceFromAny(field, raw)
 	case reflect.Map:
 		return setMapFromAny(field, raw)
+	case reflect.Struct:
+		subMap, ok := raw.(map[string]any)
+		if !ok {
+			return fmt.Errorf("cannot convert %T to struct", raw)
+		}
+
+		return applyData(field.Addr().Interface(), subMap)
 	default:
 		return fmt.Errorf("unsupported field kind: %s", field.Kind())
 	}

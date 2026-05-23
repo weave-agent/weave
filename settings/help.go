@@ -64,7 +64,7 @@ var globalFlags = []globalFlag{
 	{"--output", "", "Output format: text or json"},
 	{"--tools", "", "Comma-separated tool allowlist"},
 	{"--subagent-id", "", "Subagent ID for inter-agent communication"},
-	{"--sandbox", "", "Sandbox mode override"},
+	{"--guardian-profile", "", "Guardian profile override"},
 	{"--model", "", "Model override for this session"}, //nolint:goconst // used across multiple packages
 	{"--debug", "", "Enable debug logging"},
 }
@@ -98,11 +98,12 @@ func writeExtensionFlags(b *strings.Builder) {
 		})
 	}
 
-	scopeOrder := []string{"tools", "providers", "ui", "sandbox", "jsonl", "extensions", "ui_extensions"}
+	scopeOrder := []string{"tools", "providers", "ui", "guardian", "sandbox", "jsonl", "extensions", "ui_extensions"}
 	scopeTitles := map[string]string{
 		"tools":         "Tool options",
 		"providers":     "Provider options",
 		"ui":            "UI options",
+		"guardian":      "Guardian options",
 		"sandbox":       "Sandbox options",
 		"jsonl":         "JSONL options",
 		"extensions":    "Extension options",

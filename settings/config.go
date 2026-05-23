@@ -17,13 +17,36 @@ import (
 // DefaultEnvPrefix is the standard environment variable prefix for weave settings.
 const DefaultEnvPrefix = "WEAVE"
 
-// SandboxFileConfig holds sandbox configuration from the config file.
+// GuardianFileConfig holds guardian policy configuration from the config file.
+type GuardianFileConfig struct {
+	Profile     string                         `json:"profile" env:"GUARDIAN_PROFILE" description:"Active guardian profile: ask, auto, yolo, or custom profile name"`
+	AskFallback *bool                          `json:"ask_fallback" env:"GUARDIAN_ASK_FALLBACK" description:"Ask instead of blocking when no guardian policy matches"`
+	Profiles    map[string]sdk.GuardianProfile `json:"profiles,omitempty" description:"Custom guardian profile definitions"`
+}
+
+// SandboxFilesystemConfig holds initial filesystem containment boundaries.
+type SandboxFilesystemConfig struct {
+	ReadOnly  []string `json:"read_only,omitempty" description:"Paths mounted read-only inside the sandbox"`
+	ReadWrite []string `json:"read_write,omitempty" description:"Paths mounted read-write inside the sandbox"`
+	Blocked   []string `json:"blocked,omitempty" description:"Paths blocked inside the sandbox"`
+}
+
+// SandboxNetworkConfig holds initial network containment boundaries.
+type SandboxNetworkConfig struct {
+	Enabled     *bool    `json:"enabled" description:"Allow network access from sandboxed processes"`
+	AllowHosts  []string `json:"allow_hosts,omitempty" description:"Hosts allowed from sandboxed processes"`
+	AllowPorts  []string `json:"allow_ports,omitempty" description:"Ports allowed from sandboxed processes"`
+	BlockHosts  []string `json:"block_hosts,omitempty" description:"Hosts blocked from sandboxed processes"`
+	AllowListen *bool    `json:"allow_listen,omitempty" description:"Allow sandboxed processes to listen on local ports"`
+}
+
+// SandboxFileConfig holds sandbox containment configuration from the config file.
 type SandboxFileConfig struct {
-	Mode      string   `json:"mode" description:"Sandbox mode: off, readonly, ask, auto"`
-	Writable  []string `json:"writable" description:"Paths allowed for writes (default: CWD)"`
-	DenyWrite []string `json:"deny_write" description:"Additional paths to block from writes"`
-	DenyRead  []string `json:"deny_read" description:"Paths to block from reading"`
-	Network   *bool    `json:"network" description:"Allow network access in sandbox"`
+	Enabled                  *bool                   `json:"enabled" env:"SANDBOX_ENABLED" description:"Enable OS-level containment for approved commands"`
+	FailIfUnavailable        *bool                   `json:"fail_if_unavailable" env:"SANDBOX_FAIL_IF_UNAVAILABLE" description:"Fail commands when sandbox containment is unavailable"`
+	AllowUnsandboxedFallback *bool                   `json:"allow_unsandboxed_fallback" env:"SANDBOX_ALLOW_UNSANDBOXED_FALLBACK" description:"Allow approved commands to run without containment when sandboxing is unavailable"`
+	Filesystem               SandboxFilesystemConfig `json:"filesystem" description:"Filesystem containment boundaries"`
+	Network                  SandboxNetworkConfig    `json:"network" description:"Network containment boundaries"`
 }
 
 // DefaultSettings returns a Settings with sensible defaults.
@@ -156,17 +179,17 @@ func parseConfigFlag(args []string) (configPath string, rest []string) {
 
 // flagSet holds CLI-only flags parsed separately from the settings file.
 type flagSet struct {
-	Prompt        string `flag:"prompt" short:"p" description:"Prompt to pass to the agent"`
-	UI            string `flag:"ui" description:"UI extension name"`
-	Output        string `flag:"output" description:"Output format: text or json"`
-	Tools         string `flag:"tools" description:"Comma-separated tool allowlist"`
-	SubagentID    string `flag:"subagent-id" description:"Subagent ID for inter-agent communication"`
-	SandboxMode   string `flag:"sandbox" description:"Sandbox mode override"`
-	Model         string `flag:"model" description:"Model override for this session"`
-	Debug         bool   `flag:"debug" description:"Enable debug logging"`
-	Continue      bool   `flag:"continue" short:"c" description:"Resume most recent session"`
-	Resume        string `flag:"resume" short:"r" description:"Resume specific session by ID"`
-	SkipBootstrap bool   `flag:"skip-bootstrap" description:"Skip auto-install of core extensions on first run"`
+	Prompt          string `flag:"prompt" short:"p" description:"Prompt to pass to the agent"`
+	UI              string `flag:"ui" description:"UI extension name"`
+	Output          string `flag:"output" description:"Output format: text or json"`
+	Tools           string `flag:"tools" description:"Comma-separated tool allowlist"`
+	SubagentID      string `flag:"subagent-id" description:"Subagent ID for inter-agent communication"`
+	GuardianProfile string `flag:"guardian-profile" description:"Guardian profile override"`
+	Model           string `flag:"model" description:"Model override for this session"`
+	Debug           bool   `flag:"debug" description:"Enable debug logging"`
+	Continue        bool   `flag:"continue" short:"c" description:"Resume most recent session"`
+	Resume          string `flag:"resume" short:"r" description:"Resume specific session by ID"`
+	SkipBootstrap   bool   `flag:"skip-bootstrap" description:"Skip auto-install of core extensions on first run"`
 }
 
 func loadSettingsFromFile(path string) (Settings, error) {
@@ -263,7 +286,7 @@ func LoadFromDir(dir string, args []string) (string, *Settings, []string, error)
 	s.Output = flags.Output
 	s.ToolsFlag = flags.Tools
 	s.SubagentID = flags.SubagentID
-	s.SandboxMode = flags.SandboxMode
+	s.GuardianProfile = flags.GuardianProfile
 	s.ModelFlag = flags.Model
 	s.Debug = flags.Debug
 	s.Continue = flags.Continue
@@ -430,6 +453,8 @@ func (c *FullConfig) ExtensionConfig(scope, name string, target any) error {
 		}
 	case "ui":
 		raw = layered.UI
+	case "guardian":
+		raw = layered.Guardian
 	case "sandbox":
 		raw = layered.Sandbox
 	case "jsonl":

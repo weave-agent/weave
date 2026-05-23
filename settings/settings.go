@@ -19,13 +19,14 @@ type JSONLConfig struct {
 // unified into a single struct.
 type Settings struct {
 	// Project-level config fields.
-	AgentLoop         string            `json:"agent_loop,omitempty" default:"agent" env:"AGENT_LOOP" description:"Agent loop extension name"`
-	UIExtension       string            `json:"ui_extension,omitempty" default:"tui" env:"UI_EXTENSION" description:"UI extension name"`
-	Providers         map[string]any    `json:"providers,omitempty" description:"Per-provider configuration"`
-	ExcludeExtensions []string          `json:"exclude_extensions,omitempty" env:"EXCLUDE_EXTENSIONS" description:"Extensions to exclude from auto-discovery"`
-	Sandbox           SandboxFileConfig `json:"sandbox" description:"Sandbox configuration"`
-	Extensions        map[string]any    `json:"extensions,omitempty" description:"Per-extension configuration"`
-	UIExtensions      map[string]any    `json:"ui_extensions,omitempty" description:"Per-UI-extension configuration"`
+	AgentLoop         string             `json:"agent_loop,omitempty" default:"agent" env:"AGENT_LOOP" description:"Agent loop extension name"`
+	UIExtension       string             `json:"ui_extension,omitempty" default:"tui" env:"UI_EXTENSION" description:"UI extension name"`
+	Providers         map[string]any     `json:"providers,omitempty" description:"Per-provider configuration"`
+	ExcludeExtensions []string           `json:"exclude_extensions,omitempty" env:"EXCLUDE_EXTENSIONS" description:"Extensions to exclude from auto-discovery"`
+	Guardian          GuardianFileConfig `json:"guardian" description:"Guardian policy configuration"`
+	Sandbox           SandboxFileConfig  `json:"sandbox" description:"Sandbox configuration"`
+	Extensions        map[string]any     `json:"extensions,omitempty" description:"Per-extension configuration"`
+	UIExtensions      map[string]any     `json:"ui_extensions,omitempty" description:"Per-UI-extension configuration"`
 
 	// User preference fields.
 	Provider         string         `json:"provider,omitempty" env:"PROVIDER"`
@@ -37,17 +38,17 @@ type Settings struct {
 	JSONL            JSONLConfig    `json:"jsonl"`
 
 	// CLI-only flags (not persisted).
-	Prompt        string `short:"p" json:"-" description:"Prompt to pass to the agent"`
-	Output        string `flag:"output" json:"-" description:"Output format: text or json"`
-	ToolsFlag     string `flag:"tools" json:"-" description:"Comma-separated tool allowlist"`
-	ToolsSet      bool   `json:"-" description:"True when --tools= was explicitly passed"`
-	SubagentID    string `flag:"subagent-id" json:"-" description:"Subagent ID for inter-agent communication"`
-	SandboxMode   string `flag:"sandbox" json:"-" description:"Sandbox mode override"`
-	ModelFlag     string `flag:"model" json:"-" description:"Model override for this session"`
-	Debug         bool   `flag:"debug" json:"-" description:"Enable debug logging"`
-	Continue      bool   `flag:"continue" short:"c" json:"-" description:"Resume most recent session"`
-	Resume        string `flag:"resume" short:"r" json:"-" description:"Resume specific session by ID"`
-	SkipBootstrap bool   `flag:"skip-bootstrap" json:"-" description:"Skip auto-install of core extensions on first run"`
+	Prompt          string `short:"p" json:"-" description:"Prompt to pass to the agent"`
+	Output          string `flag:"output" json:"-" description:"Output format: text or json"`
+	ToolsFlag       string `flag:"tools" json:"-" description:"Comma-separated tool allowlist"`
+	ToolsSet        bool   `json:"-" description:"True when --tools= was explicitly passed"`
+	SubagentID      string `flag:"subagent-id" json:"-" description:"Subagent ID for inter-agent communication"`
+	GuardianProfile string `flag:"guardian-profile" json:"-" description:"Guardian profile override"`
+	ModelFlag       string `flag:"model" json:"-" description:"Model override for this session"`
+	Debug           bool   `flag:"debug" json:"-" description:"Enable debug logging"`
+	Continue        bool   `flag:"continue" short:"c" json:"-" description:"Resume most recent session"`
+	Resume          string `flag:"resume" short:"r" json:"-" description:"Resume specific session by ID"`
+	SkipBootstrap   bool   `flag:"skip-bootstrap" json:"-" description:"Skip auto-install of core extensions on first run"`
 }
 
 // SettingsLayer identifies which settings file to read or write.
@@ -198,8 +199,8 @@ func (s *Settings) WeaveFlags() []string {
 		flags = append(flags, "--weave-subagent-id="+s.SubagentID)
 	}
 
-	if s.SandboxMode != "" {
-		flags = append(flags, "--weave-sandbox-mode="+s.SandboxMode)
+	if s.GuardianProfile != "" {
+		flags = append(flags, "--weave-guardian-profile="+s.GuardianProfile)
 	}
 
 	if s.ModelFlag != "" {
