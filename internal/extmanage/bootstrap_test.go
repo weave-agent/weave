@@ -76,15 +76,43 @@ func TestNeedsBootstrap_DirHasOnlyHidden(t *testing.T) {
 	assert.True(t, needs, "should bootstrap when extensions dir has only hidden entries")
 }
 
-func TestNeedsBootstrap_DirMissingCoreExtensions(t *testing.T) {
+func TestNeedsBootstrap_DirMissingCoreExtensionsAfterMigration(t *testing.T) {
 	homeDir := t.TempDir()
+	preCreateAllExtensions(t, homeDir)
 
 	extDir := ExtensionsDir(homeDir)
-	require.NoError(t, os.MkdirAll(filepath.Join(extDir, "bash"), 0o750))
+	require.NoError(t, os.RemoveAll(filepath.Join(extDir, "bash")))
 
 	needs, err := NeedsBootstrap(homeDir)
 	require.NoError(t, err)
-	assert.True(t, needs, "should bootstrap when any core extension is missing")
+	assert.False(t, needs, "should not reinstall an intentionally removed core extension")
+}
+
+func TestNeedsBootstrap_MissingMigrationExtensionsWithObsoleteCore(t *testing.T) {
+	homeDir := t.TempDir()
+	preCreateAllExtensions(t, homeDir)
+
+	extDir := ExtensionsDir(homeDir)
+	require.NoError(t, os.RemoveAll(filepath.Join(extDir, "guardian")))
+	require.NoError(t, os.RemoveAll(filepath.Join(extDir, "tui-guardian")))
+	require.NoError(t, os.MkdirAll(filepath.Join(extDir, "tui-sandbox"), 0o750))
+
+	needs, err := NeedsBootstrap(homeDir)
+	require.NoError(t, err)
+	assert.True(t, needs, "should bootstrap when the guardian/sandbox migration has not completed")
+}
+
+func TestNeedsBootstrap_MigrationMarkerRetriesAfterFailure(t *testing.T) {
+	homeDir := t.TempDir()
+	preCreateAllExtensions(t, homeDir)
+
+	extDir := ExtensionsDir(homeDir)
+	require.NoError(t, os.RemoveAll(filepath.Join(extDir, "guardian")))
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, guardianSandboxMigrationMarker), []byte("in-progress\n"), 0o600))
+
+	needs, err := NeedsBootstrap(homeDir)
+	require.NoError(t, err)
+	assert.True(t, needs, "should retry a failed guardian/sandbox migration")
 }
 
 func TestNeedsBootstrap_DirHasAllCoreExtensions(t *testing.T) {
@@ -192,26 +220,37 @@ func TestBootstrapCoreExtensions_ReinstallsStaleSandbox(t *testing.T) {
 	assert.NotContains(t, result.Failed, "bash")
 }
 
-func TestBootstrapCoreExtensions_SkipsSingleExisting(t *testing.T) {
+func TestBootstrapCoreExtensions_DoesNotReinstallRemovedCoreAfterMigration(t *testing.T) {
 	homeDir := t.TempDir()
 	preCreateAllExtensions(t, homeDir)
 	prependFailingGit(t)
 
-	// Remove one extension to test that only that one would be attempted.
 	extDir := ExtensionsDir(homeDir)
 	require.NoError(t, os.RemoveAll(filepath.Join(extDir, "bash")))
 
-	// Now bootstrap will attempt to install bash, which will try git clone.
-	// The fake git makes failure deterministic so we can verify bash is not skipped.
+	result, err := BootstrapCoreExtensions(context.Background(), homeDir, nil)
+	require.NoError(t, err)
+	assert.NotContains(t, result.Installed, "bash")
+	assert.NotContains(t, result.Failed, "bash")
+}
+
+func TestBootstrapCoreExtensions_InstallsMissingMigrationExtensions(t *testing.T) {
+	homeDir := t.TempDir()
+	preCreateAllExtensions(t, homeDir)
+	prependFailingGit(t)
+
+	extDir := ExtensionsDir(homeDir)
+	require.NoError(t, os.RemoveAll(filepath.Join(extDir, "guardian")))
+	require.NoError(t, os.RemoveAll(filepath.Join(extDir, "tui-guardian")))
+	require.NoError(t, os.MkdirAll(filepath.Join(extDir, "tui-sandbox"), 0o750))
+
 	result, err := BootstrapCoreExtensions(context.Background(), homeDir, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "bootstrap failed for core extensions: bash")
+	assert.Contains(t, err.Error(), "bootstrap failed for core extensions: guardian, tui-guardian")
+	assert.ElementsMatch(t, []string{"guardian", "tui-guardian"}, result.Failed)
 
-	// bash should appear in either Installed or Failed, not both.
-	inInstalled := slices.Contains(result.Installed, "bash")
-	inFailed := slices.Contains(result.Failed, "bash")
-	assert.True(t, inInstalled || inFailed, "bash should be attempted since it was removed")
-	assert.False(t, inInstalled && inFailed, "bash should not be in both installed and failed")
+	_, statErr := os.Stat(filepath.Join(extDir, guardianSandboxMigrationMarker))
+	require.NoError(t, statErr, "failed migration should leave marker for retry")
 }
 
 func TestBootstrapCoreExtensions_Canceled(t *testing.T) {
@@ -266,9 +305,9 @@ func TestBootstrapResult_Tracking(t *testing.T) {
 	extDir := ExtensionsDir(homeDir)
 	require.NoError(t, os.MkdirAll(extDir, 0o750))
 
-	// Pre-create all but one extension.
+	// Pre-create all but one migration extension.
 	for _, name := range CoreExtensionNames {
-		if name == "bash" {
+		if name == "guardian" {
 			continue
 		}
 
@@ -284,39 +323,41 @@ func TestBootstrapResult_Tracking(t *testing.T) {
 
 	var messages []string
 
+	require.NoError(t, os.MkdirAll(filepath.Join(extDir, "tui-sandbox"), 0o750))
+
 	result, err := BootstrapCoreExtensions(context.Background(), homeDir, func(msg string) {
 		messages = append(messages, msg)
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "bootstrap failed for core extensions: bash")
+	assert.Contains(t, err.Error(), "bootstrap failed for core extensions: guardian")
 
-	// Only bash was missing and the fake git makes it fail deterministically.
-	assert.True(t, slices.Contains(result.Installed, "bash") || slices.Contains(result.Failed, "bash"),
-		"bash should be in installed or failed")
+	// Only guardian was missing in a migration and the fake git makes it fail deterministically.
+	assert.True(t, slices.Contains(result.Installed, "guardian") || slices.Contains(result.Failed, "guardian"),
+		"guardian should be in installed or failed")
 
 	// No other extension should appear in either list.
 	for _, name := range result.Installed {
-		assert.Equal(t, "bash", name, "only bash should be in installed")
+		assert.Equal(t, "guardian", name, "only guardian should be in installed")
 	}
 
 	for _, name := range result.Failed {
-		assert.Equal(t, "bash", name, "only bash should be in failed")
+		assert.Equal(t, "guardian", name, "only guardian should be in failed")
 	}
 
 	// Verify progress messages include the header.
 	assert.NotEmpty(t, messages)
 	assert.Contains(t, messages[0], "installing core extensions")
 
-	// Should have a "-> bash" progress line.
-	hasBashMsg := false
+	// Should have a "-> guardian" progress line.
+	hasGuardianMsg := false
 
 	for _, msg := range messages {
-		if strings.Contains(msg, "->") && strings.Contains(msg, "bash") {
-			hasBashMsg = true
+		if strings.Contains(msg, "->") && strings.Contains(msg, "guardian") {
+			hasGuardianMsg = true
 
 			break
 		}
 	}
 
-	assert.True(t, hasBashMsg, "should have progress message for bash")
+	assert.True(t, hasGuardianMsg, "should have progress message for guardian")
 }
