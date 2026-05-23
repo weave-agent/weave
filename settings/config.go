@@ -269,6 +269,9 @@ func resolveConfigPath(dir, configPath string) (string, error) {
 
 func LoadFromDir(dir string, args []string) (string, *Settings, []string, error) {
 	configPath, args := parseConfigFlag(args)
+	if err := rejectRemovedSandboxRuntimeInputs(args); err != nil {
+		return "", nil, nil, err
+	}
 
 	path, err := resolveConfigPath(dir, configPath)
 	if err != nil {
@@ -335,6 +338,28 @@ func LoadFromDir(dir string, args []string) (string, *Settings, []string, error)
 	}
 
 	return path, &s, rest, nil
+}
+
+func rejectRemovedSandboxRuntimeInputs(args []string) error {
+	if _, ok := os.LookupEnv("WEAVE_SANDBOX_MODE"); ok {
+		return errors.New("unsupported WEAVE_SANDBOX_MODE: the sandbox mode API was removed; use WEAVE_GUARDIAN_PROFILE and sandbox containment settings")
+	}
+
+	for _, arg := range args {
+		if arg == "--" {
+			break
+		}
+
+		if arg == "--sandbox" || strings.HasPrefix(arg, "--sandbox=") {
+			return errors.New("unsupported --sandbox: the sandbox mode API was removed; use --guardian-profile and sandbox containment settings")
+		}
+
+		if arg == "--weave-sandbox-mode" || strings.HasPrefix(arg, "--weave-sandbox-mode=") {
+			return errors.New("unsupported --weave-sandbox-mode: the sandbox mode API was removed; use --guardian-profile and sandbox containment settings")
+		}
+	}
+
+	return nil
 }
 
 // LoadFromFile loads a settings file from the given path without discovery or generation.

@@ -76,7 +76,7 @@ func TestNeedsBootstrap_DirHasOnlyHidden(t *testing.T) {
 	assert.True(t, needs, "should bootstrap when extensions dir has only hidden entries")
 }
 
-func TestNeedsBootstrap_DirHasExtensions(t *testing.T) {
+func TestNeedsBootstrap_DirMissingCoreExtensions(t *testing.T) {
 	homeDir := t.TempDir()
 
 	extDir := ExtensionsDir(homeDir)
@@ -84,7 +84,16 @@ func TestNeedsBootstrap_DirHasExtensions(t *testing.T) {
 
 	needs, err := NeedsBootstrap(homeDir)
 	require.NoError(t, err)
-	assert.False(t, needs, "should not bootstrap when extensions dir has entries")
+	assert.True(t, needs, "should bootstrap when any core extension is missing")
+}
+
+func TestNeedsBootstrap_DirHasAllCoreExtensions(t *testing.T) {
+	homeDir := t.TempDir()
+	preCreateAllExtensions(t, homeDir)
+
+	needs, err := NeedsBootstrap(homeDir)
+	require.NoError(t, err)
+	assert.False(t, needs, "should not bootstrap when all core extensions exist")
 }
 
 // preCreateAllExtensions creates a minimal extension directory for each core

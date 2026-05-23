@@ -23,7 +23,7 @@ const (
 )
 
 type runDeps struct {
-	runBootstrap func(context.Context, *settings.Settings)
+	runBootstrap func(context.Context, *settings.Settings) error
 	runLauncher  func(context.Context, string, string, string, string, []string, string, string, bool, []string) error
 }
 
@@ -173,34 +173,33 @@ func parseWeaveProjectDirFlag(args []string) (string, []string) {
 	return "", args
 }
 
-// runBootstrap installs core extensions on first run when ~/.weave/extensions/
-// is empty. Silently skips if --skip-bootstrap is set or extensions already exist.
-func runBootstrap(ctx context.Context, cf *settings.Settings) {
+// runBootstrap installs missing core extensions unless --skip-bootstrap is set.
+func runBootstrap(ctx context.Context, cf *settings.Settings) error {
 	if cf.SkipBootstrap {
-		return
+		return nil
 	}
 
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return
+		return fmt.Errorf("get home directory: %w", err)
 	}
 
 	needsBootstrap, err := extmanage.NeedsBootstrap(homeDir)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "weave: bootstrap check: %v\n", err)
-
-		return
+		return fmt.Errorf("bootstrap check: %w", err)
 	}
 
 	if !needsBootstrap {
-		return
+		return nil
 	}
 
 	if _, err = extmanage.BootstrapCoreExtensions(ctx, homeDir, func(msg string) {
 		fmt.Fprintln(os.Stderr, msg)
 	}); err != nil {
-		fmt.Fprintf(os.Stderr, "weave: bootstrap: %v\n", err)
+		return fmt.Errorf("bootstrap: %w", err)
 	}
+
+	return nil
 }
 
 func buildLauncherWithDeps(ctx context.Context, cf *settings.Settings, rest []string, configFile, revision string, deps runDeps) int {
@@ -224,7 +223,11 @@ func buildLauncherWithDeps(ctx context.Context, cf *settings.Settings, rest []st
 		deps.runLauncher = runLauncher
 	}
 
-	deps.runBootstrap(ctx, cf)
+	if err := deps.runBootstrap(ctx, cf); err != nil {
+		fmt.Fprintf(os.Stderr, "weave: %v\n", err)
+
+		return 1
+	}
 
 	cacheDir, err := launcher.DefaultCacheDir()
 	if err != nil {

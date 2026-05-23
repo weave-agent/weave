@@ -2,6 +2,7 @@ package wire
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -212,8 +213,10 @@ func TestRun_HelpFlagPrintsGlobalHelpWithoutBootstrapOrLauncher(t *testing.T) {
 			var bootstrapCalls, launcherCalls int
 
 			deps := runDeps{
-				runBootstrap: func(context.Context, *settings.Settings) {
+				runBootstrap: func(context.Context, *settings.Settings) error {
 					bootstrapCalls++
+
+					return nil
 				},
 				runLauncher: func(context.Context, string, string, string, string, []string, string, string, bool, []string) error {
 					launcherCalls++
@@ -250,8 +253,10 @@ func TestRun_HelpFlagBypassesConfigLoading(t *testing.T) {
 	var bootstrapCalls, launcherCalls int
 
 	deps := runDeps{
-		runBootstrap: func(context.Context, *settings.Settings) {
+		runBootstrap: func(context.Context, *settings.Settings) error {
 			bootstrapCalls++
+
+			return nil
 		},
 		runLauncher: func(context.Context, string, string, string, string, []string, string, string, bool, []string) error {
 			launcherCalls++
@@ -331,8 +336,10 @@ func TestRun_HelpFlagAsPromptValueLaunches(t *testing.T) {
 	var bootstrapCalls, launcherCalls int
 
 	deps := runDeps{
-		runBootstrap: func(context.Context, *settings.Settings) {
+		runBootstrap: func(context.Context, *settings.Settings) error {
 			bootstrapCalls++
+
+			return nil
 		},
 		runLauncher: func(_ context.Context, _, _, _, _ string, args []string, _, _ string, headless bool, _ []string) error {
 			launcherCalls++
@@ -384,7 +391,7 @@ func TestRun_DoubleDashStopsHelpFastPath(t *testing.T) {
 	var launcherCalls int
 
 	deps := runDeps{
-		runBootstrap: func(context.Context, *settings.Settings) {},
+		runBootstrap: func(context.Context, *settings.Settings) error { return nil },
 		runLauncher: func(_ context.Context, _, _, _, _ string, args []string, _, _ string, headless bool, _ []string) error {
 			launcherCalls++
 
@@ -421,8 +428,10 @@ func TestRun_NoInputSkipsBootstrapAndLauncher(t *testing.T) {
 	var bootstrapCalls, launcherCalls int
 
 	deps := runDeps{
-		runBootstrap: func(context.Context, *settings.Settings) {
+		runBootstrap: func(context.Context, *settings.Settings) error {
 			bootstrapCalls++
+
+			return nil
 		},
 		runLauncher: func(context.Context, string, string, string, string, []string, string, string, bool, []string) error {
 			launcherCalls++
@@ -464,8 +473,10 @@ func TestRun_NormalLaunchRunsBootstrapBeforeLauncher(t *testing.T) {
 	var events []string
 
 	deps := runDeps{
-		runBootstrap: func(context.Context, *settings.Settings) {
+		runBootstrap: func(context.Context, *settings.Settings) error {
 			events = append(events, "bootstrap")
+
+			return nil
 		},
 		runLauncher: func(_ context.Context, _, _, _, projectDir string, _ []string, gotConfigFile, agentLoop string, headless bool, _ []string) error {
 			events = append(events, "launcher")
@@ -483,6 +494,43 @@ func TestRun_NormalLaunchRunsBootstrapBeforeLauncher(t *testing.T) {
 
 	assert.Equal(t, 0, code)
 	assert.Equal(t, []string{"bootstrap", "launcher"}, events)
+}
+
+func TestRun_BootstrapFailureAbortsLaunch(t *testing.T) {
+	dir := t.TempDir()
+	cfgFile := filepath.Join(dir, ".weave", "settings.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(cfgFile), 0o750))
+	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"tui","agent_loop":"agent"}`), 0o600))
+
+	t.Setenv("HOME", t.TempDir())
+
+	origWd, _ := os.Getwd()
+
+	require.NoError(t, os.Chdir(dir))
+	defer func() { _ = os.Chdir(origWd) }()
+
+	var launcherCalls int
+
+	deps := runDeps{
+		runBootstrap: func(context.Context, *settings.Settings) error {
+			return errors.New("missing core extension")
+		},
+		runLauncher: func(context.Context, string, string, string, string, []string, string, string, bool, []string) error {
+			launcherCalls++
+
+			return nil
+		},
+	}
+
+	var code int
+
+	stderr := captureStderr(t, func() {
+		code = runWithDeps(context.Background(), nil, "v0.0.1-abc0123-2026-05-17", deps)
+	})
+
+	assert.Equal(t, 1, code)
+	assert.Contains(t, stderr, "weave: missing core extension")
+	assert.Equal(t, 0, launcherCalls)
 }
 
 func TestWritePromptFile(t *testing.T) {

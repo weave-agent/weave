@@ -49,7 +49,8 @@ func ExtensionsDir(homeDir string) string {
 }
 
 // NeedsBootstrap reports whether bootstrap should run. It returns true when
-// the extensions directory does not exist or exists but is empty (no non-hidden entries).
+// the extensions directory does not exist, has no non-hidden entries, or is
+// missing any required core extension.
 func NeedsBootstrap(homeDir string) (bool, error) {
 	dir := ExtensionsDir(homeDir)
 
@@ -62,13 +63,27 @@ func NeedsBootstrap(homeDir string) (bool, error) {
 		return false, fmt.Errorf("read extensions dir: %w", err)
 	}
 
+	installed := make(map[string]struct{}, len(entries))
+
 	for _, e := range entries {
-		if !strings.HasPrefix(e.Name(), ".") {
-			return false, nil // has at least one real extension
+		if strings.HasPrefix(e.Name(), ".") {
+			continue
+		}
+
+		installed[e.Name()] = struct{}{}
+	}
+
+	if len(installed) == 0 {
+		return true, nil
+	}
+
+	for _, name := range CoreExtensionNames {
+		if _, ok := installed[name]; !ok {
+			return true, nil
 		}
 	}
 
-	return true, nil
+	return false, nil
 }
 
 // BootstrapResult holds the outcome of a bootstrap run.

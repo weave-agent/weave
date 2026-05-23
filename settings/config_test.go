@@ -193,16 +193,34 @@ func TestLoadFromDir_RejectsDeprecatedSandboxKeys(t *testing.T) {
 	}
 }
 
-func TestLoadFromDir_DeprecatedSandboxRuntimeInputsAreNotForwarded(t *testing.T) {
+func TestLoadFromDir_RejectsDeprecatedSandboxRuntimeInputs(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui"}`)
-	t.Setenv("WEAVE_SANDBOX_MODE", "readonly")
 
-	_, cf, rest, err := LoadFromDir(dir, []string{"--sandbox", "readonly", "--weave-sandbox-mode=auto"})
-	require.NoError(t, err)
+	tests := []struct {
+		name    string
+		env     bool
+		args    []string
+		wantErr string
+	}{
+		{name: "env", env: true, wantErr: "unsupported WEAVE_SANDBOX_MODE"},
+		{name: "sandbox flag", args: []string{"--sandbox", "readonly"}, wantErr: "unsupported --sandbox"},
+		{name: "sandbox equals flag", args: []string{"--sandbox=readonly"}, wantErr: "unsupported --sandbox"},
+		{name: "weave sandbox mode flag", args: []string{"--weave-sandbox-mode=auto"}, wantErr: "unsupported --weave-sandbox-mode"},
+	}
 
-	assert.Empty(t, cf.WeaveFlags())
-	assert.Equal(t, []string{"--sandbox", "readonly", "--weave-sandbox-mode=auto"}, rest)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.env {
+				t.Setenv("WEAVE_SANDBOX_MODE", "readonly")
+			}
+
+			_, _, _, err := LoadFromDir(dir, tt.args)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+			assert.Contains(t, err.Error(), "sandbox mode API was removed")
+		})
+	}
 }
 
 func TestLoad_ToolsFlagNotSet(t *testing.T) {
