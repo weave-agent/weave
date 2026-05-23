@@ -67,11 +67,11 @@ The new model separates policy from containment:
 - [x] run `make gen` and `go test ./sdk/...` - must pass before task 2
 
 ### Task 2: Replace sandbox SDK contract with containment-only API
-- [ ] update `sdk/sandbox.go` to remove mode, file read/write, and string approval concepts
-- [ ] define containment-only `Sandboxer` API with command wrapping, status, and expansion-related types
-- [ ] add typed sandbox event topic constants for registration, status, expansion request, and expansion resolution
-- [ ] update existing sandbox SDK tests for the new interface
-- [ ] run `make gen` and `go test ./sdk/...` - must pass before task 3
+- [x] update `sdk/sandbox.go` to remove mode, file read/write, and string approval concepts
+- [x] define containment-only `Sandboxer` API with command wrapping, status, and expansion-related types
+- [x] add typed sandbox event topic constants for registration, status, expansion request, and expansion resolution
+- [x] update existing sandbox SDK tests for the new interface
+- [x] run `make gen` and `go test ./sdk/...` - must pass before task 3
 
 ### Task 3: Add guardian and sandbox configuration shapes
 - [ ] add `GuardianFileConfig` with `profile`, `ask_fallback`, and custom profile map fields in `settings/config.go`

@@ -4,6 +4,7 @@
 package sdk
 
 import (
+	"context"
 	"sync"
 )
 
@@ -17,19 +18,16 @@ var _ Sandboxer = &SandboxerMock{}
 //
 //		// make and configure a mocked Sandboxer
 //		mockedSandboxer := &SandboxerMock{
-//			AllowReadFunc: func(path string) bool {
-//				panic("mock out the AllowRead method")
+//			RequestExpansionFunc: func(ctx context.Context, req SandboxExpansionRequest) (SandboxExpansion, error) {
+//				panic("mock out the RequestExpansion method")
 //			},
-//			AllowWriteFunc: func(path string) bool {
-//				panic("mock out the AllowWrite method")
+//			ResolveExpansionFunc: func(ctx context.Context, expansionID string, resolution SandboxExpansionResolution) error {
+//				panic("mock out the ResolveExpansion method")
 //			},
-//			ModeFunc: func() string {
-//				panic("mock out the Mode method")
+//			StatusFunc: func(ctx context.Context) (SandboxStatus, error) {
+//				panic("mock out the Status method")
 //			},
-//			SetModeFunc: func(mode string)  {
-//				panic("mock out the SetMode method")
-//			},
-//			WrapCommandFunc: func(cmd string, dir string) (string, error) {
+//			WrapCommandFunc: func(ctx context.Context, req SandboxCommandRequest) (SandboxCommand, error) {
 //				panic("mock out the WrapCommand method")
 //			},
 //		}
@@ -39,195 +37,179 @@ var _ Sandboxer = &SandboxerMock{}
 //
 //	}
 type SandboxerMock struct {
-	// AllowReadFunc mocks the AllowRead method.
-	AllowReadFunc func(path string) bool
+	// RequestExpansionFunc mocks the RequestExpansion method.
+	RequestExpansionFunc func(ctx context.Context, req SandboxExpansionRequest) (SandboxExpansion, error)
 
-	// AllowWriteFunc mocks the AllowWrite method.
-	AllowWriteFunc func(path string) bool
+	// ResolveExpansionFunc mocks the ResolveExpansion method.
+	ResolveExpansionFunc func(ctx context.Context, expansionID string, resolution SandboxExpansionResolution) error
 
-	// ModeFunc mocks the Mode method.
-	ModeFunc func() string
-
-	// SetModeFunc mocks the SetMode method.
-	SetModeFunc func(mode string)
+	// StatusFunc mocks the Status method.
+	StatusFunc func(ctx context.Context) (SandboxStatus, error)
 
 	// WrapCommandFunc mocks the WrapCommand method.
-	WrapCommandFunc func(cmd string, dir string) (string, error)
+	WrapCommandFunc func(ctx context.Context, req SandboxCommandRequest) (SandboxCommand, error)
 
 	// calls tracks calls to the methods.
 	calls struct {
-		// AllowRead holds details about calls to the AllowRead method.
-		AllowRead []struct {
-			// Path is the path argument value.
-			Path string
+		// RequestExpansion holds details about calls to the RequestExpansion method.
+		RequestExpansion []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req SandboxExpansionRequest
 		}
-		// AllowWrite holds details about calls to the AllowWrite method.
-		AllowWrite []struct {
-			// Path is the path argument value.
-			Path string
+		// ResolveExpansion holds details about calls to the ResolveExpansion method.
+		ResolveExpansion []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// ExpansionID is the expansionID argument value.
+			ExpansionID string
+			// Resolution is the resolution argument value.
+			Resolution SandboxExpansionResolution
 		}
-		// Mode holds details about calls to the Mode method.
-		Mode []struct {
-		}
-		// SetMode holds details about calls to the SetMode method.
-		SetMode []struct {
-			// Mode is the mode argument value.
-			Mode string
+		// Status holds details about calls to the Status method.
+		Status []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
 		}
 		// WrapCommand holds details about calls to the WrapCommand method.
 		WrapCommand []struct {
-			// Cmd is the cmd argument value.
-			Cmd string
-			// Dir is the dir argument value.
-			Dir string
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Req is the req argument value.
+			Req SandboxCommandRequest
 		}
 	}
-	lockAllowRead   sync.RWMutex
-	lockAllowWrite  sync.RWMutex
-	lockMode        sync.RWMutex
-	lockSetMode     sync.RWMutex
-	lockWrapCommand sync.RWMutex
+	lockRequestExpansion sync.RWMutex
+	lockResolveExpansion sync.RWMutex
+	lockStatus           sync.RWMutex
+	lockWrapCommand      sync.RWMutex
 }
 
-// AllowRead calls AllowReadFunc.
-func (mock *SandboxerMock) AllowRead(path string) bool {
-	if mock.AllowReadFunc == nil {
-		panic("SandboxerMock.AllowReadFunc: method is nil but Sandboxer.AllowRead was just called")
+// RequestExpansion calls RequestExpansionFunc.
+func (mock *SandboxerMock) RequestExpansion(ctx context.Context, req SandboxExpansionRequest) (SandboxExpansion, error) {
+	if mock.RequestExpansionFunc == nil {
+		panic("SandboxerMock.RequestExpansionFunc: method is nil but Sandboxer.RequestExpansion was just called")
 	}
 	callInfo := struct {
-		Path string
+		Ctx context.Context
+		Req SandboxExpansionRequest
 	}{
-		Path: path,
+		Ctx: ctx,
+		Req: req,
 	}
-	mock.lockAllowRead.Lock()
-	mock.calls.AllowRead = append(mock.calls.AllowRead, callInfo)
-	mock.lockAllowRead.Unlock()
-	return mock.AllowReadFunc(path)
+	mock.lockRequestExpansion.Lock()
+	mock.calls.RequestExpansion = append(mock.calls.RequestExpansion, callInfo)
+	mock.lockRequestExpansion.Unlock()
+	return mock.RequestExpansionFunc(ctx, req)
 }
 
-// AllowReadCalls gets all the calls that were made to AllowRead.
+// RequestExpansionCalls gets all the calls that were made to RequestExpansion.
 // Check the length with:
 //
-//	len(mockedSandboxer.AllowReadCalls())
-func (mock *SandboxerMock) AllowReadCalls() []struct {
-	Path string
+//	len(mockedSandboxer.RequestExpansionCalls())
+func (mock *SandboxerMock) RequestExpansionCalls() []struct {
+	Ctx context.Context
+	Req SandboxExpansionRequest
 } {
 	var calls []struct {
-		Path string
+		Ctx context.Context
+		Req SandboxExpansionRequest
 	}
-	mock.lockAllowRead.RLock()
-	calls = mock.calls.AllowRead
-	mock.lockAllowRead.RUnlock()
+	mock.lockRequestExpansion.RLock()
+	calls = mock.calls.RequestExpansion
+	mock.lockRequestExpansion.RUnlock()
 	return calls
 }
 
-// AllowWrite calls AllowWriteFunc.
-func (mock *SandboxerMock) AllowWrite(path string) bool {
-	if mock.AllowWriteFunc == nil {
-		panic("SandboxerMock.AllowWriteFunc: method is nil but Sandboxer.AllowWrite was just called")
+// ResolveExpansion calls ResolveExpansionFunc.
+func (mock *SandboxerMock) ResolveExpansion(ctx context.Context, expansionID string, resolution SandboxExpansionResolution) error {
+	if mock.ResolveExpansionFunc == nil {
+		panic("SandboxerMock.ResolveExpansionFunc: method is nil but Sandboxer.ResolveExpansion was just called")
 	}
 	callInfo := struct {
-		Path string
+		Ctx         context.Context
+		ExpansionID string
+		Resolution  SandboxExpansionResolution
 	}{
-		Path: path,
+		Ctx:         ctx,
+		ExpansionID: expansionID,
+		Resolution:  resolution,
 	}
-	mock.lockAllowWrite.Lock()
-	mock.calls.AllowWrite = append(mock.calls.AllowWrite, callInfo)
-	mock.lockAllowWrite.Unlock()
-	return mock.AllowWriteFunc(path)
+	mock.lockResolveExpansion.Lock()
+	mock.calls.ResolveExpansion = append(mock.calls.ResolveExpansion, callInfo)
+	mock.lockResolveExpansion.Unlock()
+	return mock.ResolveExpansionFunc(ctx, expansionID, resolution)
 }
 
-// AllowWriteCalls gets all the calls that were made to AllowWrite.
+// ResolveExpansionCalls gets all the calls that were made to ResolveExpansion.
 // Check the length with:
 //
-//	len(mockedSandboxer.AllowWriteCalls())
-func (mock *SandboxerMock) AllowWriteCalls() []struct {
-	Path string
+//	len(mockedSandboxer.ResolveExpansionCalls())
+func (mock *SandboxerMock) ResolveExpansionCalls() []struct {
+	Ctx         context.Context
+	ExpansionID string
+	Resolution  SandboxExpansionResolution
 } {
 	var calls []struct {
-		Path string
+		Ctx         context.Context
+		ExpansionID string
+		Resolution  SandboxExpansionResolution
 	}
-	mock.lockAllowWrite.RLock()
-	calls = mock.calls.AllowWrite
-	mock.lockAllowWrite.RUnlock()
+	mock.lockResolveExpansion.RLock()
+	calls = mock.calls.ResolveExpansion
+	mock.lockResolveExpansion.RUnlock()
 	return calls
 }
 
-// Mode calls ModeFunc.
-func (mock *SandboxerMock) Mode() string {
-	if mock.ModeFunc == nil {
-		panic("SandboxerMock.ModeFunc: method is nil but Sandboxer.Mode was just called")
+// Status calls StatusFunc.
+func (mock *SandboxerMock) Status(ctx context.Context) (SandboxStatus, error) {
+	if mock.StatusFunc == nil {
+		panic("SandboxerMock.StatusFunc: method is nil but Sandboxer.Status was just called")
 	}
 	callInfo := struct {
-	}{}
-	mock.lockMode.Lock()
-	mock.calls.Mode = append(mock.calls.Mode, callInfo)
-	mock.lockMode.Unlock()
-	return mock.ModeFunc()
-}
-
-// ModeCalls gets all the calls that were made to Mode.
-// Check the length with:
-//
-//	len(mockedSandboxer.ModeCalls())
-func (mock *SandboxerMock) ModeCalls() []struct {
-} {
-	var calls []struct {
-	}
-	mock.lockMode.RLock()
-	calls = mock.calls.Mode
-	mock.lockMode.RUnlock()
-	return calls
-}
-
-// SetMode calls SetModeFunc.
-func (mock *SandboxerMock) SetMode(mode string) {
-	if mock.SetModeFunc == nil {
-		panic("SandboxerMock.SetModeFunc: method is nil but Sandboxer.SetMode was just called")
-	}
-	callInfo := struct {
-		Mode string
+		Ctx context.Context
 	}{
-		Mode: mode,
+		Ctx: ctx,
 	}
-	mock.lockSetMode.Lock()
-	mock.calls.SetMode = append(mock.calls.SetMode, callInfo)
-	mock.lockSetMode.Unlock()
-	mock.SetModeFunc(mode)
+	mock.lockStatus.Lock()
+	mock.calls.Status = append(mock.calls.Status, callInfo)
+	mock.lockStatus.Unlock()
+	return mock.StatusFunc(ctx)
 }
 
-// SetModeCalls gets all the calls that were made to SetMode.
+// StatusCalls gets all the calls that were made to Status.
 // Check the length with:
 //
-//	len(mockedSandboxer.SetModeCalls())
-func (mock *SandboxerMock) SetModeCalls() []struct {
-	Mode string
+//	len(mockedSandboxer.StatusCalls())
+func (mock *SandboxerMock) StatusCalls() []struct {
+	Ctx context.Context
 } {
 	var calls []struct {
-		Mode string
+		Ctx context.Context
 	}
-	mock.lockSetMode.RLock()
-	calls = mock.calls.SetMode
-	mock.lockSetMode.RUnlock()
+	mock.lockStatus.RLock()
+	calls = mock.calls.Status
+	mock.lockStatus.RUnlock()
 	return calls
 }
 
 // WrapCommand calls WrapCommandFunc.
-func (mock *SandboxerMock) WrapCommand(cmd string, dir string) (string, error) {
+func (mock *SandboxerMock) WrapCommand(ctx context.Context, req SandboxCommandRequest) (SandboxCommand, error) {
 	if mock.WrapCommandFunc == nil {
 		panic("SandboxerMock.WrapCommandFunc: method is nil but Sandboxer.WrapCommand was just called")
 	}
 	callInfo := struct {
-		Cmd string
-		Dir string
+		Ctx context.Context
+		Req SandboxCommandRequest
 	}{
-		Cmd: cmd,
-		Dir: dir,
+		Ctx: ctx,
+		Req: req,
 	}
 	mock.lockWrapCommand.Lock()
 	mock.calls.WrapCommand = append(mock.calls.WrapCommand, callInfo)
 	mock.lockWrapCommand.Unlock()
-	return mock.WrapCommandFunc(cmd, dir)
+	return mock.WrapCommandFunc(ctx, req)
 }
 
 // WrapCommandCalls gets all the calls that were made to WrapCommand.
@@ -235,12 +217,12 @@ func (mock *SandboxerMock) WrapCommand(cmd string, dir string) (string, error) {
 //
 //	len(mockedSandboxer.WrapCommandCalls())
 func (mock *SandboxerMock) WrapCommandCalls() []struct {
-	Cmd string
-	Dir string
+	Ctx context.Context
+	Req SandboxCommandRequest
 } {
 	var calls []struct {
-		Cmd string
-		Dir string
+		Ctx context.Context
+		Req SandboxCommandRequest
 	}
 	mock.lockWrapCommand.RLock()
 	calls = mock.calls.WrapCommand
