@@ -157,6 +157,7 @@ func applyData(target any, data map[string]any) error {
 		if !ok {
 			continue
 		}
+
 		if raw == nil {
 			continue
 		}

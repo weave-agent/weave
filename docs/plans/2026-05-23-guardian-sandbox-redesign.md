@@ -95,11 +95,11 @@ The new model separates policy from containment:
 - [x] run `make test` - must pass before task 6
 
 ### Task 6: Verify root acceptance criteria
-- [ ] verify SDK has no remaining `AllowRead`, `AllowWrite`, `Mode`, or `SetMode` sandbox contract requirements
-- [ ] verify settings no longer expose old sandbox mode semantics
-- [ ] verify bootstrap includes `guardian` and `tui-guardian` and excludes `tui-sandbox`
-- [ ] run `make lint` - all issues must be fixed
-- [ ] run `make test` - must pass
+- [x] verify SDK has no remaining `AllowRead`, `AllowWrite`, `Mode`, or `SetMode` sandbox contract requirements
+- [x] verify settings no longer expose old sandbox mode semantics
+- [x] verify bootstrap includes `guardian` and `tui-guardian` and excludes `tui-sandbox`
+- [x] run `make lint` - all issues must be fixed
+- [x] run `make test` - must pass
 
 ## Technical Details
 
