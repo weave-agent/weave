@@ -519,6 +519,41 @@ func TestExtensionConfig_GuardianScopeRegisteredExtensionUsesRootEnv(t *testing.
 	require.Contains(t, got.Profiles, "file-team")
 }
 
+func TestExtensionConfig_GuardianScopeRegisteredExtensionUsesCLI(t *testing.T) {
+	isolateHome(t)
+	sdk.ResetExtensionRegistry()
+	t.Cleanup(sdk.ResetExtensionRegistry)
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".weave", "settings.json")
+	writeFile(t, dir, ".weave/settings.json", `{
+		"guardian":{
+			"profile":"file-team",
+			"ask_fallback":true
+		}
+	}`)
+
+	cfg := &FullConfig{
+		filePath: path,
+		settings: mustLoadSettings(t, path),
+	}
+	cfg.SetArgs([]string{"--guardian-profile", "cli-team", "--guardian-ask_fallback", "false"})
+
+	var got GuardianFileConfig
+
+	sdk.RegisterExtensionWithScope("guardian", "guardian", func(_ sdk.Config, _ sdk.PreferenceReader, c GuardianFileConfig) (sdk.Extension, error) {
+		got = c
+		return configTestExtension{}, nil
+	})
+
+	_, err := sdk.GetExtension("guardian", cfg)
+	require.NoError(t, err)
+
+	assert.Equal(t, "cli-team", got.Profile)
+	require.NotNil(t, got.AskFallback)
+	assert.False(t, *got.AskFallback)
+}
+
 func TestExtensionConfig_SandboxScopeRegisteredExtensionUsesRootEnv(t *testing.T) {
 	isolateHome(t)
 	sdk.ResetExtensionRegistry()
@@ -559,6 +594,49 @@ func TestExtensionConfig_SandboxScopeRegisteredExtensionUsesRootEnv(t *testing.T
 	require.NotNil(t, got.AllowUnsandboxedFallback)
 	assert.False(t, *got.AllowUnsandboxedFallback)
 	assert.Equal(t, []string{"/repo"}, got.Filesystem.ReadOnly)
+}
+
+func TestExtensionConfig_SandboxScopeRegisteredExtensionUsesCLI(t *testing.T) {
+	isolateHome(t)
+	sdk.ResetExtensionRegistry()
+	t.Cleanup(sdk.ResetExtensionRegistry)
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".weave", "settings.json")
+	writeFile(t, dir, ".weave/settings.json", `{
+		"sandbox":{
+			"enabled":true,
+			"fail_if_unavailable":false,
+			"allow_unsandboxed_fallback":true
+		}
+	}`)
+
+	cfg := &FullConfig{
+		filePath: path,
+		settings: mustLoadSettings(t, path),
+	}
+	cfg.SetArgs([]string{
+		"--sandbox-enabled", "false",
+		"--sandbox-fail_if_unavailable=true",
+		"--sandbox-allow_unsandboxed_fallback=false",
+	})
+
+	var got SandboxFileConfig
+
+	sdk.RegisterExtensionWithScope("sandbox", "sandbox", func(_ sdk.Config, _ sdk.PreferenceReader, c SandboxFileConfig) (sdk.Extension, error) {
+		got = c
+		return configTestExtension{}, nil
+	})
+
+	_, err := sdk.GetExtension("sandbox", cfg)
+	require.NoError(t, err)
+
+	require.NotNil(t, got.Enabled)
+	assert.False(t, *got.Enabled)
+	require.NotNil(t, got.FailIfUnavailable)
+	assert.True(t, *got.FailIfUnavailable)
+	require.NotNil(t, got.AllowUnsandboxedFallback)
+	assert.False(t, *got.AllowUnsandboxedFallback)
 }
 
 func TestExtensionConfig_JSONLScope(t *testing.T) {

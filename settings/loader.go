@@ -253,8 +253,7 @@ func applyEnv(target any, prefix string) error {
 
 // registerFlag registers a single field as a CLI flag, tracking known and boolean flags.
 func registerFlag(knownFlags, boolFlags map[string]bool, fs *flag.FlagSet, field reflect.Value, flagTag, shortTag string) {
-	ptr := field.Addr().Interface()
-	isBool := field.Kind() == reflect.Bool
+	isBool := flagFieldKind(field) == reflect.Bool
 
 	if flagTag != "" {
 		knownFlags["--"+flagTag] = true
@@ -262,7 +261,7 @@ func registerFlag(knownFlags, boolFlags map[string]bool, fs *flag.FlagSet, field
 			boolFlags["--"+flagTag] = true
 		}
 
-		defineFlag(fs, flagTag, ptr)
+		defineFlag(fs, flagTag, field)
 	}
 
 	if shortTag != "" {
@@ -271,8 +270,16 @@ func registerFlag(knownFlags, boolFlags map[string]bool, fs *flag.FlagSet, field
 			boolFlags["-"+shortTag] = true
 		}
 
-		defineFlag(fs, shortTag, ptr)
+		defineFlag(fs, shortTag, field)
 	}
+}
+
+func flagFieldKind(field reflect.Value) reflect.Kind {
+	if field.Kind() == reflect.Pointer {
+		return field.Type().Elem().Kind()
+	}
+
+	return field.Kind()
 }
 
 // applyFlags overrides fields from CLI flags using `flag` and `short` struct tags.
@@ -993,8 +1000,14 @@ func setMapFromAny(field reflect.Value, raw any) error {
 	return nil
 }
 
-// defineFlag defines a flag in a FlagSet for the given pointer value.
-func defineFlag(fs *flag.FlagSet, name string, ptr any) {
+// defineFlag defines a flag in a FlagSet for the given field value.
+func defineFlag(fs *flag.FlagSet, name string, field reflect.Value) {
+	if field.Kind() == reflect.Pointer {
+		fs.Var(&pointerValueFlag{field: field}, name, "")
+		return
+	}
+
+	ptr := field.Addr().Interface()
 	switch p := ptr.(type) {
 	case *string:
 		fs.StringVar(p, name, *p, "")
@@ -1013,6 +1026,26 @@ func defineFlag(fs *flag.FlagSet, name string, ptr any) {
 	case *[]string:
 		fs.Var(&stringSliceFlag{ptr: p}, name, "")
 	}
+}
+
+type pointerValueFlag struct {
+	field reflect.Value
+}
+
+func (f *pointerValueFlag) String() string {
+	if !f.field.IsValid() || f.field.IsNil() {
+		return ""
+	}
+
+	return fmt.Sprint(f.field.Elem().Interface())
+}
+
+func (f *pointerValueFlag) Set(s string) error {
+	return setFieldFromString(f.field, s)
+}
+
+func (f *pointerValueFlag) IsBoolFlag() bool {
+	return f.field.IsValid() && f.field.Type().Elem().Kind() == reflect.Bool
 }
 
 // stringSliceFlag implements flag.Value for *[]string.
