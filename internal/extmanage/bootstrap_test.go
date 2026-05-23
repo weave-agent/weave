@@ -22,7 +22,7 @@ func TestCoreExtensionNames_ContainsExpected(t *testing.T) {
 	expected := []string{
 		"bash", "read", "edit", "write", "grep", "find", "ls",
 		"search", "webfetch", "subagent", "anthropic", "openai", "zai", "kimi", "codex",
-		"agent", "sandbox", "tui-sandbox", "jsonl", "tui",
+		"agent", "guardian", "sandbox", "jsonl", "tui", "tui-guardian",
 		"tui-diffview", "tui-subagent",
 	}
 
@@ -33,6 +33,8 @@ func TestCoreExtensionNames_ContainsExpected(t *testing.T) {
 
 	assert.Len(t, CoreExtensionNames, len(expected),
 		"CoreExtensionNames length should match expected")
+	assert.False(t, slices.Contains(CoreExtensionNames, "tui-sandbox"),
+		"CoreExtensionNames should not contain removed tui-sandbox extension")
 }
 
 func TestExtensionsDir(t *testing.T) {

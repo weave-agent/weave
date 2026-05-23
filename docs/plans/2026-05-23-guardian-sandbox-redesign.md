@@ -81,11 +81,11 @@ The new model separates policy from containment:
 - [x] run `go test ./settings/...` - must pass before task 4
 
 ### Task 4: Update launcher and bootstrap metadata
-- [ ] update core extension bootstrap list to include `guardian` and `tui-guardian`
-- [ ] remove `tui-sandbox` from the core bootstrap list
-- [ ] update bootstrap tests for the new core extension set
-- [ ] update launcher generated argument/env propagation for guardian profile and sandbox settings if needed
-- [ ] run `go test ./internal/extmanage ./internal/launcher ./internal/wire` - must pass before task 5
+- [x] update core extension bootstrap list to include `guardian` and `tui-guardian`
+- [x] remove `tui-sandbox` from the core bootstrap list
+- [x] update bootstrap tests for the new core extension set
+- [x] update launcher generated argument/env propagation for guardian profile and sandbox settings if needed
+- [x] run `go test ./internal/extmanage ./internal/launcher ./internal/wire` - must pass before task 5
 
 ### Task 5: Remove root documentation references to old sandbox modes
 - [ ] update project context/docs that mention `off`, `readonly`, `ask`, and `auto` sandbox modes

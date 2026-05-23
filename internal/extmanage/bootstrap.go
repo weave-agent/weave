@@ -27,10 +27,11 @@ var CoreExtensionNames = []string{
 	"kimi",
 	"codex",
 	"agent",
+	"guardian",
 	"sandbox",
-	"tui-sandbox",
 	"jsonl",
 	"tui",
+	"tui-guardian",
 	"tui-diffview",
 	"tui-subagent",
 }
