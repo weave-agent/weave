@@ -96,6 +96,20 @@ func TestNeedsBootstrap_DirHasAllCoreExtensions(t *testing.T) {
 	assert.False(t, needs, "should not bootstrap when all core extensions exist")
 }
 
+func TestNeedsBootstrap_StaleSandbox(t *testing.T) {
+	homeDir := t.TempDir()
+	preCreateAllExtensions(t, homeDir)
+	require.NoError(t, os.WriteFile(
+		filepath.Join(ExtensionsDir(homeDir), "sandbox", "main.go"),
+		[]byte("package main\n\nvar _ = SandboxMode(\"\")\n"),
+		0o600,
+	))
+
+	needs, err := NeedsBootstrap(homeDir)
+	require.NoError(t, err)
+	assert.True(t, needs, "should bootstrap when sandbox uses removed SDK contract")
+}
+
 // preCreateAllExtensions creates a minimal extension directory for each core
 // extension name in the given homeDir. This avoids network calls in tests.
 func preCreateAllExtensions(t *testing.T, homeDir string) {
@@ -144,6 +158,38 @@ func TestBootstrapCoreExtensions_SkipsExisting(t *testing.T) {
 	// but no per-extension progress messages.
 	assert.Len(t, messages, 1, "only the header message when everything is already installed")
 	assert.Contains(t, messages[0], "installing core extensions")
+}
+
+func TestBootstrapCoreExtensions_RemovesObsoleteCoreExtensions(t *testing.T) {
+	homeDir := t.TempDir()
+	preCreateAllExtensions(t, homeDir)
+	obsoleteDir := filepath.Join(ExtensionsDir(homeDir), "tui-sandbox")
+	require.NoError(t, os.MkdirAll(obsoleteDir, 0o750))
+
+	result, err := BootstrapCoreExtensions(context.Background(), homeDir, nil)
+	require.NoError(t, err)
+	assert.Empty(t, result.Installed)
+	assert.Empty(t, result.Failed)
+
+	_, statErr := os.Stat(obsoleteDir)
+	assert.True(t, os.IsNotExist(statErr), "obsolete tui-sandbox should be removed")
+}
+
+func TestBootstrapCoreExtensions_ReinstallsStaleSandbox(t *testing.T) {
+	homeDir := t.TempDir()
+	preCreateAllExtensions(t, homeDir)
+	prependFailingGit(t)
+	require.NoError(t, os.WriteFile(
+		filepath.Join(ExtensionsDir(homeDir), "sandbox", "main.go"),
+		[]byte("package main\n\nvar _ = SandboxMode(\"\")\n"),
+		0o600,
+	))
+
+	result, err := BootstrapCoreExtensions(context.Background(), homeDir, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bootstrap failed for core extensions: sandbox")
+	assert.Contains(t, result.Failed, "sandbox")
+	assert.NotContains(t, result.Failed, "bash")
 }
 
 func TestBootstrapCoreExtensions_SkipsSingleExisting(t *testing.T) {

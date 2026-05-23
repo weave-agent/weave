@@ -2,7 +2,9 @@ package extmanage
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,6 +36,10 @@ var CoreExtensionNames = []string{
 	"tui-guardian",
 	"tui-diffview",
 	"tui-subagent",
+}
+
+var obsoleteCoreExtensionNames = []string{
+	"tui-sandbox",
 }
 
 // coreExtensionRepo returns the GitHub shorthand for a core extension by name.
@@ -83,6 +89,10 @@ func NeedsBootstrap(homeDir string) (bool, error) {
 		}
 	}
 
+	if isStaleSandbox(filepath.Join(dir, "sandbox")) {
+		return true, nil
+	}
+
 	return false, nil
 }
 
@@ -107,6 +117,12 @@ func BootstrapCoreExtensions(ctx context.Context, homeDir string, output func(st
 		return nil, fmt.Errorf("create extensions dir: %w", err)
 	}
 
+	for _, name := range obsoleteCoreExtensionNames {
+		if err := os.RemoveAll(filepath.Join(extDir, name)); err != nil {
+			return nil, fmt.Errorf("remove obsolete core extension %s: %w", name, err)
+		}
+	}
+
 	if output != nil {
 		output("weave: installing core extensions...")
 	}
@@ -119,9 +135,7 @@ func BootstrapCoreExtensions(ctx context.Context, homeDir string, output func(st
 		}
 
 		destDir := filepath.Join(extDir, name)
-
-		// Skip if already installed.
-		if _, err := os.Stat(destDir); err == nil {
+		if !shouldInstallCoreExtension(name, destDir) {
 			continue
 		}
 
@@ -129,73 +143,11 @@ func BootstrapCoreExtensions(ctx context.Context, homeDir string, output func(st
 			output("  -> " + name)
 		}
 
-		repo := coreExtensionRepo(name)
-
-		parsed, err := parseSource(repo)
-		if err != nil {
+		if err := installCoreExtension(homeDir, destDir, name); err != nil {
 			result.Failed = append(result.Failed, name)
 
 			if output != nil {
-				output(fmt.Sprintf("  !! %s: parse source: %v", name, err))
-			}
-
-			continue
-		}
-
-		stagingDir, err := stagingPath(homeDir, name)
-		if err != nil {
-			result.Failed = append(result.Failed, name)
-
-			if output != nil {
-				output(fmt.Sprintf("  !! %s: staging: %v", name, err))
-			}
-
-			continue
-		}
-
-		if err := cloneExtension(parsed.gitURL, stagingDir); err != nil {
-			_ = os.RemoveAll(stagingDir)
-
-			result.Failed = append(result.Failed, name)
-
-			if output != nil {
-				output(fmt.Sprintf("  !! %s: clone: %v", name, err))
-			}
-
-			continue
-		}
-
-		if !hasGoFiles(stagingDir) {
-			_ = os.RemoveAll(stagingDir)
-
-			result.Failed = append(result.Failed, name)
-
-			if output != nil {
-				output(fmt.Sprintf("  !! %s: no .go files", name))
-			}
-
-			continue
-		}
-
-		if !hasGoMod(stagingDir) {
-			_ = os.RemoveAll(stagingDir)
-
-			result.Failed = append(result.Failed, name)
-
-			if output != nil {
-				output(fmt.Sprintf("  !! %s: no go.mod", name))
-			}
-
-			continue
-		}
-
-		if err := swapStaging(stagingDir, destDir); err != nil {
-			_ = os.RemoveAll(stagingDir)
-
-			result.Failed = append(result.Failed, name)
-
-			if output != nil {
-				output(fmt.Sprintf("  !! %s: install: %v", name, err))
+				output(fmt.Sprintf("  !! %s: %v", name, err))
 			}
 
 			continue
@@ -209,4 +161,92 @@ func BootstrapCoreExtensions(ctx context.Context, homeDir string, output func(st
 	}
 
 	return result, nil
+}
+
+func shouldInstallCoreExtension(name, destDir string) bool {
+	if _, err := os.Stat(destDir); err != nil {
+		return true
+	}
+
+	return name == "sandbox" && isStaleSandbox(destDir)
+}
+
+func installCoreExtension(homeDir, destDir, name string) error {
+	repo := coreExtensionRepo(name)
+
+	parsed, err := parseSource(repo)
+	if err != nil {
+		return fmt.Errorf("parse source: %w", err)
+	}
+
+	stagingDir, err := stagingPath(homeDir, name)
+	if err != nil {
+		return fmt.Errorf("staging: %w", err)
+	}
+
+	defer func() {
+		_ = os.RemoveAll(stagingDir)
+	}()
+
+	if err := cloneExtension(parsed.gitURL, stagingDir); err != nil {
+		return fmt.Errorf("clone: %w", err)
+	}
+
+	if !hasGoFiles(stagingDir) {
+		return errors.New("no .go files")
+	}
+
+	if !hasGoMod(stagingDir) {
+		return errors.New("no go.mod")
+	}
+
+	if err := swapStaging(stagingDir, destDir); err != nil {
+		return fmt.Errorf("install: %w", err)
+	}
+
+	return nil
+}
+
+func isStaleSandbox(dir string) bool {
+	if _, err := os.Stat(dir); err != nil {
+		return false
+	}
+
+	stale := false
+	walkErr := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if stale {
+			return fs.SkipAll
+		}
+
+		if d.IsDir() {
+			if d.Name() == ".git" {
+				return fs.SkipDir
+			}
+
+			return nil
+		}
+
+		if !strings.HasSuffix(d.Name(), ".go") {
+			return nil
+		}
+
+		data, readErr := os.ReadFile(path) //nolint:gosec // G304 - scanning installed extension files.
+		if readErr != nil {
+			return fmt.Errorf("read %s: %w", path, readErr)
+		}
+
+		content := string(data)
+		stale = strings.Contains(content, "SandboxMode") ||
+			strings.Contains(content, "AllowRead(") ||
+			strings.Contains(content, "AllowWrite(") ||
+			strings.Contains(content, "SetMode(")
+
+		return nil
+	})
+
+	return walkErr == nil && stale
 }

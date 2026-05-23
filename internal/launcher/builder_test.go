@@ -1184,6 +1184,7 @@ func TestGenerateMainGo_Content(t *testing.T) {
 	assert.Contains(t, s, "--weave-tools=")
 	assert.Contains(t, s, "--weave-subagent-id=")
 	assert.Contains(t, s, "--weave-guardian-profile=")
+	assert.Contains(t, s, `filtered = append(filtered, "--guardian-profile="+guardianProfile)`)
 	assert.Contains(t, s, "unsupported WEAVE_SANDBOX_MODE")
 	assert.Contains(t, s, "unsupported --sandbox")
 	assert.Contains(t, s, "unsupported --weave-sandbox-mode")

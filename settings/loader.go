@@ -333,7 +333,11 @@ func applyFlags(target any, args []string) ([]string, error) {
 	}
 
 	// Filter args to only include known flags, tracking consumed indices.
-	filtered, consumed := filterKnownFlags(args, knownFlags, boolFlags)
+	filtered, consumed, err := filterKnownFlags(args, knownFlags, boolFlags)
+	if err != nil {
+		return nil, err
+	}
+
 	if len(filtered) == 0 {
 		return args, nil
 	}
@@ -357,7 +361,7 @@ func applyFlags(target any, args []string) ([]string, error) {
 // filterKnownFlags returns args that match known flags (or their values) and a
 // map of consumed indices. For boolean flags followed by "true" or "false",
 // converts to --flag=value form so Go's flag package parses them correctly.
-func filterKnownFlags(args []string, known, boolFlags map[string]bool) ([]string, map[int]bool) {
+func filterKnownFlags(args []string, known, boolFlags map[string]bool) ([]string, map[int]bool, error) {
 	var result []string
 
 	consumed := make(map[int]bool)
@@ -395,6 +399,8 @@ func filterKnownFlags(args []string, known, boolFlags map[string]bool) ([]string
 
 				continue
 			}
+
+			return nil, nil, fmt.Errorf("invalid boolean value %q for %s", next, arg)
 		}
 
 		result = append(result, arg)
@@ -408,15 +414,9 @@ func filterKnownFlags(args []string, known, boolFlags map[string]bool) ([]string
 
 			continue
 		}
-		// Boolean flags: only consume non-flag-looking values (old behavior).
-		if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
-			result = append(result, args[i+1])
-			consumed[i+1] = true
-			i++
-		}
 	}
 
-	return result, consumed
+	return result, consumed, nil
 }
 
 // validate runs all validation rules on the target struct.

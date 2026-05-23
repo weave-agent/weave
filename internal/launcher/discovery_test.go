@@ -208,6 +208,21 @@ func TestAutoDiscover_ExcludeList(t *testing.T) {
 	assert.Equal(t, "keep", exts[0].Name)
 }
 
+func TestAutoDiscover_SkipsObsoleteCoreExtension(t *testing.T) {
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+	moduleRoot := t.TempDir()
+
+	createExtension(t, filepath.Join(homeDir, ".weave", "extensions"), "tui-sandbox", "package tuisandbox")
+	createExtension(t, filepath.Join(homeDir, ".weave", "extensions"), "tui-guardian", "package tuiguardian")
+
+	exts, err := AutoDiscover(projectDir, homeDir, moduleRoot, nil)
+	require.NoError(t, err)
+
+	require.Len(t, exts, 1)
+	assert.Equal(t, "tui-guardian", exts[0].Name)
+}
+
 func TestAutoDiscover_SkipsInvalidName(t *testing.T) {
 	projectDir := t.TempDir()
 	homeDir := t.TempDir()

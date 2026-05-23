@@ -20,6 +20,10 @@ type ExtensionInfo struct {
 	IsUIExt    bool   // true if the extension registers UI elements (RegisterUI, RegisterUIExtension, or RegisterTUIExtension)
 }
 
+var obsoleteExtensionNames = map[string]bool{
+	"tui-sandbox": true,
+}
+
 // AutoDiscover recursively scans extension directories to find all Go modules.
 // It checks three roots in order of precedence: project-local, global, built-in.
 // Within each root, it walks the directory tree looking for directories that
@@ -128,6 +132,11 @@ func tryAddExtension(path, root string, d fs.DirEntry, err error, seen map[strin
 	}
 
 	name := filepath.Base(path)
+	if obsoleteExtensionNames[name] {
+		slog.Warn("auto-discover: skipping obsolete extension", "name", name)
+		return nil
+	}
+
 	if !settings.ValidExtName(name) {
 		slog.Warn("auto-discover: skipping invalid extension name", "name", name)
 		return nil
