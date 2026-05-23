@@ -189,5 +189,9 @@ func BootstrapCoreExtensions(ctx context.Context, homeDir string, output func(st
 		result.Installed = append(result.Installed, name)
 	}
 
+	if len(result.Failed) > 0 {
+		return result, fmt.Errorf("bootstrap failed for core extensions: %s", strings.Join(result.Failed, ", "))
+	}
+
 	return result, nil
 }

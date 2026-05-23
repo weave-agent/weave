@@ -136,6 +136,14 @@ func applyData(target any, data map[string]any) error {
 		return errors.New("target must point to a struct")
 	}
 
+	if v.Type() == reflect.TypeFor[SandboxFileConfig]() {
+		for _, key := range []string{"mode", "writable", "deny_read", "deny_write"} {
+			if _, ok := data[key]; ok {
+				return fmt.Errorf("unsupported sandbox config key %q: the sandbox mode API was removed; use guardian.profile and sandbox containment settings", key)
+			}
+		}
+	}
+
 	t := v.Type()
 	for i := range v.NumField() {
 		field := v.Field(i)

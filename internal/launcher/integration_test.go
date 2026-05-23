@@ -232,7 +232,7 @@ func TestIntegration_ExtensionInitAndWireInBuiltBinary(t *testing.T) {
 
 	cmd := exec.CommandContext(ctx, binPath)
 
-	cmd.Env = append(os.Environ(), "WEAVE_NOOP_MARKER="+markerFile)
+	cmd.Env = append(os.Environ(), "HOME="+homeDir, "WEAVE_NOOP_MARKER="+markerFile)
 
 	require.NoError(t, cmd.Start(), "start binary")
 

@@ -20,6 +20,11 @@ func (configTestExtension) Subscribe(sdk.Bus) error {
 }
 func (configTestExtension) Close() error { return nil }
 
+func isolateHome(t *testing.T) {
+	t.Helper()
+	t.Setenv("HOME", t.TempDir())
+}
+
 func TestSettingsWeaveFlags(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -416,6 +421,8 @@ func TestExtensionConfig_ToolLocalOnlyFromWeaveDir(t *testing.T) {
 }
 
 func TestExtensionConfig_SandboxScope(t *testing.T) {
+	isolateHome(t)
+
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".weave", "settings.json")
 	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui","sandbox":{"enabled":true,"fail_if_unavailable":true,"filesystem":{"read_write":["/tmp"]},"network":{"enabled":false}}}`)
@@ -440,6 +447,8 @@ func TestExtensionConfig_SandboxScope(t *testing.T) {
 }
 
 func TestExtensionConfig_GuardianScope(t *testing.T) {
+	isolateHome(t)
+
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".weave", "settings.json")
 	writeFile(t, dir, ".weave/settings.json", `{
@@ -472,6 +481,7 @@ func TestExtensionConfig_GuardianScope(t *testing.T) {
 }
 
 func TestExtensionConfig_GuardianScopeRegisteredExtensionUsesRootEnv(t *testing.T) {
+	isolateHome(t)
 	sdk.ResetExtensionRegistry()
 	t.Cleanup(sdk.ResetExtensionRegistry)
 	t.Setenv("WEAVE_GUARDIAN_PROFILE", "env-team")
@@ -510,6 +520,7 @@ func TestExtensionConfig_GuardianScopeRegisteredExtensionUsesRootEnv(t *testing.
 }
 
 func TestExtensionConfig_SandboxScopeRegisteredExtensionUsesRootEnv(t *testing.T) {
+	isolateHome(t)
 	sdk.ResetExtensionRegistry()
 	t.Cleanup(sdk.ResetExtensionRegistry)
 	t.Setenv("WEAVE_SANDBOX_ENABLED", "false")
@@ -551,6 +562,8 @@ func TestExtensionConfig_SandboxScopeRegisteredExtensionUsesRootEnv(t *testing.T
 }
 
 func TestExtensionConfig_JSONLScope(t *testing.T) {
+	isolateHome(t)
+
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".weave", "settings.json")
 	writeFile(t, dir, ".weave/settings.json", `{"ui_extension":"tui","jsonl":{"dir":"/custom/sessions"}}`)
@@ -568,6 +581,7 @@ func TestExtensionConfig_JSONLScope(t *testing.T) {
 }
 
 func TestExtensionConfig_DerivesEnvPrefixForTools(t *testing.T) {
+	isolateHome(t)
 	t.Setenv("WEAVE_BASH_TIMEOUT", "77")
 
 	dir := t.TempDir()
@@ -588,6 +602,7 @@ func TestExtensionConfig_DerivesEnvPrefixForTools(t *testing.T) {
 }
 
 func TestExtensionConfig_DerivesEnvPrefixForProviders(t *testing.T) {
+	isolateHome(t)
 	t.Setenv("ANTHROPIC_MODEL", "claude-test")
 
 	dir := t.TempDir()
@@ -608,6 +623,7 @@ func TestExtensionConfig_DerivesEnvPrefixForProviders(t *testing.T) {
 }
 
 func TestExtensionConfig_DerivesEnvPrefixWithHyphens(t *testing.T) {
+	isolateHome(t)
 	t.Setenv("WEAVE_MY_TOOL_TIMEOUT", "99")
 
 	dir := t.TempDir()

@@ -107,6 +107,15 @@ func preCreateAllExtensions(t *testing.T, homeDir string) {
 	}
 }
 
+func prependFailingGit(t *testing.T) {
+	t.Helper()
+
+	binDir := t.TempDir()
+	gitPath := filepath.Join(binDir, "git")
+	require.NoError(t, os.WriteFile(gitPath, []byte("#!/bin/sh\nexit 1\n"), 0o700))
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
 func TestBootstrapCoreExtensions_SkipsExisting(t *testing.T) {
 	homeDir := t.TempDir()
 	preCreateAllExtensions(t, homeDir)
@@ -131,16 +140,17 @@ func TestBootstrapCoreExtensions_SkipsExisting(t *testing.T) {
 func TestBootstrapCoreExtensions_SkipsSingleExisting(t *testing.T) {
 	homeDir := t.TempDir()
 	preCreateAllExtensions(t, homeDir)
+	prependFailingGit(t)
 
 	// Remove one extension to test that only that one would be attempted.
 	extDir := ExtensionsDir(homeDir)
 	require.NoError(t, os.RemoveAll(filepath.Join(extDir, "bash")))
 
 	// Now bootstrap will attempt to install bash, which will try git clone.
-	// We can't predict success/failure (depends on network), but we can verify
-	// bash is not skipped.
+	// The fake git makes failure deterministic so we can verify bash is not skipped.
 	result, err := BootstrapCoreExtensions(context.Background(), homeDir, nil)
-	require.NoError(t, err)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bootstrap failed for core extensions: bash")
 
 	// bash should appear in either Installed or Failed, not both.
 	inInstalled := slices.Contains(result.Installed, "bash")
@@ -196,6 +206,7 @@ func TestBootstrapCoreExtensions_CreatesExtDir(t *testing.T) {
 
 func TestBootstrapResult_Tracking(t *testing.T) {
 	homeDir := t.TempDir()
+	prependFailingGit(t)
 
 	extDir := ExtensionsDir(homeDir)
 	require.NoError(t, os.MkdirAll(extDir, 0o750))
@@ -221,9 +232,10 @@ func TestBootstrapResult_Tracking(t *testing.T) {
 	result, err := BootstrapCoreExtensions(context.Background(), homeDir, func(msg string) {
 		messages = append(messages, msg)
 	})
-	require.NoError(t, err)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bootstrap failed for core extensions: bash")
 
-	// Only bash was missing. It may succeed or fail depending on network.
+	// Only bash was missing and the fake git makes it fail deterministically.
 	assert.True(t, slices.Contains(result.Installed, "bash") || slices.Contains(result.Failed, "bash"),
 		"bash should be in installed or failed")
 
