@@ -30,7 +30,7 @@ type innerConfig struct {
 type validationConfig struct {
 	Required string  `json:"required" validate:"required"`
 	URL      string  `json:"url" validate:"url"`
-	Mode     string  `json:"mode" default:"auto" validate:"oneof=auto off readonly ask"`
+	Mode     string  `json:"mode" default:"standard" validate:"oneof=standard relaxed strict"`
 	Count    int     `json:"count" default:"5" validate:"gt=0,lt=100"`
 	MinMax   int     `json:"min_max" default:"10" validate:"min=5,max=20"`
 	Ratio    float64 `json:"ratio" default:"0.5" validate:"gt=0,lt=1"`
@@ -338,7 +338,7 @@ func TestLoader_ValidationOneOfEmptyOK(t *testing.T) {
 
 	var cfg validationConfig
 	require.NoError(t, l.Load(&cfg))
-	assert.Equal(t, "auto", cfg.Mode)
+	assert.Equal(t, "standard", cfg.Mode)
 }
 
 func TestLoader_ValidationGT(t *testing.T) {
@@ -729,7 +729,7 @@ func TestLoader_ValidValidConfig(t *testing.T) {
 		Data: map[string]any{
 			"required": "ok",
 			"url":      "https://example.com",
-			"mode":     "auto",
+			"mode":     "standard",
 			"count":    50,
 			"min_max":  10,
 			"ratio":    0.5,
@@ -741,7 +741,7 @@ func TestLoader_ValidValidConfig(t *testing.T) {
 	require.NoError(t, l.Load(&cfg))
 	assert.Equal(t, "ok", cfg.Required)
 	assert.Equal(t, "https://example.com", cfg.URL)
-	assert.Equal(t, "auto", cfg.Mode)
+	assert.Equal(t, "standard", cfg.Mode)
 	assert.Equal(t, 50, cfg.Count)
 	assert.Equal(t, 10, cfg.MinMax)
 	assert.InDelta(t, 0.5, cfg.Ratio, 0.001)

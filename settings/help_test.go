@@ -92,6 +92,16 @@ func TestGenerateFullHelp_NoSchemas(t *testing.T) {
 	assert.NotContains(t, text, "Tool options:")
 }
 
+func TestGenerateLauncherHelp_DocumentsGuardianProfile(t *testing.T) {
+	resetAllRegistries(t)
+
+	text := GenerateLauncherHelp()
+	assert.Contains(t, text, "--guardian-profile")
+	assert.Contains(t, text, "Guardian profile override: ask, auto, yolo, or custom")
+	assert.NotContains(t, text, "--sandbox")
+	assert.NotContains(t, text, "Sandbox mode")
+}
+
 func TestGenerateLauncherHelp_OmitsDynamicSchemas(t *testing.T) {
 	resetAllRegistries(t)
 

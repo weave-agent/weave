@@ -64,7 +64,7 @@ var globalFlags = []globalFlag{
 	{"--output", "", "Output format: text or json"},
 	{"--tools", "", "Comma-separated tool allowlist"},
 	{"--subagent-id", "", "Subagent ID for inter-agent communication"},
-	{"--guardian-profile", "", "Guardian profile override"},
+	{"--guardian-profile", "", "Guardian profile override: ask, auto, yolo, or custom"},
 	{"--model", "", "Model override for this session"}, //nolint:goconst // used across multiple packages
 	{"--debug", "", "Enable debug logging"},
 }

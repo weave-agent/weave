@@ -88,11 +88,11 @@ The new model separates policy from containment:
 - [x] run `go test ./internal/extmanage ./internal/launcher ./internal/wire` - must pass before task 5
 
 ### Task 5: Remove root documentation references to old sandbox modes
-- [ ] update project context/docs that mention `off`, `readonly`, `ask`, and `auto` sandbox modes
-- [ ] document the new guardian profiles: `ask`, `auto`, `yolo`, and custom profiles
-- [ ] document that sandbox is containment-only and expansions are handled through guardian UI
-- [ ] update help output tests if help text changes
-- [ ] run `make test` - must pass before task 6
+- [x] update project context/docs that mention `off`, `readonly`, `ask`, and `auto` sandbox modes
+- [x] document the new guardian profiles: `ask`, `auto`, `yolo`, and custom profiles
+- [x] document that sandbox is containment-only and expansions are handled through guardian UI
+- [x] update help output tests if help text changes
+- [x] run `make test` - must pass before task 6
 
 ### Task 6: Verify root acceptance criteria
 - [ ] verify SDK has no remaining `AllowRead`, `AllowWrite`, `Mode`, or `SetMode` sandbox contract requirements

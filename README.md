@@ -19,7 +19,7 @@ Most coding agents are monoliths — swapping the LLM provider, adding a tool, o
 - **JSON configuration** — layered settings (global → local), with env var and CLI flag overrides
 - **Declarative auth** — providers declare credential structs with `json`/`env` tags, framework handles the rest
 - **Multiple providers** — OpenAI, Claude, and any OpenAI-compatible API out of the box
-- **Sandboxed execution** — macOS Seatbelt, Linux bubblewrap, or configurable deny lists
+- **Guardian policy + sandbox containment** — guardian approvals decide whether actions run; sandbox constrains approved shell commands
 - **Context compaction** — auto-triggers when token budget is exceeded, with configurable reserve
 - **Session resume** — continue the last session or resume by ID
 
@@ -82,8 +82,22 @@ Config structs use tags: `json`, `default`, `env`, `flag`, `short`, `validate`, 
 |---|---|
 | Provider | Active LLM provider |
 | Thinking level | `off`, `minimal`, `low`, `medium` (default), `high`, `xhigh` |
-| Sandbox mode | `off`, `readonly`, `ask`, `auto` (default) |
+| Guardian profile | `ask`, `auto`, `yolo`, or a custom profile |
+| Sandbox containment | OS-level boundaries for approved shell commands |
 | Step limit | Max tool calls per turn (default: 50) |
+
+Guardian profiles control policy decisions. `ask` permits reads and harmless
+metadata automatically while prompting for writes, network, deletes, and
+unknown actions. `auto` permits normal coding actions and asks for risky or
+unknown actions. `yolo` runs most actions while retaining hard catastrophic
+blocks. Custom profiles live under `guardian.profiles` and can be selected with
+`guardian.profile` or `--guardian-profile`.
+
+Sandbox configuration is containment-only. It does not decide whether a tool
+action is allowed; the guardian does that first. Once an approved shell command
+is ready to run, the sandbox extension wraps it with filesystem and network
+boundaries. Requests to expand those boundaries are surfaced through the
+guardian UI extension for approval and history.
 
 ### Provider HTTP and Retry Configuration
 
@@ -168,7 +182,7 @@ weave --resume <id>    # or -r <id>, resume specific session
 
 ### Keybindings
 
-`.weave/keybindings.yaml`. Built-in: Esc=interrupt, Ctrl+C=double-press exit, Ctrl+L=model select, Ctrl+P=model cycle, Ctrl+N=new session, Shift+Tab=cycle thinking, Ctrl+S=cycle sandbox, Ctrl+O=expand output, Ctrl+G=external editor.
+`.weave/keybindings.yaml`. Built-in: Esc=interrupt, Ctrl+C=double-press exit, Ctrl+L=model select, Ctrl+P=model cycle, Ctrl+N=new session, Shift+Tab=cycle thinking, Ctrl+S=cycle guardian profile, Ctrl+O=expand output, Ctrl+G=external editor.
 
 ## Writing Extensions
 

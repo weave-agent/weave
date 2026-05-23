@@ -95,15 +95,17 @@ JSON-only. Main config: `.weave/settings.json` (walked up from cwd), fallback `~
 
 Config structs use tags: `json`, `default`, `env`, `flag`, `short`, `validate`, `description`. Loader applies: defaults → JSON → env vars → CLI flags → validation.
 
-Built-in config scopes: `tools`, `providers`, `ui`, `sandbox`, `jsonl`, `extensions`. Provider env vars resolve without `WEAVE_` prefix; tools/extensions use `WEAVE_<NAME>`.
+Built-in config scopes: `tools`, `providers`, `ui`, `guardian`, `sandbox`, `jsonl`, `extensions`. Provider env vars resolve without `WEAVE_` prefix; tools/extensions use `WEAVE_<NAME>`.
 
 Key env vars: `WEAVE_PROVIDER` (override active provider), `WEAVE_THINKING_LEVEL`, `WEAVE_OFFLINE`. Session resume: `--continue`/`-c`, `--resume <id>`/`-r`.
 
-**Keybindings**: `.weave/keybindings.yaml`. Built-in: Esc=interrupt, Ctrl+C=double-press exit, Ctrl+L=model select, Ctrl+P=model cycle, Ctrl+N=new session, Shift+Tab=cycle thinking, Ctrl+S=cycle sandbox, Ctrl+O=expand output, Ctrl+G=external editor.
+**Keybindings**: `.weave/keybindings.yaml`. Built-in: Esc=interrupt, Ctrl+C=double-press exit, Ctrl+L=model select, Ctrl+P=model cycle, Ctrl+N=new session, Shift+Tab=cycle thinking, Ctrl+O=expand output, Ctrl+G=external editor.
 
 **Thinking levels**: off, minimal, low, medium (default), high, xhigh. Models that don't support xhigh clamp to high.
 
-**Sandbox modes**: `off`, `readonly`, `ask`, `auto` (default). Mandatory deny paths hardcoded. macOS: Seatbelt, Linux: bubblewrap.
+**Guardian profiles**: `ask`, `auto`, `yolo`, or custom profile names. `ask` permits reads and harmless metadata automatically while prompting for writes, network, deletes, and unknown actions. `auto` permits normal coding actions and asks for risky or unknown actions. `yolo` runs most actions while retaining catastrophic blocks. Custom profiles live under `guardian.profiles`; select with `guardian.profile` or `--guardian-profile`.
+
+**Sandbox containment**: sandbox is containment-only for approved shell commands. The guardian decides allow/ask/block before execution; sandbox wraps approved commands with OS-level filesystem and network boundaries. Expansion requests are ID-based and are handled through the guardian UI extension.
 
 **Extension management:**
 - `weave install <source> [--name <name>]` — from git URL, GitHub shorthand, or local path
