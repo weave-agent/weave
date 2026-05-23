@@ -42,3 +42,6 @@ brews:
     license: MIT
     dependencies:
       - name: go
+      - name: ripgrep
+    test: |
+      system "#{bin}/weave", "--version"
