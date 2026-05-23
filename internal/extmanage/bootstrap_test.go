@@ -138,6 +138,20 @@ func TestNeedsBootstrap_StaleSandbox(t *testing.T) {
 	assert.True(t, needs, "should bootstrap when sandbox uses removed SDK contract")
 }
 
+func TestNeedsBootstrap_StaleCoreToolSandboxContract(t *testing.T) {
+	homeDir := t.TempDir()
+	preCreateAllExtensions(t, homeDir)
+	require.NoError(t, os.WriteFile(
+		filepath.Join(ExtensionsDir(homeDir), "bash", "main.go"),
+		[]byte("package main\n\nfunc run() { _ = sdk.GetSandboxer() }\n"),
+		0o600,
+	))
+
+	needs, err := NeedsBootstrap(homeDir)
+	require.NoError(t, err)
+	assert.True(t, needs, "should bootstrap when a core extension uses the removed sandbox SDK contract")
+}
+
 // preCreateAllExtensions creates a minimal extension directory for each core
 // extension name in the given homeDir. This avoids network calls in tests.
 func preCreateAllExtensions(t *testing.T, homeDir string) {
@@ -218,6 +232,23 @@ func TestBootstrapCoreExtensions_ReinstallsStaleSandbox(t *testing.T) {
 	assert.Contains(t, err.Error(), "bootstrap failed for core extensions: sandbox")
 	assert.Contains(t, result.Failed, "sandbox")
 	assert.NotContains(t, result.Failed, "bash")
+}
+
+func TestBootstrapCoreExtensions_ReinstallsStaleCoreToolSandboxContract(t *testing.T) {
+	homeDir := t.TempDir()
+	preCreateAllExtensions(t, homeDir)
+	prependFailingGit(t)
+	require.NoError(t, os.WriteFile(
+		filepath.Join(ExtensionsDir(homeDir), "bash", "main.go"),
+		[]byte("package main\n\nfunc run() { _ = sdk.GetSandboxer() }\n"),
+		0o600,
+	))
+
+	result, err := BootstrapCoreExtensions(context.Background(), homeDir, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bootstrap failed for core extensions: bash")
+	assert.Contains(t, result.Failed, "bash")
+	assert.NotContains(t, result.Failed, "sandbox")
 }
 
 func TestBootstrapCoreExtensions_DoesNotReinstallRemovedCoreAfterMigration(t *testing.T) {

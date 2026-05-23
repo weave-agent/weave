@@ -186,7 +186,7 @@ func shouldInstallCoreExtension(name, destDir string, installAllMissing bool) bo
 		return shouldInstallMissingCoreExtension(name)
 	}
 
-	return name == "sandbox" && isStaleSandbox(destDir)
+	return isStaleSandboxContract(destDir)
 }
 
 func shouldInstallMissingCoreExtension(name string) bool {
@@ -203,7 +203,7 @@ func needsGuardianSandboxMigration(extDir string, installed map[string]struct{})
 		return true
 	}
 
-	if isStaleSandbox(filepath.Join(extDir, "sandbox")) {
+	if hasStaleCoreSandboxContract(extDir, installed) {
 		return true
 	}
 
@@ -227,6 +227,20 @@ func needsMigrationBootstrap(extDir string) bool {
 func hasObsoleteCoreExtension(installed map[string]struct{}) bool {
 	for _, name := range obsoleteCoreExtensionNames {
 		if _, ok := installed[name]; ok {
+			return true
+		}
+	}
+
+	return false
+}
+
+func hasStaleCoreSandboxContract(extDir string, installed map[string]struct{}) bool {
+	for _, name := range CoreExtensionNames {
+		if _, ok := installed[name]; !ok {
+			continue
+		}
+
+		if isStaleSandboxContract(filepath.Join(extDir, name)) {
 			return true
 		}
 	}
@@ -285,7 +299,7 @@ func installCoreExtension(homeDir, destDir, name string) error {
 	return nil
 }
 
-func isStaleSandbox(dir string) bool {
+func isStaleSandboxContract(dir string) bool {
 	if _, err := os.Stat(dir); err != nil {
 		return false
 	}
@@ -319,6 +333,7 @@ func isStaleSandbox(dir string) bool {
 
 		content := string(data)
 		stale = strings.Contains(content, "SandboxMode") ||
+			strings.Contains(content, "GetSandboxer(") ||
 			strings.Contains(content, "AllowRead(") ||
 			strings.Contains(content, "AllowWrite(") ||
 			strings.Contains(content, "SetMode(")

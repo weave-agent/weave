@@ -345,17 +345,25 @@ func rejectRemovedSandboxRuntimeInputs(args []string) error {
 		return errors.New("unsupported WEAVE_SANDBOX_MODE: the sandbox mode API was removed; use WEAVE_GUARDIAN_PROFILE and sandbox containment settings")
 	}
 
+	removedFlags := []string{
+		"--sandbox",
+		"--weave-sandbox-mode",
+		"--sandbox-mode",
+		"--sandbox-writable",
+		"--sandbox-deny_read",
+		"--sandbox-deny_write",
+		"--sandbox-network",
+	}
+
 	for _, arg := range args {
 		if arg == "--" {
 			break
 		}
 
-		if arg == "--sandbox" || strings.HasPrefix(arg, "--sandbox=") {
-			return errors.New("unsupported --sandbox: the sandbox mode API was removed; use --guardian-profile and sandbox containment settings")
-		}
-
-		if arg == "--weave-sandbox-mode" || strings.HasPrefix(arg, "--weave-sandbox-mode=") {
-			return errors.New("unsupported --weave-sandbox-mode: the sandbox mode API was removed; use --guardian-profile and sandbox containment settings")
+		for _, flag := range removedFlags {
+			if arg == flag || strings.HasPrefix(arg, flag+"=") {
+				return fmt.Errorf("unsupported %s: the sandbox mode API was removed; use --guardian-profile and sandbox containment settings", flag)
+			}
 		}
 	}
 

@@ -206,6 +206,16 @@ func TestLoadFromDir_RejectsDeprecatedSandboxRuntimeInputs(t *testing.T) {
 		{name: "env", env: true, wantErr: "unsupported WEAVE_SANDBOX_MODE"},
 		{name: "sandbox flag", args: []string{"--sandbox", "readonly"}, wantErr: "unsupported --sandbox"},
 		{name: "sandbox equals flag", args: []string{"--sandbox=readonly"}, wantErr: "unsupported --sandbox"},
+		{name: "sandbox mode flag", args: []string{"--sandbox-mode", "readonly"}, wantErr: "unsupported --sandbox-mode"},
+		{name: "sandbox mode equals flag", args: []string{"--sandbox-mode=readonly"}, wantErr: "unsupported --sandbox-mode"},
+		{name: "sandbox writable flag", args: []string{"--sandbox-writable", "/tmp"}, wantErr: "unsupported --sandbox-writable"},
+		{name: "sandbox writable equals flag", args: []string{"--sandbox-writable=/tmp"}, wantErr: "unsupported --sandbox-writable"},
+		{name: "sandbox deny read flag", args: []string{"--sandbox-deny_read", "/secret"}, wantErr: "unsupported --sandbox-deny_read"},
+		{name: "sandbox deny read equals flag", args: []string{"--sandbox-deny_read=/secret"}, wantErr: "unsupported --sandbox-deny_read"},
+		{name: "sandbox deny write flag", args: []string{"--sandbox-deny_write", "/repo"}, wantErr: "unsupported --sandbox-deny_write"},
+		{name: "sandbox deny write equals flag", args: []string{"--sandbox-deny_write=/repo"}, wantErr: "unsupported --sandbox-deny_write"},
+		{name: "sandbox network flag", args: []string{"--sandbox-network", "false"}, wantErr: "unsupported --sandbox-network"},
+		{name: "sandbox network equals flag", args: []string{"--sandbox-network=false"}, wantErr: "unsupported --sandbox-network"},
 		{name: "weave sandbox mode flag", args: []string{"--weave-sandbox-mode=auto"}, wantErr: "unsupported --weave-sandbox-mode"},
 	}
 
