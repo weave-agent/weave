@@ -190,6 +190,17 @@ func TestLoader_Flags(t *testing.T) {
 	assert.True(t, cfg.Verbose)
 }
 
+func TestLoader_BoolFlagDoesNotConsumePositionalArg(t *testing.T) {
+	l := Loader{
+		Args: []string{"--verbose", "run this prompt"},
+	}
+
+	var cfg testConfig
+	require.NoError(t, l.Load(&cfg))
+
+	assert.True(t, cfg.Verbose)
+}
+
 func TestLoader_FlagShort(t *testing.T) {
 	l := Loader{
 		Args: []string{"-t", "45", "-v"},

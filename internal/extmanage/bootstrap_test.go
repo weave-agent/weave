@@ -102,6 +102,31 @@ func TestNeedsBootstrap_MissingMigrationExtensionsWithObsoleteCore(t *testing.T)
 	assert.True(t, needs, "should bootstrap when the guardian/sandbox migration has not completed")
 }
 
+func TestNeedsBootstrap_MissingMigrationExtensionsBeforeCompletion(t *testing.T) {
+	homeDir := t.TempDir()
+	preCreateAllExtensions(t, homeDir)
+
+	extDir := ExtensionsDir(homeDir)
+	require.NoError(t, os.RemoveAll(filepath.Join(extDir, "guardian")))
+
+	needs, err := NeedsBootstrap(homeDir)
+	require.NoError(t, err)
+	assert.True(t, needs, "should install missing guardian extension until migration is marked complete")
+}
+
+func TestNeedsBootstrap_MissingMigrationExtensionsAfterCompletion(t *testing.T) {
+	homeDir := t.TempDir()
+	preCreateAllExtensions(t, homeDir)
+
+	extDir := ExtensionsDir(homeDir)
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, guardianSandboxMigrationDoneMarker), []byte("complete\n"), 0o600))
+	require.NoError(t, os.RemoveAll(filepath.Join(extDir, "guardian")))
+
+	needs, err := NeedsBootstrap(homeDir)
+	require.NoError(t, err)
+	assert.False(t, needs, "should preserve removed migration extensions after migration is marked complete")
+}
+
 func TestNeedsBootstrap_MigrationMarkerRetriesAfterFailure(t *testing.T) {
 	homeDir := t.TempDir()
 	preCreateAllExtensions(t, homeDir)
@@ -215,6 +240,9 @@ func TestBootstrapCoreExtensions_RemovesObsoleteCoreExtensions(t *testing.T) {
 
 	_, statErr := os.Stat(obsoleteDir)
 	assert.True(t, os.IsNotExist(statErr), "obsolete tui-sandbox should be removed")
+
+	_, statErr = os.Stat(filepath.Join(ExtensionsDir(homeDir), guardianSandboxMigrationDoneMarker))
+	require.NoError(t, statErr, "successful bootstrap should mark guardian/sandbox migration complete")
 }
 
 func TestBootstrapCoreExtensions_ReinstallsStaleSandbox(t *testing.T) {

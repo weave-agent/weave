@@ -558,28 +558,41 @@ func TestExtensionConfig_GuardianScopeRegisteredExtensionUsesCLI(t *testing.T) {
 func TestExtensionConfig_GuardianScopeRejectsInvalidBoolCLI(t *testing.T) {
 	isolateHome(t)
 
-	for _, args := range [][]string{
-		{"--guardian-ask_fallback=not-bool"},
-		{"--guardian-ask_fallback", "not-bool"},
-	} {
-		t.Run(strings.Join(args, "_"), func(t *testing.T) {
-			dir := t.TempDir()
-			path := filepath.Join(dir, ".weave", "settings.json")
-			writeFile(t, dir, ".weave/settings.json", `{"guardian":{"ask_fallback":true}}`)
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".weave", "settings.json")
+	writeFile(t, dir, ".weave/settings.json", `{"guardian":{"ask_fallback":true}}`)
 
-			cfg := &FullConfig{
-				filePath: path,
-				settings: mustLoadSettings(t, path),
-			}
-			cfg.SetArgs(args)
-
-			var target GuardianFileConfig
-
-			err := cfg.ExtensionConfig("guardian", "", &target)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "invalid boolean value")
-		})
+	cfg := &FullConfig{
+		filePath: path,
+		settings: mustLoadSettings(t, path),
 	}
+	cfg.SetArgs([]string{"--guardian-ask_fallback=not-bool"})
+
+	var target GuardianFileConfig
+
+	err := cfg.ExtensionConfig("guardian", "", &target)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid boolean value")
+}
+
+func TestExtensionConfig_GuardianScopeBoolCLILeavesPositionalArg(t *testing.T) {
+	isolateHome(t)
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".weave", "settings.json")
+	writeFile(t, dir, ".weave/settings.json", `{"guardian":{"ask_fallback":false}}`)
+
+	cfg := &FullConfig{
+		filePath: path,
+		settings: mustLoadSettings(t, path),
+	}
+	cfg.SetArgs([]string{"--guardian-ask_fallback", "not-bool"})
+
+	var target GuardianFileConfig
+
+	require.NoError(t, cfg.ExtensionConfig("guardian", "", &target))
+	require.NotNil(t, target.AskFallback)
+	assert.True(t, *target.AskFallback)
 }
 
 func TestExtensionConfig_SandboxScopeRegisteredExtensionUsesRootEnv(t *testing.T) {
@@ -695,7 +708,7 @@ func TestExtensionConfig_SandboxScopeRejectsInvalidBoolCLI(t *testing.T) {
 	}
 }
 
-func TestExtensionConfig_SandboxScopeRejectsInvalidSpaceSeparatedBoolCLI(t *testing.T) {
+func TestExtensionConfig_SandboxScopeBoolCLILeavesPositionalArg(t *testing.T) {
 	isolateHome(t)
 
 	tests := [][]string{
@@ -718,9 +731,19 @@ func TestExtensionConfig_SandboxScopeRejectsInvalidSpaceSeparatedBoolCLI(t *test
 
 			var target SandboxFileConfig
 
-			err := cfg.ExtensionConfig("sandbox", "", &target)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "invalid boolean value")
+			require.NoError(t, cfg.ExtensionConfig("sandbox", "", &target))
+
+			switch args[0] {
+			case "--sandbox-enabled":
+				require.NotNil(t, target.Enabled)
+				assert.True(t, *target.Enabled)
+			case "--sandbox-fail_if_unavailable":
+				require.NotNil(t, target.FailIfUnavailable)
+				assert.True(t, *target.FailIfUnavailable)
+			case "--sandbox-allow_unsandboxed_fallback":
+				require.NotNil(t, target.AllowUnsandboxedFallback)
+				assert.True(t, *target.AllowUnsandboxedFallback)
+			}
 		})
 	}
 }

@@ -42,7 +42,10 @@ var obsoleteCoreExtensionNames = []string{
 	"tui-sandbox",
 }
 
-const guardianSandboxMigrationMarker = ".migration-guardian-sandbox-redesign"
+const (
+	guardianSandboxMigrationMarker     = ".migration-guardian-sandbox-redesign"
+	guardianSandboxMigrationDoneMarker = ".migration-guardian-sandbox-redesign-complete"
+)
 
 // coreExtensionRepo returns the GitHub shorthand for a core extension by name.
 // The convention is github.com/weave-agent/weave-<name>.
@@ -170,6 +173,10 @@ func BootstrapCoreExtensions(ctx context.Context, homeDir string, output func(st
 		return result, fmt.Errorf("bootstrap failed for core extensions: %s", strings.Join(result.Failed, ", "))
 	}
 
+	if err := os.WriteFile(filepath.Join(extDir, guardianSandboxMigrationDoneMarker), []byte("complete\n"), 0o600); err != nil {
+		return nil, fmt.Errorf("write migration completion marker: %w", err)
+	}
+
 	if err := os.Remove(markerPath); err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("remove migration marker: %w", err)
 	}
@@ -199,6 +206,10 @@ func migrationInProgress(extDir string) bool {
 }
 
 func needsGuardianSandboxMigration(extDir string, installed map[string]struct{}) bool {
+	if !guardianSandboxMigrationCompleted(extDir) && missingMigrationExtension(installed) {
+		return true
+	}
+
 	if hasObsoleteCoreExtension(installed) {
 		return true
 	}
@@ -222,6 +233,21 @@ func needsMigrationBootstrap(extDir string) bool {
 	}
 
 	return migrationInProgress(extDir) || needsGuardianSandboxMigration(extDir, installed)
+}
+
+func guardianSandboxMigrationCompleted(extDir string) bool {
+	_, err := os.Stat(filepath.Join(extDir, guardianSandboxMigrationDoneMarker))
+	return err == nil
+}
+
+func missingMigrationExtension(installed map[string]struct{}) bool {
+	for _, name := range []string{"guardian", "tui-guardian"} {
+		if _, ok := installed[name]; !ok {
+			return true
+		}
+	}
+
+	return false
 }
 
 func hasObsoleteCoreExtension(installed map[string]struct{}) bool {
