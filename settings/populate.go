@@ -159,7 +159,9 @@ func defaultFieldsMap(v reflect.Value) (map[string]any, error) {
 				return nil, fmt.Errorf("field %s: %w", ft.Name, err)
 			}
 
-			if len(nested) > 0 {
+			if len(nested) > 0 && ft.Anonymous {
+				maps.Copy(defaults, nested)
+			} else if len(nested) > 0 {
 				defaults[name] = nested
 			}
 
@@ -194,7 +196,11 @@ func jsonValue(value any) (any, error) {
 	}
 
 	var out any
-	if err := json.Unmarshal(data, &out); err != nil {
+
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
+
+	if err := dec.Decode(&out); err != nil {
 		return nil, fmt.Errorf("unmarshal default: %w", err)
 	}
 

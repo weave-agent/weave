@@ -28,6 +28,17 @@ type defaultsBuildConfig struct {
 	Comment *string             `json:"comment"`
 }
 
+type embeddedDefaultsConfig struct {
+	Embedded DefaultsBuildEmbedded `json:"embedded"`
+	DefaultsBuildEmbedded
+	Own string `json:"own" default:"local"`
+}
+
+type DefaultsBuildEmbedded struct {
+	Shared string `json:"shared" default:"shared-default"`
+	Count  int64  `json:"count" default:"9007199254740993"`
+}
+
 type singletonDefaultsConfig struct {
 	Enabled *bool  `json:"enabled" default:"true"`
 	Mode    string `json:"mode" default:"strict"`
@@ -39,16 +50,31 @@ func TestBuildDefaultsMap(t *testing.T) {
 
 	assert.Equal(t, map[string]any{
 		"name":    "weave",
-		"timeout": float64(30),
+		"timeout": json.Number("30"),
 		"enabled": true,
 		"nested": map[string]any{
 			removedSandboxModeKey: "fast",
 		},
-		"limit": float64(5),
+		"limit": json.Number("5"),
 	}, got)
 	assert.NotContains(t, got, "retries")
 	assert.NotContains(t, got, "comment")
 	assert.NotContains(t, got["nested"].(map[string]any), "size")
+}
+
+func TestBuildDefaultsMapFlattensEmbeddedStructDefaults(t *testing.T) {
+	got, err := buildDefaultsMap(&sdk.SchemaInfo{Type: reflect.TypeFor[embeddedDefaultsConfig]()})
+	require.NoError(t, err)
+
+	assert.Equal(t, map[string]any{
+		"embedded": map[string]any{
+			"shared": "shared-default",
+			"count":  json.Number("9007199254740993"),
+		},
+		"shared": "shared-default",
+		"count":  json.Number("9007199254740993"),
+		"own":    "local",
+	}, got)
 }
 
 func TestBuildDefaultsMapPointerType(t *testing.T) {
@@ -66,7 +92,7 @@ func TestBuildDefaultsMapRejectsMissingType(t *testing.T) {
 
 func TestMergeMissing(t *testing.T) {
 	defaults := map[string]any{
-		"timeout":             float64(120),
+		"timeout":             json.Number("120"),
 		removedSandboxModeKey: "default",
 		"nested": map[string]any{
 			"added":     true,
@@ -87,7 +113,7 @@ func TestMergeMissing(t *testing.T) {
 	got := mergeMissing(defaults, existing)
 
 	assert.Equal(t, map[string]any{
-		"timeout":             float64(120),
+		"timeout":             json.Number("120"),
 		removedSandboxModeKey: "custom",
 		"nested": map[string]any{
 			"added":     true,
@@ -101,10 +127,10 @@ func TestMergeMissing(t *testing.T) {
 func TestPruneExistingDefaults(t *testing.T) {
 	defaults := map[string]any{
 		"name":    "default",
-		"timeout": float64(30),
+		"timeout": json.Number("30"),
 		"nested": map[string]any{
 			"mode":  "fast",
-			"limit": float64(5),
+			"limit": json.Number("5"),
 		},
 	}
 	existing := map[string]any{
@@ -117,9 +143,9 @@ func TestPruneExistingDefaults(t *testing.T) {
 	got := pruneExistingDefaults(defaults, existing)
 
 	assert.Equal(t, map[string]any{
-		"timeout": float64(30),
+		"timeout": json.Number("30"),
 		"nested": map[string]any{
-			"limit": float64(5),
+			"limit": json.Number("5"),
 		},
 	}, got)
 }
