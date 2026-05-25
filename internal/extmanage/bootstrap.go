@@ -42,11 +42,6 @@ var obsoleteCoreExtensionNames = []string{
 	"tui-sandbox",
 }
 
-const (
-	guardianSandboxMigrationMarker     = ".migration-guardian-sandbox-redesign"
-	guardianSandboxMigrationDoneMarker = ".migration-guardian-sandbox-redesign-complete"
-)
-
 // coreExtensionRepo returns the GitHub shorthand for a core extension by name.
 // The convention is github.com/weave-agent/weave-<name>.
 func coreExtensionRepo(name string) string {
@@ -89,14 +84,6 @@ func NeedsBootstrap(homeDir string) (bool, error) {
 		return true, nil
 	}
 
-	if migrationInProgress(dir) {
-		return true, nil
-	}
-
-	if needsGuardianSandboxMigration(dir, installed) {
-		return true, nil
-	}
-
 	return false, nil
 }
 
@@ -122,13 +109,6 @@ func BootstrapCoreExtensions(ctx context.Context, homeDir string, output func(st
 	}
 
 	installAllMissing := isFirstRunExtensionsDir(extDir)
-	markerPath := filepath.Join(extDir, guardianSandboxMigrationMarker)
-
-	if needsMigrationBootstrap(extDir) {
-		if err := os.WriteFile(markerPath, []byte("in-progress\n"), 0o600); err != nil {
-			return nil, fmt.Errorf("write migration marker: %w", err)
-		}
-	}
 
 	for _, name := range obsoleteCoreExtensionNames {
 		if err := os.RemoveAll(filepath.Join(extDir, name)); err != nil {
@@ -173,14 +153,6 @@ func BootstrapCoreExtensions(ctx context.Context, homeDir string, output func(st
 		return result, fmt.Errorf("bootstrap failed for core extensions: %s", strings.Join(result.Failed, ", "))
 	}
 
-	if err := os.WriteFile(filepath.Join(extDir, guardianSandboxMigrationDoneMarker), []byte("complete\n"), 0o600); err != nil {
-		return nil, fmt.Errorf("write migration completion marker: %w", err)
-	}
-
-	if err := os.Remove(markerPath); err != nil && !os.IsNotExist(err) {
-		return nil, fmt.Errorf("remove migration marker: %w", err)
-	}
-
 	return result, nil
 }
 
@@ -198,80 +170,6 @@ func shouldInstallCoreExtension(name, destDir string, installAllMissing bool) bo
 
 func shouldInstallMissingCoreExtension(name string) bool {
 	return name == "guardian" || name == "tui-guardian"
-}
-
-func migrationInProgress(extDir string) bool {
-	_, err := os.Stat(filepath.Join(extDir, guardianSandboxMigrationMarker))
-	return err == nil
-}
-
-func needsGuardianSandboxMigration(extDir string, installed map[string]struct{}) bool {
-	if !guardianSandboxMigrationCompleted(extDir) && missingMigrationExtension(installed) {
-		return true
-	}
-
-	if hasObsoleteCoreExtension(installed) {
-		return true
-	}
-
-	if hasStaleCoreSandboxContract(extDir, installed) {
-		return true
-	}
-
-	return false
-}
-
-func needsMigrationBootstrap(extDir string) bool {
-	entries, err := os.ReadDir(extDir)
-	if err != nil {
-		return false
-	}
-
-	installed := make(map[string]struct{}, len(entries))
-	for _, entry := range entries {
-		installed[entry.Name()] = struct{}{}
-	}
-
-	return migrationInProgress(extDir) || needsGuardianSandboxMigration(extDir, installed)
-}
-
-func guardianSandboxMigrationCompleted(extDir string) bool {
-	_, err := os.Stat(filepath.Join(extDir, guardianSandboxMigrationDoneMarker))
-	return err == nil
-}
-
-func missingMigrationExtension(installed map[string]struct{}) bool {
-	for _, name := range []string{"guardian", "tui-guardian"} {
-		if _, ok := installed[name]; !ok {
-			return true
-		}
-	}
-
-	return false
-}
-
-func hasObsoleteCoreExtension(installed map[string]struct{}) bool {
-	for _, name := range obsoleteCoreExtensionNames {
-		if _, ok := installed[name]; ok {
-			return true
-		}
-	}
-
-	return false
-}
-
-func hasStaleCoreSandboxContract(extDir string, installed map[string]struct{}) bool {
-	for _, name := range CoreExtensionNames {
-		if _, ok := installed[name]; !ok {
-			continue
-		}
-
-		if isStaleSandboxContract(filepath.Join(extDir, name)) {
-			return true
-		}
-	}
-
-	return false
 }
 
 func isFirstRunExtensionsDir(extDir string) bool {

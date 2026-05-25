@@ -99,7 +99,7 @@ func TestNeedsBootstrap_MissingMigrationExtensionsWithObsoleteCore(t *testing.T)
 
 	needs, err := NeedsBootstrap(homeDir)
 	require.NoError(t, err)
-	assert.True(t, needs, "should bootstrap when the guardian/sandbox migration has not completed")
+	assert.False(t, needs, "should not bootstrap for migrations when extensions dir is not empty")
 }
 
 func TestNeedsBootstrap_MissingMigrationExtensionsBeforeCompletion(t *testing.T) {
@@ -111,33 +111,32 @@ func TestNeedsBootstrap_MissingMigrationExtensionsBeforeCompletion(t *testing.T)
 
 	needs, err := NeedsBootstrap(homeDir)
 	require.NoError(t, err)
-	assert.True(t, needs, "should install missing guardian extension until migration is marked complete")
+	assert.False(t, needs, "should not bootstrap for missing extensions when dir is not empty")
 }
 
-func TestNeedsBootstrap_MissingMigrationExtensionsAfterCompletion(t *testing.T) {
-	homeDir := t.TempDir()
-	preCreateAllExtensions(t, homeDir)
-
-	extDir := ExtensionsDir(homeDir)
-	require.NoError(t, os.WriteFile(filepath.Join(extDir, guardianSandboxMigrationDoneMarker), []byte("complete\n"), 0o600))
-	require.NoError(t, os.RemoveAll(filepath.Join(extDir, "guardian")))
-
-	needs, err := NeedsBootstrap(homeDir)
-	require.NoError(t, err)
-	assert.False(t, needs, "should preserve removed migration extensions after migration is marked complete")
-}
-
-func TestNeedsBootstrap_MigrationMarkerRetriesAfterFailure(t *testing.T) {
+func TestNeedsBootstrap_NonEmptyDirWithMissingExtensions(t *testing.T) {
 	homeDir := t.TempDir()
 	preCreateAllExtensions(t, homeDir)
 
 	extDir := ExtensionsDir(homeDir)
 	require.NoError(t, os.RemoveAll(filepath.Join(extDir, "guardian")))
-	require.NoError(t, os.WriteFile(filepath.Join(extDir, guardianSandboxMigrationMarker), []byte("in-progress\n"), 0o600))
 
 	needs, err := NeedsBootstrap(homeDir)
 	require.NoError(t, err)
-	assert.True(t, needs, "should retry a failed guardian/sandbox migration")
+	assert.False(t, needs, "should not bootstrap for missing extensions when dir is not empty")
+}
+
+func TestNeedsBootstrap_NonEmptyDirWithMigrationMarker(t *testing.T) {
+	homeDir := t.TempDir()
+	preCreateAllExtensions(t, homeDir)
+
+	extDir := ExtensionsDir(homeDir)
+	require.NoError(t, os.RemoveAll(filepath.Join(extDir, "guardian")))
+	require.NoError(t, os.WriteFile(filepath.Join(extDir, ".migration-guardian-sandbox-redesign"), []byte("in-progress\n"), 0o600))
+
+	needs, err := NeedsBootstrap(homeDir)
+	require.NoError(t, err)
+	assert.False(t, needs, "should not bootstrap for migration markers when extensions dir is not empty")
 }
 
 func TestNeedsBootstrap_DirHasAllCoreExtensions(t *testing.T) {
@@ -160,7 +159,7 @@ func TestNeedsBootstrap_StaleSandbox(t *testing.T) {
 
 	needs, err := NeedsBootstrap(homeDir)
 	require.NoError(t, err)
-	assert.True(t, needs, "should bootstrap when sandbox uses removed SDK contract")
+	assert.False(t, needs, "should not bootstrap for stale contracts when extensions dir is not empty")
 }
 
 func TestNeedsBootstrap_StaleCoreToolSandboxContract(t *testing.T) {
@@ -174,7 +173,7 @@ func TestNeedsBootstrap_StaleCoreToolSandboxContract(t *testing.T) {
 
 	needs, err := NeedsBootstrap(homeDir)
 	require.NoError(t, err)
-	assert.True(t, needs, "should bootstrap when a core extension uses the removed sandbox SDK contract")
+	assert.False(t, needs, "should not bootstrap for stale contracts when extensions dir is not empty")
 }
 
 // preCreateAllExtensions creates a minimal extension directory for each core
@@ -240,9 +239,6 @@ func TestBootstrapCoreExtensions_RemovesObsoleteCoreExtensions(t *testing.T) {
 
 	_, statErr := os.Stat(obsoleteDir)
 	assert.True(t, os.IsNotExist(statErr), "obsolete tui-sandbox should be removed")
-
-	_, statErr = os.Stat(filepath.Join(ExtensionsDir(homeDir), guardianSandboxMigrationDoneMarker))
-	require.NoError(t, statErr, "successful bootstrap should mark guardian/sandbox migration complete")
 }
 
 func TestBootstrapCoreExtensions_ReinstallsStaleSandbox(t *testing.T) {
@@ -307,9 +303,6 @@ func TestBootstrapCoreExtensions_InstallsMissingMigrationExtensions(t *testing.T
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "bootstrap failed for core extensions: guardian, tui-guardian")
 	assert.ElementsMatch(t, []string{"guardian", "tui-guardian"}, result.Failed)
-
-	_, statErr := os.Stat(filepath.Join(extDir, guardianSandboxMigrationMarker))
-	require.NoError(t, statErr, "failed migration should leave marker for retry")
 }
 
 func TestBootstrapCoreExtensions_Canceled(t *testing.T) {
