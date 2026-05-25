@@ -28,6 +28,11 @@ type defaultsBuildConfig struct {
 	Comment *string             `json:"comment"`
 }
 
+type singletonDefaultsConfig struct {
+	Enabled *bool  `json:"enabled" default:"true"`
+	Mode    string `json:"mode" default:"strict"`
+}
+
 func TestBuildDefaultsMap(t *testing.T) {
 	got, err := buildDefaultsMap(&sdk.SchemaInfo{Type: reflect.TypeFor[defaultsBuildConfig]()})
 	require.NoError(t, err)
@@ -422,6 +427,33 @@ func TestExtensionConfigPopulatesGlobalSettingsFallback(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(globalData), `"test-tool"`)
 	assert.Contains(t, string(globalData), `"timeout": 30`)
+}
+
+func TestExtensionConfigPopulatesSingletonDefaultsFromRawSettings(t *testing.T) {
+	sdk.ResetSchemas()
+	defer sdk.ResetSchemas()
+
+	sdk.RegisterExtensionSchema(configScopeSandbox, "", singletonDefaultsConfig{})
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	projectDir := t.TempDir()
+	sourcePath := filepath.Join(projectDir, ".weave", "settings.json")
+	writeFile(t, projectDir, ".weave/settings.json", `{}`)
+
+	cfg := &FullConfig{
+		filePath: sourcePath,
+		settings: mustLoadSettings(t, sourcePath),
+	}
+
+	var target singletonDefaultsConfig
+	require.NoError(t, cfg.ExtensionConfig(configScopeSandbox, "", &target))
+
+	data, err := os.ReadFile(sourcePath)
+	require.NoError(t, err)
+
+	assert.JSONEq(t, `{"sandbox":{"enabled":true,"mode":"strict"}}`, string(data))
 }
 
 func TestExtensionConfigIgnoresPopulateFailure(t *testing.T) {

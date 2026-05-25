@@ -295,6 +295,22 @@ func mergeDefaultsForScope(root map[string]any, scope, name string, defaults map
 	}
 }
 
+func configMapForScope(root map[string]any, scope, name string) (map[string]any, error) {
+	switch scope {
+	case configScopeUI, configScopeGuardian, configScopeSandbox, configScopeJSONL:
+		return mapForKey(root, scope)
+	case configScopeTools, configScopeProviders, configScopeExtensions, configScopeUIExtensions:
+		scopeMap, err := mapForKey(root, scope)
+		if err != nil {
+			return nil, err
+		}
+
+		return mapForKey(scopeMap, name)
+	default:
+		return nil, fmt.Errorf("unknown config scope %q", scope)
+	}
+}
+
 func mapForKey(parent map[string]any, key string) (map[string]any, error) {
 	value, ok := parent[key]
 	if !ok || value == nil {

@@ -592,11 +592,57 @@ func (c *FullConfig) ExtensionConfig(scope, name string, target any) error {
 		return nil
 	}
 
-	if err := populateExtensionDefaults(sourcePath, scope, name, data); err != nil {
+	existing, err := c.existingConfigForPopulation(scope, name)
+	if err != nil {
+		slog.Warn("populate extension defaults: read existing settings failed", "scope", scope, "name", name, "error", err)
+	}
+
+	if err := populateExtensionDefaults(sourcePath, scope, name, existing); err != nil {
 		slog.Warn("populate extension defaults failed", "scope", scope, "name", name, "path", sourcePath, "error", err)
 	}
 
 	return nil
+}
+
+func (c *FullConfig) existingConfigForPopulation(scope, name string) (map[string]any, error) {
+	paths := []string{}
+
+	globalPath, err := SettingsPath()
+	if err != nil {
+		return nil, fmt.Errorf("global settings path: %w", err)
+	}
+
+	paths = append(paths, globalPath)
+
+	if c.filePath != "" && c.filePath != globalPath {
+		paths = append(paths, c.filePath)
+	}
+
+	if localPath, found, err := findLocalSettingsPath(c.effectiveProjectDir()); err != nil {
+		return nil, err
+	} else if found && localPath != c.filePath {
+		paths = append(paths, localPath)
+	}
+
+	merged := map[string]any{}
+	seen := map[string]bool{}
+
+	for _, path := range paths {
+		if seen[path] {
+			continue
+		}
+
+		seen[path] = true
+
+		root, err := readSettingsMap(path)
+		if err != nil {
+			return nil, fmt.Errorf("read %s: %w", path, err)
+		}
+
+		merged = deepMergeValues(merged, root).(map[string]any)
+	}
+
+	return configMapForScope(merged, scope, name)
 }
 
 func extensionFlagPrefixName(scope, name string) string {
