@@ -29,8 +29,9 @@ var providerReg = registry.New[providerEntry](
 func RegisterProvider[TConfig, TAuth any](name string, factory func(Config, TConfig, TAuth) (Provider, error)) {
 	var zeroConfig TConfig
 
-	schema := extractSchema(reflect.TypeOf(zeroConfig))
-	storeSchema("providers", name, schema)
+	typ := reflect.TypeOf(zeroConfig)
+	schema := extractSchema(typ)
+	storeSchema("providers", name, schema, typ)
 
 	wrapper := func(cfg Config) (Provider, error) {
 		var tc TConfig

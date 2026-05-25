@@ -28,8 +28,9 @@ func RegisterExtension[T any](name string, factory func(Config, PreferenceReader
 func RegisterExtensionWithScope[T any](name, scope string, factory func(Config, PreferenceReader, T) (Extension, error)) {
 	var zero T
 
-	schema := extractSchema(reflect.TypeOf(zero))
-	storeSchema(scope, name, schema)
+	typ := reflect.TypeOf(zero)
+	schema := extractSchema(typ)
+	storeSchema(scope, name, schema, typ)
 
 	wrapper := func(cfg Config) (Extension, error) {
 		var t T
@@ -62,8 +63,9 @@ func RegisterExtensionWithWriter[T any](name string, factory func(Config, Prefer
 func RegisterExtensionWithScopeAndWriter[T any](name, scope string, factory func(Config, PreferenceWriter, T) (Extension, error)) {
 	var zero T
 
-	schema := extractSchema(reflect.TypeOf(zero))
-	storeSchema(scope, name, schema)
+	typ := reflect.TypeOf(zero)
+	schema := extractSchema(typ)
+	storeSchema(scope, name, schema, typ)
 
 	wrapper := func(cfg Config) (Extension, error) {
 		var t T

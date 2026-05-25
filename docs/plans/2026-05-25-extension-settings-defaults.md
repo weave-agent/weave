@@ -30,18 +30,18 @@ The write is a side effect of `ExtensionConfig()`: runtime config loading contin
 ## Implementation Steps
 
 ### Task 1: Store config struct type in schema registry
-- [ ] add `SchemaInfo` struct in `sdk/schema_registry.go` with `Schema Schema` and `Type reflect.Type` fields
-- [ ] change `schemas` map from `map[string]Schema` to `map[string]SchemaInfo`
-- [ ] update `storeSchema(scope, name, schema, typ)` signature to accept type
-- [ ] update `RegisterExtensionSchema` to extract and store the type
-- [ ] add `GetSchemaInfo(scope, name) *SchemaInfo` exported function
-- [ ] update `GetSchema` to return `SchemaInfo.Schema`
-- [ ] update `ListSchemas` to return `SchemaInfo.Schema`
-- [ ] update `ResetSchemas` and `ResetSchemasForScope` to clear the new map
-- [ ] update `sdk/registry.go`: pass `reflect.TypeOf(zero)` to `storeSchema` in both `RegisterExtensionWithScope` and `RegisterExtensionWithScopeAndWriter`
-- [ ] write tests for `GetSchemaInfo` (returns correct type, returns nil for missing)
-- [ ] write tests for schema registry reset/clear behavior with types
-- [ ] run `go test ./sdk/...` - must pass before task 2
+- [x] add `SchemaInfo` struct in `sdk/schema_registry.go` with `Schema Schema` and `Type reflect.Type` fields
+- [x] change `schemas` map from `map[string]Schema` to `map[string]SchemaInfo`
+- [x] update `storeSchema(scope, name, schema, typ)` signature to accept type
+- [x] update `RegisterExtensionSchema` to extract and store the type
+- [x] add `GetSchemaInfo(scope, name) *SchemaInfo` exported function
+- [x] update `GetSchema` to return `SchemaInfo.Schema`
+- [x] update `ListSchemas` to return `SchemaInfo.Schema`
+- [x] update `ResetSchemas` and `ResetSchemasForScope` to clear the new map
+- [x] update `sdk/registry.go`: pass `reflect.TypeOf(zero)` to `storeSchema` in both `RegisterExtensionWithScope` and `RegisterExtensionWithScopeAndWriter`
+- [x] write tests for `GetSchemaInfo` (returns correct type, returns nil for missing)
+- [x] write tests for schema registry reset/clear behavior with types
+- [x] run `go test ./sdk/...` - must pass before task 2
 
 ### Task 2: Add file-level locking to SaveSettings
 - [ ] add `saveSettingsMu sync.Mutex` in `settings/settings.go` (package-level)

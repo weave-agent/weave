@@ -24,8 +24,9 @@ var uiExtReg = registry.New[uiExtEntry](
 func RegisterUIExtension[TConfig any](name string, factory func(Config, PreferenceReader, TConfig) (UIExtension, error)) {
 	var zero TConfig
 
-	schema := extractSchema(reflect.TypeOf(zero))
-	storeSchema("ui_extensions", name, schema)
+	typ := reflect.TypeOf(zero)
+	schema := extractSchema(typ)
+	storeSchema("ui_extensions", name, schema, typ)
 
 	wrapper := func(cfg Config) (UIExtension, error) {
 		var t TConfig

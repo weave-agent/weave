@@ -22,8 +22,9 @@ var toolReg = registry.New[func(Config) (Tool, error)](
 func RegisterTool[T any](name string, factory func(Config, PreferenceReader, T) (Tool, error)) {
 	var zero T
 
-	schema := extractSchema(reflect.TypeOf(zero))
-	storeSchema("tools", name, schema)
+	typ := reflect.TypeOf(zero)
+	schema := extractSchema(typ)
+	storeSchema("tools", name, schema, typ)
 
 	wrapper := func(cfg Config) (Tool, error) {
 		var t T

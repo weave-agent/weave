@@ -9,11 +9,18 @@ import (
 
 var (
 	schemaMu sync.RWMutex
-	schemas  = make(map[string]Schema)
+	schemas  = make(map[string]SchemaInfo)
 )
 
+// SchemaInfo contains a registered config schema and the config struct type
+// used to build it.
+type SchemaInfo struct {
+	Schema Schema
+	Type   reflect.Type
+}
+
 // storeSchema stores the schema for a named extension under the given scope.
-func storeSchema(scope, name string, schema Schema) {
+func storeSchema(scope, name string, schema Schema, typ reflect.Type) {
 	schemaMu.Lock()
 	defer schemaMu.Unlock()
 
@@ -22,7 +29,10 @@ func storeSchema(scope, name string, schema Schema) {
 		return
 	}
 
-	schemas[key] = schema
+	schemas[key] = SchemaInfo{
+		Schema: schema,
+		Type:   typ,
+	}
 }
 
 // RegisterExtensionSchema extracts the schema from the provided config value and
@@ -37,11 +47,12 @@ func RegisterExtensionSchema(scope, name string, config any) {
 		return
 	}
 
-	typ := reflect.TypeOf(config)
-	if typ == nil {
+	configType := reflect.TypeOf(config)
+	if configType == nil {
 		return
 	}
 
+	typ := configType
 	for typ.Kind() == reflect.Pointer {
 		typ = typ.Elem()
 	}
@@ -50,7 +61,10 @@ func RegisterExtensionSchema(scope, name string, config any) {
 		return
 	}
 
-	schemas[key] = extractSchema(typ)
+	schemas[key] = SchemaInfo{
+		Schema: extractSchema(typ),
+		Type:   typ,
+	}
 }
 
 // GetSchema returns the schema for a named extension within the given scope.
@@ -60,9 +74,27 @@ func GetSchema(scope, name string) (Schema, bool) {
 	defer schemaMu.RUnlock()
 
 	key := scopeKey(scope, name)
-	schema, ok := schemas[key]
+	info, ok := schemas[key]
+	if !ok {
+		return Schema{}, false
+	}
 
-	return schema, ok
+	return info.Schema, true
+}
+
+// GetSchemaInfo returns the schema metadata for a named extension within the
+// given scope, or nil when the schema is not registered.
+func GetSchemaInfo(scope, name string) *SchemaInfo {
+	schemaMu.RLock()
+	defer schemaMu.RUnlock()
+
+	key := scopeKey(scope, name)
+	info, ok := schemas[key]
+	if !ok {
+		return nil
+	}
+
+	return &info
 }
 
 // SchemaEntry pairs a schema with its registered name and scope.
@@ -78,7 +110,7 @@ func ListSchemas() []SchemaEntry {
 	defer schemaMu.RUnlock()
 
 	result := make([]SchemaEntry, 0, len(schemas))
-	for key, schema := range schemas {
+	for key, info := range schemas {
 		parts := strings.SplitN(key, "/", 2)
 		if len(parts) != 2 {
 			continue
@@ -87,7 +119,7 @@ func ListSchemas() []SchemaEntry {
 		result = append(result, SchemaEntry{
 			Name:   parts[1],
 			Scope:  parts[0],
-			Schema: schema,
+			Schema: info.Schema,
 		})
 	}
 
