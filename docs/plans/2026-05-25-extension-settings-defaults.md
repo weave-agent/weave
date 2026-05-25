@@ -88,8 +88,8 @@ The write is a side effect of `ExtensionConfig()`: runtime config loading contin
 - [x] verify test coverage meets project standard (80%+)
 
 ### Task 6: Update documentation
-- [ ] update `sdk/config.go` interface doc or `sdk/registry.go` doc comment to mention auto-populate behavior
-- [ ] add brief note in `settings/config.go` `ExtensionConfig` doc comment about side effect
+- [x] update `sdk/config.go` interface doc or `sdk/registry.go` doc comment to mention auto-populate behavior
+- [x] add brief note in `settings/config.go` `ExtensionConfig` doc comment about side effect
 
 ## Technical Details
 

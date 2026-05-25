@@ -550,6 +550,8 @@ func ProjectDirFromConfig(configPath string) string {
 	return dir
 }
 
+// ExtensionConfig loads scoped extension configuration into target and writes
+// any missing schema-declared defaults back to the active settings file.
 func (c *FullConfig) ExtensionConfig(scope, name string, target any) error {
 	layered, err := c.getLayeredSettings()
 	if err != nil {

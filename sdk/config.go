@@ -6,6 +6,8 @@ package sdk
 type Config interface {
 	FilePath() string
 	ProjectDir() string
+	// ExtensionConfig loads scoped extension configuration into target. Concrete
+	// implementations may also persist missing schema defaults for discoverability.
 	ExtensionConfig(scope, name string, target any) error
 	IsHeadless() bool
 	RespectGitignore() bool
