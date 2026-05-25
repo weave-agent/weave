@@ -239,7 +239,11 @@ func readSettingsMap(sourcePath string) (map[string]any, error) {
 	}
 
 	var root map[string]any
-	if err := json.Unmarshal(data, &root); err != nil {
+
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
+
+	if err := dec.Decode(&root); err != nil {
 		return nil, fmt.Errorf("parse settings: %w", err)
 	}
 

@@ -90,8 +90,8 @@ func TestListSchemas(t *testing.T) {
 	ResetSchemas()
 	defer ResetSchemas()
 
-	storeSchema("tools", "bash", Schema{Fields: []SchemaField{{Name: "Timeout", JSONName: "timeout"}}}, reflect.TypeOf(struct{}{}))
-	storeSchema("providers", "kimi", Schema{Fields: []SchemaField{{Name: "Model", JSONName: "model"}}}, reflect.TypeOf(struct{}{}))
+	storeSchema("tools", "bash", Schema{Fields: []SchemaField{{Name: "Timeout", JSONName: "timeout"}}}, reflect.TypeFor[struct{}]())
+	storeSchema("providers", "kimi", Schema{Fields: []SchemaField{{Name: "Model", JSONName: "model"}}}, reflect.TypeFor[struct{}]())
 
 	all := ListSchemas()
 	require.Len(t, all, 2)
@@ -109,7 +109,7 @@ func TestResetSchemas(t *testing.T) {
 	ResetSchemas()
 	defer ResetSchemas()
 
-	storeSchema("tools", "bash", Schema{Fields: []SchemaField{{Name: "Timeout", JSONName: "timeout"}}}, reflect.TypeOf(struct{}{}))
+	storeSchema("tools", "bash", Schema{Fields: []SchemaField{{Name: "Timeout", JSONName: "timeout"}}}, reflect.TypeFor[struct{}]())
 	ResetSchemas()
 
 	_, ok := GetSchema("tools", "bash")
@@ -145,8 +145,8 @@ func TestStoreSchema_SameNameDifferentScope(t *testing.T) {
 	ResetSchemas()
 	defer ResetSchemas()
 
-	storeSchema("tools", "test", Schema{Fields: []SchemaField{{Name: "A", JSONName: "a"}}}, reflect.TypeOf(struct{}{}))
-	storeSchema("extensions", "test", Schema{Fields: []SchemaField{{Name: "B", JSONName: "b"}}}, reflect.TypeOf(struct{}{}))
+	storeSchema("tools", "test", Schema{Fields: []SchemaField{{Name: "A", JSONName: "a"}}}, reflect.TypeFor[struct{}]())
+	storeSchema("extensions", "test", Schema{Fields: []SchemaField{{Name: "B", JSONName: "b"}}}, reflect.TypeFor[struct{}]())
 
 	// Both schemas are independently retrievable by scope+name.
 	toolsSchema, ok := GetSchema("tools", "test")
@@ -165,7 +165,7 @@ func TestSchemaRegistry_ConcurrentAccess(t *testing.T) {
 	var wg sync.WaitGroup
 	for range 100 {
 		wg.Go(func() {
-			storeSchema("tools", "bash", Schema{Fields: []SchemaField{{Name: "Timeout", JSONName: "timeout", Default: "120"}}}, reflect.TypeOf(struct{}{}))
+			storeSchema("tools", "bash", Schema{Fields: []SchemaField{{Name: "Timeout", JSONName: "timeout", Default: "120"}}}, reflect.TypeFor[struct{}]())
 			GetSchema("tools", "bash")
 			GetSchemaInfo("tools", "bash")
 			ListSchemas()

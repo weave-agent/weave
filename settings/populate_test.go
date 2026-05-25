@@ -159,6 +159,26 @@ func TestPopulateExtensionDefaultsWritesMissingDefaults(t *testing.T) {
 	}, got)
 }
 
+func TestPopulateExtensionDefaultsPreservesLargeJSONNumbers(t *testing.T) {
+	sdk.ResetSchemas()
+	defer sdk.ResetSchemas()
+
+	sdk.RegisterExtensionSchema(configScopeTools, "test-tool", defaultsBuildConfig{})
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".weave", "settings.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+	require.NoError(t, os.WriteFile(path, []byte(`{"unrelated":{"id":9007199254740993},"tools":{"test-tool":{}}}`), 0o600))
+
+	require.NoError(t, populateExtensionDefaults(path, configScopeTools, "test-tool", map[string]any{}))
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	assert.Contains(t, string(data), `"id": 9007199254740993`)
+	assert.NotContains(t, string(data), `9007199254740992`)
+}
+
 func TestPopulateExtensionDefaultsWritesSingletonScope(t *testing.T) {
 	sdk.ResetSchemas()
 	defer sdk.ResetSchemas()
