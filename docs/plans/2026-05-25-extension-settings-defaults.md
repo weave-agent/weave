@@ -50,19 +50,19 @@ The write is a side effect of `ExtensionConfig()`: runtime config loading contin
 - [x] run `go test ./settings/...` - must pass before task 3
 
 ### Task 3: Build defaults-populate helpers
-- [ ] add `settings/populate.go` with `populateExtensionDefaults(sourcePath, scope, name string) error`
-- [ ] implement `buildDefaultsMap(schemaInfo *sdk.SchemaInfo) (map[string]any, error)`:
+- [x] add `settings/populate.go` with `populateExtensionDefaults(sourcePath, scope, name string) error`
+- [x] implement `buildDefaultsMap(schemaInfo *sdk.SchemaInfo) (map[string]any, error)`:
   - `reflect.New(schemaInfo.Type).Interface()` to create instance
   - call `applyDefaults(instance)` (package-private, accessible from `settings` package)
   - JSON marshal → unmarshal into `map[string]any` to get typed defaults
-- [ ] implement `mergeMissing(defaults, existing map[string]any) map[string]any`:
+- [x] implement `mergeMissing(defaults, existing map[string]any) map[string]any`:
   - recursively merge: for each key in defaults, if not present in existing, add it
   - if both are maps, recurse; existing non-map values always win
-- [ ] implement `mapsEqual(a, b map[string]any) bool` for deep comparison
-- [ ] write tests for `buildDefaultsMap` with various struct types (string, int, bool, nested, pointers)
-- [ ] write tests for `mergeMissing` (missing keys added, existing keys preserved, nested merge)
-- [ ] write tests for `mapsEqual` (equal, different values, different keys, nested)
-- [ ] run `go test ./settings/...` - must pass before task 4
+- [x] implement `mapsEqual(a, b map[string]any) bool` for deep comparison
+- [x] write tests for `buildDefaultsMap` with various struct types (string, int, bool, nested, pointers)
+- [x] write tests for `mergeMissing` (missing keys added, existing keys preserved, nested merge)
+- [x] write tests for `mapsEqual` (equal, different values, different keys, nested)
+- [x] run `go test ./settings/...` - must pass before task 4
 
 ### Task 4: Determine source settings file and wire populate into ExtensionConfig
 - [ ] add `resolveSourcePath() (string, SettingsLayer, error)` method on `FullConfig`:
