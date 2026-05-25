@@ -248,12 +248,14 @@ func TestExchangeAuthorizationCode_HTTPError(t *testing.T) {
 	assert.Contains(t, err.Error(), "token request failed")
 }
 
-func TestRunAuthorizationCodeFlow_ContextTimeout(t *testing.T) {
+func TestCompleteAuthorizationCodeFlow_ContextTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
-	// No callback server will receive a request, so it should time out
-	_, err := RunAuthorizationCodeFlow(ctx, "https://example.com/authorize", "https://example.com/token", "client-id", "", nil, nil)
+	cs, err := StartCallbackServer(ctx, "")
+	require.NoError(t, err)
+
+	_, err = CompleteAuthorizationCodeFlow(ctx, &AuthorizationFlowHandle{cs: cs})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "timed out")
 }
