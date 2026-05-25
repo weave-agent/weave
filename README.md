@@ -76,6 +76,8 @@ JSON-only. Main config: `.weave/settings.json` (walked up from cwd), fallback `~
 
 Config structs use tags: `json`, `default`, `env`, `flag`, `short`, `validate`, `description`. The loader applies: defaults → JSON → env vars → CLI flags → validation.
 
+When a registered extension, tool, provider, UI extension, or built-in scoped config is loaded, Weave writes missing `default` tag values into the selected settings file for discoverability. Existing user values are preserved. If `.weave/settings.local.json` exists, it is populated first; otherwise Weave writes to the active project `.weave/settings.json` or global `~/.weave/settings.json`.
+
 ### Key Settings
 
 | Setting | Description |
@@ -250,6 +252,8 @@ sdk.RegisterUIExtension("my-ui", NewUI)
 sdk.RegisterTUIExtension("my-tui", NewTUI)
 ```
 
+Config structs registered through `sdk.RegisterExtension`, `sdk.RegisterTool`, `sdk.RegisterProvider`, or `sdk.RegisterUIExtension` should use `json`, `default`, `env`, `flag`, and `description` tags. `default` values are loaded at runtime and are also auto-written into settings files when absent. `sdk.GetSchemaInfo(scope, name)` returns the registered schema plus the original config `reflect.Type`; `sdk.GetSchema` remains available when only the schema is needed.
+
 ### Rules
 
 - Extensions communicate exclusively through **bus events** — never import or call each other directly
@@ -271,7 +275,7 @@ Providers declare an auth struct with `json` and `env` tags, then register with 
 
 | Package | Description |
 |---|---|
-| `sdk/` | Public API — `Extension`, `Bus`, `Config`, `UI`, `Provider`, `Tool`, `Guardian`, `Sandboxer` interfaces; global registries; guardian/sandbox event topics; `Logger(name)`; auth helpers |
+| `sdk/` | Public API — `Extension`, `Bus`, `Config`, `UI`, `Provider`, `Tool`, `Guardian`, `Sandboxer` interfaces; global registries and schema metadata; guardian/sandbox event topics; `Logger(name)`; auth helpers |
 | `sdk/model/` | Model types, model registry, `StreamOptions` |
 | `sdk/registry/` | Generic `Registry[T]` used by all registries |
 | `sdk/providerhttp/` | Provider HTTP transport config and client factory |

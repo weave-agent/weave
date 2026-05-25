@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"errors"
+	"reflect"
 	"sort"
 	"testing"
 
@@ -244,6 +245,10 @@ func TestRegisterTool_SchemaExtraction(t *testing.T) {
 	assert.Equal(t, "120", fieldMap["timeout"].Default)
 	assert.Equal(t, "string", fieldMap["shell"].Type)
 	assert.Equal(t, "bash", fieldMap["shell"].Default)
+
+	info := GetSchemaInfo("tools", "bash")
+	require.NotNil(t, info)
+	assert.Equal(t, reflect.TypeFor[testToolConfig](), info.Type)
 }
 
 func TestGetToolFilter(t *testing.T) {

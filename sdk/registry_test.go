@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"errors"
+	"reflect"
 	"sort"
 	"testing"
 
@@ -19,6 +20,25 @@ func TestRegisterAndRetrieve(t *testing.T) {
 	got, err := GetExtension("test", nil)
 	require.NoError(t, err, "GetExtension")
 	assert.Equal(t, "test", got.Name())
+}
+
+func TestRegisterExtensionWithScopeStoresSchemaInfoType(t *testing.T) {
+	ResetExtensionRegistry()
+
+	ResetSchemas()
+	defer ResetSchemas()
+
+	type extensionConfig struct {
+		Enabled bool `json:"enabled" default:"true"`
+	}
+
+	RegisterExtensionWithScope("typed", "extensions", func(Config, PreferenceReader, extensionConfig) (Extension, error) {
+		return NewExtensionFunc("typed", nil), nil
+	})
+
+	info := GetSchemaInfo("extensions", "typed")
+	require.NotNil(t, info)
+	assert.Equal(t, reflect.TypeFor[extensionConfig](), info.Type)
 }
 
 func TestDuplicateRegistration(t *testing.T) {

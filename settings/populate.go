@@ -84,17 +84,91 @@ func buildDefaultsMap(schemaInfo *sdk.SchemaInfo) (map[string]any, error) {
 		return nil, fmt.Errorf("apply defaults: %w", err)
 	}
 
-	data, err := json.Marshal(instance)
+	defaults, err := defaultFieldsMap(reflect.ValueOf(instance).Elem())
 	if err != nil {
-		return nil, fmt.Errorf("marshal defaults: %w", err)
-	}
-
-	var defaults map[string]any
-	if err := json.Unmarshal(data, &defaults); err != nil {
-		return nil, fmt.Errorf("unmarshal defaults: %w", err)
+		return nil, err
 	}
 
 	return defaults, nil
+}
+
+func defaultFieldsMap(v reflect.Value) (map[string]any, error) {
+	defaults := map[string]any{}
+	t := v.Type()
+
+	for i := range v.NumField() {
+		field := v.Field(i)
+		if !field.CanInterface() {
+			continue
+		}
+
+		ft := t.Field(i)
+
+		jsonTag := ft.Tag.Get("json")
+		if jsonTag == "-" {
+			continue
+		}
+
+		name := sdk.JSONFieldName(jsonTag, ft.Name)
+		if name == "" || name == "-" {
+			continue
+		}
+
+		fieldValue := field
+		for fieldValue.Kind() == reflect.Pointer {
+			if fieldValue.IsNil() {
+				break
+			}
+
+			fieldValue = fieldValue.Elem()
+		}
+
+		if fieldValue.Kind() == reflect.Struct && !implementsJSONMarshaler(fieldValue.Type()) {
+			nested, err := defaultFieldsMap(fieldValue)
+			if err != nil {
+				return nil, fmt.Errorf("field %s: %w", ft.Name, err)
+			}
+
+			if len(nested) > 0 {
+				defaults[name] = nested
+			}
+
+			continue
+		}
+
+		if ft.Tag.Get("default") == "" {
+			continue
+		}
+
+		value, err := jsonValue(field.Interface())
+		if err != nil {
+			return nil, fmt.Errorf("field %s: %w", ft.Name, err)
+		}
+
+		defaults[name] = value
+	}
+
+	return defaults, nil
+}
+
+func implementsJSONMarshaler(t reflect.Type) bool {
+	marshaler := reflect.TypeFor[json.Marshaler]()
+
+	return t.Implements(marshaler) || reflect.PointerTo(t).Implements(marshaler)
+}
+
+func jsonValue(value any) (any, error) {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return nil, fmt.Errorf("marshal default: %w", err)
+	}
+
+	var out any
+	if err := json.Unmarshal(data, &out); err != nil {
+		return nil, fmt.Errorf("unmarshal default: %w", err)
+	}
+
+	return out, nil
 }
 
 func mergeMissing(defaults, existing map[string]any) map[string]any {
@@ -118,10 +192,6 @@ func mergeMissing(defaults, existing map[string]any) map[string]any {
 	}
 
 	return result
-}
-
-func mapsEqual(a, b map[string]any) bool {
-	return reflect.DeepEqual(a, b)
 }
 
 func readSettingsMap(sourcePath string) (map[string]any, error) {
@@ -159,7 +229,7 @@ func mergeDefaultsForScope(root map[string]any, scope, name string, defaults map
 		}
 
 		merged := mergeMissing(defaults, existing)
-		if mapsEqual(existing, merged) {
+		if reflect.DeepEqual(existing, merged) {
 			return false, nil
 		}
 
@@ -178,7 +248,7 @@ func mergeDefaultsForScope(root map[string]any, scope, name string, defaults map
 		}
 
 		merged := mergeMissing(defaults, existing)
-		if mapsEqual(existing, merged) {
+		if reflect.DeepEqual(existing, merged) {
 			return false, nil
 		}
 

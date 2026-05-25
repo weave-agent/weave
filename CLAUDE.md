@@ -45,7 +45,7 @@ Standard library as much as possible. Every replaceable component is an extensio
 
 ## Key Packages
 
-- `sdk/` — `Extension`, `Bus`, `Config`, `UI`, `PreferenceReader`/`Writer`, `SessionStore`, `FileTracker`, `FileMuter`, `Guardian`, `Sandboxer` interfaces; global registries for extensions/providers/tools/UIs; `Logger(name)` for structured logging; `WithBus`/`BusFromContext` for context-based bus access; auth and OAuth helpers
+- `sdk/` — `Extension`, `Bus`, `Config`, `UI`, `PreferenceReader`/`Writer`, `SessionStore`, `FileTracker`, `FileMuter`, `Guardian`, `Sandboxer` interfaces; global registries for extensions/providers/tools/UIs; schema registry with `SchemaInfo{Schema, Type}` metadata; `Logger(name)` for structured logging; `WithBus`/`BusFromContext` for context-based bus access; auth and OAuth helpers
 - `sdk/model/` — model types, model registry, `StreamOptions` for per-request options
 - `sdk/registry/` — generic `Registry[T]` used by all registries
 - `sdk/providerhttp/` — provider HTTP transport config resolver and client factory with configurable timeouts
@@ -57,7 +57,7 @@ Standard library as much as possible. Every replaceable component is an extensio
 - `sdk/sandbox.go` — sandbox containment contract, status/expansion payloads, and sandbox event topic constants
 - `sdk/tool_events.go` — `ToolProgress` struct and event topic constants (`tool.start`, `tool.progress`, `tool.complete`, `tool.error`, `tool.interrupted`) for streaming tool output over the bus
 - `bus/` — callback-based event bus (`Publish`/`On`/`OnAll`/`Off`) with per-handler goroutines and panic recovery
-- `settings/` — JSON-only config system with `Loader` (defaults → JSON → env → CLI flags → validation), layered settings (global → local), `FullConfig` implementing `sdk.Config`
+- `settings/` — JSON-only config system with `Loader` (defaults → JSON → env → CLI flags → validation), layered settings (global → local), `FullConfig` implementing `sdk.Config`, and settings writes coordinated by `saveSettingsMu`
 - `internal/wire/` — composition root: `WireExtensions()`/`WireWithCore()`, `Run()` (full entry-point pipeline)
 - `internal/launcher/` — auto-discovery, hash-based caching, size-bounded launcher binary cache, binary generation with blank imports
 - `internal/auth/` — provider credential storage in `~/.weave/auth.json` (API keys + OAuth)
@@ -98,6 +98,10 @@ JSON-only. Main config: `.weave/settings.json` (walked up from cwd), fallback `~
 Config structs use tags: `json`, `default`, `env`, `flag`, `short`, `validate`, `description`. Loader applies: defaults → JSON → env vars → CLI flags → validation.
 
 Built-in config scopes: `tools`, `providers`, `ui`, `guardian`, `sandbox`, `jsonl`, `extensions`. Provider env vars resolve without `WEAVE_` prefix; tools/extensions use `WEAVE_<NAME>`.
+
+Schema registration stores `SchemaInfo{Schema, Type}` per `(scope, name)`. Registration APIs pass the config struct type so settings can reconstruct typed defaults from `default` tags.
+
+`ExtensionConfig(scope, name, target)` loads layered config, then best-effort populates missing schema defaults into the source settings file. Population failures are logged and do not fail config loading. Default population writes to `.weave/settings.local.json` if present, otherwise the active project `.weave/settings.json`, otherwise global `~/.weave/settings.json`. Settings writes that can race with default population must coordinate through `saveSettingsMu`; `SaveSettings` already holds it, and population holds it while read/merge/write is performed.
 
 Key env vars: `WEAVE_PROVIDER` (override active provider), `WEAVE_THINKING_LEVEL`, `WEAVE_OFFLINE`. Session resume: `--continue`/`-c`, `--resume <id>`/`-r`.
 

@@ -558,29 +558,40 @@ func TestSaveSettings_LocalLayer(t *testing.T) {
 
 func TestSaveSettings_ConcurrentCallsDoNotCorruptFile(t *testing.T) {
 	projectDir := t.TempDir()
-	settings := []*Settings{
+	expected := []*Settings{
 		{
-			Provider: "anthropic",
-			Model:    "claude-opus-4-7",
+			Provider:      "anthropic",
+			Model:         "claude-opus-4-7",
+			AgentLoop:     "agent-a",
+			UIExtension:   "tui-a",
+			ThinkingLevel: "medium",
 			Tools: map[string]any{
 				"bash": map[string]any{"timeout": 30},
+				"read": map[string]any{"limit": 500},
 			},
 		},
 		{
 			Provider:      "openai",
 			Model:         "gpt-5.5",
+			AgentLoop:     "agent-b",
+			UIExtension:   "tui-b",
 			ThinkingLevel: "high",
 			Extensions: map[string]any{
 				"agent": map[string]any{"max_steps": 50},
+				"jsonl": map[string]any{"enabled": true},
 			},
 		},
 	}
 
 	var wg sync.WaitGroup
 
-	errs := make(chan error, len(settings))
+	const writes = 50
 
-	for _, s := range settings {
+	errs := make(chan error, writes)
+
+	for i := range writes {
+		s := expected[i%len(expected)]
+
 		wg.Add(1)
 
 		go func(s *Settings) {
@@ -603,8 +614,30 @@ func TestSaveSettings_ConcurrentCallsDoNotCorruptFile(t *testing.T) {
 	var loaded Settings
 	require.NoError(t, json.Unmarshal(data, &loaded))
 
-	assert.Contains(t, []string{"anthropic", "openai"}, loaded.Provider)
-	assert.Contains(t, []string{"claude-opus-4-7", "gpt-5.5"}, loaded.Model)
+	switch loaded.Provider {
+	case "anthropic":
+		assert.Equal(t, "claude-opus-4-7", loaded.Model)
+		assert.Equal(t, "agent-a", loaded.AgentLoop)
+		assert.Equal(t, "tui-a", loaded.UIExtension)
+		assert.Equal(t, "medium", loaded.ThinkingLevel)
+		assert.Equal(t, map[string]any{
+			"bash": map[string]any{"timeout": float64(30)},
+			"read": map[string]any{"limit": float64(500)},
+		}, loaded.Tools)
+		assert.Nil(t, loaded.Extensions)
+	case "openai":
+		assert.Equal(t, "gpt-5.5", loaded.Model)
+		assert.Equal(t, "agent-b", loaded.AgentLoop)
+		assert.Equal(t, "tui-b", loaded.UIExtension)
+		assert.Equal(t, "high", loaded.ThinkingLevel)
+		assert.Equal(t, map[string]any{
+			"agent": map[string]any{"max_steps": float64(50)},
+			"jsonl": map[string]any{"enabled": true},
+		}, loaded.Extensions)
+		assert.Nil(t, loaded.Tools)
+	default:
+		t.Fatalf("provider %q was not one complete expected write", loaded.Provider)
+	}
 }
 
 func TestSaveSettings_ProjectRequiresDir(t *testing.T) {

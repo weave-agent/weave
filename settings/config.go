@@ -496,46 +496,25 @@ func (c *FullConfig) effectiveProjectDir() string {
 	return ProjectDirFromConfig(c.filePath)
 }
 
-func (c *FullConfig) resolveSourcePath() (string, SettingsLayer, error) {
+func (c *FullConfig) resolveSourcePath() (string, error) {
 	projectDir := c.effectiveProjectDir()
 
 	if path, found, err := findLocalSettingsPath(projectDir); err != nil {
-		return "", "", err
+		return "", err
 	} else if found {
-		return path, SettingsLocal, nil
+		return path, nil
 	}
 
 	if c.filePath == "" {
 		path, err := SettingsPath()
 		if err != nil {
-			return "", "", err
+			return "", err
 		}
 
-		return path, SettingsGlobal, nil
+		return path, nil
 	}
 
-	globalPath, err := SettingsPath()
-	if err != nil {
-		return "", "", err
-	}
-
-	sourcePath := c.filePath
-	if samePath(sourcePath, globalPath) {
-		return sourcePath, SettingsGlobal, nil
-	}
-
-	return sourcePath, SettingsProject, nil
-}
-
-func samePath(a, b string) bool {
-	absA, errA := filepath.Abs(a)
-
-	absB, errB := filepath.Abs(b)
-	if errA == nil && errB == nil {
-		return filepath.Clean(absA) == filepath.Clean(absB)
-	}
-
-	return filepath.Clean(a) == filepath.Clean(b)
+	return c.filePath, nil
 }
 
 // ProjectDirFromConfig returns the project root directory for a config file path.
@@ -606,7 +585,7 @@ func (c *FullConfig) ExtensionConfig(scope, name string, target any) error {
 		return loadErr
 	}
 
-	sourcePath, _, err := c.resolveSourcePath()
+	sourcePath, err := c.resolveSourcePath()
 	if err != nil {
 		slog.Warn("populate extension defaults: resolve source settings failed", "scope", scope, "name", name, "error", err)
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"testing"
 
@@ -16,13 +17,24 @@ import (
 func TestRegisterAndRetrieveProvider(t *testing.T) {
 	ResetProviderRegistry()
 
-	RegisterProvider[struct{}, struct{}]("mock", func(Config, struct{}, struct{}) (Provider, error) {
+	ResetSchemas()
+	defer ResetSchemas()
+
+	type providerConfig struct {
+		Model string `json:"model" default:"test-model"`
+	}
+
+	RegisterProvider[providerConfig, struct{}]("mock", func(Config, providerConfig, struct{}) (Provider, error) {
 		return &ProviderMock{}, nil
 	})
 
 	got, err := GetProvider("mock", nil)
 	require.NoError(t, err, "GetProvider")
 	require.NotNil(t, got)
+
+	info := GetSchemaInfo("providers", "mock")
+	require.NotNil(t, info)
+	assert.Equal(t, reflect.TypeFor[providerConfig](), info.Type)
 }
 
 func TestDuplicateProviderRegistration(t *testing.T) {

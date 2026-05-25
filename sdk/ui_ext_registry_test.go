@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -37,6 +38,9 @@ func TestRegisterUIExtension(t *testing.T) {
 func TestRegisterUIExtension_WithConfig(t *testing.T) {
 	ResetUIExtensionRegistry()
 
+	ResetSchemas()
+	defer ResetSchemas()
+
 	var receivedCfg stubUIExtConfig
 
 	RegisterUIExtension("config-ext", func(_ Config, _ PreferenceReader, cfg stubUIExtConfig) (UIExtension, error) {
@@ -48,6 +52,10 @@ func TestRegisterUIExtension_WithConfig(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "config-ext", ext.Name())
 	assert.False(t, receivedCfg.Enabled) // NoopConfig returns nil, so default value
+
+	info := GetSchemaInfo("ui_extensions", "config-ext")
+	require.NotNil(t, info)
+	assert.Equal(t, reflect.TypeFor[stubUIExtConfig](), info.Type)
 }
 
 func TestRegisterUIExtension_DuplicateWarns(t *testing.T) {
