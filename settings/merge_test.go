@@ -577,6 +577,7 @@ func TestSaveSettings_ConcurrentCallsDoNotCorruptFile(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
+
 	errs := make(chan error, len(settings))
 
 	for _, s := range settings {
@@ -584,6 +585,7 @@ func TestSaveSettings_ConcurrentCallsDoNotCorruptFile(t *testing.T) {
 
 		go func(s *Settings) {
 			defer wg.Done()
+
 			errs <- SaveSettings(s, SettingsProject, projectDir)
 		}(s)
 	}

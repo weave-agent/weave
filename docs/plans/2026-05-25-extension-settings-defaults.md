@@ -81,11 +81,11 @@ The write is a side effect of `ExtensionConfig()`: runtime config loading contin
 - [x] run `go test ./settings/...` - must pass before task 5
 
 ### Task 5: Verify acceptance criteria
-- [ ] verify all requirements from Overview are implemented
-- [ ] verify edge cases are handled (missing schema, nil type, empty defaults, concurrent calls)
-- [ ] run full test suite: `go test ./...`
-- [ ] run linter: `make lint`
-- [ ] verify test coverage meets project standard (80%+)
+- [x] verify all requirements from Overview are implemented
+- [x] verify edge cases are handled (missing schema, nil type, empty defaults, concurrent calls)
+- [x] run full test suite: `go test ./...`
+- [x] run linter: `make lint`
+- [x] verify test coverage meets project standard (80%+)
 
 ### Task 6: Update documentation
 - [ ] update `sdk/config.go` interface doc or `sdk/registry.go` doc comment to mention auto-populate behavior

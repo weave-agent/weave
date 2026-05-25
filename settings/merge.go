@@ -309,10 +309,12 @@ func findLocalSettingsPath(startDir string) (string, bool, error) {
 
 	for home == "" || dir != home {
 		path := filepath.Join(dir, ".weave", "settings.local.json")
+
 		info, err := os.Stat(path)
 		if err == nil && !info.IsDir() {
 			return path, true, nil
 		}
+
 		if err != nil && !os.IsNotExist(err) {
 			return "", false, fmt.Errorf("stat local settings %s: %w", path, err)
 		}

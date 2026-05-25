@@ -18,6 +18,18 @@ import (
 // DefaultEnvPrefix is the standard environment variable prefix for weave settings.
 const DefaultEnvPrefix = "WEAVE"
 
+const (
+	configScopeTools        = "tools"
+	configScopeProviders    = "providers"
+	configScopeUI           = "ui"
+	configScopeGuardian     = "guardian"
+	configScopeSandbox      = "sandbox"
+	configScopeJSONL        = "jsonl"
+	configScopeExtensions   = "extensions"
+	configScopeUIExtensions = "ui_extensions"
+	removedSandboxModeKey   = "mode"
+)
+
 // GuardianFileConfig holds guardian policy configuration from the config file.
 type GuardianFileConfig struct {
 	Profile     string                         `json:"profile" env:"GUARDIAN_PROFILE" description:"Active guardian profile: ask, auto, yolo, or custom profile name"`
@@ -222,7 +234,7 @@ func loadSettingsFromFile(path string) (Settings, error) {
 }
 
 func rejectRemovedSandboxKeys(raw map[string]any) error {
-	sandboxRaw, ok := raw["sandbox"]
+	sandboxRaw, ok := raw[configScopeSandbox]
 	if !ok || sandboxRaw == nil {
 		return nil
 	}
@@ -232,7 +244,7 @@ func rejectRemovedSandboxKeys(raw map[string]any) error {
 		return nil
 	}
 
-	for _, key := range []string{"mode", "writable", "deny_read", "deny_write"} {
+	for _, key := range []string{removedSandboxModeKey, "writable", "deny_read", "deny_write"} {
 		if _, ok := sandbox[key]; ok {
 			return fmt.Errorf("unsupported sandbox config key %q: the sandbox mode API was removed; use guardian.profile and sandbox containment settings", key)
 		}
@@ -517,6 +529,7 @@ func (c *FullConfig) resolveSourcePath() (string, SettingsLayer, error) {
 
 func samePath(a, b string) bool {
 	absA, errA := filepath.Abs(a)
+
 	absB, errB := filepath.Abs(b)
 	if errA == nil && errB == nil {
 		return filepath.Clean(absA) == filepath.Clean(absB)
@@ -546,27 +559,27 @@ func (c *FullConfig) ExtensionConfig(scope, name string, target any) error {
 	var raw any
 
 	switch scope {
-	case "tools":
+	case configScopeTools:
 		if layered.Tools != nil {
 			raw = layered.Tools[name]
 		}
-	case "providers":
+	case configScopeProviders:
 		if layered.Providers != nil {
 			raw = layered.Providers[name]
 		}
-	case "ui":
+	case configScopeUI:
 		raw = layered.UI
-	case "guardian":
+	case configScopeGuardian:
 		raw = layered.Guardian
-	case "sandbox":
+	case configScopeSandbox:
 		raw = layered.Sandbox
-	case "jsonl":
+	case configScopeJSONL:
 		raw = layered.JSONL
-	case "extensions":
+	case configScopeExtensions:
 		if layered.Extensions != nil {
 			raw = layered.Extensions[name]
 		}
-	case "ui_extensions":
+	case configScopeUIExtensions:
 		if layered.UIExtensions != nil {
 			raw = layered.UIExtensions[name]
 		}
@@ -587,8 +600,8 @@ func (c *FullConfig) ExtensionConfig(scope, name string, target any) error {
 		Args:      filterExtensionArgs(c.args, extensionFlagPrefixName(scope, name)),
 	}
 
-	if err := loader.Load(target); err != nil {
-		return err
+	if loadErr := loader.Load(target); loadErr != nil {
+		return loadErr
 	}
 
 	sourcePath, _, err := c.resolveSourcePath()
@@ -615,9 +628,9 @@ func extensionFlagPrefixName(scope, name string) string {
 
 func extensionEnvPrefix(scope, name string) string {
 	switch scope {
-	case "providers":
+	case configScopeProviders:
 		return ""
-	case "tools", "extensions", "ui_extensions":
+	case configScopeTools, configScopeExtensions, configScopeUIExtensions:
 		return "WEAVE_" + strings.ReplaceAll(strings.ToUpper(name), "-", "_")
 	default:
 		return DefaultEnvPrefix

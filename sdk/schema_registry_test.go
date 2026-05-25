@@ -23,7 +23,7 @@ func TestStoreSchemaAndGetSchema(t *testing.T) {
 		Timeout int `json:"timeout"`
 	}
 
-	storeSchema("tools", "bash", schema, reflect.TypeOf(config{}))
+	storeSchema("tools", "bash", schema, reflect.TypeFor[config]())
 
 	got, ok := GetSchema("tools", "bash")
 	require.True(t, ok)
@@ -43,7 +43,7 @@ func TestGetSchemaInfo(t *testing.T) {
 			{Name: "Model", JSONName: "model", Type: "string", Default: "gpt-5"},
 		},
 	}
-	typ := reflect.TypeOf(config{})
+	typ := reflect.TypeFor[config]()
 
 	storeSchema("providers", "openai", schema, typ)
 
@@ -72,7 +72,7 @@ func TestRegisterExtensionSchemaStoresSchemaInfo(t *testing.T) {
 
 	info := GetSchemaInfo("extensions", "test")
 	require.NotNil(t, info)
-	assert.Equal(t, reflect.TypeOf(config{}), info.Type)
+	assert.Equal(t, reflect.TypeFor[config](), info.Type)
 	require.Len(t, info.Schema.Fields, 1)
 	assert.Equal(t, "enabled", info.Schema.Fields[0].JSONName)
 	assert.Equal(t, "true", info.Schema.Fields[0].Default)
@@ -124,12 +124,13 @@ func TestStoreSchema_FirstWins(t *testing.T) {
 	type firstConfig struct {
 		Timeout int `json:"timeout"`
 	}
+
 	type secondConfig struct {
 		Timeout int `json:"timeout"`
 	}
 
-	storeSchema("tools", "bash", Schema{Fields: []SchemaField{{Name: "Timeout", JSONName: "timeout", Default: "60"}}}, reflect.TypeOf(firstConfig{}))
-	storeSchema("tools", "bash", Schema{Fields: []SchemaField{{Name: "Timeout", JSONName: "timeout", Default: "120"}}}, reflect.TypeOf(secondConfig{}))
+	storeSchema("tools", "bash", Schema{Fields: []SchemaField{{Name: "Timeout", JSONName: "timeout", Default: "60"}}}, reflect.TypeFor[firstConfig]())
+	storeSchema("tools", "bash", Schema{Fields: []SchemaField{{Name: "Timeout", JSONName: "timeout", Default: "120"}}}, reflect.TypeFor[secondConfig]())
 
 	got, ok := GetSchema("tools", "bash")
 	require.True(t, ok)
@@ -137,7 +138,7 @@ func TestStoreSchema_FirstWins(t *testing.T) {
 
 	info := GetSchemaInfo("tools", "bash")
 	require.NotNil(t, info)
-	assert.Equal(t, reflect.TypeOf(firstConfig{}), info.Type)
+	assert.Equal(t, reflect.TypeFor[firstConfig](), info.Type)
 }
 
 func TestStoreSchema_SameNameDifferentScope(t *testing.T) {
@@ -185,12 +186,13 @@ func TestResetSchemasForScopeClearsSchemaInfo(t *testing.T) {
 	type toolConfig struct {
 		Timeout int `json:"timeout"`
 	}
+
 	type extensionConfig struct {
 		Name string `json:"name"`
 	}
 
-	storeSchema("tools", "test", Schema{Fields: []SchemaField{{Name: "Timeout", JSONName: "timeout"}}}, reflect.TypeOf(toolConfig{}))
-	storeSchema("extensions", "test", Schema{Fields: []SchemaField{{Name: "Name", JSONName: "name"}}}, reflect.TypeOf(extensionConfig{}))
+	storeSchema("tools", "test", Schema{Fields: []SchemaField{{Name: "Timeout", JSONName: "timeout"}}}, reflect.TypeFor[toolConfig]())
+	storeSchema("extensions", "test", Schema{Fields: []SchemaField{{Name: "Name", JSONName: "name"}}}, reflect.TypeFor[extensionConfig]())
 
 	ResetSchemasForScope("tools")
 
@@ -200,5 +202,5 @@ func TestResetSchemasForScopeClearsSchemaInfo(t *testing.T) {
 
 	info := GetSchemaInfo("extensions", "test")
 	require.NotNil(t, info)
-	assert.Equal(t, reflect.TypeOf(extensionConfig{}), info.Type)
+	assert.Equal(t, reflect.TypeFor[extensionConfig](), info.Type)
 }

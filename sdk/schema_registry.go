@@ -74,6 +74,7 @@ func GetSchema(scope, name string) (Schema, bool) {
 	defer schemaMu.RUnlock()
 
 	key := scopeKey(scope, name)
+
 	info, ok := schemas[key]
 	if !ok {
 		return Schema{}, false
@@ -89,6 +90,7 @@ func GetSchemaInfo(scope, name string) *SchemaInfo {
 	defer schemaMu.RUnlock()
 
 	key := scopeKey(scope, name)
+
 	info, ok := schemas[key]
 	if !ok {
 		return nil

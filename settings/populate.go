@@ -3,7 +3,9 @@ package settings
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -43,8 +45,8 @@ func populateExtensionDefaults(sourcePath, scope, name string) error {
 		return nil
 	}
 
-	if err := os.MkdirAll(filepath.Dir(sourcePath), 0o700); err != nil {
-		return fmt.Errorf("create settings dir: %w", err)
+	if mkdirErr := os.MkdirAll(filepath.Dir(sourcePath), 0o700); mkdirErr != nil {
+		return fmt.Errorf("create settings dir: %w", mkdirErr)
 	}
 
 	data, err := json.MarshalIndent(root, "", "  ")
@@ -61,12 +63,12 @@ func populateExtensionDefaults(sourcePath, scope, name string) error {
 
 func buildDefaultsMap(schemaInfo *sdk.SchemaInfo) (map[string]any, error) {
 	if schemaInfo == nil {
-		return nil, fmt.Errorf("schema info is nil")
+		return nil, errors.New("schema info is nil")
 	}
 
 	typ := schemaInfo.Type
 	if typ == nil {
-		return nil, fmt.Errorf("schema type is nil")
+		return nil, errors.New("schema type is nil")
 	}
 
 	for typ.Kind() == reflect.Pointer {
@@ -97,9 +99,7 @@ func buildDefaultsMap(schemaInfo *sdk.SchemaInfo) (map[string]any, error) {
 
 func mergeMissing(defaults, existing map[string]any) map[string]any {
 	result := make(map[string]any, len(existing)+len(defaults))
-	for k, v := range existing {
-		result[k] = v
-	}
+	maps.Copy(result, existing)
 
 	for k, defaultValue := range defaults {
 		existingValue, ok := result[k]
@@ -110,6 +110,7 @@ func mergeMissing(defaults, existing map[string]any) map[string]any {
 		}
 
 		defaultMap, defaultOK := defaultValue.(map[string]any)
+
 		existingMap, existingOK := existingValue.(map[string]any)
 		if defaultOK && existingOK {
 			result[k] = mergeMissing(defaultMap, existingMap)
@@ -151,7 +152,7 @@ func readSettingsMap(sourcePath string) (map[string]any, error) {
 
 func mergeDefaultsForScope(root map[string]any, scope, name string, defaults map[string]any) (bool, error) {
 	switch scope {
-	case "ui", "guardian", "sandbox", "jsonl":
+	case configScopeUI, configScopeGuardian, configScopeSandbox, configScopeJSONL:
 		existing, err := mapForKey(root, scope)
 		if err != nil {
 			return false, err
@@ -165,7 +166,7 @@ func mergeDefaultsForScope(root map[string]any, scope, name string, defaults map
 		root[scope] = merged
 
 		return true, nil
-	case "tools", "providers", "extensions", "ui_extensions":
+	case configScopeTools, configScopeProviders, configScopeExtensions, configScopeUIExtensions:
 		scopeMap, err := mapForKey(root, scope)
 		if err != nil {
 			return false, err
