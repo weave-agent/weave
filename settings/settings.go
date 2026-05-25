@@ -64,8 +64,9 @@ const (
 )
 
 var (
-	settingsMu   sync.RWMutex
-	settingsPath string // override for tests
+	settingsMu     sync.RWMutex
+	saveSettingsMu sync.Mutex
+	settingsPath   string // override for tests
 )
 
 // SetSettingsPath overrides the settings file path. For testing only.
@@ -127,6 +128,9 @@ func LoadSettings() (*Settings, error) {
 // projectDir is used to locate the .weave directory. For SettingsGlobal (the
 // zero value), it writes to the global path.
 func SaveSettings(s *Settings, layer SettingsLayer, projectDir string) error {
+	saveSettingsMu.Lock()
+	defer saveSettingsMu.Unlock()
+
 	path, err := settingsPathForLayer(layer, projectDir)
 	if err != nil {
 		return err

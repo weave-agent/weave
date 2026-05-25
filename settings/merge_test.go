@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -553,6 +554,55 @@ func TestSaveSettings_LocalLayer(t *testing.T) {
 	var loaded Settings
 	require.NoError(t, json.Unmarshal(data, &loaded))
 	assert.Equal(t, "high", loaded.ThinkingLevel)
+}
+
+func TestSaveSettings_ConcurrentCallsDoNotCorruptFile(t *testing.T) {
+	projectDir := t.TempDir()
+	settings := []*Settings{
+		{
+			Provider: "anthropic",
+			Model:    "claude-opus-4-7",
+			Tools: map[string]any{
+				"bash": map[string]any{"timeout": 30},
+			},
+		},
+		{
+			Provider:      "openai",
+			Model:         "gpt-5.5",
+			ThinkingLevel: "high",
+			Extensions: map[string]any{
+				"agent": map[string]any{"max_steps": 50},
+			},
+		},
+	}
+
+	var wg sync.WaitGroup
+	errs := make(chan error, len(settings))
+
+	for _, s := range settings {
+		wg.Add(1)
+
+		go func(s *Settings) {
+			defer wg.Done()
+			errs <- SaveSettings(s, SettingsProject, projectDir)
+		}(s)
+	}
+
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		require.NoError(t, err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(projectDir, ".weave", "settings.json"))
+	require.NoError(t, err)
+
+	var loaded Settings
+	require.NoError(t, json.Unmarshal(data, &loaded))
+
+	assert.Contains(t, []string{"anthropic", "openai"}, loaded.Provider)
+	assert.Contains(t, []string{"claude-opus-4-7", "gpt-5.5"}, loaded.Model)
 }
 
 func TestSaveSettings_ProjectRequiresDir(t *testing.T) {

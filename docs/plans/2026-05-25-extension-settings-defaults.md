@@ -44,10 +44,10 @@ The write is a side effect of `ExtensionConfig()`: runtime config loading contin
 - [x] run `go test ./sdk/...` - must pass before task 2
 
 ### Task 2: Add file-level locking to SaveSettings
-- [ ] add `saveSettingsMu sync.Mutex` in `settings/settings.go` (package-level)
-- [ ] wrap `SaveSettings` body with `saveSettingsMu.Lock()` / `defer saveSettingsMu.Unlock()`
-- [ ] write test for concurrent `SaveSettings` calls (two goroutines, different settings, verify no corruption)
-- [ ] run `go test ./settings/...` - must pass before task 3
+- [x] add `saveSettingsMu sync.Mutex` in `settings/settings.go` (package-level)
+- [x] wrap `SaveSettings` body with `saveSettingsMu.Lock()` / `defer saveSettingsMu.Unlock()`
+- [x] write test for concurrent `SaveSettings` calls (two goroutines, different settings, verify no corruption)
+- [x] run `go test ./settings/...` - must pass before task 3
 
 ### Task 3: Build defaults-populate helpers
 - [ ] add `settings/populate.go` with `populateExtensionDefaults(sourcePath, scope, name string) error`
