@@ -93,6 +93,32 @@ func TestMergeMissing(t *testing.T) {
 	assert.Equal(t, "custom", existing[removedSandboxModeKey], "existing map should not be mutated at top level")
 }
 
+func TestPruneExistingDefaults(t *testing.T) {
+	defaults := map[string]any{
+		"name":    "default",
+		"timeout": float64(30),
+		"nested": map[string]any{
+			"mode":  "fast",
+			"limit": float64(5),
+		},
+	}
+	existing := map[string]any{
+		"name": "custom",
+		"nested": map[string]any{
+			"mode": "safe",
+		},
+	}
+
+	got := pruneExistingDefaults(defaults, existing)
+
+	assert.Equal(t, map[string]any{
+		"timeout": float64(30),
+		"nested": map[string]any{
+			"limit": float64(5),
+		},
+	}, got)
+}
+
 func TestPopulateExtensionDefaultsWritesMissingDefaults(t *testing.T) {
 	sdk.ResetSchemas()
 	defer sdk.ResetSchemas()
@@ -104,7 +130,12 @@ func TestPopulateExtensionDefaultsWritesMissingDefaults(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
 	require.NoError(t, os.WriteFile(path, []byte(`{"tools":{"test-tool":{"name":"custom","nested":{"extra":"kept"}}}}`), 0o600))
 
-	require.NoError(t, populateExtensionDefaults(path, configScopeTools, "test-tool"))
+	require.NoError(t, populateExtensionDefaults(path, configScopeTools, "test-tool", map[string]any{
+		"name": "custom",
+		"nested": map[string]any{
+			"extra": "kept",
+		},
+	}))
 
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
@@ -139,7 +170,9 @@ func TestPopulateExtensionDefaultsWritesSingletonScope(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
 	require.NoError(t, os.WriteFile(path, []byte(`{"ui":{"name":"custom"}}`), 0o600))
 
-	require.NoError(t, populateExtensionDefaults(path, configScopeUI, ""))
+	require.NoError(t, populateExtensionDefaults(path, configScopeUI, "", map[string]any{
+		"name": "custom",
+	}))
 
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
@@ -209,7 +242,7 @@ func TestPopulateExtensionDefaultsErrors(t *testing.T) {
 				sdk.RegisterExtensionSchema(tt.scope, "test-tool", defaultsBuildConfig{})
 			}
 
-			err := populateExtensionDefaults(path, tt.scope, "test-tool")
+			err := populateExtensionDefaults(path, tt.scope, "test-tool", nil)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.want)
 		})
@@ -306,6 +339,44 @@ func TestExtensionConfigPopulatesLocalSettingsWhenPresent(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(localData), `"test-tool"`)
 	assert.Contains(t, string(localData), `"timeout": 30`)
+}
+
+func TestExtensionConfigDoesNotWriteDefaultsOverLowerLayerValues(t *testing.T) {
+	sdk.ResetSchemas()
+	defer sdk.ResetSchemas()
+
+	sdk.RegisterExtensionSchema(configScopeTools, "test-tool", defaultsBuildConfig{})
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	projectDir := t.TempDir()
+	projectPath := filepath.Join(projectDir, ".weave", "settings.json")
+	localPath := filepath.Join(projectDir, ".weave", "settings.local.json")
+	writeFile(t, projectDir, ".weave/settings.json", `{"tools":{"test-tool":{"name":"custom","nested":{"mode":"safe"}}}}`)
+	writeFile(t, projectDir, ".weave/settings.local.json", `{}`)
+
+	cfg := &FullConfig{
+		filePath: projectPath,
+		settings: mustLoadSettings(t, projectPath),
+	}
+
+	var target defaultsBuildConfig
+	require.NoError(t, cfg.ExtensionConfig(configScopeTools, "test-tool", &target))
+	assert.Equal(t, "custom", target.Name)
+	assert.Equal(t, "safe", target.Nested.Mode)
+	assert.Equal(t, 30, target.Timeout)
+
+	localData, err := os.ReadFile(localPath)
+	require.NoError(t, err)
+
+	var local map[string]any
+	require.NoError(t, json.Unmarshal(localData, &local))
+
+	testTool := local[configScopeTools].(map[string]any)["test-tool"].(map[string]any)
+	assert.NotContains(t, testTool, "name")
+	assert.InEpsilon(t, float64(30), testTool["timeout"], 0)
+	assert.NotContains(t, testTool, "nested")
 }
 
 func TestExtensionConfigPopulatesGlobalSettingsFallback(t *testing.T) {

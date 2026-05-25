@@ -131,6 +131,10 @@ func SaveSettings(s *Settings, layer SettingsLayer, projectDir string) error {
 	saveSettingsMu.Lock()
 	defer saveSettingsMu.Unlock()
 
+	return saveSettings(s, layer, projectDir)
+}
+
+func saveSettings(s *Settings, layer SettingsLayer, projectDir string) error {
 	path, err := settingsPathForLayer(layer, projectDir)
 	if err != nil {
 		return err

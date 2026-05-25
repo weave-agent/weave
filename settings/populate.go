@@ -13,7 +13,7 @@ import (
 	"github.com/weave-agent/weave/sdk"
 )
 
-func populateExtensionDefaults(sourcePath, scope, name string) error {
+func populateExtensionDefaults(sourcePath, scope, name string, effective map[string]any) error {
 	info := sdk.GetSchemaInfo(scope, name)
 	if info == nil {
 		return nil
@@ -24,6 +24,11 @@ func populateExtensionDefaults(sourcePath, scope, name string) error {
 		return err
 	}
 
+	if len(defaults) == 0 {
+		return nil
+	}
+
+	defaults = pruneExistingDefaults(defaults, effective)
 	if len(defaults) == 0 {
 		return nil
 	}
@@ -59,6 +64,31 @@ func populateExtensionDefaults(sourcePath, scope, name string) error {
 	}
 
 	return nil
+}
+
+func pruneExistingDefaults(defaults, existing map[string]any) map[string]any {
+	pruned := make(map[string]any, len(defaults))
+
+	for key, defaultValue := range defaults {
+		existingValue, ok := existing[key]
+		if !ok {
+			pruned[key] = defaultValue
+
+			continue
+		}
+
+		defaultMap, defaultOK := defaultValue.(map[string]any)
+
+		existingMap, existingOK := existingValue.(map[string]any)
+		if defaultOK && existingOK {
+			nested := pruneExistingDefaults(defaultMap, existingMap)
+			if len(nested) > 0 {
+				pruned[key] = nested
+			}
+		}
+	}
+
+	return pruned
 }
 
 func buildDefaultsMap(schemaInfo *sdk.SchemaInfo) (map[string]any, error) {

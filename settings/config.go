@@ -592,7 +592,7 @@ func (c *FullConfig) ExtensionConfig(scope, name string, target any) error {
 		return nil
 	}
 
-	if err := populateExtensionDefaults(sourcePath, scope, name); err != nil {
+	if err := populateExtensionDefaults(sourcePath, scope, name, data); err != nil {
 		slog.Warn("populate extension defaults failed", "scope", scope, "name", name, "path", sourcePath, "error", err)
 	}
 
@@ -725,6 +725,9 @@ func (c *FullConfig) SaveProviderKey(providerName, apiKey string) error {
 }
 
 func (c *FullConfig) SavePreferences(target any) error {
+	saveSettingsMu.Lock()
+	defer saveSettingsMu.Unlock()
+
 	existing, err := LoadSettings()
 	if err != nil {
 		return fmt.Errorf("load existing settings: %w", err)
@@ -768,5 +771,5 @@ func (c *FullConfig) SavePreferences(target any) error {
 		return fmt.Errorf("unmarshal merged settings: %w", unErr)
 	}
 
-	return SaveSettingsGlobal(&final)
+	return saveSettings(&final, SettingsGlobal, "")
 }
