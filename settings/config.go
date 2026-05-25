@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -483,6 +484,47 @@ func (c *FullConfig) effectiveProjectDir() string {
 	return ProjectDirFromConfig(c.filePath)
 }
 
+func (c *FullConfig) resolveSourcePath() (string, SettingsLayer, error) {
+	projectDir := c.effectiveProjectDir()
+
+	if path, found, err := findLocalSettingsPath(projectDir); err != nil {
+		return "", "", err
+	} else if found {
+		return path, SettingsLocal, nil
+	}
+
+	if c.filePath == "" {
+		path, err := SettingsPath()
+		if err != nil {
+			return "", "", err
+		}
+
+		return path, SettingsGlobal, nil
+	}
+
+	globalPath, err := SettingsPath()
+	if err != nil {
+		return "", "", err
+	}
+
+	sourcePath := c.filePath
+	if samePath(sourcePath, globalPath) {
+		return sourcePath, SettingsGlobal, nil
+	}
+
+	return sourcePath, SettingsProject, nil
+}
+
+func samePath(a, b string) bool {
+	absA, errA := filepath.Abs(a)
+	absB, errB := filepath.Abs(b)
+	if errA == nil && errB == nil {
+		return filepath.Clean(absA) == filepath.Clean(absB)
+	}
+
+	return filepath.Clean(a) == filepath.Clean(b)
+}
+
 // ProjectDirFromConfig returns the project root directory for a config file path.
 // If the config file is inside .weave/ (e.g. .weave/settings.json), returns the
 // parent directory so that layered settings look in the right place.
@@ -545,7 +587,22 @@ func (c *FullConfig) ExtensionConfig(scope, name string, target any) error {
 		Args:      filterExtensionArgs(c.args, extensionFlagPrefixName(scope, name)),
 	}
 
-	return loader.Load(target)
+	if err := loader.Load(target); err != nil {
+		return err
+	}
+
+	sourcePath, _, err := c.resolveSourcePath()
+	if err != nil {
+		slog.Warn("populate extension defaults: resolve source settings failed", "scope", scope, "name", name, "error", err)
+
+		return nil
+	}
+
+	if err := populateExtensionDefaults(sourcePath, scope, name); err != nil {
+		slog.Warn("populate extension defaults failed", "scope", scope, "name", name, "path", sourcePath, "error", err)
+	}
+
+	return nil
 }
 
 func extensionFlagPrefixName(scope, name string) string {

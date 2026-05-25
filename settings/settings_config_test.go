@@ -849,6 +849,61 @@ func TestProjectDirFromConfig(t *testing.T) {
 	}
 }
 
+func TestResolveSourcePath_LocalExists(t *testing.T) {
+	isolateHome(t)
+
+	projectDir := t.TempDir()
+	localPath := filepath.Join(projectDir, ".weave", "settings.local.json")
+	writeFile(t, projectDir, ".weave/settings.json", `{}`)
+	writeFile(t, projectDir, ".weave/settings.local.json", `{}`)
+
+	cfg := &FullConfig{
+		filePath: filepath.Join(projectDir, ".weave", "settings.json"),
+		settings: &Settings{},
+	}
+
+	gotPath, gotLayer, err := cfg.resolveSourcePath()
+	require.NoError(t, err)
+	assert.Equal(t, localPath, gotPath)
+	assert.Equal(t, SettingsLocal, gotLayer)
+}
+
+func TestResolveSourcePath_ProjectExists(t *testing.T) {
+	isolateHome(t)
+
+	projectDir := t.TempDir()
+	projectPath := filepath.Join(projectDir, ".weave", "settings.json")
+	writeFile(t, projectDir, ".weave/settings.json", `{}`)
+
+	cfg := &FullConfig{
+		filePath: projectPath,
+		settings: &Settings{},
+	}
+
+	gotPath, gotLayer, err := cfg.resolveSourcePath()
+	require.NoError(t, err)
+	assert.Equal(t, projectPath, gotPath)
+	assert.Equal(t, SettingsProject, gotLayer)
+}
+
+func TestResolveSourcePath_GlobalExists(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	globalPath := filepath.Join(home, ".weave", "settings.json")
+	writeFile(t, home, ".weave/settings.json", `{}`)
+
+	cfg := &FullConfig{
+		filePath: globalPath,
+		settings: &Settings{},
+	}
+
+	gotPath, gotLayer, err := cfg.resolveSourcePath()
+	require.NoError(t, err)
+	assert.Equal(t, globalPath, gotPath)
+	assert.Equal(t, SettingsGlobal, gotLayer)
+}
+
 // Verify the JSON key in Settings matches what FullConfig reads.
 func TestSettingsJSONRoundTrip(t *testing.T) {
 	s := &Settings{

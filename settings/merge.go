@@ -286,8 +286,21 @@ func loadSettingsFile(path string) (*Settings, error) {
 // loadLocalSettings walks up from dir looking for .weave/settings.local.json.
 // Missing files are silently skipped.
 func loadLocalSettings(startDir string) (*Settings, error) {
-	if startDir == "" {
+	path, found, err := findLocalSettingsPath(startDir)
+	if err != nil {
+		return nil, err
+	}
+
+	if !found {
 		return &Settings{}, nil
+	}
+
+	return loadSettingsFile(path)
+}
+
+func findLocalSettingsPath(startDir string) (string, bool, error) {
+	if startDir == "" {
+		return "", false, nil
 	}
 
 	home, _ := os.UserHomeDir()
@@ -296,8 +309,12 @@ func loadLocalSettings(startDir string) (*Settings, error) {
 
 	for home == "" || dir != home {
 		path := filepath.Join(dir, ".weave", "settings.local.json")
-		if info, err := os.Stat(path); err == nil && !info.IsDir() {
-			return loadSettingsFile(path)
+		info, err := os.Stat(path)
+		if err == nil && !info.IsDir() {
+			return path, true, nil
+		}
+		if err != nil && !os.IsNotExist(err) {
+			return "", false, fmt.Errorf("stat local settings %s: %w", path, err)
 		}
 
 		parent := filepath.Dir(dir)
@@ -308,7 +325,7 @@ func loadLocalSettings(startDir string) (*Settings, error) {
 		dir = parent
 	}
 
-	return &Settings{}, nil
+	return "", false, nil
 }
 
 // deepMergeValues recursively merges two values. When both are map[string]any,

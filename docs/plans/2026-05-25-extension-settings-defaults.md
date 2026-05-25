@@ -65,20 +65,20 @@ The write is a side effect of `ExtensionConfig()`: runtime config loading contin
 - [x] run `go test ./settings/...` - must pass before task 4
 
 ### Task 4: Determine source settings file and wire populate into ExtensionConfig
-- [ ] add `resolveSourcePath() (string, SettingsLayer, error)` method on `FullConfig`:
+- [x] add `resolveSourcePath() (string, SettingsLayer, error)` method on `FullConfig`:
   - check if local settings (`.weave/settings.local.json`) exists via `loadLocalSettings` or `os.Stat`
   - if yes, return local path with `SettingsLocal` layer
   - else return `c.filePath` with appropriate layer (`SettingsProject` or `SettingsGlobal`)
-- [ ] modify `ExtensionConfig(scope, name, target)` in `settings/config.go`:
+- [x] modify `ExtensionConfig(scope, name, target)` in `settings/config.go`:
   - after the normal load (keep existing code), call `populateExtensionDefaults` with resolved source path
   - log warnings on populate failure (do not fail the load)
-- [ ] write tests for `resolveSourcePath` (local exists, only project exists, only global exists)
-- [ ] write integration test for `ExtensionConfig`:
+- [x] write tests for `resolveSourcePath` (local exists, only project exists, only global exists)
+- [x] write integration test for `ExtensionConfig`:
   - create temp settings file without extension section
   - call `ExtensionConfig`, verify file now has defaults
   - call again, verify file unchanged (idempotent)
   - modify file with custom value, call again, verify custom value preserved
-- [ ] run `go test ./settings/...` - must pass before task 5
+- [x] run `go test ./settings/...` - must pass before task 5
 
 ### Task 5: Verify acceptance criteria
 - [ ] verify all requirements from Overview are implemented
