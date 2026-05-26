@@ -254,6 +254,24 @@ sdk.RegisterTUIExtension("my-tui", NewTUI)
 
 Config structs registered through `sdk.RegisterExtension`, `sdk.RegisterTool`, `sdk.RegisterProvider`, or `sdk.RegisterUIExtension` should use `json`, `default`, `env`, `flag`, and `description` tags. `default` values are loaded at runtime and are also auto-written into settings files when absent. `sdk.GetSchemaInfo(scope, name)` returns the registered schema plus the original config `reflect.Type`; `sdk.GetSchema` remains available when only the schema is needed.
 
+### Provider Context Accounting
+
+Providers stream response usage through `sdk.ProviderUsage` on `sdk.ProviderEventUsage`.
+Providers that can count a fully rendered request before streaming may also implement
+`sdk.TokenCounter`:
+
+```go
+type TokenCounter interface {
+	CountTokens(ctx context.Context, req ProviderRequest, opts ...model.StreamOption) (TokenCount, error)
+}
+```
+
+Use `TokenCount.Source` to describe count quality: `TokenCountSourceExact` for
+provider or canonical tokenizer counts, `TokenCountSourceTokenizer` for
+compatible tokenizer estimates, and `TokenCountSourceHeuristic` for fallback
+estimates. `sdk.NewContextBudgetSnapshot` provides provider-neutral budget
+arithmetic; policy decisions such as compaction stay in the agent extension.
+
 ### Rules
 
 - Extensions communicate exclusively through **bus events** — never import or call each other directly
@@ -294,7 +312,7 @@ Providers declare an auth struct with `json` and `env` tags, then register with 
 | `internal/log/` | Rotating file logging via `slog` |
 | `internal/filemut/` | Per-file mutex for serializing concurrent edits |
 | `internal/filetracker/` | Read-before-edit policy enforcement |
-| `utils/openaicompat/` | Shared SSE parsing for OpenAI-compatible providers |
+| `utils/openaicompat/` | Shared SSE parsing for OpenAI-compatible providers, including usage chunks and cached prompt token mapping to `sdk.ProviderUsage.CacheReadTokens` |
 | `utils/ripgrep/` | Ripgrep binary detection |
 | `utils/truncate/` | Output truncation (2000 lines / 50KB) |
 

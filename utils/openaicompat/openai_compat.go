@@ -131,12 +131,10 @@ type StreamChunk struct {
 type Usage struct {
 	InputTokens         int                 `json:"prompt_tokens"`
 	OutputTokens        int                 `json:"completion_tokens"`
-	PromptTokensDetails PromptTokensDetails `json:"prompt_tokens_details"`
+	PromptTokensDetails promptTokensDetails `json:"prompt_tokens_details"`
 }
 
-// PromptTokensDetails holds provider-specific prompt token accounting details
-// exposed by OpenAI-compatible APIs.
-type PromptTokensDetails struct {
+type promptTokensDetails struct {
 	CachedTokens int `json:"cached_tokens"`
 }
 

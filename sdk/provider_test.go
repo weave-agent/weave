@@ -112,4 +112,9 @@ func TestNewContextBudgetSnapshotRoundsPercentUsed(t *testing.T) {
 
 	assert.Equal(t, 5, snapshot.RemainingTokens)
 	assert.InDelta(t, 16.67, snapshot.PercentUsed, 0)
+
+	snapshot = NewContextBudgetSnapshot(6, -1, 0, 0)
+
+	assert.Equal(t, 7, snapshot.RemainingTokens)
+	assert.InDelta(t, -16.67, snapshot.PercentUsed, 0)
 }

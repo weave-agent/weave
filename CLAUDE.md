@@ -43,6 +43,8 @@ Standard library as much as possible. Every replaceable component is an extensio
 
 **Launcher cancellation:** Launcher build paths must propagate `context.Context`. `BuildFunc`, `Launcher.Run`, `buildAndCache`, `Build`, build locking, and build subprocesses share the same context; subprocesses must use `exec.CommandContext`.
 
+**Provider context accounting:** Providers stream actual response usage with `sdk.ProviderUsage`. Providers that can preflight count fully rendered requests may optionally implement `sdk.TokenCounter`; existing providers are not required to. Use `TokenCountSourceExact`, `TokenCountSourceTokenizer`, or `TokenCountSourceHeuristic` to describe count quality. `ContextBudgetSnapshot` is arithmetic only; compaction and truncation policy stays in the agent extension. OpenAI-compatible usage parsing maps `prompt_tokens_details.cached_tokens` into `ProviderUsage.CacheReadTokens`.
+
 ## Key Packages
 
 - `sdk/` — `Extension`, `Bus`, `Config`, `UI`, `PreferenceReader`/`Writer`, `SessionStore`, `FileTracker`, `FileMuter`, `Guardian`, `Sandboxer` interfaces; optional provider capabilities such as `TokenCounter`; shared provider accounting types (`ProviderUsage`, `TokenCount`, `ContextBudgetSnapshot`); global registries for extensions/providers/tools/UIs; schema registry with `SchemaInfo{Schema, Type}` metadata; `Logger(name)` for structured logging; `WithBus`/`BusFromContext` for context-based bus access; auth and OAuth helpers

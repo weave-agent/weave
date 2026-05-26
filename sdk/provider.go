@@ -4,6 +4,7 @@ package sdk
 
 import (
 	"context"
+	"math"
 
 	"github.com/weave-agent/weave/sdk/model"
 )
@@ -102,11 +103,7 @@ func NewContextBudgetSnapshot(contextWindow, inputTokens, outputReserveTokens, s
 }
 
 func roundPercent(percent float64) float64 {
-	if percent < 0 {
-		return float64(int(percent*100-0.5)) / 100
-	}
-
-	return float64(int(percent*100+0.5)) / 100
+	return math.Round(percent*100) / 100
 }
 
 // SignedThinking holds a signed thinking block from a provider response.

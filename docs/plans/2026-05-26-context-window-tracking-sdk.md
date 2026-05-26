@@ -1,5 +1,7 @@
 # Improve Context Window Tracking SDK Support
 
+**Status**: Completed
+
 ## Overview
 - Add provider-neutral contracts and shared accounting primitives needed for accurate context window tracking.
 - Replace ad-hoc usage metadata with reusable structures that providers and the agent can share.

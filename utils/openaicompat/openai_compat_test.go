@@ -171,16 +171,6 @@ func sseChunk(delta ChunkDelta, finish *string) string {
 	return "data: " + string(data) + "\n"
 }
 
-func sseUsageChunk(usage Usage) string {
-	chunk := StreamChunk{
-		ID:    "chatcmpl-test",
-		Usage: &usage,
-	}
-	data, _ := json.Marshal(chunk)
-
-	return "data: " + string(data) + "\n"
-}
-
 func sseDone() string {
 	return "data: [DONE]\n"
 }
@@ -244,7 +234,7 @@ func TestStream_TextOnly(t *testing.T) {
 func TestStream_UsageWithoutCachedPromptDetails(t *testing.T) {
 	stream := sseStream(
 		sseChunk(ChunkDelta{Content: "ok"}, nil),
-		sseUsageChunk(Usage{InputTokens: 11, OutputTokens: 3}),
+		`data: {"id":"chatcmpl-test","choices":[],"usage":{"prompt_tokens":11,"completion_tokens":3}}`+"\n",
 		sseDone(),
 	)
 
@@ -308,6 +298,41 @@ func TestStream_UsageWithCachedPromptDetails(t *testing.T) {
 	require.Len(t, usages, 1)
 	assert.Equal(t, 20, usages[0].InputTokens)
 	assert.Equal(t, 4, usages[0].OutputTokens)
+	assert.Equal(t, 13, usages[0].CacheReadTokens)
+}
+
+func TestStream_UsageWithOnlyCachedPromptDetails(t *testing.T) {
+	stream := sseStream(
+		sseChunk(ChunkDelta{Content: "ok"}, nil),
+		`data: {"id":"chatcmpl-test","choices":[],"usage":{"prompt_tokens":0,"completion_tokens":0,"prompt_tokens_details":{"cached_tokens":13}}}`+"\n",
+		sseDone(),
+	)
+
+	server := setupServer(stream)
+	defer server.Close()
+
+	ch, err := Stream(context.Background(), server.Client(), ProviderConfig{
+		BaseURL: server.URL,
+		APIKey:  "test-key",
+		Model:   "gpt-5.5",
+	}, sdk.ProviderRequest{
+		Messages: []sdk.Message{sdk.NewUserMessage("hi")},
+	})
+	require.NoError(t, err)
+
+	events := collectEvents(ch)
+
+	var usages []sdk.ProviderUsage
+
+	for _, e := range events {
+		if e.Type == sdk.ProviderEventUsage {
+			usages = append(usages, e.Content.(sdk.ProviderUsage))
+		}
+	}
+
+	require.Len(t, usages, 1)
+	assert.Zero(t, usages[0].InputTokens)
+	assert.Zero(t, usages[0].OutputTokens)
 	assert.Equal(t, 13, usages[0].CacheReadTokens)
 }
 
