@@ -67,6 +67,44 @@ func (c TokenCount) IsZero() bool {
 		c.Confidence == 0
 }
 
+// ContextBudgetSnapshot captures provider-neutral request budget accounting.
+type ContextBudgetSnapshot struct {
+	ContextWindow       int
+	InputTokens         int
+	OutputReserveTokens int
+	SafetyMarginTokens  int
+	UsedTokens          int
+	RemainingTokens     int
+	PercentUsed         float64
+}
+
+// NewContextBudgetSnapshot returns request budget arithmetic for a model
+// context window without deciding what policy should act on the result.
+func NewContextBudgetSnapshot(contextWindow, inputTokens, outputReserveTokens, safetyMarginTokens int) ContextBudgetSnapshot {
+	usedTokens := inputTokens + outputReserveTokens + safetyMarginTokens
+	snapshot := ContextBudgetSnapshot{
+		ContextWindow:       contextWindow,
+		InputTokens:         inputTokens,
+		OutputReserveTokens: outputReserveTokens,
+		SafetyMarginTokens:  safetyMarginTokens,
+		UsedTokens:          usedTokens,
+	}
+	if contextWindow <= 0 {
+		return snapshot
+	}
+
+	snapshot.RemainingTokens = contextWindow - usedTokens
+	snapshot.PercentUsed = roundPercent(float64(usedTokens) / float64(contextWindow) * 100)
+	return snapshot
+}
+
+func roundPercent(percent float64) float64 {
+	if percent < 0 {
+		return float64(int(percent*100-0.5)) / 100
+	}
+	return float64(int(percent*100+0.5)) / 100
+}
+
 // SignedThinking holds a signed thinking block from a provider response.
 type SignedThinking struct {
 	Signature string

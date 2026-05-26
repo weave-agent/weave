@@ -55,11 +55,11 @@
 - [x] run `go test ./sdk/...` - must pass before next task
 
 ### Task 2: Add shared request budget metadata
-- [ ] add SDK types for context budget snapshots including context window, input tokens, output reserve, safety margin, remaining tokens, and percent used
-- [ ] add helper logic only if it can stay provider-neutral and independent from agent policy
-- [ ] write tests for budget math including over-budget and zero/unknown window cases
-- [ ] write tests for percent/remaining rounding edge cases
-- [ ] run `go test ./sdk/...` - must pass before next task
+- [x] add SDK types for context budget snapshots including context window, input tokens, output reserve, safety margin, remaining tokens, and percent used
+- [x] add helper logic only if it can stay provider-neutral and independent from agent policy
+- [x] write tests for budget math including over-budget and zero/unknown window cases
+- [x] write tests for percent/remaining rounding edge cases
+- [x] run `go test ./sdk/...` - must pass before next task
 
 ### Task 3: Parse richer OpenAI-compatible usage data
 - [ ] extend `utils/openaicompat.Usage` to parse cached prompt token details when present

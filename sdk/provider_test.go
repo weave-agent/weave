@@ -67,3 +67,46 @@ func TestTokenCountIsZero(t *testing.T) {
 	assert.False(t, TokenCount{Source: TokenCountSourceTokenizer}.IsZero())
 	assert.False(t, TokenCount{Confidence: 0.5}.IsZero())
 }
+
+func TestNewContextBudgetSnapshot(t *testing.T) {
+	snapshot := NewContextBudgetSnapshot(1000, 400, 200, 50)
+
+	assert.Equal(t, 1000, snapshot.ContextWindow)
+	assert.Equal(t, 400, snapshot.InputTokens)
+	assert.Equal(t, 200, snapshot.OutputReserveTokens)
+	assert.Equal(t, 50, snapshot.SafetyMarginTokens)
+	assert.Equal(t, 650, snapshot.UsedTokens)
+	assert.Equal(t, 350, snapshot.RemainingTokens)
+	assert.Equal(t, 65.0, snapshot.PercentUsed)
+}
+
+func TestNewContextBudgetSnapshotAllowsOverBudget(t *testing.T) {
+	snapshot := NewContextBudgetSnapshot(1000, 900, 200, 50)
+
+	assert.Equal(t, 1150, snapshot.UsedTokens)
+	assert.Equal(t, -150, snapshot.RemainingTokens)
+	assert.Equal(t, 115.0, snapshot.PercentUsed)
+}
+
+func TestNewContextBudgetSnapshotUnknownWindow(t *testing.T) {
+	for _, contextWindow := range []int{0, -1} {
+		snapshot := NewContextBudgetSnapshot(contextWindow, 100, 25, 10)
+
+		assert.Equal(t, contextWindow, snapshot.ContextWindow)
+		assert.Equal(t, 135, snapshot.UsedTokens)
+		assert.Zero(t, snapshot.RemainingTokens)
+		assert.Zero(t, snapshot.PercentUsed)
+	}
+}
+
+func TestNewContextBudgetSnapshotRoundsPercentUsed(t *testing.T) {
+	snapshot := NewContextBudgetSnapshot(3, 1, 0, 0)
+
+	assert.Equal(t, 2, snapshot.RemainingTokens)
+	assert.Equal(t, 33.33, snapshot.PercentUsed)
+
+	snapshot = NewContextBudgetSnapshot(6, 1, 0, 0)
+
+	assert.Equal(t, 5, snapshot.RemainingTokens)
+	assert.Equal(t, 16.67, snapshot.PercentUsed)
+}
