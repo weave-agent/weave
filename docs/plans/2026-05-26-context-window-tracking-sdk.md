@@ -62,11 +62,11 @@
 - [x] run `go test ./sdk/...` - must pass before next task
 
 ### Task 3: Parse richer OpenAI-compatible usage data
-- [ ] extend `utils/openaicompat.Usage` to parse cached prompt token details when present
-- [ ] map cached prompt tokens into `sdk.ProviderUsage.CacheReadTokens`
-- [ ] preserve existing `prompt_tokens` and `completion_tokens` behavior
-- [ ] write tests for usage chunks with and without cached-token details
-- [ ] run `go test ./utils/openaicompat/...` - must pass before next task
+- [x] extend `utils/openaicompat.Usage` to parse cached prompt token details when present
+- [x] map cached prompt tokens into `sdk.ProviderUsage.CacheReadTokens`
+- [x] preserve existing `prompt_tokens` and `completion_tokens` behavior
+- [x] write tests for usage chunks with and without cached-token details
+- [x] run `go test ./utils/openaicompat/...` - must pass before next task
 
 ### Task 4: Verify acceptance criteria
 - [ ] verify SDK additions are optional and backward compatible

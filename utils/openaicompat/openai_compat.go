@@ -129,8 +129,15 @@ type StreamChunk struct {
 
 // Usage holds token usage information from a streaming response.
 type Usage struct {
-	InputTokens  int `json:"prompt_tokens"`
-	OutputTokens int `json:"completion_tokens"`
+	InputTokens         int                 `json:"prompt_tokens"`
+	OutputTokens        int                 `json:"completion_tokens"`
+	PromptTokensDetails PromptTokensDetails `json:"prompt_tokens_details"`
+}
+
+// PromptTokensDetails holds provider-specific prompt token accounting details
+// exposed by OpenAI-compatible APIs.
+type PromptTokensDetails struct {
+	CachedTokens int `json:"cached_tokens"`
 }
 
 // ChunkDelta represents the delta content in a streaming chunk.
@@ -562,12 +569,13 @@ func parseSSE(ctx context.Context, reader io.Reader, ch chan<- sdk.ProviderEvent
 
 // processChunk handles a single SSE chunk. Returns false if the consumer stopped listening.
 func processChunk(chunk StreamChunk, toolCalls map[int]*toolCallAccum, send func(sdk.ProviderEvent) bool) bool {
-	if chunk.Usage != nil && (chunk.Usage.InputTokens > 0 || chunk.Usage.OutputTokens > 0) {
+	if chunk.Usage != nil && (chunk.Usage.InputTokens > 0 || chunk.Usage.OutputTokens > 0 || chunk.Usage.PromptTokensDetails.CachedTokens > 0) {
 		if !send(sdk.ProviderEvent{
 			Type: sdk.ProviderEventUsage,
 			Content: sdk.ProviderUsage{
-				InputTokens:  chunk.Usage.InputTokens,
-				OutputTokens: chunk.Usage.OutputTokens,
+				InputTokens:     chunk.Usage.InputTokens,
+				OutputTokens:    chunk.Usage.OutputTokens,
+				CacheReadTokens: chunk.Usage.PromptTokensDetails.CachedTokens,
 			},
 		}) {
 			return false
