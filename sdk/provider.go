@@ -37,6 +37,36 @@ type ProviderUsage struct {
 	CacheReadTokens     int
 }
 
+// TokenCountSource describes how a preflight token count was produced.
+type TokenCountSource string
+
+const (
+	// TokenCountSourceExact means the count came from the provider or the
+	// provider's canonical tokenizer for the fully rendered request.
+	TokenCountSourceExact TokenCountSource = "exact"
+	// TokenCountSourceTokenizer means the count came from a compatible tokenizer
+	// but may differ from the provider's final accounting.
+	TokenCountSourceTokenizer TokenCountSource = "tokenizer"
+	// TokenCountSourceHeuristic means the count came from an approximate fallback.
+	TokenCountSourceHeuristic TokenCountSource = "heuristic"
+)
+
+// TokenCount holds provider-neutral preflight token counting metadata.
+type TokenCount struct {
+	InputTokens  int
+	OutputTokens int
+	Source       TokenCountSource
+	Confidence   float64
+}
+
+// IsZero reports whether no token count metadata is present.
+func (c TokenCount) IsZero() bool {
+	return c.InputTokens == 0 &&
+		c.OutputTokens == 0 &&
+		c.Source == "" &&
+		c.Confidence == 0
+}
+
 // SignedThinking holds a signed thinking block from a provider response.
 type SignedThinking struct {
 	Signature string
@@ -57,4 +87,9 @@ type ToolCall struct {
 
 type Provider interface {
 	Stream(ctx context.Context, req ProviderRequest, opts ...model.StreamOption) (<-chan ProviderEvent, error)
+}
+
+// TokenCounter is an optional provider capability for preflight token counting.
+type TokenCounter interface {
+	CountTokens(ctx context.Context, req ProviderRequest, opts ...model.StreamOption) (TokenCount, error)
 }

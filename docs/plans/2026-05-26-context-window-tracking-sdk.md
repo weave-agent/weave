@@ -48,11 +48,11 @@
 ## Implementation Steps
 
 ### Task 1: Add provider-neutral token count contracts
-- [ ] add `TokenCounter`, `TokenCount`, and count source/confidence fields in `sdk/provider.go`
-- [ ] ensure new contracts do not require existing providers to change
-- [ ] write tests or compile-time assertions for optional interface compatibility
-- [ ] write tests for zero-value token count behavior if helper methods are added
-- [ ] run `go test ./sdk/...` - must pass before next task
+- [x] add `TokenCounter`, `TokenCount`, and count source/confidence fields in `sdk/provider.go`
+- [x] ensure new contracts do not require existing providers to change
+- [x] write tests or compile-time assertions for optional interface compatibility
+- [x] write tests for zero-value token count behavior if helper methods are added
+- [x] run `go test ./sdk/...` - must pass before next task
 
 ### Task 2: Add shared request budget metadata
 - [ ] add SDK types for context budget snapshots including context window, input tokens, output reserve, safety margin, remaining tokens, and percent used
