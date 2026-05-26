@@ -69,11 +69,11 @@
 - [x] run `go test ./utils/openaicompat/...` - must pass before next task
 
 ### Task 4: Verify acceptance criteria
-- [ ] verify SDK additions are optional and backward compatible
-- [ ] verify OpenAI-compatible providers still stream normal text, tool calls, and usage
-- [ ] run `go test ./sdk/... ./utils/openaicompat/...`
-- [ ] run `make lint`
-- [ ] verify no provider-specific policy leaked into SDK abstractions
+- [x] verify SDK additions are optional and backward compatible
+- [x] verify OpenAI-compatible providers still stream normal text, tool calls, and usage
+- [x] run `go test ./sdk/... ./utils/openaicompat/...`
+- [x] run `make lint`
+- [x] verify no provider-specific policy leaked into SDK abstractions
 
 ### Task 5: Update documentation
 - [ ] update `CLAUDE.md` key package notes if SDK contracts change

@@ -12,7 +12,10 @@ import (
 type streamOnlyProvider struct{}
 
 func (streamOnlyProvider) Stream(context.Context, ProviderRequest, ...model.StreamOption) (<-chan ProviderEvent, error) {
-	return nil, nil
+	ch := make(chan ProviderEvent)
+	close(ch)
+
+	return ch, nil
 }
 
 type countingProvider struct {
@@ -56,7 +59,7 @@ func TestTokenCounterCanCountProviderRequest(t *testing.T) {
 	assert.Equal(t, 123, count.InputTokens)
 	assert.Equal(t, 45, count.OutputTokens)
 	assert.Equal(t, TokenCountSourceExact, count.Source)
-	assert.Equal(t, 1.0, count.Confidence)
+	assert.InDelta(t, 1.0, count.Confidence, 0)
 }
 
 func TestTokenCountIsZero(t *testing.T) {
@@ -77,7 +80,7 @@ func TestNewContextBudgetSnapshot(t *testing.T) {
 	assert.Equal(t, 50, snapshot.SafetyMarginTokens)
 	assert.Equal(t, 650, snapshot.UsedTokens)
 	assert.Equal(t, 350, snapshot.RemainingTokens)
-	assert.Equal(t, 65.0, snapshot.PercentUsed)
+	assert.InDelta(t, 65.0, snapshot.PercentUsed, 0)
 }
 
 func TestNewContextBudgetSnapshotAllowsOverBudget(t *testing.T) {
@@ -85,7 +88,7 @@ func TestNewContextBudgetSnapshotAllowsOverBudget(t *testing.T) {
 
 	assert.Equal(t, 1150, snapshot.UsedTokens)
 	assert.Equal(t, -150, snapshot.RemainingTokens)
-	assert.Equal(t, 115.0, snapshot.PercentUsed)
+	assert.InDelta(t, 115.0, snapshot.PercentUsed, 0)
 }
 
 func TestNewContextBudgetSnapshotUnknownWindow(t *testing.T) {
@@ -103,10 +106,10 @@ func TestNewContextBudgetSnapshotRoundsPercentUsed(t *testing.T) {
 	snapshot := NewContextBudgetSnapshot(3, 1, 0, 0)
 
 	assert.Equal(t, 2, snapshot.RemainingTokens)
-	assert.Equal(t, 33.33, snapshot.PercentUsed)
+	assert.InDelta(t, 33.33, snapshot.PercentUsed, 0)
 
 	snapshot = NewContextBudgetSnapshot(6, 1, 0, 0)
 
 	assert.Equal(t, 5, snapshot.RemainingTokens)
-	assert.Equal(t, 16.67, snapshot.PercentUsed)
+	assert.InDelta(t, 16.67, snapshot.PercentUsed, 0)
 }

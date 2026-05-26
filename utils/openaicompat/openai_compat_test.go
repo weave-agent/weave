@@ -263,6 +263,7 @@ func TestStream_UsageWithoutCachedPromptDetails(t *testing.T) {
 	events := collectEvents(ch)
 
 	var usages []sdk.ProviderUsage
+
 	for _, e := range events {
 		if e.Type == sdk.ProviderEventUsage {
 			usages = append(usages, e.Content.(sdk.ProviderUsage))
@@ -297,6 +298,7 @@ func TestStream_UsageWithCachedPromptDetails(t *testing.T) {
 	events := collectEvents(ch)
 
 	var usages []sdk.ProviderUsage
+
 	for _, e := range events {
 		if e.Type == sdk.ProviderEventUsage {
 			usages = append(usages, e.Content.(sdk.ProviderUsage))

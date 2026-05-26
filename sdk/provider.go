@@ -82,6 +82,7 @@ type ContextBudgetSnapshot struct {
 // context window without deciding what policy should act on the result.
 func NewContextBudgetSnapshot(contextWindow, inputTokens, outputReserveTokens, safetyMarginTokens int) ContextBudgetSnapshot {
 	usedTokens := inputTokens + outputReserveTokens + safetyMarginTokens
+
 	snapshot := ContextBudgetSnapshot{
 		ContextWindow:       contextWindow,
 		InputTokens:         inputTokens,
@@ -89,12 +90,14 @@ func NewContextBudgetSnapshot(contextWindow, inputTokens, outputReserveTokens, s
 		SafetyMarginTokens:  safetyMarginTokens,
 		UsedTokens:          usedTokens,
 	}
+
 	if contextWindow <= 0 {
 		return snapshot
 	}
 
 	snapshot.RemainingTokens = contextWindow - usedTokens
 	snapshot.PercentUsed = roundPercent(float64(usedTokens) / float64(contextWindow) * 100)
+
 	return snapshot
 }
 
@@ -102,6 +105,7 @@ func roundPercent(percent float64) float64 {
 	if percent < 0 {
 		return float64(int(percent*100-0.5)) / 100
 	}
+
 	return float64(int(percent*100+0.5)) / 100
 }
 
