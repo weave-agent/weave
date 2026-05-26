@@ -260,6 +260,7 @@ Config structs registered through `sdk.RegisterExtension`, `sdk.RegisterTool`, `
 - `internal/` packages are not importable by extensions; anything extensions need must live in `sdk/`
 - Event payload types must live in `sdk/`
 - Guardian policy integrations use `sdk.Guardian` and guardian event topics; sandbox containment integrations use `sdk.Sandboxer` and sandbox event topics
+- Provider context accounting should use shared SDK contracts: providers stream response totals with `sdk.ProviderUsage`, may optionally implement `sdk.TokenCounter` for preflight request counts, and should expose provider-neutral budget math through `sdk.ContextBudgetSnapshot`
 - Approval and sandbox expansion flows are ID-based; do not match requests or resolutions by command string
 - `sdk.Guardian` exposes `Decide`, `Resolve`, and `Snapshot`; key topics include `guardian.registered`, `guardian.approval.request`, `guardian.approval.resolution`, and `guardian.profile.change`
 - `sdk.Sandboxer` exposes `WrapCommand`, `Status`, `RequestExpansion`, and `ResolveExpansion`; key topics include `sandbox.registered`, `sandbox.status`, `sandbox.expansion.request`, and `sandbox.expansion.resolution`
@@ -275,7 +276,7 @@ Providers declare an auth struct with `json` and `env` tags, then register with 
 
 | Package | Description |
 |---|---|
-| `sdk/` | Public API — `Extension`, `Bus`, `Config`, `UI`, `Provider`, `Tool`, `Guardian`, `Sandboxer` interfaces; global registries and schema metadata; guardian/sandbox event topics; `Logger(name)`; auth helpers |
+| `sdk/` | Public API — `Extension`, `Bus`, `Config`, `UI`, `Provider`, `Tool`, `Guardian`, `Sandboxer` interfaces; optional `TokenCounter`; provider usage, token count, and context budget accounting types; global registries and schema metadata; guardian/sandbox event topics; `Logger(name)`; auth helpers |
 | `sdk/model/` | Model types, model registry, `StreamOptions` |
 | `sdk/registry/` | Generic `Registry[T]` used by all registries |
 | `sdk/providerhttp/` | Provider HTTP transport config and client factory |

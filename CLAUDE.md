@@ -45,7 +45,7 @@ Standard library as much as possible. Every replaceable component is an extensio
 
 ## Key Packages
 
-- `sdk/` — `Extension`, `Bus`, `Config`, `UI`, `PreferenceReader`/`Writer`, `SessionStore`, `FileTracker`, `FileMuter`, `Guardian`, `Sandboxer` interfaces; global registries for extensions/providers/tools/UIs; schema registry with `SchemaInfo{Schema, Type}` metadata; `Logger(name)` for structured logging; `WithBus`/`BusFromContext` for context-based bus access; auth and OAuth helpers
+- `sdk/` — `Extension`, `Bus`, `Config`, `UI`, `PreferenceReader`/`Writer`, `SessionStore`, `FileTracker`, `FileMuter`, `Guardian`, `Sandboxer` interfaces; optional provider capabilities such as `TokenCounter`; shared provider accounting types (`ProviderUsage`, `TokenCount`, `ContextBudgetSnapshot`); global registries for extensions/providers/tools/UIs; schema registry with `SchemaInfo{Schema, Type}` metadata; `Logger(name)` for structured logging; `WithBus`/`BusFromContext` for context-based bus access; auth and OAuth helpers
 - `sdk/model/` — model types, model registry, `StreamOptions` for per-request options
 - `sdk/registry/` — generic `Registry[T]` used by all registries
 - `sdk/providerhttp/` — provider HTTP transport config resolver and client factory with configurable timeouts

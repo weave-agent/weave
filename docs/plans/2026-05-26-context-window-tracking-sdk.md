@@ -76,8 +76,8 @@
 - [x] verify no provider-specific policy leaked into SDK abstractions
 
 ### Task 5: Update documentation
-- [ ] update `CLAUDE.md` key package notes if SDK contracts change
-- [ ] update relevant package docs or README sections if new public APIs need explanation
+- [x] update `CLAUDE.md` key package notes if SDK contracts change
+- [x] update relevant package docs or README sections if new public APIs need explanation
 
 ## Technical Details
 - `TokenCounter` should be optional and implemented by providers that can preflight count full provider requests.
