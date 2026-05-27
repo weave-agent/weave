@@ -80,6 +80,10 @@ func TestRejectUnknownShortFlags(t *testing.T) {
 
 func TestRunMissingConfig(t *testing.T) {
 	dir := t.TempDir()
+	cfgFile := filepath.Join(dir, ".weave", "settings.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(cfgFile), 0o750))
+	require.NoError(t, os.WriteFile(cfgFile, []byte(`{"ui_extension":"none","agent_loop":"agent"}`), 0o600))
+
 	origWd, _ := os.Getwd()
 
 	require.NoError(t, os.Chdir(dir))
