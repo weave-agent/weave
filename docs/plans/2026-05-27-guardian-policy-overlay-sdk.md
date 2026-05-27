@@ -59,10 +59,10 @@
 - [x] run `go test ./sdk/...` - must pass before next task
 
 ### Task 2: Expose active overlays in Guardian snapshots
-- [ ] add `Overlays []GuardianPolicyOverlay` to `sdk.GuardianSnapshot`
-- [ ] update existing snapshot JSON round-trip tests to include active overlays
-- [ ] verify zero-value snapshots remain backward-compatible for existing tests
-- [ ] run `go test ./sdk/...` - must pass before next task
+- [x] add `Overlays []GuardianPolicyOverlay` to `sdk.GuardianSnapshot`
+- [x] update existing snapshot JSON round-trip tests to include active overlays
+- [x] verify zero-value snapshots remain backward-compatible for existing tests
+- [x] run `go test ./sdk/...` - must pass before next task
 
 ### Task 3: Update generated SDK artifacts if needed
 - [ ] check whether `sdk.Guardian` interface changes are unnecessary; avoid mock regeneration if unchanged

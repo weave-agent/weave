@@ -97,6 +97,21 @@ func TestGuardianPayloadsJSONRoundTrip(t *testing.T) {
 				},
 			},
 		},
+		Overlays: []GuardianPolicyOverlay{
+			{
+				ID:          "overlay-1",
+				Source:      "plan-mode",
+				Description: "temporary plan policy",
+				Rules: []GuardianProfileRule{
+					{
+						Actions:  []GuardianAction{GuardianActionWrite},
+						Decision: GuardianDecisionAllow,
+						Reason:   "trusted plan edits",
+					},
+				},
+				OverrideHardBlocks: true,
+			},
+		},
 		Grants: []GuardianGrant{
 			{
 				ID:    "grant-1",
@@ -137,11 +152,29 @@ func TestGuardianPayloadsJSONRoundTrip(t *testing.T) {
 	assert.Equal(t, payload.CurrentProfile, got.CurrentProfile)
 	require.Contains(t, got.Profiles, "team")
 	assert.Equal(t, GuardianDecisionAsk, got.Profiles["team"].Rules[0].Decision)
+	require.Len(t, got.Overlays, 1)
+	assert.Equal(t, "overlay-1", got.Overlays[0].ID)
+	assert.Equal(t, GuardianDecisionAllow, got.Overlays[0].Rules[0].Decision)
+	assert.True(t, got.Overlays[0].OverrideHardBlocks)
 	require.Len(t, got.Grants, 1)
 	assert.Equal(t, GuardianActionExec, got.Grants[0].Request.Action)
 	assert.Equal(t, GuardianGrantScopeSession, got.Grants[0].Resolution.Scope)
 	require.Len(t, got.Pending, 1)
 	assert.Equal(t, []GuardianGrantScope{GuardianGrantScopeOnce, GuardianGrantScopeSession}, got.Pending[0].AllowedScopes)
+}
+
+func TestGuardianSnapshotZeroValueJSONCompatibility(t *testing.T) {
+	data, err := json.Marshal(GuardianSnapshot{})
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"current_profile":""}`, string(data))
+
+	var got GuardianSnapshot
+	require.NoError(t, json.Unmarshal([]byte(`{"current_profile":"auto"}`), &got))
+	assert.Equal(t, "auto", got.CurrentProfile)
+	assert.Nil(t, got.Profiles)
+	assert.Nil(t, got.Overlays)
+	assert.Nil(t, got.Grants)
+	assert.Nil(t, got.Pending)
 }
 
 func TestGuardianPolicyOverlayJSONRoundTrip(t *testing.T) {

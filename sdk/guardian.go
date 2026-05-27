@@ -176,6 +176,7 @@ type GuardianGrant struct {
 type GuardianSnapshot struct {
 	CurrentProfile string                     `json:"current_profile"`
 	Profiles       map[string]GuardianProfile `json:"profiles,omitempty"`
+	Overlays       []GuardianPolicyOverlay    `json:"overlays,omitempty"`
 	Grants         []GuardianGrant            `json:"grants,omitempty"`
 	Pending        []GuardianApproval         `json:"pending,omitempty"`
 }
