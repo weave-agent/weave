@@ -51,12 +51,12 @@
 ## Implementation Steps
 
 ### Task 1: Add SDK overlay event contracts
-- [ ] add `GuardianPolicyOverlayPushTopic` and `GuardianPolicyOverlayPopTopic` constants to `sdk/guardian.go`
-- [ ] add `GuardianPolicyOverlay` payload with `ID`, `Source`, `Description`, `Rules`, and `OverrideHardBlocks`
-- [ ] add `GuardianPolicyOverlayPop` payload with `ID` and optional `Source`
-- [ ] update `sdk/guardian_test.go` topic assertions for the new events
-- [ ] write JSON round-trip tests for overlay push/pop payloads
-- [ ] run `go test ./sdk/...` - must pass before next task
+- [x] add `GuardianPolicyOverlayPushTopic` and `GuardianPolicyOverlayPopTopic` constants to `sdk/guardian.go`
+- [x] add `GuardianPolicyOverlay` payload with `ID`, `Source`, `Description`, `Rules`, and `OverrideHardBlocks`
+- [x] add `GuardianPolicyOverlayPop` payload with `ID` and optional `Source`
+- [x] update `sdk/guardian_test.go` topic assertions for the new events
+- [x] write JSON round-trip tests for overlay push/pop payloads
+- [x] run `go test ./sdk/...` - must pass before next task
 
 ### Task 2: Expose active overlays in Guardian snapshots
 - [ ] add `Overlays []GuardianPolicyOverlay` to `sdk.GuardianSnapshot`

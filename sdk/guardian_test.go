@@ -74,6 +74,8 @@ func TestGuardianEventTopics(t *testing.T) {
 	assert.Equal(t, "guardian.approval.request", GuardianApprovalRequestTopic)
 	assert.Equal(t, "guardian.approval.resolution", GuardianApprovalResolutionTopic)
 	assert.Equal(t, "guardian.profile.change", GuardianProfileChangeTopic)
+	assert.Equal(t, "guardian.policy.overlay.push", GuardianPolicyOverlayPushTopic)
+	assert.Equal(t, "guardian.policy.overlay.pop", GuardianPolicyOverlayPopTopic)
 	assert.Equal(t, "guardian.snapshot.request", GuardianSnapshotRequestTopic)
 	assert.Equal(t, "guardian.snapshot", GuardianSnapshotTopic)
 	assert.Equal(t, "guardian.grants.clear", GuardianClearGrantsTopic)
@@ -140,4 +142,59 @@ func TestGuardianPayloadsJSONRoundTrip(t *testing.T) {
 	assert.Equal(t, GuardianGrantScopeSession, got.Grants[0].Resolution.Scope)
 	require.Len(t, got.Pending, 1)
 	assert.Equal(t, []GuardianGrantScope{GuardianGrantScopeOnce, GuardianGrantScopeSession}, got.Pending[0].AllowedScopes)
+}
+
+func TestGuardianPolicyOverlayJSONRoundTrip(t *testing.T) {
+	payload := GuardianPolicyOverlay{
+		ID:          "overlay-1",
+		Source:      "plan-mode",
+		Description: "allow plan edits",
+		Rules: []GuardianProfileRule{
+			{
+				Actions:  []GuardianAction{GuardianActionWrite},
+				Decision: GuardianDecisionAllow,
+				Reason:   "trusted plan overlay",
+				Metadata: map[string]any{
+					"scope": "session",
+				},
+			},
+			{
+				Actions:  []GuardianAction{GuardianActionDelete},
+				Decision: GuardianDecisionBlock,
+			},
+		},
+		OverrideHardBlocks: true,
+	}
+
+	data, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	var got GuardianPolicyOverlay
+	require.NoError(t, json.Unmarshal(data, &got))
+
+	assert.Equal(t, payload.ID, got.ID)
+	assert.Equal(t, payload.Source, got.Source)
+	assert.Equal(t, payload.Description, got.Description)
+	assert.True(t, got.OverrideHardBlocks)
+	require.Len(t, got.Rules, 2)
+	assert.Equal(t, GuardianActionWrite, got.Rules[0].Actions[0])
+	assert.Equal(t, GuardianDecisionAllow, got.Rules[0].Decision)
+	assert.Equal(t, "session", got.Rules[0].Metadata["scope"])
+	assert.Equal(t, GuardianDecisionBlock, got.Rules[1].Decision)
+}
+
+func TestGuardianPolicyOverlayPopJSONRoundTrip(t *testing.T) {
+	payload := GuardianPolicyOverlayPop{
+		ID:     "overlay-1",
+		Source: "plan-mode",
+	}
+
+	data, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	var got GuardianPolicyOverlayPop
+	require.NoError(t, json.Unmarshal(data, &got))
+
+	assert.Equal(t, payload.ID, got.ID)
+	assert.Equal(t, payload.Source, got.Source)
 }

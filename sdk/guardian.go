@@ -24,6 +24,14 @@ const (
 	// GuardianProfileChangeTopic publishes an sdk.GuardianProfileChange payload.
 	GuardianProfileChangeTopic = "guardian.profile.change"
 
+	// GuardianPolicyOverlayPushTopic publishes an sdk.GuardianPolicyOverlay
+	// payload to add or replace a runtime policy overlay.
+	GuardianPolicyOverlayPushTopic = "guardian.policy.overlay.push"
+
+	// GuardianPolicyOverlayPopTopic publishes an sdk.GuardianPolicyOverlayPop
+	// payload to remove a runtime policy overlay.
+	GuardianPolicyOverlayPopTopic = "guardian.policy.overlay.pop"
+
 	// GuardianSnapshotRequestTopic requests an sdk.GuardianSnapshot payload.
 	GuardianSnapshotRequestTopic = "guardian.snapshot.request"
 
@@ -136,6 +144,19 @@ type GuardianProfileRule struct {
 	Decision GuardianDecisionAction `json:"decision"`
 	Reason   string                 `json:"reason,omitempty"`
 	Metadata map[string]any         `json:"metadata,omitempty"`
+}
+
+type GuardianPolicyOverlay struct {
+	ID                 string                `json:"id"`
+	Source             string                `json:"source,omitempty"`
+	Description        string                `json:"description,omitempty"`
+	Rules              []GuardianProfileRule `json:"rules,omitempty"`
+	OverrideHardBlocks bool                  `json:"override_hard_blocks,omitempty"`
+}
+
+type GuardianPolicyOverlayPop struct {
+	ID     string `json:"id"`
+	Source string `json:"source,omitempty"`
 }
 
 type GuardianProfileChange struct {
