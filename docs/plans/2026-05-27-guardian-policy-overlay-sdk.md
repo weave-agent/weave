@@ -77,11 +77,11 @@
 - [x] run `go test ./sdk/...` - must pass before next task
 
 ### Task 5: Verify acceptance criteria
-- [ ] verify SDK exposes typed events for pushing and popping overlays
-- [ ] verify SDK snapshots can include overlays without affecting existing fields
-- [ ] verify tests cover event constants and JSON payload compatibility
-- [ ] run `make test`
-- [ ] run `make lint`
+- [x] verify SDK exposes typed events for pushing and popping overlays
+- [x] verify SDK snapshots can include overlays without affecting existing fields
+- [x] verify tests cover event constants and JSON payload compatibility
+- [x] run `make test`
+- [x] run `make lint`
 
 ## Technical Details
 - Proposed topics:
