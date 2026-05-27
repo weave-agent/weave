@@ -145,9 +145,138 @@ func TestGuardianPayloadsJSONRoundTrip(t *testing.T) {
 
 	data, err := json.Marshal(payload)
 	require.NoError(t, err)
+	assert.JSONEq(t, `{
+		"current_profile": "team",
+		"profiles": {
+			"team": {
+				"name": "team",
+				"description": "team defaults",
+				"rules": [
+					{
+						"actions": ["write", "network"],
+						"decision": "ask",
+						"reason": "requires approval"
+					}
+				]
+			}
+		},
+		"overlays": [
+			{
+				"id": "overlay-1",
+				"source": "plan-mode",
+				"description": "temporary plan policy",
+				"rules": [
+					{
+						"actions": ["write"],
+						"decision": "allow",
+						"reason": "trusted plan edits"
+					}
+				],
+				"override_hard_blocks": true
+			}
+		],
+		"grants": [
+			{
+				"id": "grant-1",
+				"scope": "session",
+				"request": {
+					"id": "req-1",
+					"tool_call_id": "tool-1",
+					"tool_name": "bash",
+					"action": "exec",
+					"command": "go test ./...",
+					"working_dir": "/work",
+					"metadata": {
+						"risk": "medium"
+					}
+				},
+				"resolution": {
+					"action": "allow",
+					"scope": "session",
+					"reason": "approved"
+				}
+			}
+		],
+		"pending": [
+			{
+				"id": "approval-1",
+				"decision_id": "decision-1",
+				"request": {
+					"id": "",
+					"tool_name": "",
+					"action": ""
+				},
+				"allowed_scopes": ["once", "session"]
+			}
+		]
+	}`, string(data))
 
 	var got GuardianSnapshot
-	require.NoError(t, json.Unmarshal(data, &got))
+	require.NoError(t, json.Unmarshal([]byte(`{
+		"current_profile": "team",
+		"profiles": {
+			"team": {
+				"name": "team",
+				"description": "team defaults",
+				"rules": [
+					{
+						"actions": ["write", "network"],
+						"decision": "ask",
+						"reason": "requires approval"
+					}
+				]
+			}
+		},
+		"overlays": [
+			{
+				"id": "overlay-1",
+				"source": "plan-mode",
+				"description": "temporary plan policy",
+				"rules": [
+					{
+						"actions": ["write"],
+						"decision": "allow",
+						"reason": "trusted plan edits"
+					}
+				],
+				"override_hard_blocks": true
+			}
+		],
+		"grants": [
+			{
+				"id": "grant-1",
+				"scope": "session",
+				"request": {
+					"id": "req-1",
+					"tool_call_id": "tool-1",
+					"tool_name": "bash",
+					"action": "exec",
+					"command": "go test ./...",
+					"working_dir": "/work",
+					"metadata": {
+						"risk": "medium"
+					}
+				},
+				"resolution": {
+					"action": "allow",
+					"scope": "session",
+					"reason": "approved"
+				}
+			}
+		],
+		"pending": [
+			{
+				"id": "approval-1",
+				"decision_id": "decision-1",
+				"request": {
+					"id": "",
+					"tool_name": "",
+					"action": ""
+				},
+				"allowed_scopes": ["once", "session"]
+			}
+		]
+	}`), &got))
 
 	assert.Equal(t, payload.CurrentProfile, got.CurrentProfile)
 	require.Contains(t, got.Profiles, "team")
@@ -201,9 +330,48 @@ func TestGuardianPolicyOverlayJSONRoundTrip(t *testing.T) {
 
 	data, err := json.Marshal(payload)
 	require.NoError(t, err)
+	assert.JSONEq(t, `{
+		"id": "overlay-1",
+		"source": "plan-mode",
+		"description": "allow plan edits",
+		"rules": [
+			{
+				"actions": ["write"],
+				"decision": "allow",
+				"reason": "trusted plan overlay",
+				"metadata": {
+					"scope": "session"
+				}
+			},
+			{
+				"actions": ["delete"],
+				"decision": "block"
+			}
+		],
+		"override_hard_blocks": true
+	}`, string(data))
 
 	var got GuardianPolicyOverlay
-	require.NoError(t, json.Unmarshal(data, &got))
+	require.NoError(t, json.Unmarshal([]byte(`{
+		"id": "overlay-1",
+		"source": "plan-mode",
+		"description": "allow plan edits",
+		"rules": [
+			{
+				"actions": ["write"],
+				"decision": "allow",
+				"reason": "trusted plan overlay",
+				"metadata": {
+					"scope": "session"
+				}
+			},
+			{
+				"actions": ["delete"],
+				"decision": "block"
+			}
+		],
+		"override_hard_blocks": true
+	}`), &got))
 
 	assert.Equal(t, payload.ID, got.ID)
 	assert.Equal(t, payload.Source, got.Source)
@@ -224,9 +392,16 @@ func TestGuardianPolicyOverlayPopJSONRoundTrip(t *testing.T) {
 
 	data, err := json.Marshal(payload)
 	require.NoError(t, err)
+	assert.JSONEq(t, `{
+		"id": "overlay-1",
+		"source": "plan-mode"
+	}`, string(data))
 
 	var got GuardianPolicyOverlayPop
-	require.NoError(t, json.Unmarshal(data, &got))
+	require.NoError(t, json.Unmarshal([]byte(`{
+		"id": "overlay-1",
+		"source": "plan-mode"
+	}`), &got))
 
 	assert.Equal(t, payload.ID, got.ID)
 	assert.Equal(t, payload.Source, got.Source)

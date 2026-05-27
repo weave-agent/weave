@@ -95,6 +95,11 @@ unknown actions. `yolo` runs most actions while retaining hard catastrophic
 blocks. Custom profiles live under `guardian.profiles` and can be selected with
 `guardian.profile` or `--guardian-profile`.
 
+Trusted extensions may apply runtime Guardian policy overlays through SDK
+events. These overlays are session-runtime controls layered over the active
+profile, are visible in Guardian snapshots for display and diagnostics, and do
+not appear as selectable profiles.
+
 Sandbox configuration is containment-only. It does not decide whether a tool
 action is allowed; the guardian does that first. Once an approved shell command
 is ready to run, the sandbox extension wraps it with filesystem and network
@@ -278,6 +283,7 @@ arithmetic; policy decisions such as compaction stay in the agent extension.
 - `internal/` packages are not importable by extensions; anything extensions need must live in `sdk/`
 - Event payload types must live in `sdk/`
 - Guardian policy integrations use `sdk.Guardian` and guardian event topics; sandbox containment integrations use `sdk.Sandboxer` and sandbox event topics
+- Guardian policy overlays are runtime-only policy layers for trusted extensions. Publish `sdk.GuardianPolicyOverlay` on `guardian.policy.overlay.push` to add or replace an overlay, and `sdk.GuardianPolicyOverlayPop` on `guardian.policy.overlay.pop` to remove one by ID. Active overlays are exposed through `GuardianSnapshot.Overlays`. Overlays do not create user-visible profiles; `OverrideHardBlocks` is an explicit trusted-extension contract, not a security boundary
 - Provider context accounting should use shared SDK contracts: providers stream response totals with `sdk.ProviderUsage`, may optionally implement `sdk.TokenCounter` for preflight request counts, and should expose provider-neutral budget math through `sdk.ContextBudgetSnapshot`
 - Approval and sandbox expansion flows are ID-based; do not match requests or resolutions by command string
 - `sdk.Guardian` exposes `Decide`, `Resolve`, and `Snapshot`; key topics include `guardian.registered`, `guardian.approval.request`, `guardian.approval.resolution`, and `guardian.profile.change`
