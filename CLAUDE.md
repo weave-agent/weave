@@ -55,7 +55,7 @@ Standard library as much as possible. Every replaceable component is an extensio
 - `sdk/retry/` — shared retry with exponential backoff and jitter support (`full`/`none` modes)
 - `sdk/validate/` — JSON schema validator for tool arguments
 - `sdk/throttle.go` — context-aware throttling helper for event streaming (first call immediate, subsequent calls deduplicated within interval)
-- `sdk/guardian.go` — guardian policy contract, approval/profile/grant payloads, and guardian event topic constants
+- `sdk/guardian.go` — guardian policy contract, approval/profile/grant/overlay payloads, `GuardianSnapshot` including active overlays, and guardian event topic constants
 - `sdk/sandbox.go` — sandbox containment contract, status/expansion payloads, and sandbox event topic constants
 - `sdk/tool_events.go` — `ToolProgress` struct and event topic constants (`tool.start`, `tool.progress`, `tool.complete`, `tool.error`, `tool.interrupted`) for streaming tool output over the bus
 - `bus/` — callback-based event bus (`Publish`/`On`/`OnAll`/`Off`) with per-handler goroutines and panic recovery
@@ -112,6 +112,8 @@ Key env vars: `WEAVE_PROVIDER` (override active provider), `WEAVE_THINKING_LEVEL
 **Thinking levels**: off, minimal, low, medium (default), high, xhigh. Models that don't support xhigh clamp to high.
 
 **Guardian profiles**: `ask`, `auto`, `yolo`, or custom profile names. `ask` permits reads and harmless metadata automatically while prompting for writes, network, deletes, and unknown actions. `auto` permits normal coding actions and asks for risky or unknown actions. `yolo` runs most actions while retaining catastrophic blocks. Custom profiles live under `guardian.profiles`; select with `guardian.profile` or `--guardian-profile`.
+
+**Guardian policy overlays**: trusted extensions can publish `sdk.GuardianPolicyOverlay` on `guardian.policy.overlay.push` to add or replace a runtime-only policy layer, and `sdk.GuardianPolicyOverlayPop` on `guardian.policy.overlay.pop` to remove one by ID. Active overlays appear in `GuardianSnapshot.Overlays` for display and diagnostics, but they do not create or appear in user-visible Guardian profile lists by default. `OverrideHardBlocks` must be an explicit overlay opt-in for trusted extensions; it is an architectural contract for cooperating extensions, not a security boundary.
 
 **Sandbox containment**: sandbox is containment-only for approved shell commands. The guardian decides allow/ask/block before execution; sandbox wraps approved commands with OS-level filesystem and network boundaries. Expansion requests are ID-based and are handled through the guardian UI extension.
 

@@ -71,10 +71,10 @@
 - [x] run `go test ./sdk/...` - must pass before next task
 
 ### Task 4: Update root documentation and validation
-- [ ] update `CLAUDE.md` Guardian section to mention overlay topics and snapshot overlays
-- [ ] document that overlays are runtime-only and do not appear in profile lists by default
-- [ ] document that `OverrideHardBlocks` is explicit and trusted-extension-only by architecture, not a security boundary
-- [ ] run `go test ./sdk/...` - must pass before next task
+- [x] update `CLAUDE.md` Guardian section to mention overlay topics and snapshot overlays
+- [x] document that overlays are runtime-only and do not appear in profile lists by default
+- [x] document that `OverrideHardBlocks` is explicit and trusted-extension-only by architecture, not a security boundary
+- [x] run `go test ./sdk/...` - must pass before next task
 
 ### Task 5: Verify acceptance criteria
 - [ ] verify SDK exposes typed events for pushing and popping overlays
