@@ -65,10 +65,10 @@
 - [x] run `go test ./sdk/...` - must pass before next task
 
 ### Task 3: Update generated SDK artifacts if needed
-- [ ] check whether `sdk.Guardian` interface changes are unnecessary; avoid mock regeneration if unchanged
-- [ ] run `make gen` only if generated mocks become stale
-- [ ] run focused tests for generated artifacts if regeneration occurs
-- [ ] run `go test ./sdk/...` - must pass before next task
+- [x] check whether `sdk.Guardian` interface changes are unnecessary; avoid mock regeneration if unchanged
+- [x] run `make gen` only if generated mocks become stale (skipped - Guardian interface unchanged)
+- [x] run focused tests for generated artifacts if regeneration occurs (skipped - no regeneration needed)
+- [x] run `go test ./sdk/...` - must pass before next task
 
 ### Task 4: Update root documentation and validation
 - [ ] update `CLAUDE.md` Guardian section to mention overlay topics and snapshot overlays
