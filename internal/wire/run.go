@@ -344,6 +344,12 @@ func runWithDeps(ctx context.Context, args []string, revision string, deps runDe
 		return 0
 	}
 
+	if err := rejectUnknownShortFlags(args); err != nil {
+		fmt.Fprintf(os.Stderr, "weave: %v\n", err)
+
+		return 1
+	}
+
 	configFile, cf, rest, err := loadConfig(args)
 	if err != nil {
 		var helpErr *settings.HelpError
@@ -429,6 +435,13 @@ func isHexString(s string) bool {
 	return s != ""
 }
 
+var knownShortFlags = map[string]struct{}{
+	helpFlagShort:   {},
+	promptFlagShort: {},
+	"-c":            {},
+	"-r":            {},
+}
+
 var helpValueFlags = map[string]struct{}{
 	"--config":                 {},
 	"--model":                  {},
@@ -478,6 +491,36 @@ func hasHelpFlag(args []string) bool {
 	}
 
 	return false
+}
+
+func rejectUnknownShortFlags(args []string) error {
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" {
+			return nil
+		}
+
+		flagName := arg
+		if before, _, ok := strings.Cut(arg, "="); ok {
+			flagName = before
+		}
+
+		if _, takesValue := helpValueFlags[flagName]; takesValue && flagName == arg && i+1 < len(args) {
+			i++
+
+			continue
+		}
+
+		if !strings.HasPrefix(flagName, "-") || strings.HasPrefix(flagName, "--") {
+			continue
+		}
+
+		if _, ok := knownShortFlags[flagName]; !ok {
+			return fmt.Errorf("unknown flag: %s", flagName)
+		}
+	}
+
+	return nil
 }
 
 func findModuleRootFrom(startFn func() (string, error)) (string, error) {

@@ -17,6 +17,8 @@ import (
 
 func TestRunFlagParsing(t *testing.T) {
 	dir := t.TempDir()
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
 
 	origWd, _ := os.Getwd()
 
@@ -25,16 +27,53 @@ func TestRunFlagParsing(t *testing.T) {
 	defer func() { _ = os.Chdir(origWd) }()
 
 	tests := []struct {
-		name     string
-		args     []string
-		wantCode int
+		name       string
+		args       []string
+		wantCode   int
+		wantStderr string
 	}{
-		{"invalid flag", []string{"-xyz"}, 1},
+		{"invalid short flag", []string{"-xyz"}, 1, "unknown flag: -xyz"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.wantCode, run(context.Background(), tt.args, "unknown"))
+			var code int
+
+			stderr := captureStderr(t, func() {
+				code = run(context.Background(), tt.args, "unknown")
+			})
+
+			assert.Equal(t, tt.wantCode, code)
+			assert.Contains(t, stderr, tt.wantStderr)
+			assert.NoDirExists(t, filepath.Join(homeDir, ".weave", "extensions"))
+		})
+	}
+}
+
+func TestRejectUnknownShortFlags(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{name: "unknown short flag", args: []string{"-x"}, wantErr: "unknown flag: -x"},
+		{name: "unknown combined short flag", args: []string{"-xyz"}, wantErr: "unknown flag: -xyz"},
+		{name: "known short prompt", args: []string{promptFlagShort, "hello"}},
+		{name: "known short resume", args: []string{"-r", "session"}},
+		{name: "unknown after prompt value", args: []string{promptFlagShort, "-x"}},
+		{name: "unknown after double dash", args: []string{"--", "-x"}},
+		{name: "unknown long flag allowed for extension parsing", args: []string{"--extension-flag"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := rejectUnknownShortFlags(tt.args)
+			if tt.wantErr == "" {
+				assert.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				assert.EqualError(t, err, tt.wantErr)
+			}
 		})
 	}
 }
