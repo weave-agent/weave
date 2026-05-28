@@ -69,11 +69,11 @@
 - [x] run `go test ./settings ./sdk` - must pass before next task
 
 ### Task 3: Verify acceptance criteria
-- [ ] verify SDK additions do not break existing read-only extension registration behavior
-- [ ] verify scoped config saving follows current default-population target selection rules
-- [ ] verify persisted JSON preserves unrelated settings and unknown fields where possible
-- [ ] run full root test suite with `make test`
-- [ ] run linter with `make lint` and fix all issues
+- [x] verify SDK additions do not break existing read-only extension registration behavior
+- [x] verify scoped config saving follows current default-population target selection rules
+- [x] verify persisted JSON preserves unrelated settings and unknown fields where possible
+- [x] run full root test suite with `make test`
+- [x] run linter with `make lint` and fix all issues
 
 ### Task 4: Update documentation
 - [ ] update `sdk/guardian.go` type comments if new exported values require clarification

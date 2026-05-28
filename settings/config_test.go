@@ -719,6 +719,7 @@ func TestSaveExtensionConfig_GuardianActiveSourcePaths(t *testing.T) {
 
 		localRoot, err := readSettingsMap(localPath)
 		require.NoError(t, err)
+
 		localGuardian, ok := localRoot[configScopeGuardian].(map[string]any)
 		require.True(t, ok)
 		assert.Equal(t, "custom", localGuardian["profile"])
@@ -726,6 +727,7 @@ func TestSaveExtensionConfig_GuardianActiveSourcePaths(t *testing.T) {
 
 		projectRoot, err := readSettingsMap(projectPath)
 		require.NoError(t, err)
+
 		projectGuardian, ok := projectRoot[configScopeGuardian].(map[string]any)
 		require.True(t, ok)
 		assert.Equal(t, "ask", projectGuardian["profile"])
@@ -743,6 +745,7 @@ func TestSaveExtensionConfig_GuardianActiveSourcePaths(t *testing.T) {
 
 		root, err := readSettingsMap(projectPath)
 		require.NoError(t, err)
+
 		guardian, ok := root[configScopeGuardian].(map[string]any)
 		require.True(t, ok)
 		assert.Equal(t, "auto", guardian["profile"])
@@ -759,6 +762,7 @@ func TestSaveExtensionConfig_GuardianActiveSourcePaths(t *testing.T) {
 
 		root, err := readSettingsMap(globalPath)
 		require.NoError(t, err)
+
 		guardian, ok := root[configScopeGuardian].(map[string]any)
 		require.True(t, ok)
 		assert.Equal(t, "yolo", guardian["profile"])
@@ -839,6 +843,7 @@ func TestSaveExtensionConfig_NamedScopeAndUnknownScope(t *testing.T) {
 
 	root, err := readSettingsMap(projectPath)
 	require.NoError(t, err)
+
 	tools, ok := root[configScopeTools].(map[string]any)
 	require.True(t, ok)
 	bash, ok := tools["bash"].(map[string]any)

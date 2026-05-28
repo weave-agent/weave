@@ -212,6 +212,24 @@ func TestRegisterExtension_ConfigCannotAssertWriter(t *testing.T) {
 	assert.False(t, ok, "extension factory must receive Config that cannot assert to PreferenceWriter")
 }
 
+func TestRegisterExtension_ConfigCannotAssertExtensionConfigWriter(t *testing.T) {
+	ResetExtensionRegistry()
+
+	var receivedCfg Config
+
+	RegisterExtension[struct{}]("test-ext-config-writer", func(cfg Config, _ PreferenceReader, _ struct{}) (Extension, error) {
+		receivedCfg = cfg
+		return NewExtensionFunc("test-ext-config-writer", nil), nil
+	})
+
+	_, err := GetExtension("test-ext-config-writer", &mockPrefStoreConfig{})
+	require.NoError(t, err)
+	require.NotNil(t, receivedCfg)
+
+	_, ok := receivedCfg.(ExtensionConfigWriter)
+	assert.False(t, ok, "read-only extension factory must receive Config that cannot assert to ExtensionConfigWriter")
+}
+
 func assertImplementsConfig(_ Config) {}
 
 type mockPrefStoreConfig struct{}
@@ -224,6 +242,9 @@ func (m *mockPrefStoreConfig) RespectGitignore() bool                   { return
 func (m *mockPrefStoreConfig) Preferences(any) error                    { return nil }
 func (m *mockPrefStoreConfig) SavePreferences(any) error                { return nil }
 func (m *mockPrefStoreConfig) SaveProviderKey(_, _ string) error        { return nil }
+func (m *mockPrefStoreConfig) SaveExtensionConfig(_, _ string, _ any) error {
+	return nil
+}
 
 type stubUIExt struct{ name string }
 

@@ -297,14 +297,14 @@ func TestGuardianPayloadsJSONRoundTrip(t *testing.T) {
 }
 
 func TestGuardianProfileRuleScopeConstants(t *testing.T) {
-	assert.Equal(t, GuardianProfileRuleScope("exact_file"), GuardianProfileRuleScopeExactFile)
-	assert.Equal(t, GuardianProfileRuleScope("directory"), GuardianProfileRuleScopeDirectory)
-	assert.Equal(t, GuardianProfileRuleScope("project"), GuardianProfileRuleScopeProject)
-	assert.Equal(t, GuardianProfileRuleScope("exact_command"), GuardianProfileRuleScopeExactCommand)
-	assert.Equal(t, GuardianProfileRuleScope("command_prefix"), GuardianProfileRuleScopeCommandPrefix)
-	assert.Equal(t, GuardianProfileRuleScope("command_family"), GuardianProfileRuleScopeCommandFamily)
-	assert.Equal(t, GuardianProfileRuleScope("network_host"), GuardianProfileRuleScopeNetworkHost)
-	assert.Equal(t, GuardianProfileRuleScope("action_type"), GuardianProfileRuleScopeActionType)
+	assert.Equal(t, GuardianProfileRuleScopeExactFile, GuardianProfileRuleScope("exact_file"))
+	assert.Equal(t, GuardianProfileRuleScopeDirectory, GuardianProfileRuleScope("directory"))
+	assert.Equal(t, GuardianProfileRuleScopeProject, GuardianProfileRuleScope("project"))
+	assert.Equal(t, GuardianProfileRuleScopeExactCommand, GuardianProfileRuleScope("exact_command"))
+	assert.Equal(t, GuardianProfileRuleScopeCommandPrefix, GuardianProfileRuleScope("command_prefix"))
+	assert.Equal(t, GuardianProfileRuleScopeCommandFamily, GuardianProfileRuleScope("command_family"))
+	assert.Equal(t, GuardianProfileRuleScopeNetworkHost, GuardianProfileRuleScope("network_host"))
+	assert.Equal(t, GuardianProfileRuleScopeActionType, GuardianProfileRuleScope("action_type"))
 }
 
 func TestGuardianResolutionDefaultRuleScopeOmitted(t *testing.T) {

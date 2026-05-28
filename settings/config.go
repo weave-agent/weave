@@ -794,8 +794,8 @@ func (c *FullConfig) SaveExtensionConfig(scope, name string, target any) error {
 		return fmt.Errorf("read source settings: %w", err)
 	}
 
-	if err := saveConfigForScope(root, scope, name, incoming); err != nil {
-		return err
+	if saveErr := saveConfigForScope(root, scope, name, incoming); saveErr != nil {
+		return saveErr
 	}
 
 	if mkdirErr := os.MkdirAll(filepath.Dir(sourcePath), 0o700); mkdirErr != nil {
