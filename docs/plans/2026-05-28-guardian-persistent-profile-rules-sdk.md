@@ -58,15 +58,15 @@
 - [x] run `go test ./sdk` - must pass before next task
 
 ### Task 2: Add active-layer scoped config saving
-- [ ] add an optional SDK interface such as `ExtensionConfigWriter` with `SaveExtensionConfig(scope, name string, target any) error` in `sdk/config.go`
-- [ ] implement no-op behavior for `sdk.NoopPreferenceStore` if needed by tests and safe fallbacks
-- [ ] implement `(*settings.FullConfig).SaveExtensionConfig` in `settings/config.go` using `resolveSourcePath`, `saveSettingsMu`, `readSettingsMap`, deep merge, and existing write formatting
-- [ ] support singleton scopes (`guardian`, `sandbox`, `ui`, `jsonl`) and named scopes (`tools`, `providers`, `extensions`, `ui_extensions`) consistently with `ExtensionConfig`
-- [ ] reject unknown scopes with clear errors
-- [ ] write settings tests for saving singleton guardian config to local, project, and global active source paths
-- [ ] write settings tests for preserving unrelated fields and deep-merging nested profile rules
-- [ ] write settings tests for named-scope save behavior and unknown-scope errors
-- [ ] run `go test ./settings ./sdk` - must pass before next task
+- [x] add an optional SDK interface such as `ExtensionConfigWriter` with `SaveExtensionConfig(scope, name string, target any) error` in `sdk/config.go`
+- [x] implement no-op behavior for `sdk.NoopPreferenceStore` if needed by tests and safe fallbacks
+- [x] implement `(*settings.FullConfig).SaveExtensionConfig` in `settings/config.go` using `resolveSourcePath`, `saveSettingsMu`, `readSettingsMap`, deep merge, and existing write formatting
+- [x] support singleton scopes (`guardian`, `sandbox`, `ui`, `jsonl`) and named scopes (`tools`, `providers`, `extensions`, `ui_extensions`) consistently with `ExtensionConfig`
+- [x] reject unknown scopes with clear errors
+- [x] write settings tests for saving singleton guardian config to local, project, and global active source paths
+- [x] write settings tests for preserving unrelated fields and deep-merging nested profile rules
+- [x] write settings tests for named-scope save behavior and unknown-scope errors
+- [x] run `go test ./settings ./sdk` - must pass before next task
 
 ### Task 3: Verify acceptance criteria
 - [ ] verify SDK additions do not break existing read-only extension registration behavior

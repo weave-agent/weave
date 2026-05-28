@@ -704,6 +704,155 @@ func TestSavePreferences_DeepMergesNestedFields(t *testing.T) {
 	assert.Equal(t, "fish", bashConfig["shell"], "tools.bash.shell should be preserved")
 }
 
+func TestSaveExtensionConfig_GuardianActiveSourcePaths(t *testing.T) {
+	t.Run("local", func(t *testing.T) {
+		isolateHome(t)
+
+		projectDir := t.TempDir()
+		projectPath := filepath.Join(projectDir, ".weave", "settings.json")
+		localPath := filepath.Join(projectDir, ".weave", "settings.local.json")
+		writeFile(t, projectDir, ".weave/settings.json", `{"guardian":{"profile":"ask"}}`)
+		writeFile(t, projectDir, ".weave/settings.local.json", `{"provider":"anthropic"}`)
+
+		cfg := &FullConfig{filePath: projectPath, settings: &Settings{}}
+		require.NoError(t, cfg.SaveExtensionConfig(configScopeGuardian, "", GuardianFileConfig{Profile: "custom"}))
+
+		localRoot, err := readSettingsMap(localPath)
+		require.NoError(t, err)
+		localGuardian, ok := localRoot[configScopeGuardian].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "custom", localGuardian["profile"])
+		assert.Equal(t, "anthropic", localRoot["provider"])
+
+		projectRoot, err := readSettingsMap(projectPath)
+		require.NoError(t, err)
+		projectGuardian, ok := projectRoot[configScopeGuardian].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "ask", projectGuardian["profile"])
+	})
+
+	t.Run("project", func(t *testing.T) {
+		isolateHome(t)
+
+		projectDir := t.TempDir()
+		projectPath := filepath.Join(projectDir, ".weave", "settings.json")
+		writeFile(t, projectDir, ".weave/settings.json", `{"model":"opus"}`)
+
+		cfg := &FullConfig{filePath: projectPath, settings: &Settings{}}
+		require.NoError(t, cfg.SaveExtensionConfig(configScopeGuardian, "", GuardianFileConfig{Profile: "auto"}))
+
+		root, err := readSettingsMap(projectPath)
+		require.NoError(t, err)
+		guardian, ok := root[configScopeGuardian].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "auto", guardian["profile"])
+		assert.Equal(t, "opus", root["model"])
+	})
+
+	t.Run("global", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		globalPath := filepath.Join(home, ".weave", "settings.json")
+
+		cfg := &FullConfig{settings: &Settings{}}
+		require.NoError(t, cfg.SaveExtensionConfig(configScopeGuardian, "", GuardianFileConfig{Profile: "yolo"}))
+
+		root, err := readSettingsMap(globalPath)
+		require.NoError(t, err)
+		guardian, ok := root[configScopeGuardian].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "yolo", guardian["profile"])
+	})
+}
+
+func TestSaveExtensionConfig_PreservesFieldsAndDeepMergesGuardian(t *testing.T) {
+	isolateHome(t)
+
+	projectDir := t.TempDir()
+	projectPath := filepath.Join(projectDir, ".weave", "settings.json")
+	writeFile(t, projectDir, ".weave/settings.json", `{
+  "unknown_root": {"keep": true},
+  "guardian": {
+    "profile": "ask",
+    "profiles": {
+      "custom": {
+        "name": "custom",
+        "description": "existing description",
+        "metadata": {"owner": "platform"}
+      }
+    }
+  }
+}`)
+
+	cfg := &FullConfig{filePath: projectPath, settings: &Settings{}}
+	incoming := map[string]any{
+		"ask_fallback": true,
+		"profiles": map[string]any{
+			"custom": map[string]any{
+				"rules": []map[string]any{
+					{
+						"decision": "allow",
+						"reason":   "approved by user",
+					},
+				},
+			},
+		},
+	}
+	require.NoError(t, cfg.SaveExtensionConfig(configScopeGuardian, "", incoming))
+
+	root, err := readSettingsMap(projectPath)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"keep": true}, root["unknown_root"])
+
+	guardian, ok := root[configScopeGuardian].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "ask", guardian["profile"])
+	assert.Equal(t, true, guardian["ask_fallback"])
+
+	profiles, ok := guardian["profiles"].(map[string]any)
+	require.True(t, ok)
+	custom, ok := profiles["custom"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "custom", custom["name"])
+	assert.Equal(t, "existing description", custom["description"])
+	assert.Equal(t, map[string]any{"owner": "platform"}, custom["metadata"])
+	require.Len(t, custom["rules"], 1)
+}
+
+func TestSaveExtensionConfig_NamedScopeAndUnknownScope(t *testing.T) {
+	isolateHome(t)
+
+	projectDir := t.TempDir()
+	projectPath := filepath.Join(projectDir, ".weave", "settings.json")
+	writeFile(t, projectDir, ".weave/settings.json", `{
+  "tools": {
+    "bash": {"timeout": 120, "shell": "fish"},
+    "grep": {"respect_gitignore": true}
+  }
+}`)
+
+	cfg := &FullConfig{filePath: projectPath, settings: &Settings{}}
+	require.NoError(t, cfg.SaveExtensionConfig(configScopeTools, "bash", map[string]any{
+		"timeout": 60,
+		"login":   true,
+	}))
+
+	root, err := readSettingsMap(projectPath)
+	require.NoError(t, err)
+	tools, ok := root[configScopeTools].(map[string]any)
+	require.True(t, ok)
+	bash, ok := tools["bash"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, json.Number("60"), bash["timeout"])
+	assert.Equal(t, "fish", bash["shell"])
+	assert.Equal(t, true, bash["login"])
+	assert.Equal(t, map[string]any{"respect_gitignore": true}, tools["grep"])
+
+	err = cfg.SaveExtensionConfig("unknown", "", map[string]any{"enabled": true})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `unknown config scope "unknown"`)
+}
+
 func TestRespectGitignore_DefaultTrue(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

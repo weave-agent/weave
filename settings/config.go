@@ -480,7 +480,10 @@ func (c *FullConfig) getLayeredSettings() (*Settings, error) {
 	return c.layered, c.layeredErr
 }
 
-var _ sdk.Config = (*FullConfig)(nil)
+var (
+	_ sdk.Config                = (*FullConfig)(nil)
+	_ sdk.ExtensionConfigWriter = (*FullConfig)(nil)
+)
 
 func (c *FullConfig) FilePath() string { return c.filePath }
 
@@ -768,6 +771,82 @@ func (c *FullConfig) SaveProviderKey(providerName, apiKey string) error {
 	}
 
 	return nil
+}
+
+// SaveExtensionConfig persists a scoped config subtree to the active settings
+// layer using the same source selection as ExtensionConfig default population.
+func (c *FullConfig) SaveExtensionConfig(scope, name string, target any) error {
+	sourcePath, err := c.resolveSourcePath()
+	if err != nil {
+		return fmt.Errorf("resolve source settings: %w", err)
+	}
+
+	incoming, err := toMapAny(target)
+	if err != nil {
+		return fmt.Errorf("convert config for %s.%s: %w", scope, name, err)
+	}
+
+	saveSettingsMu.Lock()
+	defer saveSettingsMu.Unlock()
+
+	root, err := readSettingsMap(sourcePath)
+	if err != nil {
+		return fmt.Errorf("read source settings: %w", err)
+	}
+
+	if err := saveConfigForScope(root, scope, name, incoming); err != nil {
+		return err
+	}
+
+	if mkdirErr := os.MkdirAll(filepath.Dir(sourcePath), 0o700); mkdirErr != nil {
+		return fmt.Errorf("create settings dir: %w", mkdirErr)
+	}
+
+	data, err := json.MarshalIndent(root, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal settings: %w", err)
+	}
+
+	if err := os.WriteFile(sourcePath, data, 0o600); err != nil {
+		return fmt.Errorf("write settings: %w", err)
+	}
+
+	c.layeredOnce = sync.Once{}
+	c.layered = nil
+	c.layeredErr = nil
+
+	return nil
+}
+
+func saveConfigForScope(root map[string]any, scope, name string, incoming map[string]any) error {
+	switch scope {
+	case configScopeUI, configScopeGuardian, configScopeSandbox, configScopeJSONL:
+		existing, err := mapForKey(root, scope)
+		if err != nil {
+			return err
+		}
+
+		root[scope] = deepMergeValues(existing, incoming)
+
+		return nil
+	case configScopeTools, configScopeProviders, configScopeExtensions, configScopeUIExtensions:
+		scopeMap, err := mapForKey(root, scope)
+		if err != nil {
+			return err
+		}
+
+		if existing, ok := scopeMap[name]; ok {
+			scopeMap[name] = deepMergeValues(existing, incoming)
+		} else {
+			scopeMap[name] = incoming
+		}
+
+		root[scope] = scopeMap
+
+		return nil
+	default:
+		return fmt.Errorf("unknown config scope %q", scope)
+	}
 }
 
 func (c *FullConfig) SavePreferences(target any) error {

@@ -31,9 +31,10 @@ func TestNoopPreferenceStore_ImplementsAllInterfaces(t *testing.T) {
 	noop := NoopPreferenceStore{}
 
 	var (
-		_ PreferenceReader = noop
-		_ PreferenceWriter = noop
-		_ PreferenceStore  = noop
+		_ PreferenceReader      = noop
+		_ PreferenceWriter      = noop
+		_ PreferenceStore       = noop
+		_ ExtensionConfigWriter = noop
 	)
 }
 
@@ -57,6 +58,12 @@ func TestPreferenceWriter_HasSaveMethods(t *testing.T) {
 
 	assert.NoError(t, writer.SavePreferences(&struct{}{}))
 	assert.NoError(t, writer.SaveProviderKey("test", "key"))
+}
+
+func TestNoopPreferenceStore_SaveExtensionConfig(t *testing.T) {
+	var writer ExtensionConfigWriter = NoopPreferenceStore{}
+
+	assert.NoError(t, writer.SaveExtensionConfig("guardian", "", &struct{}{}))
 }
 
 func TestRegisterTool_ReceivesPreferenceReader(t *testing.T) {
