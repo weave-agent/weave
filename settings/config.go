@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 
@@ -429,6 +430,7 @@ func LoadFullConfig(path string) (*FullConfig, error) {
 
 // FullConfig implements sdk.Config with auth resolution and provider config lookup.
 type FullConfig struct {
+	mu          sync.Mutex
 	filePath    string
 	settings    *Settings
 	projectDir  string
@@ -441,6 +443,9 @@ type FullConfig struct {
 // SetProjectDir overrides the project directory used for layered settings resolution.
 // When set, it takes precedence over the directory derived from the config file path.
 func (c *FullConfig) SetProjectDir(dir string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	c.projectDir = dir
 	c.layeredOnce = sync.Once{}
 	c.layered = nil
@@ -449,12 +454,18 @@ func (c *FullConfig) SetProjectDir(dir string) {
 
 // SetArgs stores remaining CLI args for extension-specific flag parsing.
 func (c *FullConfig) SetArgs(args []string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	c.args = args
 }
 
 func (c *FullConfig) getLayeredSettings() (*Settings, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	c.layeredOnce.Do(func() {
-		projectDir := c.effectiveProjectDir()
+		projectDir := c.effectiveProjectDirLocked()
 
 		globalPath, err := SettingsPath()
 		if err != nil {
@@ -485,13 +496,21 @@ var (
 	_ sdk.ExtensionConfigWriter = (*FullConfig)(nil)
 )
 
-func (c *FullConfig) FilePath() string { return c.filePath }
+func (c *FullConfig) FilePath() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-func (c *FullConfig) ProjectDir() string { return c.effectiveProjectDir() }
+	return c.filePath
+}
 
-// effectiveProjectDir returns the override project dir if set, otherwise derives
-// it from the config file path.
-func (c *FullConfig) effectiveProjectDir() string {
+func (c *FullConfig) ProjectDir() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.effectiveProjectDirLocked()
+}
+
+func (c *FullConfig) effectiveProjectDirLocked() string {
 	if c.projectDir != "" {
 		return c.projectDir
 	}
@@ -500,7 +519,10 @@ func (c *FullConfig) effectiveProjectDir() string {
 }
 
 func (c *FullConfig) resolveSourcePath() (string, error) {
-	projectDir := c.effectiveProjectDir()
+	c.mu.Lock()
+	projectDir := c.effectiveProjectDirLocked()
+	filePath := c.filePath
+	c.mu.Unlock()
 
 	if path, found, err := findLocalSettingsPath(projectDir); err != nil {
 		return "", err
@@ -508,7 +530,7 @@ func (c *FullConfig) resolveSourcePath() (string, error) {
 		return path, nil
 	}
 
-	if c.filePath == "" {
+	if filePath == "" {
 		path, err := SettingsPath()
 		if err != nil {
 			return "", err
@@ -517,7 +539,7 @@ func (c *FullConfig) resolveSourcePath() (string, error) {
 		return path, nil
 	}
 
-	return c.filePath, nil
+	return filePath, nil
 }
 
 // ProjectDirFromConfig returns the project root directory for a config file path.
@@ -581,7 +603,7 @@ func (c *FullConfig) ExtensionConfig(scope, name string, target any) error {
 	loader := Loader{
 		Data:      data,
 		EnvPrefix: envPrefix,
-		Args:      filterExtensionArgs(c.args, extensionFlagPrefixName(scope, name)),
+		Args:      filterExtensionArgs(c.extensionArgs(), extensionFlagPrefixName(scope, name)),
 	}
 
 	if loadErr := loader.Load(target); loadErr != nil {
@@ -610,6 +632,11 @@ func (c *FullConfig) ExtensionConfig(scope, name string, target any) error {
 func (c *FullConfig) existingConfigForPopulation(scope, name string) (map[string]any, error) {
 	paths := []string{}
 
+	c.mu.Lock()
+	filePath := c.filePath
+	projectDir := c.effectiveProjectDirLocked()
+	c.mu.Unlock()
+
 	globalPath, err := SettingsPath()
 	if err != nil {
 		return nil, fmt.Errorf("global settings path: %w", err)
@@ -617,13 +644,13 @@ func (c *FullConfig) existingConfigForPopulation(scope, name string) (map[string
 
 	paths = append(paths, globalPath)
 
-	if c.filePath != "" && c.filePath != globalPath {
-		paths = append(paths, c.filePath)
+	if filePath != "" && filePath != globalPath {
+		paths = append(paths, filePath)
 	}
 
-	if localPath, found, err := findLocalSettingsPath(c.effectiveProjectDir()); err != nil {
+	if localPath, found, err := findLocalSettingsPath(projectDir); err != nil {
 		return nil, err
-	} else if found && localPath != c.filePath {
+	} else if found && localPath != filePath {
 		paths = append(paths, localPath)
 	}
 
@@ -646,6 +673,13 @@ func (c *FullConfig) existingConfigForPopulation(scope, name string) (map[string
 	}
 
 	return configMapForScope(merged, scope, name)
+}
+
+func (c *FullConfig) extensionArgs() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return append([]string(nil), c.args...)
 }
 
 func extensionFlagPrefixName(scope, name string) string {
@@ -732,6 +766,85 @@ func toMapAny(raw any) (map[string]any, error) {
 	return result, nil
 }
 
+func toPatchMapAny(raw any) (map[string]any, error) {
+	if m, ok := raw.(map[string]any); ok {
+		return m, nil
+	}
+
+	result, err := toMapAny(raw)
+	if err != nil {
+		return nil, err
+	}
+
+	pruneZeroPatchFields(reflect.ValueOf(raw), result)
+
+	return result, nil
+}
+
+func pruneZeroPatchFields(value reflect.Value, data any) {
+	for value.Kind() == reflect.Pointer || value.Kind() == reflect.Interface {
+		if value.IsNil() {
+			return
+		}
+
+		value = value.Elem()
+	}
+
+	switch value.Kind() {
+	case reflect.Struct:
+		dataMap, ok := data.(map[string]any)
+		if !ok {
+			return
+		}
+
+		valueType := value.Type()
+		for i := range value.NumField() {
+			fieldInfo := valueType.Field(i)
+			if fieldInfo.PkgPath != "" {
+				continue
+			}
+
+			jsonTag := fieldInfo.Tag.Get("json")
+			if jsonTag == "-" {
+				continue
+			}
+
+			name := sdk.JSONFieldName(jsonTag, fieldInfo.Name)
+
+			field := value.Field(i)
+			if field.IsZero() {
+				delete(dataMap, name)
+				continue
+			}
+
+			pruneZeroPatchFields(field, dataMap[name])
+		}
+	case reflect.Map:
+		dataMap, ok := data.(map[string]any)
+		if !ok {
+			return
+		}
+
+		for _, key := range value.MapKeys() {
+			if key.Kind() != reflect.String {
+				continue
+			}
+
+			mapKey := key.String()
+
+			mapValue := value.MapIndex(key)
+			if mapValue.IsZero() {
+				delete(dataMap, mapKey)
+				continue
+			}
+
+			pruneZeroPatchFields(mapValue, dataMap[mapKey])
+		}
+	default:
+		return
+	}
+}
+
 func (c *FullConfig) IsHeadless() bool { return false }
 
 func (c *FullConfig) RespectGitignore() bool {
@@ -781,7 +894,7 @@ func (c *FullConfig) SaveExtensionConfig(scope, name string, target any) error {
 		return fmt.Errorf("resolve source settings: %w", err)
 	}
 
-	incoming, err := toMapAny(target)
+	incoming, err := toPatchMapAny(target)
 	if err != nil {
 		return fmt.Errorf("convert config for %s.%s: %w", scope, name, err)
 	}
@@ -811,18 +924,30 @@ func (c *FullConfig) SaveExtensionConfig(scope, name string, target any) error {
 		return fmt.Errorf("write settings: %w", err)
 	}
 
-	if sourcePath == c.filePath {
+	c.mu.Lock()
+	filePath := c.filePath
+	c.mu.Unlock()
+
+	var reloaded *Settings
+
+	if sourcePath == filePath {
 		settings, err := loadSettingsFile(sourcePath)
 		if err != nil {
 			return fmt.Errorf("reload settings: %w", err)
 		}
 
-		c.settings = settings
+		reloaded = settings
+	}
+
+	c.mu.Lock()
+	if reloaded != nil {
+		c.settings = reloaded
 	}
 
 	c.layeredOnce = sync.Once{}
 	c.layered = nil
 	c.layeredErr = nil
+	c.mu.Unlock()
 
 	return nil
 }

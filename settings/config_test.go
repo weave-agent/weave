@@ -845,6 +845,105 @@ func TestSaveExtensionConfig_PreservesFieldsAndDeepMergesGuardian(t *testing.T) 
 	require.Len(t, custom["rules"], 1)
 }
 
+func TestSaveExtensionConfig_GuardianStructPatchPreservesExistingScalars(t *testing.T) {
+	isolateHome(t)
+
+	askFallback := true
+	projectDir := t.TempDir()
+	projectPath := filepath.Join(projectDir, ".weave", "settings.json")
+	writeFile(t, projectDir, ".weave/settings.json", `{
+  "guardian": {
+    "profile": "custom",
+    "ask_fallback": true,
+    "profiles": {
+      "custom": {
+        "name": "custom",
+        "description": "existing description"
+      }
+    }
+  }
+}`)
+
+	cfg := &FullConfig{filePath: projectPath, settings: &Settings{
+		Guardian: GuardianFileConfig{Profile: "custom", AskFallback: &askFallback},
+	}}
+	require.NoError(t, cfg.SaveExtensionConfig(configScopeGuardian, "", GuardianFileConfig{
+		Profiles: map[string]sdk.GuardianProfile{
+			"custom": {
+				Rules: []sdk.GuardianProfileRule{
+					{Decision: sdk.GuardianDecisionAllow, Reason: "approved"},
+				},
+			},
+		},
+	}))
+
+	root, err := readSettingsMap(projectPath)
+	require.NoError(t, err)
+
+	guardian, ok := root[configScopeGuardian].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "custom", guardian["profile"])
+	assert.Equal(t, true, guardian["ask_fallback"])
+
+	profiles, ok := guardian["profiles"].(map[string]any)
+	require.True(t, ok)
+	custom, ok := profiles["custom"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "custom", custom["name"])
+	assert.Equal(t, "existing description", custom["description"])
+	require.Len(t, custom["rules"], 1)
+
+	var loaded GuardianFileConfig
+	require.NoError(t, cfg.ExtensionConfig(configScopeGuardian, "", &loaded))
+	assert.Equal(t, "custom", loaded.Profile)
+	require.NotNil(t, loaded.AskFallback)
+	assert.True(t, *loaded.AskFallback)
+	assert.Equal(t, "existing description", loaded.Profiles["custom"].Description)
+	assert.Equal(t, sdk.GuardianDecisionAllow, loaded.Profiles["custom"].Rules[0].Decision)
+}
+
+func TestSaveExtensionConfig_GuardianLocalPatchPreservesLayeredProfileFields(t *testing.T) {
+	isolateHome(t)
+
+	projectDir := t.TempDir()
+	projectPath := filepath.Join(projectDir, ".weave", "settings.json")
+	writeFile(t, projectDir, ".weave/settings.json", `{
+  "guardian": {
+    "profile": "custom",
+    "profiles": {
+      "custom": {
+        "name": "custom",
+        "description": "project description",
+        "metadata": {"owner": "platform"}
+      }
+    }
+  }
+}`)
+	writeFile(t, projectDir, ".weave/settings.local.json", `{}`)
+
+	cfg, err := LoadFullConfig(projectPath)
+	require.NoError(t, err)
+	require.NoError(t, cfg.SaveExtensionConfig(configScopeGuardian, "", map[string]any{
+		"profiles": map[string]any{
+			"custom": map[string]any{
+				"rules": []map[string]any{
+					{"decision": "allow", "reason": "approved"},
+				},
+			},
+		},
+	}))
+
+	var loaded GuardianFileConfig
+	require.NoError(t, cfg.ExtensionConfig(configScopeGuardian, "", &loaded))
+
+	custom := loaded.Profiles["custom"]
+	assert.Equal(t, "custom", custom.Name)
+	assert.Equal(t, "project description", custom.Description)
+	assert.Equal(t, map[string]any{"owner": "platform"}, custom.Metadata)
+	require.Len(t, custom.Rules, 1)
+	assert.Equal(t, sdk.GuardianDecisionAllow, custom.Rules[0].Decision)
+}
+
 func TestSaveExtensionConfig_NamedScopeAndUnknownScope(t *testing.T) {
 	isolateHome(t)
 
