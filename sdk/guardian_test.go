@@ -128,9 +128,10 @@ func TestGuardianPayloadsJSONRoundTrip(t *testing.T) {
 					},
 				},
 				Resolution: GuardianResolution{
-					Action: GuardianResolutionAllow,
-					Scope:  GuardianGrantScopeSession,
-					Reason: "approved",
+					Action:    GuardianResolutionAllow,
+					Scope:     GuardianGrantScopeSession,
+					RuleScope: GuardianProfileRuleScopeExactCommand,
+					Reason:    "approved",
 				},
 			},
 		},
@@ -193,6 +194,7 @@ func TestGuardianPayloadsJSONRoundTrip(t *testing.T) {
 				"resolution": {
 					"action": "allow",
 					"scope": "session",
+					"rule_scope": "exact_command",
 					"reason": "approved"
 				}
 			}
@@ -260,6 +262,7 @@ func TestGuardianPayloadsJSONRoundTrip(t *testing.T) {
 				"resolution": {
 					"action": "allow",
 					"scope": "session",
+					"rule_scope": "exact_command",
 					"reason": "approved"
 				}
 			}
@@ -288,8 +291,41 @@ func TestGuardianPayloadsJSONRoundTrip(t *testing.T) {
 	require.Len(t, got.Grants, 1)
 	assert.Equal(t, GuardianActionExec, got.Grants[0].Request.Action)
 	assert.Equal(t, GuardianGrantScopeSession, got.Grants[0].Resolution.Scope)
+	assert.Equal(t, GuardianProfileRuleScopeExactCommand, got.Grants[0].Resolution.RuleScope)
 	require.Len(t, got.Pending, 1)
 	assert.Equal(t, []GuardianGrantScope{GuardianGrantScopeOnce, GuardianGrantScopeSession}, got.Pending[0].AllowedScopes)
+}
+
+func TestGuardianProfileRuleScopeConstants(t *testing.T) {
+	assert.Equal(t, GuardianProfileRuleScope("exact_file"), GuardianProfileRuleScopeExactFile)
+	assert.Equal(t, GuardianProfileRuleScope("directory"), GuardianProfileRuleScopeDirectory)
+	assert.Equal(t, GuardianProfileRuleScope("project"), GuardianProfileRuleScopeProject)
+	assert.Equal(t, GuardianProfileRuleScope("exact_command"), GuardianProfileRuleScopeExactCommand)
+	assert.Equal(t, GuardianProfileRuleScope("command_prefix"), GuardianProfileRuleScopeCommandPrefix)
+	assert.Equal(t, GuardianProfileRuleScope("command_family"), GuardianProfileRuleScopeCommandFamily)
+	assert.Equal(t, GuardianProfileRuleScope("network_host"), GuardianProfileRuleScopeNetworkHost)
+	assert.Equal(t, GuardianProfileRuleScope("action_type"), GuardianProfileRuleScopeActionType)
+}
+
+func TestGuardianResolutionDefaultRuleScopeOmitted(t *testing.T) {
+	data, err := json.Marshal(GuardianResolution{
+		Action: GuardianResolutionAllow,
+		Scope:  GuardianGrantScopeProfile,
+	})
+	require.NoError(t, err)
+	assert.JSONEq(t, `{
+		"action": "allow",
+		"scope": "profile"
+	}`, string(data))
+
+	var got GuardianResolution
+	require.NoError(t, json.Unmarshal([]byte(`{
+		"action": "allow",
+		"scope": "profile"
+	}`), &got))
+	assert.Equal(t, GuardianResolutionAllow, got.Action)
+	assert.Equal(t, GuardianGrantScopeProfile, got.Scope)
+	assert.Empty(t, got.RuleScope)
 }
 
 func TestGuardianSnapshotZeroValueJSONCompatibility(t *testing.T) {

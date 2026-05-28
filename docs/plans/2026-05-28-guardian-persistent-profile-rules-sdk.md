@@ -51,11 +51,11 @@
 ## Implementation Steps
 
 ### Task 1: Add shared Guardian profile rule scope to SDK
-- [ ] add `GuardianProfileRuleScope` type and constants in `sdk/guardian.go` for exact file, directory, project, exact command, command prefix, command family, network host, and action type scopes
-- [ ] add `RuleScope GuardianProfileRuleScope` to `sdk.GuardianResolution` with an `omitempty` JSON tag
-- [ ] update SDK tests in `sdk/guardian_test.go` for JSON compatibility and topic/type expectations
-- [ ] write tests for empty/default rule scope behavior
-- [ ] run `go test ./sdk` - must pass before next task
+- [x] add `GuardianProfileRuleScope` type and constants in `sdk/guardian.go` for exact file, directory, project, exact command, command prefix, command family, network host, and action type scopes
+- [x] add `RuleScope GuardianProfileRuleScope` to `sdk.GuardianResolution` with an `omitempty` JSON tag
+- [x] update SDK tests in `sdk/guardian_test.go` for JSON compatibility and topic/type expectations
+- [x] write tests for empty/default rule scope behavior
+- [x] run `go test ./sdk` - must pass before next task
 
 ### Task 2: Add active-layer scoped config saving
 - [ ] add an optional SDK interface such as `ExtensionConfigWriter` with `SaveExtensionConfig(scope, name string, target any) error` in `sdk/config.go`

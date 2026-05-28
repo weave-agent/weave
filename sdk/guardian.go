@@ -77,6 +77,19 @@ const (
 	GuardianGrantScopeProfile GuardianGrantScope = "profile"
 )
 
+type GuardianProfileRuleScope string
+
+const (
+	GuardianProfileRuleScopeExactFile     GuardianProfileRuleScope = "exact_file"
+	GuardianProfileRuleScopeDirectory     GuardianProfileRuleScope = "directory"
+	GuardianProfileRuleScopeProject       GuardianProfileRuleScope = "project"
+	GuardianProfileRuleScopeExactCommand  GuardianProfileRuleScope = "exact_command"
+	GuardianProfileRuleScopeCommandPrefix GuardianProfileRuleScope = "command_prefix"
+	GuardianProfileRuleScopeCommandFamily GuardianProfileRuleScope = "command_family"
+	GuardianProfileRuleScopeNetworkHost   GuardianProfileRuleScope = "network_host"
+	GuardianProfileRuleScopeActionType    GuardianProfileRuleScope = "action_type"
+)
+
 // Guardian decides whether requested tool actions may run. Extensions register
 // a Guardian by publishing GuardianRegisteredTopic with the Guardian as payload.
 type Guardian interface {
@@ -121,9 +134,10 @@ type GuardianApprovalRequest struct {
 }
 
 type GuardianResolution struct {
-	Action GuardianResolutionAction `json:"action"`
-	Scope  GuardianGrantScope       `json:"scope,omitempty"`
-	Reason string                   `json:"reason,omitempty"`
+	Action    GuardianResolutionAction `json:"action"`
+	Scope     GuardianGrantScope       `json:"scope,omitempty"`
+	RuleScope GuardianProfileRuleScope `json:"rule_scope,omitempty"`
+	Reason    string                   `json:"reason,omitempty"`
 }
 
 type GuardianApprovalResolution struct {
