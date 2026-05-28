@@ -209,6 +209,37 @@ func TestMergeSettings_GuardianProfilesMergeByName(t *testing.T) {
 	assert.Equal(t, sdk.GuardianDecisionAsk, result.Guardian.Profiles["team"].Rules[0].Decision)
 }
 
+func TestMergeSettings_GuardianProfileLayerReplacesRules(t *testing.T) {
+	global := &Settings{
+		Guardian: GuardianFileConfig{
+			Profiles: map[string]sdk.GuardianProfile{
+				"team": {
+					Name: "team",
+					Rules: []sdk.GuardianProfileRule{
+						{Actions: []sdk.GuardianAction{sdk.GuardianActionRead}, Decision: sdk.GuardianDecisionAllow},
+					},
+				},
+			},
+		},
+	}
+	local := &Settings{
+		Guardian: GuardianFileConfig{
+			Profiles: map[string]sdk.GuardianProfile{
+				"team": {
+					Name:        "team",
+					Description: "local team profile",
+				},
+			},
+		},
+	}
+
+	result := MergeSettings(global, local)
+
+	require.Contains(t, result.Guardian.Profiles, "team")
+	assert.Equal(t, "local team profile", result.Guardian.Profiles["team"].Description)
+	assert.Nil(t, result.Guardian.Profiles["team"].Rules)
+}
+
 func TestMergeSettings_SandboxContainmentSettings(t *testing.T) {
 	enabled := true
 	failUnavailable := true

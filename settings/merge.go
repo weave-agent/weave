@@ -135,46 +135,8 @@ func mergeGuardian(result, layer *Settings) {
 			result.Guardian.Profiles = make(map[string]sdk.GuardianProfile, len(layer.Guardian.Profiles))
 		}
 
-		for name, profile := range layer.Guardian.Profiles {
-			if existing, ok := result.Guardian.Profiles[name]; ok {
-				result.Guardian.Profiles[name] = mergeGuardianProfile(existing, profile)
-			} else {
-				result.Guardian.Profiles[name] = profile
-			}
-		}
+		maps.Copy(result.Guardian.Profiles, layer.Guardian.Profiles)
 	}
-}
-
-func mergeGuardianProfile(existing, incoming sdk.GuardianProfile) sdk.GuardianProfile {
-	result := existing
-
-	if incoming.Name != "" {
-		result.Name = incoming.Name
-	}
-
-	if incoming.Description != "" {
-		result.Description = incoming.Description
-	}
-
-	if incoming.Rules != nil {
-		result.Rules = incoming.Rules
-	}
-
-	if incoming.Metadata != nil {
-		if result.Metadata == nil {
-			result.Metadata = make(map[string]any, len(incoming.Metadata))
-		}
-
-		for k, v := range incoming.Metadata {
-			if existingValue, ok := result.Metadata[k]; ok {
-				result.Metadata[k] = deepMergeValues(existingValue, v)
-			} else {
-				result.Metadata[k] = v
-			}
-		}
-	}
-
-	return result
 }
 
 func mergeSandbox(result, layer *Settings) {

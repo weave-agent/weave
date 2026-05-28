@@ -845,7 +845,7 @@ func TestSaveExtensionConfig_PreservesFieldsAndDeepMergesGuardian(t *testing.T) 
 	require.Len(t, custom["rules"], 1)
 }
 
-func TestSaveExtensionConfig_GuardianStructPatchPreservesExistingScalars(t *testing.T) {
+func TestSaveExtensionConfig_GuardianFullStructWritesNestedProfileFields(t *testing.T) {
 	isolateHome(t)
 
 	askFallback := true
@@ -868,8 +868,12 @@ func TestSaveExtensionConfig_GuardianStructPatchPreservesExistingScalars(t *test
 		Guardian: GuardianFileConfig{Profile: "custom", AskFallback: &askFallback},
 	}}
 	require.NoError(t, cfg.SaveExtensionConfig(configScopeGuardian, "", GuardianFileConfig{
+		Profile:     "custom",
+		AskFallback: &askFallback,
 		Profiles: map[string]sdk.GuardianProfile{
 			"custom": {
+				Name:        "custom",
+				Description: "updated description",
 				Rules: []sdk.GuardianProfileRule{
 					{Decision: sdk.GuardianDecisionAllow, Reason: "approved"},
 				},
@@ -890,7 +894,7 @@ func TestSaveExtensionConfig_GuardianStructPatchPreservesExistingScalars(t *test
 	custom, ok := profiles["custom"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "custom", custom["name"])
-	assert.Equal(t, "existing description", custom["description"])
+	assert.Equal(t, "updated description", custom["description"])
 	require.Len(t, custom["rules"], 1)
 
 	var loaded GuardianFileConfig
@@ -898,8 +902,42 @@ func TestSaveExtensionConfig_GuardianStructPatchPreservesExistingScalars(t *test
 	assert.Equal(t, "custom", loaded.Profile)
 	require.NotNil(t, loaded.AskFallback)
 	assert.True(t, *loaded.AskFallback)
-	assert.Equal(t, "existing description", loaded.Profiles["custom"].Description)
+	assert.Equal(t, "updated description", loaded.Profiles["custom"].Description)
 	assert.Equal(t, sdk.GuardianDecisionAllow, loaded.Profiles["custom"].Rules[0].Decision)
+}
+
+func TestSaveExtensionConfig_TypedConfigCanPersistZeroValues(t *testing.T) {
+	isolateHome(t)
+
+	projectDir := t.TempDir()
+	projectPath := filepath.Join(projectDir, ".weave", "settings.json")
+	writeFile(t, projectDir, ".weave/settings.json", `{
+  "tools": {
+    "bash": {"timeout": 120, "enabled": true, "label": "keep"}
+  }
+}`)
+
+	cfg := &FullConfig{filePath: projectPath, settings: &Settings{}}
+	require.NoError(t, cfg.SaveExtensionConfig(configScopeTools, "bash", struct {
+		Timeout int    `json:"timeout"`
+		Enabled bool   `json:"enabled"`
+		Label   string `json:"label"`
+	}{
+		Timeout: 0,
+		Enabled: false,
+		Label:   "",
+	}))
+
+	root, err := readSettingsMap(projectPath)
+	require.NoError(t, err)
+
+	tools, ok := root[configScopeTools].(map[string]any)
+	require.True(t, ok)
+	bash, ok := tools["bash"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, json.Number("0"), bash["timeout"])
+	assert.Equal(t, false, bash["enabled"])
+	assert.Empty(t, bash["label"])
 }
 
 func TestSaveExtensionConfig_GuardianLocalPatchPreservesLayeredProfileFields(t *testing.T) {

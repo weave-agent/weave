@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"sync"
 
@@ -766,85 +765,6 @@ func toMapAny(raw any) (map[string]any, error) {
 	return result, nil
 }
 
-func toPatchMapAny(raw any) (map[string]any, error) {
-	if m, ok := raw.(map[string]any); ok {
-		return m, nil
-	}
-
-	result, err := toMapAny(raw)
-	if err != nil {
-		return nil, err
-	}
-
-	pruneZeroPatchFields(reflect.ValueOf(raw), result)
-
-	return result, nil
-}
-
-func pruneZeroPatchFields(value reflect.Value, data any) {
-	for value.Kind() == reflect.Pointer || value.Kind() == reflect.Interface {
-		if value.IsNil() {
-			return
-		}
-
-		value = value.Elem()
-	}
-
-	switch value.Kind() {
-	case reflect.Struct:
-		dataMap, ok := data.(map[string]any)
-		if !ok {
-			return
-		}
-
-		valueType := value.Type()
-		for i := range value.NumField() {
-			fieldInfo := valueType.Field(i)
-			if fieldInfo.PkgPath != "" {
-				continue
-			}
-
-			jsonTag := fieldInfo.Tag.Get("json")
-			if jsonTag == "-" {
-				continue
-			}
-
-			name := sdk.JSONFieldName(jsonTag, fieldInfo.Name)
-
-			field := value.Field(i)
-			if field.IsZero() {
-				delete(dataMap, name)
-				continue
-			}
-
-			pruneZeroPatchFields(field, dataMap[name])
-		}
-	case reflect.Map:
-		dataMap, ok := data.(map[string]any)
-		if !ok {
-			return
-		}
-
-		for _, key := range value.MapKeys() {
-			if key.Kind() != reflect.String {
-				continue
-			}
-
-			mapKey := key.String()
-
-			mapValue := value.MapIndex(key)
-			if mapValue.IsZero() {
-				delete(dataMap, mapKey)
-				continue
-			}
-
-			pruneZeroPatchFields(mapValue, dataMap[mapKey])
-		}
-	default:
-		return
-	}
-}
-
 func (c *FullConfig) IsHeadless() bool { return false }
 
 func (c *FullConfig) RespectGitignore() bool {
@@ -894,9 +814,14 @@ func (c *FullConfig) SaveExtensionConfig(scope, name string, target any) error {
 		return fmt.Errorf("resolve source settings: %w", err)
 	}
 
-	incoming, err := toPatchMapAny(target)
+	incoming, err := toMapAny(target)
 	if err != nil {
 		return fmt.Errorf("convert config for %s.%s: %w", scope, name, err)
+	}
+
+	incoming, err = c.prepareExtensionConfigSave(scope, name, incoming)
+	if err != nil {
+		return err
 	}
 
 	saveSettingsMu.Lock()
@@ -950,6 +875,24 @@ func (c *FullConfig) SaveExtensionConfig(scope, name string, target any) error {
 	c.mu.Unlock()
 
 	return nil
+}
+
+func (c *FullConfig) prepareExtensionConfigSave(scope, name string, incoming map[string]any) (map[string]any, error) {
+	if scope != configScopeGuardian {
+		return incoming, nil
+	}
+
+	existing, err := c.existingConfigForPopulation(scope, name)
+	if err != nil {
+		return nil, fmt.Errorf("load existing config for %s.%s: %w", scope, name, err)
+	}
+
+	merged, ok := deepMergeValues(existing, incoming).(map[string]any)
+	if !ok {
+		return incoming, nil
+	}
+
+	return merged, nil
 }
 
 func saveConfigForScope(root map[string]any, scope, name string, incoming map[string]any) error {
