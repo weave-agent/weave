@@ -940,7 +940,7 @@ func TestSaveExtensionConfig_TypedConfigCanPersistZeroValues(t *testing.T) {
 	assert.Empty(t, bash["label"])
 }
 
-func TestSaveExtensionConfig_GuardianLocalPatchPreservesLayeredProfileFields(t *testing.T) {
+func TestSaveExtensionConfig_GuardianLocalPatchDoesNotCopyLayeredProfileFields(t *testing.T) {
 	isolateHome(t)
 
 	projectDir := t.TempDir()
@@ -971,13 +971,27 @@ func TestSaveExtensionConfig_GuardianLocalPatchPreservesLayeredProfileFields(t *
 		},
 	}))
 
+	localRoot, err := readSettingsMap(filepath.Join(projectDir, ".weave", "settings.local.json"))
+	require.NoError(t, err)
+
+	localGuardian, ok := localRoot[configScopeGuardian].(map[string]any)
+	require.True(t, ok)
+	localProfiles, ok := localGuardian["profiles"].(map[string]any)
+	require.True(t, ok)
+	localCustom, ok := localProfiles["custom"].(map[string]any)
+	require.True(t, ok)
+	assert.NotContains(t, localCustom, "name")
+	assert.NotContains(t, localCustom, "description")
+	assert.NotContains(t, localCustom, "metadata")
+	require.Len(t, localCustom["rules"], 1)
+
 	var loaded GuardianFileConfig
 	require.NoError(t, cfg.ExtensionConfig(configScopeGuardian, "", &loaded))
 
 	custom := loaded.Profiles["custom"]
-	assert.Equal(t, "custom", custom.Name)
-	assert.Equal(t, "project description", custom.Description)
-	assert.Equal(t, map[string]any{"owner": "platform"}, custom.Metadata)
+	assert.Empty(t, custom.Name)
+	assert.Empty(t, custom.Description)
+	assert.Empty(t, custom.Metadata)
 	require.Len(t, custom.Rules, 1)
 	assert.Equal(t, sdk.GuardianDecisionAllow, custom.Rules[0].Decision)
 }
