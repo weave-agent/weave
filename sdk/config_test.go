@@ -31,10 +31,9 @@ func TestNoopPreferenceStore_ImplementsAllInterfaces(t *testing.T) {
 	noop := NoopPreferenceStore{}
 
 	var (
-		_ PreferenceReader      = noop
-		_ PreferenceWriter      = noop
-		_ PreferenceStore       = noop
-		_ ExtensionConfigWriter = noop
+		_ PreferenceReader = noop
+		_ PreferenceWriter = noop
+		_ PreferenceStore  = noop
 	)
 }
 
@@ -58,12 +57,6 @@ func TestPreferenceWriter_HasSaveMethods(t *testing.T) {
 
 	assert.NoError(t, writer.SavePreferences(&struct{}{}))
 	assert.NoError(t, writer.SaveProviderKey("test", "key"))
-}
-
-func TestNoopPreferenceStore_SaveExtensionConfig(t *testing.T) {
-	var writer ExtensionConfigWriter = NoopPreferenceStore{}
-
-	assert.NoError(t, writer.SaveExtensionConfig("guardian", "", &struct{}{}))
 }
 
 func TestRegisterTool_ReceivesPreferenceReader(t *testing.T) {
@@ -169,11 +162,16 @@ func TestAsPreferenceWriter_FallsBackToDirectAssertion(t *testing.T) {
 }
 
 func TestAsPreferenceWriter_ReturnsFalseForNoopReader(t *testing.T) {
-	// NoopPreferenceStore implements PreferenceWriter, so asPreferenceWriter
-	// should succeed even through the wrapper.
 	trueReader := preferenceReaderOnly{pr: NoopPreferenceStore{}}
 	_, ok := asPreferenceWriter(trueReader)
-	assert.True(t, ok) // NoopPreferenceStore implements PreferenceWriter
+	assert.True(t, ok)
+}
+
+func TestHeadlessConfig_SaveExtensionConfigUnavailable(t *testing.T) {
+	cfg := HeadlessConfig{Config: NoopConfig{}, Headless: true}
+
+	err := cfg.SaveExtensionConfig("guardian", "", &struct{}{})
+	require.ErrorIs(t, err, ErrExtensionConfigWriterUnavailable)
 }
 
 func TestRegisterTool_ConfigCannotAssertWriter(t *testing.T) {
@@ -232,7 +230,11 @@ func TestRegisterExtension_ConfigCannotAssertExtensionConfigWriter(t *testing.T)
 
 func assertImplementsConfig(_ Config) {}
 
-type mockPrefStoreConfig struct{}
+type mockPrefStoreConfig struct {
+	savedExtensionScope  string
+	savedExtensionName   string
+	savedExtensionTarget any
+}
 
 func (m *mockPrefStoreConfig) FilePath() string                         { return "" }
 func (m *mockPrefStoreConfig) ProjectDir() string                       { return "" }
@@ -242,7 +244,11 @@ func (m *mockPrefStoreConfig) RespectGitignore() bool                   { return
 func (m *mockPrefStoreConfig) Preferences(any) error                    { return nil }
 func (m *mockPrefStoreConfig) SavePreferences(any) error                { return nil }
 func (m *mockPrefStoreConfig) SaveProviderKey(_, _ string) error        { return nil }
-func (m *mockPrefStoreConfig) SaveExtensionConfig(_, _ string, _ any) error {
+func (m *mockPrefStoreConfig) SaveExtensionConfig(scope, name string, target any) error {
+	m.savedExtensionScope = scope
+	m.savedExtensionName = name
+	m.savedExtensionTarget = target
+
 	return nil
 }
 

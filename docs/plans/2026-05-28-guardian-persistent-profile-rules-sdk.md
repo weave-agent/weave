@@ -78,6 +78,7 @@
 ### Task 4: Update documentation
 - [x] update `sdk/guardian.go` type comments if new exported values require clarification
 - [x] update project context docs if a new scoped writer API becomes a framework pattern
+- [x] update README extension documentation for `sdk.ExtensionConfigWriter`, `SaveExtensionConfig`, and `GuardianResolution.RuleScope`
 
 ## Technical Details
 - Prefer an optional writer interface instead of adding methods directly to `PreferenceWriter` to avoid breaking existing implementations.

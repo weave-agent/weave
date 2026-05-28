@@ -471,6 +471,14 @@ func writeFile(t *testing.T, dir, name, content string) {
 	}
 }
 
+func assertFileContent(t *testing.T, path, want string) {
+	t.Helper()
+
+	got, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, want, string(got))
+}
+
 func mkdir(t *testing.T, path string) {
 	t.Helper()
 
@@ -714,7 +722,8 @@ func TestSaveExtensionConfig_GuardianActiveSourcePaths(t *testing.T) {
 		writeFile(t, projectDir, ".weave/settings.json", `{"guardian":{"profile":"ask"}}`)
 		writeFile(t, projectDir, ".weave/settings.local.json", `{"provider":"anthropic"}`)
 
-		cfg := &FullConfig{filePath: projectPath, settings: &Settings{}}
+		cfg, err := LoadFullConfig(projectPath)
+		require.NoError(t, err)
 		require.NoError(t, cfg.SaveExtensionConfig(configScopeGuardian, "", GuardianFileConfig{Profile: "custom"}))
 
 		localRoot, err := readSettingsMap(localPath)
@@ -731,6 +740,10 @@ func TestSaveExtensionConfig_GuardianActiveSourcePaths(t *testing.T) {
 		projectGuardian, ok := projectRoot[configScopeGuardian].(map[string]any)
 		require.True(t, ok)
 		assert.Equal(t, "ask", projectGuardian["profile"])
+
+		var loaded GuardianFileConfig
+		require.NoError(t, cfg.ExtensionConfig(configScopeGuardian, "", &loaded))
+		assert.Equal(t, "custom", loaded.Profile)
 	})
 
 	t.Run("project", func(t *testing.T) {
@@ -740,7 +753,8 @@ func TestSaveExtensionConfig_GuardianActiveSourcePaths(t *testing.T) {
 		projectPath := filepath.Join(projectDir, ".weave", "settings.json")
 		writeFile(t, projectDir, ".weave/settings.json", `{"model":"opus"}`)
 
-		cfg := &FullConfig{filePath: projectPath, settings: &Settings{}}
+		cfg, err := LoadFullConfig(projectPath)
+		require.NoError(t, err)
 		require.NoError(t, cfg.SaveExtensionConfig(configScopeGuardian, "", GuardianFileConfig{Profile: "auto"}))
 
 		root, err := readSettingsMap(projectPath)
@@ -750,6 +764,10 @@ func TestSaveExtensionConfig_GuardianActiveSourcePaths(t *testing.T) {
 		require.True(t, ok)
 		assert.Equal(t, "auto", guardian["profile"])
 		assert.Equal(t, "opus", root["model"])
+
+		var loaded GuardianFileConfig
+		require.NoError(t, cfg.ExtensionConfig(configScopeGuardian, "", &loaded))
+		assert.Equal(t, "auto", loaded.Profile)
 	})
 
 	t.Run("global", func(t *testing.T) {
@@ -766,6 +784,10 @@ func TestSaveExtensionConfig_GuardianActiveSourcePaths(t *testing.T) {
 		guardian, ok := root[configScopeGuardian].(map[string]any)
 		require.True(t, ok)
 		assert.Equal(t, "yolo", guardian["profile"])
+
+		var loaded GuardianFileConfig
+		require.NoError(t, cfg.ExtensionConfig(configScopeGuardian, "", &loaded))
+		assert.Equal(t, "yolo", loaded.Profile)
 	})
 }
 
@@ -856,6 +878,38 @@ func TestSaveExtensionConfig_NamedScopeAndUnknownScope(t *testing.T) {
 	err = cfg.SaveExtensionConfig("unknown", "", map[string]any{"enabled": true})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `unknown config scope "unknown"`)
+}
+
+func TestSaveExtensionConfig_InvalidSettingsShapes(t *testing.T) {
+	t.Run("malformed JSON", func(t *testing.T) {
+		isolateHome(t)
+
+		projectDir := t.TempDir()
+		projectPath := filepath.Join(projectDir, ".weave", "settings.json")
+		original := `{"tools":`
+		writeFile(t, projectDir, ".weave/settings.json", original)
+
+		cfg := &FullConfig{filePath: projectPath, settings: &Settings{}}
+		err := cfg.SaveExtensionConfig(configScopeTools, "bash", map[string]any{"timeout": 60})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "read source settings")
+		assertFileContent(t, projectPath, original)
+	})
+
+	t.Run("scope is not object", func(t *testing.T) {
+		isolateHome(t)
+
+		projectDir := t.TempDir()
+		projectPath := filepath.Join(projectDir, ".weave", "settings.json")
+		original := `{"tools":"bad"}`
+		writeFile(t, projectDir, ".weave/settings.json", original)
+
+		cfg := &FullConfig{filePath: projectPath, settings: &Settings{}}
+		err := cfg.SaveExtensionConfig(configScopeTools, "bash", map[string]any{"timeout": 60})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `config key "tools" must be an object`)
+		assertFileContent(t, projectPath, original)
+	})
 }
 
 func TestRespectGitignore_DefaultTrue(t *testing.T) {

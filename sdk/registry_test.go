@@ -107,6 +107,8 @@ func TestExtensionRegistered(t *testing.T) {
 func TestRegisterExtensionWithScopeAndWriter_ReceivesPreferenceWriter(t *testing.T) {
 	ResetExtensionRegistry()
 
+	cfg := &mockPrefStoreConfig{}
+
 	var receivedWriter PreferenceWriter
 
 	RegisterExtensionWithScopeAndWriter[struct{}]("privileged", "extensions", func(_ Config, pw PreferenceWriter, _ struct{}) (Extension, error) {
@@ -114,11 +116,20 @@ func TestRegisterExtensionWithScopeAndWriter_ReceivesPreferenceWriter(t *testing
 		return NewExtensionFunc("privileged", nil), nil
 	})
 
-	ext, err := GetExtension("privileged", &mockPrefStoreConfig{})
+	ext, err := GetExtension("privileged", cfg)
 	require.NoError(t, err)
 	assert.Equal(t, "privileged", ext.Name())
 	assert.NotNil(t, receivedWriter)
-	assert.NoError(t, receivedWriter.SaveProviderKey("test", "key"))
+	require.NoError(t, receivedWriter.SaveProviderKey("test", "key"))
+
+	extensionWriter, ok := receivedWriter.(ExtensionConfigWriter)
+	require.True(t, ok, "privileged writer should expose scoped extension config writes")
+
+	target := map[string]any{"enabled": true}
+	require.NoError(t, extensionWriter.SaveExtensionConfig("extensions", "privileged", target))
+	assert.Equal(t, "extensions", cfg.savedExtensionScope)
+	assert.Equal(t, "privileged", cfg.savedExtensionName)
+	assert.Equal(t, target, cfg.savedExtensionTarget)
 }
 
 func TestRegisterExtensionWithScopeAndWriter_FallsBackToNoop(t *testing.T) {
@@ -134,4 +145,7 @@ func TestRegisterExtensionWithScopeAndWriter_FallsBackToNoop(t *testing.T) {
 	_, err := GetExtension("fallback", nil)
 	require.NoError(t, err)
 	assert.NotNil(t, receivedWriter)
+
+	_, ok := receivedWriter.(ExtensionConfigWriter)
+	assert.False(t, ok, "fallback writer should not claim scoped config write support")
 }

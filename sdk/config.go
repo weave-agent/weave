@@ -1,5 +1,7 @@
 package sdk
 
+import "errors"
+
 //go:generate moq -fmt goimports -stub -out config_mock_test.go . Config
 
 // Config carries configuration data into extension factories.
@@ -32,6 +34,8 @@ type ExtensionConfigWriter interface {
 	SaveExtensionConfig(scope, name string, target any) error
 }
 
+var ErrExtensionConfigWriterUnavailable = errors.New("extension config writer unavailable")
+
 // PreferenceStore is the full interface for backward compatibility.
 type PreferenceStore interface {
 	PreferenceWriter
@@ -52,9 +56,6 @@ type NoopPreferenceStore struct{}
 func (NoopPreferenceStore) Preferences(any) error             { return nil }
 func (NoopPreferenceStore) SavePreferences(any) error         { return nil }
 func (NoopPreferenceStore) SaveProviderKey(_, _ string) error { return nil }
-func (NoopPreferenceStore) SaveExtensionConfig(_, _ string, _ any) error {
-	return nil
-}
 
 // FilePathConfig is a Config that returns the given path from FilePath().
 type FilePathConfig string
@@ -172,5 +173,5 @@ func (h HeadlessConfig) SaveExtensionConfig(scope, name string, target any) erro
 		return writer.SaveExtensionConfig(scope, name, target) //nolint:wrapcheck // transparent delegation
 	}
 
-	return NoopPreferenceStore{}.SaveExtensionConfig(scope, name, target)
+	return ErrExtensionConfigWriterUnavailable
 }

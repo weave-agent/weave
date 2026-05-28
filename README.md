@@ -259,6 +259,8 @@ sdk.RegisterTUIExtension("my-tui", NewTUI)
 
 Config structs registered through `sdk.RegisterExtension`, `sdk.RegisterTool`, `sdk.RegisterProvider`, or `sdk.RegisterUIExtension` should use `json`, `default`, `env`, `flag`, and `description` tags. `default` values are loaded at runtime and are also auto-written into settings files when absent. `sdk.GetSchemaInfo(scope, name)` returns the registered schema plus the original config `reflect.Type`; `sdk.GetSchema` remains available when only the schema is needed.
 
+Privileged extensions that need to persist scoped configuration should register with `sdk.RegisterExtensionWithScopeAndWriter` and type-assert the received writer to `sdk.ExtensionConfigWriter`. `SaveExtensionConfig(scope, name, target)` writes only the scoped subtree to the active settings layer: singleton scopes such as `guardian`, `sandbox`, `ui`, and `jsonl` write at the root key, while named scopes such as `tools`, `providers`, `extensions`, and `ui_extensions` write under `scope.name`.
+
 ### Provider Context Accounting
 
 Providers stream response usage through `sdk.ProviderUsage` on `sdk.ProviderEventUsage`.
@@ -284,6 +286,7 @@ arithmetic; policy decisions such as compaction stay in the agent extension.
 - Event payload types must live in `sdk/`
 - Guardian policy integrations use `sdk.Guardian` and guardian event topics; sandbox containment integrations use `sdk.Sandboxer` and sandbox event topics
 - Guardian policy overlays are runtime-only policy layers for trusted extensions. Publish `sdk.GuardianPolicyOverlay` on `guardian.policy.overlay.push` to add or replace an overlay, and `sdk.GuardianPolicyOverlayPop` on `guardian.policy.overlay.pop` to remove one by ID. Active overlays are exposed through `GuardianSnapshot.Overlays`. Overlays do not create user-visible profiles; `OverrideHardBlocks` is an explicit trusted-extension contract, not a security boundary
+- Profile-scoped Guardian approval resolutions may set `GuardianResolution.RuleScope` to request persistence intent such as exact file, directory, project, exact command, command prefix, command family, network host, or action type. This is intent metadata only; Guardian normalizes it into concrete persisted profile rules
 - Provider context accounting should use shared SDK contracts: providers stream response totals with `sdk.ProviderUsage`, may optionally implement `sdk.TokenCounter` for preflight request counts, and should expose provider-neutral budget math through `sdk.ContextBudgetSnapshot`
 - Approval and sandbox expansion flows are ID-based; do not match requests or resolutions by command string
 - `sdk.Guardian` exposes `Decide`, `Resolve`, and `Snapshot`; key topics include `guardian.registered`, `guardian.approval.request`, `guardian.approval.resolution`, and `guardian.profile.change`
@@ -300,7 +303,7 @@ Providers declare an auth struct with `json` and `env` tags, then register with 
 
 | Package | Description |
 |---|---|
-| `sdk/` | Public API — `Extension`, `Bus`, `Config`, `UI`, `Provider`, `Tool`, `Guardian`, `Sandboxer` interfaces; optional `TokenCounter`; provider usage, token count, and context budget accounting types; global registries and schema metadata; guardian/sandbox event topics; `Logger(name)`; auth helpers |
+| `sdk/` | Public API — `Extension`, `Bus`, `Config`, `UI`, `Provider`, `Tool`, `Guardian`, `Sandboxer` interfaces; optional `ExtensionConfigWriter` and `TokenCounter`; provider usage, token count, and context budget accounting types; global registries and schema metadata; guardian/sandbox event topics; `Logger(name)`; auth helpers |
 | `sdk/model/` | Model types, model registry, `StreamOptions` |
 | `sdk/registry/` | Generic `Registry[T]` used by all registries |
 | `sdk/providerhttp/` | Provider HTTP transport config and client factory |

@@ -811,6 +811,15 @@ func (c *FullConfig) SaveExtensionConfig(scope, name string, target any) error {
 		return fmt.Errorf("write settings: %w", err)
 	}
 
+	if sourcePath == c.filePath {
+		settings, err := loadSettingsFile(sourcePath)
+		if err != nil {
+			return fmt.Errorf("reload settings: %w", err)
+		}
+
+		c.settings = settings
+	}
+
 	c.layeredOnce = sync.Once{}
 	c.layered = nil
 	c.layeredErr = nil

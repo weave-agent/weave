@@ -115,6 +115,8 @@ Key env vars: `WEAVE_PROVIDER` (override active provider), `WEAVE_THINKING_LEVEL
 
 **Guardian profiles**: `ask`, `auto`, `yolo`, or custom profile names. `ask` permits reads and harmless metadata automatically while prompting for writes, network, deletes, and unknown actions. `auto` permits normal coding actions and asks for risky or unknown actions. `yolo` runs most actions while retaining catastrophic blocks. Custom profiles live under `guardian.profiles`; select with `guardian.profile` or `--guardian-profile`.
 
+Profile-scoped Guardian approvals may include `GuardianResolution.RuleScope` with `sdk.GuardianProfileRuleScope*` values to express persistence intent. Treat it as UI-to-Guardian metadata only; Guardian owns normalization into concrete profile rules.
+
 **Guardian policy overlays**: trusted extensions can publish `sdk.GuardianPolicyOverlay` on `guardian.policy.overlay.push` to add or replace a runtime-only policy layer, and `sdk.GuardianPolicyOverlayPop` on `guardian.policy.overlay.pop` to remove one by ID. Active overlays appear in `GuardianSnapshot.Overlays` for display and diagnostics, but they do not create or appear in user-visible Guardian profile lists by default. `OverrideHardBlocks` must be an explicit overlay opt-in for trusted extensions; it is an architectural contract for cooperating extensions, not a security boundary.
 
 **Sandbox containment**: sandbox is containment-only for approved shell commands. The guardian decides allow/ask/block before execution; sandbox wraps approved commands with OS-level filesystem and network boundaries. Expansion requests are ID-based and are handled through the guardian UI extension.
