@@ -814,7 +814,7 @@ func (c *FullConfig) SaveExtensionConfig(scope, name string, target any) error {
 		return fmt.Errorf("resolve source settings: %w", err)
 	}
 
-	incoming, err := toMapAny(target)
+	incoming, err := toPatchMapAny(target)
 	if err != nil {
 		return fmt.Errorf("convert config for %s.%s: %w", scope, name, err)
 	}
@@ -900,6 +900,56 @@ func saveConfigForScope(root map[string]any, scope, name string, incoming map[st
 		return nil
 	default:
 		return fmt.Errorf("unknown config scope %q", scope)
+	}
+}
+
+func toPatchMapAny(raw any) (map[string]any, error) {
+	m, ok := raw.(map[string]any)
+	if ok {
+		return m, nil
+	}
+
+	result, err := toMapAny(raw)
+	if err != nil {
+		return nil, err
+	}
+
+	return pruneNullMapFields(result), nil
+}
+
+func pruneNullMapFields(input map[string]any) map[string]any {
+	result := make(map[string]any, len(input))
+
+	for key, value := range input {
+		pruned, keep := pruneNullValue(value)
+		if keep {
+			result[key] = pruned
+		}
+	}
+
+	return result
+}
+
+func pruneNullValue(value any) (any, bool) {
+	if value == nil {
+		return nil, false
+	}
+
+	switch typed := value.(type) {
+	case map[string]any:
+		return pruneNullMapFields(typed), true
+	case []any:
+		result := make([]any, len(typed))
+		for i, item := range typed {
+			pruned, keep := pruneNullValue(item)
+			if keep {
+				result[i] = pruned
+			}
+		}
+
+		return result, true
+	default:
+		return value, true
 	}
 }
 

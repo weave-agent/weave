@@ -940,6 +940,77 @@ func TestSaveExtensionConfig_TypedConfigCanPersistZeroValues(t *testing.T) {
 	assert.Empty(t, bash["label"])
 }
 
+func TestSaveExtensionConfig_TypedPartialPreservesExistingPointerFields(t *testing.T) {
+	t.Run("guardian", func(t *testing.T) {
+		isolateHome(t)
+
+		projectDir := t.TempDir()
+		projectPath := filepath.Join(projectDir, ".weave", "settings.json")
+		writeFile(t, projectDir, ".weave/settings.json", `{
+  "guardian": {
+    "profile": "ask",
+    "ask_fallback": true
+  }
+}`)
+
+		cfg := &FullConfig{filePath: projectPath, settings: &Settings{}}
+		require.NoError(t, cfg.SaveExtensionConfig(configScopeGuardian, "", GuardianFileConfig{
+			Profile: "custom",
+		}))
+
+		root, err := readSettingsMap(projectPath)
+		require.NoError(t, err)
+
+		guardian, ok := root[configScopeGuardian].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "custom", guardian["profile"])
+		assert.Equal(t, true, guardian["ask_fallback"])
+
+		var loaded GuardianFileConfig
+		require.NoError(t, cfg.ExtensionConfig(configScopeGuardian, "", &loaded))
+		require.NotNil(t, loaded.AskFallback)
+		assert.True(t, *loaded.AskFallback)
+	})
+
+	t.Run("sandbox", func(t *testing.T) {
+		isolateHome(t)
+
+		projectDir := t.TempDir()
+		projectPath := filepath.Join(projectDir, ".weave", "settings.json")
+		writeFile(t, projectDir, ".weave/settings.json", `{
+  "sandbox": {
+    "enabled": true,
+    "fail_if_unavailable": true,
+    "allow_unsandboxed_fallback": false,
+    "network": {
+      "enabled": true,
+      "allow_listen": true
+    }
+  }
+}`)
+
+		enabled := false
+		cfg := &FullConfig{filePath: projectPath, settings: &Settings{}}
+		require.NoError(t, cfg.SaveExtensionConfig(configScopeSandbox, "", SandboxFileConfig{
+			Enabled: &enabled,
+		}))
+
+		root, err := readSettingsMap(projectPath)
+		require.NoError(t, err)
+
+		sandbox, ok := root[configScopeSandbox].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, false, sandbox["enabled"])
+		assert.Equal(t, true, sandbox["fail_if_unavailable"])
+		assert.Equal(t, false, sandbox["allow_unsandboxed_fallback"])
+
+		network, ok := sandbox["network"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, true, network["enabled"])
+		assert.Equal(t, true, network["allow_listen"])
+	})
+}
+
 func TestSaveExtensionConfig_GuardianLocalPatchDoesNotCopyLayeredProfileFields(t *testing.T) {
 	isolateHome(t)
 
