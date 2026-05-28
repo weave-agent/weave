@@ -77,17 +77,36 @@ const (
 	GuardianGrantScopeProfile GuardianGrantScope = "profile"
 )
 
+// GuardianProfileRuleScope describes the persistence scope a profile approval
+// resolution is requesting. It is intent metadata for the guardian extension;
+// the guardian is responsible for normalizing the request into concrete rules.
 type GuardianProfileRuleScope string
 
 const (
-	GuardianProfileRuleScopeExactFile     GuardianProfileRuleScope = "exact_file"
-	GuardianProfileRuleScopeDirectory     GuardianProfileRuleScope = "directory"
-	GuardianProfileRuleScopeProject       GuardianProfileRuleScope = "project"
-	GuardianProfileRuleScopeExactCommand  GuardianProfileRuleScope = "exact_command"
+	// GuardianProfileRuleScopeExactFile requests a rule limited to the exact
+	// file path from the approval request.
+	GuardianProfileRuleScopeExactFile GuardianProfileRuleScope = "exact_file"
+	// GuardianProfileRuleScopeDirectory requests a rule limited to the request
+	// path's containing directory.
+	GuardianProfileRuleScopeDirectory GuardianProfileRuleScope = "directory"
+	// GuardianProfileRuleScopeProject requests a rule limited to the active
+	// project root.
+	GuardianProfileRuleScopeProject GuardianProfileRuleScope = "project"
+	// GuardianProfileRuleScopeExactCommand requests a rule limited to the exact
+	// shell command from the approval request.
+	GuardianProfileRuleScopeExactCommand GuardianProfileRuleScope = "exact_command"
+	// GuardianProfileRuleScopeCommandPrefix requests a rule limited to commands
+	// sharing a guardian-normalized command prefix.
 	GuardianProfileRuleScopeCommandPrefix GuardianProfileRuleScope = "command_prefix"
+	// GuardianProfileRuleScopeCommandFamily requests a rule limited to the
+	// guardian-normalized command family.
 	GuardianProfileRuleScopeCommandFamily GuardianProfileRuleScope = "command_family"
-	GuardianProfileRuleScopeNetworkHost   GuardianProfileRuleScope = "network_host"
-	GuardianProfileRuleScopeActionType    GuardianProfileRuleScope = "action_type"
+	// GuardianProfileRuleScopeNetworkHost requests a rule limited to the
+	// network host from the approval request.
+	GuardianProfileRuleScopeNetworkHost GuardianProfileRuleScope = "network_host"
+	// GuardianProfileRuleScopeActionType requests a broad rule for the request's
+	// guardian action type.
+	GuardianProfileRuleScopeActionType GuardianProfileRuleScope = "action_type"
 )
 
 // Guardian decides whether requested tool actions may run. Extensions register
@@ -134,8 +153,10 @@ type GuardianApprovalRequest struct {
 }
 
 type GuardianResolution struct {
-	Action    GuardianResolutionAction `json:"action"`
-	Scope     GuardianGrantScope       `json:"scope,omitempty"`
+	Action GuardianResolutionAction `json:"action"`
+	Scope  GuardianGrantScope       `json:"scope,omitempty"`
+	// RuleScope is optional persistence intent for profile-scoped approvals.
+	// Non-profile resolutions should leave it empty.
 	RuleScope GuardianProfileRuleScope `json:"rule_scope,omitempty"`
 	Reason    string                   `json:"reason,omitempty"`
 }

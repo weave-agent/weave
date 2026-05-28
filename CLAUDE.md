@@ -47,7 +47,7 @@ Standard library as much as possible. Every replaceable component is an extensio
 
 ## Key Packages
 
-- `sdk/` — `Extension`, `Bus`, `Config`, `UI`, `PreferenceReader`/`Writer`, `SessionStore`, `FileTracker`, `FileMuter`, `Guardian`, `Sandboxer` interfaces; optional provider capabilities such as `TokenCounter`; shared provider accounting types (`ProviderUsage`, `TokenCount`, `ContextBudgetSnapshot`); global registries for extensions/providers/tools/UIs; schema registry with `SchemaInfo{Schema, Type}` metadata; `Logger(name)` for structured logging; `WithBus`/`BusFromContext` for context-based bus access; auth and OAuth helpers
+- `sdk/` — `Extension`, `Bus`, `Config`, `UI`, `PreferenceReader`/`Writer`, optional `ExtensionConfigWriter`, `SessionStore`, `FileTracker`, `FileMuter`, `Guardian`, `Sandboxer` interfaces; optional provider capabilities such as `TokenCounter`; shared provider accounting types (`ProviderUsage`, `TokenCount`, `ContextBudgetSnapshot`); global registries for extensions/providers/tools/UIs; schema registry with `SchemaInfo{Schema, Type}` metadata; `Logger(name)` for structured logging; `WithBus`/`BusFromContext` for context-based bus access; auth and OAuth helpers
 - `sdk/model/` — model types, model registry, `StreamOptions` for per-request options
 - `sdk/registry/` — generic `Registry[T]` used by all registries
 - `sdk/providerhttp/` — provider HTTP transport config resolver and client factory with configurable timeouts
@@ -104,6 +104,8 @@ Built-in config scopes: `tools`, `providers`, `ui`, `guardian`, `sandbox`, `json
 Schema registration stores `SchemaInfo{Schema, Type}` per `(scope, name)`. Registration APIs pass the config struct type so settings can reconstruct typed defaults from `default` tags.
 
 `ExtensionConfig(scope, name, target)` loads layered config, then best-effort populates missing schema defaults into the source settings file. Population failures are logged and do not fail config loading. Default population writes to `.weave/settings.local.json` if present, otherwise the active project `.weave/settings.json`, otherwise global `~/.weave/settings.json`. Settings writes that can race with default population must coordinate through `saveSettingsMu`; `SaveSettings` already holds it, and population holds it while read/merge/write is performed.
+
+Privileged extensions that need to persist scoped configuration use the optional `sdk.ExtensionConfigWriter` capability, normally received through `RegisterExtensionWithScopeAndWriter`. `SaveExtensionConfig(scope, name, target)` writes only the scoped subtree to the same active settings layer used by default population: singleton scopes such as `guardian`, `sandbox`, `ui`, and `jsonl` write at the root key, while named scopes such as `tools`, `providers`, `extensions`, and `ui_extensions` write under `scope.name`. Keep persistence details in `settings`; extensions should pass typed config data rather than editing settings files directly.
 
 Key env vars: `WEAVE_PROVIDER` (override active provider), `WEAVE_THINKING_LEVEL`, `WEAVE_OFFLINE`. Session resume: `--continue`/`-c`, `--resume <id>`/`-r`.
 
