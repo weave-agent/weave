@@ -819,13 +819,13 @@ func (c *FullConfig) SaveExtensionConfig(scope, name string, target any) error {
 		return fmt.Errorf("convert config for %s.%s: %w", scope, name, err)
 	}
 
+	saveSettingsMu.Lock()
+	defer saveSettingsMu.Unlock()
+
 	incoming, err = c.prepareExtensionConfigSave(scope, name, incoming)
 	if err != nil {
 		return err
 	}
-
-	saveSettingsMu.Lock()
-	defer saveSettingsMu.Unlock()
 
 	root, err := readSettingsMap(sourcePath)
 	if err != nil {
@@ -882,7 +882,7 @@ func (c *FullConfig) prepareExtensionConfigSave(scope, name string, incoming map
 		return incoming, nil
 	}
 
-	existing, err := c.existingConfigForPopulation(scope, name)
+	existing, err := c.existingGuardianConfigForSave()
 	if err != nil {
 		return nil, fmt.Errorf("load existing config for %s.%s: %w", scope, name, err)
 	}
@@ -893,6 +893,106 @@ func (c *FullConfig) prepareExtensionConfigSave(scope, name string, incoming map
 	}
 
 	return merged, nil
+}
+
+func (c *FullConfig) existingGuardianConfigForSave() (map[string]any, error) {
+	paths := []string{}
+
+	c.mu.Lock()
+	filePath := c.filePath
+	projectDir := c.effectiveProjectDirLocked()
+	c.mu.Unlock()
+
+	globalPath, err := SettingsPath()
+	if err != nil {
+		return nil, fmt.Errorf("global settings path: %w", err)
+	}
+
+	paths = append(paths, globalPath)
+
+	if filePath != "" && filePath != globalPath {
+		paths = append(paths, filePath)
+	}
+
+	if localPath, found, err := findLocalSettingsPath(projectDir); err != nil {
+		return nil, err
+	} else if found && localPath != filePath {
+		paths = append(paths, localPath)
+	}
+
+	layers := make([]*Settings, 0, len(paths))
+	seen := map[string]bool{}
+
+	for _, path := range paths {
+		if seen[path] {
+			continue
+		}
+
+		seen[path] = true
+
+		settings, err := loadSettingsFileForSaveMerge(path)
+		if err != nil {
+			return nil, err
+		}
+
+		layers = append(layers, settings)
+	}
+
+	return guardianConfigToMap(MergeSettings(layers...).Guardian)
+}
+
+func loadSettingsFileForSaveMerge(path string) (*Settings, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return &Settings{}, nil
+		}
+
+		return nil, fmt.Errorf("read settings file %s: %w", path, err)
+	}
+
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, fmt.Errorf("parse %s: %w", path, err)
+	}
+
+	if err := rejectRemovedSandboxKeys(raw); err != nil {
+		return nil, err
+	}
+
+	var settings Settings
+	if err := json.Unmarshal(data, &settings); err != nil {
+		return nil, fmt.Errorf("load config: %w", err)
+	}
+
+	return &settings, nil
+}
+
+func guardianConfigToMap(config GuardianFileConfig) (map[string]any, error) {
+	result := map[string]any{}
+
+	if config.Profile != "" {
+		result["profile"] = config.Profile
+	}
+
+	if config.AskFallback != nil {
+		result["ask_fallback"] = *config.AskFallback
+	}
+
+	if len(config.Profiles) > 0 {
+		profiles, err := toMapAny(struct {
+			Profiles map[string]sdk.GuardianProfile `json:"profiles,omitempty"`
+		}{Profiles: config.Profiles})
+		if err != nil {
+			return nil, err
+		}
+
+		if value, ok := profiles["profiles"]; ok {
+			result["profiles"] = value
+		}
+	}
+
+	return result, nil
 }
 
 func saveConfigForScope(root map[string]any, scope, name string, incoming map[string]any) error {

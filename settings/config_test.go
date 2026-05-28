@@ -982,6 +982,59 @@ func TestSaveExtensionConfig_GuardianLocalPatchPreservesLayeredProfileFields(t *
 	assert.Equal(t, sdk.GuardianDecisionAllow, custom.Rules[0].Decision)
 }
 
+func TestSaveExtensionConfig_GuardianLocalPatchDoesNotRestoreClearedLowerLayerRules(t *testing.T) {
+	isolateHome(t)
+
+	projectDir := t.TempDir()
+	projectPath := filepath.Join(projectDir, ".weave", "settings.json")
+	writeFile(t, projectDir, ".weave/settings.json", `{
+  "guardian": {
+    "profile": "custom",
+    "profiles": {
+      "custom": {
+        "name": "custom",
+        "description": "project description",
+        "rules": [
+          {"actions": ["read"], "decision": "allow", "reason": "project rule"}
+        ]
+      }
+    }
+  }
+}`)
+	writeFile(t, projectDir, ".weave/settings.local.json", `{
+  "guardian": {
+    "profiles": {
+      "custom": {
+        "name": "custom",
+        "description": "local replacement"
+      }
+    }
+  }
+}`)
+
+	cfg, err := LoadFullConfig(projectPath)
+	require.NoError(t, err)
+	require.NoError(t, cfg.SaveExtensionConfig(configScopeGuardian, "", map[string]any{
+		"profiles": map[string]any{
+			"custom": map[string]any{
+				"rules": []map[string]any{
+					{"actions": []string{"write"}, "decision": "ask", "reason": "new local rule"},
+				},
+			},
+		},
+	}))
+
+	var loaded GuardianFileConfig
+	require.NoError(t, cfg.ExtensionConfig(configScopeGuardian, "", &loaded))
+
+	custom := loaded.Profiles["custom"]
+	assert.Equal(t, "local replacement", custom.Description)
+	require.Len(t, custom.Rules, 1)
+	assert.Equal(t, sdk.GuardianActionWrite, custom.Rules[0].Actions[0])
+	assert.Equal(t, sdk.GuardianDecisionAsk, custom.Rules[0].Decision)
+	assert.Equal(t, "new local rule", custom.Rules[0].Reason)
+}
+
 func TestSaveExtensionConfig_NamedScopeAndUnknownScope(t *testing.T) {
 	isolateHome(t)
 
