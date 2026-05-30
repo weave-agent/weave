@@ -219,9 +219,9 @@ type ExecResult struct {
 Verification note: `go test ./...` and `make lint` pass. No root-repo blockers found; remaining follow-up is Task 8 documentation.
 
 ### Task 8: Update documentation
-- [ ] update README.md or package docs if public API changed
-- [ ] update examples or usage snippets if registration/runtime behavior changed
-- [ ] document migration notes for extension authors if applicable
+- [x] update README.md or package docs if public API changed
+- [x] update examples or usage snippets if registration/runtime behavior changed
+- [x] document migration notes for extension authors if applicable
 
 ## Technical Details
 - New runtime APIs should be deep modules: simple caller-facing interfaces hiding hook ordering, cleanup, bus bridging, and compatibility adapters.

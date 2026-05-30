@@ -238,6 +238,8 @@ weave --resume <id>    # or -r <id>, resume specific session
 
 Extensions are independent Go modules. Each one lives in its own repo with its own `go.mod`, owns a single concern, and self-registers via `init()`.
 
+Legacy bus-observer extensions still compile and run unchanged:
+
 ```go
 package myextension
 
@@ -245,6 +247,87 @@ import "github.com/weave-agent/weave/sdk"
 
 func init() {
     sdk.RegisterExtension("my-extension", NewMyExtension)
+}
+```
+
+```go
+type Extension struct{}
+
+func (e *Extension) Name() string { return "my-extension" }
+
+func (e *Extension) Subscribe(bus sdk.Bus) error {
+	bus.On("message", func(event sdk.Event) error {
+		// Observe events published by the runtime compatibility layer.
+		return nil
+	})
+	return nil
+}
+
+func (e *Extension) Close() error { return nil }
+```
+
+Runtime-aware extensions can register against typed services instead of subscribing directly to bus topics:
+
+```go
+package myextension
+
+import (
+	"context"
+	"errors"
+
+	"github.com/weave-agent/weave/sdk"
+)
+
+type Config struct {
+	Enabled bool `json:"enabled" default:"true" description:"Enable runtime hooks"`
+}
+
+func init() {
+	sdk.RegisterRuntimeExtension[Config]("my-extension", func(cfg sdk.Config, prefs sdk.PreferenceReader, extCfg Config) (sdk.RuntimeExtension, error) {
+		return &Extension{enabled: extCfg.Enabled}, nil
+	})
+}
+
+type Extension struct {
+	enabled bool
+	handles []sdk.HookHandle
+}
+
+func (e *Extension) Register(ctx sdk.ExtensionContext) error {
+	if !e.enabled {
+		return nil
+	}
+
+	handle := ctx.Hooks().ToolCall().Use("my-extension", func(ctx context.Context, state *sdk.HookState[sdk.ToolCallRequest, sdk.ToolCallResult]) error {
+		if state.Request.Call.Name == "blocked_tool" {
+			state.Result.Continue = false
+			state.Stop()
+		}
+		return nil
+	})
+	e.handles = append(e.handles, handle)
+
+	toolHandle, err := ctx.Tools().Register(sdk.RuntimeTool{
+		Name:       "hello",
+		Definition: sdk.ToolDef{Name: "hello", Description: "Return a greeting"},
+		Run: func(ctx context.Context, req sdk.ToolRequest) (sdk.ToolResult, error) {
+			return sdk.ToolResult{Content: "hello from my-extension"}, nil
+		},
+	})
+	if err != nil {
+		return err
+	}
+	e.handles = append(e.handles, toolHandle)
+
+	return nil
+}
+
+func (e *Extension) Close() error {
+	var err error
+	for _, handle := range e.handles {
+		err = errors.Join(err, handle.Close())
+	}
+	return err
 }
 ```
 
@@ -260,6 +343,29 @@ sdk.RegisterTUIExtension("my-tui", NewTUI)
 Config structs registered through `sdk.RegisterExtension`, `sdk.RegisterTool`, `sdk.RegisterProvider`, or `sdk.RegisterUIExtension` should use `json`, `default`, `env`, `flag`, and `description` tags. `default` values are loaded at runtime and are also auto-written into settings files when absent. `sdk.GetSchemaInfo(scope, name)` returns the registered schema plus the original config `reflect.Type`; `sdk.GetSchema` remains available when only the schema is needed.
 
 Privileged extensions that need to persist scoped configuration should register with `sdk.RegisterExtensionWithScopeAndWriter` and type-assert the received writer to `sdk.ExtensionConfigWriter`. `SaveExtensionConfig(scope, name, target)` writes only the scoped subtree to the active settings layer: singleton scopes such as `guardian`, `sandbox`, `ui`, and `jsonl` write at the root key, while named scopes such as `tools`, `providers`, `extensions`, and `ui_extensions` write under `scope.name`.
+
+### Runtime Services
+
+`sdk.ExtensionContext` is the root runtime surface for extensions. It exposes:
+
+- `Bus()` for observer compatibility and custom event publication
+- `Hooks()` for ordered typed interceptors across input, prompt, context, provider request/response, tool call/result, message, turn, and session lifecycle flows
+- `Tools()` and `Providers()` for session-scoped runtime registries that also adapt legacy static registrations
+- `Session()`, `Resources()`, and `Models()` for runtime session, resource, and model control
+- `Exec(ctx, req)` for guardian/sandbox-aware command execution through an adapter supplied by runtime layers
+- `Config(scope, name, target)` for loading scoped extension configuration
+
+Hooks run in deterministic order. Lower `sdk.WithHookOrder` values run first, equal-order handlers run in registration order, and closing the returned `sdk.HookHandle` unregisters the handler and runs cleanup callbacks. A handler can mutate `state.Request` or `state.Result`, return an error to fail execution, or call `state.Stop()` to veto later handlers. Built-in bus compatibility observers publish stable legacy topics after typed hook mutation, so existing event subscribers continue to receive notifications.
+
+Runtime tool registrations use `ctx.Tools().Register(sdk.RuntimeTool{...})`; closing the returned handle removes the tool. `ctx.Tools().Decorate` can wrap legacy `sdk.Tool` implementations. Runtime provider registrations use `ctx.Providers().Register(sdk.RuntimeProvider{...})`; `ctx.Providers().UseMiddleware` applies `BeforeProviderRequest`, `ObserveProviderStream`, and `AfterProviderResponse` middleware around both runtime and legacy providers.
+
+Unsupported runtime services return typed SDK errors, usually `sdk.ErrRuntimeCapabilityUnsupported` or `sdk.ErrRuntimeNotFound`, so extensions can degrade cleanly when a capability is not wired by the current entrypoint.
+
+### Migration Notes
+
+Existing extensions do not need to migrate immediately. `sdk.RegisterExtension`, `sdk.RegisterTool`, `sdk.RegisterProvider`, `sdk.RegisterUIExtension`, and model registration keep their public signatures. Legacy `sdk.Extension.Subscribe(bus)`, `sdk.Tool.Execute(ctx, args)`, and `sdk.Provider.Stream(ctx, req, opts...)` implementations are adapted into runtime services.
+
+Use runtime APIs when an extension needs to change behavior rather than only observe it. Prefer typed hooks for input, provider, tool, message, turn, and session interception; keep bus events for notifications and compatibility. New payload types that other extensions need should live in `sdk/`, not in an extension repo or an `internal/` package.
 
 ### Provider Context Accounting
 
@@ -303,7 +409,7 @@ Providers declare an auth struct with `json` and `env` tags, then register with 
 
 | Package | Description |
 |---|---|
-| `sdk/` | Public API — `Extension`, `Bus`, `Config`, `UI`, `Provider`, `Tool`, `Guardian`, `Sandboxer` interfaces; optional `ExtensionConfigWriter` and `TokenCounter`; provider usage, token count, and context budget accounting types; global registries and schema metadata; guardian/sandbox event topics; `Logger(name)`; auth helpers |
+| `sdk/` | Public API — `Extension`, `RuntimeExtension`, `ExtensionContext`, `Hooks`, runtime tool/provider/session/resource/model/exec contracts, `Bus`, `Config`, `UI`, `Provider`, `Tool`, `Guardian`, `Sandboxer` interfaces; optional `ExtensionConfigWriter` and `TokenCounter`; provider usage, token count, and context budget accounting types; global registries and schema metadata; guardian/sandbox event topics; `Logger(name)`; auth helpers |
 | `sdk/model/` | Model types, model registry, `StreamOptions` |
 | `sdk/registry/` | Generic `Registry[T]` used by all registries |
 | `sdk/providerhttp/` | Provider HTTP transport config and client factory |
