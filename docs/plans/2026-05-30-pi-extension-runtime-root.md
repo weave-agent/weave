@@ -167,11 +167,11 @@ type ExecResult struct {
 ## Implementation Steps
 
 ### Task 1: Add typed runtime hook primitives to `sdk`
-- [ ] add generic hook/interceptor types for ordered handlers with typed request/result payloads; example hook families include input, prompt, context, provider request/response, tool call/result, message, turn, and session lifecycle
-- [ ] add hook registration handles that support deterministic removal and close cleanup; handlers registered by an extension should be removable when the extension closes
-- [ ] add compatibility helpers for publishing observer events on the existing bus; example: `ToolCall` hook execution still emits the current tool-call bus topic for observers
-- [ ] write tests for ordering, mutation, veto, error propagation, and unregister behavior
-- [ ] run `go test ./sdk/...` - must pass before task 2
+- [x] add generic hook/interceptor types for ordered handlers with typed request/result payloads; example hook families include input, prompt, context, provider request/response, tool call/result, message, turn, and session lifecycle
+- [x] add hook registration handles that support deterministic removal and close cleanup; handlers registered by an extension should be removable when the extension closes
+- [x] add compatibility helpers for publishing observer events on the existing bus; example: `ToolCall` hook execution still emits the current tool-call bus topic for observers
+- [x] write tests for ordering, mutation, veto, error propagation, and unregister behavior
+- [x] run `go test ./sdk/...` - must pass before task 2
 
 ### Task 2: Introduce extension runtime context
 - [ ] add `sdk.ExtensionContext` with access to hooks, tools, session, models, resources, exec, config, and bus services; keep TUI-specific framework types out of this root interface
