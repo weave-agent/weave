@@ -7,6 +7,39 @@ import (
 	"sync"
 )
 
+const (
+	// TopicAgentPrompt publishes user input submitted to the agent loop.
+	//
+	// Deprecated: use Hooks.Input for behavior-changing interception.
+	TopicAgentPrompt = "agent.prompt"
+
+	// TopicProviderRequest publishes provider requests after typed hook mutation.
+	//
+	// Deprecated: use Hooks.ProviderRequest for behavior-changing interception.
+	TopicProviderRequest = "provider.request"
+
+	// TopicProviderResponse publishes provider stream events after typed hook
+	// observation.
+	//
+	// Deprecated: use Hooks.ProviderResponse for behavior-changing interception.
+	TopicProviderResponse = "provider.response"
+
+	// TopicMessage publishes messages after typed hook mutation.
+	//
+	// Deprecated: use Hooks.Message for behavior-changing interception.
+	TopicMessage = "message"
+
+	// TopicTurn publishes turn lifecycle state after typed hook mutation.
+	//
+	// Deprecated: use Hooks.Turn for behavior-changing interception.
+	TopicTurn = "turn"
+
+	// TopicSessionResume publishes session resume payloads.
+	//
+	// Deprecated: use Hooks.Session for behavior-changing interception.
+	TopicSessionResume = "session.resume"
+)
+
 // HookFunc mutates hook state or stops hook execution.
 type HookFunc[TReq any, TRes any] func(context.Context, *HookState[TReq, TRes]) error
 
@@ -220,6 +253,19 @@ type noopHookHandle struct{}
 
 func (noopHookHandle) Close() error { return nil }
 
+type hookHandles []HookHandle
+
+func (h hookHandles) Close() error {
+	var err error
+	for _, handle := range h {
+		if handle != nil {
+			err = errors.Join(err, handle.Close())
+		}
+	}
+
+	return err
+}
+
 // NewBusObserverHook publishes hook state to an existing bus topic.
 func NewBusObserverHook[TReq any, TRes any](bus Bus, topic string, payload func(HookState[TReq, TRes]) any) HookFunc[TReq, TRes] {
 	return func(_ context.Context, state *HookState[TReq, TRes]) error {
@@ -234,6 +280,15 @@ func NewBusObserverHook[TReq any, TRes any](bus Bus, topic string, payload func(
 
 		return nil
 	}
+}
+
+// NewRuntimeHooksWithBus returns standard runtime hook families with bus
+// observer compatibility handlers installed.
+func NewRuntimeHooksWithBus(bus Bus) *RuntimeHooks {
+	hooks := NewRuntimeHooks()
+	hooks.AttachBusObservers(bus)
+
+	return hooks
 }
 
 // Hooks groups the standard runtime hook families.
@@ -305,6 +360,108 @@ func (h *RuntimeHooks) Message() Hook[MessageHookRequest, MessageHookResult] {
 func (h *RuntimeHooks) Turn() Hook[TurnHookRequest, TurnHookResult] { return h.turn }
 func (h *RuntimeHooks) Session() Hook[SessionHookRequest, SessionHookResult] {
 	return h.session
+}
+
+// AttachBusObservers maps typed hook execution back onto stable bus topics for
+// existing observer extensions. The registered observers do not mutate hook
+// state; they only publish the post-mutation payload currently visible at their
+// position in the hook chain.
+func (h *RuntimeHooks) AttachBusObservers(bus Bus) HookHandle {
+	if h == nil || bus == nil {
+		return noopHookHandle{}
+	}
+
+	handles := hookHandles{
+		h.Input().Use("sdk.bus_compat", NewBusObserverHook(bus, TopicAgentPrompt, func(state HookState[InputHookRequest, InputHookResult]) any {
+			if state.Result.Content != nil {
+				return state.Result.Content
+			}
+
+			return state.Request.Content
+		}), WithHookOrder(10_000)),
+		h.ProviderRequest().Use("sdk.bus_compat", NewBusObserverHook(bus, TopicProviderRequest, func(state HookState[ProviderRequestHookRequest, ProviderRequestHookResult]) any {
+			return ProviderRequestBusPayload{Provider: state.Request.Provider, Request: state.Result.Request}
+		}), WithHookOrder(10_000)),
+		h.ProviderResponse().Use("sdk.bus_compat", NewBusObserverHook(bus, TopicProviderResponse, func(state HookState[ProviderResponseHookRequest, ProviderResponseHookResult]) any {
+			event := state.Result.Event
+			if event.Type == "" {
+				event = state.Request.Event
+			}
+
+			return ProviderResponseBusPayload{Provider: state.Request.Provider, Event: event}
+		}), WithHookOrder(10_000)),
+		h.ToolCall().Use("sdk.bus_compat", NewBusObserverHook(bus, TopicToolStart, func(state HookState[ToolCallRequest, ToolCallResult]) any {
+			call := state.Result.Call
+			if call.Name == "" && call.ID == "" {
+				call = state.Request.Call
+			}
+
+			return ToolProgress{ToolCallID: call.ID, ToolName: call.Name}
+		}), WithHookOrder(10_000)),
+		h.ToolCall().Use("sdk.bus_compat", NewBusObserverHook(bus, ProviderEventToolCall, func(state HookState[ToolCallRequest, ToolCallResult]) any {
+			call := state.Result.Call
+			if call.Name == "" && call.ID == "" {
+				call = state.Request.Call
+			}
+
+			return call
+		}), WithHookOrder(10_001)),
+		h.ToolResult().Use("sdk.bus_compat", func(ctx context.Context, state *HookState[ToolResultRequest, ToolResultHookResult]) error {
+			result := state.Result.Result
+			topic := TopicToolComplete
+			if result.IsError {
+				topic = TopicToolError
+			}
+
+			return NewBusObserverHook(bus, topic, func(HookState[ToolResultRequest, ToolResultHookResult]) any {
+				return ToolProgress{
+					ToolCallID: state.Request.Call.ID,
+					ToolName:   state.Request.Call.Name,
+					Content:    result.Content,
+					IsError:    result.IsError,
+				}
+			})(ctx, state)
+		}, WithHookOrder(10_000)),
+		h.Message().Use("sdk.bus_compat", NewBusObserverHook(bus, TopicMessage, func(state HookState[MessageHookRequest, MessageHookResult]) any {
+			if state.Result.Message.Role != "" {
+				return state.Result.Message
+			}
+
+			return state.Request.Message
+		}), WithHookOrder(10_000)),
+		h.Turn().Use("sdk.bus_compat", NewBusObserverHook(bus, TopicTurn, func(state HookState[TurnHookRequest, TurnHookResult]) any {
+			if state.Result.Messages != nil {
+				return state.Result
+			}
+
+			return TurnHookResult{Messages: state.Request.Messages}
+		}), WithHookOrder(10_000)),
+		h.Session().Use("sdk.bus_compat", func(_ context.Context, state *HookState[SessionHookRequest, SessionHookResult]) error {
+			topic := state.Request.Event
+			if topic == "" {
+				return nil
+			}
+			payload := state.Result.Entry
+			if payload == nil {
+				payload = state.Request.Entry
+			}
+			bus.Publish(NewEvent(topic, payload))
+
+			return nil
+		}, WithHookOrder(10_000)),
+	}
+
+	return handles
+}
+
+type ProviderRequestBusPayload struct {
+	Provider string          `json:"provider"`
+	Request  ProviderRequest `json:"request"`
+}
+
+type ProviderResponseBusPayload struct {
+	Provider string        `json:"provider"`
+	Event    ProviderEvent `json:"event"`
 }
 
 type InputHookRequest struct {

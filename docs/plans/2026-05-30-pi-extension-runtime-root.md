@@ -203,11 +203,11 @@ type ExecResult struct {
 - [x] run `go test ./internal/... ./sdk/...` - must pass before task 6
 
 ### Task 6: Maintain event bus compatibility layer
-- [ ] map new typed lifecycle hooks to existing bus topics for observers
-- [ ] keep existing bus topics stable unless a plan explicitly migrates a repo away from them
-- [ ] add deprecation notes only where a typed replacement exists
-- [ ] write tests proving existing bus subscribers still receive expected events
-- [ ] run `go test ./...` - must pass before task 7
+- [x] map new typed lifecycle hooks to existing bus topics for observers
+- [x] keep existing bus topics stable unless a plan explicitly migrates a repo away from them
+- [x] add deprecation notes only where a typed replacement exists
+- [x] write tests proving existing bus subscribers still receive expected events
+- [x] run `go test ./...` - must pass before task 7
 
 ### Task 7: Verify acceptance criteria
 - [ ] verify this repo implements its part of the Pi parity migration

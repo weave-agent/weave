@@ -273,7 +273,7 @@ func NewExtensionContext(opts RuntimeContextOptions) ExtensionContext {
 		ctx.bus = NoopBus{}
 	}
 	if ctx.hooks == nil {
-		ctx.hooks = NewRuntimeHooks()
+		ctx.hooks = NewRuntimeHooksWithBus(ctx.bus)
 	}
 	if ctx.tools == nil {
 		ctx.tools = NewRuntimeToolRegistry(ctx.config)
