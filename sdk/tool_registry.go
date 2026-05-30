@@ -100,6 +100,13 @@ func GetToolFilter() []string {
 	return result
 }
 
+func toolAllowed(name string) bool {
+	toolFilterMu.RLock()
+	defer toolFilterMu.RUnlock()
+
+	return toolFilter == nil || toolFilter[name]
+}
+
 func ListTools() []string {
 	toolFilterMu.RLock()
 

@@ -27,11 +27,27 @@ type ExtensionContext interface {
 	Config(scope, name string, target any) error
 }
 
-// ToolRegistry is intentionally shallow until runtime tool activation lands.
-type ToolRegistry interface{}
+// ToolRegistry exposes session-scoped runtime tools while adapting legacy
+// static tool registrations into the same lookup path.
+type ToolRegistry interface {
+	Register(RuntimeTool) (HookHandle, error)
+	Unregister(name string) error
+	List() []RuntimeToolInfo
+	Get(name string) (RuntimeTool, bool)
+	Enable(name string) error
+	Disable(name string) error
+	Decorate(owner string, decorator ToolDecorator) HookHandle
+}
 
-// ProviderRegistry is intentionally shallow until runtime provider middleware lands.
-type ProviderRegistry interface{}
+// ProviderRegistry exposes runtime providers and provider middleware while
+// adapting legacy static provider registrations into the same lookup path.
+type ProviderRegistry interface {
+	Register(RuntimeProvider) (HookHandle, error)
+	Unregister(name string) error
+	List() []RuntimeProviderInfo
+	Get(name string) (Provider, bool)
+	UseMiddleware(owner string, middleware ProviderMiddleware) HookHandle
+}
 
 // SessionController is intentionally shallow until session runtime services land.
 type SessionController interface{}
@@ -103,10 +119,10 @@ func NewExtensionContext(opts RuntimeContextOptions) ExtensionContext {
 		ctx.hooks = NewRuntimeHooks()
 	}
 	if ctx.tools == nil {
-		ctx.tools = NoopToolRegistry{}
+		ctx.tools = NewRuntimeToolRegistry(ctx.config)
 	}
 	if ctx.providers == nil {
-		ctx.providers = NoopProviderRegistry{}
+		ctx.providers = NewRuntimeProviderRegistry(ctx.config)
 	}
 	if ctx.session == nil {
 		ctx.session = NoopSessionController{}
@@ -146,8 +162,6 @@ func (NoopBus) OnAll(Handler)      {}
 func (NoopBus) Off(Handler)        {}
 func (NoopBus) Close() error       { return nil }
 
-type NoopToolRegistry struct{}
-type NoopProviderRegistry struct{}
 type NoopSessionController struct{}
 type NoopResourceRegistry struct{}
 type NoopModelController struct{}

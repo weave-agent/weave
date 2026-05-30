@@ -181,11 +181,11 @@ type ExecResult struct {
 - [x] run `go test ./sdk/... ./internal/...` - must pass before task 3
 
 ### Task 3: Add runtime tool and provider registry contracts
-- [ ] add session-scoped runtime tool registry interfaces in `sdk`; examples include register, unregister, list, get, enable, disable, and decorate existing tools
-- [ ] add provider middleware contracts for before-request, after-response, and stream observation; middleware belongs in runtime/agent layers, not provider implementations
-- [ ] add compatibility adapters for existing static `RegisterTool` and `RegisterProvider` APIs; static tools/providers should appear in runtime registries automatically
-- [ ] write tests for runtime registration, duplicate names, activation filters, and static compatibility
-- [ ] run `go test ./sdk/...` - must pass before task 4
+- [x] add session-scoped runtime tool registry interfaces in `sdk`; examples include register, unregister, list, get, enable, disable, and decorate existing tools
+- [x] add provider middleware contracts for before-request, after-response, and stream observation; middleware belongs in runtime/agent layers, not provider implementations
+- [x] add compatibility adapters for existing static `RegisterTool` and `RegisterProvider` APIs; static tools/providers should appear in runtime registries automatically
+- [x] write tests for runtime registration, duplicate names, activation filters, and static compatibility
+- [x] run `go test ./sdk/...` - must pass before task 4
 
 ### Task 4: Add session, resource, model, and exec service contracts
 - [ ] add session controller interfaces for send message, append entry, set name, get name, set label, compact, fork, switch, and tree operations; unsupported operations should return typed errors
