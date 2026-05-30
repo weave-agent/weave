@@ -188,12 +188,12 @@ type ExecResult struct {
 - [x] run `go test ./sdk/...` - must pass before task 4
 
 ### Task 4: Add session, resource, model, and exec service contracts
-- [ ] add session controller interfaces for send message, append entry, set name, get name, set label, compact, fork, switch, and tree operations; unsupported operations should return typed errors
-- [ ] add resource discovery interfaces for prompts, skills, context, themes, and embedded assets; resource providers should be deterministic and failure-isolated
-- [ ] add model/thinking controller interfaces over existing model registry and thinking-level behavior; preserve current model selection events and preference writes
-- [ ] add guardian/sandbox-aware exec request/result contracts without embedding shell implementation details; root SDK defines the port, bash/sandbox/guardian provide adapters
-- [ ] write tests for zero-value/noop service behavior and service lookup failures
-- [ ] run `go test ./sdk/...` - must pass before task 5
+- [x] add session controller interfaces for send message, append entry, set name, get name, set label, compact, fork, switch, and tree operations; unsupported operations should return typed errors
+- [x] add resource discovery interfaces for prompts, skills, context, themes, and embedded assets; resource providers should be deterministic and failure-isolated
+- [x] add model/thinking controller interfaces over existing model registry and thinking-level behavior; preserve current model selection events and preference writes
+- [x] add guardian/sandbox-aware exec request/result contracts without embedding shell implementation details; root SDK defines the port, bash/sandbox/guardian provide adapters
+- [x] write tests for zero-value/noop service behavior and service lookup failures
+- [x] run `go test ./sdk/...` - must pass before task 5
 
 ### Task 5: Wire runtime services through launcher and composition root
 - [ ] update `internal/wire` to construct and pass runtime services to extensions
