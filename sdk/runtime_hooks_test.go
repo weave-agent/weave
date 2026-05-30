@@ -17,16 +17,19 @@ func TestRuntimeHookOrderingAndMutation(t *testing.T) {
 	hook.Use("second", func(_ context.Context, state *HookState[string, string]) error {
 		state.Request += "-second"
 		state.Result += "-second"
+
 		return nil
 	}, WithHookOrder(20))
 	hook.Use("first", func(_ context.Context, state *HookState[string, string]) error {
 		state.Request += "-first"
 		state.Result += "-first"
+
 		return nil
 	}, WithHookOrder(10))
 	hook.Use("third", func(_ context.Context, state *HookState[string, string]) error {
 		state.Request += "-third"
 		state.Result += "-third"
+
 		return nil
 	}, WithHookOrder(20))
 
@@ -44,11 +47,13 @@ func TestRuntimeHookStopSkipsLaterHandlers(t *testing.T) {
 	hook.Use("stop", func(_ context.Context, state *HookState[string, string]) error {
 		state.Result = "vetoed"
 		state.Stop()
+
 		return nil
 	})
 	hook.Use("later", func(_ context.Context, state *HookState[string, string]) error {
 		called = true
 		state.Result = "later"
+
 		return nil
 	})
 
@@ -84,6 +89,7 @@ func TestRuntimeHookHandleCloseUnregistersAndCleansUpOnce(t *testing.T) {
 	handle := hook.Use("owner", func(_ context.Context, state *HookState[string, string]) error {
 		calls++
 		state.Result = "called"
+
 		return nil
 	}, WithHookCleanup(func() error {
 		cleanups++

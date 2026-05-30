@@ -210,11 +210,13 @@ type ExecResult struct {
 - [x] run `go test ./...` - must pass before task 7
 
 ### Task 7: Verify acceptance criteria
-- [ ] verify this repo implements its part of the Pi parity migration
-- [ ] verify backward compatibility for existing public APIs where required
-- [ ] run `go test ./...`
-- [ ] run repo lint command if available
-- [ ] update this plan with any remaining blockers or follow-up tasks
+- [x] verify this repo implements its part of the Pi parity migration
+- [x] verify backward compatibility for existing public APIs where required
+- [x] run `go test ./...`
+- [x] run repo lint command if available
+- [x] update this plan with any remaining blockers or follow-up tasks
+
+Verification note: `go test ./...` and `make lint` pass. No root-repo blockers found; remaining follow-up is Task 8 documentation.
 
 ### Task 8: Update documentation
 - [ ] update README.md or package docs if public API changed

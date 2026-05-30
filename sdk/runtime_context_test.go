@@ -16,21 +16,21 @@ func TestNoopSessionControllerUnsupported(t *testing.T) {
 	noop := NoopSessionController{}
 	ctx := context.Background()
 
-	assert.ErrorIs(t, noop.SendUserMessage(ctx, "hello"), ErrRuntimeCapabilityUnsupported)
+	require.ErrorIs(t, noop.SendUserMessage(ctx, "hello"), ErrRuntimeCapabilityUnsupported)
 	_, err := noop.AppendEntry(ctx, SessionEntry{Message: NewUserMessage("hello")})
-	assert.ErrorIs(t, err, ErrRuntimeCapabilityUnsupported)
-	assert.ErrorIs(t, noop.SetName(ctx, "name"), ErrRuntimeCapabilityUnsupported)
+	require.ErrorIs(t, err, ErrRuntimeCapabilityUnsupported)
+	require.ErrorIs(t, noop.SetName(ctx, "name"), ErrRuntimeCapabilityUnsupported)
 	_, err = noop.Name(ctx)
-	assert.ErrorIs(t, err, ErrRuntimeCapabilityUnsupported)
-	assert.ErrorIs(t, noop.SetLabel(ctx, "entry", "label"), ErrRuntimeCapabilityUnsupported)
+	require.ErrorIs(t, err, ErrRuntimeCapabilityUnsupported)
+	require.ErrorIs(t, noop.SetLabel(ctx, "entry", "label"), ErrRuntimeCapabilityUnsupported)
 	_, err = noop.Compact(ctx, CompactRequest{Reason: "test"})
-	assert.ErrorIs(t, err, ErrRuntimeCapabilityUnsupported)
+	require.ErrorIs(t, err, ErrRuntimeCapabilityUnsupported)
 	_, err = noop.Fork(ctx, ForkSessionRequest{Name: "fork"})
-	assert.ErrorIs(t, err, ErrRuntimeCapabilityUnsupported)
+	require.ErrorIs(t, err, ErrRuntimeCapabilityUnsupported)
 	_, err = noop.Switch(ctx, SwitchSessionRequest{SessionID: "session"})
-	assert.ErrorIs(t, err, ErrRuntimeCapabilityUnsupported)
+	require.ErrorIs(t, err, ErrRuntimeCapabilityUnsupported)
 	_, err = noop.Tree(ctx)
-	assert.ErrorIs(t, err, ErrRuntimeCapabilityUnsupported)
+	require.ErrorIs(t, err, ErrRuntimeCapabilityUnsupported)
 }
 
 func TestRuntimeResourceRegistryFailureIsolationAndUnregister(t *testing.T) {
@@ -62,7 +62,7 @@ func TestRuntimeResourceRegistryFailureIsolationAndUnregister(t *testing.T) {
 	require.Len(t, list.Resources, 1)
 	assert.Equal(t, "skill://go", list.Resources[0].URI)
 	require.Len(t, list.Errors, 1)
-	assert.ErrorIs(t, list.Errors[0], boom)
+	require.ErrorIs(t, list.Errors[0], boom)
 	assert.Equal(t, "bad", list.Errors[0].Provider)
 
 	resource, err := reg.Get(context.Background(), ResourceQuery{URI: "skill://go"})
@@ -88,7 +88,7 @@ func TestRuntimeResourceRegistryLookupFailures(t *testing.T) {
 
 	reg := NewRuntimeResourceRegistry()
 	_, err := reg.Get(context.Background(), ResourceQuery{URI: "missing"})
-	assert.ErrorIs(t, err, ErrRuntimeNotFound)
+	require.ErrorIs(t, err, ErrRuntimeNotFound)
 
 	reg.Register(resourceProviderStub{
 		name: "bad",
@@ -116,12 +116,13 @@ func TestExtensionContextDefaultsAndExecDelegation(t *testing.T) {
 	assert.NotNil(t, ctx.Models())
 
 	_, err := ctx.Exec(context.Background(), ExecRequest{Command: "go", Args: []string{"test"}})
-	assert.ErrorIs(t, err, ErrRuntimeCapabilityUnsupported)
+	require.ErrorIs(t, err, ErrRuntimeCapabilityUnsupported)
 
 	called := false
 	withExec := NewExtensionContext(RuntimeContextOptions{
 		Exec: func(_ context.Context, req ExecRequest) (ExecResult, error) {
 			called = true
+
 			assert.Equal(t, GuardianActionExec, req.Action)
 
 			return ExecResult{Stdout: "ok", ExitCode: 0}, nil
@@ -138,6 +139,7 @@ func TestRuntimeModelControllerRegistryPreferencesAndEvents(t *testing.T) {
 
 	model.ResetModelRegistry()
 	defer model.ResetModelRegistry()
+
 	model.RegisterModel(model.ModelDef{ID: "m1", Provider: "p1", SupportsXHigh: false, Default: true})
 
 	bus := &runtimeContextRecordingBus{}
@@ -147,6 +149,7 @@ func TestRuntimeModelControllerRegistryPreferencesAndEvents(t *testing.T) {
 	models := ctrl.ListModels()
 	require.Len(t, models, 1)
 	assert.Equal(t, "m1", models[0].ID)
+
 	_, ok := ctrl.GetModelForProvider("m1", "p1")
 	assert.True(t, ok)
 	assert.Equal(t, model.ThinkingHigh, ctrl.ClampThinkingLevel(model.ThinkingXHigh, models[0]))
@@ -174,11 +177,11 @@ func TestRuntimeModelControllerUnsupportedWithoutPreferences(t *testing.T) {
 	ctrl := NewRuntimeModelController(RuntimeModelControllerOptions{})
 
 	_, err := ctrl.CurrentModel(context.Background())
-	assert.ErrorIs(t, err, ErrRuntimeCapabilityUnsupported)
-	assert.ErrorIs(t, ctrl.SetModel(context.Background(), "m1"), ErrRuntimeCapabilityUnsupported)
+	require.ErrorIs(t, err, ErrRuntimeCapabilityUnsupported)
+	require.ErrorIs(t, ctrl.SetModel(context.Background(), "m1"), ErrRuntimeCapabilityUnsupported)
 	_, err = ctrl.ThinkingLevel(context.Background())
-	assert.ErrorIs(t, err, ErrRuntimeCapabilityUnsupported)
-	assert.ErrorIs(t, ctrl.SetThinkingLevel(context.Background(), model.ThinkingHigh), ErrRuntimeCapabilityUnsupported)
+	require.ErrorIs(t, err, ErrRuntimeCapabilityUnsupported)
+	require.ErrorIs(t, ctrl.SetThinkingLevel(context.Background(), model.ThinkingHigh), ErrRuntimeCapabilityUnsupported)
 }
 
 type resourceProviderStub struct {
@@ -237,6 +240,7 @@ func (p *runtimeContextPrefs) SavePreferences(target any) error {
 	}:
 		p.thinkingLevel = v.ThinkingLevel
 	}
+
 	p.saved++
 
 	return nil

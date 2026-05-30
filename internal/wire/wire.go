@@ -46,12 +46,18 @@ func (e runtimeExtensionAdapter) Subscribe(sdk.Bus) error {
 		return nil
 	}
 
-	return e.runtime.Register(e.ctx)
+	if err := e.runtime.Register(e.ctx); err != nil {
+		return fmt.Errorf("register runtime extension %q: %w", e.name, err)
+	}
+
+	return nil
 }
 
 func (e runtimeExtensionAdapter) Close() error {
 	if closer, ok := e.runtime.(interface{ Close() error }); ok {
-		return closer.Close()
+		if err := closer.Close(); err != nil {
+			return fmt.Errorf("close runtime extension %q: %w", e.name, err)
+		}
 	}
 
 	return nil
@@ -131,11 +137,13 @@ func prepareExtensions(extNames []string, cfg sdk.Config, runtime sdk.ExtensionC
 		if !ok {
 			continue
 		}
+
 		if ss, ok := runtimeAdapter.runtime.(sdk.SessionStore); ok {
 			sdk.SetSessionStore(ss)
 
 			break
 		}
+
 		if legacy, ok := runtimeAdapter.runtime.(interface{ LegacyExtension() sdk.Extension }); ok {
 			if ss, ok := legacy.LegacyExtension().(sdk.SessionStore); ok {
 				sdk.SetSessionStore(ss)

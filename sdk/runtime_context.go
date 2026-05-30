@@ -3,6 +3,7 @@ package sdk
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"sync"
 
@@ -272,21 +273,27 @@ func NewExtensionContext(opts RuntimeContextOptions) ExtensionContext {
 	if ctx.bus == nil {
 		ctx.bus = NoopBus{}
 	}
+
 	if ctx.hooks == nil {
 		ctx.hooks = NewRuntimeHooksWithBus(ctx.bus)
 	}
+
 	if ctx.tools == nil {
 		ctx.tools = NewRuntimeToolRegistry(ctx.config)
 	}
+
 	if ctx.providers == nil {
 		ctx.providers = NewRuntimeProviderRegistry(ctx.config)
 	}
+
 	if ctx.session == nil {
 		ctx.session = NoopSessionController{}
 	}
+
 	if ctx.resources == nil {
 		ctx.resources = NewRuntimeResourceRegistry()
 	}
+
 	if ctx.models == nil {
 		prefs := opts.Prefs
 		if prefs == nil {
@@ -294,6 +301,7 @@ func NewExtensionContext(opts RuntimeContextOptions) ExtensionContext {
 				prefs = writer
 			}
 		}
+
 		ctx.models = NewRuntimeModelController(RuntimeModelControllerOptions{
 			Bus:   ctx.bus,
 			Prefs: prefs,
@@ -303,14 +311,21 @@ func NewExtensionContext(opts RuntimeContextOptions) ExtensionContext {
 	return ctx
 }
 
-func (c *runtimeContext) Bus() Bus                        { return c.bus }
-func (c *runtimeContext) Hooks() Hooks                    { return c.hooks }
-func (c *runtimeContext) Tools() ToolRegistry             { return c.tools }
-func (c *runtimeContext) Providers() ProviderRegistry     { return c.providers }
-func (c *runtimeContext) Session() SessionController      { return c.session }
-func (c *runtimeContext) Resources() ResourceRegistry     { return c.resources }
-func (c *runtimeContext) Models() ModelController         { return c.models }
-func (c *runtimeContext) Config(s, n string, t any) error { return c.config.ExtensionConfig(s, n, t) }
+func (c *runtimeContext) Bus() Bus                    { return c.bus }
+func (c *runtimeContext) Hooks() Hooks                { return c.hooks }
+func (c *runtimeContext) Tools() ToolRegistry         { return c.tools }
+func (c *runtimeContext) Providers() ProviderRegistry { return c.providers }
+func (c *runtimeContext) Session() SessionController  { return c.session }
+func (c *runtimeContext) Resources() ResourceRegistry { return c.resources }
+func (c *runtimeContext) Models() ModelController     { return c.models }
+func (c *runtimeContext) Config(s, n string, t any) error {
+	if err := c.config.ExtensionConfig(s, n, t); err != nil {
+		return fmt.Errorf("runtime config %s/%s: %w", s, n, err)
+	}
+
+	return nil
+}
+
 func (c *runtimeContext) Exec(ctx context.Context, req ExecRequest) (ExecResult, error) {
 	if c.exec == nil {
 		return ExecResult{}, ErrRuntimeCapabilityUnsupported
@@ -328,8 +343,10 @@ func (NoopBus) OnAll(Handler)      {}
 func (NoopBus) Off(Handler)        {}
 func (NoopBus) Close() error       { return nil }
 
-type NoopSessionController struct{}
-type NoopResourceRegistry struct{}
+type (
+	NoopSessionController struct{}
+	NoopResourceRegistry  struct{}
+)
 
 func (NoopSessionController) SendUserMessage(context.Context, any) error {
 	return ErrRuntimeCapabilityUnsupported
@@ -426,6 +443,7 @@ func (r *RuntimeResourceRegistry) Register(provider ResourceProvider) HookHandle
 
 func (r *RuntimeResourceRegistry) List(ctx context.Context, query ResourceQuery) ResourceList {
 	out := ResourceList{Resources: []ResourceInfo{}}
+
 	for _, provider := range r.providerSnapshot() {
 		resources, err := provider.ListResources(ctx, query)
 		if err != nil {
@@ -433,6 +451,7 @@ func (r *RuntimeResourceRegistry) List(ctx context.Context, query ResourceQuery)
 
 			continue
 		}
+
 		out.Resources = append(out.Resources, resources...)
 	}
 
@@ -441,13 +460,16 @@ func (r *RuntimeResourceRegistry) List(ctx context.Context, query ResourceQuery)
 
 func (r *RuntimeResourceRegistry) Get(ctx context.Context, query ResourceQuery) (Resource, error) {
 	var errs []error
+
 	for _, provider := range r.providerSnapshot() {
 		resource, err := provider.GetResource(ctx, query)
 		if err == nil {
 			return resource, nil
 		}
+
 		errs = append(errs, ResourceProviderError{Provider: provider.Name(), Err: err})
 	}
+
 	if len(errs) > 0 {
 		return Resource{}, errors.Join(errs...)
 	}
@@ -511,8 +533,9 @@ func (m *RuntimeModelController) CurrentModel(context.Context) (string, error) {
 	if m.prefs == nil {
 		return "", ErrRuntimeCapabilityUnsupported
 	}
+
 	if err := m.prefs.Preferences(&prefs); err != nil {
-		return "", err
+		return "", fmt.Errorf("load model preferences: %w", err)
 	}
 
 	return prefs.Model, nil
@@ -527,12 +550,14 @@ func (m *RuntimeModelController) SetModel(_ context.Context, id string) error {
 		Model string `json:"model"`
 	}
 	if err := m.prefs.Preferences(&prefs); err != nil {
-		return err
+		return fmt.Errorf("load model preferences: %w", err)
 	}
+
 	prefs.Model = id
 	if err := m.prefs.SavePreferences(&prefs); err != nil {
-		return err
+		return fmt.Errorf("save model preferences: %w", err)
 	}
+
 	m.bus.Publish(NewEvent("model.change", map[string]any{"model": id}))
 
 	return nil
@@ -547,33 +572,42 @@ func (m *RuntimeModelController) ThinkingLevel(context.Context) (model.ThinkingL
 		ThinkingLevel string `json:"thinking_level"`
 	}
 	if err := m.prefs.Preferences(&prefs); err != nil {
-		return "", err
+		return "", fmt.Errorf("load thinking preferences: %w", err)
 	}
+
 	if prefs.ThinkingLevel == "" {
 		return model.ThinkingOff, nil
 	}
 
-	return model.ParseThinkingLevel(prefs.ThinkingLevel)
+	level, err := model.ParseThinkingLevel(prefs.ThinkingLevel)
+	if err != nil {
+		return "", fmt.Errorf("parse thinking level: %w", err)
+	}
+
+	return level, nil
 }
 
 func (m *RuntimeModelController) SetThinkingLevel(_ context.Context, level model.ThinkingLevel) error {
 	if m.prefs == nil {
 		return ErrRuntimeCapabilityUnsupported
 	}
+
 	if _, err := model.ParseThinkingLevel(string(level)); err != nil {
-		return err
+		return fmt.Errorf("parse thinking level: %w", err)
 	}
 
 	var prefs struct {
 		ThinkingLevel string `json:"thinking_level"`
 	}
 	if err := m.prefs.Preferences(&prefs); err != nil {
-		return err
+		return fmt.Errorf("load thinking preferences: %w", err)
 	}
+
 	prefs.ThinkingLevel = string(level)
 	if err := m.prefs.SavePreferences(&prefs); err != nil {
-		return err
+		return fmt.Errorf("save thinking preferences: %w", err)
 	}
+
 	m.bus.Publish(NewEvent("model.change", map[string]any{"thinking": string(level)}))
 
 	return nil

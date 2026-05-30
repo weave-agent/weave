@@ -109,8 +109,9 @@ func NewRuntimeToolRegistry(cfg Config) *RuntimeToolRegistry {
 
 func (r *RuntimeToolRegistry) Register(tool RuntimeTool) (HookHandle, error) {
 	if tool.Name == "" {
-		return noopHookHandle{}, fmt.Errorf("register runtime tool: empty name")
+		return noopHookHandle{}, errors.New("register runtime tool: empty name")
 	}
+
 	if tool.Run == nil {
 		return noopHookHandle{}, fmt.Errorf("register runtime tool %q: nil run function", tool.Name)
 	}
@@ -125,6 +126,7 @@ func (r *RuntimeToolRegistry) Register(tool RuntimeTool) (HookHandle, error) {
 	if !tool.enabledSet {
 		tool.Enabled = true
 	}
+
 	r.runtime[tool.Name] = tool
 	if !tool.Enabled {
 		r.disabled[tool.Name] = true
@@ -140,6 +142,7 @@ func (r *RuntimeToolRegistry) Unregister(name string) error {
 	if _, ok := r.runtime[name]; !ok {
 		return fmt.Errorf("runtime tool %q: %w", name, ErrRuntimeNotFound)
 	}
+
 	delete(r.runtime, name)
 	delete(r.disabled, name)
 
@@ -148,10 +151,12 @@ func (r *RuntimeToolRegistry) Unregister(name string) error {
 
 func (r *RuntimeToolRegistry) List() []RuntimeToolInfo {
 	infos := make([]RuntimeToolInfo, 0)
+
 	for _, name := range ListTools() {
 		r.mu.RLock()
 		disabled := r.disabled[name]
 		r.mu.RUnlock()
+
 		if disabled {
 			continue
 		}
@@ -160,16 +165,20 @@ func (r *RuntimeToolRegistry) List() []RuntimeToolInfo {
 		if !ok {
 			continue
 		}
+
 		infos = append(infos, RuntimeToolInfo{Name: name, Definition: tool.Definition, Enabled: true})
 	}
 
 	r.mu.RLock()
+
 	for name, tool := range r.runtime {
 		if !toolAllowed(name) {
 			continue
 		}
+
 		infos = append(infos, RuntimeToolInfo{Name: name, Definition: tool.Definition, Enabled: !r.disabled[name]})
 	}
+
 	r.mu.RUnlock()
 
 	sort.Slice(infos, func(i, j int) bool { return infos[i].Name < infos[j].Name })
@@ -186,9 +195,11 @@ func (r *RuntimeToolRegistry) Get(name string) (RuntimeTool, bool) {
 	tool, ok := r.runtime[name]
 	disabled := r.disabled[name]
 	r.mu.RUnlock()
+
 	if disabled {
 		return RuntimeTool{}, false
 	}
+
 	if ok {
 		return tool, true
 	}
@@ -197,6 +208,7 @@ func (r *RuntimeToolRegistry) Get(name string) (RuntimeTool, bool) {
 	if err != nil {
 		return RuntimeTool{}, false
 	}
+
 	legacy = r.decorate(legacy)
 
 	return RuntimeTool{
@@ -220,6 +232,7 @@ func (r *RuntimeToolRegistry) Enable(name string) error {
 		r.mu.RLock()
 		_, ok := r.runtime[name]
 		r.mu.RUnlock()
+
 		if !ok {
 			return fmt.Errorf("runtime tool %q: %w", name, ErrRuntimeNotFound)
 		}
@@ -237,6 +250,7 @@ func (r *RuntimeToolRegistry) Disable(name string) error {
 		r.mu.RLock()
 		_, ok := r.runtime[name]
 		r.mu.RUnlock()
+
 		if !ok {
 			return fmt.Errorf("runtime tool %q: %w", name, ErrRuntimeNotFound)
 		}
@@ -261,13 +275,18 @@ func (r *RuntimeToolRegistry) Decorate(owner string, decorator ToolDecorator) Ho
 	id := r.nextID
 	r.decorators[id] = toolDecoratorEntry{id: id, seq: id, owner: owner, decorator: decorator}
 
-	return newCloseHandle(func() error {
+	return newCloseHandle(r.closeDecorator(id))
+}
+
+func (r *RuntimeToolRegistry) closeDecorator(id int) func() error {
+	return func() error {
 		r.mu.Lock()
+		defer r.mu.Unlock()
+
 		delete(r.decorators, id)
-		r.mu.Unlock()
 
 		return nil
-	})
+	}
 }
 
 func (r *RuntimeToolRegistry) decorate(tool Tool) Tool {
@@ -286,6 +305,7 @@ func (r *RuntimeToolRegistry) toolDecoratorSnapshot() []toolDecoratorEntry {
 	for _, entry := range r.decorators {
 		entries = append(entries, entry)
 	}
+
 	sort.Slice(entries, func(i, j int) bool { return entries[i].seq < entries[j].seq })
 
 	return entries
@@ -316,8 +336,9 @@ func NewRuntimeProviderRegistry(cfg Config) *RuntimeProviderRegistry {
 
 func (r *RuntimeProviderRegistry) Register(provider RuntimeProvider) (HookHandle, error) {
 	if provider.Name == "" {
-		return noopHookHandle{}, fmt.Errorf("register runtime provider: empty name")
+		return noopHookHandle{}, errors.New("register runtime provider: empty name")
 	}
+
 	if provider.Factory == nil {
 		return noopHookHandle{}, fmt.Errorf("register runtime provider %q: nil factory", provider.Name)
 	}
@@ -328,6 +349,7 @@ func (r *RuntimeProviderRegistry) Register(provider RuntimeProvider) (HookHandle
 	if _, ok := r.runtime[provider.Name]; ok || ProviderRegistered(provider.Name) {
 		return noopHookHandle{}, fmt.Errorf("runtime provider %q: %w", provider.Name, ErrRuntimeDuplicateName)
 	}
+
 	r.runtime[provider.Name] = provider
 
 	return newCloseHandle(func() error { return r.Unregister(provider.Name) }), nil
@@ -340,6 +362,7 @@ func (r *RuntimeProviderRegistry) Unregister(name string) error {
 	if _, ok := r.runtime[name]; !ok {
 		return fmt.Errorf("runtime provider %q: %w", name, ErrRuntimeNotFound)
 	}
+
 	delete(r.runtime, name)
 
 	return nil
@@ -349,9 +372,11 @@ func (r *RuntimeProviderRegistry) List() []RuntimeProviderInfo {
 	names := ListProviders()
 
 	r.mu.RLock()
+
 	for name := range r.runtime {
 		names = append(names, name)
 	}
+
 	r.mu.RUnlock()
 
 	sort.Strings(names)
@@ -378,6 +403,7 @@ func (r *RuntimeProviderRegistry) Get(name string) (Provider, bool) {
 	} else {
 		provider, err = GetProvider(name, r.config)
 	}
+
 	if err != nil {
 		return nil, false
 	}
@@ -397,13 +423,18 @@ func (r *RuntimeProviderRegistry) UseMiddleware(owner string, middleware Provide
 	id := r.nextID
 	r.middlewares[id] = providerMiddlewareEntry{id: id, seq: id, owner: owner, middleware: middleware}
 
-	return newCloseHandle(func() error {
+	return newCloseHandle(r.closeMiddleware(id))
+}
+
+func (r *RuntimeProviderRegistry) closeMiddleware(id int) func() error {
+	return func() error {
 		r.mu.Lock()
+		defer r.mu.Unlock()
+
 		delete(r.middlewares, id)
-		r.mu.Unlock()
 
 		return nil
-	})
+	}
 }
 
 func (r *RuntimeProviderRegistry) wrapProvider(provider Provider) Provider {
@@ -423,6 +454,7 @@ func (r *RuntimeProviderRegistry) providerMiddlewareSnapshot() []providerMiddlew
 	for _, entry := range r.middlewares {
 		entries = append(entries, entry)
 	}
+
 	sort.Slice(entries, func(i, j int) bool { return entries[i].seq < entries[j].seq })
 
 	return entries
@@ -438,13 +470,13 @@ func (p runtimeProviderWithMiddleware) Stream(ctx context.Context, req ProviderR
 	for _, entry := range p.middlewares {
 		req, err = entry.middleware.BeforeProviderRequest(ctx, req)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("provider middleware %q before request: %w", entry.owner, err)
 		}
 	}
 
 	events, err := p.provider.Stream(ctx, req, opts...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("provider stream: %w", err)
 	}
 
 	out := make(chan ProviderEvent)

@@ -1,5 +1,7 @@
 package sdk
 
+import "fmt"
+
 //go:generate moq -fmt goimports -stub -out extension_mock_test.go . Bus Extension
 
 // Handler processes a bus event. Return a non-nil error to trigger an
@@ -38,7 +40,11 @@ func (e legacyRuntimeExtension) Register(ctx ExtensionContext) error {
 		return nil
 	}
 
-	return e.ext.Subscribe(ctx.Bus())
+	if err := e.ext.Subscribe(ctx.Bus()); err != nil {
+		return fmt.Errorf("register legacy extension: %w", err)
+	}
+
+	return nil
 }
 
 func (e legacyRuntimeExtension) Close() error {
@@ -46,7 +52,11 @@ func (e legacyRuntimeExtension) Close() error {
 		return nil
 	}
 
-	return e.ext.Close()
+	if err := e.ext.Close(); err != nil {
+		return fmt.Errorf("close legacy extension: %w", err)
+	}
+
+	return nil
 }
 
 type ExtensionFunc struct {
@@ -126,15 +136,21 @@ func (e *runtimeExtensionAdapter) Subscribe(bus Bus) error {
 		return nil
 	}
 
-	return e.runtime.Register(NewExtensionContext(RuntimeContextOptions{
+	if err := e.runtime.Register(NewExtensionContext(RuntimeContextOptions{
 		Bus:    bus,
 		Config: e.cfg,
-	}))
+	})); err != nil {
+		return fmt.Errorf("subscribe runtime extension %q: %w", e.name, err)
+	}
+
+	return nil
 }
 
 func (e *runtimeExtensionAdapter) Close() error {
 	if closer, ok := e.runtime.(interface{ Close() error }); ok {
-		return closer.Close()
+		if err := closer.Close(); err != nil {
+			return fmt.Errorf("close runtime extension %q: %w", e.name, err)
+		}
 	}
 
 	return nil

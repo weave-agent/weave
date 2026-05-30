@@ -161,6 +161,7 @@ func TestLegacyExtensionRegistrationExposesRuntimeWrapper(t *testing.T) {
 	RegisterExtension[struct{}]("legacy", func(Config, PreferenceReader, struct{}) (Extension, error) {
 		return NewExtensionFuncWithClose("legacy", func(got Bus) error {
 			subscribed = true
+
 			assert.Same(t, bus, got)
 
 			return nil
@@ -184,7 +185,9 @@ func TestLegacyExtensionRegistrationExposesRuntimeWrapper(t *testing.T) {
 
 	ext, err := GetExtension("legacy", nil)
 	require.NoError(t, err)
+
 	closed = false
+
 	require.NoError(t, ext.Close())
 	assert.True(t, closed)
 }
@@ -198,9 +201,13 @@ func TestRegisterRuntimeExtensionCanBeResolvedAsLegacyExtension(t *testing.T) {
 
 	cfg := &extensionConfigRecorder{}
 	bus := &BusMock{}
-	var receivedConfig runtimeConfig
-	var receivedPrefs PreferenceReader
-	var registeredCtx ExtensionContext
+
+	var (
+		receivedConfig runtimeConfig
+		receivedPrefs  PreferenceReader
+		registeredCtx  ExtensionContext
+	)
+
 	closed := false
 
 	RegisterRuntimeExtension("runtime", func(_ Config, prefs PreferenceReader, c runtimeConfig) (RuntimeExtension, error) {
@@ -229,9 +236,9 @@ func TestRegisterRuntimeExtensionCanBeResolvedAsLegacyExtension(t *testing.T) {
 	assert.Same(t, bus, registeredCtx.Bus())
 	assert.NotNil(t, registeredCtx.Hooks())
 	assert.NotNil(t, registeredCtx.Tools())
-	assert.NoError(t, registeredCtx.Config("extensions", "runtime", &runtimeConfig{}))
+	require.NoError(t, registeredCtx.Config("extensions", "runtime", &runtimeConfig{}))
 	_, err = registeredCtx.Exec(context.Background(), ExecRequest{Command: "echo"})
-	assert.ErrorIs(t, err, ErrRuntimeCapabilityUnsupported)
+	require.ErrorIs(t, err, ErrRuntimeCapabilityUnsupported)
 
 	require.NoError(t, ext.Close())
 	assert.True(t, closed)
@@ -262,8 +269,9 @@ func (c *extensionConfigRecorder) FilePath() string   { return "" }
 func (c *extensionConfigRecorder) ProjectDir() string { return "" }
 func (c *extensionConfigRecorder) ExtensionConfig(scope, name string, target any) error {
 	c.loaded = append(c.loaded, scope+"/"+name)
+
 	v := reflect.ValueOf(target)
-	if v.Kind() == reflect.Ptr && !v.IsNil() {
+	if v.Kind() == reflect.Pointer && !v.IsNil() {
 		elem := v.Elem()
 		if elem.Kind() == reflect.Struct {
 			field := elem.FieldByName("Enabled")

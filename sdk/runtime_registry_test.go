@@ -3,6 +3,7 @@ package sdk
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -26,6 +27,7 @@ func TestRuntimeToolRegistry_RegisterGetDisableEnableAndUnregister(t *testing.T)
 
 	tool, ok := reg.Get("runtime")
 	require.True(t, ok)
+
 	result, err := tool.Run(context.Background(), ToolRequest{Arguments: map[string]any{"value": "ok"}})
 	require.NoError(t, err)
 	assert.Equal(t, "ok", result.Content)
@@ -39,9 +41,10 @@ func TestRuntimeToolRegistry_RegisterGetDisableEnableAndUnregister(t *testing.T)
 	assert.Len(t, reg.List(), 1)
 
 	require.NoError(t, handle.Close())
+
 	_, ok = reg.Get("runtime")
 	assert.False(t, ok)
-	assert.ErrorIs(t, reg.Unregister("runtime"), ErrRuntimeNotFound)
+	require.ErrorIs(t, reg.Unregister("runtime"), ErrRuntimeNotFound)
 }
 
 func TestRuntimeToolRegistry_DuplicateNames(t *testing.T) {
@@ -100,13 +103,16 @@ func TestRuntimeToolRegistry_StaticCompatibilityFilterAndDecorator(t *testing.T)
 
 	tool, ok := reg.Get("read")
 	require.True(t, ok)
+
 	result, err := tool.Run(context.Background(), ToolRequest{Arguments: map[string]any{"path": "file.txt"}})
 	require.NoError(t, err)
 	assert.Equal(t, "decorated:file.txt", result.Content)
 
 	require.NoError(t, handle.Close())
+
 	tool, ok = reg.Get("read")
 	require.True(t, ok)
+
 	result, err = tool.Run(context.Background(), ToolRequest{Call: ToolCall{Arguments: map[string]any{"path": "call.txt"}}})
 	require.NoError(t, err)
 	assert.Equal(t, "call.txt", result.Content)
@@ -119,8 +125,9 @@ type decoratedTool struct {
 func (t decoratedTool) Execute(ctx context.Context, args map[string]any) (ToolResult, error) {
 	result, err := t.Tool.Execute(ctx, args)
 	if err != nil {
-		return ToolResult{}, err
+		return ToolResult{}, fmt.Errorf("execute decorated tool: %w", err)
 	}
+
 	result.Content = "decorated:" + result.Content
 
 	return result, nil
@@ -134,7 +141,9 @@ func TestRuntimeProviderRegistry_StaticCompatibilityAndMiddleware(t *testing.T) 
 	})
 
 	reg := NewRuntimeProviderRegistry(nil)
+
 	var observed []string
+
 	reg.UseMiddleware("test", ProviderMiddlewareFuncs{
 		BeforeProviderRequestFunc: func(_ context.Context, req ProviderRequest) (ProviderRequest, error) {
 			req.SystemPrompt += ":before"
@@ -155,6 +164,7 @@ func TestRuntimeProviderRegistry_StaticCompatibilityAndMiddleware(t *testing.T) 
 
 	provider, ok := reg.Get("static")
 	require.True(t, ok)
+
 	events, err := provider.Stream(context.Background(), ProviderRequest{SystemPrompt: "system"})
 	require.NoError(t, err)
 
@@ -190,6 +200,7 @@ func TestRuntimeProviderRegistry_RegisterDuplicateUnregisterAndMiddlewareErrors(
 	assert.Equal(t, []RuntimeProviderInfo{{Name: "runtime"}}, reg.List())
 
 	expectedErr := errors.New("observe failed")
+
 	reg.UseMiddleware("test", ProviderMiddlewareFuncs{
 		ObserveProviderStreamFunc: func(context.Context, ProviderEvent) error {
 			return expectedErr
@@ -198,19 +209,22 @@ func TestRuntimeProviderRegistry_RegisterDuplicateUnregisterAndMiddlewareErrors(
 
 	provider, ok := reg.Get("runtime")
 	require.True(t, ok)
+
 	events, err := provider.Stream(context.Background(), ProviderRequest{SystemPrompt: "system"})
 	require.NoError(t, err)
 
 	event := <-events
 	assert.Equal(t, ProviderEventError, event.Type)
-	assert.ErrorIs(t, event.Content.(error), expectedErr)
+	require.ErrorIs(t, event.Content.(error), expectedErr)
+
 	_, open := <-events
 	assert.False(t, open)
 
 	require.NoError(t, handle.Close())
+
 	_, ok = reg.Get("runtime")
 	assert.False(t, ok)
-	assert.ErrorIs(t, reg.Unregister("runtime"), ErrRuntimeNotFound)
+	require.ErrorIs(t, reg.Unregister("runtime"), ErrRuntimeNotFound)
 }
 
 type streamProvider struct {
@@ -220,6 +234,7 @@ type streamProvider struct {
 func (p streamProvider) Stream(_ context.Context, req ProviderRequest, _ ...model.StreamOption) (<-chan ProviderEvent, error) {
 	ch := make(chan ProviderEvent, 1)
 	ch <- ProviderEvent{Type: ProviderEventTextDelta, Content: p.prefix + ":" + req.SystemPrompt}
+
 	close(ch)
 
 	return ch, nil

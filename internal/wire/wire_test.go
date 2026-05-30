@@ -126,6 +126,7 @@ func TestWire_RuntimeExtensionsShareRuntimeServices(t *testing.T) {
 	sdk.RegisterRuntimeExtension("runtime-a", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.RuntimeExtension, error) {
 		return sdk.NewRuntimeExtensionFuncWithClose(func(ctx sdk.ExtensionContext) error {
 			var err error
+
 			toolHandle, err = ctx.Tools().Register(sdk.RuntimeTool{
 				Name:       "runtime-shared",
 				Definition: sdk.ToolDef{Name: "runtime-shared"},
@@ -133,8 +134,11 @@ func TestWire_RuntimeExtensionsShareRuntimeServices(t *testing.T) {
 					return sdk.ToolResult{Content: "ok"}, nil
 				},
 			})
+			if err != nil {
+				return fmt.Errorf("register runtime-shared tool: %w", err)
+			}
 
-			return err
+			return nil
 		}, func() error {
 			return toolHandle.Close()
 		}), nil
@@ -145,10 +149,12 @@ func TestWire_RuntimeExtensionsShareRuntimeServices(t *testing.T) {
 			if !ok {
 				return errors.New("runtime-shared tool not found")
 			}
+
 			result, err := tool.Run(context.Background(), sdk.ToolRequest{Name: "runtime-shared"})
 			if err != nil {
-				return err
+				return fmt.Errorf("run runtime-shared tool: %w", err)
 			}
+
 			sawTool = result.Content == "ok"
 
 			return nil

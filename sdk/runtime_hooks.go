@@ -116,10 +116,11 @@ type hookEntry[TReq any, TRes any] struct {
 }
 
 // NewHook returns a typed hook that runs handlers in order.
-func NewHook[TReq any, TRes any](opts ...RuntimeHookOption[TReq, TRes]) *RuntimeHook[TReq, TRes] {
+func NewHook[TReq, TRes any](opts ...RuntimeHookOption[TReq, TRes]) *RuntimeHook[TReq, TRes] {
 	hook := &RuntimeHook[TReq, TRes]{
 		entries: make(map[int]hookEntry[TReq, TRes]),
 	}
+
 	for _, opt := range opts {
 		if opt != nil {
 			opt(hook)
@@ -133,7 +134,7 @@ func NewHook[TReq any, TRes any](opts ...RuntimeHookOption[TReq, TRes]) *Runtime
 type RuntimeHookOption[TReq any, TRes any] func(*RuntimeHook[TReq, TRes])
 
 // WithHookInitialResult derives the initial result value from the request.
-func WithHookInitialResult[TReq any, TRes any](fn func(TReq) TRes) RuntimeHookOption[TReq, TRes] {
+func WithHookInitialResult[TReq, TRes any](fn func(TReq) TRes) RuntimeHookOption[TReq, TRes] {
 	return func(h *RuntimeHook[TReq, TRes]) {
 		h.initFunc = fn
 	}
@@ -146,6 +147,7 @@ func (h *RuntimeHook[TReq, TRes]) Use(owner string, fn HookFunc[TReq, TRes], opt
 	}
 
 	cfg := hookOptions{}
+
 	for _, opt := range opts {
 		if opt != nil {
 			opt(&cfg)
@@ -186,6 +188,7 @@ func (h *RuntimeHook[TReq, TRes]) RunState(ctx context.Context, req TReq) (HookS
 		if err := entry.fn(ctx, &state); err != nil {
 			return state, err
 		}
+
 		if state.stopped {
 			return state, nil
 		}
@@ -202,6 +205,7 @@ func (h *RuntimeHook[TReq, TRes]) snapshot() []hookEntry[TReq, TRes] {
 	for _, entry := range h.entries {
 		entries = append(entries, entry)
 	}
+
 	sort.SliceStable(entries, func(i, j int) bool {
 		if entries[i].order == entries[j].order {
 			return entries[i].seq < entries[j].seq
@@ -221,6 +225,7 @@ func (h *RuntimeHook[TReq, TRes]) remove(id int) (hookEntry[TReq, TRes], bool) {
 	if !ok {
 		return hookEntry[TReq, TRes]{}, false
 	}
+
 	delete(h.entries, id)
 
 	return entry, true
@@ -239,6 +244,7 @@ func (h *runtimeHookHandle[TReq, TRes]) Close() error {
 		if !ok {
 			return
 		}
+
 		for _, cleanup := range entry.cleanup {
 			if cleanup != nil {
 				h.err = errors.Join(h.err, cleanup())
@@ -257,6 +263,7 @@ type hookHandles []HookHandle
 
 func (h hookHandles) Close() error {
 	var err error
+
 	for _, handle := range h {
 		if handle != nil {
 			err = errors.Join(err, handle.Close())
@@ -267,15 +274,17 @@ func (h hookHandles) Close() error {
 }
 
 // NewBusObserverHook publishes hook state to an existing bus topic.
-func NewBusObserverHook[TReq any, TRes any](bus Bus, topic string, payload func(HookState[TReq, TRes]) any) HookFunc[TReq, TRes] {
+func NewBusObserverHook[TReq, TRes any](bus Bus, topic string, payload func(HookState[TReq, TRes]) any) HookFunc[TReq, TRes] {
 	return func(_ context.Context, state *HookState[TReq, TRes]) error {
 		if bus == nil || topic == "" {
 			return nil
 		}
+
 		body := any(*state)
 		if payload != nil {
 			body = payload(*state)
 		}
+
 		bus.Publish(NewEvent(topic, body))
 
 		return nil
@@ -331,7 +340,7 @@ func NewRuntimeHooks() *RuntimeHooks {
 		providerResponse: NewHook[ProviderResponseHookRequest, ProviderResponseHookResult](),
 		toolCall:         NewHook[ToolCallRequest, ToolCallResult](WithHookInitialResult(func(req ToolCallRequest) ToolCallResult { return ToolCallResult{Call: req.Call, Continue: true} })),
 		toolResult:       NewHook[ToolResultRequest, ToolResultHookResult](WithHookInitialResult(func(req ToolResultRequest) ToolResultHookResult { return ToolResultHookResult{Result: req.Result} })),
-		message:          NewHook[MessageHookRequest, MessageHookResult](WithHookInitialResult(func(req MessageHookRequest) MessageHookResult { return MessageHookResult{Message: req.Message} })),
+		message:          NewHook[MessageHookRequest, MessageHookResult](WithHookInitialResult(func(req MessageHookRequest) MessageHookResult { return MessageHookResult(req) })),
 		turn:             NewHook[TurnHookRequest, TurnHookResult](),
 		session:          NewHook[SessionHookRequest, SessionHookResult](),
 	}
@@ -341,12 +350,15 @@ func (h *RuntimeHooks) Input() Hook[InputHookRequest, InputHookResult] { return 
 func (h *RuntimeHooks) Prompt() Hook[PromptHookRequest, PromptHookResult] {
 	return h.prompt
 }
+
 func (h *RuntimeHooks) Context() Hook[ContextHookRequest, ContextHookResult] {
 	return h.context
 }
+
 func (h *RuntimeHooks) ProviderRequest() Hook[ProviderRequestHookRequest, ProviderRequestHookResult] {
 	return h.providerRequest
 }
+
 func (h *RuntimeHooks) ProviderResponse() Hook[ProviderResponseHookRequest, ProviderResponseHookResult] {
 	return h.providerResponse
 }
@@ -354,6 +366,7 @@ func (h *RuntimeHooks) ToolCall() Hook[ToolCallRequest, ToolCallResult] { return
 func (h *RuntimeHooks) ToolResult() Hook[ToolResultRequest, ToolResultHookResult] {
 	return h.toolResult
 }
+
 func (h *RuntimeHooks) Message() Hook[MessageHookRequest, MessageHookResult] {
 	return h.message
 }
@@ -408,6 +421,7 @@ func (h *RuntimeHooks) AttachBusObservers(bus Bus) HookHandle {
 		}), WithHookOrder(10_001)),
 		h.ToolResult().Use("sdk.bus_compat", func(ctx context.Context, state *HookState[ToolResultRequest, ToolResultHookResult]) error {
 			result := state.Result.Result
+
 			topic := TopicToolComplete
 			if result.IsError {
 				topic = TopicToolError
@@ -441,10 +455,12 @@ func (h *RuntimeHooks) AttachBusObservers(bus Bus) HookHandle {
 			if topic == "" {
 				return nil
 			}
+
 			payload := state.Result.Entry
 			if payload == nil {
 				payload = state.Request.Entry
 			}
+
 			bus.Publish(NewEvent(topic, payload))
 
 			return nil
