@@ -29,6 +29,10 @@ func NewLegacyRuntimeExtension(ext Extension) RuntimeExtension {
 	return legacyRuntimeExtension{ext: ext}
 }
 
+func (e legacyRuntimeExtension) LegacyExtension() Extension {
+	return e.ext
+}
+
 func (e legacyRuntimeExtension) Register(ctx ExtensionContext) error {
 	if e.ext == nil {
 		return nil

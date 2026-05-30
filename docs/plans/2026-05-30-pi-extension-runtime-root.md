@@ -196,11 +196,11 @@ type ExecResult struct {
 - [x] run `go test ./sdk/...` - must pass before task 5
 
 ### Task 5: Wire runtime services through launcher and composition root
-- [ ] update `internal/wire` to construct and pass runtime services to extensions
-- [ ] update launcher-generated imports/wiring only as needed for new registration shapes
-- [ ] preserve first-run bootstrap, headless filtering, and cache hash behavior
-- [ ] write tests for generated wiring compatibility and cache-key stability where affected
-- [ ] run `go test ./internal/... ./sdk/...` - must pass before task 6
+- [x] update `internal/wire` to construct and pass runtime services to extensions
+- [x] update launcher-generated imports/wiring only as needed for new registration shapes
+- [x] preserve first-run bootstrap, headless filtering, and cache hash behavior
+- [x] write tests for generated wiring compatibility and cache-key stability where affected
+- [x] run `go test ./internal/... ./sdk/...` - must pass before task 6
 
 ### Task 6: Maintain event bus compatibility layer
 - [ ] map new typed lifecycle hooks to existing bus topics for observers

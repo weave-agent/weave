@@ -30,9 +30,34 @@ type CoreWireConfig struct {
 type Wired struct {
 	extensions []sdk.Extension
 	bus        sdk.Bus
+	runtime    sdk.ExtensionContext
 }
 
-func resolveExtensions(extNames []string, cfg sdk.Config) ([]sdk.Extension, error) {
+type runtimeExtensionAdapter struct {
+	name    string
+	runtime sdk.RuntimeExtension
+	ctx     sdk.ExtensionContext
+}
+
+func (e runtimeExtensionAdapter) Name() string { return e.name }
+
+func (e runtimeExtensionAdapter) Subscribe(sdk.Bus) error {
+	if e.runtime == nil {
+		return nil
+	}
+
+	return e.runtime.Register(e.ctx)
+}
+
+func (e runtimeExtensionAdapter) Close() error {
+	if closer, ok := e.runtime.(interface{ Close() error }); ok {
+		return closer.Close()
+	}
+
+	return nil
+}
+
+func resolveExtensions(extNames []string, cfg sdk.Config, runtime sdk.ExtensionContext) ([]sdk.Extension, error) {
 	if cfg == nil {
 		cfg = sdk.FilePathConfig("")
 	}
@@ -40,7 +65,7 @@ func resolveExtensions(extNames []string, cfg sdk.Config) ([]sdk.Extension, erro
 	exts := make([]sdk.Extension, 0, len(extNames))
 
 	for _, name := range extNames {
-		ext, err := sdk.GetExtension(name, cfg)
+		runtimeExt, err := sdk.GetRuntimeExtension(name, cfg)
 		if err != nil {
 			// If the name is not registered as an extension, it may be a tool,
 			// provider, or UI extension that wires through its own registry.
@@ -56,7 +81,7 @@ func resolveExtensions(extNames []string, cfg sdk.Config) ([]sdk.Extension, erro
 			return nil, fmt.Errorf("wire: %w", err)
 		}
 
-		exts = append(exts, ext)
+		exts = append(exts, runtimeExtensionAdapter{name: name, runtime: runtimeExt, ctx: runtime})
 	}
 
 	return exts, nil
@@ -76,8 +101,8 @@ func subscribeExtensions(exts []sdk.Extension, bus sdk.Bus) error {
 	return nil
 }
 
-func prepareExtensions(extNames []string, cfg sdk.Config) ([]sdk.Extension, error) {
-	exts, err := resolveExtensions(extNames, cfg)
+func prepareExtensions(extNames []string, cfg sdk.Config, runtime sdk.ExtensionContext) ([]sdk.Extension, error) {
+	exts, err := resolveExtensions(extNames, cfg, runtime)
 	if err != nil {
 		return nil, err
 	}
@@ -101,13 +126,32 @@ func prepareExtensions(extNames []string, cfg sdk.Config) ([]sdk.Extension, erro
 
 			break
 		}
+
+		runtimeAdapter, ok := ext.(runtimeExtensionAdapter)
+		if !ok {
+			continue
+		}
+		if ss, ok := runtimeAdapter.runtime.(sdk.SessionStore); ok {
+			sdk.SetSessionStore(ss)
+
+			break
+		}
+		if legacy, ok := runtimeAdapter.runtime.(interface{ LegacyExtension() sdk.Extension }); ok {
+			if ss, ok := legacy.LegacyExtension().(sdk.SessionStore); ok {
+				sdk.SetSessionStore(ss)
+
+				break
+			}
+		}
 	}
 
 	return exts, nil
 }
 
 func WireExtensions(extNames []string, bus sdk.Bus, cfg sdk.Config) (*Wired, error) {
-	exts, err := prepareExtensions(extNames, cfg)
+	runtime := newRuntimeContext(bus, cfg)
+
+	exts, err := prepareExtensions(extNames, cfg, runtime)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +160,7 @@ func WireExtensions(extNames []string, bus sdk.Bus, cfg sdk.Config) (*Wired, err
 		return nil, err
 	}
 
-	return &Wired{extensions: exts, bus: bus}, nil
+	return &Wired{extensions: exts, bus: bus, runtime: runtime}, nil
 }
 
 func resolveSession(continueFlag bool, resumeID string, bus sdk.Bus, cfg sdk.Config) (string, []sdk.Message, error) {
@@ -252,7 +296,9 @@ func WireWithCore(core CoreWireConfig, optExts []string, bus sdk.Bus, cfg sdk.Co
 	// publish their registration events (e.g. sandbox.registered).
 	sdk.InvokeBusSubscribers(bus)
 
-	exts, err := prepareExtensions(extNames, cfg)
+	runtime := newRuntimeContext(bus, cfg)
+
+	exts, err := prepareExtensions(extNames, cfg, runtime)
 	if err != nil {
 		return nil, err
 	}
@@ -271,7 +317,7 @@ func WireWithCore(core CoreWireConfig, optExts []string, bus sdk.Bus, cfg sdk.Co
 		return nil, err
 	}
 
-	wired := &Wired{extensions: exts, bus: bus}
+	wired := &Wired{extensions: exts, bus: bus, runtime: runtime}
 
 	go func() {
 		bus.Publish(sdk.NewEvent("app.started", nil))
@@ -282,6 +328,25 @@ func WireWithCore(core CoreWireConfig, optExts []string, bus sdk.Bus, cfg sdk.Co
 	}()
 
 	return wired, nil
+}
+
+func newRuntimeContext(bus sdk.Bus, cfg sdk.Config) sdk.ExtensionContext {
+	if cfg == nil {
+		cfg = sdk.FilePathConfig("")
+	}
+
+	return sdk.NewExtensionContext(sdk.RuntimeContextOptions{
+		Bus:    bus,
+		Config: cfg,
+	})
+}
+
+func (w *Wired) Runtime() sdk.ExtensionContext {
+	if w == nil || w.runtime == nil {
+		return sdk.NewExtensionContext(sdk.RuntimeContextOptions{})
+	}
+
+	return w.runtime
 }
 
 func (w *Wired) Close() error {

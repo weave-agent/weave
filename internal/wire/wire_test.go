@@ -1,6 +1,7 @@
 package wire
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -112,6 +113,60 @@ func TestWire_PartialMissing(t *testing.T) {
 	require.NoError(t, err, "unregistered extension should be silently skipped")
 	require.Len(t, wired.extensions, 1)
 	assert.Equal(t, "good", wired.extensions[0].Name())
+}
+
+func TestWire_RuntimeExtensionsShareRuntimeServices(t *testing.T) {
+	sdk.ResetExtensionRegistry()
+
+	var (
+		toolHandle sdk.HookHandle
+		sawTool    bool
+	)
+
+	sdk.RegisterRuntimeExtension("runtime-a", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.RuntimeExtension, error) {
+		return sdk.NewRuntimeExtensionFuncWithClose(func(ctx sdk.ExtensionContext) error {
+			var err error
+			toolHandle, err = ctx.Tools().Register(sdk.RuntimeTool{
+				Name:       "runtime-shared",
+				Definition: sdk.ToolDef{Name: "runtime-shared"},
+				Run: func(context.Context, sdk.ToolRequest) (sdk.ToolResult, error) {
+					return sdk.ToolResult{Content: "ok"}, nil
+				},
+			})
+
+			return err
+		}, func() error {
+			return toolHandle.Close()
+		}), nil
+	})
+	sdk.RegisterRuntimeExtension("runtime-b", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.RuntimeExtension, error) {
+		return sdk.NewRuntimeExtensionFunc(func(ctx sdk.ExtensionContext) error {
+			tool, ok := ctx.Tools().Get("runtime-shared")
+			if !ok {
+				return errors.New("runtime-shared tool not found")
+			}
+			result, err := tool.Run(context.Background(), sdk.ToolRequest{Name: "runtime-shared"})
+			if err != nil {
+				return err
+			}
+			sawTool = result.Content == "ok"
+
+			return nil
+		}), nil
+	})
+
+	bus := &BusMock{}
+	wired, err := WireExtensions([]string{"runtime-a", "runtime-b"}, bus, nil)
+	require.NoError(t, err)
+	assert.True(t, sawTool)
+	require.NotNil(t, wired.Runtime())
+
+	_, ok := wired.Runtime().Tools().Get("runtime-shared")
+	assert.True(t, ok)
+
+	require.NoError(t, wired.Close())
+	_, ok = wired.Runtime().Tools().Get("runtime-shared")
+	assert.False(t, ok)
 }
 
 func TestWire_SkipsUIExtension(t *testing.T) {
@@ -719,7 +774,7 @@ func TestResolveExtensions(t *testing.T) {
 		return sdk.NewExtensionFunc("resolve-test", func(sdk.Bus) error { return nil }), nil
 	})
 
-	exts, err := resolveExtensions([]string{"resolve-test"}, nil)
+	exts, err := resolveExtensions([]string{"resolve-test"}, nil, newRuntimeContext(&BusMock{}, nil))
 	require.NoError(t, err)
 	require.Len(t, exts, 1)
 	assert.Equal(t, "resolve-test", exts[0].Name())
@@ -729,7 +784,7 @@ func TestResolveExtensions(t *testing.T) {
 func TestResolveExtensions_Missing(t *testing.T) {
 	sdk.ResetExtensionRegistry()
 
-	exts, err := resolveExtensions([]string{"missing"}, nil)
+	exts, err := resolveExtensions([]string{"missing"}, nil, newRuntimeContext(&BusMock{}, nil))
 	require.NoError(t, err, "unregistered extension should be silently skipped")
 	assert.Empty(t, exts)
 }
@@ -749,7 +804,7 @@ func TestResolveExtensions_CleansUpOnError(t *testing.T) {
 		return nil, errors.New("init failed")
 	})
 
-	_, err := resolveExtensions([]string{"good", "bad"}, nil)
+	_, err := resolveExtensions([]string{"good", "bad"}, nil, newRuntimeContext(&BusMock{}, nil))
 	require.Error(t, err)
 	assert.True(t, closed, "resolved extension should be closed on error")
 }
@@ -766,10 +821,10 @@ func TestSubscribeExtensions(t *testing.T) {
 		}), nil
 	})
 
-	exts, err := resolveExtensions([]string{"sub-test"}, nil)
+	bus := &BusMock{}
+	exts, err := resolveExtensions([]string{"sub-test"}, nil, newRuntimeContext(bus, nil))
 	require.NoError(t, err)
 
-	bus := &BusMock{}
 	require.NoError(t, subscribeExtensions(exts, bus))
 	assert.True(t, subscribed)
 }
@@ -791,10 +846,10 @@ func TestSubscribeExtensions_RollsBackOnError(t *testing.T) {
 		}, nil), nil
 	})
 
-	exts, err := resolveExtensions([]string{"sub-ok", "sub-fail"}, nil)
+	bus := &BusMock{}
+	exts, err := resolveExtensions([]string{"sub-ok", "sub-fail"}, nil, newRuntimeContext(bus, nil))
 	require.NoError(t, err)
 
-	bus := &BusMock{}
 	err = subscribeExtensions(exts, bus)
 	require.Error(t, err)
 	assert.True(t, closed, "previously subscribed extension should be closed on error")
