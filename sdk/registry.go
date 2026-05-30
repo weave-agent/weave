@@ -8,8 +8,13 @@ import (
 	"github.com/weave-agent/weave/sdk/registry"
 )
 
-var extReg = registry.New[func(Config) (Extension, error)](
-	registry.WithWarn[func(Config) (Extension, error)](func(name string) {
+type extensionEntry struct {
+	factory        func(Config) (Extension, error)
+	runtimeFactory func(Config) (RuntimeExtension, error)
+}
+
+var extReg = registry.New[extensionEntry](
+	registry.WithWarn[extensionEntry](func(name string) {
 		slog.Warn("duplicate registration", "name", name, "kind", "extension")
 	}),
 )
@@ -42,7 +47,53 @@ func RegisterExtensionWithScope[T any](name, scope string, factory func(Config, 
 		return factory(ConfigReadOnly(cfg), PreferenceStoreFrom(cfg), t)
 	}
 
-	extReg.Register(name, wrapper)
+	runtimeWrapper := func(cfg Config) (RuntimeExtension, error) {
+		ext, err := wrapper(cfg)
+		if err != nil {
+			return nil, err
+		}
+
+		return NewLegacyRuntimeExtension(ext), nil
+	}
+
+	extReg.Register(name, extensionEntry{factory: wrapper, runtimeFactory: runtimeWrapper})
+}
+
+// RegisterRuntimeExtension registers a runtime-aware extension factory with a
+// typed configuration struct. Config is loaded from the "extensions" scope.
+func RegisterRuntimeExtension[T any](name string, factory func(Config, PreferenceReader, T) (RuntimeExtension, error)) {
+	RegisterRuntimeExtensionWithScope[T](name, "extensions", factory)
+}
+
+// RegisterRuntimeExtensionWithScope registers a runtime-aware extension factory
+// with a typed configuration struct and a custom config scope.
+func RegisterRuntimeExtensionWithScope[T any](name, scope string, factory func(Config, PreferenceReader, T) (RuntimeExtension, error)) {
+	var zero T
+
+	typ := reflect.TypeOf(zero)
+	schema := extractSchema(typ)
+	storeSchema(scope, name, schema, typ)
+
+	runtimeWrapper := func(cfg Config) (RuntimeExtension, error) {
+		var t T
+
+		if err := cfg.ExtensionConfig(scope, name, &t); err != nil {
+			return nil, fmt.Errorf("load extension config: %w", err)
+		}
+
+		return factory(ConfigReadOnly(cfg), PreferenceStoreFrom(cfg), t)
+	}
+
+	wrapper := func(cfg Config) (Extension, error) {
+		runtimeExt, err := runtimeWrapper(cfg)
+		if err != nil {
+			return nil, err
+		}
+
+		return newRuntimeExtensionAdapter(name, ConfigOrDefault(cfg), runtimeExt), nil
+	}
+
+	extReg.Register(name, extensionEntry{factory: wrapper, runtimeFactory: runtimeWrapper})
 }
 
 // RegisterExtensionWithWriter registers an extension factory that receives
@@ -84,7 +135,16 @@ func RegisterExtensionWithScopeAndWriter[T any](name, scope string, factory func
 		return factory(ConfigReadOnly(cfg), writer, t)
 	}
 
-	extReg.Register(name, wrapper)
+	runtimeWrapper := func(cfg Config) (RuntimeExtension, error) {
+		ext, err := wrapper(cfg)
+		if err != nil {
+			return nil, err
+		}
+
+		return NewLegacyRuntimeExtension(ext), nil
+	}
+
+	extReg.Register(name, extensionEntry{factory: wrapper, runtimeFactory: runtimeWrapper})
 }
 
 // ExtensionRegistered reports whether an extension with the given name has been
@@ -94,12 +154,21 @@ func ExtensionRegistered(name string) bool {
 }
 
 func GetExtension(name string, cfg Config) (Extension, error) {
-	factory, ok := extReg.Get(name)
+	entry, ok := extReg.Get(name)
 	if !ok {
 		return nil, fmt.Errorf("extension %q: %w", name, ErrNotRegistered)
 	}
 
-	return factory(ConfigOrDefault(cfg))
+	return entry.factory(ConfigOrDefault(cfg))
+}
+
+func GetRuntimeExtension(name string, cfg Config) (RuntimeExtension, error) {
+	entry, ok := extReg.Get(name)
+	if !ok {
+		return nil, fmt.Errorf("extension %q: %w", name, ErrNotRegistered)
+	}
+
+	return entry.runtimeFactory(ConfigOrDefault(cfg))
 }
 
 func ListExtensions() []string {

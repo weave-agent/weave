@@ -21,6 +21,30 @@ type Extension interface {
 	Close() error
 }
 
+type legacyRuntimeExtension struct {
+	ext Extension
+}
+
+func NewLegacyRuntimeExtension(ext Extension) RuntimeExtension {
+	return legacyRuntimeExtension{ext: ext}
+}
+
+func (e legacyRuntimeExtension) Register(ctx ExtensionContext) error {
+	if e.ext == nil {
+		return nil
+	}
+
+	return e.ext.Subscribe(ctx.Bus())
+}
+
+func (e legacyRuntimeExtension) Close() error {
+	if e.ext == nil {
+		return nil
+	}
+
+	return e.ext.Close()
+}
+
 type ExtensionFunc struct {
 	name    string
 	fn      func(Bus) error
@@ -47,6 +71,66 @@ func (e *ExtensionFunc) Subscribe(bus Bus) error {
 func (e *ExtensionFunc) Close() error {
 	if e.closeFn != nil {
 		return e.closeFn()
+	}
+
+	return nil
+}
+
+type RuntimeExtensionFunc struct {
+	fn      func(ExtensionContext) error
+	closeFn func() error
+}
+
+func NewRuntimeExtensionFunc(fn func(ExtensionContext) error) *RuntimeExtensionFunc {
+	return &RuntimeExtensionFunc{fn: fn}
+}
+
+func NewRuntimeExtensionFuncWithClose(fn func(ExtensionContext) error, closeFn func() error) *RuntimeExtensionFunc {
+	return &RuntimeExtensionFunc{fn: fn, closeFn: closeFn}
+}
+
+func (e *RuntimeExtensionFunc) Register(ctx ExtensionContext) error {
+	if e.fn != nil {
+		return e.fn(ctx)
+	}
+
+	return nil
+}
+
+func (e *RuntimeExtensionFunc) Close() error {
+	if e.closeFn != nil {
+		return e.closeFn()
+	}
+
+	return nil
+}
+
+type runtimeExtensionAdapter struct {
+	name    string
+	cfg     Config
+	runtime RuntimeExtension
+}
+
+func newRuntimeExtensionAdapter(name string, cfg Config, runtime RuntimeExtension) Extension {
+	return &runtimeExtensionAdapter{name: name, cfg: cfg, runtime: runtime}
+}
+
+func (e *runtimeExtensionAdapter) Name() string { return e.name }
+
+func (e *runtimeExtensionAdapter) Subscribe(bus Bus) error {
+	if e.runtime == nil {
+		return nil
+	}
+
+	return e.runtime.Register(NewExtensionContext(RuntimeContextOptions{
+		Bus:    bus,
+		Config: e.cfg,
+	}))
+}
+
+func (e *runtimeExtensionAdapter) Close() error {
+	if closer, ok := e.runtime.(interface{ Close() error }); ok {
+		return closer.Close()
 	}
 
 	return nil

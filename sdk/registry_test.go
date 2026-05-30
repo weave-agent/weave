@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	"context"
 	"errors"
 	"reflect"
 	"sort"
@@ -149,3 +150,130 @@ func TestRegisterExtensionWithScopeAndWriter_FallsBackToNoop(t *testing.T) {
 	_, ok := receivedWriter.(ExtensionConfigWriter)
 	assert.False(t, ok, "fallback writer should not claim scoped config write support")
 }
+
+func TestLegacyExtensionRegistrationExposesRuntimeWrapper(t *testing.T) {
+	ResetExtensionRegistry()
+
+	bus := &BusMock{}
+	subscribed := false
+	closed := false
+
+	RegisterExtension[struct{}]("legacy", func(Config, PreferenceReader, struct{}) (Extension, error) {
+		return NewExtensionFuncWithClose("legacy", func(got Bus) error {
+			subscribed = true
+			assert.Same(t, bus, got)
+
+			return nil
+		}, func() error {
+			closed = true
+
+			return nil
+		}), nil
+	})
+
+	runtimeExt, err := GetRuntimeExtension("legacy", nil)
+	require.NoError(t, err)
+
+	require.NoError(t, runtimeExt.Register(NewExtensionContext(RuntimeContextOptions{Bus: bus})))
+	assert.True(t, subscribed)
+
+	closer, ok := runtimeExt.(interface{ Close() error })
+	require.True(t, ok)
+	require.NoError(t, closer.Close())
+	assert.True(t, closed)
+
+	ext, err := GetExtension("legacy", nil)
+	require.NoError(t, err)
+	closed = false
+	require.NoError(t, ext.Close())
+	assert.True(t, closed)
+}
+
+func TestRegisterRuntimeExtensionCanBeResolvedAsLegacyExtension(t *testing.T) {
+	ResetExtensionRegistry()
+
+	type runtimeConfig struct {
+		Enabled bool `json:"enabled" default:"true"`
+	}
+
+	cfg := &extensionConfigRecorder{}
+	bus := &BusMock{}
+	var receivedConfig runtimeConfig
+	var receivedPrefs PreferenceReader
+	var registeredCtx ExtensionContext
+	closed := false
+
+	RegisterRuntimeExtension("runtime", func(_ Config, prefs PreferenceReader, c runtimeConfig) (RuntimeExtension, error) {
+		receivedPrefs = prefs
+		receivedConfig = c
+
+		return NewRuntimeExtensionFuncWithClose(func(ctx ExtensionContext) error {
+			registeredCtx = ctx
+
+			return nil
+		}, func() error {
+			closed = true
+
+			return nil
+		}), nil
+	})
+
+	ext, err := GetExtension("runtime", cfg)
+	require.NoError(t, err)
+	assert.Equal(t, "runtime", ext.Name())
+	assert.True(t, receivedConfig.Enabled)
+	assert.NotNil(t, receivedPrefs)
+
+	require.NoError(t, ext.Subscribe(bus))
+	require.NotNil(t, registeredCtx)
+	assert.Same(t, bus, registeredCtx.Bus())
+	assert.NotNil(t, registeredCtx.Hooks())
+	assert.NotNil(t, registeredCtx.Tools())
+	assert.NoError(t, registeredCtx.Config("extensions", "runtime", &runtimeConfig{}))
+	_, err = registeredCtx.Exec(context.Background(), ExecRequest{Command: "echo"})
+	assert.ErrorIs(t, err, ErrRuntimeCapabilityUnsupported)
+
+	require.NoError(t, ext.Close())
+	assert.True(t, closed)
+	assert.Equal(t, []string{"extensions/runtime", "extensions/runtime"}, cfg.loaded)
+}
+
+func TestRegisterRuntimeExtensionWithScopeStoresSchemaInfoType(t *testing.T) {
+	ResetExtensionRegistry()
+
+	type runtimeConfig struct {
+		Value string `json:"value" default:"ok"`
+	}
+
+	RegisterRuntimeExtensionWithScope("runtime-scoped", "guardian", func(Config, PreferenceReader, runtimeConfig) (RuntimeExtension, error) {
+		return NewRuntimeExtensionFunc(nil), nil
+	})
+
+	info := GetSchemaInfo("guardian", "runtime-scoped")
+	require.NotNil(t, info)
+	assert.Equal(t, reflect.TypeFor[runtimeConfig](), info.Type)
+}
+
+type extensionConfigRecorder struct {
+	loaded []string
+}
+
+func (c *extensionConfigRecorder) FilePath() string   { return "" }
+func (c *extensionConfigRecorder) ProjectDir() string { return "" }
+func (c *extensionConfigRecorder) ExtensionConfig(scope, name string, target any) error {
+	c.loaded = append(c.loaded, scope+"/"+name)
+	v := reflect.ValueOf(target)
+	if v.Kind() == reflect.Ptr && !v.IsNil() {
+		elem := v.Elem()
+		if elem.Kind() == reflect.Struct {
+			field := elem.FieldByName("Enabled")
+			if field.IsValid() && field.CanSet() && field.Kind() == reflect.Bool {
+				field.SetBool(true)
+			}
+		}
+	}
+
+	return nil
+}
+func (c *extensionConfigRecorder) IsHeadless() bool       { return true }
+func (c *extensionConfigRecorder) RespectGitignore() bool { return true }

@@ -174,11 +174,11 @@ type ExecResult struct {
 - [x] run `go test ./sdk/...` - must pass before task 2
 
 ### Task 2: Introduce extension runtime context
-- [ ] add `sdk.ExtensionContext` with access to hooks, tools, session, models, resources, exec, config, and bus services; keep TUI-specific framework types out of this root interface
-- [ ] add backward-compatible registration paths for existing `sdk.Extension` implementations; old `Subscribe(bus)` extensions should be wrapped as observer-only runtime extensions
-- [ ] update extension registry and schema registration to expose runtime-aware factories without breaking existing factories; old and new factories should share config default population
-- [ ] write tests for legacy extension registration and runtime-context extension registration
-- [ ] run `go test ./sdk/... ./internal/...` - must pass before task 3
+- [x] add `sdk.ExtensionContext` with access to hooks, tools, session, models, resources, exec, config, and bus services; keep TUI-specific framework types out of this root interface
+- [x] add backward-compatible registration paths for existing `sdk.Extension` implementations; old `Subscribe(bus)` extensions should be wrapped as observer-only runtime extensions
+- [x] update extension registry and schema registration to expose runtime-aware factories without breaking existing factories; old and new factories should share config default population
+- [x] write tests for legacy extension registration and runtime-context extension registration
+- [x] run `go test ./sdk/... ./internal/...` - must pass before task 3
 
 ### Task 3: Add runtime tool and provider registry contracts
 - [ ] add session-scoped runtime tool registry interfaces in `sdk`; examples include register, unregister, list, get, enable, disable, and decorate existing tools
