@@ -31,7 +31,9 @@ go test ./...      # Run all tests in this module
 
 Standard library as much as possible. Every replaceable component is an extension. Extensions are independent Go modules that self-register via `init()`, each with its own `go.mod` in its own repo — test/lint by `cd`ing into that repo.
 
-**Extension boundaries** — each extension owns one concern. Extensions communicate exclusively through bus events; they never import or call each other directly. If an extension needs data another extension owns, it listens for the event that publishes it.
+**Extension boundaries** — each extension owns one concern. Extensions communicate through core-owned runtime services and compatibility bus events; they never import or call each other directly. If an extension needs data another extension owns, it listens for the event that publishes it or uses a typed SDK hook/service exposed by the runtime.
+
+**Runtime extension APIs** — Legacy bus-observer extensions remain supported through `sdk.Extension.Subscribe(bus)`. Runtime-aware extensions register with `sdk.RegisterRuntimeExtension` and receive `sdk.ExtensionContext`, which exposes typed `Hooks`, runtime tool/provider registries, session/resource/model controllers, config loading, `Exec`, and the compatibility `Bus`. Use typed hooks/services for behavior-changing interception; use bus events for notifications and compatibility.
 
 **Fork territory** — Extensions needing deep structural changes (replacing the editor, rewiring focus lifecycle) should fork the TUI extension rather than shoehorning through `TUIExtAPI`.
 
@@ -47,7 +49,7 @@ Standard library as much as possible. Every replaceable component is an extensio
 
 ## Key Packages
 
-- `sdk/` — `Extension`, `Bus`, `Config`, `UI`, `PreferenceReader`/`Writer`, optional `ExtensionConfigWriter`, `SessionStore`, `FileTracker`, `FileMuter`, `Guardian`, `Sandboxer` interfaces; optional provider capabilities such as `TokenCounter`; shared provider accounting types (`ProviderUsage`, `TokenCount`, `ContextBudgetSnapshot`); global registries for extensions/providers/tools/UIs; schema registry with `SchemaInfo{Schema, Type}` metadata; `Logger(name)` for structured logging; `WithBus`/`BusFromContext` for context-based bus access; auth and OAuth helpers
+- `sdk/` — `Extension`, `RuntimeExtension`, `ExtensionContext`, `Hooks`, runtime tool/provider/session/resource/model/exec contracts, `Bus`, `Config`, `UI`, `PreferenceReader`/`Writer`, optional `ExtensionConfigWriter`, `SessionStore`, `FileTracker`, `FileMuter`, `Guardian`, `Sandboxer` interfaces; optional provider capabilities such as `TokenCounter`; shared provider accounting types (`ProviderUsage`, `TokenCount`, `ContextBudgetSnapshot`); global registries for extensions/providers/tools/UIs; schema registry with `SchemaInfo{Schema, Type}` metadata; `Logger(name)` for structured logging; `WithBus`/`BusFromContext` for context-based bus access; auth and OAuth helpers
 - `sdk/model/` — model types, model registry, `StreamOptions` for per-request options
 - `sdk/registry/` — generic `Registry[T]` used by all registries
 - `sdk/providerhttp/` — provider HTTP transport config resolver and client factory with configurable timeouts
@@ -85,7 +87,7 @@ The `agent` extension owns the conversation lifecycle: prompt assembly, turn loo
 
 **Context compaction** — auto-triggers when token budget is exceeded, or manually via `/compact [instructions]`. Compaction summarizes old messages, preserving file operation awareness. Config: `CompactionConfig{Enabled, ReserveTokens, KeepRecentTokens, Model, MaxSteps}`.
 
-**Extension lifecycle** — extensions call `sdk.RegisterExtension[T](name, factory)` in `init()`. Providers: `sdk.RegisterProvider[TConfig, TAuth]`. Tools: `sdk.RegisterTool[TConfig]`. UI/TUI: `sdk.RegisterUIExtension`/`RegisterTUIExtension`. Custom scope: `sdk.RegisterExtensionWithScope[T](name, scope, factory)`.
+**Extension lifecycle** — extensions call `sdk.RegisterExtension[T](name, factory)` in `init()` for legacy bus-observer behavior or `sdk.RegisterRuntimeExtension[T](name, factory)` for typed runtime services. Providers: `sdk.RegisterProvider[TConfig, TAuth]`. Tools: `sdk.RegisterTool[TConfig]`. UI/TUI: `sdk.RegisterUIExtension`/`RegisterTUIExtension`. Custom scope: `sdk.RegisterExtensionWithScope[T](name, scope, factory)` or `sdk.RegisterRuntimeExtensionWithScope[T](name, scope, factory)`.
 
 **Declarative provider auth** — Providers declare an auth struct with `json`/`env` tags, register with `sdk.RegisterProvider[TConfig, TAuth]`. Framework loads auth from `~/.weave/auth.json` + env vars (no `WEAVE_` prefix for providers).
 

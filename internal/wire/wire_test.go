@@ -175,6 +175,56 @@ func TestWire_RuntimeExtensionsShareRuntimeServices(t *testing.T) {
 	assert.False(t, ok)
 }
 
+func TestWire_RuntimeExtensionSubscribeErrorClosesPartialRegistration(t *testing.T) {
+	sdk.ResetExtensionRegistry()
+
+	var (
+		runtime    sdk.ExtensionContext
+		toolHandle sdk.HookHandle
+		closed     bool
+	)
+
+	expectedErr := errors.New("register failed")
+
+	sdk.RegisterRuntimeExtension("runtime-fail", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.RuntimeExtension, error) {
+		return sdk.NewRuntimeExtensionFuncWithClose(func(ctx sdk.ExtensionContext) error {
+			var err error
+
+			runtime = ctx
+
+			toolHandle, err = ctx.Tools().Register(sdk.RuntimeTool{
+				Name:       "runtime-partial",
+				Definition: sdk.ToolDef{Name: "runtime-partial"},
+				Run: func(context.Context, sdk.ToolRequest) (sdk.ToolResult, error) {
+					return sdk.ToolResult{Content: "partial"}, nil
+				},
+			})
+			if err != nil {
+				return fmt.Errorf("register runtime-partial tool: %w", err)
+			}
+
+			return expectedErr
+		}, func() error {
+			closed = true
+
+			if toolHandle == nil {
+				return nil
+			}
+
+			return toolHandle.Close()
+		}), nil
+	})
+
+	bus := &BusMock{}
+	wired, err := WireExtensions([]string{"runtime-fail"}, bus, nil)
+	require.ErrorIs(t, err, expectedErr)
+	assert.Nil(t, wired)
+	assert.True(t, closed)
+
+	_, ok := runtime.Tools().Get("runtime-partial")
+	assert.False(t, ok)
+}
+
 func TestWire_SkipsUIExtension(t *testing.T) {
 	sdk.ResetExtensionRegistry()
 	sdk.ResetUIExtensionRegistry()
@@ -937,6 +987,12 @@ func (m *mockStoreExt) Name() string            { return m.name }
 func (m *mockStoreExt) Subscribe(sdk.Bus) error { return nil }
 func (m *mockStoreExt) Close() error            { return nil }
 
+type runtimeStoreExt struct {
+	mockSessionStore
+}
+
+func (m *runtimeStoreExt) Register(sdk.ExtensionContext) error { return nil }
+
 func TestWireExtensions_SetsSessionStore(t *testing.T) {
 	sdk.ResetExtensionRegistry()
 	sdk.ResetSessionStore()
@@ -949,6 +1005,25 @@ func TestWireExtensions_SetsSessionStore(t *testing.T) {
 
 	bus := &BusMock{}
 	_, err := WireExtensions([]string{"test-store"}, bus, nil)
+	require.NoError(t, err)
+
+	got := sdk.GetSessionStore()
+	require.NotNil(t, got)
+	assert.Equal(t, store, got)
+}
+
+func TestWireExtensions_SetsRuntimeSessionStore(t *testing.T) {
+	sdk.ResetExtensionRegistry()
+	sdk.ResetSessionStore()
+
+	store := &runtimeStoreExt{}
+
+	sdk.RegisterRuntimeExtension("runtime-store", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.RuntimeExtension, error) {
+		return store, nil
+	})
+
+	bus := &BusMock{}
+	_, err := WireExtensions([]string{"runtime-store"}, bus, nil)
 	require.NoError(t, err)
 
 	got := sdk.GetSessionStore()

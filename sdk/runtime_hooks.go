@@ -331,18 +331,26 @@ type RuntimeHooks struct {
 // NewRuntimeHooks returns standard runtime hook families.
 func NewRuntimeHooks() *RuntimeHooks {
 	return &RuntimeHooks{
-		input:   NewHook[InputHookRequest, InputHookResult](),
-		prompt:  NewHook[PromptHookRequest, PromptHookResult](),
-		context: NewHook[ContextHookRequest, ContextHookResult](),
+		input: NewHook[InputHookRequest, InputHookResult](WithHookInitialResult(func(req InputHookRequest) InputHookResult {
+			return InputHookResult(req)
+		})),
+		prompt: NewHook[PromptHookRequest, PromptHookResult](WithHookInitialResult(func(req PromptHookRequest) PromptHookResult {
+			return PromptHookResult(req)
+		})),
+		context: NewHook[ContextHookRequest, ContextHookResult](WithHookInitialResult(func(req ContextHookRequest) ContextHookResult {
+			return ContextHookResult(req)
+		})),
 		providerRequest: NewHook[ProviderRequestHookRequest, ProviderRequestHookResult](WithHookInitialResult(func(req ProviderRequestHookRequest) ProviderRequestHookResult {
 			return ProviderRequestHookResult{Request: req.Request}
 		})),
-		providerResponse: NewHook[ProviderResponseHookRequest, ProviderResponseHookResult](),
-		toolCall:         NewHook[ToolCallRequest, ToolCallResult](WithHookInitialResult(func(req ToolCallRequest) ToolCallResult { return ToolCallResult{Call: req.Call, Continue: true} })),
-		toolResult:       NewHook[ToolResultRequest, ToolResultHookResult](WithHookInitialResult(func(req ToolResultRequest) ToolResultHookResult { return ToolResultHookResult{Result: req.Result} })),
-		message:          NewHook[MessageHookRequest, MessageHookResult](WithHookInitialResult(func(req MessageHookRequest) MessageHookResult { return MessageHookResult(req) })),
-		turn:             NewHook[TurnHookRequest, TurnHookResult](),
-		session:          NewHook[SessionHookRequest, SessionHookResult](),
+		providerResponse: NewHook[ProviderResponseHookRequest, ProviderResponseHookResult](WithHookInitialResult(func(req ProviderResponseHookRequest) ProviderResponseHookResult {
+			return ProviderResponseHookResult{Event: req.Event}
+		})),
+		toolCall:   NewHook[ToolCallRequest, ToolCallResult](WithHookInitialResult(func(req ToolCallRequest) ToolCallResult { return ToolCallResult{Call: req.Call, Continue: true} })),
+		toolResult: NewHook[ToolResultRequest, ToolResultHookResult](WithHookInitialResult(func(req ToolResultRequest) ToolResultHookResult { return ToolResultHookResult{Result: req.Result} })),
+		message:    NewHook[MessageHookRequest, MessageHookResult](WithHookInitialResult(func(req MessageHookRequest) MessageHookResult { return MessageHookResult(req) })),
+		turn:       NewHook[TurnHookRequest, TurnHookResult](WithHookInitialResult(func(req TurnHookRequest) TurnHookResult { return TurnHookResult(req) })),
+		session:    NewHook[SessionHookRequest, SessionHookResult](WithHookInitialResult(func(req SessionHookRequest) SessionHookResult { return SessionHookResult{Entry: req.Entry} })),
 	}
 }
 

@@ -359,6 +359,16 @@ Hooks run in deterministic order. Lower `sdk.WithHookOrder` values run first, eq
 
 Runtime tool registrations use `ctx.Tools().Register(sdk.RuntimeTool{...})`; closing the returned handle removes the tool. `ctx.Tools().Decorate` can wrap legacy `sdk.Tool` implementations. Runtime provider registrations use `ctx.Providers().Register(sdk.RuntimeProvider{...})`; `ctx.Providers().UseMiddleware` applies `BeforeProviderRequest`, `ObserveProviderStream`, and `AfterProviderResponse` middleware around both runtime and legacy providers.
 
+| Interface | Key methods | Error behavior |
+|---|---|---|
+| `sdk.Hook[TReq,TRes]` | `Use`, `Run`, `RunState` | Handler errors stop execution and are returned; `HookHandle.Close` returns cleanup errors. |
+| `sdk.ToolRegistry` | `Register`, `Unregister`, `List`, `Get`, `Enable`, `Disable`, `Decorate` | Duplicate names return `ErrRuntimeDuplicateName`; missing names return `ErrRuntimeNotFound`. Runtime tools are enabled by default; set `RuntimeTool.Disabled` to register one disabled. |
+| `sdk.ProviderRegistry` | `Register`, `Unregister`, `List`, `Get`, `UseMiddleware` | Duplicate names return `ErrRuntimeDuplicateName`; missing names return `ErrRuntimeNotFound`; middleware and stream errors are propagated. |
+| `sdk.SessionController` | `SendUserMessage`, `AppendEntry`, `SetName`, `Name`, `SetLabel`, `Compact`, `Fork`, `Switch`, `Tree` | Unsupported entrypoints return `ErrRuntimeCapabilityUnsupported`. |
+| `sdk.ResourceRegistry` | `Register`, `List`, `Get` | Missing resources return `ErrRuntimeNotFound`; provider failures are isolated in `ResourceList.Errors` or joined from `Get`. |
+| `sdk.ModelController` | `ListModels`, `ListAvailableModels`, `GetModel`, `GetModelForProvider`, `DefaultModelForProvider`, `CurrentModel`, `SetModel`, `ThinkingLevel`, `SetThinkingLevel`, `ClampThinkingLevel` | Preference-backed operations return `ErrRuntimeCapabilityUnsupported` when no preference writer is available and wrap load/save/parse failures. |
+| `ctx.Exec` | `Exec(ctx, sdk.ExecRequest) (sdk.ExecResult, error)` | Returns `ErrRuntimeCapabilityUnsupported` when the current runtime has no exec adapter. |
+
 Unsupported runtime services return typed SDK errors, usually `sdk.ErrRuntimeCapabilityUnsupported` or `sdk.ErrRuntimeNotFound`, so extensions can degrade cleanly when a capability is not wired by the current entrypoint.
 
 ### Migration Notes
@@ -366,6 +376,22 @@ Unsupported runtime services return typed SDK errors, usually `sdk.ErrRuntimeCap
 Existing extensions do not need to migrate immediately. `sdk.RegisterExtension`, `sdk.RegisterTool`, `sdk.RegisterProvider`, `sdk.RegisterUIExtension`, and model registration keep their public signatures. Legacy `sdk.Extension.Subscribe(bus)`, `sdk.Tool.Execute(ctx, args)`, and `sdk.Provider.Stream(ctx, req, opts...)` implementations are adapted into runtime services.
 
 Use runtime APIs when an extension needs to change behavior rather than only observe it. Prefer typed hooks for input, provider, tool, message, turn, and session interception; keep bus events for notifications and compatibility. New payload types that other extensions need should live in `sdk/`, not in an extension repo or an `internal/` package.
+
+Typed hook execution publishes these legacy observer topics when the default runtime bus bridge is installed:
+
+| Typed hook | Bus topic | Payload |
+|---|---|---|
+| `Input` | `agent.prompt` | Submitted or mutated input content |
+| `ProviderRequest` | `provider.request` | `sdk.ProviderRequestBusPayload` |
+| `ProviderResponse` | `provider.response` | `sdk.ProviderResponseBusPayload` |
+| `ToolCall` | `tool.start` | `sdk.ToolProgress` |
+| `ToolCall` | `tool_call` | `sdk.ToolCall` |
+| `ToolResult` | `tool.complete` or `tool.error` | `sdk.ToolProgress` |
+| `Message` | `message` | `sdk.Message` |
+| `Turn` | `turn` | `sdk.TurnHookResult` |
+| `Session` | `SessionHookRequest.Event`, such as `session.resume` | `SessionHookResult.Entry` or the original entry |
+
+`Prompt` and `Context` hooks have no legacy bus topic by default; they are behavior-changing runtime hooks only.
 
 ### Provider Context Accounting
 
@@ -387,7 +413,7 @@ arithmetic; policy decisions such as compaction stay in the agent extension.
 
 ### Rules
 
-- Extensions communicate exclusively through **bus events** — never import or call each other directly
+- Extensions communicate through core-owned runtime services or **bus events** — never import or call each other directly
 - `internal/` packages are not importable by extensions; anything extensions need must live in `sdk/`
 - Event payload types must live in `sdk/`
 - Guardian policy integrations use `sdk.Guardian` and guardian event topics; sandbox containment integrations use `sdk.Sandboxer` and sandbox event topics

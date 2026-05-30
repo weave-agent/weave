@@ -96,6 +96,8 @@ func resolveExtensions(extNames []string, cfg sdk.Config, runtime sdk.ExtensionC
 func subscribeExtensions(exts []sdk.Extension, bus sdk.Bus) error {
 	for i, ext := range exts {
 		if err := ext.Subscribe(bus); err != nil {
+			_ = ext.Close()
+
 			for j := range slices.Backward(exts[:i]) {
 				_ = exts[j].Close()
 			}

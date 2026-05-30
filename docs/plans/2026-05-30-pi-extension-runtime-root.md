@@ -1,5 +1,7 @@
 # Pi Extension Runtime Migration - Root SDK and Launcher
 
+Status: Completed.
+
 ## Overview
 - Add the root SDK/runtime contracts required for 100% Pi capability parity by rewrite.
 - Keep the existing bus and static registries as compatibility foundations while introducing typed hooks, runtime services, and stable extension context APIs.

@@ -138,20 +138,39 @@ func TestRuntimeModelControllerRegistryPreferencesAndEvents(t *testing.T) {
 	t.Parallel()
 
 	model.ResetModelRegistry()
+	model.ResetAuthRegistry()
+
 	defer model.ResetModelRegistry()
+	defer model.ResetAuthRegistry()
 
 	model.RegisterModel(model.ModelDef{ID: "m1", Provider: "p1", SupportsXHigh: false, Default: true})
+	model.RegisterModel(model.ModelDef{ID: "m2", Provider: "p1", SupportsXHigh: true})
+	model.SetProviderAuth("p1", true)
 
 	bus := &runtimeContextRecordingBus{}
 	prefs := &runtimeContextPrefs{}
 	ctrl := NewRuntimeModelController(RuntimeModelControllerOptions{Bus: bus, Prefs: prefs})
 
 	models := ctrl.ListModels()
-	require.Len(t, models, 1)
+	require.Len(t, models, 2)
 	assert.Equal(t, "m1", models[0].ID)
 
-	_, ok := ctrl.GetModelForProvider("m1", "p1")
+	available := ctrl.ListAvailableModels()
+	require.Len(t, available, 2)
+	assert.Equal(t, "m1", available[0].ID)
+
+	gotModel, ok := ctrl.GetModel("m2")
 	assert.True(t, ok)
+	assert.Equal(t, "m2", gotModel.ID)
+
+	gotModel, ok = ctrl.GetModelForProvider("m1", "p1")
+	assert.True(t, ok)
+	assert.Equal(t, "m1", gotModel.ID)
+
+	defaultModel, ok := ctrl.DefaultModelForProvider("p1")
+	assert.True(t, ok)
+	assert.Equal(t, "m1", defaultModel.ID)
+
 	assert.Equal(t, model.ThinkingHigh, ctrl.ClampThinkingLevel(model.ThinkingXHigh, models[0]))
 
 	require.NoError(t, ctrl.SetModel(context.Background(), "m1"))
@@ -169,6 +188,32 @@ func TestRuntimeModelControllerRegistryPreferencesAndEvents(t *testing.T) {
 	assert.Equal(t, map[string]any{"model": "m1"}, bus.events[0].Payload)
 	assert.Equal(t, map[string]any{"thinking": "high"}, bus.events[1].Payload)
 	assert.Equal(t, 2, prefs.saved)
+}
+
+func TestRuntimeModelControllerPreferenceErrorsAndInvalidThinking(t *testing.T) {
+	t.Parallel()
+
+	loadErr := errors.New("load failed")
+	saveErr := errors.New("save failed")
+
+	ctrl := NewRuntimeModelController(RuntimeModelControllerOptions{Prefs: &runtimeContextPrefs{preferencesErr: loadErr}})
+	_, err := ctrl.CurrentModel(context.Background())
+	require.ErrorIs(t, err, loadErr)
+	require.ErrorIs(t, ctrl.SetModel(context.Background(), "m1"), loadErr)
+	_, err = ctrl.ThinkingLevel(context.Background())
+	require.ErrorIs(t, err, loadErr)
+	require.ErrorIs(t, ctrl.SetThinkingLevel(context.Background(), model.ThinkingHigh), loadErr)
+
+	ctrl = NewRuntimeModelController(RuntimeModelControllerOptions{Prefs: &runtimeContextPrefs{saveErr: saveErr}})
+	require.ErrorIs(t, ctrl.SetModel(context.Background(), "m1"), saveErr)
+	require.ErrorIs(t, ctrl.SetThinkingLevel(context.Background(), model.ThinkingHigh), saveErr)
+
+	prefs := &runtimeContextPrefs{thinkingLevel: "invalid"}
+	ctrl = NewRuntimeModelController(RuntimeModelControllerOptions{Prefs: prefs})
+	_, err = ctrl.ThinkingLevel(context.Background())
+	require.ErrorContains(t, err, "parse thinking level")
+	require.ErrorContains(t, ctrl.SetThinkingLevel(context.Background(), model.ThinkingLevel("invalid")), "parse thinking level")
+	assert.Zero(t, prefs.saved)
 }
 
 func TestRuntimeModelControllerUnsupportedWithoutPreferences(t *testing.T) {
@@ -209,12 +254,18 @@ func (p resourceProviderStub) GetResource(ctx context.Context, query ResourceQue
 }
 
 type runtimeContextPrefs struct {
-	model         string
-	thinkingLevel string
-	saved         int
+	model          string
+	thinkingLevel  string
+	preferencesErr error
+	saveErr        error
+	saved          int
 }
 
 func (p *runtimeContextPrefs) Preferences(target any) error {
+	if p.preferencesErr != nil {
+		return p.preferencesErr
+	}
+
 	switch v := target.(type) {
 	case *struct {
 		Model string `json:"model"`
@@ -230,6 +281,10 @@ func (p *runtimeContextPrefs) Preferences(target any) error {
 }
 
 func (p *runtimeContextPrefs) SavePreferences(target any) error {
+	if p.saveErr != nil {
+		return p.saveErr
+	}
+
 	switch v := target.(type) {
 	case *struct {
 		Model string `json:"model"`

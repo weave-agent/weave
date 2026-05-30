@@ -25,8 +25,7 @@ type RuntimeTool struct {
 	Name       string
 	Definition ToolDef
 	Run        func(context.Context, ToolRequest) (ToolResult, error)
-	Enabled    bool
-	enabledSet bool
+	Disabled   bool
 }
 
 type RuntimeToolInfo struct {
@@ -123,12 +122,8 @@ func (r *RuntimeToolRegistry) Register(tool RuntimeTool) (HookHandle, error) {
 		return noopHookHandle{}, fmt.Errorf("runtime tool %q: %w", tool.Name, ErrRuntimeDuplicateName)
 	}
 
-	if !tool.enabledSet {
-		tool.Enabled = true
-	}
-
 	r.runtime[tool.Name] = tool
-	if !tool.Enabled {
+	if tool.Disabled {
 		r.disabled[tool.Name] = true
 	}
 
@@ -214,7 +209,6 @@ func (r *RuntimeToolRegistry) Get(name string) (RuntimeTool, bool) {
 	return RuntimeTool{
 		Name:       name,
 		Definition: legacy.Definition(),
-		Enabled:    true,
 		Run: func(ctx context.Context, req ToolRequest) (ToolResult, error) {
 			args := req.Arguments
 			if args == nil {
@@ -223,7 +217,6 @@ func (r *RuntimeToolRegistry) Get(name string) (RuntimeTool, bool) {
 
 			return legacy.Execute(ctx, args)
 		},
-		enabledSet: true,
 	}, true
 }
 

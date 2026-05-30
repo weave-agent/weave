@@ -258,6 +258,39 @@ func TestRuntimeHooksExposeToolCallDefaults(t *testing.T) {
 	assert.Equal(t, ToolCallResult{Call: call, Continue: true}, result)
 }
 
+func TestRuntimeHooksExposeNoHandlerPassThroughDefaults(t *testing.T) {
+	hooks := NewRuntimeHooks()
+	message := NewUserMessage("hello")
+
+	input, err := hooks.Input().Run(context.Background(), InputHookRequest{Content: "hello"})
+	require.NoError(t, err)
+	assert.Equal(t, InputHookResult{Content: "hello"}, input)
+
+	prompt, err := hooks.Prompt().Run(context.Background(), PromptHookRequest{
+		SystemPrompt: "system",
+		Messages:     []Message{message},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, PromptHookResult{SystemPrompt: "system", Messages: []Message{message}}, prompt)
+
+	contextResult, err := hooks.Context().Run(context.Background(), ContextHookRequest{Messages: []Message{message}})
+	require.NoError(t, err)
+	assert.Equal(t, ContextHookResult{Messages: []Message{message}}, contextResult)
+
+	event := ProviderEvent{Type: ProviderEventTextDelta, Content: "delta"}
+	providerResponse, err := hooks.ProviderResponse().Run(context.Background(), ProviderResponseHookRequest{Provider: "openai", Event: event})
+	require.NoError(t, err)
+	assert.Equal(t, ProviderResponseHookResult{Event: event}, providerResponse)
+
+	turn, err := hooks.Turn().Run(context.Background(), TurnHookRequest{Messages: []Message{message}})
+	require.NoError(t, err)
+	assert.Equal(t, TurnHookResult{Messages: []Message{message}}, turn)
+
+	session, err := hooks.Session().Run(context.Background(), SessionHookRequest{Event: TopicSessionResume, Entry: "payload"})
+	require.NoError(t, err)
+	assert.Equal(t, SessionHookResult{Entry: "payload"}, session)
+}
+
 type recordingBus struct {
 	events []Event
 }
