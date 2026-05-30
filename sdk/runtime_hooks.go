@@ -3,6 +3,7 @@ package sdk
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 	"sync"
@@ -236,7 +237,7 @@ func (h *RuntimeHook[TReq, TRes]) RunState(ctx context.Context, req TReq) (HookS
 	}
 
 	for _, entry := range h.snapshot(false) {
-		if err := entry.fn(ctx, &state); err != nil {
+		if err := runHookEntry(ctx, entry, &state); err != nil {
 			return state, err
 		}
 
@@ -246,12 +247,30 @@ func (h *RuntimeHook[TReq, TRes]) RunState(ctx context.Context, req TReq) (HookS
 	}
 
 	for _, entry := range h.snapshot(true) {
-		if err := entry.fn(ctx, &state); err != nil {
+		if err := runHookEntry(ctx, entry, &state); err != nil {
 			return state, err
 		}
 	}
 
 	return state, nil
+}
+
+func runHookEntry[TReq, TRes any](ctx context.Context, entry hookEntry[TReq, TRes], state *HookState[TReq, TRes]) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = runtimeCallbackPanicError(fmt.Sprintf("runtime hook %q", entry.owner), r)
+		}
+	}()
+
+	return entry.fn(ctx, state)
+}
+
+func runtimeCallbackPanicError(label string, recovered any) error {
+	if err, ok := recovered.(error); ok {
+		return fmt.Errorf("%s panic: %w", label, err)
+	}
+
+	return fmt.Errorf("%s panic: %v", label, recovered)
 }
 
 func (h *RuntimeHook[TReq, TRes]) snapshot(terminal bool) []hookEntry[TReq, TRes] {
@@ -316,12 +335,22 @@ func (h *runtimeHookHandle[TReq, TRes]) Close() error {
 
 		for _, cleanup := range entry.cleanup {
 			if cleanup != nil {
-				h.err = errors.Join(h.err, cleanup())
+				h.err = errors.Join(h.err, runHookCleanup(entry.owner, cleanup))
 			}
 		}
 	})
 
 	return h.err
+}
+
+func runHookCleanup(owner string, cleanup func() error) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = runtimeCallbackPanicError(fmt.Sprintf("runtime hook %q cleanup", owner), r)
+		}
+	}()
+
+	return cleanup()
 }
 
 type noopHookHandle struct{}

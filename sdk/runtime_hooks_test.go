@@ -81,6 +81,23 @@ func TestRuntimeHookErrorPropagation(t *testing.T) {
 	assert.False(t, called)
 }
 
+func TestRuntimeHookRecoversHandlerPanic(t *testing.T) {
+	hook := NewHook[string, string]()
+	called := false
+
+	hook.Use("panic-owner", func(context.Context, *HookState[string, string]) error {
+		panic("boom")
+	})
+	hook.Use("later", func(context.Context, *HookState[string, string]) error {
+		called = true
+		return nil
+	})
+
+	_, err := hook.Run(context.Background(), "input")
+	require.ErrorContains(t, err, `runtime hook "panic-owner" panic: boom`)
+	assert.False(t, called)
+}
+
 func TestRuntimeHookHandleCloseUnregistersAndCleansUpOnce(t *testing.T) {
 	hook := NewHook[string, string]()
 	calls := 0
@@ -126,6 +143,18 @@ func TestRuntimeHookCleanupErrorsAreJoined(t *testing.T) {
 	err := handle.Close()
 	require.ErrorIs(t, err, errA)
 	require.ErrorIs(t, err, errB)
+}
+
+func TestRuntimeHookCleanupRecoversPanic(t *testing.T) {
+	hook := NewHook[string, string]()
+	handle := hook.Use("owner", func(context.Context, *HookState[string, string]) error {
+		return nil
+	}, WithHookCleanup(func() error {
+		panic("cleanup failed")
+	}))
+
+	err := handle.Close()
+	require.ErrorContains(t, err, `runtime hook "owner" cleanup panic: cleanup failed`)
 }
 
 func TestNewBusObserverHookPublishesState(t *testing.T) {

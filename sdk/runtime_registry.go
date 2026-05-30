@@ -107,9 +107,12 @@ func NewRuntimeToolRegistry(cfg Config) *RuntimeToolRegistry {
 }
 
 func (r *RuntimeToolRegistry) Register(tool RuntimeTool) (HookHandle, error) {
-	if tool.Name == "" {
-		return noopHookHandle{}, errors.New("register runtime tool: empty name")
+	normalized, err := normalizeRuntimeTool(tool)
+	if err != nil {
+		return noopHookHandle{}, err
 	}
+
+	tool = normalized
 
 	if tool.Run == nil {
 		return noopHookHandle{}, fmt.Errorf("register runtime tool %q: nil run function", tool.Name)
@@ -128,6 +131,21 @@ func (r *RuntimeToolRegistry) Register(tool RuntimeTool) (HookHandle, error) {
 	}
 
 	return newCloseHandle(func() error { return r.Unregister(tool.Name) }), nil
+}
+
+func normalizeRuntimeTool(tool RuntimeTool) (RuntimeTool, error) {
+	switch {
+	case tool.Name == "" && tool.Definition.Name == "":
+		return RuntimeTool{}, errors.New("register runtime tool: empty name")
+	case tool.Name == "":
+		tool.Name = tool.Definition.Name
+	case tool.Definition.Name == "":
+		tool.Definition.Name = tool.Name
+	case tool.Definition.Name != tool.Name:
+		return RuntimeTool{}, fmt.Errorf("register runtime tool %q: definition name %q does not match", tool.Name, tool.Definition.Name)
+	}
+
+	return tool, nil
 }
 
 func (r *RuntimeToolRegistry) Unregister(name string) error {
@@ -562,7 +580,7 @@ func (p runtimeProviderWithMiddleware) Stream(ctx context.Context, req ProviderR
 			}
 
 			for _, entry := range middlewares {
-				if err := entry.middleware.ObserveProviderStream(streamCtx, event); err != nil {
+				if err := runObserveProviderStreamMiddleware(streamCtx, entry, event); err != nil {
 					_ = sendProviderEvent(ctx, out, ProviderEvent{Type: ProviderEventError, Content: err})
 
 					return
@@ -570,7 +588,7 @@ func (p runtimeProviderWithMiddleware) Stream(ctx context.Context, req ProviderR
 			}
 
 			for _, entry := range middlewares {
-				if err := entry.middleware.AfterProviderResponse(streamCtx, event); err != nil {
+				if err := runAfterProviderResponseMiddleware(streamCtx, entry, event); err != nil {
 					_ = sendProviderEvent(ctx, out, ProviderEvent{Type: ProviderEventError, Content: err})
 
 					return
@@ -610,13 +628,59 @@ func (p runtimeProviderWithMiddleware) providerMiddlewareSnapshot() []providerMi
 func (p runtimeProviderWithMiddleware) beforeProviderRequest(ctx context.Context, req ProviderRequest, middlewares []providerMiddlewareEntry) (ProviderRequest, error) {
 	var err error
 	for _, entry := range middlewares {
-		req, err = entry.middleware.BeforeProviderRequest(ctx, req)
+		req, err = runBeforeProviderRequestMiddleware(ctx, entry, req)
 		if err != nil {
-			return ProviderRequest{}, fmt.Errorf("provider middleware %q before request: %w", entry.owner, err)
+			return ProviderRequest{}, err
 		}
 	}
 
 	return req, nil
+}
+
+func runBeforeProviderRequestMiddleware(ctx context.Context, entry providerMiddlewareEntry, req ProviderRequest) (next ProviderRequest, err error) {
+	next = req
+
+	defer func() {
+		if r := recover(); r != nil {
+			next = ProviderRequest{}
+			err = runtimeCallbackPanicError(fmt.Sprintf("provider middleware %q before request", entry.owner), r)
+		}
+	}()
+
+	next, err = entry.middleware.BeforeProviderRequest(ctx, req)
+	if err != nil {
+		return ProviderRequest{}, fmt.Errorf("provider middleware %q before request: %w", entry.owner, err)
+	}
+
+	return next, nil
+}
+
+func runObserveProviderStreamMiddleware(ctx context.Context, entry providerMiddlewareEntry, event ProviderEvent) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = runtimeCallbackPanicError(fmt.Sprintf("provider middleware %q observe stream", entry.owner), r)
+		}
+	}()
+
+	if err := entry.middleware.ObserveProviderStream(ctx, event); err != nil {
+		return fmt.Errorf("provider middleware %q observe stream: %w", entry.owner, err)
+	}
+
+	return nil
+}
+
+func runAfterProviderResponseMiddleware(ctx context.Context, entry providerMiddlewareEntry, event ProviderEvent) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = runtimeCallbackPanicError(fmt.Sprintf("provider middleware %q after response", entry.owner), r)
+		}
+	}()
+
+	if err := entry.middleware.AfterProviderResponse(ctx, event); err != nil {
+		return fmt.Errorf("provider middleware %q after response: %w", entry.owner, err)
+	}
+
+	return nil
 }
 
 func sendProviderEvent(ctx context.Context, out chan<- ProviderEvent, event ProviderEvent) bool {

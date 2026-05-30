@@ -90,6 +90,45 @@ func TestRuntimeToolRegistry_RegisterDisabledTool(t *testing.T) {
 	assert.Equal(t, "should not run", result.Content)
 }
 
+func TestRuntimeToolRegistry_NormalizesAndValidatesDefinitionName(t *testing.T) {
+	ResetToolRegistry()
+
+	reg := NewRuntimeToolRegistry(nil)
+	_, err := reg.Register(RuntimeTool{
+		Name: "runtime",
+		Run: func(context.Context, ToolRequest) (ToolResult, error) {
+			return ToolResult{Content: "ok"}, nil
+		},
+	})
+	require.NoError(t, err)
+
+	tool, err := reg.Get("runtime")
+	require.NoError(t, err)
+	assert.Equal(t, "runtime", tool.Definition.Name)
+
+	_, err = reg.Register(RuntimeTool{
+		Definition: ToolDef{Name: "from-definition"},
+		Run: func(context.Context, ToolRequest) (ToolResult, error) {
+			return ToolResult{Content: "ok"}, nil
+		},
+	})
+	require.NoError(t, err)
+
+	tool, err = reg.Get("from-definition")
+	require.NoError(t, err)
+	assert.Equal(t, "from-definition", tool.Name)
+	assert.Equal(t, "from-definition", tool.Definition.Name)
+
+	_, err = reg.Register(RuntimeTool{
+		Name:       "registered",
+		Definition: ToolDef{Name: "advertised"},
+		Run: func(context.Context, ToolRequest) (ToolResult, error) {
+			return ToolResult{Content: "ok"}, nil
+		},
+	})
+	require.ErrorContains(t, err, `register runtime tool "registered": definition name "advertised" does not match`)
+}
+
 func TestRuntimeToolRegistry_DuplicateNames(t *testing.T) {
 	ResetToolRegistry()
 
@@ -413,6 +452,61 @@ func TestRuntimeProviderRegistry_MiddlewareErrorCancelsProviderStream(t *testing
 	}, time.Second, 10*time.Millisecond)
 }
 
+func TestRuntimeProviderRegistry_MiddlewarePanicBecomesStreamError(t *testing.T) {
+	tests := []struct {
+		name       string
+		middleware ProviderMiddleware
+		want       string
+	}{
+		{
+			name: "observe",
+			middleware: ProviderMiddlewareFuncs{
+				ObserveProviderStreamFunc: func(context.Context, ProviderEvent) error {
+					panic("observe failed")
+				},
+			},
+			want: `provider middleware "test" observe stream panic: observe failed`,
+		},
+		{
+			name: "after",
+			middleware: ProviderMiddlewareFuncs{
+				AfterProviderResponseFunc: func(context.Context, ProviderEvent) error {
+					panic("after failed")
+				},
+			},
+			want: `provider middleware "test" after response panic: after failed`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reg := NewRuntimeProviderRegistry(nil)
+			_, err := reg.Register(RuntimeProvider{
+				Name: "runtime",
+				Factory: func(Config) (Provider, error) {
+					return streamProvider{prefix: "runtime"}, nil
+				},
+			})
+			require.NoError(t, err)
+
+			reg.UseMiddleware("test", tt.middleware)
+
+			provider, err := reg.Get("runtime")
+			require.NoError(t, err)
+
+			events, err := provider.Stream(context.Background(), ProviderRequest{SystemPrompt: "system"})
+			require.NoError(t, err)
+
+			event := <-events
+			assert.Equal(t, ProviderEventError, event.Type)
+			require.ErrorContains(t, event.Content.(error), tt.want)
+
+			_, open := <-events
+			assert.False(t, open)
+		})
+	}
+}
+
 func TestRuntimeProviderRegistry_BeforeMiddlewareErrorSkipsProvider(t *testing.T) {
 	reg := NewRuntimeProviderRegistry(nil)
 	expectedErr := errors.New("before failed")
@@ -437,6 +531,33 @@ func TestRuntimeProviderRegistry_BeforeMiddlewareErrorSkipsProvider(t *testing.T
 
 	events, err := provider.Stream(context.Background(), ProviderRequest{SystemPrompt: "system"})
 	require.ErrorIs(t, err, expectedErr)
+	assert.Nil(t, events)
+	assert.Zero(t, calls)
+}
+
+func TestRuntimeProviderRegistry_BeforeMiddlewarePanicSkipsProvider(t *testing.T) {
+	reg := NewRuntimeProviderRegistry(nil)
+	calls := 0
+
+	_, err := reg.Register(RuntimeProvider{
+		Name: "runtime",
+		Factory: func(Config) (Provider, error) {
+			return streamProvider{prefix: "runtime", calls: &calls}, nil
+		},
+	})
+	require.NoError(t, err)
+
+	reg.UseMiddleware("test", ProviderMiddlewareFuncs{
+		BeforeProviderRequestFunc: func(context.Context, ProviderRequest) (ProviderRequest, error) {
+			panic("before failed")
+		},
+	})
+
+	provider, err := reg.Get("runtime")
+	require.NoError(t, err)
+
+	events, err := provider.Stream(context.Background(), ProviderRequest{SystemPrompt: "system"})
+	require.ErrorContains(t, err, `provider middleware "test" before request panic: before failed`)
 	assert.Nil(t, events)
 	assert.Zero(t, calls)
 }

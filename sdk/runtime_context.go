@@ -547,6 +547,10 @@ func (m *RuntimeModelController) SetModel(_ context.Context, id string) error {
 		return ErrRuntimeCapabilityUnsupported
 	}
 
+	if _, ok := model.GetModel(id); !ok {
+		return fmt.Errorf("set model %q: %w", id, ErrRuntimeNotFound)
+	}
+
 	var prefs struct {
 		Model string `json:"model"`
 	}

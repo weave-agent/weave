@@ -178,6 +178,8 @@ func TestRuntimeModelControllerRegistryPreferencesAndEvents(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "m1", current)
 
+	require.ErrorIs(t, ctrl.SetModel(context.Background(), "missing"), ErrRuntimeNotFound)
+
 	require.NoError(t, ctrl.SetThinkingLevel(context.Background(), model.ThinkingHigh))
 	level, err := ctrl.ThinkingLevel(context.Background())
 	require.NoError(t, err)
@@ -212,7 +214,10 @@ func TestRuntimeModelControllerDefaultThinkingLevel(t *testing.T) {
 }
 
 func TestRuntimeModelControllerPreferenceErrorsAndInvalidThinking(t *testing.T) {
-	t.Parallel()
+	model.ResetModelRegistry()
+	defer model.ResetModelRegistry()
+
+	model.RegisterModel(model.ModelDef{ID: "m1", Provider: "p1"})
 
 	loadErr := errors.New("load failed")
 	saveErr := errors.New("save failed")
