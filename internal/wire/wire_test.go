@@ -1355,6 +1355,64 @@ func TestWireWithCore_ResumeRunsRuntimeSessionHook(t *testing.T) {
 	assert.Equal(t, "sess-mutated", initial.SessionID)
 }
 
+func TestWireWithCore_ResumeHookErrorFallsBackInTUI(t *testing.T) {
+	sdk.ResetExtensionRegistry()
+	sdk.ResetSessionStore()
+	sdk.ResetInitialSession()
+
+	sdk.RegisterExtension("agent", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("agent", func(sdk.Bus) error { return nil }), nil
+	})
+
+	store := &runtimeStoreExt{}
+	store.listFunc = func() ([]sdk.SessionInfo, error) {
+		return []sdk.SessionInfo{{ID: "sess-fallback", CWD: continueCWD(nil), UpdatedAt: time.Now()}}, nil
+	}
+	store.loadFunc = func(id string) ([]sdk.Message, error) {
+		return []sdk.Message{{Role: sdk.RoleUser, Content: "restored"}}, nil
+	}
+
+	sdk.RegisterRuntimeExtension("jsonl", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.RuntimeExtension, error) {
+		return store, nil
+	})
+
+	expectedErr := errors.New("session hook failed")
+
+	sdk.RegisterRuntimeExtension("session-hook", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.RuntimeExtension, error) {
+		return sdk.NewRuntimeExtensionFunc(func(ctx sdk.ExtensionContext) error {
+			ctx.Hooks().Session().Use("fail", func(context.Context, *sdk.HookState[sdk.SessionHookRequest, sdk.SessionHookResult]) error {
+				return expectedErr
+			})
+
+			return nil
+		}), nil
+	})
+
+	var publishedEvent sdk.Event
+
+	bus := &BusMock{
+		PublishFunc: func(e sdk.Event) {
+			if e.Topic == topicSessionResume {
+				publishedEvent = e
+			}
+		},
+	}
+
+	wired, err := WireWithCore(CoreWireConfig{AgentLoop: "agent", Continue: true}, []string{"jsonl", "session-hook"}, bus, nil)
+	require.NoError(t, err)
+	require.NotNil(t, wired)
+
+	initial, ok := sdk.GetInitialSession()
+	require.True(t, ok)
+	assert.Equal(t, "sess-fallback", initial.SessionID)
+	require.Len(t, initial.Messages, 1)
+	assert.Equal(t, "restored", initial.Messages[0].Content)
+
+	payload, ok := publishedEvent.Payload.(sdk.SessionResumePayload)
+	require.True(t, ok)
+	assert.Equal(t, "sess-fallback", payload.SessionID)
+}
+
 func TestWireWithCore_ResumeSetsInitialSession(t *testing.T) {
 	sdk.ResetExtensionRegistry()
 	sdk.ResetSessionStore()

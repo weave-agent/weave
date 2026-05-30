@@ -236,10 +236,21 @@ func publishSessionResume(ctx context.Context, runtime sdk.ExtensionContext, bus
 		return nil
 	}
 
-	sdk.SetInitialSession(payload)
-	bus.Publish(sdk.NewEvent(topicSessionResume, payload))
+	publishRawSessionResume(bus, payload)
 
 	return nil
+}
+
+func publishRawSessionResume(bus sdk.Bus, payload sdk.SessionResumePayload) {
+	if payload.SessionID == "" {
+		return
+	}
+
+	sdk.SetInitialSession(payload)
+
+	if bus != nil {
+		bus.Publish(sdk.NewEvent(topicSessionResume, payload))
+	}
 }
 
 func resolveSessionFromStore(store sdk.SessionStore, continueFlag bool, resumeID, cwd string) (string, []sdk.Message, error) {
@@ -392,6 +403,7 @@ func WireWithCore(core CoreWireConfig, optExts []string, bus sdk.Bus, cfg sdk.Co
 			}
 
 			slog.Warn("session resume failed", "error", err)
+			publishRawSessionResume(bus, sessionPayload)
 		}
 	}
 

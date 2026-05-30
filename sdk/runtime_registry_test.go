@@ -36,6 +36,8 @@ func TestRuntimeToolRegistry_RegisterGetDisableEnableAndUnregister(t *testing.T)
 	require.NoError(t, reg.Disable("runtime"))
 	_, err = reg.Get("runtime")
 	require.ErrorIs(t, err, ErrRuntimeNotFound)
+	_, err = tool.Run(context.Background(), ToolRequest{Arguments: map[string]any{"value": "disabled"}})
+	require.ErrorIs(t, err, ErrRuntimeNotFound)
 	assert.Equal(t, []RuntimeToolInfo{{Name: "runtime", Definition: ToolDef{Name: "runtime", Description: "runtime tool"}, Enabled: false}}, reg.List())
 
 	require.NoError(t, reg.Enable("runtime"))
@@ -51,6 +53,8 @@ func TestRuntimeToolRegistry_RegisterGetDisableEnableAndUnregister(t *testing.T)
 	require.NoError(t, handle.Close())
 
 	_, err = reg.Get("runtime")
+	require.ErrorIs(t, err, ErrRuntimeNotFound)
+	_, err = tool.Run(context.Background(), ToolRequest{Arguments: map[string]any{"value": "removed"}})
 	require.ErrorIs(t, err, ErrRuntimeNotFound)
 	require.ErrorIs(t, reg.Unregister("runtime"), ErrRuntimeNotFound)
 }
@@ -195,6 +199,8 @@ func TestRuntimeProviderRegistry_StaticCompatibilityAndMiddleware(t *testing.T) 
 	})
 
 	reg := NewRuntimeProviderRegistry(nil)
+	provider, err := reg.Get("static")
+	require.NoError(t, err)
 
 	var observed []string
 
@@ -216,9 +222,6 @@ func TestRuntimeProviderRegistry_StaticCompatibilityAndMiddleware(t *testing.T) 
 		},
 	})
 
-	provider, err := reg.Get("static")
-	require.NoError(t, err)
-
 	events, err := provider.Stream(context.Background(), ProviderRequest{SystemPrompt: "system"})
 	require.NoError(t, err)
 
@@ -234,9 +237,6 @@ func TestRuntimeProviderRegistry_StaticCompatibilityAndMiddleware(t *testing.T) 
 	require.NoError(t, handle.Close())
 
 	observed = nil
-
-	provider, err = reg.Get("static")
-	require.NoError(t, err)
 
 	events, err = provider.Stream(context.Background(), ProviderRequest{SystemPrompt: "system"})
 	require.NoError(t, err)
@@ -266,6 +266,12 @@ func TestRuntimeProviderRegistry_MiddlewarePreservesTokenCounter(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	provider, err := reg.Get("runtime")
+	require.NoError(t, err)
+
+	counter, ok := provider.(TokenCounter)
+	require.True(t, ok)
+
 	reg.UseMiddleware("test", ProviderMiddlewareFuncs{
 		BeforeProviderRequestFunc: func(_ context.Context, req ProviderRequest) (ProviderRequest, error) {
 			req.SystemPrompt += ":before"
@@ -273,12 +279,6 @@ func TestRuntimeProviderRegistry_MiddlewarePreservesTokenCounter(t *testing.T) {
 			return req, nil
 		},
 	})
-
-	provider, err := reg.Get("runtime")
-	require.NoError(t, err)
-
-	counter, ok := provider.(TokenCounter)
-	require.True(t, ok)
 
 	count, err := counter.CountTokens(context.Background(), ProviderRequest{SystemPrompt: "system"})
 	require.NoError(t, err)

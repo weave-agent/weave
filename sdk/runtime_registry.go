@@ -182,6 +182,10 @@ func (r *RuntimeToolRegistry) List() []RuntimeToolInfo {
 }
 
 func (r *RuntimeToolRegistry) Get(name string) (RuntimeTool, error) {
+	return r.get(name, true)
+}
+
+func (r *RuntimeToolRegistry) get(name string, guarded bool) (RuntimeTool, error) {
 	if !toolAllowed(name) {
 		return RuntimeTool{}, fmt.Errorf("runtime tool %q: %w", name, ErrRuntimeNotFound)
 	}
@@ -196,6 +200,10 @@ func (r *RuntimeToolRegistry) Get(name string) (RuntimeTool, error) {
 	}
 
 	if ok {
+		if guarded {
+			return r.guardedTool(name, tool), nil
+		}
+
 		return tool, nil
 	}
 
@@ -210,7 +218,7 @@ func (r *RuntimeToolRegistry) Get(name string) (RuntimeTool, error) {
 
 	legacy = r.decorate(legacy)
 
-	return RuntimeTool{
+	tool = RuntimeTool{
 		Name:       name,
 		Definition: legacy.Definition(),
 		Run: func(ctx context.Context, req ToolRequest) (ToolResult, error) {
@@ -221,7 +229,26 @@ func (r *RuntimeToolRegistry) Get(name string) (RuntimeTool, error) {
 
 			return legacy.Execute(ctx, args)
 		},
-	}, nil
+	}
+
+	if guarded {
+		return r.guardedTool(name, tool), nil
+	}
+
+	return tool, nil
+}
+
+func (r *RuntimeToolRegistry) guardedTool(name string, tool RuntimeTool) RuntimeTool {
+	tool.Run = func(ctx context.Context, req ToolRequest) (ToolResult, error) {
+		current, err := r.get(name, false)
+		if err != nil {
+			return ToolResult{}, err
+		}
+
+		return current.Run(ctx, req)
+	}
+
+	return tool
 }
 
 func (r *RuntimeToolRegistry) Enable(name string) error {
@@ -441,12 +468,7 @@ func (r *RuntimeProviderRegistry) closeMiddleware(id int) func() error {
 }
 
 func (r *RuntimeProviderRegistry) wrapProvider(provider Provider) Provider {
-	middlewares := r.providerMiddlewareSnapshot()
-	if len(middlewares) == 0 {
-		return provider
-	}
-
-	wrapped := runtimeProviderWithMiddleware{provider: provider, middlewares: middlewares}
+	wrapped := runtimeProviderWithMiddleware{provider: provider, registry: r}
 	if counter, ok := provider.(TokenCounter); ok {
 		return runtimeProviderWithMiddlewareAndTokenCounter{
 			runtimeProviderWithMiddleware: wrapped,
@@ -472,12 +494,22 @@ func (r *RuntimeProviderRegistry) providerMiddlewareSnapshot() []providerMiddlew
 }
 
 type runtimeProviderWithMiddleware struct {
-	provider    Provider
-	middlewares []providerMiddlewareEntry
+	provider Provider
+	registry *RuntimeProviderRegistry
 }
 
 func (p runtimeProviderWithMiddleware) Stream(ctx context.Context, req ProviderRequest, opts ...model.StreamOption) (<-chan ProviderEvent, error) {
-	req, err := p.beforeProviderRequest(ctx, req)
+	middlewares := p.providerMiddlewareSnapshot()
+	if len(middlewares) == 0 {
+		events, err := p.provider.Stream(ctx, req, opts...)
+		if err != nil {
+			return nil, fmt.Errorf("provider stream: %w", err)
+		}
+
+		return events, nil
+	}
+
+	req, err := p.beforeProviderRequest(ctx, req, middlewares)
 	if err != nil {
 		return nil, err
 	}
@@ -510,7 +542,7 @@ func (p runtimeProviderWithMiddleware) Stream(ctx context.Context, req ProviderR
 				event = e
 			}
 
-			for _, entry := range p.middlewares {
+			for _, entry := range middlewares {
 				if err := entry.middleware.ObserveProviderStream(streamCtx, event); err != nil {
 					_ = sendProviderEvent(ctx, out, ProviderEvent{Type: ProviderEventError, Content: err})
 
@@ -518,7 +550,7 @@ func (p runtimeProviderWithMiddleware) Stream(ctx context.Context, req ProviderR
 				}
 			}
 
-			for _, entry := range p.middlewares {
+			for _, entry := range middlewares {
 				if err := entry.middleware.AfterProviderResponse(streamCtx, event); err != nil {
 					_ = sendProviderEvent(ctx, out, ProviderEvent{Type: ProviderEventError, Content: err})
 
@@ -535,9 +567,17 @@ func (p runtimeProviderWithMiddleware) Stream(ctx context.Context, req ProviderR
 	return out, nil
 }
 
-func (p runtimeProviderWithMiddleware) beforeProviderRequest(ctx context.Context, req ProviderRequest) (ProviderRequest, error) {
+func (p runtimeProviderWithMiddleware) providerMiddlewareSnapshot() []providerMiddlewareEntry {
+	if p.registry == nil {
+		return nil
+	}
+
+	return p.registry.providerMiddlewareSnapshot()
+}
+
+func (p runtimeProviderWithMiddleware) beforeProviderRequest(ctx context.Context, req ProviderRequest, middlewares []providerMiddlewareEntry) (ProviderRequest, error) {
 	var err error
-	for _, entry := range p.middlewares {
+	for _, entry := range middlewares {
 		req, err = entry.middleware.BeforeProviderRequest(ctx, req)
 		if err != nil {
 			return ProviderRequest{}, fmt.Errorf("provider middleware %q before request: %w", entry.owner, err)
@@ -562,7 +602,17 @@ type runtimeProviderWithMiddlewareAndTokenCounter struct {
 }
 
 func (p runtimeProviderWithMiddlewareAndTokenCounter) CountTokens(ctx context.Context, req ProviderRequest, opts ...model.StreamOption) (TokenCount, error) {
-	req, err := p.beforeProviderRequest(ctx, req)
+	middlewares := p.providerMiddlewareSnapshot()
+	if len(middlewares) == 0 {
+		count, err := p.counter.CountTokens(ctx, req, opts...)
+		if err != nil {
+			return TokenCount{}, fmt.Errorf("provider count tokens: %w", err)
+		}
+
+		return count, nil
+	}
+
+	req, err := p.beforeProviderRequest(ctx, req, middlewares)
 	if err != nil {
 		return TokenCount{}, err
 	}
