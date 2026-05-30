@@ -381,7 +381,6 @@ Typed hook execution publishes these legacy observer topics when the default run
 
 | Typed hook | Bus topic | Payload |
 |---|---|---|
-| `Input` | `agent.prompt` | Submitted or mutated input content |
 | `ProviderRequest` | `provider.request` | `sdk.ProviderRequestBusPayload` |
 | `ProviderResponse` | `provider.response` | `sdk.ProviderResponseBusPayload` |
 | `ToolCall` | `tool.start` | `sdk.ToolProgress` |
@@ -391,7 +390,7 @@ Typed hook execution publishes these legacy observer topics when the default run
 | `Turn` | `turn` | `sdk.TurnHookResult` |
 | `Session` | `SessionHookRequest.Event`, such as `session.resume` | `SessionHookResult.Entry` or the original entry |
 
-`Prompt` and `Context` hooks have no legacy bus topic by default; they are behavior-changing runtime hooks only.
+`Input`, `Prompt`, and `Context` hooks have no legacy bus topic by default; they are behavior-changing runtime hooks only. The legacy `agent.prompt` topic remains an input command topic and is not echoed by the runtime hook bridge.
 
 ### Provider Context Accounting
 

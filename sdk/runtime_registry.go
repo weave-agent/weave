@@ -436,7 +436,15 @@ func (r *RuntimeProviderRegistry) wrapProvider(provider Provider) Provider {
 		return provider
 	}
 
-	return runtimeProviderWithMiddleware{provider: provider, middlewares: middlewares}
+	wrapped := runtimeProviderWithMiddleware{provider: provider, middlewares: middlewares}
+	if counter, ok := provider.(TokenCounter); ok {
+		return runtimeProviderWithMiddlewareAndTokenCounter{
+			runtimeProviderWithMiddleware: wrapped,
+			counter:                       counter,
+		}
+	}
+
+	return wrapped
 }
 
 func (r *RuntimeProviderRegistry) providerMiddlewareSnapshot() []providerMiddlewareEntry {
@@ -459,45 +467,102 @@ type runtimeProviderWithMiddleware struct {
 }
 
 func (p runtimeProviderWithMiddleware) Stream(ctx context.Context, req ProviderRequest, opts ...model.StreamOption) (<-chan ProviderEvent, error) {
-	var err error
-	for _, entry := range p.middlewares {
-		req, err = entry.middleware.BeforeProviderRequest(ctx, req)
-		if err != nil {
-			return nil, fmt.Errorf("provider middleware %q before request: %w", entry.owner, err)
-		}
+	req, err := p.beforeProviderRequest(ctx, req)
+	if err != nil {
+		return nil, err
 	}
 
-	events, err := p.provider.Stream(ctx, req, opts...)
+	streamCtx, cancel := context.WithCancel(ctx)
+
+	events, err := p.provider.Stream(streamCtx, req, opts...)
 	if err != nil {
+		cancel()
+
 		return nil, fmt.Errorf("provider stream: %w", err)
 	}
 
-	out := make(chan ProviderEvent)
+	out := make(chan ProviderEvent, 1)
 	go func() {
 		defer close(out)
+		defer cancel()
 
-		for event := range events {
+		for {
+			var event ProviderEvent
+
+			select {
+			case <-streamCtx.Done():
+				return
+			case e, ok := <-events:
+				if !ok {
+					return
+				}
+
+				event = e
+			}
+
 			for _, entry := range p.middlewares {
-				if err := entry.middleware.ObserveProviderStream(ctx, event); err != nil {
-					out <- ProviderEvent{Type: ProviderEventError, Content: err}
+				if err := entry.middleware.ObserveProviderStream(streamCtx, event); err != nil {
+					_ = sendProviderEvent(ctx, out, ProviderEvent{Type: ProviderEventError, Content: err})
 
 					return
 				}
 			}
 
 			for _, entry := range p.middlewares {
-				if err := entry.middleware.AfterProviderResponse(ctx, event); err != nil {
-					out <- ProviderEvent{Type: ProviderEventError, Content: err}
+				if err := entry.middleware.AfterProviderResponse(streamCtx, event); err != nil {
+					_ = sendProviderEvent(ctx, out, ProviderEvent{Type: ProviderEventError, Content: err})
 
 					return
 				}
 			}
 
-			out <- event
+			if !sendProviderEvent(ctx, out, event) {
+				return
+			}
 		}
 	}()
 
 	return out, nil
+}
+
+func (p runtimeProviderWithMiddleware) beforeProviderRequest(ctx context.Context, req ProviderRequest) (ProviderRequest, error) {
+	var err error
+	for _, entry := range p.middlewares {
+		req, err = entry.middleware.BeforeProviderRequest(ctx, req)
+		if err != nil {
+			return ProviderRequest{}, fmt.Errorf("provider middleware %q before request: %w", entry.owner, err)
+		}
+	}
+
+	return req, nil
+}
+
+func sendProviderEvent(ctx context.Context, out chan<- ProviderEvent, event ProviderEvent) bool {
+	select {
+	case out <- event:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
+type runtimeProviderWithMiddlewareAndTokenCounter struct {
+	runtimeProviderWithMiddleware
+	counter TokenCounter
+}
+
+func (p runtimeProviderWithMiddlewareAndTokenCounter) CountTokens(ctx context.Context, req ProviderRequest, opts ...model.StreamOption) (TokenCount, error) {
+	req, err := p.beforeProviderRequest(ctx, req)
+	if err != nil {
+		return TokenCount{}, err
+	}
+
+	count, err := p.counter.CountTokens(ctx, req, opts...)
+	if err != nil {
+		return TokenCount{}, fmt.Errorf("provider count tokens: %w", err)
+	}
+
+	return count, nil
 }
 
 type closeHandle struct {

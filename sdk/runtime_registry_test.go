@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -235,6 +236,41 @@ func TestRuntimeProviderRegistry_StaticCompatibilityAndMiddleware(t *testing.T) 
 	assert.Empty(t, observed)
 }
 
+func TestRuntimeProviderRegistry_MiddlewarePreservesTokenCounter(t *testing.T) {
+	ResetProviderRegistry()
+
+	reg := NewRuntimeProviderRegistry(nil)
+
+	var counted ProviderRequest
+
+	_, err := reg.Register(RuntimeProvider{
+		Name: "runtime",
+		Factory: func(Config) (Provider, error) {
+			return countingStreamProvider{counted: &counted}, nil
+		},
+	})
+	require.NoError(t, err)
+
+	reg.UseMiddleware("test", ProviderMiddlewareFuncs{
+		BeforeProviderRequestFunc: func(_ context.Context, req ProviderRequest) (ProviderRequest, error) {
+			req.SystemPrompt += ":before"
+
+			return req, nil
+		},
+	})
+
+	provider, ok := reg.Get("runtime")
+	require.True(t, ok)
+
+	counter, ok := provider.(TokenCounter)
+	require.True(t, ok)
+
+	count, err := counter.CountTokens(context.Background(), ProviderRequest{SystemPrompt: "system"})
+	require.NoError(t, err)
+	assert.Equal(t, ProviderRequest{SystemPrompt: "system:before"}, counted)
+	assert.Equal(t, TokenCount{InputTokens: len("system:before"), Source: TokenCountSourceExact, Confidence: 1}, count)
+}
+
 func TestRuntimeProviderRegistry_RegisterDuplicateUnregisterAndMiddlewareErrors(t *testing.T) {
 	ResetProviderRegistry()
 
@@ -282,6 +318,47 @@ func TestRuntimeProviderRegistry_RegisterDuplicateUnregisterAndMiddlewareErrors(
 	_, ok = reg.Get("runtime")
 	assert.False(t, ok)
 	require.ErrorIs(t, reg.Unregister("runtime"), ErrRuntimeNotFound)
+}
+
+func TestRuntimeProviderRegistry_MiddlewareErrorCancelsProviderStream(t *testing.T) {
+	reg := NewRuntimeProviderRegistry(nil)
+	canceled := make(chan struct{})
+	expectedErr := errors.New("observe failed")
+
+	_, err := reg.Register(RuntimeProvider{
+		Name: "runtime",
+		Factory: func(Config) (Provider, error) {
+			return cancelAwareStreamProvider{canceled: canceled}, nil
+		},
+	})
+	require.NoError(t, err)
+
+	reg.UseMiddleware("test", ProviderMiddlewareFuncs{
+		ObserveProviderStreamFunc: func(context.Context, ProviderEvent) error {
+			return expectedErr
+		},
+	})
+
+	provider, ok := reg.Get("runtime")
+	require.True(t, ok)
+
+	events, err := provider.Stream(context.Background(), ProviderRequest{SystemPrompt: "system"})
+	require.NoError(t, err)
+
+	event := <-events
+	assert.Equal(t, ProviderEventError, event.Type)
+	require.ErrorIs(t, event.Content.(error), expectedErr)
+
+	_, open := <-events
+	assert.False(t, open)
+	require.Eventually(t, func() bool {
+		select {
+		case <-canceled:
+			return true
+		default:
+			return false
+		}
+	}, time.Second, 10*time.Millisecond)
 }
 
 func TestRuntimeProviderRegistry_BeforeMiddlewareErrorSkipsProvider(t *testing.T) {
@@ -386,6 +463,54 @@ func (p streamProvider) Stream(_ context.Context, req ProviderRequest, _ ...mode
 	ch <- ProviderEvent{Type: ProviderEventTextDelta, Content: p.prefix + ":" + req.SystemPrompt}
 
 	close(ch)
+
+	return ch, nil
+}
+
+type countingStreamProvider struct {
+	counted *ProviderRequest
+}
+
+func (p countingStreamProvider) Stream(_ context.Context, req ProviderRequest, _ ...model.StreamOption) (<-chan ProviderEvent, error) {
+	ch := make(chan ProviderEvent, 1)
+	ch <- ProviderEvent{Type: ProviderEventTextDelta, Content: req.SystemPrompt}
+
+	close(ch)
+
+	return ch, nil
+}
+
+func (p countingStreamProvider) CountTokens(_ context.Context, req ProviderRequest, _ ...model.StreamOption) (TokenCount, error) {
+	if p.counted != nil {
+		*p.counted = req
+	}
+
+	return TokenCount{InputTokens: len(req.SystemPrompt), Source: TokenCountSourceExact, Confidence: 1}, nil
+}
+
+type cancelAwareStreamProvider struct {
+	canceled chan<- struct{}
+}
+
+func (p cancelAwareStreamProvider) Stream(ctx context.Context, _ ProviderRequest, _ ...model.StreamOption) (<-chan ProviderEvent, error) {
+	ch := make(chan ProviderEvent)
+	go func() {
+		defer close(ch)
+
+		select {
+		case ch <- ProviderEvent{Type: ProviderEventTextDelta, Content: "first"}:
+		case <-ctx.Done():
+			close(p.canceled)
+			return
+		}
+
+		select {
+		case ch <- ProviderEvent{Type: ProviderEventTextDelta, Content: "second"}:
+		case <-ctx.Done():
+			close(p.canceled)
+			return
+		}
+	}()
 
 	return ch, nil
 }

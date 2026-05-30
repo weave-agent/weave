@@ -100,10 +100,11 @@ func WithHookCleanup(fn func() error) HookOption {
 
 // RuntimeHook is the default in-memory Hook implementation.
 type RuntimeHook[TReq any, TRes any] struct {
-	mu       sync.RWMutex
-	nextSeq  int
-	entries  map[int]hookEntry[TReq, TRes]
-	initFunc func(TReq) TRes
+	mu              sync.RWMutex
+	nextSeq         int
+	entries         map[int]hookEntry[TReq, TRes]
+	terminalEntries map[int]hookEntry[TReq, TRes]
+	initFunc        func(TReq) TRes
 }
 
 type hookEntry[TReq any, TRes any] struct {
@@ -118,7 +119,8 @@ type hookEntry[TReq any, TRes any] struct {
 // NewHook returns a typed hook that runs handlers in order.
 func NewHook[TReq, TRes any](opts ...RuntimeHookOption[TReq, TRes]) *RuntimeHook[TReq, TRes] {
 	hook := &RuntimeHook[TReq, TRes]{
-		entries: make(map[int]hookEntry[TReq, TRes]),
+		entries:         make(map[int]hookEntry[TReq, TRes]),
+		terminalEntries: make(map[int]hookEntry[TReq, TRes]),
 	}
 
 	for _, opt := range opts {
@@ -142,6 +144,14 @@ func WithHookInitialResult[TReq, TRes any](fn func(TReq) TRes) RuntimeHookOption
 
 // Use registers a handler and returns a handle that can unregister it.
 func (h *RuntimeHook[TReq, TRes]) Use(owner string, fn HookFunc[TReq, TRes], opts ...HookOption) HookHandle {
+	return h.use(owner, fn, false, opts...)
+}
+
+func (h *RuntimeHook[TReq, TRes]) useTerminal(owner string, fn HookFunc[TReq, TRes], opts ...HookOption) HookHandle {
+	return h.use(owner, fn, true, opts...)
+}
+
+func (h *RuntimeHook[TReq, TRes]) use(owner string, fn HookFunc[TReq, TRes], terminal bool, opts ...HookOption) HookHandle {
 	if fn == nil {
 		return noopHookHandle{}
 	}
@@ -159,13 +169,19 @@ func (h *RuntimeHook[TReq, TRes]) Use(owner string, fn HookFunc[TReq, TRes], opt
 
 	h.nextSeq++
 	id := h.nextSeq
-	h.entries[id] = hookEntry[TReq, TRes]{
+
+	entry := hookEntry[TReq, TRes]{
 		id:      id,
 		seq:     h.nextSeq,
 		order:   cfg.order,
 		owner:   owner,
 		fn:      fn,
 		cleanup: append([]func() error(nil), cfg.cleanup...),
+	}
+	if terminal {
+		h.terminalEntries[id] = entry
+	} else {
+		h.entries[id] = entry
 	}
 
 	return &runtimeHookHandle[TReq, TRes]{hook: h, id: id}
@@ -184,25 +200,36 @@ func (h *RuntimeHook[TReq, TRes]) RunState(ctx context.Context, req TReq) (HookS
 		state.Result = h.initFunc(req)
 	}
 
-	for _, entry := range h.snapshot() {
+	for _, entry := range h.snapshot(false) {
 		if err := entry.fn(ctx, &state); err != nil {
 			return state, err
 		}
 
 		if state.stopped {
-			return state, nil
+			break
+		}
+	}
+
+	for _, entry := range h.snapshot(true) {
+		if err := entry.fn(ctx, &state); err != nil {
+			return state, err
 		}
 	}
 
 	return state, nil
 }
 
-func (h *RuntimeHook[TReq, TRes]) snapshot() []hookEntry[TReq, TRes] {
+func (h *RuntimeHook[TReq, TRes]) snapshot(terminal bool) []hookEntry[TReq, TRes] {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	entries := make([]hookEntry[TReq, TRes], 0, len(h.entries))
-	for _, entry := range h.entries {
+	source := h.entries
+	if terminal {
+		source = h.terminalEntries
+	}
+
+	entries := make([]hookEntry[TReq, TRes], 0, len(source))
+	for _, entry := range source {
 		entries = append(entries, entry)
 	}
 
@@ -222,11 +249,18 @@ func (h *RuntimeHook[TReq, TRes]) remove(id int) (hookEntry[TReq, TRes], bool) {
 	defer h.mu.Unlock()
 
 	entry, ok := h.entries[id]
+	if ok {
+		delete(h.entries, id)
+
+		return entry, true
+	}
+
+	entry, ok = h.terminalEntries[id]
 	if !ok {
 		return hookEntry[TReq, TRes]{}, false
 	}
 
-	delete(h.entries, id)
+	delete(h.terminalEntries, id)
 
 	return entry, true
 }
@@ -393,41 +427,46 @@ func (h *RuntimeHooks) AttachBusObservers(bus Bus) HookHandle {
 	}
 
 	handles := hookHandles{
-		h.Input().Use("sdk.bus_compat", NewBusObserverHook(bus, TopicAgentPrompt, func(state HookState[InputHookRequest, InputHookResult]) any {
-			if state.Result.Content != nil {
-				return state.Result.Content
-			}
-
-			return state.Request.Content
-		}), WithHookOrder(10_000)),
-		h.ProviderRequest().Use("sdk.bus_compat", NewBusObserverHook(bus, TopicProviderRequest, func(state HookState[ProviderRequestHookRequest, ProviderRequestHookResult]) any {
+		h.providerRequest.useTerminal("sdk.bus_compat", NewBusObserverHook(bus, TopicProviderRequest, func(state HookState[ProviderRequestHookRequest, ProviderRequestHookResult]) any {
 			return ProviderRequestBusPayload{Provider: state.Request.Provider, Request: state.Result.Request}
-		}), WithHookOrder(10_000)),
-		h.ProviderResponse().Use("sdk.bus_compat", NewBusObserverHook(bus, TopicProviderResponse, func(state HookState[ProviderResponseHookRequest, ProviderResponseHookResult]) any {
+		})),
+		h.providerResponse.useTerminal("sdk.bus_compat", NewBusObserverHook(bus, TopicProviderResponse, func(state HookState[ProviderResponseHookRequest, ProviderResponseHookResult]) any {
 			event := state.Result.Event
 			if event.Type == "" {
 				event = state.Request.Event
 			}
 
 			return ProviderResponseBusPayload{Provider: state.Request.Provider, Event: event}
-		}), WithHookOrder(10_000)),
-		h.ToolCall().Use("sdk.bus_compat", NewBusObserverHook(bus, TopicToolStart, func(state HookState[ToolCallRequest, ToolCallResult]) any {
+		})),
+		h.toolCall.useTerminal("sdk.bus_compat", func(_ context.Context, state *HookState[ToolCallRequest, ToolCallResult]) error {
+			if !state.Result.Continue {
+				return nil
+			}
+
 			call := state.Result.Call
 			if call.Name == "" && call.ID == "" {
 				call = state.Request.Call
 			}
 
-			return ToolProgress{ToolCallID: call.ID, ToolName: call.Name}
-		}), WithHookOrder(10_000)),
-		h.ToolCall().Use("sdk.bus_compat", NewBusObserverHook(bus, ProviderEventToolCall, func(state HookState[ToolCallRequest, ToolCallResult]) any {
+			bus.Publish(NewEvent(TopicToolStart, ToolProgress{ToolCallID: call.ID, ToolName: call.Name}))
+
+			return nil
+		}),
+		h.toolCall.useTerminal("sdk.bus_compat", func(_ context.Context, state *HookState[ToolCallRequest, ToolCallResult]) error {
+			if !state.Result.Continue {
+				return nil
+			}
+
 			call := state.Result.Call
 			if call.Name == "" && call.ID == "" {
 				call = state.Request.Call
 			}
 
-			return call
-		}), WithHookOrder(10_001)),
-		h.ToolResult().Use("sdk.bus_compat", func(ctx context.Context, state *HookState[ToolResultRequest, ToolResultHookResult]) error {
+			bus.Publish(NewEvent(ProviderEventToolCall, call))
+
+			return nil
+		}),
+		h.toolResult.useTerminal("sdk.bus_compat", func(ctx context.Context, state *HookState[ToolResultRequest, ToolResultHookResult]) error {
 			result := state.Result.Result
 
 			topic := TopicToolComplete
@@ -443,22 +482,22 @@ func (h *RuntimeHooks) AttachBusObservers(bus Bus) HookHandle {
 					IsError:    result.IsError,
 				}
 			})(ctx, state)
-		}, WithHookOrder(10_000)),
-		h.Message().Use("sdk.bus_compat", NewBusObserverHook(bus, TopicMessage, func(state HookState[MessageHookRequest, MessageHookResult]) any {
+		}),
+		h.message.useTerminal("sdk.bus_compat", NewBusObserverHook(bus, TopicMessage, func(state HookState[MessageHookRequest, MessageHookResult]) any {
 			if state.Result.Message.Role != "" {
 				return state.Result.Message
 			}
 
 			return state.Request.Message
-		}), WithHookOrder(10_000)),
-		h.Turn().Use("sdk.bus_compat", NewBusObserverHook(bus, TopicTurn, func(state HookState[TurnHookRequest, TurnHookResult]) any {
+		})),
+		h.turn.useTerminal("sdk.bus_compat", NewBusObserverHook(bus, TopicTurn, func(state HookState[TurnHookRequest, TurnHookResult]) any {
 			if state.Result.Messages != nil {
 				return state.Result
 			}
 
 			return TurnHookResult{Messages: state.Request.Messages}
-		}), WithHookOrder(10_000)),
-		h.Session().Use("sdk.bus_compat", func(_ context.Context, state *HookState[SessionHookRequest, SessionHookResult]) error {
+		})),
+		h.session.useTerminal("sdk.bus_compat", func(_ context.Context, state *HookState[SessionHookRequest, SessionHookResult]) error {
 			topic := state.Request.Event
 			if topic == "" {
 				return nil
@@ -472,7 +511,7 @@ func (h *RuntimeHooks) AttachBusObservers(bus Bus) HookHandle {
 			bus.Publish(NewEvent(topic, payload))
 
 			return nil
-		}, WithHookOrder(10_000)),
+		}),
 	}
 
 	return handles

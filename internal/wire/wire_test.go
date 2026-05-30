@@ -1278,6 +1278,76 @@ func TestWireWithCore_ResumePublishesSessionEvent(t *testing.T) {
 	}, time.Second, 10*time.Millisecond, "both events should be published")
 }
 
+func TestWireWithCore_ResumeRunsRuntimeSessionHook(t *testing.T) {
+	sdk.ResetExtensionRegistry()
+	sdk.ResetSessionStore()
+	sdk.ResetInitialSession()
+
+	sdk.RegisterExtension("agent", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.Extension, error) {
+		return sdk.NewExtensionFunc("agent", func(sdk.Bus) error { return nil }), nil
+	})
+
+	store := &runtimeStoreExt{}
+	store.listFunc = func() ([]sdk.SessionInfo, error) {
+		return []sdk.SessionInfo{{ID: "sess-runtime", CWD: continueCWD(nil), UpdatedAt: time.Now()}}, nil
+	}
+	store.loadFunc = func(id string) ([]sdk.Message, error) {
+		return []sdk.Message{{Role: sdk.RoleUser, Content: "hi"}}, nil
+	}
+
+	sdk.RegisterRuntimeExtension("jsonl", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.RuntimeExtension, error) {
+		return store, nil
+	})
+
+	var sawHook atomic.Bool
+
+	sdk.RegisterRuntimeExtension("session-hook", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.RuntimeExtension, error) {
+		return sdk.NewRuntimeExtensionFunc(func(ctx sdk.ExtensionContext) error {
+			ctx.Hooks().Session().Use("test", func(_ context.Context, state *sdk.HookState[sdk.SessionHookRequest, sdk.SessionHookResult]) error {
+				if state.Request.Event != topicSessionResume {
+					return nil
+				}
+
+				payload, ok := state.Result.Entry.(sdk.SessionResumePayload)
+				require.True(t, ok)
+
+				payload.SessionID = "sess-mutated"
+				state.Result.Entry = payload
+
+				sawHook.Store(true)
+
+				return nil
+			})
+
+			return nil
+		}), nil
+	})
+
+	var publishedEvent sdk.Event
+
+	bus := &BusMock{
+		PublishFunc: func(e sdk.Event) {
+			if e.Topic == topicSessionResume {
+				publishedEvent = e
+			}
+		},
+	}
+
+	wired, err := WireWithCore(CoreWireConfig{AgentLoop: "agent", Continue: true}, []string{"jsonl", "session-hook"}, bus, nil)
+	require.NoError(t, err)
+	require.NotNil(t, wired)
+	assert.True(t, sawHook.Load())
+	require.Equal(t, topicSessionResume, publishedEvent.Topic)
+
+	payload, ok := publishedEvent.Payload.(sdk.SessionResumePayload)
+	require.True(t, ok)
+	assert.Equal(t, "sess-mutated", payload.SessionID)
+
+	initial, ok := sdk.GetInitialSession()
+	require.True(t, ok)
+	assert.Equal(t, "sess-mutated", initial.SessionID)
+}
+
 func TestWireWithCore_ResumeSetsInitialSession(t *testing.T) {
 	sdk.ResetExtensionRegistry()
 	sdk.ResetSessionStore()

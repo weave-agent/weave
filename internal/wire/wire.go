@@ -3,6 +3,7 @@ package wire
 //go:generate moq -fmt goimports -stub -skip-ensure -pkg wire -out wire_mock_test.go ../../sdk Bus Provider
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -18,7 +19,10 @@ import (
 	"github.com/weave-agent/weave/sdk/model"
 )
 
-const defaultAgentLoop = "agent"
+const (
+	defaultAgentLoop   = "agent"
+	topicSessionResume = "session.resume"
+)
 
 type CoreWireConfig struct {
 	AgentLoop  string
@@ -174,14 +178,27 @@ func WireExtensions(extNames []string, bus sdk.Bus, cfg sdk.Config) (*Wired, err
 }
 
 func resolveSession(continueFlag bool, resumeID string, bus sdk.Bus, cfg sdk.Config) (string, []sdk.Message, error) {
+	sessionID, messages, payload, ok, err := prepareSessionResume(continueFlag, resumeID, cfg)
+	if err != nil {
+		return "", nil, err
+	}
+
+	if ok {
+		bus.Publish(sdk.NewEvent(topicSessionResume, payload))
+	}
+
+	return sessionID, messages, nil
+}
+
+func prepareSessionResume(continueFlag bool, resumeID string, cfg sdk.Config) (string, []sdk.Message, sdk.SessionResumePayload, bool, error) {
 	store := sdk.GetSessionStore()
 	if store == nil {
-		return "", nil, errors.New("no session store available")
+		return "", nil, sdk.SessionResumePayload{}, false, errors.New("no session store available")
 	}
 
 	sessionID, messages, err := resolveSessionFromStore(store, continueFlag, resumeID, continueCWD(cfg))
 	if err != nil {
-		return "", nil, err
+		return "", nil, sdk.SessionResumePayload{}, false, err
 	}
 
 	if sessionID != "" {
@@ -190,10 +207,37 @@ func resolveSession(continueFlag bool, resumeID string, bus sdk.Bus, cfg sdk.Con
 			Messages:  messages,
 		}
 		sdk.SetInitialSession(payload)
-		bus.Publish(sdk.NewEvent("session.resume", payload))
+
+		return sessionID, messages, payload, true, nil
 	}
 
-	return sessionID, messages, nil
+	return sessionID, messages, sdk.SessionResumePayload{}, false, nil
+}
+
+func publishSessionResume(ctx context.Context, runtime sdk.ExtensionContext, bus sdk.Bus, payload sdk.SessionResumePayload) error {
+	if payload.SessionID == "" {
+		return nil
+	}
+
+	if runtime != nil && runtime.Hooks() != nil {
+		result, err := runtime.Hooks().Session().Run(ctx, sdk.SessionHookRequest{
+			Event: topicSessionResume,
+			Entry: payload,
+		})
+		if err != nil {
+			return fmt.Errorf("session resume hook: %w", err)
+		}
+
+		if mutated, ok := result.Entry.(sdk.SessionResumePayload); ok {
+			sdk.SetInitialSession(mutated)
+		}
+
+		return nil
+	}
+
+	bus.Publish(sdk.NewEvent(topicSessionResume, payload))
+
+	return nil
 }
 
 func resolveSessionFromStore(store sdk.SessionStore, continueFlag bool, resumeID, cwd string) (string, []sdk.Message, error) {
@@ -313,18 +357,40 @@ func WireWithCore(core CoreWireConfig, optExts []string, bus sdk.Bus, cfg sdk.Co
 		return nil, err
 	}
 
+	var (
+		sessionPayload sdk.SessionResumePayload
+		hasSession     bool
+	)
+
 	if core.Continue || core.Resume != "" {
-		if _, _, err := resolveSession(core.Continue, core.Resume, bus, cfg); err != nil {
+		if _, _, payload, ok, err := prepareSessionResume(core.Continue, core.Resume, cfg); err != nil {
 			if cfg != nil && cfg.IsHeadless() {
 				return nil, fmt.Errorf("session resume: %w", err)
 			}
 
 			slog.Warn("session resume failed", "error", err)
+		} else {
+			sessionPayload = payload
+			hasSession = ok
 		}
 	}
 
 	if err := subscribeExtensions(exts, bus); err != nil {
 		return nil, err
+	}
+
+	if hasSession {
+		if err := publishSessionResume(context.Background(), runtime, bus, sessionPayload); err != nil {
+			if cfg != nil && cfg.IsHeadless() {
+				for _, v := range slices.Backward(exts) {
+					_ = v.Close()
+				}
+
+				return nil, fmt.Errorf("session resume: %w", err)
+			}
+
+			slog.Warn("session resume failed", "error", err)
+		}
 	}
 
 	wired := &Wired{extensions: exts, bus: bus, runtime: runtime}

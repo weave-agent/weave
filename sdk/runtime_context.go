@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"slices"
 	"sync"
 
@@ -576,7 +577,7 @@ func (m *RuntimeModelController) ThinkingLevel(context.Context) (model.ThinkingL
 	}
 
 	if prefs.ThinkingLevel == "" {
-		return model.ThinkingOff, nil
+		return defaultRuntimeThinkingLevel(), nil
 	}
 
 	level, err := model.ParseThinkingLevel(prefs.ThinkingLevel)
@@ -585,6 +586,16 @@ func (m *RuntimeModelController) ThinkingLevel(context.Context) (model.ThinkingL
 	}
 
 	return level, nil
+}
+
+func defaultRuntimeThinkingLevel() model.ThinkingLevel {
+	if v := os.Getenv("WEAVE_THINKING_LEVEL"); v != "" {
+		if level, err := model.ParseThinkingLevel(v); err == nil {
+			return level
+		}
+	}
+
+	return model.ThinkingMedium
 }
 
 func (m *RuntimeModelController) SetThinkingLevel(_ context.Context, level model.ThinkingLevel) error {

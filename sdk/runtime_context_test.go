@@ -190,6 +190,27 @@ func TestRuntimeModelControllerRegistryPreferencesAndEvents(t *testing.T) {
 	assert.Equal(t, 2, prefs.saved)
 }
 
+func TestRuntimeModelControllerDefaultThinkingLevel(t *testing.T) {
+	t.Setenv("WEAVE_THINKING_LEVEL", "")
+
+	ctrl := NewRuntimeModelController(RuntimeModelControllerOptions{Prefs: &runtimeContextPrefs{}})
+	level, err := ctrl.ThinkingLevel(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, model.ThinkingMedium, level)
+
+	t.Setenv("WEAVE_THINKING_LEVEL", "high")
+
+	level, err = ctrl.ThinkingLevel(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, model.ThinkingHigh, level)
+
+	t.Setenv("WEAVE_THINKING_LEVEL", "garbage")
+
+	level, err = ctrl.ThinkingLevel(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, model.ThinkingMedium, level)
+}
+
 func TestRuntimeModelControllerPreferenceErrorsAndInvalidThinking(t *testing.T) {
 	t.Parallel()
 
