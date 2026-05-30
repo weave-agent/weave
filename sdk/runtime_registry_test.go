@@ -258,7 +258,7 @@ func TestRuntimeProviderRegistry_MiddlewarePreservesTokenCounter(t *testing.T) {
 
 	var counted ProviderRequest
 
-	_, err := reg.Register(RuntimeProvider{
+	handle, err := reg.Register(RuntimeProvider{
 		Name: "runtime",
 		Factory: func(Config) (Provider, error) {
 			return countingStreamProvider{counted: &counted}, nil
@@ -284,6 +284,11 @@ func TestRuntimeProviderRegistry_MiddlewarePreservesTokenCounter(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, ProviderRequest{SystemPrompt: "system:before"}, counted)
 	assert.Equal(t, TokenCount{InputTokens: len("system:before"), Source: TokenCountSourceExact, Confidence: 1}, count)
+
+	require.NoError(t, handle.Close())
+
+	_, err = counter.CountTokens(context.Background(), ProviderRequest{SystemPrompt: "after-close"})
+	require.ErrorIs(t, err, ErrRuntimeNotFound)
 }
 
 func TestRuntimeProviderRegistry_RegisterDuplicateUnregisterAndMiddlewareErrors(t *testing.T) {
@@ -329,6 +334,10 @@ func TestRuntimeProviderRegistry_RegisterDuplicateUnregisterAndMiddlewareErrors(
 	assert.False(t, open)
 
 	require.NoError(t, handle.Close())
+
+	events, err = provider.Stream(context.Background(), ProviderRequest{SystemPrompt: "after-close"})
+	require.ErrorIs(t, err, ErrRuntimeNotFound)
+	assert.Nil(t, events)
 
 	_, err = reg.Get("runtime")
 	require.ErrorIs(t, err, ErrRuntimeNotFound)

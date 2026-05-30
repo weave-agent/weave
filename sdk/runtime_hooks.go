@@ -4,14 +4,19 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"strings"
 	"sync"
 )
 
 const (
-	legacyAgentPayloadArgs    = "args"
-	legacyAgentPayloadContent = "content"
-	legacyAgentPayloadResult  = "result"
-	legacyAgentPayloadTool    = "tool"
+	legacyAgentPayloadArgs             = "args"
+	legacyAgentPayloadContent          = "content"
+	legacyAgentPayloadID               = "id"
+	legacyAgentPayloadRedactedThinking = "redacted_thinking"
+	legacyAgentPayloadResult           = "result"
+	legacyAgentPayloadThinking         = "thinking"
+	legacyAgentPayloadTool             = "tool"
+	legacyAgentPayloadToolCalls        = "tool_calls"
 
 	// TopicAgentPrompt publishes user input submitted to the agent loop.
 	//
@@ -495,6 +500,7 @@ func (h *RuntimeHooks) AttachBusObservers(bus Bus) HookHandle {
 
 			bus.Publish(NewEvent(ProviderEventToolCall, call))
 			bus.Publish(NewEvent(TopicAgentToolCall, map[string]any{
+				legacyAgentPayloadID:   call.ID,
 				legacyAgentPayloadTool: call.Name,
 				legacyAgentPayloadArgs: call.Arguments,
 			}))
@@ -516,6 +522,7 @@ func (h *RuntimeHooks) AttachBusObservers(bus Bus) HookHandle {
 				IsError:    result.IsError,
 			}))
 			bus.Publish(NewEvent(TopicAgentToolResult, map[string]any{
+				legacyAgentPayloadID:     state.Request.Call.ID,
 				legacyAgentPayloadTool:   state.Request.Call.Name,
 				legacyAgentPayloadResult: result,
 			}))
@@ -527,7 +534,19 @@ func (h *RuntimeHooks) AttachBusObservers(bus Bus) HookHandle {
 			bus.Publish(NewEvent(TopicMessage, message))
 
 			if message.Role == RoleAssistant {
-				bus.Publish(NewEvent(TopicAgentMessageEnd, map[string]any{legacyAgentPayloadContent: message.Content}))
+				payload := map[string]any{
+					legacyAgentPayloadContent:   message.Content,
+					legacyAgentPayloadToolCalls: message.ToolCalls,
+				}
+				if thinking := legacyThinkingPayload(message.Thinking); thinking != "" {
+					payload[legacyAgentPayloadThinking] = thinking
+				}
+
+				if len(message.RedactedThinking) > 0 {
+					payload[legacyAgentPayloadRedactedThinking] = message.RedactedThinking
+				}
+
+				bus.Publish(NewEvent(TopicAgentMessageEnd, payload))
 			}
 
 			return nil
@@ -542,6 +561,10 @@ func (h *RuntimeHooks) AttachBusObservers(bus Bus) HookHandle {
 			}
 
 			payload := state.Result.Entry
+			if resumePayload, ok := payload.(SessionResumePayload); ok {
+				SetInitialSession(resumePayload)
+			}
+
 			bus.Publish(NewEvent(topic, payload))
 
 			return nil
@@ -549,6 +572,19 @@ func (h *RuntimeHooks) AttachBusObservers(bus Bus) HookHandle {
 	}
 
 	return handles
+}
+
+func legacyThinkingPayload(thinking []SignedThinking) string {
+	if len(thinking) == 0 {
+		return ""
+	}
+
+	var b strings.Builder
+	for _, entry := range thinking {
+		b.WriteString(entry.Thinking)
+	}
+
+	return b.String()
 }
 
 type ProviderRequestBusPayload struct {

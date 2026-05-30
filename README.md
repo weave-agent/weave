@@ -387,11 +387,11 @@ Typed hook execution publishes these legacy observer topics when the default run
 | `ProviderResponse` text deltas | `agent.message_update` | `string` |
 | `ToolCall` | `tool.start` | `sdk.ToolProgress` |
 | `ToolCall` | `tool_call` | `sdk.ToolCall` |
-| `ToolCall` | `agent.tool_call` | `map[string]any{"tool": name, "args": arguments}` |
+| `ToolCall` | `agent.tool_call` | `map[string]any{"id": id, "tool": name, "args": arguments}` |
 | `ToolResult` | `tool.complete` or `tool.error` | `sdk.ToolProgress` |
-| `ToolResult` | `agent.tool_result` | `map[string]any{"tool": name, "result": sdk.ToolResult}` |
+| `ToolResult` | `agent.tool_result` | `map[string]any{"id": id, "tool": name, "result": sdk.ToolResult}` |
 | `Message` | `message` | `sdk.Message` |
-| assistant `Message` | `agent.message_end` | `map[string]any{"content": content}` |
+| assistant `Message` | `agent.message_end` | `map[string]any{"content": content, "tool_calls": []sdk.ToolCall, "thinking": thinking, "redacted_thinking": []sdk.RedactedThinking}` |
 | `Turn` | `turn` | `sdk.TurnHookResult` |
 | `Session` | `SessionHookRequest.Event`, such as `session.resume` | `SessionHookResult.Entry` |
 

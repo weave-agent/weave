@@ -414,6 +414,19 @@ func (r *RuntimeProviderRegistry) List() []RuntimeProviderInfo {
 }
 
 func (r *RuntimeProviderRegistry) Get(name string) (Provider, error) {
+	return r.get(name, true)
+}
+
+func (r *RuntimeProviderRegistry) get(name string, guarded bool) (Provider, error) {
+	provider, err := r.providerFor(name)
+	if err != nil {
+		return nil, err
+	}
+
+	return r.wrapProvider(name, provider, guarded), nil
+}
+
+func (r *RuntimeProviderRegistry) providerFor(name string) (Provider, error) {
 	r.mu.RLock()
 	runtime, ok := r.runtime[name]
 	r.mu.RUnlock()
@@ -438,7 +451,7 @@ func (r *RuntimeProviderRegistry) Get(name string) (Provider, error) {
 		}
 	}
 
-	return r.wrapProvider(provider), nil
+	return provider, nil
 }
 
 func (r *RuntimeProviderRegistry) UseMiddleware(owner string, middleware ProviderMiddleware) HookHandle {
@@ -467,12 +480,11 @@ func (r *RuntimeProviderRegistry) closeMiddleware(id int) func() error {
 	}
 }
 
-func (r *RuntimeProviderRegistry) wrapProvider(provider Provider) Provider {
-	wrapped := runtimeProviderWithMiddleware{provider: provider, registry: r}
-	if counter, ok := provider.(TokenCounter); ok {
+func (r *RuntimeProviderRegistry) wrapProvider(name string, provider Provider, guarded bool) Provider {
+	wrapped := runtimeProviderWithMiddleware{name: name, provider: provider, registry: r, guarded: guarded}
+	if _, ok := provider.(TokenCounter); ok {
 		return runtimeProviderWithMiddlewareAndTokenCounter{
 			runtimeProviderWithMiddleware: wrapped,
-			counter:                       counter,
 		}
 	}
 
@@ -494,29 +506,36 @@ func (r *RuntimeProviderRegistry) providerMiddlewareSnapshot() []providerMiddlew
 }
 
 type runtimeProviderWithMiddleware struct {
+	name     string
 	provider Provider
 	registry *RuntimeProviderRegistry
+	guarded  bool
 }
 
 func (p runtimeProviderWithMiddleware) Stream(ctx context.Context, req ProviderRequest, opts ...model.StreamOption) (<-chan ProviderEvent, error) {
+	provider, err := p.currentProvider()
+	if err != nil {
+		return nil, fmt.Errorf("provider stream: %w", err)
+	}
+
 	middlewares := p.providerMiddlewareSnapshot()
 	if len(middlewares) == 0 {
-		events, err := p.provider.Stream(ctx, req, opts...)
-		if err != nil {
-			return nil, fmt.Errorf("provider stream: %w", err)
+		events, streamErr := provider.Stream(ctx, req, opts...)
+		if streamErr != nil {
+			return nil, fmt.Errorf("provider stream: %w", streamErr)
 		}
 
 		return events, nil
 	}
 
-	req, err := p.beforeProviderRequest(ctx, req, middlewares)
+	req, err = p.beforeProviderRequest(ctx, req, middlewares)
 	if err != nil {
 		return nil, err
 	}
 
 	streamCtx, cancel := context.WithCancel(ctx)
 
-	events, err := p.provider.Stream(streamCtx, req, opts...)
+	events, err := provider.Stream(streamCtx, req, opts...)
 	if err != nil {
 		cancel()
 
@@ -567,6 +586,19 @@ func (p runtimeProviderWithMiddleware) Stream(ctx context.Context, req ProviderR
 	return out, nil
 }
 
+func (p runtimeProviderWithMiddleware) currentProvider() (Provider, error) {
+	if !p.guarded || p.registry == nil || p.name == "" {
+		return p.provider, nil
+	}
+
+	provider, err := p.registry.providerFor(p.name)
+	if err != nil {
+		return nil, fmt.Errorf("current provider %q: %w", p.name, err)
+	}
+
+	return provider, nil
+}
+
 func (p runtimeProviderWithMiddleware) providerMiddlewareSnapshot() []providerMiddlewareEntry {
 	if p.registry == nil {
 		return nil
@@ -598,26 +630,35 @@ func sendProviderEvent(ctx context.Context, out chan<- ProviderEvent, event Prov
 
 type runtimeProviderWithMiddlewareAndTokenCounter struct {
 	runtimeProviderWithMiddleware
-	counter TokenCounter
 }
 
 func (p runtimeProviderWithMiddlewareAndTokenCounter) CountTokens(ctx context.Context, req ProviderRequest, opts ...model.StreamOption) (TokenCount, error) {
+	provider, err := p.currentProvider()
+	if err != nil {
+		return TokenCount{}, fmt.Errorf("provider count tokens: %w", err)
+	}
+
+	counter, ok := provider.(TokenCounter)
+	if !ok {
+		return TokenCount{}, fmt.Errorf("provider %q count tokens: %w", p.name, ErrRuntimeCapabilityUnsupported)
+	}
+
 	middlewares := p.providerMiddlewareSnapshot()
 	if len(middlewares) == 0 {
-		count, err := p.counter.CountTokens(ctx, req, opts...)
-		if err != nil {
-			return TokenCount{}, fmt.Errorf("provider count tokens: %w", err)
+		count, countErr := counter.CountTokens(ctx, req, opts...)
+		if countErr != nil {
+			return TokenCount{}, fmt.Errorf("provider count tokens: %w", countErr)
 		}
 
 		return count, nil
 	}
 
-	req, err := p.beforeProviderRequest(ctx, req, middlewares)
+	req, err = p.beforeProviderRequest(ctx, req, middlewares)
 	if err != nil {
 		return TokenCount{}, err
 	}
 
-	count, err := p.counter.CountTokens(ctx, req, opts...)
+	count, err := counter.CountTokens(ctx, req, opts...)
 	if err != nil {
 		return TokenCount{}, fmt.Errorf("provider count tokens: %w", err)
 	}

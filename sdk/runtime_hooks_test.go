@@ -179,15 +179,27 @@ func TestRuntimeHooksWithBusPublishesCompatibilityEvents(t *testing.T) {
 	assert.Equal(t, ProviderEventToolCall, bus.events[1].Topic)
 	assert.Equal(t, ToolCall{ID: "call-1", Name: "edited"}, bus.events[1].Payload)
 	assert.Equal(t, TopicAgentToolCall, bus.events[2].Topic)
-	assert.Equal(t, map[string]any{legacyAgentPayloadTool: "edited", legacyAgentPayloadArgs: map[string]any(nil)}, bus.events[2].Payload)
+	assert.Equal(t, map[string]any{
+		legacyAgentPayloadID:   "call-1",
+		legacyAgentPayloadTool: "edited",
+		legacyAgentPayloadArgs: map[string]any(nil),
+	}, bus.events[2].Payload)
 	assert.Equal(t, TopicToolComplete, bus.events[3].Topic)
 	assert.Equal(t, ToolProgress{ToolCallID: "call-1", ToolName: "read", Content: "done"}, bus.events[3].Payload)
 	assert.Equal(t, TopicAgentToolResult, bus.events[4].Topic)
-	assert.Equal(t, map[string]any{legacyAgentPayloadTool: "read", legacyAgentPayloadResult: ToolResult{Content: "done"}}, bus.events[4].Payload)
+	assert.Equal(t, map[string]any{
+		legacyAgentPayloadID:     "call-1",
+		legacyAgentPayloadTool:   "read",
+		legacyAgentPayloadResult: ToolResult{Content: "done"},
+	}, bus.events[4].Payload)
 	assert.Equal(t, TopicToolError, bus.events[5].Topic)
 	assert.Equal(t, ToolProgress{ToolCallID: "call-2", ToolName: "write", Content: "failed", IsError: true}, bus.events[5].Payload)
 	assert.Equal(t, TopicAgentToolResult, bus.events[6].Topic)
-	assert.Equal(t, map[string]any{legacyAgentPayloadTool: "write", legacyAgentPayloadResult: ToolResult{Content: "failed", IsError: true}}, bus.events[6].Payload)
+	assert.Equal(t, map[string]any{
+		legacyAgentPayloadID:     "call-2",
+		legacyAgentPayloadTool:   "write",
+		legacyAgentPayloadResult: ToolResult{Content: "failed", IsError: true},
+	}, bus.events[6].Payload)
 }
 
 func TestRuntimeHooksBusObserversPublishAfterAllHandlers(t *testing.T) {
@@ -205,7 +217,11 @@ func TestRuntimeHooksBusObserversPublishAfterAllHandlers(t *testing.T) {
 	require.Len(t, bus.events, 3)
 	assert.Equal(t, ToolProgress{ToolCallID: "call-1", ToolName: "late-edit"}, bus.events[0].Payload)
 	assert.Equal(t, ToolCall{ID: "call-1", Name: "late-edit"}, bus.events[1].Payload)
-	assert.Equal(t, map[string]any{legacyAgentPayloadTool: "late-edit", legacyAgentPayloadArgs: map[string]any(nil)}, bus.events[2].Payload)
+	assert.Equal(t, map[string]any{
+		legacyAgentPayloadID:   "call-1",
+		legacyAgentPayloadTool: "late-edit",
+		legacyAgentPayloadArgs: map[string]any(nil),
+	}, bus.events[2].Payload)
 }
 
 func TestRuntimeHooksWithBusPublishesLifecycleCompatibilityEvents(t *testing.T) {
@@ -264,23 +280,77 @@ func TestRuntimeHooksWithBusPublishesLegacyAgentTopics(t *testing.T) {
 	})
 	require.NoError(t, err)
 	_, err = hooks.ToolCall().Run(context.Background(), ToolCallRequest{
-		Call: ToolCall{Name: "read", Arguments: map[string]any{"path": "file.txt"}},
+		Call: ToolCall{ID: "call-1", Name: "read", Arguments: map[string]any{"path": "file.txt"}},
 	})
 	require.NoError(t, err)
 	_, err = hooks.ToolResult().Run(context.Background(), ToolResultRequest{
-		Call:   ToolCall{Name: "read"},
+		Call:   ToolCall{ID: "call-1", Name: "read"},
 		Result: ToolResult{Content: "done"},
 	})
 	require.NoError(t, err)
-	_, err = hooks.Message().Run(context.Background(), MessageHookRequest{Message: NewAssistantMessage("final")})
+
+	assistant := NewAssistantMessage("final")
+	assistant.ToolCalls = []ToolCall{{ID: "call-2", Name: "write"}}
+	assistant.Thinking = []SignedThinking{{Thinking: "think "}, {Thinking: "again"}}
+	assistant.RedactedThinking = []RedactedThinking{{Data: "redacted"}}
+
+	_, err = hooks.Message().Run(context.Background(), MessageHookRequest{Message: assistant})
 	require.NoError(t, err)
 
 	events := eventsByTopic(bus.events)
 	assert.Equal(t, []any{nil}, events[TopicAgentMessageStart])
 	assert.Equal(t, []any{"delta"}, events[TopicAgentMessageUpdate])
-	assert.Equal(t, []any{map[string]any{legacyAgentPayloadTool: "read", legacyAgentPayloadArgs: map[string]any{"path": "file.txt"}}}, events[TopicAgentToolCall])
-	assert.Equal(t, []any{map[string]any{legacyAgentPayloadTool: "read", legacyAgentPayloadResult: ToolResult{Content: "done"}}}, events[TopicAgentToolResult])
-	assert.Equal(t, []any{map[string]any{legacyAgentPayloadContent: "final"}}, events[TopicAgentMessageEnd])
+	assert.Equal(t, []any{map[string]any{
+		legacyAgentPayloadID:   "call-1",
+		legacyAgentPayloadTool: "read",
+		legacyAgentPayloadArgs: map[string]any{"path": "file.txt"},
+	}}, events[TopicAgentToolCall])
+	assert.Equal(t, []any{map[string]any{
+		legacyAgentPayloadID:     "call-1",
+		legacyAgentPayloadTool:   "read",
+		legacyAgentPayloadResult: ToolResult{Content: "done"},
+	}}, events[TopicAgentToolResult])
+	assert.Equal(t, []any{map[string]any{
+		legacyAgentPayloadContent:          "final",
+		legacyAgentPayloadToolCalls:        []ToolCall{{ID: "call-2", Name: "write"}},
+		legacyAgentPayloadThinking:         "think again",
+		legacyAgentPayloadRedactedThinking: []RedactedThinking{{Data: "redacted"}},
+	}}, events[TopicAgentMessageEnd])
+}
+
+func TestRuntimeHooksSessionResumeSetsInitialBeforePublishing(t *testing.T) {
+	ResetInitialSession()
+	t.Cleanup(ResetInitialSession)
+
+	initialVisibleDuringPublish := false
+	bus := &recordingBus{
+		onPublish: func(event Event) {
+			if event.Topic != TopicSessionResume {
+				return
+			}
+
+			payload, ok := GetInitialSession()
+			initialVisibleDuringPublish = ok && payload.SessionID == "mutated"
+		},
+	}
+	hooks := NewRuntimeHooksWithBus(bus)
+
+	hooks.Session().Use("mutate", func(_ context.Context, state *HookState[SessionHookRequest, SessionHookResult]) error {
+		payload, ok := state.Result.Entry.(SessionResumePayload)
+		require.True(t, ok)
+
+		payload.SessionID = "mutated"
+		state.Result.Entry = payload
+
+		return nil
+	})
+
+	_, err := hooks.Session().Run(context.Background(), SessionHookRequest{
+		Event: TopicSessionResume,
+		Entry: SessionResumePayload{SessionID: "original"},
+	})
+	require.NoError(t, err)
+	assert.True(t, initialVisibleDuringPublish)
 }
 
 func TestRuntimeHooksWithBusPublishesFinalHookResultWithoutFallback(t *testing.T) {
@@ -402,11 +472,15 @@ func TestRuntimeHooksExposeNoHandlerPassThroughDefaults(t *testing.T) {
 }
 
 type recordingBus struct {
-	events []Event
+	events    []Event
+	onPublish func(Event)
 }
 
 func (b *recordingBus) Publish(e Event) {
 	b.events = append(b.events, e)
+	if b.onPublish != nil {
+		b.onPublish(e)
+	}
 }
 
 func eventsByTopic(events []Event) map[string][]any {
