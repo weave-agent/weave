@@ -362,8 +362,8 @@ Runtime tool registrations use `ctx.Tools().Register(sdk.RuntimeTool{...})`; clo
 | Interface | Key methods | Error behavior |
 |---|---|---|
 | `sdk.Hook[TReq,TRes]` | `Use`, `Run`, `RunState` | Handler errors stop execution and are returned; `HookHandle.Close` returns cleanup errors. |
-| `sdk.ToolRegistry` | `Register`, `Unregister`, `List`, `Get`, `Enable`, `Disable`, `Decorate` | Duplicate names return `ErrRuntimeDuplicateName`; missing names return `ErrRuntimeNotFound`. Runtime tools are enabled by default; set `RuntimeTool.Disabled` to register one disabled. |
-| `sdk.ProviderRegistry` | `Register`, `Unregister`, `List`, `Get`, `UseMiddleware` | Duplicate names return `ErrRuntimeDuplicateName`; missing names return `ErrRuntimeNotFound`; middleware and stream errors are propagated. |
+| `sdk.ToolRegistry` | `Register`, `Unregister`, `List`, `Get`, `Enable`, `Disable`, `Decorate` | Duplicate names return `ErrRuntimeDuplicateName`; missing or disabled names return `ErrRuntimeNotFound`; legacy tool construction errors are wrapped and returned. Runtime tools are enabled by default; set `RuntimeTool.Disabled` to register one disabled. |
+| `sdk.ProviderRegistry` | `Register`, `Unregister`, `List`, `Get`, `UseMiddleware` | Duplicate names return `ErrRuntimeDuplicateName`; missing names return `ErrRuntimeNotFound`; runtime or legacy provider construction errors, middleware errors, and stream errors are propagated. |
 | `sdk.SessionController` | `SendUserMessage`, `AppendEntry`, `SetName`, `Name`, `SetLabel`, `Compact`, `Fork`, `Switch`, `Tree` | Unsupported entrypoints return `ErrRuntimeCapabilityUnsupported`. |
 | `sdk.ResourceRegistry` | `Register`, `List`, `Get` | Missing resources return `ErrRuntimeNotFound`; provider failures are isolated in `ResourceList.Errors` or joined from `Get`. |
 | `sdk.ModelController` | `ListModels`, `ListAvailableModels`, `GetModel`, `GetModelForProvider`, `DefaultModelForProvider`, `CurrentModel`, `SetModel`, `ThinkingLevel`, `SetThinkingLevel`, `ClampThinkingLevel` | Preference-backed operations return `ErrRuntimeCapabilityUnsupported` when no preference writer is available and wrap load/save/parse failures. |
@@ -382,13 +382,18 @@ Typed hook execution publishes these legacy observer topics when the default run
 | Typed hook | Bus topic | Payload |
 |---|---|---|
 | `ProviderRequest` | `provider.request` | `sdk.ProviderRequestBusPayload` |
+| `ProviderRequest` | `agent.message_start` | `nil` |
 | `ProviderResponse` | `provider.response` | `sdk.ProviderResponseBusPayload` |
+| `ProviderResponse` text deltas | `agent.message_update` | `string` |
 | `ToolCall` | `tool.start` | `sdk.ToolProgress` |
 | `ToolCall` | `tool_call` | `sdk.ToolCall` |
+| `ToolCall` | `agent.tool_call` | `map[string]any{"tool": name, "args": arguments}` |
 | `ToolResult` | `tool.complete` or `tool.error` | `sdk.ToolProgress` |
+| `ToolResult` | `agent.tool_result` | `map[string]any{"tool": name, "result": sdk.ToolResult}` |
 | `Message` | `message` | `sdk.Message` |
+| assistant `Message` | `agent.message_end` | `map[string]any{"content": content}` |
 | `Turn` | `turn` | `sdk.TurnHookResult` |
-| `Session` | `SessionHookRequest.Event`, such as `session.resume` | `SessionHookResult.Entry` or the original entry |
+| `Session` | `SessionHookRequest.Event`, such as `session.resume` | `SessionHookResult.Entry` |
 
 `Input`, `Prompt`, and `Context` hooks have no legacy bus topic by default; they are behavior-changing runtime hooks only. The legacy `agent.prompt` topic remains an input command topic and is not echoed by the runtime hook bridge.
 

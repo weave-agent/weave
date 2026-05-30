@@ -39,7 +39,7 @@ type ToolRegistry interface {
 	Register(RuntimeTool) (HookHandle, error)
 	Unregister(name string) error
 	List() []RuntimeToolInfo
-	Get(name string) (RuntimeTool, bool)
+	Get(name string) (RuntimeTool, error)
 	Enable(name string) error
 	Disable(name string) error
 	Decorate(owner string, decorator ToolDecorator) HookHandle
@@ -51,7 +51,7 @@ type ProviderRegistry interface {
 	Register(RuntimeProvider) (HookHandle, error)
 	Unregister(name string) error
 	List() []RuntimeProviderInfo
-	Get(name string) (Provider, bool)
+	Get(name string) (Provider, error)
 	UseMiddleware(owner string, middleware ProviderMiddleware) HookHandle
 }
 

@@ -184,6 +184,7 @@ func resolveSession(continueFlag bool, resumeID string, bus sdk.Bus, cfg sdk.Con
 	}
 
 	if ok {
+		sdk.SetInitialSession(payload)
 		bus.Publish(sdk.NewEvent(topicSessionResume, payload))
 	}
 
@@ -206,7 +207,6 @@ func prepareSessionResume(continueFlag bool, resumeID string, cfg sdk.Config) (s
 			SessionID: sessionID,
 			Messages:  messages,
 		}
-		sdk.SetInitialSession(payload)
 
 		return sessionID, messages, payload, true, nil
 	}
@@ -228,13 +228,15 @@ func publishSessionResume(ctx context.Context, runtime sdk.ExtensionContext, bus
 			return fmt.Errorf("session resume hook: %w", err)
 		}
 
-		if mutated, ok := result.Entry.(sdk.SessionResumePayload); ok {
+		mutated, ok := result.Entry.(sdk.SessionResumePayload)
+		if ok {
 			sdk.SetInitialSession(mutated)
 		}
 
 		return nil
 	}
 
+	sdk.SetInitialSession(payload)
 	bus.Publish(sdk.NewEvent(topicSessionResume, payload))
 
 	return nil

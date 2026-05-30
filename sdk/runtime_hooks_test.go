@@ -173,15 +173,21 @@ func TestRuntimeHooksWithBusPublishesCompatibilityEvents(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.Len(t, bus.events, 4)
+	require.Len(t, bus.events, 7)
 	assert.Equal(t, TopicToolStart, bus.events[0].Topic)
 	assert.Equal(t, ToolProgress{ToolCallID: "call-1", ToolName: "edited"}, bus.events[0].Payload)
 	assert.Equal(t, ProviderEventToolCall, bus.events[1].Topic)
 	assert.Equal(t, ToolCall{ID: "call-1", Name: "edited"}, bus.events[1].Payload)
-	assert.Equal(t, TopicToolComplete, bus.events[2].Topic)
-	assert.Equal(t, ToolProgress{ToolCallID: "call-1", ToolName: "read", Content: "done"}, bus.events[2].Payload)
-	assert.Equal(t, TopicToolError, bus.events[3].Topic)
-	assert.Equal(t, ToolProgress{ToolCallID: "call-2", ToolName: "write", Content: "failed", IsError: true}, bus.events[3].Payload)
+	assert.Equal(t, TopicAgentToolCall, bus.events[2].Topic)
+	assert.Equal(t, map[string]any{legacyAgentPayloadTool: "edited", legacyAgentPayloadArgs: map[string]any(nil)}, bus.events[2].Payload)
+	assert.Equal(t, TopicToolComplete, bus.events[3].Topic)
+	assert.Equal(t, ToolProgress{ToolCallID: "call-1", ToolName: "read", Content: "done"}, bus.events[3].Payload)
+	assert.Equal(t, TopicAgentToolResult, bus.events[4].Topic)
+	assert.Equal(t, map[string]any{legacyAgentPayloadTool: "read", legacyAgentPayloadResult: ToolResult{Content: "done"}}, bus.events[4].Payload)
+	assert.Equal(t, TopicToolError, bus.events[5].Topic)
+	assert.Equal(t, ToolProgress{ToolCallID: "call-2", ToolName: "write", Content: "failed", IsError: true}, bus.events[5].Payload)
+	assert.Equal(t, TopicAgentToolResult, bus.events[6].Topic)
+	assert.Equal(t, map[string]any{legacyAgentPayloadTool: "write", legacyAgentPayloadResult: ToolResult{Content: "failed", IsError: true}}, bus.events[6].Payload)
 }
 
 func TestRuntimeHooksBusObserversPublishAfterAllHandlers(t *testing.T) {
@@ -196,9 +202,10 @@ func TestRuntimeHooksBusObserversPublishAfterAllHandlers(t *testing.T) {
 	_, err := hooks.ToolCall().Run(context.Background(), ToolCallRequest{Call: ToolCall{ID: "call-1", Name: "read"}})
 	require.NoError(t, err)
 
-	require.Len(t, bus.events, 2)
+	require.Len(t, bus.events, 3)
 	assert.Equal(t, ToolProgress{ToolCallID: "call-1", ToolName: "late-edit"}, bus.events[0].Payload)
 	assert.Equal(t, ToolCall{ID: "call-1", Name: "late-edit"}, bus.events[1].Payload)
+	assert.Equal(t, map[string]any{legacyAgentPayloadTool: "late-edit", legacyAgentPayloadArgs: map[string]any(nil)}, bus.events[2].Payload)
 }
 
 func TestRuntimeHooksWithBusPublishesLifecycleCompatibilityEvents(t *testing.T) {
@@ -228,17 +235,104 @@ func TestRuntimeHooksWithBusPublishesLifecycleCompatibilityEvents(t *testing.T) 
 	})
 	require.NoError(t, err)
 
-	require.Len(t, bus.events, 5)
+	require.Len(t, bus.events, 7)
 	assert.Equal(t, TopicProviderRequest, bus.events[0].Topic)
 	assert.Equal(t, ProviderRequestBusPayload{Provider: "openai", Request: ProviderRequest{SystemPrompt: "system"}}, bus.events[0].Payload)
-	assert.Equal(t, TopicProviderResponse, bus.events[1].Topic)
-	assert.Equal(t, ProviderResponseBusPayload{Provider: "openai", Event: ProviderEvent{Type: ProviderEventTextDelta, Content: "hi"}}, bus.events[1].Payload)
-	assert.Equal(t, TopicMessage, bus.events[2].Topic)
-	assert.Equal(t, message, bus.events[2].Payload)
-	assert.Equal(t, TopicTurn, bus.events[3].Topic)
-	assert.Equal(t, TurnHookResult{Messages: []Message{message}}, bus.events[3].Payload)
-	assert.Equal(t, TopicSessionResume, bus.events[4].Topic)
-	assert.Equal(t, SessionResumePayload{SessionID: "session-1", Messages: []Message{message}}, bus.events[4].Payload)
+	assert.Equal(t, TopicAgentMessageStart, bus.events[1].Topic)
+	assert.Nil(t, bus.events[1].Payload)
+	assert.Equal(t, TopicProviderResponse, bus.events[2].Topic)
+	assert.Equal(t, ProviderResponseBusPayload{Provider: "openai", Event: ProviderEvent{Type: ProviderEventTextDelta, Content: "hi"}}, bus.events[2].Payload)
+	assert.Equal(t, TopicAgentMessageUpdate, bus.events[3].Topic)
+	assert.Equal(t, "hi", bus.events[3].Payload)
+	assert.Equal(t, TopicMessage, bus.events[4].Topic)
+	assert.Equal(t, message, bus.events[4].Payload)
+	assert.Equal(t, TopicTurn, bus.events[5].Topic)
+	assert.Equal(t, TurnHookResult{Messages: []Message{message}}, bus.events[5].Payload)
+	assert.Equal(t, TopicSessionResume, bus.events[6].Topic)
+	assert.Equal(t, SessionResumePayload{SessionID: "session-1", Messages: []Message{message}}, bus.events[6].Payload)
+}
+
+func TestRuntimeHooksWithBusPublishesLegacyAgentTopics(t *testing.T) {
+	bus := &recordingBus{}
+	hooks := NewRuntimeHooksWithBus(bus)
+
+	_, err := hooks.ProviderRequest().Run(context.Background(), ProviderRequestHookRequest{Provider: "openai"})
+	require.NoError(t, err)
+	_, err = hooks.ProviderResponse().Run(context.Background(), ProviderResponseHookRequest{
+		Provider: "openai",
+		Event:    ProviderEvent{Type: ProviderEventTextDelta, Content: "delta"},
+	})
+	require.NoError(t, err)
+	_, err = hooks.ToolCall().Run(context.Background(), ToolCallRequest{
+		Call: ToolCall{Name: "read", Arguments: map[string]any{"path": "file.txt"}},
+	})
+	require.NoError(t, err)
+	_, err = hooks.ToolResult().Run(context.Background(), ToolResultRequest{
+		Call:   ToolCall{Name: "read"},
+		Result: ToolResult{Content: "done"},
+	})
+	require.NoError(t, err)
+	_, err = hooks.Message().Run(context.Background(), MessageHookRequest{Message: NewAssistantMessage("final")})
+	require.NoError(t, err)
+
+	events := eventsByTopic(bus.events)
+	assert.Equal(t, []any{nil}, events[TopicAgentMessageStart])
+	assert.Equal(t, []any{"delta"}, events[TopicAgentMessageUpdate])
+	assert.Equal(t, []any{map[string]any{legacyAgentPayloadTool: "read", legacyAgentPayloadArgs: map[string]any{"path": "file.txt"}}}, events[TopicAgentToolCall])
+	assert.Equal(t, []any{map[string]any{legacyAgentPayloadTool: "read", legacyAgentPayloadResult: ToolResult{Content: "done"}}}, events[TopicAgentToolResult])
+	assert.Equal(t, []any{map[string]any{legacyAgentPayloadContent: "final"}}, events[TopicAgentMessageEnd])
+}
+
+func TestRuntimeHooksWithBusPublishesFinalHookResultWithoutFallback(t *testing.T) {
+	bus := &recordingBus{}
+	hooks := NewRuntimeHooksWithBus(bus)
+
+	hooks.ProviderResponse().Use("redact", func(_ context.Context, state *HookState[ProviderResponseHookRequest, ProviderResponseHookResult]) error {
+		state.Result.Event = ProviderEvent{}
+
+		return nil
+	})
+	hooks.Message().Use("redact", func(_ context.Context, state *HookState[MessageHookRequest, MessageHookResult]) error {
+		state.Result.Message = Message{}
+
+		return nil
+	})
+	hooks.Turn().Use("redact", func(_ context.Context, state *HookState[TurnHookRequest, TurnHookResult]) error {
+		state.Result.Messages = nil
+
+		return nil
+	})
+	hooks.Session().Use("redact", func(_ context.Context, state *HookState[SessionHookRequest, SessionHookResult]) error {
+		state.Result.Entry = nil
+
+		return nil
+	})
+
+	message := NewUserMessage("secret")
+	_, err := hooks.ProviderResponse().Run(context.Background(), ProviderResponseHookRequest{
+		Provider: "openai",
+		Event:    ProviderEvent{Type: ProviderEventTextDelta, Content: "secret"},
+	})
+	require.NoError(t, err)
+	_, err = hooks.Message().Run(context.Background(), MessageHookRequest{Message: message})
+	require.NoError(t, err)
+	_, err = hooks.Turn().Run(context.Background(), TurnHookRequest{Messages: []Message{message}})
+	require.NoError(t, err)
+	_, err = hooks.Session().Run(context.Background(), SessionHookRequest{
+		Event: TopicSessionResume,
+		Entry: SessionResumePayload{SessionID: "secret"},
+	})
+	require.NoError(t, err)
+
+	require.Len(t, bus.events, 4)
+	assert.Equal(t, TopicProviderResponse, bus.events[0].Topic)
+	assert.Equal(t, ProviderResponseBusPayload{Provider: "openai"}, bus.events[0].Payload)
+	assert.Equal(t, TopicMessage, bus.events[1].Topic)
+	assert.Equal(t, Message{}, bus.events[1].Payload)
+	assert.Equal(t, TopicTurn, bus.events[2].Topic)
+	assert.Equal(t, TurnHookResult{}, bus.events[2].Payload)
+	assert.Equal(t, TopicSessionResume, bus.events[3].Topic)
+	assert.Nil(t, bus.events[3].Payload)
 }
 
 func TestRuntimeHooksBusObserverHandleUnregisters(t *testing.T) {
@@ -259,9 +353,10 @@ func TestExtensionContextDefaultHooksPublishBusCompatibilityEvents(t *testing.T)
 	_, err := ctx.Hooks().ToolCall().Run(context.Background(), ToolCallRequest{Call: ToolCall{ID: "call-1", Name: "read"}})
 	require.NoError(t, err)
 
-	require.Len(t, bus.events, 2)
+	require.Len(t, bus.events, 3)
 	assert.Equal(t, TopicToolStart, bus.events[0].Topic)
 	assert.Equal(t, ProviderEventToolCall, bus.events[1].Topic)
+	assert.Equal(t, TopicAgentToolCall, bus.events[2].Topic)
 }
 
 func TestRuntimeHooksExposeToolCallDefaults(t *testing.T) {
@@ -312,6 +407,15 @@ type recordingBus struct {
 
 func (b *recordingBus) Publish(e Event) {
 	b.events = append(b.events, e)
+}
+
+func eventsByTopic(events []Event) map[string][]any {
+	result := make(map[string][]any)
+	for _, event := range events {
+		result[event.Topic] = append(result[event.Topic], event.Payload)
+	}
+
+	return result
 }
 
 func (b *recordingBus) On(string, Handler) {}

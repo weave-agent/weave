@@ -8,10 +8,40 @@ import (
 )
 
 const (
+	legacyAgentPayloadArgs    = "args"
+	legacyAgentPayloadContent = "content"
+	legacyAgentPayloadResult  = "result"
+	legacyAgentPayloadTool    = "tool"
+
 	// TopicAgentPrompt publishes user input submitted to the agent loop.
 	//
 	// Deprecated: use Hooks.Input for behavior-changing interception.
 	TopicAgentPrompt = "agent.prompt"
+
+	// TopicAgentMessageStart publishes legacy assistant message start events.
+	//
+	// Deprecated: use Hooks.ProviderRequest for behavior-changing interception.
+	TopicAgentMessageStart = "agent.message_start"
+
+	// TopicAgentMessageUpdate publishes legacy assistant message stream deltas.
+	//
+	// Deprecated: use Hooks.ProviderResponse for behavior-changing interception.
+	TopicAgentMessageUpdate = "agent.message_update"
+
+	// TopicAgentMessageEnd publishes legacy assistant message completion events.
+	//
+	// Deprecated: use Hooks.Message for behavior-changing interception.
+	TopicAgentMessageEnd = "agent.message_end"
+
+	// TopicAgentToolCall publishes legacy tool call events.
+	//
+	// Deprecated: use Hooks.ToolCall for behavior-changing interception.
+	TopicAgentToolCall = "agent.tool_call"
+
+	// TopicAgentToolResult publishes legacy tool result events.
+	//
+	// Deprecated: use Hooks.ToolResult for behavior-changing interception.
+	TopicAgentToolResult = "agent.tool_result"
 
 	// TopicProviderRequest publishes provider requests after typed hook mutation.
 	//
@@ -427,26 +457,30 @@ func (h *RuntimeHooks) AttachBusObservers(bus Bus) HookHandle {
 	}
 
 	handles := hookHandles{
-		h.providerRequest.useTerminal("sdk.bus_compat", NewBusObserverHook(bus, TopicProviderRequest, func(state HookState[ProviderRequestHookRequest, ProviderRequestHookResult]) any {
-			return ProviderRequestBusPayload{Provider: state.Request.Provider, Request: state.Result.Request}
-		})),
-		h.providerResponse.useTerminal("sdk.bus_compat", NewBusObserverHook(bus, TopicProviderResponse, func(state HookState[ProviderResponseHookRequest, ProviderResponseHookResult]) any {
+		h.providerRequest.useTerminal("sdk.bus_compat", func(_ context.Context, state *HookState[ProviderRequestHookRequest, ProviderRequestHookResult]) error {
+			bus.Publish(NewEvent(TopicProviderRequest, ProviderRequestBusPayload{Provider: state.Request.Provider, Request: state.Result.Request}))
+			bus.Publish(NewEvent(TopicAgentMessageStart, nil))
+
+			return nil
+		}),
+		h.providerResponse.useTerminal("sdk.bus_compat", func(_ context.Context, state *HookState[ProviderResponseHookRequest, ProviderResponseHookResult]) error {
 			event := state.Result.Event
-			if event.Type == "" {
-				event = state.Request.Event
+			bus.Publish(NewEvent(TopicProviderResponse, ProviderResponseBusPayload{Provider: state.Request.Provider, Event: event}))
+
+			if event.Type == ProviderEventTextDelta {
+				if delta, ok := event.Content.(string); ok {
+					bus.Publish(NewEvent(TopicAgentMessageUpdate, delta))
+				}
 			}
 
-			return ProviderResponseBusPayload{Provider: state.Request.Provider, Event: event}
-		})),
+			return nil
+		}),
 		h.toolCall.useTerminal("sdk.bus_compat", func(_ context.Context, state *HookState[ToolCallRequest, ToolCallResult]) error {
 			if !state.Result.Continue {
 				return nil
 			}
 
 			call := state.Result.Call
-			if call.Name == "" && call.ID == "" {
-				call = state.Request.Call
-			}
 
 			bus.Publish(NewEvent(TopicToolStart, ToolProgress{ToolCallID: call.ID, ToolName: call.Name}))
 
@@ -458,15 +492,16 @@ func (h *RuntimeHooks) AttachBusObservers(bus Bus) HookHandle {
 			}
 
 			call := state.Result.Call
-			if call.Name == "" && call.ID == "" {
-				call = state.Request.Call
-			}
 
 			bus.Publish(NewEvent(ProviderEventToolCall, call))
+			bus.Publish(NewEvent(TopicAgentToolCall, map[string]any{
+				legacyAgentPayloadTool: call.Name,
+				legacyAgentPayloadArgs: call.Arguments,
+			}))
 
 			return nil
 		}),
-		h.toolResult.useTerminal("sdk.bus_compat", func(ctx context.Context, state *HookState[ToolResultRequest, ToolResultHookResult]) error {
+		h.toolResult.useTerminal("sdk.bus_compat", func(_ context.Context, state *HookState[ToolResultRequest, ToolResultHookResult]) error {
 			result := state.Result.Result
 
 			topic := TopicToolComplete
@@ -474,28 +509,31 @@ func (h *RuntimeHooks) AttachBusObservers(bus Bus) HookHandle {
 				topic = TopicToolError
 			}
 
-			return NewBusObserverHook(bus, topic, func(HookState[ToolResultRequest, ToolResultHookResult]) any {
-				return ToolProgress{
-					ToolCallID: state.Request.Call.ID,
-					ToolName:   state.Request.Call.Name,
-					Content:    result.Content,
-					IsError:    result.IsError,
-				}
-			})(ctx, state)
+			bus.Publish(NewEvent(topic, ToolProgress{
+				ToolCallID: state.Request.Call.ID,
+				ToolName:   state.Request.Call.Name,
+				Content:    result.Content,
+				IsError:    result.IsError,
+			}))
+			bus.Publish(NewEvent(TopicAgentToolResult, map[string]any{
+				legacyAgentPayloadTool:   state.Request.Call.Name,
+				legacyAgentPayloadResult: result,
+			}))
+
+			return nil
 		}),
-		h.message.useTerminal("sdk.bus_compat", NewBusObserverHook(bus, TopicMessage, func(state HookState[MessageHookRequest, MessageHookResult]) any {
-			if state.Result.Message.Role != "" {
-				return state.Result.Message
+		h.message.useTerminal("sdk.bus_compat", func(_ context.Context, state *HookState[MessageHookRequest, MessageHookResult]) error {
+			message := state.Result.Message
+			bus.Publish(NewEvent(TopicMessage, message))
+
+			if message.Role == RoleAssistant {
+				bus.Publish(NewEvent(TopicAgentMessageEnd, map[string]any{legacyAgentPayloadContent: message.Content}))
 			}
 
-			return state.Request.Message
-		})),
+			return nil
+		}),
 		h.turn.useTerminal("sdk.bus_compat", NewBusObserverHook(bus, TopicTurn, func(state HookState[TurnHookRequest, TurnHookResult]) any {
-			if state.Result.Messages != nil {
-				return state.Result
-			}
-
-			return TurnHookResult{Messages: state.Request.Messages}
+			return state.Result
 		})),
 		h.session.useTerminal("sdk.bus_compat", func(_ context.Context, state *HookState[SessionHookRequest, SessionHookResult]) error {
 			topic := state.Request.Event
@@ -504,10 +542,6 @@ func (h *RuntimeHooks) AttachBusObservers(bus Bus) HookHandle {
 			}
 
 			payload := state.Result.Entry
-			if payload == nil {
-				payload = state.Request.Entry
-			}
-
 			bus.Publish(NewEvent(topic, payload))
 
 			return nil

@@ -156,8 +156,8 @@ func (r *RuntimeToolRegistry) List() []RuntimeToolInfo {
 			continue
 		}
 
-		tool, ok := r.Get(name)
-		if !ok {
+		tool, err := r.Get(name)
+		if err != nil {
 			continue
 		}
 
@@ -181,9 +181,9 @@ func (r *RuntimeToolRegistry) List() []RuntimeToolInfo {
 	return infos
 }
 
-func (r *RuntimeToolRegistry) Get(name string) (RuntimeTool, bool) {
+func (r *RuntimeToolRegistry) Get(name string) (RuntimeTool, error) {
 	if !toolAllowed(name) {
-		return RuntimeTool{}, false
+		return RuntimeTool{}, fmt.Errorf("runtime tool %q: %w", name, ErrRuntimeNotFound)
 	}
 
 	r.mu.RLock()
@@ -192,16 +192,20 @@ func (r *RuntimeToolRegistry) Get(name string) (RuntimeTool, bool) {
 	r.mu.RUnlock()
 
 	if disabled {
-		return RuntimeTool{}, false
+		return RuntimeTool{}, fmt.Errorf("runtime tool %q disabled: %w", name, ErrRuntimeNotFound)
 	}
 
 	if ok {
-		return tool, true
+		return tool, nil
+	}
+
+	if !ToolRegistered(name) {
+		return RuntimeTool{}, fmt.Errorf("runtime tool %q: %w", name, ErrRuntimeNotFound)
 	}
 
 	legacy, err := GetTool(name, r.config)
 	if err != nil {
-		return RuntimeTool{}, false
+		return RuntimeTool{}, fmt.Errorf("get static tool %q: %w", name, err)
 	}
 
 	legacy = r.decorate(legacy)
@@ -217,7 +221,7 @@ func (r *RuntimeToolRegistry) Get(name string) (RuntimeTool, bool) {
 
 			return legacy.Execute(ctx, args)
 		},
-	}, true
+	}, nil
 }
 
 func (r *RuntimeToolRegistry) Enable(name string) error {
@@ -382,7 +386,7 @@ func (r *RuntimeProviderRegistry) List() []RuntimeProviderInfo {
 	return infos
 }
 
-func (r *RuntimeProviderRegistry) Get(name string) (Provider, bool) {
+func (r *RuntimeProviderRegistry) Get(name string) (Provider, error) {
 	r.mu.RLock()
 	runtime, ok := r.runtime[name]
 	r.mu.RUnlock()
@@ -393,15 +397,21 @@ func (r *RuntimeProviderRegistry) Get(name string) (Provider, bool) {
 	)
 	if ok {
 		provider, err = runtime.Factory(r.config)
+		if err != nil {
+			return nil, fmt.Errorf("create runtime provider %q: %w", name, err)
+		}
 	} else {
+		if !ProviderRegistered(name) {
+			return nil, fmt.Errorf("runtime provider %q: %w", name, ErrRuntimeNotFound)
+		}
+
 		provider, err = GetProvider(name, r.config)
+		if err != nil {
+			return nil, fmt.Errorf("get static provider %q: %w", name, err)
+		}
 	}
 
-	if err != nil {
-		return nil, false
-	}
-
-	return r.wrapProvider(provider), true
+	return r.wrapProvider(provider), nil
 }
 
 func (r *RuntimeProviderRegistry) UseMiddleware(owner string, middleware ProviderMiddleware) HookHandle {

@@ -145,9 +145,9 @@ func TestWire_RuntimeExtensionsShareRuntimeServices(t *testing.T) {
 	})
 	sdk.RegisterRuntimeExtension("runtime-b", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.RuntimeExtension, error) {
 		return sdk.NewRuntimeExtensionFunc(func(ctx sdk.ExtensionContext) error {
-			tool, ok := ctx.Tools().Get("runtime-shared")
-			if !ok {
-				return errors.New("runtime-shared tool not found")
+			tool, err := ctx.Tools().Get("runtime-shared")
+			if err != nil {
+				return fmt.Errorf("get runtime-shared tool: %w", err)
 			}
 
 			result, err := tool.Run(context.Background(), sdk.ToolRequest{Name: "runtime-shared"})
@@ -167,12 +167,12 @@ func TestWire_RuntimeExtensionsShareRuntimeServices(t *testing.T) {
 	assert.True(t, sawTool)
 	require.NotNil(t, wired.Runtime())
 
-	_, ok := wired.Runtime().Tools().Get("runtime-shared")
-	assert.True(t, ok)
+	_, err = wired.Runtime().Tools().Get("runtime-shared")
+	require.NoError(t, err)
 
 	require.NoError(t, wired.Close())
-	_, ok = wired.Runtime().Tools().Get("runtime-shared")
-	assert.False(t, ok)
+	_, err = wired.Runtime().Tools().Get("runtime-shared")
+	require.ErrorIs(t, err, sdk.ErrRuntimeNotFound)
 }
 
 func TestWire_RuntimeExtensionSubscribeErrorClosesPartialRegistration(t *testing.T) {
@@ -221,8 +221,8 @@ func TestWire_RuntimeExtensionSubscribeErrorClosesPartialRegistration(t *testing
 	assert.Nil(t, wired)
 	assert.True(t, closed)
 
-	_, ok := runtime.Tools().Get("runtime-partial")
-	assert.False(t, ok)
+	_, err = runtime.Tools().Get("runtime-partial")
+	require.ErrorIs(t, err, sdk.ErrRuntimeNotFound)
 }
 
 func TestWire_SkipsUIExtension(t *testing.T) {
@@ -1299,10 +1299,16 @@ func TestWireWithCore_ResumeRunsRuntimeSessionHook(t *testing.T) {
 		return store, nil
 	})
 
-	var sawHook atomic.Bool
+	var (
+		sawHook              atomic.Bool
+		initialVisibleBefore atomic.Bool
+	)
 
 	sdk.RegisterRuntimeExtension("session-hook", func(_ sdk.Config, _ sdk.PreferenceReader, _ struct{}) (sdk.RuntimeExtension, error) {
 		return sdk.NewRuntimeExtensionFunc(func(ctx sdk.ExtensionContext) error {
+			_, initialVisible := sdk.GetInitialSession()
+			initialVisibleBefore.Store(initialVisible)
+
 			ctx.Hooks().Session().Use("test", func(_ context.Context, state *sdk.HookState[sdk.SessionHookRequest, sdk.SessionHookResult]) error {
 				if state.Request.Event != topicSessionResume {
 					return nil
@@ -1336,6 +1342,7 @@ func TestWireWithCore_ResumeRunsRuntimeSessionHook(t *testing.T) {
 	wired, err := WireWithCore(CoreWireConfig{AgentLoop: "agent", Continue: true}, []string{"jsonl", "session-hook"}, bus, nil)
 	require.NoError(t, err)
 	require.NotNil(t, wired)
+	assert.False(t, initialVisibleBefore.Load())
 	assert.True(t, sawHook.Load())
 	require.Equal(t, topicSessionResume, publishedEvent.Topic)
 

@@ -26,23 +26,23 @@ func TestRuntimeToolRegistry_RegisterGetDisableEnableAndUnregister(t *testing.T)
 	})
 	require.NoError(t, err)
 
-	tool, ok := reg.Get("runtime")
-	require.True(t, ok)
+	tool, err := reg.Get("runtime")
+	require.NoError(t, err)
 
 	result, err := tool.Run(context.Background(), ToolRequest{Arguments: map[string]any{"value": "ok"}})
 	require.NoError(t, err)
 	assert.Equal(t, "ok", result.Content)
 
 	require.NoError(t, reg.Disable("runtime"))
-	_, ok = reg.Get("runtime")
-	assert.False(t, ok)
+	_, err = reg.Get("runtime")
+	require.ErrorIs(t, err, ErrRuntimeNotFound)
 	assert.Equal(t, []RuntimeToolInfo{{Name: "runtime", Definition: ToolDef{Name: "runtime", Description: "runtime tool"}, Enabled: false}}, reg.List())
 
 	require.NoError(t, reg.Enable("runtime"))
 	assert.Equal(t, []RuntimeToolInfo{{Name: "runtime", Definition: ToolDef{Name: "runtime", Description: "runtime tool"}, Enabled: true}}, reg.List())
 
-	tool, ok = reg.Get("runtime")
-	require.True(t, ok)
+	tool, err = reg.Get("runtime")
+	require.NoError(t, err)
 
 	result, err = tool.Run(context.Background(), ToolRequest{Arguments: map[string]any{"value": "again"}})
 	require.NoError(t, err)
@@ -50,8 +50,8 @@ func TestRuntimeToolRegistry_RegisterGetDisableEnableAndUnregister(t *testing.T)
 
 	require.NoError(t, handle.Close())
 
-	_, ok = reg.Get("runtime")
-	assert.False(t, ok)
+	_, err = reg.Get("runtime")
+	require.ErrorIs(t, err, ErrRuntimeNotFound)
 	require.ErrorIs(t, reg.Unregister("runtime"), ErrRuntimeNotFound)
 }
 
@@ -69,8 +69,8 @@ func TestRuntimeToolRegistry_RegisterDisabledTool(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, ok := reg.Get("disabled-runtime")
-	assert.False(t, ok)
+	_, err = reg.Get("disabled-runtime")
+	require.ErrorIs(t, err, ErrRuntimeNotFound)
 	assert.Equal(t, []RuntimeToolInfo{{
 		Name:       "disabled-runtime",
 		Definition: ToolDef{Name: "disabled-runtime", Description: "disabled runtime tool"},
@@ -78,8 +78,8 @@ func TestRuntimeToolRegistry_RegisterDisabledTool(t *testing.T) {
 	}}, reg.List())
 
 	require.NoError(t, reg.Enable("disabled-runtime"))
-	tool, ok := reg.Get("disabled-runtime")
-	require.True(t, ok)
+	tool, err := reg.Get("disabled-runtime")
+	require.NoError(t, err)
 
 	result, err := tool.Run(context.Background(), ToolRequest{})
 	require.NoError(t, err)
@@ -110,6 +110,21 @@ func TestRuntimeToolRegistry_DuplicateNames(t *testing.T) {
 	require.ErrorIs(t, err, ErrRuntimeDuplicateName)
 }
 
+func TestRuntimeToolRegistry_GetPropagatesStaticFactoryError(t *testing.T) {
+	ResetToolRegistry()
+
+	expectedErr := errors.New("tool config failed")
+
+	RegisterTool[struct{}]("broken", func(Config, PreferenceReader, struct{}) (Tool, error) {
+		return nil, expectedErr
+	})
+
+	reg := NewRuntimeToolRegistry(nil)
+	_, err := reg.Get("broken")
+	require.ErrorIs(t, err, expectedErr)
+	require.ErrorContains(t, err, "get static tool")
+}
+
 func TestRuntimeToolRegistry_StaticCompatibilityFilterAndDecorator(t *testing.T) {
 	ResetToolRegistry()
 
@@ -137,11 +152,11 @@ func TestRuntimeToolRegistry_StaticCompatibilityFilterAndDecorator(t *testing.T)
 	defer SetToolFilter(nil)
 
 	assert.Equal(t, []RuntimeToolInfo{{Name: "read", Definition: ToolDef{Name: "read", Description: "read files"}, Enabled: true}}, reg.List())
-	_, ok := reg.Get("write")
-	assert.False(t, ok)
+	_, err := reg.Get("write")
+	require.ErrorIs(t, err, ErrRuntimeNotFound)
 
-	tool, ok := reg.Get("read")
-	require.True(t, ok)
+	tool, err := reg.Get("read")
+	require.NoError(t, err)
 
 	result, err := tool.Run(context.Background(), ToolRequest{Arguments: map[string]any{"path": "file.txt"}})
 	require.NoError(t, err)
@@ -149,8 +164,8 @@ func TestRuntimeToolRegistry_StaticCompatibilityFilterAndDecorator(t *testing.T)
 
 	require.NoError(t, handle.Close())
 
-	tool, ok = reg.Get("read")
-	require.True(t, ok)
+	tool, err = reg.Get("read")
+	require.NoError(t, err)
 
 	result, err = tool.Run(context.Background(), ToolRequest{Call: ToolCall{Arguments: map[string]any{"path": "call.txt"}}})
 	require.NoError(t, err)
@@ -201,8 +216,8 @@ func TestRuntimeProviderRegistry_StaticCompatibilityAndMiddleware(t *testing.T) 
 		},
 	})
 
-	provider, ok := reg.Get("static")
-	require.True(t, ok)
+	provider, err := reg.Get("static")
+	require.NoError(t, err)
 
 	events, err := provider.Stream(context.Background(), ProviderRequest{SystemPrompt: "system"})
 	require.NoError(t, err)
@@ -220,8 +235,8 @@ func TestRuntimeProviderRegistry_StaticCompatibilityAndMiddleware(t *testing.T) 
 
 	observed = nil
 
-	provider, ok = reg.Get("static")
-	require.True(t, ok)
+	provider, err = reg.Get("static")
+	require.NoError(t, err)
 
 	events, err = provider.Stream(context.Background(), ProviderRequest{SystemPrompt: "system"})
 	require.NoError(t, err)
@@ -259,8 +274,8 @@ func TestRuntimeProviderRegistry_MiddlewarePreservesTokenCounter(t *testing.T) {
 		},
 	})
 
-	provider, ok := reg.Get("runtime")
-	require.True(t, ok)
+	provider, err := reg.Get("runtime")
+	require.NoError(t, err)
 
 	counter, ok := provider.(TokenCounter)
 	require.True(t, ok)
@@ -300,8 +315,8 @@ func TestRuntimeProviderRegistry_RegisterDuplicateUnregisterAndMiddlewareErrors(
 		},
 	})
 
-	provider, ok := reg.Get("runtime")
-	require.True(t, ok)
+	provider, err := reg.Get("runtime")
+	require.NoError(t, err)
 
 	events, err := provider.Stream(context.Background(), ProviderRequest{SystemPrompt: "system"})
 	require.NoError(t, err)
@@ -315,9 +330,37 @@ func TestRuntimeProviderRegistry_RegisterDuplicateUnregisterAndMiddlewareErrors(
 
 	require.NoError(t, handle.Close())
 
-	_, ok = reg.Get("runtime")
-	assert.False(t, ok)
+	_, err = reg.Get("runtime")
+	require.ErrorIs(t, err, ErrRuntimeNotFound)
 	require.ErrorIs(t, reg.Unregister("runtime"), ErrRuntimeNotFound)
+}
+
+func TestRuntimeProviderRegistry_GetPropagatesFactoryErrors(t *testing.T) {
+	ResetProviderRegistry()
+
+	staticErr := errors.New("static provider config failed")
+	runtimeErr := errors.New("runtime provider config failed")
+
+	RegisterProvider[struct{}, struct{}]("static-broken", func(Config, struct{}, struct{}) (Provider, error) {
+		return nil, staticErr
+	})
+
+	reg := NewRuntimeProviderRegistry(nil)
+	_, err := reg.Register(RuntimeProvider{
+		Name: "runtime-broken",
+		Factory: func(Config) (Provider, error) {
+			return nil, runtimeErr
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = reg.Get("static-broken")
+	require.ErrorIs(t, err, staticErr)
+	require.ErrorContains(t, err, "get static provider")
+
+	_, err = reg.Get("runtime-broken")
+	require.ErrorIs(t, err, runtimeErr)
+	require.ErrorContains(t, err, "create runtime provider")
 }
 
 func TestRuntimeProviderRegistry_MiddlewareErrorCancelsProviderStream(t *testing.T) {
@@ -339,8 +382,8 @@ func TestRuntimeProviderRegistry_MiddlewareErrorCancelsProviderStream(t *testing
 		},
 	})
 
-	provider, ok := reg.Get("runtime")
-	require.True(t, ok)
+	provider, err := reg.Get("runtime")
+	require.NoError(t, err)
 
 	events, err := provider.Stream(context.Background(), ProviderRequest{SystemPrompt: "system"})
 	require.NoError(t, err)
@@ -380,8 +423,8 @@ func TestRuntimeProviderRegistry_BeforeMiddlewareErrorSkipsProvider(t *testing.T
 		},
 	})
 
-	provider, ok := reg.Get("runtime")
-	require.True(t, ok)
+	provider, err := reg.Get("runtime")
+	require.NoError(t, err)
 
 	events, err := provider.Stream(context.Background(), ProviderRequest{SystemPrompt: "system"})
 	require.ErrorIs(t, err, expectedErr)
@@ -407,8 +450,8 @@ func TestRuntimeProviderRegistry_AfterMiddlewareErrorStopsStream(t *testing.T) {
 		},
 	})
 
-	provider, ok := reg.Get("runtime")
-	require.True(t, ok)
+	provider, err := reg.Get("runtime")
+	require.NoError(t, err)
 
 	events, err := provider.Stream(context.Background(), ProviderRequest{SystemPrompt: "system"})
 	require.NoError(t, err)
@@ -435,13 +478,13 @@ func TestRuntimeProviderRegistry_UnderlyingStreamErrorIsWrapped(t *testing.T) {
 
 	reg.UseMiddleware("noop", ProviderMiddlewareFuncs{})
 
-	provider, ok := reg.Get("runtime")
-	require.True(t, ok)
+	provider, err := reg.Get("runtime")
+	require.NoError(t, err)
 
 	events, err := provider.Stream(context.Background(), ProviderRequest{SystemPrompt: "system"})
 	require.ErrorIs(t, err, expectedErr)
 	assert.Nil(t, events)
-	assert.ErrorContains(t, err, "provider stream")
+	require.ErrorContains(t, err, "provider stream")
 }
 
 type streamProvider struct {
